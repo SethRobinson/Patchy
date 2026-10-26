@@ -13131,24 +13131,8 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation> s</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>Wybrane warstwy:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>Ustaw czas</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>Zmienia nazwy wybranych warstw, dodając na końcu czas klatki, np. „blink 0.25s”.</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Usuń</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>Usuwa czas klatki dopisany na końcu nazw wybranych warstw.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13163,12 +13147,80 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Zatrzymaj</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Odtwarza widoczne warstwy najwyższego poziomu jako klatki, od góry, tak jak eksport animowanego GIF i WebP. Czas na końcu nazwy warstwy, np. &quot;blink 0.25s&quot;, określa czas wyświetlania klatki.</translation>
+        <source>Playback</source>
+        <translation>Odtwarzanie</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>Domyślny czas klatki:</translation>
+        <source>Frame delay:</source>
+        <translation>Czas klatki:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Jak długo wyświetla się każda klatka, gdy nazwa jej warstwy nie zawiera czasu. Eksport animowanego GIF, WebP i PNG używa tej samej wartości domyślnej.</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 s</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Własny</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>Typowe czasy klatek. Własny to każda inna wartość wpisana w polu.</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>Ignoruj czasy w nazwach warstw</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>Wyświetla każdą klatkę przez powyższy czas i pomija czasy takie jak &quot;0.25s&quot; na końcu nazw warstw. Tylko podgląd: eksport nadal używa czasów z nazw.</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>Odtwarzaj ukryte warstwy</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>Dołącza ukryte warstwy najwyższego poziomu jako klatki. Tylko podgląd: eksport nadal używa widocznych warstw.</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>Czas klatki w nazwach warstw</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>Czas, który Ustaw czas dopisuje na końcu nazw warstw.</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>Zmienia nazwy wybranych warstw, lub wszystkich warstw najwyższego poziomu przy Zastosuj do wszystkich warstw, tak aby kończyły się tym czasem klatki, np. &quot;blink 0.25s&quot;.</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>Usuń czas</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>Usuwa czas klatki z końca nazw wybranych warstw, lub wszystkich warstw najwyższego poziomu przy Zastosuj do wszystkich warstw.</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>Zastosuj do wszystkich warstw</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>Ustaw czas i Usuń czas zmieniają wszystkie warstwy najwyższego poziomu zamiast tylko wybranych.</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Klatki to warstwy najwyższego poziomu, od góry, tak jak zapisuje je eksport animowanego GIF, WebP i PNG. Czas na końcu nazwy warstwy, np. &quot;blink 0.25s&quot;, określa czas wyświetlania klatki.</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Brak warstw</translation>
     </message>
 </context>
 <context>
@@ -26090,6 +26142,18 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Vector Mask</source>
         <translation>Maska wektorowa</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Brak warstw</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>Nazwy wszystkich warstw już kończą się tym czasem</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>Żadna warstwa nie ma czasu klatki</translation>
     </message>
     <message>
         <source>A:</source>

@@ -13131,24 +13131,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation> с</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>Выбранные слои:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>Установить время</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>Добавляет время кадра в конец имён выбранных слоёв, например «blink 0.25s».</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Удалить</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>Удаляет время кадра из конца имён выбранных слоёв.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13163,12 +13147,80 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Остановить</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Воспроизводит видимые слои верхнего уровня как кадры, сверху вниз, как при экспорте анимированных GIF и WebP. Время в конце имени слоя, например &quot;blink 0.25s&quot;, задаёт длительность кадра.</translation>
+        <source>Playback</source>
+        <translation>Воспроизведение</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>Длительность кадра по умолчанию:</translation>
+        <source>Frame delay:</source>
+        <translation>Длительность кадра:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Сколько показывается каждый кадр, если в имени его слоя нет времени. Экспорт анимированных GIF, WebP и PNG использует то же значение по умолчанию.</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 с</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Своё значение</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>Распространённые длительности кадра. Своё значение означает любое другое число, введённое в поле.</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>Игнорировать время в именах слоёв</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>Показывает каждый кадр с длительностью, заданной выше, и пропускает время вида &quot;0.25s&quot; в конце имён слоёв. Только просмотр: экспорт по-прежнему использует время из имён.</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>Воспроизводить скрытые слои</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>Включает скрытые слои верхнего уровня в кадры. Только просмотр: экспорт по-прежнему использует видимые слои.</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>Время кадра в именах слоёв</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>Время, которое кнопка «Установить время» дописывает в конец имён слоёв.</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>Переименовывает выбранные слои, а с флажком «Применить ко всем слоям» все слои верхнего уровня, так чтобы имя заканчивалось этим временем кадра, например &quot;blink 0.25s&quot;.</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>Удалить время</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>Удаляет время кадра из конца имён выбранных слоёв, а с флажком «Применить ко всем слоям» всех слоёв верхнего уровня.</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>Применить ко всем слоям</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>«Установить время» и «Удалить время» меняют все слои верхнего уровня, а не только выбранные.</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Кадры это слои верхнего уровня, сверху вниз, как их записывает экспорт анимированных GIF, WebP и PNG. Время в конце имени слоя, например &quot;blink 0.25s&quot;, задаёт длительность кадра.</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Нет слоёв</translation>
     </message>
 </context>
 <context>
@@ -26090,6 +26142,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Vector Mask</source>
         <translation>Векторная маска</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Нет слоёв</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>Все слои уже заканчиваются на это время</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>Ни у одного слоя нет времени кадра</translation>
     </message>
     <message>
         <source>A:</source>

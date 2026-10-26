@@ -4504,7 +4504,9 @@ void MainWindow::toggle_animation_preview_window() {
             sync_layer_row_visibility_indicators();
           }
         },
-        [this](std::optional<std::uint32_t> delay_ms) { set_selected_layers_frame_time(delay_ms); },
+        [this](std::optional<std::uint32_t> delay_ms, bool all_layers) {
+          set_selected_layers_frame_time(delay_ms, all_layers);
+        },
         this);
     window->setAttribute(Qt::WA_DeleteOnClose);
     animation_preview_window_ = window;

@@ -1136,6 +1136,161 @@ void ui_free_transform_options_bar_follows_distortion() {
   QApplication::processEvents();
 }
 
+// The Move tool's box with Transform Controls on (GitHub issue 351): Ctrl on a
+// handle takes Free Transform's Ctrl gestures, starting the session the grab opens.
+void prepare_move_box_scene(patchy::ui::MainWindow& window, QRect bounds) {
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+}
+
+// The four corners still form the axis-aligned box from `top_left`.
+bool quad_is_upright_box_from(const std::array<QPointF, 4>& quad, QPointF top_left) {
+  return point_near(quad[0], top_left) && std::abs(quad[1].y() - quad[0].y()) <= 0.51 &&
+         std::abs(quad[3].x() - quad[0].x()) <= 0.51 && std::abs(quad[2].x() - quad[1].x()) <= 0.51 &&
+         std::abs(quad[2].y() - quad[3].y()) <= 0.51;
+}
+
+// Ctrl+drag a Move-box corner moves that corner alone, as one session step; the
+// cursor over the corner shows the distort gesture while Ctrl is held, and Ctrl
+// inside the box still selects layers instead of opening a session.
+void ui_move_box_ctrl_drag_corner_distorts() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_move_box_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+
+  drag(*canvas, widget_at(*canvas, 180, 125), widget_at(*canvas, 182, 126), Qt::ControlModifier);
+  CHECK(!canvas->free_transform_active());
+
+  send_mouse(*canvas, QEvent::MouseMove, widget_at(*canvas, 260, 180), Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+  send_key_press(*canvas, Qt::Key_Control);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+
+  drag(*canvas, widget_at(*canvas, 260, 180), widget_at(*canvas, 300, 210), Qt::ControlModifier);
+  CHECK(canvas->free_transform_active());
+  auto quad = canvas->free_transform_quad();
+  CHECK(point_near(quad[0], QPointF(100, 70)));
+  CHECK(point_near(quad[1], QPointF(260, 70)));
+  CHECK(point_near(quad[2], QPointF(300, 210)));
+  CHECK(point_near(quad[3], QPointF(100, 180)));
+  save_image_artifact("ui_move_box_ctrl_distort", canvas_crop(*canvas, QRect(60, 40, 280, 200)));
+
+  // One drag, one step: Undo goes back to the plain box with the session open.
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(quad_is_upright_box_from(canvas->free_transform_quad(), QPointF(100, 70)));
+  CHECK(point_near(canvas->free_transform_quad()[2], QPointF(260, 180)));
+
+  drag(*canvas, widget_at(*canvas, 260, 180), widget_at(*canvas, 300, 210), Qt::ControlModifier);
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(rect_near(canvas->active_layer_document_rect(), QRect(100, 70, 200, 140)));
+  CHECK(is_box(*canvas, 285, 195));  // clear of the passive box's corner handle
+  CHECK(is_white(*canvas, 120, 195));
+  CHECK(is_box(*canvas, 257, 72));
+}
+
+// Ctrl+drag a Move-box side moves the side (both its corners), Ctrl+Shift slides
+// it along itself (a skew), as in a Free Transform session.
+void ui_move_box_ctrl_drag_side_distorts_and_skews() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_move_box_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+
+  send_mouse(*canvas, QEvent::MouseMove, widget_at(*canvas, 260, 125), Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::SizeHorCursor);
+  send_key_press(*canvas, Qt::Key_Control);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  QApplication::processEvents();
+
+  drag(*canvas, widget_at(*canvas, 260, 125), widget_at(*canvas, 290, 145), Qt::ControlModifier);
+  CHECK(canvas->free_transform_active());
+  auto quad = canvas->free_transform_quad();
+  CHECK(point_near(quad[0], QPointF(100, 70)));
+  CHECK(point_near(quad[1], QPointF(290, 90)));
+  CHECK(point_near(quad[2], QPointF(290, 200)));
+  CHECK(point_near(quad[3], QPointF(100, 180)));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  drag(*canvas, widget_at(*canvas, 260, 125), widget_at(*canvas, 290, 145), Qt::ControlModifier | Qt::ShiftModifier);
+  CHECK(canvas->free_transform_active());
+  quad = canvas->free_transform_quad();
+  CHECK(point_near(quad[1], QPointF(260, 90)));
+  CHECK(point_near(quad[2], QPointF(260, 200)));
+  CHECK(point_near(quad[0], QPointF(100, 70)));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
+// Ctrl pressed or released during a Move-box corner drag switches between distort
+// and the plain resize from the same press, with no new press (the reporter's
+// video), and the whole drag stays one session step.
+void ui_move_box_ctrl_toggles_distort_mid_drag() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_move_box_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_at(*canvas, 260, 180), Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseMove, widget_at(*canvas, 300, 210), Qt::NoButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  CHECK(canvas->free_transform_active());
+  auto quad = canvas->free_transform_quad();
+  CHECK(point_near(quad[1], QPointF(260, 70)));
+  CHECK(point_near(quad[2], QPointF(300, 210)));
+
+  // Ctrl up with the pointer still: the box is a plain resize from the press.
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  quad = canvas->free_transform_quad();
+  CHECK(quad_is_upright_box_from(quad, QPointF(100, 70)));
+  CHECK(quad[2].x() > 280.0 && quad[2].y() > 190.0);
+  send_mouse(*canvas, QEvent::MouseMove, widget_at(*canvas, 320, 220), Qt::NoButton, Qt::LeftButton);
+  quad = canvas->free_transform_quad();
+  CHECK(quad_is_upright_box_from(quad, QPointF(100, 70)));
+  CHECK(quad[2].x() > 300.0);
+
+  // Ctrl down again: back to moving that corner alone.
+  send_key_press(*canvas, Qt::Key_Control);
+  quad = canvas->free_transform_quad();
+  CHECK(point_near(quad[0], QPointF(100, 70)));
+  CHECK(point_near(quad[1], QPointF(260, 70)));
+  CHECK(point_near(quad[2], QPointF(320, 220)));
+  CHECK(point_near(quad[3], QPointF(100, 180)));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_at(*canvas, 320, 220), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(point_near(canvas->free_transform_quad()[2], QPointF(320, 220)));
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  quad = canvas->free_transform_quad();
+  CHECK(quad_is_upright_box_from(quad, QPointF(100, 70)));
+  CHECK(point_near(quad[2], QPointF(260, 180)));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == bounds);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> free_transform_distort_tests() {
@@ -1162,5 +1317,8 @@ std::vector<patchy::test::TestCase> free_transform_distort_tests() {
       {"ui_free_transform_modifier_keys_show_gesture_cursor", ui_free_transform_modifier_keys_show_gesture_cursor},
       {"ui_free_transform_ctrl_alt_drag_is_symmetric", ui_free_transform_ctrl_alt_drag_is_symmetric},
       {"ui_script_layer_transform_refuses_folded_quad", ui_script_layer_transform_refuses_folded_quad},
+      {"ui_move_box_ctrl_drag_corner_distorts", ui_move_box_ctrl_drag_corner_distorts},
+      {"ui_move_box_ctrl_drag_side_distorts_and_skews", ui_move_box_ctrl_drag_side_distorts_and_skews},
+      {"ui_move_box_ctrl_toggles_distort_mid_drag", ui_move_box_ctrl_toggles_distort_mid_drag},
   };
 }

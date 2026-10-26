@@ -73,12 +73,15 @@
 #include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHash>
 #include <QIcon>
+#include <QImage>
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMargins>
 #include <QMouseEvent>
 #include <QLatin1String>
 #include <QMenu>
@@ -146,6 +149,13 @@ public:
     return QSize(std::max(58, text_width + 34), 24);
   }
 
+  // The glyph's left edge and the text's last inked column (options_bar_ink_insets).
+  [[nodiscard]] QMargins ink_insets() const {
+    const QRect ink = fontMetrics().tightBoundingRect(text());
+    // The box's antialiased 1 px outline reaches half a pixel left of kGlyphLeft.
+    return QMargins(kGlyphLeft - 1, 0, std::max(0, width() - 1 - (kTextLeft + ink.right())), 0);
+  }
+
 protected:
   void paintEvent(QPaintEvent* event) override {
     Q_UNUSED(event);
@@ -157,7 +167,7 @@ protected:
     // frame behind it: Auto-Select and Anti-alias once did and read as buttons
     // beside their plain neighbours (GitHub issue 167).
     const auto& colors = theme();
-    const QRect box(7, (height() - 14) / 2, 14, 14);
+    const QRect box(kGlyphLeft, (height() - 14) / 2, 14, 14);
     painter.setBrush(isChecked() ? colors.accent : colors.checkbox_compact_bg);
     painter.setPen(
         QPen(isChecked() ? colors.checkbox_accent_border : colors.checkbox_compact_border, 1));
@@ -169,8 +179,7 @@ protected:
     }
 
     painter.setPen(isEnabled() ? colors.text_bright : colors.text_disabled);
-    painter.drawText(QRect(box.right() + 7, 0, width() - box.right() - 10, height()), Qt::AlignVCenter | Qt::AlignLeft,
-                     text());
+    painter.drawText(QRect(kTextLeft, 0, width() - kTextLeft - 3, height()), Qt::AlignVCenter | Qt::AlignLeft, text());
 
     // Keyboard focus only: the bar's focus outline around the glyph and its text (GitHub
     // issue 440). A click focuses without it, so the box never reads as a framed button.
@@ -181,7 +190,92 @@ protected:
       painter.drawRect(rect().adjusted(0, 0, -1, -1));
     }
   }
+
+private:
+  static constexpr int kGlyphLeft = 7;
+  static constexpr int kTextLeft = kGlyphLeft + 14 + 6;  // box.right() + 7
 };
+
+// The columns inside the icon's pixmap that hold any ink, cached per icon and size.
+std::pair<int, int> icon_ink_columns(const QIcon& icon, const QSize& size) {
+  static QHash<QString, std::pair<int, int>> cache;
+  const QString key = QString::number(icon.cacheKey()) + QLatin1Char('/') + QString::number(size.width()) +
+                      QLatin1Char('x') + QString::number(size.height());
+  if (const auto found = cache.constFind(key); found != cache.constEnd()) {
+    return *found;
+  }
+  const QImage image = icon.pixmap(size, 1.0).toImage().convertToFormat(QImage::Format_ARGB32);
+  int first = -1;
+  int last = -1;
+  for (int x = 0; x < image.width(); ++x) {
+    for (int y = 0; y < image.height(); ++y) {
+      if (qAlpha(image.pixel(x, y)) > 16) {
+        first = first < 0 ? x : first;
+        last = x;
+        break;
+      }
+    }
+  }
+  const auto columns = first < 0 ? std::make_pair(0, size.width() - 1) : std::make_pair(first, last);
+  cache.insert(key, columns);
+  return columns;
+}
+
+// How far a bar control's visible ink sits inside its box on the left and right, so each
+// separator's line can sit halfway between the ink on either side (GitHub issue 181
+// follow-up; FlowLayout::set_ink_insets). Fields, push buttons, swatches and
+// pickers draw their frame at the box edge: zero.
+QMargins options_bar_ink_insets(const QWidget& widget) {
+  if (const auto* check = dynamic_cast<const CheckGlyphBox*>(&widget)) {
+    return check->ink_insets();
+  }
+  const auto text_insets = [&widget](const QString& text, int text_x) {
+    const QRect ink = widget.fontMetrics().tightBoundingRect(text);
+    if (text.trimmed().isEmpty() || ink.isEmpty()) {
+      return QMargins();
+    }
+    return QMargins(std::max(0, text_x + ink.left()), 0, std::max(0, widget.width() - 1 - (text_x + ink.right())), 0);
+  };
+  if (const auto* label = qobject_cast<const QLabel*>(&widget)) {
+    if (label->textFormat() == Qt::RichText || label->text().isEmpty()) {
+      return {};
+    }
+    const QRect contents = label->contentsRect().adjusted(label->margin(), 0, -label->margin(), 0);
+    const int advance = label->fontMetrics().horizontalAdvance(label->text());
+    // QLabel's own indent (QLabelPrivate::documentRect): half an 'x' once it has a frame.
+    int indent = label->indent();
+    if (indent < 0 && label->frameWidth() > 0) {
+      indent = label->fontMetrics().horizontalAdvance(QLatin1Char('x')) / 2 - label->margin();
+    }
+    // No horizontal flag reads as left (QStyle::visualAlignment), the bar's labels included.
+    const auto align = label->alignment();
+    int text_x = contents.left() + std::max(0, indent);
+    if ((align & Qt::AlignHCenter) != 0) {
+      text_x = contents.left() + (contents.width() - advance) / 2;
+    } else if ((align & Qt::AlignRight) != 0) {
+      text_x = contents.right() + 1 - std::max(0, indent) - advance;
+    }
+    return text_insets(label->text(), text_x);
+  }
+  // A plain tool button shows a transparent frame until it is hovered or checked, so its
+  // icon or text is the ink. Subclasses (the tip and preset pickers) and swatches are framed.
+  const auto* button = qobject_cast<const QToolButton*>(&widget);
+  if (button == nullptr || button->metaObject() != &QToolButton::staticMetaObject ||
+      button->property("optionsBarSwatch").toBool()) {
+    return {};
+  }
+  if (button->toolButtonStyle() == Qt::ToolButtonIconOnly && !button->icon().isNull()) {
+    const QSize shown = button->icon().actualSize(button->iconSize());
+    const int icon_x = (button->width() - shown.width()) / 2;
+    const auto [first, last] = icon_ink_columns(button->icon(), shown);
+    return QMargins(icon_x + first, 0, std::max(0, button->width() - 1 - (icon_x + last)), 0);
+  }
+  if (button->toolButtonStyle() == Qt::ToolButtonTextOnly || button->icon().isNull()) {
+    const QString text = button->text();
+    return text_insets(text, (button->width() - button->fontMetrics().horizontalAdvance(text)) / 2);
+  }
+  return {};
+}
 
 // Photoshop's Useful Mixer Brush Combinations as Wet/Load/Mix triples,
 // VERIFIED against Photoshop 2026 on 2026-08-14 by selecting each preset in
@@ -720,12 +814,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   transform_option_actions_.clear();
   warp_option_actions_.clear();
   transform_session_actions_.clear();
+  // Separator lines sit halfway between the ink on either side (GitHub issue 181 follow-up).
+  options_flow->set_ink_insets(options_bar_ink_insets);
   const auto make_option_separator = [options_content, options_flow]() -> QWidget* {
-    auto* line = new QFrame(options_content);
-    line->setObjectName(QStringLiteral("optionSeparator"));
-    line->setFrameShape(QFrame::VLine);
-    line->setFrameShadow(QFrame::Plain);
-    line->setFixedHeight(24);
+    auto* line = new OptionsBarSeparator(options_content);
     options_flow->addWidget(line);
     return line;
   };

@@ -13073,32 +13073,84 @@ Each item&apos;s own View setting still applies.</source>
         <translation>フレーム %1/%2</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>選択中のレイヤー:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>時間を設定</translation>
     </message>
     <message>
-        <source>Remove</source>
-        <translation>削除</translation>
+        <source>Playback</source>
+        <translation>再生</translation>
     </message>
     <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>選択したレイヤーの名前を「blink 0.25s」のようにこのフレーム時間で終わるよう変更します。</translation>
+        <source>Frame delay:</source>
+        <translation>フレーム表示時間:</translation>
     </message>
     <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>選択したレイヤー名の末尾のフレーム時間を取り除きます。</translation>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>レイヤー名に時間がないフレームの表示時間です。アニメーション GIF、WebP、PNG の書き出しも同じ既定値を使います。</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>アニメーションGIFやWebPの書き出しと同様に、表示されている最上位レイヤーを上から順にフレームとして再生します。「blink 0.25s」のようにレイヤー名の末尾に時間を指定すると、そのフレームの表示時間になります。</translation>
+        <source>%1 s</source>
+        <translation>%1 秒</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>既定のフレーム表示時間:</translation>
+        <source>Custom</source>
+        <translation>カスタム</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>よく使うフレーム表示時間です。カスタムはボックスに入力したそれ以外の値です。</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>レイヤー名の時間を無視</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>すべてのフレームを上の表示時間で再生し、レイヤー名の末尾の「0.25s」のような時間を使いません。プレビューのみ: 書き出しでは引き続き名前の時間を使います。</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>非表示レイヤーも再生</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>非表示の最上位レイヤーもフレームに含めます。プレビューのみ: 書き出しでは引き続き表示中のレイヤーを使います。</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>レイヤー名のフレーム時間</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>「時間を設定」がレイヤー名の末尾に書き込む時間です。</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>選択したレイヤー（「すべてのレイヤーに適用」がオンのときはすべての最上位レイヤー）の名前を、「blink 0.25s」のようにこのフレーム時間で終わるように変更します。</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>時間を削除</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>選択したレイヤー（「すべてのレイヤーに適用」がオンのときはすべての最上位レイヤー）の名前の末尾からフレーム時間を取り除きます。</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>すべてのレイヤーに適用</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>「時間を設定」と「時間を削除」を、選択したレイヤーだけでなくすべての最上位レイヤーに適用します。</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>アニメーション GIF、WebP、PNG の書き出しと同じく、最上位レイヤーが上から順にフレームになります。「blink 0.25s」のようにレイヤー名の末尾に時間を指定すると、そのフレームの表示時間になります。</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>レイヤーがありません</translation>
     </message>
 </context>
 <context>
@@ -25944,6 +25996,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Vector Mask</source>
         <translation>ベクトルマスク</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>レイヤーがありません</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>すべてのレイヤー名は既にその時間で終わっています</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>フレーム時間のあるレイヤーはありません</translation>
     </message>
     <message>
         <source>A:</source>

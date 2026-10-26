@@ -13096,24 +13096,8 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation> s</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>Livelli selezionati:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>Imposta tempo</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>Rinomina i livelli selezionati in modo che terminino con questo tempo del fotogramma, ad esempio &quot;blink 0.25s&quot;.</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Rimuovi</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>Rimuove il tempo del fotogramma aggiunto alla fine dei nomi dei livelli selezionati.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13128,12 +13112,80 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Interrompi</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Riproduce i livelli visibili di primo livello come fotogrammi, dall’alto verso il basso, come nell’esportazione GIF e WebP animati. Un tempo alla fine del nome, come &quot;blink 0.25s&quot;, imposta la durata del fotogramma.</translation>
+        <source>Playback</source>
+        <translation>Riproduzione</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>Durata predefinita del fotogramma:</translation>
+        <source>Frame delay:</source>
+        <translation>Durata fotogramma:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Quanto resta visibile ogni fotogramma quando il nome del suo livello non indica un tempo. L&apos;esportazione GIF, WebP e PNG animati usa lo stesso valore predefinito.</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 s</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Personalizzato</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>Durate comuni dei fotogrammi. Personalizzato è qualsiasi altro valore digitato nella casella.</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>Ignora i tempi nei nomi dei livelli</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>Mostra ogni fotogramma per la durata indicata sopra e salta tempi come &quot;0.25s&quot; alla fine dei nomi dei livelli. Solo anteprima: l&apos;esportazione usa ancora i tempi nei nomi.</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>Riproduci livelli nascosti</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>Include i livelli nascosti di primo livello come fotogrammi. Solo anteprima: l&apos;esportazione usa ancora i livelli visibili.</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>Tempo fotogramma nei nomi dei livelli</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>Il tempo che Imposta tempo scrive alla fine dei nomi dei livelli.</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>Rinomina i livelli selezionati, o tutti i livelli di primo livello con Applica a tutti i livelli, in modo che terminino con questo tempo del fotogramma, ad esempio &quot;blink 0.25s&quot;.</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>Rimuovi tempo</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>Rimuove il tempo del fotogramma dalla fine dei nomi dei livelli selezionati, o di tutti i livelli di primo livello con Applica a tutti i livelli.</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>Applica a tutti i livelli</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>Imposta tempo e Rimuovi tempo modificano tutti i livelli di primo livello invece dei soli livelli selezionati.</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>I fotogrammi sono i livelli di primo livello, dall&apos;alto verso il basso, come li scrive l&apos;esportazione GIF, WebP e PNG animati. Un tempo alla fine del nome, come &quot;blink 0.25s&quot;, imposta la durata del fotogramma.</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Nessun livello</translation>
     </message>
 </context>
 <context>
@@ -26017,6 +26069,18 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Vector Mask</source>
         <translation>Maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Nessun livello</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>Tutti i livelli terminano già con quel tempo</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>Nessun livello ha un tempo fotogramma</translation>
     </message>
     <message>
         <source>A:</source>

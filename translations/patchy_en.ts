@@ -13079,23 +13079,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Set Time</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -13111,11 +13095,79 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <source>Playback</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
+        <source>Frame delay:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No layers</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -25934,6 +25986,18 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Vector Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

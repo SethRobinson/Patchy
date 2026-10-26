@@ -2651,16 +2651,24 @@ void MainWindow::apply_layer_rename(LayerId id, const QString& name) {
   refresh_layer_controls();
 }
 
-void MainWindow::set_selected_layers_frame_time(std::optional<std::uint32_t> delay_ms) {
+void MainWindow::set_selected_layers_frame_time(std::optional<std::uint32_t> delay_ms, bool all_layers) {
   if (!has_active_document()) {
     show_status_error(tr("No document"));
     return;
   }
   auto& doc = document();
-  select_only_layer_if_none_active();
-  const auto ids = selected_or_active_layer_ids();
+  std::vector<LayerId> ids;
+  if (all_layers) {
+    // The animation's frames: every top-level layer, groups included.
+    for (const auto& layer : std::as_const(doc).layers()) {
+      ids.push_back(layer.id());
+    }
+  } else {
+    select_only_layer_if_none_active();
+    ids = selected_or_active_layer_ids();
+  }
   if (ids.empty()) {
-    show_status_error(tr("No layers selected"));
+    show_status_error(all_layers ? tr("No layers") : tr("No layers selected"));
     return;
   }
   std::vector<std::pair<LayerId, std::string>> renames;
@@ -2683,8 +2691,13 @@ void MainWindow::set_selected_layers_frame_time(std::optional<std::uint32_t> del
     }
   }
   if (renames.empty()) {
-    show_status_error(delay_ms.has_value() ? tr("Selected layers already end with that time")
-                                           : tr("No frame times on the selected layers"));
+    if (all_layers) {
+      show_status_error(delay_ms.has_value() ? tr("All layers already end with that time")
+                                             : tr("No frame times on any layer"));
+    } else {
+      show_status_error(delay_ms.has_value() ? tr("Selected layers already end with that time")
+                                             : tr("No frame times on the selected layers"));
+    }
     return;
   }
   push_undo_snapshot(delay_ms.has_value() ? tr("Set frame time") : tr("Remove frame time"));
