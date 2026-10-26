@@ -5362,9 +5362,10 @@ QRect layer_row_part_rect(QListWidget& layer_list, const char* row_name, const c
   return QRect(widget->mapTo(layer_list.viewport(), QPoint()), widget->size());
 }
 
-// The eye, the clip badge and the thumbnail sit close together: no empty folder-arrow slot on
-// rows without an arrow, a child sits just past its folder's glyph, and the click targets keep
-// their size. Saves the issue 397 follow-up pictures in Dark and Light.
+// The eye, the clip badge and the thumbnail sit close together, and the click targets keep
+// their size. A document with a folder gives every row the (small) arrow slot so thumbnails
+// line up, and a child sits one 16 px step right of its folder (issue 386 follow-up). Saves
+// the issue 397 follow-up pictures in Dark and Light.
 void ui_layer_row_spacing_keeps_eye_clip_and_thumbnail_close() {
   SettingsValueRestorer thumbnail_size_setting(QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey));
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -5397,23 +5398,174 @@ void ui_layer_row_spacing_keeps_eye_clip_and_thumbnail_close() {
       const auto mask_thumbnail = layer_row_part_rect(*layer_list, "Masked Layer", "layerMaskThumbnail");
       // Click targets keep their size.
       CHECK(eye.width() >= 22 && eye.height() >= 22);
-      CHECK(folder_arrow.width() >= 18);
-      // A plain row's thumbnail follows the eye after one small gap.
-      CHECK(base_thumbnail.left() - eye.right() - 1 <= 6);
+      CHECK(folder_arrow.width() >= 12 && folder_arrow.width() <= 14);
+      CHECK(folder_arrow.height() >= 20);
+      // A plain row's thumbnail follows the eye past the arrow slot, in the folder's column.
+      CHECK(base_thumbnail.left() - eye.right() - 1 <= 6 + 14 + 6);
+      CHECK(base_thumbnail.left() == folder_thumbnail.left());
       CHECK(masked_thumbnail.left() == base_thumbnail.left());
       // The clip badge takes that slot and centers on the base thumbnail below it.
       CHECK(clip.left() == base_thumbnail.left());
       CHECK(std::abs(clip.center().x() - base_thumbnail.center().x()) <= 1);
       CHECK(clipped_thumbnail.left() - clip.right() - 1 <= 6);
-      // The folder arrow follows the eye; the children sit a little past the folder glyph.
+      // The folder arrow follows the eye; the children sit one step past the folder glyph.
       CHECK(folder_arrow.left() - eye.right() - 1 <= 6);
-      CHECK(child_thumbnail.left() >= folder_thumbnail.left() + 8);
-      CHECK(child_thumbnail.left() <= folder_thumbnail.left() + 12);
+      CHECK(child_thumbnail.left() == folder_thumbnail.left() + 16);
       // The mask still follows its content thumbnail.
       CHECK(mask_thumbnail.left() > masked_thumbnail.right());
       CHECK(mask_thumbnail.left() - masked_thumbnail.right() - 1 <= 30);
     }
   }
+}
+
+// GitHub issue 386 follow-up (philipzae's mockups): content thumbnails sit in one column per
+// nesting depth whatever the row carries (arrow, mask, link, adjustment glyph), a child's
+// column is one 16 px step right of its folder's, masks and names line up per depth too, and a
+// clipped row's badge takes its depth's thumbnail column (#397). Holds at every Thumbnail Size;
+// a document without folders keeps the eye and thumbnail close. Saves the before/after pictures
+// and the footer with the Animation Preview icon.
+patchy::Document make_layer_column_document() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+  const auto masked_layer = [&](const char* name, QColor color) {
+    patchy::Layer layer(document.allocate_layer_id(), name, solid_pixels(96, 64, patchy::PixelFormat::rgba8(), color));
+    patchy::PixelBuffer mask(96, 64, patchy::PixelFormat::gray8());
+    mask.clear(255);
+    for (int y = 0; y < 64; ++y) {
+      for (int x = 0; x < 40; ++x) {
+        *mask.pixel(x, y) = 0;
+      }
+    }
+    layer.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 96, 64}, std::move(mask), 0, false});
+    return layer;
+  };
+  document.add_pixel_layer("Sky", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(90, 150, 230)));
+  document.add_layer(masked_layer("Sun", QColor(250, 200, 40)));
+  patchy::Layer outer(document.allocate_layer_id(), "Outer", patchy::LayerKind::Group);
+  outer.add_child(patchy::Layer(document.allocate_layer_id(), "Mid Base",
+                                solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(60, 150, 70))));
+  patchy::Layer clipped(document.allocate_layer_id(), "Clipped Color",
+                        solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(230, 90, 40)));
+  clipped.set_clipped(true);
+  outer.add_child(std::move(clipped));
+  outer.add_child(masked_layer("Mid Masked", QColor(150, 80, 200)));
+  patchy::Layer inner(document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+  inner.add_child(patchy::Layer(document.allocate_layer_id(), "Deep Plain",
+                                solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(200, 200, 90))));
+  inner.add_child(masked_layer("Deep Masked", QColor(40, 170, 170)));
+  outer.add_child(std::move(inner));
+  document.add_layer(std::move(outer));
+  patchy::Layer levels(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  settings.levels = patchy::LevelsAdjustment{20, 230, 110};
+  patchy::configure_adjustment_layer(levels, settings);
+  document.add_layer(std::move(levels));
+  return document;
+}
+
+void ui_layer_rows_line_up_thumbnails_by_depth() {
+  SettingsValueRestorer thumbnail_size_setting(QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey));
+  ColorSchemeRestorer restore(patchy::ui::ColorSchemePreference::Dark);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  // Tall enough that the pictures show every row at Large.
+  window.resize(window.width(), 1180);
+  window.add_document_session(make_layer_column_document(), QStringLiteral("Layer Columns"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(layer_list != nullptr && layers_dock != nullptr);
+  if (layer_list == nullptr || layers_dock == nullptr) {
+    return;
+  }
+  const auto left_of = [&](const char* row_name, const char* part) {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QString::fromLatin1(row_name)));
+    auto* widget = row != nullptr ? row->findChild<QWidget*>(QString::fromLatin1(part)) : nullptr;
+    return widget != nullptr && widget->isVisible() ? widget->mapTo(layer_list->viewport(), QPoint()).x() : -1;
+  };
+  struct Row {
+    const char* name;
+    int depth;
+    bool masked;
+    bool clipped;
+  };
+  const std::array<Row, 10> rows{{
+      {"Levels", 0, false, false},
+      {"Outer", 0, false, false},
+      {"Inner", 1, false, false},
+      {"Deep Masked", 2, true, false},
+      {"Deep Plain", 2, false, false},
+      {"Mid Masked", 1, true, false},
+      {"Clipped Color", 1, false, true},
+      {"Mid Base", 1, false, false},
+      {"Sun", 0, true, false},
+      {"Sky", 0, false, false},
+  }};
+  constexpr int kStep = 16;
+  struct Size {
+    const char* action;
+    const char* artifact;
+    bool thumbnails;
+  };
+  for (const auto& size : {Size{"layerThumbnailSizeMediumAction", "issue386_columns_medium", true},
+                           Size{"layerThumbnailSizeLargeAction", "issue386_columns_large", true},
+                           Size{"layerThumbnailSizeSmallAction", "issue386_columns_small", true},
+                           Size{"layerThumbnailSizeNoneAction", "issue386_columns_none", false}}) {
+    require_action(window, size.action)->trigger();
+    QApplication::processEvents();
+    save_widget_artifact(size.artifact, *layers_dock);
+    const auto thumbnail_column = size.thumbnails ? left_of("Sky", "layerContentThumbnail") : -1;
+    const auto mask_column = left_of("Sun", "layerMaskThumbnail");
+    const auto name_column = left_of("Sky", "layerRowName");
+    CHECK(mask_column > 0 && name_column > 0);
+    for (const auto& row : rows) {
+      const auto shift = row.depth * kStep;
+      if (size.thumbnails) {
+        const auto first_tile = row.clipped ? left_of(row.name, "layerClippingBadgeButton")
+                                            : left_of(row.name, "layerContentThumbnail");
+        if (first_tile != thumbnail_column + shift) {
+          fprintf(stderr, "  %s %s: first tile at %d, column %d\n", size.action, row.name, first_tile,
+                  thumbnail_column + shift);
+        }
+        CHECK(first_tile == thumbnail_column + shift);
+      }
+      if (row.masked) {
+        CHECK(left_of(row.name, "layerMaskThumbnail") == mask_column + shift);
+      } else if (!row.clipped) {
+        // Plain rows (folders and the adjustment included) start their names in one column per depth.
+        if (left_of(row.name, "layerRowName") != name_column + shift) {
+          fprintf(stderr, "  %s %s: name at %d, column %d\n", size.action, row.name, left_of(row.name, "layerRowName"),
+                  name_column + shift);
+        }
+        CHECK(left_of(row.name, "layerRowName") == name_column + shift);
+      }
+    }
+    // The folder arrows step with their folders and stay a usable, small target.
+    CHECK(left_of("Inner", "layerFolderDisclosureButton") == left_of("Outer", "layerFolderDisclosureButton") + kStep);
+    auto* outer_row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Outer")));
+    auto* arrow = outer_row != nullptr ? outer_row->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"))
+                                       : nullptr;
+    CHECK(arrow != nullptr && arrow->width() >= 12 && arrow->width() <= 14 && arrow->height() >= 20);
+  }
+  require_action(window, "layerThumbnailSizeMediumAction")->trigger();
+  QApplication::processEvents();
+
+  // The Animation Preview button's film icon is an authored SVG like its footer neighbors.
+  CHECK(QFile::exists(QStringLiteral(":/patchy/icons/film.svg")));
+  auto* animation_button = window.findChild<QAbstractButton*>(QStringLiteral("layerAnimationButton"));
+  CHECK(animation_button != nullptr && !animation_button->icon().isNull());
+  save_widget_artifact("issue386_layers_footer", *layers_dock);
+
+  // Without folders nothing reserves the arrow slot: the thumbnail follows the eye (#397).
+  patchy::Document flat(96, 64, patchy::PixelFormat::rgb8());
+  flat.add_pixel_layer("Flat One", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(90, 150, 230)));
+  flat.add_pixel_layer("Flat Two", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(230, 150, 90)));
+  window.add_document_session(std::move(flat), QStringLiteral("Flat Columns"));
+  QApplication::processEvents();
+  const auto eye_left = left_of("Flat One", "layerVisibilityCheck");
+  const auto flat_thumbnail = left_of("Flat One", "layerContentThumbnail");
+  CHECK(eye_left >= 0 && flat_thumbnail - (eye_left + 22) <= 6);
+  CHECK(left_of("Flat Two", "layerContentThumbnail") == flat_thumbnail);
 }
 
 // GitHub issue 397: the clipping badge's bent arrow comes in from the right, turns
@@ -6075,6 +6227,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_eye_sweep_autoscrolls_past_the_list_edge", ui_layer_eye_sweep_autoscrolls_past_the_list_edge},
       {"ui_layer_eye_sweep_issue_407_shots", ui_layer_eye_sweep_issue_407_shots},
       {"ui_layer_clip_badge_arrow_points_down", ui_layer_clip_badge_arrow_points_down},
+      {"ui_layer_rows_line_up_thumbnails_by_depth", ui_layer_rows_line_up_thumbnails_by_depth},
       {"ui_layer_row_spacing_keeps_eye_clip_and_thumbnail_close",
        ui_layer_row_spacing_keeps_eye_clip_and_thumbnail_close},
       {"ui_layer_eye_menu_sets_this_other_and_all_layers", ui_layer_eye_menu_sets_this_other_and_all_layers},

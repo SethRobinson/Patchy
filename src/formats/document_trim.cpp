@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <initializer_list>
 #include <vector>
@@ -64,13 +65,17 @@ bool trim_composite_has_transparency(const PixelBuffer& composite) {
   return false;
 }
 
-std::optional<Rect> trim_bounds(const PixelBuffer& composite, TrimBasis basis, TrimSides sides) {
+std::optional<Rect> trim_bounds(const PixelBuffer& composite, TrimBasis basis, TrimSides sides, int tolerance) {
   const auto width = composite.width();
   const auto height = composite.height();
   if (width <= 0 || height <= 0) {
     return std::nullopt;
   }
-  const auto domain = composite_domain(composite);
+  tolerance = std::clamp(tolerance, 0, 255);
+  // Tolerance 0 compares at the composite's own domain (exact). A tolerance compares
+  // display-encoded values, so a 32-bit composite is sRGB-encoded first, as the Magic Wand
+  // does: N means the same step on every depth.
+  const auto domain = tolerance > 0 ? DeepDomain::Encoded : composite_domain(composite);
   std::vector<float> row(static_cast<std::size_t>(width) * 4U);
   std::array<float, 4> reference{0.0F, 0.0F, 0.0F, 0.0F};
   if (basis != TrimBasis::TransparentPixels) {
@@ -82,11 +87,20 @@ std::optional<Rect> trim_bounds(const PixelBuffer& composite, TrimBasis basis, T
   // A transparent pixel's color is meaningless, so a transparent corner matches every
   // transparent pixel whatever color the composite left under it.
   const auto match_transparent = basis == TrimBasis::TransparentPixels || reference[3] <= 0.0F;
+  const auto limit = static_cast<float>(tolerance);
   const auto matches = [&](const float* px) {
     if (match_transparent) {
-      return px[3] <= 0.0F;
+      return px[3] <= limit;
     }
-    return px[0] == reference[0] && px[1] == reference[1] && px[2] == reference[2] && px[3] == reference[3];
+    if (tolerance == 0) {
+      return px[0] == reference[0] && px[1] == reference[1] && px[2] == reference[2] && px[3] == reference[3];
+    }
+    for (std::size_t c = 0; c < 4U; ++c) {
+      if (std::abs(px[c] - reference[c]) > limit) {
+        return false;
+      }
+    }
+    return true;
   };
 
   std::int32_t min_x = width;

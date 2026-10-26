@@ -12739,6 +12739,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation>배경 위에 빈 레이어를 추가합니다. 기본값은 환경설정에서 가져오며, 여기서 바꾸면 이 문서에만 적용됩니다.</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>허용치:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>재단 기준 색상과 얼마나 달라도 잘라낼지 정합니다 (0은 정확히 일치)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15757,10 +15765,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>실제 픽셀(&amp;A)</translation>
-    </message>
-    <message>
-        <source>Show Target &amp;Path</source>
-        <translation>대상 패스 표시(&amp;P)</translation>
     </message>
     <message>
         <source>Seamless &amp;Tile Preview</source>
@@ -25810,62 +25814,6 @@ The open document keeps its blend modes either way.</source>
         <translation>사전 설정 &quot;%1&quot;을(를) 삭제하시겠습니까?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>브러시: 드래그하여 칠하고, %ALT%+클릭으로 색을 가져옵니다.</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>혼합 브러시: 드래그하여 칠하면서 이미 있는 색과 섞고, %ALT%+클릭으로 색을 가져옵니다.</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>패턴 스탬프: 드래그하여 패턴으로 칠합니다.</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>지우개: 드래그하여 지웁니다.</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>복제 도장: %ALT%+클릭으로 소스를 지정한 다음 드래그하여 복제를 칠합니다.</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>복구 브러시: %ALT%+클릭으로 소스를 지정한 다음 복구할 영역 위로 드래그합니다.</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>스팟 복구: 잡티 위로 드래그하면 주변을 이용해 복구합니다.</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>손가락: 드래그하여 픽셀을 문지릅니다.</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>닷지: 드래그하여 밝게 합니다.</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>번: 드래그하여 어둡게 합니다.</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>스펀지: 드래그하여 채도를 바꿉니다.</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>흐림: 드래그하여 디테일을 부드럽게 합니다.</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>선명하게: 드래그하여 디테일을 선명하게 합니다.</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Shift+클릭으로 마지막 획에서 직선을 그립니다. %CTRL%+클릭으로 포인터 아래 레이어를 선택하고, %CTRL%+드래그로 레이어를 이동하며, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>복제 소스 설정: 소스, 오프셋, 비율, 회전, 오버레이</translation>
     </message>
@@ -25952,6 +25900,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>이동: 드래그하여 이동하고, Shift+드래그로 수평 또는 수직으로 이동하며, %ALT%+드래그로 복제합니다. %CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 전환합니다. %CTRL%+드래그로 사각형을 선택하며, 자동 선택이 켜져 있으면 빈 곳을 드래그해도 됩니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>대상 패스(&amp;T)</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+클릭으로 직선, %ALT%+클릭으로 색 가져오기, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+클릭으로 소스 지정, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
     </message>
     <message>
         <source>%ALT%-click to hide the layer or the selection</source>
@@ -27948,6 +27912,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter에는 RGB 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance는 0부터 255까지의 숫자여야 합니다.</translation>
     </message>
 </context>
 <context>

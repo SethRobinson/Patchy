@@ -12774,6 +12774,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation>Adiciona uma camada vazia acima do plano de fundo. O padrão vem de Preferências; alterá-lo aqui afeta apenas este documento.</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>Tolerância:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>Quanto um pixel pode diferir da cor de corte e ainda ser removido (0 é uma correspondência exata)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15793,10 +15801,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>Pixels re&amp;ais</translation>
-    </message>
-    <message>
-        <source>Show Target &amp;Path</source>
-        <translation>&amp;Mostrar demarcador de destino</translation>
     </message>
     <message>
         <source>Seamless &amp;Tile Preview</source>
@@ -25883,62 +25887,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>Excluir a predefinição &quot;%1&quot;?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>Pincel: arraste para pintar, %ALT%+clique coleta uma cor.</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>Pincel misturador: arraste para pintar e misturar com as cores já existentes, %ALT%+clique coleta uma cor.</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>Carimbo de padrão: arraste para pintar com o padrão.</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>Borracha: arraste para apagar.</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>Carimbo: %ALT%+clique define a origem, depois arraste para pintar o clone.</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>Pincel de recuperação: %ALT%+clique define a origem, depois arraste sobre a área a recuperar.</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>Recuperação localizada: arraste sobre uma mancha para recuperá-la a partir do entorno.</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>Borrar: arraste para borrar os pixels.</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>Subexposição: arraste para clarear.</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>Superexposição: arraste para escurecer.</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>Esponja: arraste para alterar a saturação.</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>Desfoque: arraste para suavizar os detalhes.</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>Nitidez: arraste para dar nitidez aos detalhes.</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Shift+clique traça uma linha reta a partir do último traço. %CTRL%+clique seleciona a camada sob o ponteiro, %CTRL%+arrastar move a camada, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Configurações da origem do clone: origens, deslocamento, escala, rotação e sobreposição</translation>
     </message>
@@ -26025,6 +25973,22 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Mover: arraste para mover, Shift+arrastar mantém na horizontal ou vertical, %ALT%+arrastar duplica. %CTRL%+clique seleciona uma camada, Shift+clique a alterna. %CTRL%+arrastar seleciona um retângulo, assim como arrastar em um espaço vazio com Seleção automática ativada.</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>&amp;Demarcador de destino</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+clique traça uma linha, %ALT%+clique coleta uma cor, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+clique define a origem, Shift+clique traça uma linha, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+clique traça uma linha, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
     </message>
     <message>
         <source>%ALT%-click to hide the layer or the selection</source>
@@ -28022,6 +27986,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter precisa de uma camada de pixels RGB.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance deve ser um número de 0 a 255.</translation>
     </message>
 </context>
 <context>

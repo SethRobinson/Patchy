@@ -388,49 +388,30 @@ const char* tool_activation_hint_source(CanvasTool tool) {
     case CanvasTool::ObjectSelect:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Object Selection: drag a box around an object or click it. Shift+drag "
              "adds, %ALT%+drag subtracts.");
-    // The painting tools (GitHub issues 421, 423) say what a drag does and their own Alt
-    // click; paint_tool_hint_tail_source adds the gestures they all share.
-    case CanvasTool::Brush:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush: drag to paint, %ALT%+click picks a color.");
-    case CanvasTool::MixerBrush:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Mixer Brush: drag to paint and blend with the colors already there, "
-             "%ALT%+click picks a color.");
-    case CanvasTool::PatternStamp:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pattern Stamp: drag to paint with the pattern.");
-    case CanvasTool::Eraser:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Eraser: drag to erase.");
-    case CanvasTool::Clone:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.");
-    case CanvasTool::Healing:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Healing Brush: %ALT%+click sets the source, then drag over the area to heal.");
-    case CanvasTool::SpotHealing:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Spot Healing: drag over a spot to heal it from its surroundings.");
-    case CanvasTool::Smudge:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Smudge: drag to smear the pixels.");
-    case CanvasTool::Dodge:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dodge: drag to lighten.");
-    case CanvasTool::Burn:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Burn: drag to darken.");
-    case CanvasTool::Sponge:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Sponge: drag to change the saturation.");
-    case CanvasTool::BlurBrush:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Blur: drag to soften detail.");
-    case CanvasTool::SharpenBrush:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Sharpen: drag to sharpen detail.");
     default:
       return nullptr;
   }
 }
 
-// The gestures every painting tool shares (tool_has_ctrl_temporary_move), appended to
-// its own hint; nullptr for the other tools.
-const char* paint_tool_hint_tail_source(CanvasTool tool) {
-  if (!tool_has_ctrl_temporary_move(tool)) {
-    return nullptr;
+// The painting tools' hint (GitHub issue 421), %1 the tool name: only the gestures a
+// user would not find by painting (Shift+click line, the Alt clicks, Alt+right-drag),
+// kept short for small screens. The Ctrl move and layer pick work but are not named.
+const char* paint_tool_hint_source(CanvasTool tool) {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::MixerBrush:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: Shift+click draws a line, %ALT%+click picks a color, "
+             "%ALT%+right-drag changes size and softness.");
+    case CanvasTool::Clone:
+    case CanvasTool::Healing:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: %ALT%+click sets the source, Shift+click draws a line, "
+             "%ALT%+right-drag changes size and softness.");
+    default:
+      return tool_has_ctrl_temporary_move(tool)
+                 ? QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                     "%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.")
+                 : nullptr;
   }
-  return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Shift+click draws a straight line from the last stroke. "
-         "%CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, "
-         "%ALT%+right-drag changes size and softness.");
 }
 
 QString tool_action_object_name(CanvasTool tool) {
@@ -1423,11 +1404,9 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     refresh_document_info();
     // Tools whose gestures the name does not explain get a one-line hint.
     if (const auto* hint = tool_activation_hint_source(selected); hint != nullptr) {
-      auto message = tr(hint);
-      if (const auto* tail = paint_tool_hint_tail_source(selected); tail != nullptr) {
-        message += QLatin1Char(' ') + tr(tail);
-      }
-      statusBar()->showMessage(resolve_modifier_names(message));
+      statusBar()->showMessage(resolve_modifier_names(tr(hint)));
+    } else if (const auto* paint_hint = paint_tool_hint_source(selected); paint_hint != nullptr) {
+      statusBar()->showMessage(resolve_modifier_names(tr(paint_hint).arg(tool_name(selected))));
     } else {
       statusBar()->showMessage(tool_name(selected));
     }

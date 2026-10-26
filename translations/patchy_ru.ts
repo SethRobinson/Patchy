@@ -12809,6 +12809,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation>Добавляет пустой слой над фоном. Значение по умолчанию берётся из настроек; изменение здесь касается только этого документа.</translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation>Допуск:</translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation>Насколько пиксель может отличаться от цвета обрезки, чтобы всё равно быть обрезанным (0 означает точное совпадение)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15829,10 +15837,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>&amp;Actual Pixels</source>
         <translation>&amp;Реальные пиксели</translation>
-    </message>
-    <message>
-        <source>Show Target &amp;Path</source>
-        <translation>Показать целевой &amp;контур</translation>
     </message>
     <message>
         <source>Seamless &amp;Tile Preview</source>
@@ -25956,62 +25960,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Удалить предустановку «%1»?</translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation>Кисть: перетаскивайте, чтобы рисовать, %ALT%+щелчок берёт цвет.</translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation>Микс-кисть: перетаскивайте, чтобы рисовать и смешивать с уже нанесёнными цветами, %ALT%+щелчок берёт цвет.</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation>Узорный штамп: перетаскивайте, чтобы рисовать узором.</translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation>Ластик: перетаскивайте, чтобы стирать.</translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation>Штамп: %ALT%+щелчок задаёт источник, затем перетаскивайте, чтобы рисовать клон.</translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation>Восстанавливающая кисть: %ALT%+щелчок задаёт источник, затем перетаскивайте по области, которую нужно восстановить.</translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation>Точечное восстановление: проведите по дефекту, чтобы восстановить его по окружению.</translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation>Палец: перетаскивайте, чтобы размазывать пиксели.</translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation>Осветлитель: перетаскивайте, чтобы осветлять.</translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation>Затемнитель: перетаскивайте, чтобы затемнять.</translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation>Губка: перетаскивайте, чтобы менять насыщенность.</translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation>Размытие: перетаскивайте, чтобы смягчать детали.</translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation>Резкость: перетаскивайте, чтобы повышать резкость деталей.</translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation>Shift+щелчок рисует прямую линию от последнего штриха. %CTRL%+щелчок выбирает слой под указателем, %CTRL%+перетаскивание перемещает слой, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Параметры источника клонирования: источники, сдвиг, масштаб, поворот и наложение</translation>
     </message>
@@ -26098,6 +26046,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Перемещение: перетаскивание перемещает, Shift+перетаскивание держит движение по горизонтали или вертикали, %ALT%+перетаскивание дублирует. %CTRL%+щелчок выбирает слой, Shift+щелчок переключает его. %CTRL%+перетаскивание выбирает прямоугольник, как и перетаскивание по пустому месту при включённом автоматическом выборе.</translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation>Целевой &amp;контур</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+щелчок рисует линию, %ALT%+щелчок берёт цвет, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+щелчок задаёт источник, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
     <message>
         <source>%ALT%-click to hide the layer or the selection</source>
@@ -28096,6 +28060,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
         <translation>applyCameraRawFilter требуется пиксельный слой RGB.</translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
+        <translation>trim tolerance должен быть числом от 0 до 255.</translation>
     </message>
 </context>
 <context>

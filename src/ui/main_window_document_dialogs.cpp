@@ -68,6 +68,7 @@
 #include <QRect>
 #include <QSignalBlocker>
 #include <QSize>
+#include <QSpinBox>
 #include <QStandardItemModel>
 #include <QString>
 #include <QStringLiteral>
@@ -231,11 +232,13 @@ std::optional<RotateCanvasSettings> request_rotate_canvas_settings(QWidget* pare
 struct TrimSettings {
   TrimBasis basis{TrimBasis::TransparentPixels};
   TrimSides sides;
+  int tolerance{0};
 };
 
-// Image > Trim... (GitHub issue 297): what to compare against and which sides to cut.
-// Transparent Pixels is offered only when the composite has transparency; the choices
-// persist under `trim/` (permanent keys).
+// Image > Trim... (GitHub issue 297): what to compare against, how close counts as a match
+// (Tolerance, 0..255 like the Magic Wand's) and which sides to cut. Transparent Pixels is
+// offered only when the composite has transparency; the choices persist under `trim/`
+// (permanent keys).
 std::optional<TrimSettings> request_trim_settings(QWidget* parent, bool has_transparency) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyTrimDialog"));
@@ -256,6 +259,18 @@ std::optional<TrimSettings> request_trim_settings(QWidget* parent, bool has_tran
     }
     QDialog#patchyTrimDialog QLabel[sectionLabel="true"] {
       font-weight: 700;
+    }
+    QDialog#patchyTrimDialog QSpinBox {
+      background: @dlg_tab_bg;
+      border: 1px solid @dlg_tab_border;
+      border-radius: 3px;
+      color: @text_on_raised;
+      min-height: 22px;
+      padding: 0 8px;
+    }
+    QDialog#patchyTrimDialog QSpinBox:focus {
+      border-color: @dlg_focus_border;
+      background: @dlg_button_bg;
     }
     QDialog#patchyTrimDialog QRadioButton,
     QDialog#patchyTrimDialog QCheckBox {
@@ -349,6 +364,24 @@ std::optional<TrimSettings> request_trim_settings(QWidget* parent, bool has_tran
   }
   basis_group->button(static_cast<int>(basis))->setChecked(true);
 
+  // Tolerance 0 is an exact match; higher values also cut near matches (JPEG noise,
+  // anti-aliased edges): alpha up to the value, or every channel within it of the corner.
+  auto* tolerance_row = new QHBoxLayout();
+  tolerance_row->setContentsMargins(14, 2, 0, 0);
+  tolerance_row->setSpacing(8);
+  auto* tolerance_label = new QLabel(QObject::tr("Tolerance:"), &dialog);
+  auto* tolerance = new QSpinBox(&dialog);
+  tolerance->setObjectName(QStringLiteral("trimToleranceSpin"));
+  tolerance->setRange(0, 255);
+  tolerance->setValue(std::clamp(settings.value(QStringLiteral("trim/tolerance"), 0).toInt(), 0, 255));
+  configure_dialog_spinbox(tolerance, 64);
+  tolerance->setToolTip(QObject::tr("How far a pixel may differ from the trim color and still be cut (0 is an exact match)"));
+  tolerance_label->setBuddy(tolerance);
+  tolerance_row->addWidget(tolerance_label);
+  tolerance_row->addWidget(tolerance);
+  tolerance_row->addStretch(1);
+  layout->addLayout(tolerance_row);
+
   layout->addSpacing(6);
   auto* trim_away_label = new QLabel(QObject::tr("Trim Away"), &dialog);
   trim_away_label->setProperty("sectionLabel", true);
@@ -398,12 +431,14 @@ std::optional<TrimSettings> request_trim_settings(QWidget* parent, bool has_tran
   TrimSettings result;
   result.basis = static_cast<TrimBasis>(basis_group->checkedId());
   result.sides = TrimSides{top->isChecked(), bottom->isChecked(), left->isChecked(), right->isChecked()};
+  result.tolerance = tolerance->value();
   const auto id = trim_basis_id(result.basis);
   settings.setValue(QStringLiteral("trim/basedOn"), QString::fromUtf8(id.data(), static_cast<qsizetype>(id.size())));
   settings.setValue(QStringLiteral("trim/top"), result.sides.top);
   settings.setValue(QStringLiteral("trim/bottom"), result.sides.bottom);
   settings.setValue(QStringLiteral("trim/left"), result.sides.left);
   settings.setValue(QStringLiteral("trim/right"), result.sides.right);
+  settings.setValue(QStringLiteral("trim/tolerance"), result.tolerance);
   return result;
 }
 
@@ -1794,7 +1829,7 @@ void MainWindow::trim_canvas_dialog() {
   if (!settings.has_value()) {
     return;
   }
-  const auto bounds = trim_bounds(composite, settings->basis, settings->sides);
+  const auto bounds = trim_bounds(composite, settings->basis, settings->sides, settings->tolerance);
   if (!bounds.has_value()) {
     statusBar()->showMessage(settings->basis == TrimBasis::TransparentPixels
                                  ? tr("Nothing to trim: the image has no visible pixels")

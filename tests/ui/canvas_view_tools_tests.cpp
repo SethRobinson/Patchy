@@ -4308,6 +4308,35 @@ void ui_view_extras_menu_options_dialog_and_settings() {
     CHECK(show_menu->actions().contains(require_action(window, "viewExtrasOptionsAction")));
     auto* view_menu = qobject_cast<QMenu*>(show_menu->parent());
     CHECK(view_menu != nullptr && view_menu->actions().contains(extras));
+    // The per-item toggles Extras covers live in View > Show, in this order, with Show
+    // Extras Options after a separator; Extras and Show sit between separators in View
+    // (GitHub issue 420 follow-up).
+    const auto show_actions = show_menu->actions();
+    const QList<QAction*> expected_show{show_edges,
+                                        require_action(window, "viewToggleTargetPathAction"),
+                                        require_action(window, "viewToggleGuidesAction"),
+                                        require_action(window, "viewToggleGridAction"),
+                                        require_action(window, "viewTogglePixelGridAction")};
+    CHECK(show_actions.size() == expected_show.size() + 2);
+    if (show_actions.size() == expected_show.size() + 2) {
+      CHECK(show_actions.mid(0, expected_show.size()) == expected_show);
+      CHECK(show_actions[expected_show.size()]->isSeparator());
+      CHECK(show_actions.last() == require_action(window, "viewExtrasOptionsAction"));
+    }
+    if (view_menu != nullptr) {
+      const auto view_actions = view_menu->actions();
+      const auto extras_index = view_actions.indexOf(extras);
+      CHECK(extras_index > 0 && extras_index + 2 < view_actions.size());
+      if (extras_index > 0 && extras_index + 2 < view_actions.size()) {
+        CHECK(view_actions[extras_index - 1]->isSeparator());
+        CHECK(view_actions[extras_index + 1] == show_menu->menuAction());
+        CHECK(view_actions[extras_index + 2]->isSeparator());
+      }
+      for (const auto* moved : expected_show) {
+        CHECK(!view_actions.contains(const_cast<QAction*>(moved)));
+      }
+      CHECK(view_actions.contains(require_action(window, "viewToggleRulersAction")));
+    }
     CHECK(canvas->extras_covered() == kAllViewExtras);
 
     send_key(*canvas, Qt::Key_H, Qt::ControlModifier);

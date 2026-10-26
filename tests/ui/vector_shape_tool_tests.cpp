@@ -3598,7 +3598,7 @@ void ui_paths_panel_target_shows_overlay_with_any_tool() {
   QApplication::processEvents();
   CHECK(!accent_overlay_near(*canvas, QPoint(100, 160)));
 
-  // View > Show Target Path (Ctrl+Shift+H) hides the overlay without
+  // View > Show > Target Path (Ctrl+Shift+H) hides the overlay without
   // touching the targeting, and re-shows it on toggle-back.
   paths_list->setCurrentRow(0);
   QApplication::processEvents();
@@ -5150,7 +5150,7 @@ void ui_path_overlay_follows_move_drag() {
 
 // GitHub issue 238: a selected shape layer's path outline draws only under the
 // path and shape tools, as in Photoshop; under Brush or Move it read as part of
-// the artwork. View > Show Target Path still hides it under a path tool.
+// the artwork. View > Show > Target Path still hides it under a path tool.
 void ui_shape_layer_outline_shows_only_under_path_and_shape_tools() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};

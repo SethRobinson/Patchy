@@ -12757,6 +12757,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Add an empty layer above the Background. The default comes from Preferences; changing it here affects only this document.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Tolerance:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How far a pixel may differ from the trim color and still be cut (0 is an exact match)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15635,10 +15643,6 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>&amp;Actual Pixels</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Target &amp;Path</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -25801,62 +25805,6 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Brush: drag to paint, %ALT%+click picks a color.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Mixer Brush: drag to paint and blend with the colors already there, %ALT%+click picks a color.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Pattern Stamp: drag to paint with the pattern.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Eraser: drag to erase.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Clone Stamp: %ALT%+click sets the source, then drag to paint the clone.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Healing Brush: %ALT%+click sets the source, then drag over the area to heal.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Spot Healing: drag over a spot to heal it from its surroundings.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Smudge: drag to smear the pixels.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dodge: drag to lighten.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Burn: drag to darken.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Sponge: drag to change the saturation.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Blur: drag to soften detail.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Sharpen: drag to sharpen detail.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Shift+click draws a straight line from the last stroke. %CTRL%+click selects the layer under the pointer, %CTRL%+drag moves the layer, %ALT%+right-drag changes size and softness.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation type="unfinished"></translation>
     </message>
@@ -25942,6 +25890,22 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Target Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -27939,6 +27903,10 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>applyCameraRawFilter needs an RGB pixel layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>trim tolerance must be a number from 0 to 255.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
