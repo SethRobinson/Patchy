@@ -12931,6 +12931,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>マスクの境界をこのピクセル数だけぼかします</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n 色、誤差拡散</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n 色、ディザなし</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>パレットに入れる最大の色数。これより色の少ない画像は色がそのまま保たれます。</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>誤差拡散</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>隣り合うパレット色を混ぜて、グラデーションの縞を減らします。通常はファイルが大きくなります。</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>ファイルが使う色</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>パレット</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>パレットは最大 256 色で書き出し、ベタ塗りのグラフィック、ロゴ、スクリーンショットではずっと小さくなります。</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>不透明度 50% 未満のピクセルは透明になります。</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 設定</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>レイヤー名が 0.25s のような時間で終わると、そのフレームの表示時間になります。</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>フレームの表示時間:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>ツールパレットのカスタマイズ</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>表示するツールにチェックを入れます。非表示のツールもショートカットは使えます。</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>レイアウト</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>1 列</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>2 列（ツールを横に並べる）</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>はみ出したときはマウスホイールでパレットをスクロール</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>オフのときは &gt; 矢印で列を追加表示します。</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>パレットに歯車ボタンを表示</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>ツール</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>レイヤーパネルに表示するボタンにチェックを入れます。非表示のボタンのコマンドはメニューに残ります。</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>レイヤーのボタン</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>初期設定に戻す</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26543,6 +26643,34 @@ The open document keeps its blend modes either way.</source>
         <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation>クリックで次のモードに切り替えます。長押しまたは右クリックでモードを選べます。</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>ツールパレットのカスタマイズ...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>選択</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>ペイント</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>レタッチ</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>描画とテキスト</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>表示</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>すべてのボタンを表示</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28531,6 +28659,10 @@ The open document keeps its blend modes either way.</source>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim の tolerance は 0 から 255 の数値である必要があります。</translation>
     </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: 不明な値 &quot;%1&quot; です。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
@@ -28573,6 +28705,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers には colorMode: &quot;rgb&quot; が必要です。レイヤー付き TIFF は RGB で保存されます。</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: PNG で colors、dither、ditherAmount を使うには pngColors: &quot;palette&quot; が必要です。</translation>
     </message>
 </context>
 <context>

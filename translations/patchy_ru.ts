@@ -13001,6 +13001,110 @@ Each item&apos;s own View setting still applies.</source>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>Смягчает края маски на это число пикселей</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n цвет, диффузия</numerusform>
+            <numerusform>%n цвета, диффузия</numerusform>
+            <numerusform>%n цветов, диффузия</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n цвет, без дизеринга</numerusform>
+            <numerusform>%n цвета, без дизеринга</numerusform>
+            <numerusform>%n цветов, без дизеринга</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>Наибольшее число цветов в палитре. Изображение с меньшим числом цветов сохраняет их точно.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>Диффузия</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>Диффузия смешивает соседние цвета палитры, чтобы на градиентах было меньше полос. Обычно файл становится больше.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>Цвета, которые использует файл</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>Палитра</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>Палитра записывает до 256 цветов, намного меньше для плоской графики, логотипов и снимков экрана.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>Пиксели с непрозрачностью ниже 50% становятся прозрачными.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>Параметры GIF</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>Имя слоя, оканчивающееся временем, например 0.25s, задаёт задержку этого кадра.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Задержка кадра:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Настройка палитры инструментов</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Отметьте инструменты, которые нужно показать. Скрытые инструменты сохраняют сочетания клавиш.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Расположение</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Один столбец</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Два столбца, инструменты рядом</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>Колесо мыши прокручивает палитру, когда она не помещается</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Иначе стрелка &gt; открывает дополнительные столбцы.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Показывать кнопку с шестерёнкой на палитре</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Инструменты</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Отметьте кнопки, которые показывает панель «Слои». Команды скрытых кнопок остаются в меню.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Кнопки слоёв</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Восстановить по умолчанию</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26691,6 +26795,34 @@ The open document keeps its blend modes either way.</source>
         <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation>Щелкните, чтобы перейти к следующему режиму. Удерживайте или щелкните правой кнопкой, чтобы выбрать режим.</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Настройка палитры инструментов...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Выделение</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Рисование</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Ретушь</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Контуры и текст</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Просмотр</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Показать все кнопки</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28681,6 +28813,10 @@ The open document keeps its blend modes either way.</source>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance должен быть числом от 0 до 255.</translation>
     </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: неизвестное значение &quot;%1&quot;.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
@@ -28723,6 +28859,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: для layers нужен colorMode: &quot;rgb&quot;; TIFF со слоями сохраняется в RGB.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: для PNG параметрам colors, dither и ditherAmount нужен pngColors: &quot;palette&quot;.</translation>
     </message>
 </context>
 <context>

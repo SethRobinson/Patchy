@@ -12931,6 +12931,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>마스크 가장자리를 이 픽셀 수만큼 부드럽게 합니다</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n색, 확산</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n색, 디더링 없음</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>팔레트에 담을 최대 색 수입니다. 이보다 색이 적은 이미지는 색이 그대로 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>확산</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>인접한 팔레트 색을 섞어 그라디언트의 띠를 줄입니다. 보통 파일이 커집니다.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>파일이 사용하는 색</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>팔레트</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>팔레트는 최대 256색으로 저장하며, 단색 그래픽, 로고, 스크린샷에서 훨씬 작아집니다.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>불투명도 50% 미만의 픽셀은 투명해집니다.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 설정</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>레이어 이름이 0.25s 같은 시간으로 끝나면 그 프레임의 지연 시간이 됩니다.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>프레임 지연:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>도구 팔레트 사용자 지정</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>표시할 도구를 선택하세요. 숨긴 도구도 단축키는 그대로 사용할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>배치</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>한 열</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>두 열, 도구를 나란히</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>넘칠 때 마우스 휠로 팔레트 스크롤</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>끄면 &gt; 화살표로 열을 더 엽니다.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>팔레트에 톱니바퀴 버튼 표시</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>도구</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>레이어 패널에 표시할 버튼을 선택하세요. 숨긴 버튼의 명령은 메뉴에 남습니다.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>레이어 버튼</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>기본값으로 재설정</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26543,6 +26643,34 @@ The open document keeps its blend modes either way.</source>
         <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation>클릭하면 다음 모드로 바뀝니다. 길게 누르거나 마우스 오른쪽 버튼을 클릭하면 모드를 고를 수 있습니다.</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>도구 팔레트 사용자 지정...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>선택</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>페인트</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>리터치</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>그리기와 문자</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>보기</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>모든 버튼 표시</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28531,6 +28659,10 @@ The open document keeps its blend modes either way.</source>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance는 0부터 255까지의 숫자여야 합니다.</translation>
     </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: 알 수 없는 값 &quot;%1&quot;입니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
@@ -28573,6 +28705,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers에는 colorMode: &quot;rgb&quot;가 필요합니다. 레이어가 있는 TIFF는 RGB로 저장됩니다.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: PNG에서 colors, dither, ditherAmount에는 pngColors: &quot;palette&quot;가 필요합니다.</translation>
     </message>
 </context>
 <context>

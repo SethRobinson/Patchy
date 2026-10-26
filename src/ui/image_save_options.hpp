@@ -144,6 +144,16 @@ struct ImageSaveOptions {
   // "0.25s" token in a layer name overrides it per frame. Persists as
   // saveOptions/gifFrameDelayCs.
   int gif_frame_delay_cs{10};
+  // GIF and palette PNG (File > Export for Web, docs/web-export.md; scripts pass `colors`,
+  // `dither`, `ditherAmount` and `pngColors`): the color count (2..256, one slot reserved
+  // for transparency when needed), Floyd-Steinberg error diffusion and its amount (0..100),
+  // and PNG written as an indexed palette image (tRNS for transparency, cut at 50% alpha).
+  // The defaults keep Save and Export Flat Image byte-identical. Palette-mode documents
+  // keep their own palette.
+  int palette_colors{256};
+  bool palette_dither{false};
+  int palette_dither_amount{100};
+  bool png_palette{false};
   // JPEG XR: 1-100, mapped onto the WIC encoder's ImageQuality (0.0-1.0). Persists as
   // saveOptions/jxrQuality.
   int jxr_quality{90};

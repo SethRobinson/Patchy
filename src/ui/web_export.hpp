@@ -25,15 +25,15 @@ class QWidget;
 
 namespace patchy::ui {
 
-// The formats the dialog lists, in list order. Stage 1 lists JPEG, WebP and PNG; GIF,
-// AVIF and JPEG XL join later, appended (the keys are persisted).
-enum class WebExportFormat : std::uint8_t { Jpeg, Webp, Png };
+// The formats the dialog lists (web_export_formats() gives the list order). Append-only:
+// AVIF and JPEG XL join later (the keys are persisted).
+enum class WebExportFormat : std::uint8_t { Jpeg, Webp, Png, Gif };
 
 [[nodiscard]] const std::vector<WebExportFormat>& web_export_formats();
-// Persisted tokens (exportForWeb/format): "jpeg", "webp", "png". Never rename.
+// Persisted tokens (exportForWeb/format): "jpeg", "webp", "png", "gif". Never rename.
 [[nodiscard]] QString web_export_format_key(WebExportFormat format);
 [[nodiscard]] std::optional<WebExportFormat> web_export_format_from_key(const QString& key);
-// The file extension written: "jpg", "webp", "png".
+// The file extension written: "jpg", "webp", "png", "gif".
 [[nodiscard]] QString web_export_extension(WebExportFormat format);
 [[nodiscard]] QString web_export_format_name(WebExportFormat format);
 
@@ -52,6 +52,17 @@ struct WebExportSettings {
   int webp_quality{75};
   bool webp_lossless{false};
   bool webp_animate{false};
+  // PNG: full color, or a palette of png_colors with optional error diffusion.
+  bool png_palette{false};
+  int png_colors{256};
+  bool png_dither{false};
+  int png_dither_amount{100};
+  // GIF: colors, error diffusion, and animation from visible layers with a frame delay.
+  int gif_colors{256};
+  bool gif_dither{false};
+  int gif_dither_amount{100};
+  bool gif_animate{false};
+  int gif_frame_delay_ms{100};
   metadata::MetadataPolicy metadata{metadata::MetadataPolicy::None};
   bool thumbnail{false};
   WebExportResample resample{WebExportResample::Smooth};
@@ -101,6 +112,8 @@ struct WebExportResult {
   QImage original;  // the prepared image it was encoded from, same size
   QString error;    // non-empty when encoding failed
   std::vector<std::string> notices;
+  // GIF and palette PNG: the colors the file uses (from the decoded result, at most 256).
+  std::vector<QRgb> palette;
 };
 
 // The background preview engine: one worker at a time works through a queue of jobs, the

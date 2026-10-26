@@ -666,6 +666,12 @@ public:
   Q_PROPERTY(bool pixelGrid READ pixel_grid WRITE set_pixel_grid)
   [[nodiscard]] bool pixel_grid() const;
   void set_pixel_grid(bool enabled);
+  // Customize Tool Palette (docs/tool-palette.md): {hiddenTools, layout, wheelScroll,
+  // showGearButton, hiddenLayerButtons}. Setting takes any subset of those keys, applies
+  // live and saves; an unknown tool id, layer button id or layout throws.
+  Q_PROPERTY(QJSValue toolPalette READ tool_palette WRITE set_tool_palette)
+  [[nodiscard]] QJSValue tool_palette() const;
+  void set_tool_palette(const QJSValue& state);
   Q_INVOKABLE void present(const QJSValue& delayMs = QJSValue());
   Q_PROPERTY(bool slowMode READ slow_mode WRITE set_slow_mode)
   [[nodiscard]] bool slow_mode() const;

@@ -12931,6 +12931,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>以此像素數柔化遮色片邊緣</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n 色，擴散</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n 色，無遞色</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>調色盤最多可容納的色彩數。色彩較少的影像會原樣保留其色彩。</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>擴散</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>擴散會混合相鄰的調色盤色彩，讓漸層的色帶更少。檔案通常會變大。</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>檔案使用的色彩</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>調色盤</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>調色盤最多寫出 256 種色彩，對平面圖形、標誌和螢幕截圖要小得多。</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>不透明度低於 50% 的像素會變為透明。</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF 設定</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>圖層名稱以 0.25s 這類時間結尾時，即為該影格的延遲。</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>影格延遲:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>自訂工具面板</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>勾選要顯示的工具。隱藏的工具保留其快捷鍵。</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>版面</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>單欄</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>雙欄，工具並排</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>放不下時用滑鼠滾輪捲動面板</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>否則用 &gt; 箭頭展開更多欄。</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>在面板上顯示齒輪按鈕</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>工具</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>勾選圖層面板顯示的按鈕。隱藏按鈕的命令仍在選單中。</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>圖層按鈕</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>還原預設值</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26543,6 +26643,34 @@ The open document keeps its blend modes either way.</source>
         <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation>按一下切換到下一個模式。按住或按右鍵可選擇模式。</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>自訂工具面板...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>選取</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>繪畫</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>修飾</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>繪製與文字</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>檢視</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>顯示所有按鈕</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28531,6 +28659,10 @@ The open document keeps its blend modes either way.</source>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim 的 tolerance 必須是 0 到 255 之間的數字。</translation>
     </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette：未知的值「%1」。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
@@ -28573,6 +28705,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1：layers 需要 colorMode: &quot;rgb&quot;；含圖層的 TIFF 會以 RGB 儲存。</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1：PNG 的 colors、dither 和 ditherAmount 需要 pngColors: &quot;palette&quot;。</translation>
     </message>
 </context>
 <context>

@@ -12966,6 +12966,108 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Softens the mask&apos;s edges by this many pixels</source>
         <translation>Macht die Kanten der Maske um so viele Pixel weich</translation>
     </message>
+    <message numerus="yes">
+        <source>%n colors, diffusion</source>
+        <translation>
+            <numerusform>%n Farbe, Diffusion</numerusform>
+            <numerusform>%n Farben, Diffusion</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors, no dither</source>
+        <translation>
+            <numerusform>%n Farbe, kein Dithering</numerusform>
+            <numerusform>%n Farben, kein Dithering</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The most colors the palette may hold. An image with fewer colors keeps them exactly.</source>
+        <translation>Die höchste Anzahl Farben in der Palette. Ein Bild mit weniger Farben behält sie genau.</translation>
+    </message>
+    <message>
+        <source>Diffusion</source>
+        <translation>Diffusion</translation>
+    </message>
+    <message>
+        <source>Diffusion mixes neighboring palette colors so gradients band less. It usually makes the file larger.</source>
+        <translation>Diffusion mischt benachbarte Palettenfarben, damit Verläufe weniger Streifen zeigen. Die Datei wird meist größer.</translation>
+    </message>
+    <message>
+        <source>The colors the file uses</source>
+        <translation>Die Farben, die die Datei verwendet</translation>
+    </message>
+    <message>
+        <source>Palette</source>
+        <translation>Palette</translation>
+    </message>
+    <message>
+        <source>Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots.</source>
+        <translation>Palette schreibt bis zu 256 Farben, viel kleiner für flächige Grafiken, Logos und Bildschirmfotos.</translation>
+    </message>
+    <message>
+        <source>Pixels under 50% opacity become transparent.</source>
+        <translation>Pixel unter 50 % Deckkraft werden transparent.</translation>
+    </message>
+    <message>
+        <source>GIF settings</source>
+        <translation>GIF-Einstellungen</translation>
+    </message>
+    <message>
+        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
+        <translation>Ein Ebenenname, der mit einer Zeit wie 0.25s endet, legt die Dauer dieses Frames fest.</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Frame-Dauer:</translation>
+    </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Werkzeugpalette anpassen</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Haken Sie die Werkzeuge an, die angezeigt werden sollen. Ausgeblendete Werkzeuge behalten ihre Tastenkürzel.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Anordnung</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Eine Spalte</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Zwei Spalten, Werkzeuge nebeneinander</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>Mausrad scrollt die Palette, wenn sie überläuft</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Sonst öffnet der Pfeil &gt; weitere Spalten.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Zahnrad-Schaltfläche in der Palette anzeigen</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Werkzeuge</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Haken Sie die Schaltflächen an, die das Ebenen-Bedienfeld zeigt. Die Befehle ausgeblendeter Schaltflächen bleiben in den Menüs.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Ebenen-Schaltflächen</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Auf Standard zurücksetzen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26617,6 +26719,34 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Click for the next mode. Hold or right-click to choose one.</source>
         <translation>Klicken für den nächsten Modus. Gedrückt halten oder rechtsklicken, um einen zu wählen.</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Werkzeugpalette anpassen...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Auswählen</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Malen</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Retuschieren</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Zeichnen und Text</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Ansicht</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Alle Schaltflächen anzeigen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28606,6 +28736,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance muss eine Zahl von 0 bis 255 sein.</translation>
     </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: unbekannter Wert &quot;%1&quot;.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
@@ -28648,6 +28782,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation>%1: layers erfordert colorMode: &quot;rgb&quot;; eine TIFF-Datei mit Ebenen wird in RGB gespeichert.</translation>
+    </message>
+    <message>
+        <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
+        <translation>%1: colors, dither und ditherAmount brauchen für PNG pngColors: &quot;palette&quot;.</translation>
     </message>
 </context>
 <context>

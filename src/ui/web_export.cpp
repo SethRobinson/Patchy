@@ -35,6 +35,7 @@
 #include <QPushButton>
 #include <QScopeGuard>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeWidget>
@@ -45,6 +46,7 @@
 #include <cmath>
 #include <deque>
 #include <mutex>
+#include <set>
 #include <utility>
 
 namespace patchy::ui {
@@ -67,6 +69,15 @@ constexpr const char* kTrimKey = "exportForWeb/trim";
 constexpr const char* kConvertToSrgbKey = "exportForWeb/convertToSrgb";
 constexpr const char* kCompareKey = "exportForWeb/compare";
 constexpr const char* kRevealKey = "exportForWeb/revealWhenDone";
+constexpr const char* kPngColorsKey = "exportForWeb/pngColors";
+constexpr const char* kPngPaletteColorsKey = "exportForWeb/pngPaletteColors";
+constexpr const char* kPngDitherKey = "exportForWeb/pngDither";
+constexpr const char* kPngDitherAmountKey = "exportForWeb/pngDitherAmount";
+constexpr const char* kGifColorsKey = "exportForWeb/gifColors";
+constexpr const char* kGifDitherKey = "exportForWeb/gifDither";
+constexpr const char* kGifDitherAmountKey = "exportForWeb/gifDitherAmount";
+constexpr const char* kGifAnimateKey = "exportForWeb/gifAnimate";
+constexpr const char* kGifFrameDelayKey = "exportForWeb/gifFrameDelayMs";
 
 constexpr int kPreviewDebounceMs = 200;
 constexpr int kMaxOutputPixels = 100000;
@@ -117,6 +128,23 @@ constexpr std::size_t kCachedResults = 12;
   return image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
 
+// The distinct opaque colors of an image, sorted, at most 256 (a palette image's colors).
+[[nodiscard]] std::vector<QRgb> used_colors(const QImage& image) {
+  std::set<QRgb> colors;
+  for (int y = 0; y < image.height() && colors.size() <= 256; ++y) {
+    const auto* row = reinterpret_cast<const QRgb*>(image.constScanLine(y));
+    for (int x = 0; x < image.width(); ++x) {
+      if (qAlpha(row[x]) == 255) {
+        colors.insert(row[x]);
+        if (colors.size() > 256) {
+          break;
+        }
+      }
+    }
+  }
+  return {colors.begin(), colors.end()};
+}
+
 [[nodiscard]] QString data_size_text(std::size_t bytes) {
   return QLocale().formattedDataSize(static_cast<qint64>(bytes), 1, QLocale::DataSizeTraditionalFormat);
 }
@@ -125,7 +153,7 @@ constexpr std::size_t kCachedResults = 12;
 
 const std::vector<WebExportFormat>& web_export_formats() {
   static const std::vector<WebExportFormat> formats = {WebExportFormat::Jpeg, WebExportFormat::Webp,
-                                                       WebExportFormat::Png};
+                                                       WebExportFormat::Png, WebExportFormat::Gif};
   return formats;
 }
 
@@ -135,6 +163,8 @@ QString web_export_format_key(WebExportFormat format) {
       return QStringLiteral("webp");
     case WebExportFormat::Png:
       return QStringLiteral("png");
+    case WebExportFormat::Gif:
+      return QStringLiteral("gif");
     case WebExportFormat::Jpeg:
       break;
   }
@@ -156,6 +186,8 @@ QString web_export_extension(WebExportFormat format) {
       return QStringLiteral("webp");
     case WebExportFormat::Png:
       return QStringLiteral("png");
+    case WebExportFormat::Gif:
+      return QStringLiteral("gif");
     case WebExportFormat::Jpeg:
       break;
   }
@@ -168,6 +200,8 @@ QString web_export_format_name(WebExportFormat format) {
       return QStringLiteral("WebP");
     case WebExportFormat::Png:
       return QStringLiteral("PNG");
+    case WebExportFormat::Gif:
+      return QStringLiteral("GIF");
     case WebExportFormat::Jpeg:
       break;
   }
@@ -187,6 +221,15 @@ WebExportSettings load_web_export_settings() {
   settings.webp_quality = std::clamp(stored.value(QLatin1String(kWebpQualityKey), 75).toInt(), 0, 100);
   settings.webp_lossless = stored.value(QLatin1String(kWebpLosslessKey), false).toBool();
   settings.webp_animate = stored.value(QLatin1String(kWebpAnimateKey), false).toBool();
+  settings.png_palette = stored.value(QLatin1String(kPngColorsKey)).toString() == QStringLiteral("palette");
+  settings.png_colors = std::clamp(stored.value(QLatin1String(kPngPaletteColorsKey), 256).toInt(), 2, 256);
+  settings.png_dither = stored.value(QLatin1String(kPngDitherKey)).toString() == QStringLiteral("diffusion");
+  settings.png_dither_amount = std::clamp(stored.value(QLatin1String(kPngDitherAmountKey), 100).toInt(), 0, 100);
+  settings.gif_colors = std::clamp(stored.value(QLatin1String(kGifColorsKey), 256).toInt(), 2, 256);
+  settings.gif_dither = stored.value(QLatin1String(kGifDitherKey)).toString() == QStringLiteral("diffusion");
+  settings.gif_dither_amount = std::clamp(stored.value(QLatin1String(kGifDitherAmountKey), 100).toInt(), 0, 100);
+  settings.gif_animate = stored.value(QLatin1String(kGifAnimateKey), false).toBool();
+  settings.gif_frame_delay_ms = std::clamp(stored.value(QLatin1String(kGifFrameDelayKey), 100).toInt(), 0, 65535 * 10);
   settings.metadata = metadata_policy_from_key(stored.value(QLatin1String(kMetadataKey)).toString())
                           .value_or(metadata::MetadataPolicy::None);
   settings.thumbnail = stored.value(QLatin1String(kThumbnailKey), false).toBool();
@@ -210,6 +253,15 @@ void save_web_export_settings(const WebExportSettings& settings) {
   stored.setValue(QLatin1String(kWebpQualityKey), settings.webp_quality);
   stored.setValue(QLatin1String(kWebpLosslessKey), settings.webp_lossless);
   stored.setValue(QLatin1String(kWebpAnimateKey), settings.webp_animate);
+  stored.setValue(QLatin1String(kPngColorsKey), settings.png_palette ? QStringLiteral("palette") : QStringLiteral("full"));
+  stored.setValue(QLatin1String(kPngPaletteColorsKey), settings.png_colors);
+  stored.setValue(QLatin1String(kPngDitherKey), settings.png_dither ? QStringLiteral("diffusion") : QStringLiteral("none"));
+  stored.setValue(QLatin1String(kPngDitherAmountKey), settings.png_dither_amount);
+  stored.setValue(QLatin1String(kGifColorsKey), settings.gif_colors);
+  stored.setValue(QLatin1String(kGifDitherKey), settings.gif_dither ? QStringLiteral("diffusion") : QStringLiteral("none"));
+  stored.setValue(QLatin1String(kGifDitherAmountKey), settings.gif_dither_amount);
+  stored.setValue(QLatin1String(kGifAnimateKey), settings.gif_animate);
+  stored.setValue(QLatin1String(kGifFrameDelayKey), settings.gif_frame_delay_ms);
   stored.setValue(QLatin1String(kMetadataKey), metadata_policy_key(settings.metadata));
   stored.setValue(QLatin1String(kThumbnailKey), settings.thumbnail);
   stored.setValue(QLatin1String(kResampleKey), resample_key(settings.resample));
@@ -253,6 +305,20 @@ ImageSaveOptions web_export_image_options(const WebExportSettings& settings, Web
       options.webp_animate = settings.webp_animate;
       break;
     case WebExportFormat::Png:
+      options.png_palette = settings.png_palette;
+      if (settings.png_palette) {
+        options.palette_colors = std::clamp(settings.png_colors, 2, 256);
+        options.palette_dither = settings.png_dither;
+        options.palette_dither_amount = std::clamp(settings.png_dither_amount, 0, 100);
+      }
+      break;
+    case WebExportFormat::Gif:
+      options.palette_colors = std::clamp(settings.gif_colors, 2, 256);
+      options.palette_dither = settings.gif_dither;
+      options.palette_dither_amount = std::clamp(settings.gif_dither_amount, 0, 100);
+      options.gif_animate = settings.gif_animate;
+      options.gif_frame_delay_cs = std::clamp(settings.gif_frame_delay_ms / 10, 0, 0xffff);
+      options.animation_frame_delay_ms = settings.gif_frame_delay_ms;
       break;
   }
   return options;
@@ -269,7 +335,16 @@ QString web_export_format_summary(const WebExportSettings& settings, WebExportFo
       return settings.webp_animate ? QObject::tr("%1, animated").arg(base) : base;
     }
     case WebExportFormat::Png:
+      if (settings.png_palette) {
+        return settings.png_dither ? QObject::tr("%n colors, diffusion", nullptr, settings.png_colors)
+                                   : QObject::tr("%n colors, no dither", nullptr, settings.png_colors);
+      }
       break;
+    case WebExportFormat::Gif: {
+      const auto base = settings.gif_dither ? QObject::tr("%n colors, diffusion", nullptr, settings.gif_colors)
+                                            : QObject::tr("%n colors, no dither", nullptr, settings.gif_colors);
+      return settings.gif_animate ? QObject::tr("%1, animated").arg(base) : base;
+    }
   }
   return QObject::tr("Full color");
 }
@@ -280,7 +355,8 @@ WebExportJob web_export_job(const WebExportSettings& settings, WebExportFormat f
   job.geometry = web_export_geometry_options(settings, document_size);
   job.options = web_export_image_options(settings, format, document_size);
   job.convert_to_srgb = settings.convert_to_srgb;
-  job.animate = format == WebExportFormat::Webp && settings.webp_animate;
+  job.animate = (format == WebExportFormat::Webp && settings.webp_animate) ||
+                (format == WebExportFormat::Gif && settings.gif_animate);
   auto signature = web_export_format_key(format) + QLatin1Char('|') +
                    geometry_signature(job.geometry, job.convert_to_srgb) + QLatin1Char('|') +
                    metadata_policy_key(settings.metadata);
@@ -300,6 +376,20 @@ WebExportJob web_export_job(const WebExportSettings& settings, WebExportFormat f
                        .arg(job.animate ? 1 : 0);
       break;
     case WebExportFormat::Png:
+      if (job.options.png_palette) {
+        signature += QStringLiteral("|c%1d%2a%3")
+                         .arg(job.options.palette_colors)
+                         .arg(job.options.palette_dither ? 1 : 0)
+                         .arg(job.options.palette_dither_amount);
+      }
+      break;
+    case WebExportFormat::Gif:
+      signature += QStringLiteral("|c%1d%2a%3n%4f%5")
+                       .arg(job.options.palette_colors)
+                       .arg(job.options.palette_dither ? 1 : 0)
+                       .arg(job.options.palette_dither_amount)
+                       .arg(job.animate ? 1 : 0)
+                       .arg(job.options.gif_frame_delay_cs);
       break;
   }
   job.signature = signature;
@@ -507,6 +597,9 @@ WebExportResult WebExportPreviewEngine::encode(const Document& narrowed_source, 
       QByteArrayView(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())),
       format.constData()));
   result.bytes = std::make_shared<const std::vector<std::uint8_t>>(std::move(bytes));
+  if (job.format == WebExportFormat::Gif || (job.format == WebExportFormat::Png && job.options.png_palette)) {
+    result.palette = used_colors(result.decoded);
+  }
   return result;
 }
 
@@ -819,6 +912,88 @@ ThemedQss background_swatch_style(QColor color) {
                        .arg(color.blue()));
 }
 
+// The colors a GIF or palette PNG uses, as a grid of small cells (32 per row, so 256 colors
+// take 8 rows). The cells show image colors (user data); the frame is a theme role.
+class PaletteSwatches final : public QWidget {
+public:
+  explicit PaletteSwatches(QWidget* parent) : QWidget(parent) {
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    set_colors({});
+  }
+
+  void set_colors(std::vector<QRgb> colors) {
+    colors_ = std::move(colors);
+    setProperty("webExportPaletteCount", static_cast<int>(colors_.size()));
+    const int rows = std::max(1, static_cast<int>((colors_.size() + kColumns - 1) / kColumns));
+    setFixedHeight(rows * kPitch + 3);
+    update();
+  }
+
+  [[nodiscard]] QSize sizeHint() const override { return {kColumns * kPitch + 3, height()}; }
+
+protected:
+  void paintEvent(QPaintEvent*) override {
+    QPainter painter(this);
+    painter.fillRect(rect(), theme().field_bg);
+    painter.setPen(theme().group_box_border);
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+    for (std::size_t index = 0; index < colors_.size(); ++index) {
+      const auto column = static_cast<int>(index % kColumns);
+      const auto row = static_cast<int>(index / kColumns);
+      painter.fillRect(QRect(2 + column * kPitch, 2 + row * kPitch, kPitch - 1, kPitch - 1), QColor(colors_[index]));
+    }
+  }
+
+private:
+  static constexpr int kColumns = 32;
+  static constexpr int kPitch = 9;
+  std::vector<QRgb> colors_;
+};
+
+// Colors, Dither (None or Diffusion with an amount) and the swatches of one palette format.
+struct PaletteRows {
+  QSpinBox* colors{nullptr};
+  QComboBox* dither{nullptr};
+  QSpinBox* amount{nullptr};
+  PaletteSwatches* swatches{nullptr};
+};
+
+PaletteRows add_palette_rows(QFormLayout* form, QWidget* parent, const QString& prefix, int colors, bool dither,
+                             int amount) {
+  PaletteRows rows;
+  rows.colors = add_dialog_slider_spin_row(form, parent, QObject::tr("Colors:"), prefix + QStringLiteral("ColorsSlider"),
+                                           prefix + QStringLiteral("ColorsSpin"), 2, 256, colors);
+  rows.colors->parentWidget()->setToolTip(
+      QObject::tr("The most colors the palette may hold. An image with fewer colors keeps them exactly."));
+  auto* dither_row = new QWidget(parent);
+  auto* dither_layout = new QHBoxLayout(dither_row);
+  dither_layout->setContentsMargins(0, 0, 0, 0);
+  dither_layout->setSpacing(8);
+  rows.dither = new QComboBox(dither_row);
+  rows.dither->setObjectName(prefix + QStringLiteral("DitherCombo"));
+  rows.dither->addItem(QObject::tr("None"), QStringLiteral("none"));
+  rows.dither->addItem(QObject::tr("Diffusion"), QStringLiteral("diffusion"));
+  rows.dither->setCurrentIndex(dither ? 1 : 0);
+  rows.dither->setToolTip(QObject::tr("Diffusion mixes neighboring palette colors so gradients band less. "
+                                      "It usually makes the file larger."));
+  dither_layout->addWidget(rows.dither, 1);
+  auto* amount_label = new QLabel(QObject::tr("Amount:"), dither_row);
+  dither_layout->addWidget(amount_label);
+  auto* amount_spin = new UnitIntSpinBox(SpinUnit::Percent, dither_row);
+  amount_spin->setObjectName(prefix + QStringLiteral("DitherAmountSpin"));
+  amount_spin->setRange(0, 100);
+  amount_spin->setValue(amount);
+  configure_dialog_spinbox(amount_spin, 76);
+  rows.amount = amount_spin;
+  dither_layout->addWidget(amount_spin);
+  form->addRow(QObject::tr("Dither:"), dither_row);
+  rows.swatches = new PaletteSwatches(parent);
+  rows.swatches->setObjectName(prefix + QStringLiteral("PaletteSwatches"));
+  rows.swatches->setToolTip(QObject::tr("The colors the file uses"));
+  form->addRow(QObject::tr("Palette:"), rows.swatches);
+  return rows;
+}
+
 [[nodiscard]] QGroupBox* make_group(QWidget* parent, const QString& title, const char* object_name) {
   auto* group = new QGroupBox(title, parent);
   group->setObjectName(QLatin1String(object_name));
@@ -855,6 +1030,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   settings.pixel_scale = 1;
   if (!offer_animation) {
     settings.webp_animate = false;
+    settings.gif_animate = false;
   }
 
   QDialog dialog(parent);
@@ -962,11 +1138,59 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   // PNG settings.
   auto* png_group = make_group(&dialog, QObject::tr("PNG settings"), "webExportPngGroup");
   auto* png_form = make_form(png_group);
+  auto* png_colors_combo = new QComboBox(png_group);
+  png_colors_combo->setObjectName(QStringLiteral("webExportPngColorsCombo"));
+  png_colors_combo->addItem(QObject::tr("Full color"), QStringLiteral("full"));
+  png_colors_combo->addItem(QObject::tr("Palette"), QStringLiteral("palette"));
+  png_colors_combo->setToolTip(
+      QObject::tr("Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots."));
+  png_form->addRow(QObject::tr("Type:"), png_colors_combo);
   auto* png_note = new QLabel(QObject::tr("Full color, lossless. Transparency is kept."), png_group);
   png_note->setObjectName(QStringLiteral("webExportPngNote"));
   png_note->setWordWrap(true);
   png_form->addRow(png_note);
+  auto* png_palette_box = new QWidget(png_group);
+  png_palette_box->setObjectName(QStringLiteral("webExportPngPaletteBox"));
+  auto* png_palette_form = new QFormLayout(png_palette_box);
+  png_palette_form->setContentsMargins(0, 0, 0, 0);
+  png_palette_form->setHorizontalSpacing(8);
+  png_palette_form->setVerticalSpacing(6);
+  png_palette_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  const auto png_rows = add_palette_rows(png_palette_form, png_palette_box, QStringLiteral("webExportPng"),
+                                         settings.png_colors, settings.png_dither, settings.png_dither_amount);
+  auto* png_cut_note = new QLabel(QObject::tr("Pixels under 50% opacity become transparent."), png_palette_box);
+  png_cut_note->setWordWrap(true);
+  set_themed_style(*png_cut_note, QStringLiteral("color: @hint_text;"));
+  png_palette_form->addRow(png_cut_note);
+  png_form->addRow(png_palette_box);
   controls->addWidget(png_group);
+
+  // GIF settings.
+  auto* gif_group = make_group(&dialog, QObject::tr("GIF settings"), "webExportGifGroup");
+  auto* gif_form = make_form(gif_group);
+  const auto gif_rows = add_palette_rows(gif_form, gif_group, QStringLiteral("webExportGif"), settings.gif_colors,
+                                         settings.gif_dither, settings.gif_dither_amount);
+  auto* gif_cut_note = new QLabel(QObject::tr("Pixels under 50% opacity become transparent."), gif_group);
+  gif_cut_note->setWordWrap(true);
+  set_themed_style(*gif_cut_note, QStringLiteral("color: @hint_text;"));
+  gif_form->addRow(gif_cut_note);
+  auto* gif_animate = new QCheckBox(QObject::tr("Animation from visible layers"), gif_group);
+  gif_animate->setObjectName(QStringLiteral("webExportGifAnimateCheck"));
+  gif_animate->setToolTip(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first."));
+  gif_animate->setVisible(offer_animation);
+  gif_form->addRow(gif_animate);
+  auto* gif_delay = new QDoubleSpinBox(gif_group);
+  gif_delay->setObjectName(QStringLiteral("webExportGifFrameDelaySpin"));
+  gif_delay->setRange(0.0, 655.35);
+  gif_delay->setDecimals(2);
+  gif_delay->setSingleStep(0.05);
+  gif_delay->setSuffix(QObject::tr(" s"));
+  gif_delay->setValue(settings.gif_frame_delay_ms / 1000.0);
+  gif_delay->setToolTip(QObject::tr("A layer name ending in a time such as 0.25s sets that frame's delay."));
+  configure_dialog_spinbox(gif_delay, 96);
+  gif_form->addRow(QObject::tr("Frame delay:"), gif_delay);
+  auto* gif_delay_label = gif_form->labelForField(gif_delay);
+  controls->addWidget(gif_group);
 
   // Image size.
   auto* size_group = make_group(&dialog, QObject::tr("Image size"), "webExportSizeGroup");
@@ -1172,6 +1396,15 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     read.webp_quality = webp_quality->value();
     read.webp_lossless = webp_lossless->isChecked();
     read.webp_animate = offer_animation && webp_animate->isChecked();
+    read.png_palette = png_colors_combo->currentData().toString() == QStringLiteral("palette");
+    read.png_colors = png_rows.colors->value();
+    read.png_dither = png_rows.dither->currentData().toString() == QStringLiteral("diffusion");
+    read.png_dither_amount = png_rows.amount->value();
+    read.gif_colors = gif_rows.colors->value();
+    read.gif_dither = gif_rows.dither->currentData().toString() == QStringLiteral("diffusion");
+    read.gif_dither_amount = gif_rows.amount->value();
+    read.gif_animate = offer_animation && gif_animate->isChecked();
+    read.gif_frame_delay_ms = static_cast<int>(std::lround(gif_delay->value() * 1000.0));
     read.metadata = metadata_policy_from_key(metadata_combo->currentData().toString())
                         .value_or(metadata::MetadataPolicy::None);
     read.thumbnail = thumbnail_check->isChecked();
@@ -1238,6 +1471,18 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     jpeg_group->setVisible(format == WebExportFormat::Jpeg);
     webp_group->setVisible(format == WebExportFormat::Webp);
     png_group->setVisible(format == WebExportFormat::Png);
+    gif_group->setVisible(format == WebExportFormat::Gif);
+    const bool png_palette = png_colors_combo->currentData().toString() == QStringLiteral("palette");
+    png_palette_box->setVisible(png_palette);
+    png_note->setVisible(!png_palette);
+    for (const auto* rows : {&png_rows, &gif_rows}) {
+      rows->amount->setEnabled(rows->dither->currentData().toString() == QStringLiteral("diffusion"));
+    }
+    const bool gif_animated = offer_animation && gif_animate->isChecked();
+    gif_delay->setVisible(gif_animated);
+    if (gif_delay_label != nullptr) {
+      gif_delay_label->setVisible(gif_animated);
+    }
     thumbnail_check->setVisible(format == WebExportFormat::Jpeg);
     thumbnail_check->setEnabled(metadata_combo->currentData().toString() !=
                                 metadata_policy_key(metadata::MetadataPolicy::None));
@@ -1282,6 +1527,11 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
         text += QLatin1Char(' ') + QString::fromStdString(notice);
       }
       info_label->setText(text);
+      if (format == WebExportFormat::Gif) {
+        gif_rows.swatches->set_colors(cached->palette);
+      } else if (format == WebExportFormat::Png) {
+        png_rows.swatches->set_colors(cached->palette);
+      }
     } else {
       // The last result stays on screen until the new one lands.
       main_pane->set_labels(QObject::tr("Original"), QObject::tr("%1: encoding...").arg(format_label));
@@ -1360,6 +1610,15 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     webp_quality->setValue(values.webp_quality);
     webp_lossless->setChecked(values.webp_lossless);
     webp_animate->setChecked(values.webp_animate);
+    png_colors_combo->setCurrentIndex(values.png_palette ? 1 : 0);
+    png_rows.colors->setValue(values.png_colors);
+    png_rows.dither->setCurrentIndex(values.png_dither ? 1 : 0);
+    png_rows.amount->setValue(values.png_dither_amount);
+    gif_rows.colors->setValue(values.gif_colors);
+    gif_rows.dither->setCurrentIndex(values.gif_dither ? 1 : 0);
+    gif_rows.amount->setValue(values.gif_dither_amount);
+    gif_animate->setChecked(values.gif_animate);
+    gif_delay->setValue(values.gif_frame_delay_ms / 1000.0);
     metadata_combo->setCurrentIndex(std::max(0, metadata_combo->findData(metadata_policy_key(values.metadata))));
     thumbnail_check->setChecked(values.thumbnail);
     resample_combo->setCurrentIndex(std::max(0, resample_combo->findData(resample_key(values.resample))));
@@ -1440,7 +1699,15 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   QObject::connect(jpeg_quality, &QSpinBox::valueChanged, &dialog, [&](int) { on_changed(); });
   QObject::connect(webp_quality, &QSpinBox::valueChanged, &dialog, [&](int) { on_changed(); });
   QObject::connect(metadata_combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { on_changed(); });
-  for (auto* check : {jpeg_progressive, jpeg_optimize, webp_lossless, webp_animate, thumbnail_check, trim_check}) {
+  for (auto* spin : {png_rows.colors, png_rows.amount, gif_rows.colors, gif_rows.amount}) {
+    QObject::connect(spin, &QSpinBox::valueChanged, &dialog, [&](int) { on_changed(); });
+  }
+  for (auto* combo : {png_colors_combo, png_rows.dither, gif_rows.dither}) {
+    QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { on_changed(); });
+  }
+  QObject::connect(gif_delay, &QDoubleSpinBox::valueChanged, &dialog, [&](double) { on_changed(); });
+  for (auto* check : {jpeg_progressive, jpeg_optimize, webp_lossless, webp_animate, gif_animate, thumbnail_check,
+                      trim_check}) {
     QObject::connect(check, &QCheckBox::toggled, &dialog, [&](bool) { on_changed(); });
   }
   if (convert_check != nullptr) {
