@@ -6,7 +6,8 @@
 // the Quick Mask button. The footer is a child of the palette toolbar that sits
 // in the toolbar layout's reserved bottom margin, so it never joins the
 // overflow and stays at the bottom while the tools above fold into the
-// extension columns.
+// extension columns. Under Quick Mask sits the screen mode button (GitHub
+// issue 212), which MainWindow builds and the footer only places.
 
 #include <QColor>
 #include <QPushButton>
@@ -78,13 +79,19 @@ public:
   // designed for it. set_scale() resizes it with the column (cell_width() and friends).
   static constexpr int kWidth = 43;
   static constexpr int kWellHeight = 45;
-  static constexpr int kHeight = 75;
+  // Quick Mask's row, then the screen mode button's (GitHub issue 212).
+  static constexpr int kQuickMaskRowHeight = 30;
+  static constexpr int kScreenModeRowHeight = 22;
+  static constexpr int kHeight = kWellHeight + kQuickMaskRowHeight + kScreenModeRowHeight;
 
   ToolPaletteFooter(QAction* default_colors, QAction* swap_colors, QAction* quick_mask, QWidget* parent = nullptr);
 
   [[nodiscard]] ColorWellSwatch* foreground() const noexcept { return foreground_; }
   [[nodiscard]] ColorWellSwatch* background() const noexcept { return background_; }
   [[nodiscard]] QToolButton* quick_mask_button() const noexcept { return quick_mask_; }
+  // Takes the screen mode button into its row under Quick Mask (a child of the footer).
+  void set_screen_mode_button(QToolButton* button);
+  [[nodiscard]] QToolButton* screen_mode_button() const noexcept { return screen_mode_; }
   [[nodiscard]] QSize sizeHint() const override { return {cell_width_, height_}; }
   [[nodiscard]] QSize minimumSizeHint() const override { return {cell_width_, height_}; }
 
@@ -109,6 +116,7 @@ private:
   ColorWellGlyphButton* swap_{nullptr};
   ColorWellGlyphButton* default_{nullptr};
   QToolButton* quick_mask_{nullptr};
+  QToolButton* screen_mode_{nullptr};
   double scale_{1.0};
   int cell_width_{kWidth};
   int well_height_{kWellHeight};

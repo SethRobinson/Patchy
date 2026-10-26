@@ -21,6 +21,9 @@
     <file alias="film.svg">icons/film.svg</file>
     <file alias="quick-mask.svg">icons/quick-mask.svg</file>
     <file alias="quick-mask-on.svg">icons/quick-mask-on.svg</file>
+    <file alias="screen-mode-standard.svg">icons/screen-mode-standard.svg</file>
+    <file alias="screen-mode-full-with-menus.svg">icons/screen-mode-full-with-menus.svg</file>
+    <file alias="screen-mode-full.svg">icons/screen-mode-full.svg</file>
     <file alias="link.svg">icons/link.svg</file>
     <file alias="gear.svg">icons/gear.svg</file>
     <file alias="brush-dynamics.svg">icons/brush-dynamics.svg</file>

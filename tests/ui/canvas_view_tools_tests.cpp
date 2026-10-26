@@ -6412,6 +6412,10 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolTypeAction", "Type"},
       {"toolHandAction", "Hand"},
       {"toolZoomAction", "Zoom"},
+      // The tool palette footer's screen mode button (GitHub issue 212).
+      {"viewScreenModeStandardAction", "Screen: Standard"},
+      {"viewScreenModeFullWithMenusAction", "Screen: Menus"},
+      {"viewScreenModeFullAction", "Screen: Full"},
   };
   // Object Selection exists only in builds with the automatic-selection models.
   patchy::ui::configure_automatic_selection_models();

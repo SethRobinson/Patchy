@@ -2514,12 +2514,18 @@ void ui_toolbar_icon_size_preference_scales_tool_palette() {
     CHECK(footer->cell_width() == column);
     CHECK(footer->width() == column);
     CHECK(footer->height() == qRound(patchy::ui::ToolPaletteFooter::kHeight * column / 43.0));
-    // The well and Quick Mask stay inside the footer, clear of the palette's right border.
-    for (const char* name : {"foregroundColorButton", "backgroundColorButton", "colorSwapButton", "quickMaskButton"}) {
+    // The well, Quick Mask and the screen mode button stay inside the footer, clear of the
+    // palette's right border.
+    for (const char* name : {"foregroundColorButton", "backgroundColorButton", "colorSwapButton", "quickMaskButton",
+                             "screenModeButton"}) {
       auto* control = footer->findChild<QWidget*>(QString::fromLatin1(name));
       CHECK(control != nullptr);
       if (control != nullptr) {
-        CHECK(footer->rect().adjusted(0, 0, -1, 0).contains(control->geometry()));
+        const bool inside = footer->rect().adjusted(0, 0, -1, 0).contains(control->geometry());
+        if (!inside) {
+          std::printf("  %s runs outside the footer\n", name);
+        }
+        CHECK(inside);
       }
     }
     auto* swatch = footer->findChild<QWidget*>(QStringLiteral("foregroundColorButton"));

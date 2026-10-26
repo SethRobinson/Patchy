@@ -279,6 +279,14 @@ QString photoshop_style_template() {
       min-height: @tf(22)px;
       max-height: @tf(22)px;
     }
+    /* The screen mode button's row under Quick Mask (GitHub issue 212): a 36 x 21 box,
+       which still fits the row when the footer factor rounds it down (Smallest). */
+    QToolBar#toolPalette QToolButton#screenModeButton {
+      min-width: @tf(32)px;
+      max-width: @tf(32)px;
+      min-height: @tf(17)px;
+      max-height: @tf(17)px;
+    }
     QToolBar#toolPalette QToolButton#qt_toolbar_ext_button {
       min-height: 14px;
       max-height: 14px;
