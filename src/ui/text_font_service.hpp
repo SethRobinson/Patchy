@@ -38,6 +38,8 @@ std::optional<QString> available_text_family_match(const QString& family);
 std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const QString& family,
                                                                         bool consult_name_tables = true);
 QString canonical_text_display_family(const QString& family);
+QString installed_text_family(const QString& family);
+QString default_text_family();
 QStringList available_text_family_styles(const QString& family);
 QString text_style_query_family(const QString& family);
 TextStyleFlags text_style_flags_for_name(const QString& style);
