@@ -12794,6 +12794,54 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Ruler</source>
         <translation>Righello</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Personalizza palette strumenti</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Spunta gli strumenti da mostrare. Gli strumenti nascosti mantengono le scorciatoie.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Disposizione</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Una colonna</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Due colonne, strumenti affiancati</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>La rotella del mouse scorre la palette quando non entra</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Altrimenti la freccia &gt; apre altre colonne.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Mostra il pulsante a ingranaggio nella palette</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Strumenti</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Spunta i pulsanti che il pannello Livelli mostra. I comandi dei pulsanti nascosti restano nei menu.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Pulsanti dei livelli</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Ripristina predefiniti</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26230,6 +26278,34 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>Straightened image %1 degrees clockwise</source>
         <translation>Immagine raddrizzata di %1 gradi in senso orario</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Personalizza palette strumenti...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Selezione</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Pittura</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Ritocco</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Disegno e testo</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Vista</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Mostra tutti i pulsanti</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28218,6 +28294,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance deve essere un numero da 0 a 255.</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: valore sconosciuto &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>

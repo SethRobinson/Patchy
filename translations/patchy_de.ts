@@ -12794,6 +12794,54 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Ruler</source>
         <translation>Lineal</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Werkzeugpalette anpassen</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Haken Sie die Werkzeuge an, die angezeigt werden sollen. Ausgeblendete Werkzeuge behalten ihre Tastenkürzel.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Anordnung</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Eine Spalte</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Zwei Spalten, Werkzeuge nebeneinander</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>Mausrad scrollt die Palette, wenn sie überläuft</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Sonst öffnet der Pfeil &gt; weitere Spalten.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Zahnrad-Schaltfläche in der Palette anzeigen</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Werkzeuge</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Haken Sie die Schaltflächen an, die das Ebenen-Bedienfeld zeigt. Die Befehle ausgeblendeter Schaltflächen bleiben in den Menüs.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Ebenen-Schaltflächen</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Auf Standard zurücksetzen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26230,6 +26278,34 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Straightened image %1 degrees clockwise</source>
         <translation>Bild um %1 Grad im Uhrzeigersinn gerade ausgerichtet</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Werkzeugpalette anpassen...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Auswählen</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Malen</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Retuschieren</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Zeichnen und Text</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Ansicht</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Alle Schaltflächen anzeigen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28218,6 +28294,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance muss eine Zahl von 0 bis 255 sein.</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: unbekannter Wert &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>

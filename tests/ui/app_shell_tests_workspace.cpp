@@ -148,9 +148,8 @@ ToolPaletteOverflowSetup shrink_window_until_tool_palette_overflows(patchy::ui::
   if (footer != nullptr) {
     CHECK(footer->isVisible());
     CHECK(footer->geometry().bottom() >= setup.palette->height() - 6);
-    CHECK(footer->geometry().top() > setup.palette->widgetForAction(require_action(window, "toolZoomAction"))
-                                         ->geometry()
-                                         .bottom());
+    CHECK(footer->geometry().top() >
+          window.findChild<QToolButton*>(QStringLiteral("zoomToolButton"))->geometry().bottom());
   }
 
   const int short_height = fits_height - 40;
@@ -3245,8 +3244,7 @@ void ui_tool_palette_expansion_sticky_after_tool_pick() {
   // the first click of the Zoom button's double-click, and the reserved-width
   // layout means the open expansion costs the canvas nothing it was not
   // already paying.
-  auto* eraser_button = qobject_cast<QAbstractButton*>(
-      setup.palette->widgetForAction(require_action(window, "toolEraserAction")));
+  auto* eraser_button = window.findChild<QAbstractButton*>(QStringLiteral("eraserToolButton"));
   CHECK(eraser_button != nullptr);
   eraser_button->click();
   process_events_for(60);

@@ -12759,6 +12759,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Ruler</source>
         <translation>ものさし</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>ツールパレットのカスタマイズ</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>表示するツールにチェックを入れます。非表示のツールもショートカットは使えます。</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>レイアウト</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>1 列</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>2 列（ツールを横に並べる）</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>はみ出したときはマウスホイールでパレットをスクロール</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>オフのときは &gt; 矢印で列を追加表示します。</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>パレットに歯車ボタンを表示</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>ツール</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>レイヤーパネルに表示するボタンにチェックを入れます。非表示のボタンのコマンドはメニューに残ります。</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>レイヤーのボタン</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>初期設定に戻す</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26157,6 +26205,34 @@ The open document keeps its blend modes either way.</source>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>画像を時計回りに %1 度補正しました</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>ツールパレットのカスタマイズ...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>選択</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>ペイント</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>レタッチ</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>描画とテキスト</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>表示</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>すべてのボタンを表示</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28144,6 +28220,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim の tolerance は 0 から 255 の数値である必要があります。</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: 不明な値 &quot;%1&quot; です。</translation>
     </message>
 </context>
 <context>

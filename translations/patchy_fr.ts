@@ -12794,6 +12794,54 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Ruler</source>
         <translation>Règle</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Personnaliser la palette d&apos;outils</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Cochez les outils à afficher. Les outils masqués gardent leurs raccourcis.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Disposition</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Une colonne</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Deux colonnes, outils côte à côte</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>La molette fait défiler la palette quand elle déborde</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>Sinon, la flèche &gt; ouvre d&apos;autres colonnes.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Afficher le bouton engrenage sur la palette</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Outils</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Cochez les boutons affichés par le panneau Calques. Les commandes des boutons masqués restent dans les menus.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Boutons des calques</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Rétablir les valeurs par défaut</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26230,6 +26278,34 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>Image redressée de %1 degrés dans le sens horaire</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Personnaliser la palette d&apos;outils...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Sélection</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Peinture</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Retouche</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Dessin et texte</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Affichage</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Afficher tous les boutons</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28218,6 +28294,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance doit être un nombre de 0 à 255.</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette : valeur inconnue &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>

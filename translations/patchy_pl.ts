@@ -12829,6 +12829,54 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Ruler</source>
         <translation>Linijka</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>Dostosuj paletę narzędzi</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>Zaznacz narzędzia do wyświetlenia. Ukryte narzędzia zachowują skróty.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>Układ</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>Jedna kolumna</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>Dwie kolumny, narzędzia obok siebie</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>Kółko myszy przewija paletę, gdy się nie mieści</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>W przeciwnym razie strzałka &gt; otwiera kolejne kolumny.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>Pokaż przycisk koła zębatego na palecie</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Narzędzia</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Zaznacz przyciski widoczne w panelu Warstwy. Polecenia ukrytych przycisków pozostają w menu.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>Przyciski warstw</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>Przywróć domyślne</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26303,6 +26351,34 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Straightened image %1 degrees clockwise</source>
         <translation>Wyprostowano obraz o %1 stopni zgodnie z ruchem wskazówek zegara</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>Dostosuj paletę narzędzi...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Zaznaczanie</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Malowanie</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>Retusz</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>Rysowanie i tekst</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>Widok</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>Pokaż wszystkie przyciski</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28292,6 +28368,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance musi być liczbą od 0 do 255.</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: nieznana wartość &quot;%1&quot;.</translation>
     </message>
 </context>
 <context>

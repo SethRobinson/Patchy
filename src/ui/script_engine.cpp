@@ -3910,6 +3910,95 @@ void ScriptEngineHost::set_view_pixel_grid(bool enabled) {
   pump_progress_indicator();
   window_.view_pixel_grid_action_->setChecked(enabled);
 }
+// The script names of the two layouts; permanent identifiers.
+constexpr auto kScriptOneColumnLayout = "oneColumn";
+constexpr auto kScriptTwoColumnsLayout = "twoColumns";
+
+QJSValue ScriptEngineHost::tool_palette_state() {
+  const auto& customization = window_.tool_palette_customization();
+  const auto list = [this](const QStringList& ids) {
+    auto array = engine()->newArray(static_cast<uint>(ids.size()));
+    for (qsizetype index = 0; index < ids.size(); ++index) {
+      array.setProperty(static_cast<quint32>(index), ids[index]);
+    }
+    return array;
+  };
+  auto state = engine()->newObject();
+  state.setProperty(QStringLiteral("hiddenTools"), list(customization.hidden_tools));
+  state.setProperty(QStringLiteral("layout"), QString::fromLatin1(customization.two_columns ? kScriptTwoColumnsLayout
+                                                                                           : kScriptOneColumnLayout));
+  state.setProperty(QStringLiteral("wheelScroll"), customization.wheel_scroll);
+  state.setProperty(QStringLiteral("showGearButton"), customization.show_customize_button);
+  state.setProperty(QStringLiteral("hiddenLayerButtons"), list(customization.hidden_layer_buttons));
+  return state;
+}
+
+void ScriptEngineHost::set_tool_palette_state(const QJSValue& state) {
+  pump_progress_indicator();
+  const auto unknown = [this](const QString& value) {
+    throw_js_error(tr("toolPalette: unknown value \"%1\".").arg(value));
+  };
+  if (!state.isObject()) {
+    unknown(state.toString());
+    return;
+  }
+  QStringList tools;
+  for (const auto& cluster : window_.tool_palette_catalog().clusters) {
+    for (const auto& entry : cluster.entries) {
+      for (const auto& member : entry.members) {
+        tools.push_back(member.id);
+      }
+    }
+  }
+  QStringList layer_buttons;
+  for (const auto* id : kLayerFooterButtonIds) {
+    layer_buttons.push_back(QString::fromLatin1(id));
+  }
+  // An array of ids, each one known; false when one is not (it has thrown).
+  const auto read_ids = [&unknown](const QJSValue& array, const QStringList& known, QStringList& out) {
+    if (!array.isArray()) {
+      unknown(array.toString());
+      return false;
+    }
+    out.clear();
+    const auto length = array.property(QStringLiteral("length")).toUInt();
+    for (quint32 index = 0; index < length; ++index) {
+      const auto id = array.property(index).toString();
+      if (!known.contains(id)) {
+        unknown(id);
+        return false;
+      }
+      out.push_back(id);
+    }
+    return true;
+  };
+  auto customization = window_.tool_palette_customization();
+  if (state.hasProperty(QStringLiteral("hiddenTools")) &&
+      !read_ids(state.property(QStringLiteral("hiddenTools")), tools, customization.hidden_tools)) {
+    return;
+  }
+  if (state.hasProperty(QStringLiteral("hiddenLayerButtons")) &&
+      !read_ids(state.property(QStringLiteral("hiddenLayerButtons")), layer_buttons,
+                customization.hidden_layer_buttons)) {
+    return;
+  }
+  if (state.hasProperty(QStringLiteral("layout"))) {
+    const auto layout = state.property(QStringLiteral("layout")).toString();
+    if (layout != QLatin1String(kScriptOneColumnLayout) && layout != QLatin1String(kScriptTwoColumnsLayout)) {
+      unknown(layout);
+      return;
+    }
+    customization.two_columns = layout == QLatin1String(kScriptTwoColumnsLayout);
+  }
+  if (state.hasProperty(QStringLiteral("wheelScroll"))) {
+    customization.wheel_scroll = state.property(QStringLiteral("wheelScroll")).toBool();
+  }
+  if (state.hasProperty(QStringLiteral("showGearButton"))) {
+    customization.show_customize_button = state.property(QStringLiteral("showGearButton")).toBool();
+  }
+  window_.apply_tool_palette_customization(customization);
+}
+
 bool ScriptEngineHost::view_gamut_warning() const { return window_.view_gamut_warning_action_->isChecked(); }
 void ScriptEngineHost::set_view_gamut_warning(bool enabled) {
   pump_progress_indicator();

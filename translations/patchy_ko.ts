@@ -12759,6 +12759,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Ruler</source>
         <translation>자</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette</source>
+        <translation>도구 팔레트 사용자 지정</translation>
+    </message>
+    <message>
+        <source>Tick the tools to show. Hidden tools keep their shortcuts.</source>
+        <translation>표시할 도구를 선택하세요. 숨긴 도구도 단축키는 그대로 사용할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation>배치</translation>
+    </message>
+    <message>
+        <source>One column</source>
+        <translation>한 열</translation>
+    </message>
+    <message>
+        <source>Two columns, tools side by side</source>
+        <translation>두 열, 도구를 나란히</translation>
+    </message>
+    <message>
+        <source>Mouse wheel scrolls the palette when it overflows</source>
+        <translation>넘칠 때 마우스 휠로 팔레트 스크롤</translation>
+    </message>
+    <message>
+        <source>Otherwise the &gt; arrow opens more columns.</source>
+        <translation>끄면 &gt; 화살표로 열을 더 엽니다.</translation>
+    </message>
+    <message>
+        <source>Show the gear button on the palette</source>
+        <translation>팔레트에 톱니바퀴 버튼 표시</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>도구</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>레이어 패널에 표시할 버튼을 선택하세요. 숨긴 버튼의 명령은 메뉴에 남습니다.</translation>
+    </message>
+    <message>
+        <source>Layers buttons</source>
+        <translation>레이어 버튼</translation>
+    </message>
+    <message>
+        <source>Reset to Default</source>
+        <translation>기본값으로 재설정</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26157,6 +26205,34 @@ The open document keeps its blend modes either way.</source>
         <source>Straightened image %1 degrees clockwise</source>
         <translation>이미지를 시계 방향으로 %1도 맞췄습니다</translation>
     </message>
+    <message>
+        <source>Customize Tool Palette...</source>
+        <translation>도구 팔레트 사용자 지정...</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>선택</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>페인트</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>리터치</translation>
+    </message>
+    <message>
+        <source>Draw and Type</source>
+        <translation>그리기와 문자</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>보기</translation>
+    </message>
+    <message>
+        <source>Show All Buttons</source>
+        <translation>모든 버튼 표시</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28144,6 +28220,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>trim tolerance must be a number from 0 to 255.</source>
         <translation>trim tolerance는 0부터 255까지의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation>toolPalette: 알 수 없는 값 &quot;%1&quot;입니다.</translation>
     </message>
 </context>
 <context>

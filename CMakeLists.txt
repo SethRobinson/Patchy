@@ -1317,6 +1317,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/options_flow_layout.cpp
       src/ui/tool_palette_footer.hpp
       src/ui/tool_palette_footer.cpp
+      src/ui/tool_palette_customization.hpp
+      src/ui/tool_palette_customization.cpp
+      src/ui/tool_palette_layout.hpp
+      src/ui/tool_palette_layout.cpp
       src/ui/main_window_actions_tool_palette.cpp
       src/ui/main_window_adjustments.cpp
       src/ui/main_window_channels.cpp
@@ -2346,6 +2350,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
       tests/ui/crop_tool_tests.cpp
       tests/ui/ruler_tool_tests.cpp
+      tests/ui/tool_palette_customize_tests.cpp
       tests/ui/unit_spin_box_tests.cpp
       tests/ui/clipboard_free_transform_tests.cpp
       tests/ui/deep_operation_audit_tests.cpp
