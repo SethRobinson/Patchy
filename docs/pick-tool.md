@@ -1,6 +1,6 @@
-# Pick tool (Eyedropper)
+# Pick tool (Eyedropper) and Ruler
 
-The Pick tool (`CanvasTool::Eyedropper`, labeled "Pick") and the paint tools' temporary Alt eyedropper. Overlay geometry and painting live in `src/ui/eyedropper_sample_overlay.cpp`, free of CanvasWidget so tests reach them directly.
+The Pick tool (`CanvasTool::Eyedropper`, labeled "Pick") and the paint tools' temporary Alt eyedropper. The Ruler shares Pick's palette slot; its section is at the end. Overlay geometry and painting live in `src/ui/eyedropper_sample_overlay.cpp`, free of CanvasWidget so tests reach them directly.
 
 ## Picking and options
 
@@ -25,3 +25,15 @@ While a pick is held, with the Pick tool or a paint tool's Alt eyedropper, the c
 - **Cost.** Each pointer move reads only the lens square through `compose_document_rect` (a copy from the render cache when it is current); the paint draws that copy and never touches the document. A 32-bit composite goes through `display_image_from_deep_qimage` first, never QPainter on floats.
 
 Tests: `ui_sample_loupe_geometry_stays_inside_the_viewport`, `ui_sample_loupe_shows_while_a_pick_is_held`, `ui_sample_loupe_lens_matches_the_canvas_at_every_depth`, `ui_eyedropper_options_bar_sample_controls`.
+
+## Ruler
+
+The Ruler (`CanvasTool::Ruler`, GitHub issue 331) is the second member of the Pick flyout (`pickToolButton`): I selects Pick, Shift+I cycles the two (`tools.cycle.pick`), and the Ruler itself ships unbound (`tools.ruler`). Gestures (`src/ui/canvas_widget_ruler.cpp`): a drag draws the line, Shift keeping 45-degree steps; a press within 6 screen pixels of an end moves that end, within 4 of the line moves it whole; a press anywhere else starts a new line, and a click without a drag leaves no line. Alt+drag from an end adds a second leg from that end (the protractor), which becomes the vertex `start`. Ends sit on the pixel under the pointer (its top-left corner, so a press lands on the pixel it shows at any zoom); Esc mid-drag puts the line back.
+
+The line (`RulerLine`, `src/ui/ruler_tool.hpp`) is a view overlay in document pixels kept per canvas: drawn only while the Ruler is the tool, never saved, never an undo step. A history restore of the same canvas size keeps it; another document or a size change clears it (`set_document_internal`). It is drawn in cursor ink (dark 3 px under light 1 px, ticks across the ends, an arc between protractor legs), exempt from theme roles like every tool overlay ([ui-conventions.md](ui-conventions.md)); the paint maps three points, nothing per pixel.
+
+The bar reads `X Y W H A L1 L2 | [Straighten Layer] [Straighten Image] [Clear]` (labels `rulerReadoutX` ... `rulerReadoutL2`, plain text, refreshed by the canvas's ruler changed callback and `refresh_document_info`). X and Y are the start, W and H the first leg in document axes (down is positive), A the leg's angle counterclockwise from horizontal in (-180, 180], or with two legs the angle between them (0 to 180), L1 and L2 the leg lengths. Values follow `view/rulerUnits` through `format_ruler_readout`: positions in the unit at each axis's PPI (Percent of the document side), lengths in physical units converted per axis, in pixels with one decimal for Pixels and Percent.
+
+Straighten (`MainWindow::straighten_with_ruler`) turns by `ruler_straighten_degrees`: the first leg goes to the NEAREST axis, so a line along a wall within 45 degrees of vertical stands it upright. Straighten Layer runs the Free Transform commit on the active layer (`CanvasWidget::straighten_layer`: rotation about the session box's center, the user's interpolation, one undo step renamed "Straighten Layer", the whole layer even with a selection active through `transform_ignores_selection_`); it is off without a line or for a position-locked layer, and Free Transform's own refusals reach the status bar. Straighten Image is the Crop tool's rotated crop (`crop_document`) with the box from `ruler_straighten_crop`: the largest rectangle of the canvas's shape that fits inside it when turned, centered, so no empty corners remain; one undo step. Both clear the line. No tool option is persisted (the inventory in [tool-options.md](tool-options.md)).
+
+Tests: `ui_ruler_measurement_math`, `ui_ruler_tool_joins_pick_flyout`, `ui_ruler_draws_line_and_reads_out`, `ui_ruler_straighten_layer_levels_and_undoes`, `ui_ruler_straighten_image_rotates_and_crops`.

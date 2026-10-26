@@ -435,6 +435,8 @@ void shot_readme_levels() {
   // this scene so the other shots (and later suite runs) pick their own.
   SettingsValueRestorer picker_tab_restorer(QStringLiteral("colorPanel/lastTab"));
   SettingsValueRestorer palette_choice_restorer(QStringLiteral("palettes/lastPaletteChoice"));
+  // The shot unchecks Transform Controls, which the checkbox writes to the settings.
+  SettingsValueRestorer transform_controls_restorer(QStringLiteral("tools/showTransformControls"));
   {
     // A coarse line grid reads well over a photo; the default fine mesh at
     // fit zoom washes the image out.

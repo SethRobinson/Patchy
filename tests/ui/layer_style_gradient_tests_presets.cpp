@@ -5,6 +5,7 @@
 #include "core/gradient_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "ui/web_export.hpp"
+#include "ui/mask_properties_dialog.hpp"
 #include "ui/camera_raw_filter_dialog.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
@@ -1533,6 +1534,8 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     (void)patchy::ui::request_web_export(nullptr, std::make_shared<const patchy::Document>(document));
     grab_dialog(QStringLiteral("viewExtrasOptionsDialog"), "view_extras_options");
     (void)patchy::ui::request_view_extras_options(nullptr, patchy::ui::kAllViewExtras);
+    grab_dialog(QStringLiteral("maskPropertiesDialog"), "mask_properties");
+    (void)patchy::ui::request_mask_properties(nullptr, true, QStringLiteral("Shape"), {100, 0}, {});
     grab_dialog(QStringLiteral("patchySplashScreen"), "about");
     patchy::ui::show_about_splash();
     // The color picker is a top-level widget, not a dialog.

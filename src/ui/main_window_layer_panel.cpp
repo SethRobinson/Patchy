@@ -1631,7 +1631,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                bool smart_filters_expanded = true,
                                std::function<void(LayerId)> toggle_smart_filters_expanded = {},
                                LayerThumbnailSize thumbnail_size = kDefaultLayerThumbnailSize,
-                               bool arrow_column = false) {
+                               bool arrow_column = false,
+                               std::function<void(LayerId, bool)> set_vector_mask_linked = {}) {
   // One crop per row: the content, mask, vector-mask, and Smart Filter mask
   // previews share it so the row keeps a single tile shape.
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -1785,38 +1786,52 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     layout->addWidget(thumbnail, 0, Qt::AlignVCenter);
   }
 
+  // The chain between thumbnails: linked masks follow the layer's moves and transforms.
+  // A vector mask gets its own chain before its thumbnail (Photoshop's row layout).
+  const auto add_mask_link_button = [&](const QString& object_name, bool linked, bool vector_mask,
+                                        std::function<void(LayerId, bool)> set_linked) {
+    const auto tooltip = [vector_mask](bool checked) {
+      if (vector_mask) {
+        return checked ? QObject::tr("Layer and vector mask are linked. Click to unlink.")
+                       : QObject::tr("Layer and vector mask are unlinked. Click to link.");
+      }
+      return checked ? QObject::tr("Layer and mask are linked. Click to unlink.")
+                     : QObject::tr("Layer and mask are unlinked. Click to link.");
+    };
+    auto* link = new LayerRowFixedSizeButton(QSize(22, 24), row);
+    link->setObjectName(object_name);
+    link->setCheckable(true);
+    link->setChecked(linked);
+    link->setText(QString());
+    link->setIcon(simple_icon(link->isChecked() ? QStringLiteral("link") : QStringLiteral("off"),
+                              link->isChecked() ? QColor(220, 226, 235) : QColor(112, 120, 130)));
+    link->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    link->setIconSize(QSize(19, 19));
+    link->setToolTip(tooltip(link->isChecked()));
+    link->setEnabled(ancestors_visible && layer.visible());
+    if (list_parent != nullptr) {
+      link->installEventFilter(list_parent);
+    }
+    QObject::connect(link, &QToolButton::toggled, row,
+                     [parent, id = layer.id(), link, tooltip, set_linked = std::move(set_linked)](bool checked) {
+      link->setIcon(simple_icon(checked ? QStringLiteral("link") : QStringLiteral("off"),
+                                checked ? QColor(220, 226, 235) : QColor(112, 120, 130)));
+      link->setToolTip(tooltip(checked));
+      if (set_linked) {
+        QTimer::singleShot(0, parent, [id, checked, set_linked] { set_linked(id, checked); });
+      }
+    });
+    layout->addWidget(link, 0, Qt::AlignVCenter);
+  };
+
   if (layer.mask().has_value()) {
     // An adjustment placeholder keeps its "what is this" tooltip: it has no pixels to edit.
     if (thumbnail != nullptr && layer.kind() == LayerKind::Pixel && !layer_is_text(layer) &&
         adjustment_placeholder_kind(layer).empty()) {
       thumbnail->setToolTip(QObject::tr("Layer pixels. Click to edit them instead of the mask."));
     }
-    auto* link = new LayerRowFixedSizeButton(QSize(22, 24), row);
-    link->setObjectName(QStringLiteral("layerMaskLinkButton"));
-    link->setCheckable(true);
-    link->setChecked(layer_mask_linked(layer));
-    link->setText(QString());
-    link->setIcon(simple_icon(link->isChecked() ? QStringLiteral("link") : QStringLiteral("off"),
-                              link->isChecked() ? QColor(220, 226, 235) : QColor(112, 120, 130)));
-    link->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    link->setIconSize(QSize(19, 19));
-    link->setToolTip(link->isChecked() ? QObject::tr("Layer and mask are linked. Click to unlink.")
-                                       : QObject::tr("Layer and mask are unlinked. Click to link."));
-    link->setEnabled(ancestors_visible && layer.visible());
-    if (list_parent != nullptr) {
-      link->installEventFilter(list_parent);
-    }
-    QObject::connect(link, &QToolButton::toggled, row,
-                     [parent, id = layer.id(), link, set_mask_linked = std::move(set_mask_linked)](bool checked) {
-      link->setIcon(simple_icon(checked ? QStringLiteral("link") : QStringLiteral("off"),
-                                checked ? QColor(220, 226, 235) : QColor(112, 120, 130)));
-      link->setToolTip(checked ? QObject::tr("Layer and mask are linked. Click to unlink.")
-                               : QObject::tr("Layer and mask are unlinked. Click to link."));
-      if (set_mask_linked) {
-        QTimer::singleShot(0, parent, [id, checked, set_mask_linked] { set_mask_linked(id, checked); });
-      }
-    });
-    layout->addWidget(link, 0, Qt::AlignVCenter);
+    add_mask_link_button(QStringLiteral("layerMaskLinkButton"), layer_mask_linked(layer), false,
+                         std::move(set_mask_linked));
 
     auto* mask_preview = new QLabel(row);
     mask_preview->setObjectName(QStringLiteral("layerMaskThumbnail"));
@@ -1839,12 +1854,16 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   }
 
   if (layer.vector_mask() != nullptr) {
+    add_mask_link_button(QStringLiteral("layerVectorMaskLinkButton"), !layer.vector_mask()->unlinked, true,
+                         std::move(set_vector_mask_linked));
     auto* vector_mask_preview = new QLabel(row);
     vector_mask_preview->setObjectName(QStringLiteral("layerVectorMaskThumbnail"));
     vector_mask_preview->setFixedSize(mask_tile + 2, mask_tile + 2);
     vector_mask_preview->setAlignment(Qt::AlignCenter);
     vector_mask_preview->setPixmap(layer_vector_mask_thumbnail(
         *layer.vector_mask(), document_size.width(), document_size.height(), thumbnail_crop, mask_tile));
+    vector_mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
+                                     QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
     vector_mask_preview->setToolTip(resolve_modifier_names(
         QObject::tr("Vector mask. Click to edit its path with the pen and path tools, %CTRL%-click to "
                     "load it as a selection, %ALT%-click to view it, Shift-click to disable it.")));
@@ -4169,7 +4188,13 @@ QWidget* MainWindow::make_layer_list_row_widget(const LayerListRowSpec& pending,
                                     [this](LayerId layer_id) { toggle_layer_effects_expanded(layer_id); },
                                     !session().collapsed_smart_filters.contains(layer.id()),
                                     [this](LayerId layer_id) { toggle_layer_smart_filters_expanded(layer_id); },
-                                    layer_thumbnail_size_, layer_list_arrow_column_);
+                                    layer_thumbnail_size_, layer_list_arrow_column_,
+                                    [this](LayerId layer_id, bool linked) {
+      if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->vector_mask() != nullptr) {
+        document().set_active_layer(layer_id);
+        set_active_layer_vector_mask_linked(linked);
+      }
+    });
   if (session_layer == layer.id() && layer_is_text(layer)) {
     // The content tile above came without the badge; the tooltip has to agree.
     if (auto* thumbnail = row_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
@@ -4455,6 +4480,22 @@ void MainWindow::refresh_layer_thumbnails() {
           mask_thumbnail->property(kLayerMaskThumbnailRevisionProperty).toULongLong() != revision) {
         mask_thumbnail->setPixmap(cached_layer_mask_thumbnail(*layer, doc.width(), doc.height()));
         mask_thumbnail->setProperty(kLayerMaskThumbnailRevisionProperty, QVariant::fromValue<qulonglong>(revision));
+        ++mask_refreshed;
+      } else {
+        ++mask_skipped;
+      }
+    }
+    // Pen, path-tool and Mask Properties edits redraw the mask's coverage: its preview
+    // follows (it stayed as drawn when the row was built).
+    if (auto* vector_mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerVectorMaskThumbnail"));
+        vector_mask_thumbnail != nullptr && layer->vector_mask() != nullptr) {
+      if (extent_changed ||
+          vector_mask_thumbnail->property(kLayerMaskThumbnailRevisionProperty).toULongLong() != revision) {
+        vector_mask_thumbnail->setPixmap(layer_vector_mask_thumbnail(*layer->vector_mask(), doc.width(),
+                                                                     doc.height(), layer_thumbnail_crop(*layer),
+                                                                     vector_mask_thumbnail->width() - 2));
+        vector_mask_thumbnail->setProperty(kLayerMaskThumbnailRevisionProperty,
+                                           QVariant::fromValue<qulonglong>(revision));
         ++mask_refreshed;
       } else {
         ++mask_skipped;
@@ -4873,6 +4914,7 @@ void MainWindow::refresh_status_document_info() {
 void MainWindow::refresh_document_info() {
   const UiProfileScope profile_scope("refresh_document_info");
   refresh_ruler_unit_field_metrics();  // the PPI is per document
+  refresh_ruler_readout();  // the ruler unit, the PPI and the line are per document
   sync_vector_shape_size_spins();
   sync_artboard_controls();
   refresh_palette_panel();
