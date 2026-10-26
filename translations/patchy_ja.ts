@@ -12755,6 +12755,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>ドキュメントを開くときに表示しない (環境設定 &gt; アプリケーションで再度オンにできます)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>ものさし</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14568,6 +14572,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>エクストラを非表示にしています</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>レイヤーを水平に補正</translation>
     </message>
 </context>
 <context>
@@ -26040,6 +26048,114 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
         <translation>トリミングするものがありません: すべてのピクセルが基準色の許容値の範囲内です。許容値を下げてください。</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>角度:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>始点の水平位置</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>始点の垂直位置</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>始点から終点までの水平距離</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>始点から終点までの垂直距離 (下向きが正)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>水平から反時計回りに測った線の角度。2 本の辺があるときはその間の角度</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>線の長さ</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>2 本目の辺の長さ (端を %ALT%+ドラッグで追加)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>レイヤーを水平に補正</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>線が水平になるようにアクティブレイヤーを回転 (垂直に近い場合は垂直に)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>画像を水平に補正</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>線が水平になるように画像全体を回転し、空いた角を切り抜きます</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>計測線を削除</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>ものさし</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>ドラッグで計測、Shift で 45 度刻み。端または線をドラッグして調整、端を %ALT%+ドラッグで角度を計測します。</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>ものさし: ドラッグで計測、Shift で 45 度刻み。端または線をドラッグして調整、端を %ALT%+ドラッグで 2 本目の辺を追加して間の角度を計測します。水平に補正で線を水平にします。</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>スポイトツール</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>スポイトツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>先にものさしで線を引いてください</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>線はすでにまっすぐです</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>補正するレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>レイヤーを反時計回りに %1 度補正しました</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>レイヤーを時計回りに %1 度補正しました</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>画像を反時計回りに %1 度補正しました</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>画像を時計回りに %1 度補正しました</translation>
     </message>
 </context>
 <context>

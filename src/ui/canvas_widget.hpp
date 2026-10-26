@@ -22,6 +22,7 @@
 #include "ui/curves_clipping_preview.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/ruler_tool.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/stroke_pixel_map.hpp"
 #include "ui/vector_preview_renderer.hpp"
@@ -1105,6 +1106,21 @@ public:
   // quarter clockwise and the up marker moves with it. Ignored without a quad.
   void turn_perspective_crop_top();
   [[nodiscard]] bool perspective_crop_show_grid() const noexcept;
+  // Ruler tool (canvas_widget_ruler.cpp, GitHub issue 331, docs/pick-tool.md): a
+  // measuring line in document pixels, drawn only while the Ruler is the tool. It is a
+  // view overlay: never saved, never an undo step, and a document swap clears it. A
+  // drag draws one, its ends and body adjust it, Alt+drag from an end adds a second
+  // leg (protractor). Changes fire the ruler changed callback.
+  [[nodiscard]] std::optional<RulerLine> ruler_line() const;
+  // Sets the line (tests, scripts); points round to whole pixels. A zero-length first
+  // leg clears it.
+  void set_ruler_line(const RulerLine& line);
+  void clear_ruler_line();
+  void set_ruler_changed_callback(std::function<void()> callback);
+  // Straighten Layer: turns `layer_id` (a group turns its contents) by `ccw_degrees`
+  // about its own center through the Free Transform commit, one undo step named
+  // Straighten Layer. False, with the status-bar reason, when the layer cannot transform.
+  bool straighten_layer(LayerId layer_id, double ccw_degrees);
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
   // True when the displayed frame reflects the current document: no recomposite
@@ -2499,6 +2515,16 @@ private:
   void update_perspective_crop_cursor(QPoint widget_point);
   void draw_perspective_crop_overlay(QPainter& painter) const;
   void draw_perspective_crop_up_marker(QPainter& painter, const QPolygonF& quad) const;
+  // Ruler gestures (canvas_widget_ruler.cpp).
+  enum class RulerPart { None, Start, End, Second, Body };
+  [[nodiscard]] RulerPart ruler_part_at(QPoint widget_point) const;
+  void handle_ruler_press(QMouseEvent* event);
+  void update_ruler_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
+  void finish_ruler_drag(QMouseEvent* event);
+  void cancel_ruler_drag();
+  void update_ruler_cursor(QPoint widget_point);
+  void draw_ruler_overlay(QPainter& painter) const;
+  void notify_ruler_changed();
   // Artboards (canvas_widget_artboard.cpp): the canvas backdrop of an artboard document
   // (checkerboard only inside artboards), the outlines and name labels, and the Artboard
   // tool's handles, add buttons and drag previews.
@@ -3403,6 +3429,16 @@ private:
   double perspective_crop_rotate_start_degrees_{0.0};
   bool perspective_crop_show_grid_{true};
   std::function<void(std::array<QPointF, 4>)> perspective_crop_commit_requested_callback_;
+  // Ruler state, document space. The drag part is what the press grabbed (None: no
+  // drag); a new line drags its End, a new protractor leg its Second.
+  std::optional<RulerLine> ruler_line_;
+  RulerPart ruler_drag_part_{RulerPart::None};
+  std::optional<RulerLine> ruler_drag_start_line_;
+  QPointF ruler_drag_start_point_;
+  std::function<void()> ruler_changed_callback_;
+  // Set while Straighten Layer opens its Free Transform session: the whole layer turns,
+  // never just the selected pixels (floating_selection_rect_for_layer).
+  bool transform_ignores_selection_{false};
   // Artboard tool gesture state (canvas_widget_artboard.cpp), document space.
   enum class ArtboardDragMode { None, Create, Move, Resize };
   ArtboardDragMode artboard_drag_mode_{ArtboardDragMode::None};

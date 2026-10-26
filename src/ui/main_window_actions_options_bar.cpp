@@ -3887,6 +3887,67 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  // Ruler (GitHub issue 331, docs/pick-tool.md): the measured values in the ruler unit,
+  // then Straighten Layer, Straighten Image and Clear. The values are text, not fields:
+  // the line is adjusted on the canvas.
+  static constexpr std::array<const char*, 7> kRulerReadoutLabels{
+      QT_TR_NOOP("X:"), QT_TR_NOOP("Y:"), QT_TR_NOOP("W:"), QT_TR_NOOP("H:"),
+      QT_TR_NOOP("A:"), QT_TR_NOOP("L1:"), QT_TR_NOOP("L2:")};
+  static constexpr std::array<const char*, 7> kRulerReadoutTooltips{
+      QT_TR_NOOP("Horizontal position of the start point"),
+      QT_TR_NOOP("Vertical position of the start point"),
+      QT_TR_NOOP("Horizontal distance from the start point to the end"),
+      QT_TR_NOOP("Vertical distance from the start point to the end (down is positive)"),
+      QT_TR_NOOP("Angle of the line, counterclockwise from horizontal; with two legs, the angle between them"),
+      QT_TR_NOOP("Length of the line"),
+      QT_TR_NOOP("Length of the second leg (%ALT%+drag an end to add one)")};
+  static constexpr std::array<const char*, 7> kRulerReadoutNames{
+      "rulerReadoutX", "rulerReadoutY", "rulerReadoutW", "rulerReadoutH",
+      "rulerReadoutA", "rulerReadoutL1", "rulerReadoutL2"};
+  for (std::size_t i = 0; i < kRulerReadoutLabels.size(); ++i) {
+    add_option_label(kRulerReadoutLabels[i], {CanvasTool::Ruler});
+    auto* value = new QLabel(toolbar);
+    value->setObjectName(QString::fromLatin1(kRulerReadoutNames[i]));
+    value->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    // Room for a typical value, so the bar does not jump while a drag changes it.
+    value->setMinimumWidth(value->fontMetrics().horizontalAdvance(QStringLiteral("-0000.0 px")));
+    QPointer<QLabel> guarded(value);
+    const auto apply_tooltip = [guarded, tooltip = kRulerReadoutTooltips[i]] {
+      if (guarded != nullptr) {
+        guarded->setToolTip(resolve_modifier_names(tr(tooltip)));
+      }
+    };
+    apply_tooltip();
+    register_retranslation(apply_tooltip);
+    add_option_widget(value, {CanvasTool::Ruler});
+    ruler_readout_labels_[i] = value;
+  }
+  add_option_separator({CanvasTool::Ruler});
+  ruler_straighten_layer_button_ = new QPushButton(tr("Straighten Layer"), toolbar);
+  ruler_straighten_layer_button_->setObjectName(QStringLiteral("rulerStraightenLayerButton"));
+  bind_widget_text(ruler_straighten_layer_button_, QT_TR_NOOP("Straighten Layer"));
+  bind_tooltip(ruler_straighten_layer_button_,
+               QT_TR_NOOP("Rotate the active layer so the line is level (or upright, when it is closer to vertical)"));
+  add_option_widget(ruler_straighten_layer_button_, {CanvasTool::Ruler});
+  ruler_straighten_image_button_ = new QPushButton(tr("Straighten Image"), toolbar);
+  ruler_straighten_image_button_->setObjectName(QStringLiteral("rulerStraightenImageButton"));
+  bind_widget_text(ruler_straighten_image_button_, QT_TR_NOOP("Straighten Image"));
+  bind_tooltip(ruler_straighten_image_button_,
+               QT_TR_NOOP("Rotate the whole image so the line is level, and crop away the empty corners"));
+  add_option_widget(ruler_straighten_image_button_, {CanvasTool::Ruler});
+  ruler_clear_button_ = new QPushButton(tr("Clear"), toolbar);
+  ruler_clear_button_->setObjectName(QStringLiteral("rulerClearButton"));
+  bind_widget_text(ruler_clear_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clear"));
+  bind_tooltip(ruler_clear_button_, QT_TR_NOOP("Remove the measuring line"));
+  add_option_widget(ruler_clear_button_, {CanvasTool::Ruler});
+  connect(ruler_straighten_layer_button_, &QPushButton::clicked, this, [this] { straighten_with_ruler(false); });
+  connect(ruler_straighten_image_button_, &QPushButton::clicked, this, [this] { straighten_with_ruler(true); });
+  connect(ruler_clear_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->clear_ruler_line();
+    }
+  });
+
 
   // The appearance controls also register for the path-select tools: there
   // they show only while an editable shape layer is active and live-edit it

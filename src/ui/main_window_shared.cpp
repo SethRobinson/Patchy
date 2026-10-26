@@ -867,6 +867,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Crop");
     case CanvasTool::PerspectiveCrop:
       return QObject::tr("Perspective Crop");
+    case CanvasTool::Ruler:
+      return QObject::tr("Ruler");
     case CanvasTool::AddAnchor:
       return QObject::tr("Add Anchor Point");
     case CanvasTool::DeleteAnchor:

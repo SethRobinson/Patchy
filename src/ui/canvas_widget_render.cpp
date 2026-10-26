@@ -1102,6 +1102,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_shape_preview(painter, exposed_rect);
   draw_crop_overlay(painter);
   draw_perspective_crop_overlay(painter);
+  draw_ruler_overlay(painter);
   draw_move_layer_selection(painter);
   draw_drag_size_readout(painter);
   draw_transform_drag_readout(painter);

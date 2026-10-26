@@ -393,6 +393,10 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(Qt::CrossCursor);
     return;
   }
+  if (tool_ == CanvasTool::Ruler) {
+    update_ruler_cursor(last_mouse_position_);
+    return;
+  }
   if (tool_ == CanvasTool::PerspectiveCrop) {
     update_perspective_crop_cursor(last_mouse_position_);
     return;

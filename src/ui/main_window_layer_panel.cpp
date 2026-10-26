@@ -4873,6 +4873,7 @@ void MainWindow::refresh_status_document_info() {
 void MainWindow::refresh_document_info() {
   const UiProfileScope profile_scope("refresh_document_info");
   refresh_ruler_unit_field_metrics();  // the PPI is per document
+  refresh_ruler_readout();  // the ruler unit, the PPI and the line are per document
   sync_vector_shape_size_spins();
   sync_artboard_controls();
   refresh_palette_panel();

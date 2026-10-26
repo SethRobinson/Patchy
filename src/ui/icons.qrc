@@ -104,6 +104,7 @@
     <file alias="tool-red-eye.svg">icons/tool-red-eye.svg</file>
     <file alias="tool-crop.svg">icons/tool-crop.svg</file>
     <file alias="tool-perspective-crop.svg">icons/tool-perspective-crop.svg</file>
+    <file alias="tool-ruler.svg">icons/tool-ruler.svg</file>
     <file alias="tool-artboard.svg">icons/tool-artboard.svg</file>
     <file alias="tool-smudge.svg">icons/tool-smudge.svg</file>
     <file alias="tool-mixer-brush.svg">icons/tool-mixer-brush.svg</file>

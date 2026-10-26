@@ -3720,6 +3720,7 @@ void MainWindow::refresh_options_bar() {
     perspective_crop_turn_button_->setEnabled(edit_allowed && canvas_ != nullptr &&
                                               canvas_->perspective_crop_session_active());
   }
+  refresh_ruler_readout();
   if (perspective_crop_apply_button_ != nullptr) {
     perspective_crop_apply_button_->setEnabled(edit_allowed && canvas_ != nullptr &&
                                                canvas_->perspective_crop_session_active());
