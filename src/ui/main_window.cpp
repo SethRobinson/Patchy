@@ -5813,6 +5813,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     commit_perspective_crop_quad(quad);
   });
+  canvas->set_ruler_changed_callback([this, canvas] {
+    if (canvas != canvas_) {
+      return;
+    }
+    refresh_ruler_readout();
+  });
   canvas->set_crop_session_changed_callback([this, canvas] {
     if (canvas != canvas_) {
       return;

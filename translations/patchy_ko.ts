@@ -12755,6 +12755,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>문서를 열 때 표시 안 함 (환경설정 &gt; 애플리케이션에서 다시 켤 수 있음)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>자</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14516,6 +14520,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>표시자를 숨깁니다</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>레이어 수평 맞추기</translation>
     </message>
 </context>
 <context>
@@ -25936,6 +25944,114 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Vector Mask</source>
         <translation>벡터 마스크</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>각도:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>시작점의 가로 위치</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>시작점의 세로 위치</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>시작점에서 끝점까지의 가로 거리</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>시작점에서 끝점까지의 세로 거리 (아래쪽이 양수)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>가로선에서 시계 반대 방향으로 잰 선의 각도. 두 변이 있으면 그 사이의 각도</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>선의 길이</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>두 번째 변의 길이 (끝을 %ALT%+드래그하면 추가)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>레이어 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>선이 수평이 되도록 활성 레이어를 회전 (세로에 더 가까우면 수직으로)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>이미지 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>선이 수평이 되도록 이미지 전체를 회전하고 빈 모서리를 잘라 냅니다</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>측정선 제거</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>자</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>드래그하여 측정하고 Shift는 45도 단위로 고정합니다. 끝이나 선을 드래그해 조정하고, 끝을 %ALT%+드래그하면 각도를 잽니다.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>자: 드래그하여 측정하고 Shift는 45도 단위로 고정합니다. 끝이나 선을 드래그해 조정하고, 끝을 %ALT%+드래그하면 두 번째 변을 추가해 사이 각도를 잽니다. 수평 맞추기는 선을 수평으로 만듭니다.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>색상 선택 도구</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>색상 선택 도구 전환</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>먼저 자로 선을 그리세요</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>선이 이미 반듯합니다</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>수평을 맞출 레이어를 선택하세요</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>레이어를 시계 반대 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>레이어를 시계 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>이미지를 시계 반대 방향으로 %1도 맞췄습니다</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>이미지를 시계 방향으로 %1도 맞췄습니다</translation>
     </message>
 </context>
 <context>

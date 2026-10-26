@@ -12825,6 +12825,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Не показывать при открытии документов (снова включается в Настройки &gt; Приложение)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Линейка</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14586,6 +14590,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>Вспомогательные элементы скрыты</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Выровнять слой</translation>
     </message>
 </context>
 <context>
@@ -26082,6 +26090,114 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Vector Mask</source>
         <translation>Векторная маска</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Угол:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Горизонтальное положение начальной точки</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Вертикальное положение начальной точки</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Расстояние по горизонтали от начальной точки до конечной</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Расстояние по вертикали от начальной точки до конечной (вниз положительно)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Угол линии против часовой стрелки от горизонтали; при двух сторонах угол между ними</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Длина линии</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Длина второй стороны (%ALT%+перетаскивание конца добавляет её)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Выровнять слой</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Повернуть активный слой так, чтобы линия стала горизонтальной (или вертикальной, если она ближе к вертикали)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Выровнять изображение</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Повернуть всё изображение так, чтобы линия стала горизонтальной, и обрезать пустые углы</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Удалить измерительную линию</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Линейка</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Перетащите, чтобы измерить, Shift удерживает шаг 45 градусов. Перетащите конец или линию, чтобы изменить её, %ALT%+перетаскивание конца измеряет угол.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Линейка: перетащите, чтобы измерить, Shift удерживает шаг 45 градусов. Перетащите конец или линию, чтобы изменить её, %ALT%+перетаскивание конца добавляет вторую сторону и измеряет угол между ними. Выровнять делает линию горизонтальной.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Инструменты выбора цвета</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Сменить инструмент выбора цвета</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Сначала проведите линию Линейкой</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>Линия уже ровная</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Выберите слой для выравнивания</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Слой выровнен поворотом на %1 градус против часовой стрелки</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Слой выровнен поворотом на %1 градус по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Изображение выровнено поворотом на %1 градус против часовой стрелки</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Изображение выровнено поворотом на %1 градус по часовой стрелке</translation>
     </message>
 </context>
 <context>

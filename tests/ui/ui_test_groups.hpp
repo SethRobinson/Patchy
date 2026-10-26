@@ -29,6 +29,7 @@ std::vector<patchy::test::TestCase> free_transform_selection_tests();
 std::vector<patchy::test::TestCase> alignment_tests();
 std::vector<patchy::test::TestCase> selection_marquee_lasso_tests();
 std::vector<patchy::test::TestCase> crop_tool_tests();
+std::vector<patchy::test::TestCase> ruler_tool_tests();
 std::vector<patchy::test::TestCase> unit_spin_box_tests();
 std::vector<patchy::test::TestCase> clipboard_free_transform_tests();
 std::vector<patchy::test::TestCase> deep_operation_audit_tests();

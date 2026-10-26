@@ -1405,7 +1405,7 @@ bool CanvasWidget::begin_free_transform() {
 }
 
 std::optional<QRect> CanvasWidget::floating_selection_rect_for_layer(const Layer& layer) const {
-  if (document_ == nullptr || selection_.isEmpty() || quick_mask_active_ ||
+  if (document_ == nullptr || selection_.isEmpty() || quick_mask_active_ || transform_ignores_selection_ ||
       layer_edit_target_ != LayerEditTarget::Content || layer.kind() != LayerKind::Pixel ||
       layer_pixels_are_procedural(layer) || !layer_has_movable_pixels(layer)) {
     return std::nullopt;

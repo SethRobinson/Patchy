@@ -12790,6 +12790,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Ne pas afficher à l&apos;ouverture des documents (Préférences &gt; Application permet de le réactiver)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Règle</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14551,6 +14555,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Hiding extras</source>
         <translation>Masquage des extras</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Redresser le calque</translation>
     </message>
 </context>
 <context>
@@ -26009,6 +26017,114 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Vector Mask</source>
         <translation>Masque vectoriel</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Ang:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Position horizontale du point de départ</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Position verticale du point de départ</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Distance horizontale du point de départ à l&apos;arrivée</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Distance verticale du point de départ à l&apos;arrivée (positive vers le bas)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Angle de la ligne, dans le sens antihoraire depuis l&apos;horizontale ; avec deux branches, l&apos;angle entre elles</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Longueur de la ligne</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Longueur de la seconde branche (%ALT%+faire glisser une extrémité en ajoute une)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Redresser le calque</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Faire pivoter le calque actif pour que la ligne soit horizontale (ou verticale, si elle en est plus proche)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Redresser l&apos;image</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Faire pivoter toute l&apos;image pour que la ligne soit horizontale et recadrer les coins vides</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Supprimer la ligne de mesure</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Règle</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Faites glisser pour mesurer, Maj conserve 45 degrés. Faites glisser une extrémité ou la ligne pour l&apos;ajuster, %ALT%+glisser une extrémité mesure un angle.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Règle : faites glisser pour mesurer, Maj conserve 45 degrés. Faites glisser une extrémité ou la ligne pour l&apos;ajuster, %ALT%+glisser une extrémité ajoute une seconde branche et mesure l&apos;angle entre elles. Redresser met la ligne à l&apos;horizontale.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Outils pipette</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Alterner les outils pipette</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Tracez d&apos;abord une ligne avec la Règle</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>La ligne est déjà droite</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Sélectionnez un calque à redresser</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Calque redressé de %1 degrés dans le sens antihoraire</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Calque redressé de %1 degrés dans le sens horaire</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Image redressée de %1 degrés dans le sens antihoraire</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Image redressée de %1 degrés dans le sens horaire</translation>
     </message>
 </context>
 <context>

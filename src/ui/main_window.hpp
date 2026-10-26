@@ -2006,6 +2006,12 @@ private:
   // TR, BR, BL) onto the options bar's W x H (blank: the quad's own edge lengths) and sets
   // its Resolution when one is given. One undo step.
   void commit_perspective_crop_quad(const std::array<QPointF, 4>& quad);
+  // Ruler (GitHub issue 331, docs/pick-tool.md): Straighten Layer turns the active layer
+  // so the line lies on the nearest axis (one undo step); Straighten Image turns the whole
+  // document and crops it to the largest rectangle of its own shape. Both clear the line.
+  void straighten_with_ruler(bool whole_image);
+  // The Ruler bar's values and button states from the active canvas's line.
+  void refresh_ruler_readout();
   void rotate_canvas_clockwise();
   void rotate_canvas_counterclockwise();
   // Image > Rotate 180 / Flip Horizontal / Flip Vertical (GitHub issue 139).
@@ -2820,6 +2826,11 @@ private:
   QToolButton* perspective_crop_turn_button_{nullptr};
   QPushButton* perspective_crop_apply_button_{nullptr};
   QPushButton* perspective_crop_cancel_button_{nullptr};
+  // Ruler bar (GitHub issue 331): X, Y, W, H, A, L1, L2 values, then the buttons.
+  std::array<QLabel*, 7> ruler_readout_labels_{};
+  QPushButton* ruler_straighten_layer_button_{nullptr};
+  QPushButton* ruler_straighten_image_button_{nullptr};
+  QPushButton* ruler_clear_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   // Show Overlay on the bar (GitHub issue 426), the same setting as the popup's checkbox.
   QCheckBox* clone_overlay_check_{nullptr};

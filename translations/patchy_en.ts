@@ -12773,6 +12773,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14533,6 +14537,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Hiding extras</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -25926,6 +25934,114 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Vector Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

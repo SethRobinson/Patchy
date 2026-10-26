@@ -12755,6 +12755,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>開啟文件時不顯示（可在 偏好設定 &gt; 應用程式 中重新開啟）</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>尺標工具</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14516,6 +14520,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Hiding extras</source>
         <translation>正在隱藏額外內容</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>拉直圖層</translation>
     </message>
 </context>
 <context>
@@ -25936,6 +25944,114 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Vector Mask</source>
         <translation>向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>角度:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>起點的水平位置</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>起點的垂直位置</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>從起點到終點的水平距離</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>從起點到終點的垂直距離 (向下為正)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>線條相對水平方向的逆時針角度；有兩條邊時為兩邊之間的角度</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>線條長度</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>第二條邊的長度 (%ALT%+拖曳端點可新增)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>拉直圖層</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>旋轉目前圖層使線條水平 (更接近垂直時則使其垂直)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>拉直影像</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>旋轉整個影像使線條水平，並裁掉空白的角落</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>移除測量線</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>尺標工具</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>拖曳以測量，Shift 保持 45 度。拖曳端點或線條可調整，%ALT%+拖曳端點可測量角度。</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>尺標工具：拖曳以測量，Shift 保持 45 度。拖曳端點或線條可調整，%ALT%+拖曳端點可新增第二條邊並測量兩邊之間的角度。拉直會使線條水平。</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>滴管工具</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>循環切換滴管工具</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>請先用尺標工具畫一條線</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>線條已經是直的</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>請選取要拉直的圖層</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>已將圖層逆時針拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>已將圖層順時針拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>已將影像逆時針拉直 %1 度</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>已將影像順時針拉直 %1 度</translation>
     </message>
 </context>
 <context>

@@ -1184,6 +1184,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/artboard_preset_picker.cpp
   src/ui/canvas_widget_crop.cpp
   src/ui/canvas_widget_perspective_crop.cpp
+  src/ui/canvas_widget_ruler.cpp
+      src/ui/ruler_tool.hpp
+      src/ui/ruler_tool.cpp
       src/ui/canvas_widget_cursors.cpp
       src/ui/canvas_widget_draw_tools.cpp
       src/ui/eyedropper_sample_overlay.hpp
@@ -2342,6 +2345,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
       tests/ui/crop_tool_tests.cpp
+      tests/ui/ruler_tool_tests.cpp
       tests/ui/unit_spin_box_tests.cpp
       tests/ui/clipboard_free_transform_tests.cpp
       tests/ui/deep_operation_audit_tests.cpp

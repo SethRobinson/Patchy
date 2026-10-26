@@ -12790,6 +12790,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>No mostrar al abrir documentos (Preferencias &gt; Aplicación lo vuelve a activar)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Regla</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14551,6 +14555,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Hiding extras</source>
         <translation>Ocultando extras</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Enderezar capa</translation>
     </message>
 </context>
 <context>
@@ -26009,6 +26017,114 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Vector Mask</source>
         <translation>Máscara vectorial</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Áng:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Posición horizontal del punto inicial</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Posición vertical del punto inicial</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Distancia horizontal del punto inicial al final</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Distancia vertical del punto inicial al final (hacia abajo es positiva)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Ángulo de la línea, en sentido antihorario desde la horizontal; con dos brazos, el ángulo entre ellos</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Longitud de la línea</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Longitud del segundo brazo (%ALT%+arrastrar un extremo añade uno)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Enderezar capa</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Girar la capa activa para que la línea quede horizontal (o vertical, si está más cerca de la vertical)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Enderezar imagen</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Girar toda la imagen para que la línea quede horizontal y recortar las esquinas vacías</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Quitar la línea de medición</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Regla</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Arrastre para medir; Mayús mantiene 45 grados. Arrastre un extremo o la línea para ajustarla; %ALT%+arrastrar un extremo mide un ángulo.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Regla: arrastre para medir; Mayús mantiene 45 grados. Arrastre un extremo o la línea para ajustarla; %ALT%+arrastrar un extremo añade un segundo brazo y mide el ángulo entre ellos. Enderezar nivela la línea.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Herramientas de cuentagotas</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Alternar herramientas de cuentagotas</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Primero dibuje una línea con la Regla</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>La línea ya está recta</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Seleccione una capa para enderezar</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Capa enderezada %1 grados en sentido antihorario</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Capa enderezada %1 grados en sentido horario</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Imagen enderezada %1 grados en sentido antihorario</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Imagen enderezada %1 grados en sentido horario</translation>
     </message>
 </context>
 <context>

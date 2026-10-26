@@ -12790,6 +12790,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Don&apos;t show when opening documents (Preferences &gt; Application turns it back on)</source>
         <translation>Não mostrar ao abrir documentos (Preferências &gt; Aplicativo reativa)</translation>
     </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Régua</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14551,6 +14555,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Hiding extras</source>
         <translation>Ocultando extras</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Endireitar camada</translation>
     </message>
 </context>
 <context>
@@ -26009,6 +26017,114 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Vector Mask</source>
         <translation>Máscara vetorial</translation>
+    </message>
+    <message>
+        <source>A:</source>
+        <translation>Âng:</translation>
+    </message>
+    <message>
+        <source>L1:</source>
+        <translation>L1:</translation>
+    </message>
+    <message>
+        <source>L2:</source>
+        <translation>L2:</translation>
+    </message>
+    <message>
+        <source>Horizontal position of the start point</source>
+        <translation>Posição horizontal do ponto inicial</translation>
+    </message>
+    <message>
+        <source>Vertical position of the start point</source>
+        <translation>Posição vertical do ponto inicial</translation>
+    </message>
+    <message>
+        <source>Horizontal distance from the start point to the end</source>
+        <translation>Distância horizontal do ponto inicial ao final</translation>
+    </message>
+    <message>
+        <source>Vertical distance from the start point to the end (down is positive)</source>
+        <translation>Distância vertical do ponto inicial ao final (para baixo é positiva)</translation>
+    </message>
+    <message>
+        <source>Angle of the line, counterclockwise from horizontal; with two legs, the angle between them</source>
+        <translation>Ângulo da linha, no sentido anti-horário a partir da horizontal; com dois braços, o ângulo entre eles</translation>
+    </message>
+    <message>
+        <source>Length of the line</source>
+        <translation>Comprimento da linha</translation>
+    </message>
+    <message>
+        <source>Length of the second leg (%ALT%+drag an end to add one)</source>
+        <translation>Comprimento do segundo braço (%ALT%+arrastar uma ponta adiciona um)</translation>
+    </message>
+    <message>
+        <source>Straighten Layer</source>
+        <translation>Endireitar camada</translation>
+    </message>
+    <message>
+        <source>Rotate the active layer so the line is level (or upright, when it is closer to vertical)</source>
+        <translation>Girar a camada ativa para que a linha fique horizontal (ou vertical, quando estiver mais perto da vertical)</translation>
+    </message>
+    <message>
+        <source>Straighten Image</source>
+        <translation>Endireitar imagem</translation>
+    </message>
+    <message>
+        <source>Rotate the whole image so the line is level, and crop away the empty corners</source>
+        <translation>Girar a imagem inteira para que a linha fique horizontal e cortar os cantos vazios</translation>
+    </message>
+    <message>
+        <source>Remove the measuring line</source>
+        <translation>Remover a linha de medição</translation>
+    </message>
+    <message>
+        <source>Ruler</source>
+        <translation>Régua</translation>
+    </message>
+    <message>
+        <source>Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to measure an angle.</source>
+        <translation>Arraste para medir; Shift mantém 45 graus. Arraste uma ponta ou a linha para ajustá-la; %ALT%+arrastar uma ponta mede um ângulo.</translation>
+    </message>
+    <message>
+        <source>Ruler: drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust it, %ALT%+drag an end to add a second leg and measure the angle between them. Straighten levels the line.</source>
+        <translation>Régua: arraste para medir; Shift mantém 45 graus. Arraste uma ponta ou a linha para ajustá-la; %ALT%+arrastar uma ponta adiciona um segundo braço e mede o ângulo entre eles. Endireitar nivela a linha.</translation>
+    </message>
+    <message>
+        <source>Pick Tools</source>
+        <translation>Ferramentas de seleção de cor</translation>
+    </message>
+    <message>
+        <source>Cycle Pick Tools</source>
+        <translation>Alternar ferramentas de seleção de cor</translation>
+    </message>
+    <message>
+        <source>Draw a line with the Ruler first</source>
+        <translation>Primeiro desenhe uma linha com a Régua</translation>
+    </message>
+    <message>
+        <source>The line is already straight</source>
+        <translation>A linha já está reta</translation>
+    </message>
+    <message>
+        <source>Select a layer to straighten</source>
+        <translation>Selecione uma camada para endireitar</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees counterclockwise</source>
+        <translation>Camada endireitada %1 graus no sentido anti-horário</translation>
+    </message>
+    <message>
+        <source>Straightened layer %1 degrees clockwise</source>
+        <translation>Camada endireitada %1 graus no sentido horário</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees counterclockwise</source>
+        <translation>Imagem endireitada %1 graus no sentido anti-horário</translation>
+    </message>
+    <message>
+        <source>Straightened image %1 degrees clockwise</source>
+        <translation>Imagem endireitada %1 graus no sentido horário</translation>
     </message>
 </context>
 <context>

@@ -4692,6 +4692,7 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
       {"toolCyclePenAction", "tools.cycle.pen"},         {"toolCyclePathAction", "tools.cycle.path_select"},
       {"toolCycleShapeAction", "tools.cycle.shape"},     {"toolCycleMoveAction", "tools.cycle.move"},
       {"toolCycleCropAction", "tools.cycle.crop"},
+      {"toolCyclePickAction", "tools.cycle.pick"},
   };
   for (const auto& [object_name, id] : cycles) {
     auto* action = require_action(window, object_name);
@@ -6084,6 +6085,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolPolygonAction", "Polygon"},
       {"toolCustomShapeAction", "Custom Shape"},
       {"toolPickAction", "Pick"},
+      {"toolRulerAction", "Ruler"},
       {"toolTypeAction", "Type"},
       {"toolHandAction", "Hand"},
       {"toolZoomAction", "Zoom"},

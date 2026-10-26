@@ -85,7 +85,9 @@ enum class CanvasTool {
   // October 2026 Perspective Crop (append-only: values ride persisted settings).
   PerspectiveCrop,
   // October 2026 Red Eye (append-only: values ride persisted settings).
-  RedEye
+  RedEye,
+  // October 2026 Ruler (append-only: values ride persisted settings).
+  Ruler
 };
 
 // What the Artboard tool (and the artboard labels any tool can click) asks MainWindow to do;

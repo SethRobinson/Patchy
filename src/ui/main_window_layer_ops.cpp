@@ -5787,6 +5787,106 @@ void MainWindow::commit_perspective_crop_quad(const std::array<QPointF, 4>& quad
   statusBar()->showMessage(tr("Cropped and straightened"));
 }
 
+void MainWindow::straighten_with_ruler(bool whole_image) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  const auto line = canvas_->ruler_line();
+  if (!line.has_value()) {
+    show_status_error(tr("Draw a line with the Ruler first"));
+    return;
+  }
+  // Counterclockwise degrees that put the line on the nearest axis.
+  const auto degrees = ruler_straighten_degrees(*line);
+  if (std::abs(degrees) < 0.01) {
+    statusBar()->showMessage(tr("The line is already straight"));
+    return;
+  }
+  finish_active_text_editor();
+  const auto degrees_text = QString::number(std::abs(degrees), 'f', 2);
+  if (!whole_image) {
+    const auto layer_id = std::as_const(document()).active_layer_id();
+    if (!layer_id.has_value()) {
+      show_status_error(tr("Select a layer to straighten"));
+      return;
+    }
+    // The Free Transform commit takes the undo snapshot and reports any refusal.
+    if (!canvas_->straighten_layer(*layer_id, degrees)) {
+      return;
+    }
+    canvas_->clear_ruler_line();
+    refresh_layer_list();
+    refresh_layer_controls();
+    refresh_document_info();
+    statusBar()->showMessage(degrees > 0.0 ? tr("Straightened layer %1 degrees counterclockwise").arg(degrees_text)
+                                           : tr("Straightened layer %1 degrees clockwise").arg(degrees_text));
+    return;
+  }
+  if (refuse_crop_with_artboards() || refuse_document_geometry_change()) {
+    return;
+  }
+  // The Crop tool's rotated crop (crop_document): a box turned with the line, as large as
+  // fits inside the canvas with the canvas's own shape. The box angle is clockwise on
+  // screen, the line's tilt is the opposite of the correction.
+  auto& doc = document();
+  const auto box = ruler_straighten_crop(doc.width(), doc.height(), degrees);
+  auto straightened = doc;
+  if (!patchy::crop_document(straightened, Rect{box.x, box.y, box.width, box.height}, degrees,
+                             edit_color(canvas_->secondary_color()))) {
+    return;
+  }
+  push_undo_snapshot(tr("Straighten Image"));
+  doc = std::move(straightened);
+  canvas_->clear_ruler_line();
+  canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
+  canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
+  canvas_->center_document_in_view();
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  refresh_options_bar();
+  statusBar()->showMessage(degrees > 0.0 ? tr("Straightened image %1 degrees counterclockwise").arg(degrees_text)
+                                         : tr("Straightened image %1 degrees clockwise").arg(degrees_text));
+}
+
+void MainWindow::refresh_ruler_readout() {
+  if (ruler_readout_labels_[0] == nullptr) {
+    return;
+  }
+  const auto line = canvas_ != nullptr && has_active_document() ? canvas_->ruler_line() : std::nullopt;
+  if (line.has_value()) {
+    const auto& doc = std::as_const(document());
+    const auto readout = format_ruler_readout(measure_ruler(*line), ruler_unit_, doc.print_settings().horizontal_ppi,
+                                              doc.print_settings().vertical_ppi, doc.width(), doc.height());
+    const std::array<const QString*, 7> texts{&readout.x,     &readout.y,       &readout.width, &readout.height,
+                                              &readout.angle, &readout.length1, &readout.length2};
+    for (std::size_t i = 0; i < texts.size(); ++i) {
+      ruler_readout_labels_[i]->setText(*texts[i]);
+    }
+  } else {
+    for (auto* label : ruler_readout_labels_) {
+      label->clear();
+    }
+  }
+  const bool edit_allowed = has_active_document() && !preview_dialog_edit_locked();
+  const auto active_id = has_active_document() ? std::as_const(document()).active_layer_id() : std::nullopt;
+  if (ruler_straighten_layer_button_ != nullptr) {
+    ruler_straighten_layer_button_->setEnabled(edit_allowed && line.has_value() && active_id.has_value() &&
+                                               !layer_id_locks_position(*active_id));
+  }
+  if (ruler_straighten_image_button_ != nullptr) {
+    ruler_straighten_image_button_->setEnabled(edit_allowed && line.has_value());
+  }
+  if (ruler_clear_button_ != nullptr) {
+    ruler_clear_button_->setEnabled(line.has_value());
+  }
+}
+
 void MainWindow::rotate_canvas_clockwise() {
   auto& doc = document();
   if (refuse_document_geometry_change()) {

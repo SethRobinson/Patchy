@@ -789,6 +789,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Ruler && document_ != nullptr && event->button() == Qt::LeftButton &&
+      !((event->modifiers() & Qt::ControlModifier) != 0 && guide_at_widget_position(event->pos()) >= 0)) {
+    // The Ruler owns every left press (Ctrl on a guide still drags the guide): an end,
+    // the line, or a new line, on the canvas or the pasteboard.
+    handle_ruler_press(event);
+    event->accept();
+    return;
+  }
+
   if (tool_ == CanvasTool::PerspectiveCrop && document_ != nullptr && event->button() == Qt::LeftButton) {
     // Perspective Crop owns every left press: corners, the inside, click placement
     // and the first drag, on the canvas or the pasteboard.
@@ -1997,6 +2006,16 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Ruler && !dragging_guide_) {
+    clear_move_hover_outline();
+    if (ruler_drag_part_ != RulerPart::None) {
+      update_ruler_drag(document_position_f(event->position()), event->modifiers());
+    }
+    update_ruler_cursor(event->pos());
+    last_mouse_position_ = event->pos();
+    return;
+  }
+
   if (tool_ == CanvasTool::PerspectiveCrop && perspective_crop_session_pending()) {
     clear_move_hover_outline();
     update_perspective_crop_drag(document_position_f(event->position()), event->modifiers());
@@ -2765,6 +2784,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_tool_cursor();
     update();
     notify_transform_controls_changed();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Ruler && ruler_drag_part_ != RulerPart::None && event->button() == Qt::LeftButton) {
+    finish_ruler_drag(event);
+    event->accept();
     return;
   }
 
@@ -4071,6 +4096,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
         return;
       }
     }
+  }
+
+  if (tool_ == CanvasTool::Ruler && ruler_drag_part_ != RulerPart::None && event->key() == Qt::Key_Escape) {
+    // Esc mid-drag puts the line back as it was before the press.
+    cancel_ruler_drag();
+    event->accept();
+    return;
   }
 
   if (tool_ == CanvasTool::PerspectiveCrop && perspective_crop_session_pending()) {
