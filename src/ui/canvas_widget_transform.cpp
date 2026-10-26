@@ -3741,6 +3741,8 @@ CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for_mode(Trans
 
 bool CanvasWidget::begin_transform_distort_drag(TransformHandle handle, Qt::KeyboardModifiers modifiers,
                                                 QPointF document_press) {
+  // Recorded for every drag: a mid-drag gesture switch restarts from it.
+  transform_drag_start_corner_offsets_ = transform_corner_offsets_;
   transform_drag_kind_ = transform_drag_kind_for(handle, modifiers);
   if (transform_drag_kind_ == TransformDragKind::Scale) {
     return true;
@@ -3752,7 +3754,6 @@ bool CanvasWidget::begin_transform_distort_drag(TransformHandle handle, Qt::Keyb
     report_status_error(tr("Rasterize the layer to distort it"));
     return false;
   }
-  transform_drag_start_corner_offsets_ = transform_corner_offsets_;
   const auto quad = transform_quad_for_offsets(transform_corner_offsets_);
   QPointF grabbed;
   if (transform_handle_is_corner(handle)) {
@@ -3764,6 +3765,68 @@ bool CanvasWidget::begin_transform_distort_drag(TransformHandle handle, Qt::Keyb
               2.0;
   }
   transform_drag_grab_offset_ = grabbed - document_press;
+  return true;
+}
+
+bool CanvasWidget::retarget_transform_drag(Qt::KeyboardModifiers modifiers) {
+  const auto handle = transform_drag_handle_;
+  if (!dragging_transform_ || !(transform_handle_is_corner(handle) || transform_handle_is_edge(handle))) {
+    return false;
+  }
+  auto kind = transform_drag_kind_for(handle, modifiers);
+  if (kind != TransformDragKind::Scale && transform_handle_is_corner(handle) && !free_transform_accepts_non_affine()) {
+    kind = TransformDragKind::Scale;
+  }
+  if (kind == transform_drag_kind_) {
+    return false;
+  }
+  // Back to the box as it was at the press, then the new gesture from the same
+  // press point: holding Ctrl distorts, letting go resizes, with no new press.
+  const auto previous_preview_rect = transform_preview_document_rect();
+  transform_current_rect_ = transform_drag_start_rect_;
+  transform_angle_ = transform_start_angle_;
+  transform_scale_x_sign_ = transform_drag_start_scale_x_sign_;
+  transform_scale_y_sign_ = transform_drag_start_scale_y_sign_;
+  transform_corner_offsets_ = transform_drag_start_corner_offsets_;
+  transform_drag_grab_offset_ = transform_handle_grab_offset(handle, transform_drag_start_rect_, transform_start_angle_,
+                                                             transform_drag_start_point_);
+  begin_transform_distort_drag(handle, modifiers, transform_drag_start_point_);
+  refresh_transform_preview_for_drag();
+  update_transform_preview_region(previous_preview_rect);
+  return true;
+}
+
+bool CanvasWidget::apply_move_box_handle_cursor(QPoint widget_point, Qt::KeyboardModifiers modifiers) {
+  // Kept for cursor refreshes without an event (apply_move_tool_cursor).
+  transform_cursor_modifiers_ = modifiers;
+  const auto rect = move_transform_controls_rect();
+  if (!rect.has_value()) {
+    return false;
+  }
+  const auto handle = transform_handle_at(widget_point, *rect, 0.0, TransformHitZones::EdgesAndCorners);
+  const bool corner = transform_handle_is_corner(handle);
+  if (!corner && !transform_handle_is_edge(handle)) {
+    return false;
+  }
+  if ((modifiers & Qt::ControlModifier) != 0 && document_ != nullptr) {
+    const auto kind = transform_drag_kind_for_mode(handle, modifiers, TransformDistortMode::None);
+    // Type takes no non-affine quad, so a corner there keeps the resize cursor
+    // (the press refuses with a status message, as in a Free Transform session).
+    bool refused = false;
+    if (corner && kind != TransformDragKind::Scale) {
+      const auto& document = std::as_const(*document_);
+      for (const auto id : movable_layer_ids()) {
+        if (const auto* layer = document.find_layer(id); layer != nullptr && layer_is_text(*layer)) {
+          refused = true;
+          break;
+        }
+      }
+    }
+    if (!refused && apply_transform_gesture_cursor(kind)) {
+      return true;
+    }
+  }
+  set_transform_cursor_at(widget_point, handle, *rect, 0.0);
   return true;
 }
 
@@ -4515,6 +4578,9 @@ QPointF CanvasWidget::transform_handle_grab_offset(TransformHandle handle, QRect
 }
 
 void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+  // Ctrl (or Shift with it) pressed or released mid-drag switches between resize
+  // and skew/distort live (GitHub issue 351).
+  retarget_transform_drag(modifiers);
   if (transform_drag_kind_ != TransformDragKind::Scale) {
     update_free_transform_distort(document_point, modifiers);
     return;
