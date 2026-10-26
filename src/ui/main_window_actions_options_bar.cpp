@@ -48,6 +48,7 @@
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/text_font_service.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/unit_spin_box.hpp"
@@ -4012,7 +4013,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_label(QT_TR_NOOP("Font:"), {CanvasTool::Text});
   text_font_combo_ = new FontPickerCombo(toolbar);
   text_font_combo_->setObjectName(QStringLiteral("textFontCombo"));
-  text_font_combo_->setCurrentFont(font());
+  // The installed family, never a generic name like Linux's "Sans Serif" (GitHub issue 442).
+  text_font_combo_->setCurrentFont(QFont(default_text_family()));
   // GitHub issue 91: narrower closed controls keep the Text row on one line at
   // 1366 px; the family popup sizes itself, and the style list opens wider.
   text_font_combo_->setFixedWidth(160);

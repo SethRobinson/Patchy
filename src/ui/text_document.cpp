@@ -58,7 +58,7 @@ QString text_display_family_from_format(const QTextCharFormat& format, const QSt
   if (!family.isEmpty()) {
     return family;
   }
-  return fallback.trimmed().isEmpty() ? QApplication::font().family() : fallback.trimmed();
+  return fallback.trimmed().isEmpty() ? default_text_family() : fallback.trimmed();
 }
 
 QString paragraph_alignment_name(Qt::Alignment alignment) {
@@ -413,7 +413,7 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   bool includes_faux_italic = false;
   bool includes_rotated = false;
   bool includes_shift = false;
-  const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
+  const auto fallback_family = fallback.family.isEmpty() ? default_text_family() : fallback.family;
   const auto fallback_size = std::max(1, fallback.size);
   const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
 
@@ -925,7 +925,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
 
 QString document_html_from_text_runs(const QString& text, const QString& rich_text_runs,
                                      const TextToolSettings& fallback, QColor fallback_color) {
-  const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
+  const auto fallback_family = fallback.family.isEmpty() ? default_text_family() : fallback.family;
   auto fallback_font = render_text_font_for_display_family(fallback_family, std::max(1, fallback.size),
                                                           fallback.bold, fallback.italic, fallback.anti_alias);
 

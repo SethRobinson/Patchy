@@ -103,7 +103,7 @@ std::optional<LayerId> MainWindow::live_text_session_layer_id() const {
 
 QString MainWindow::text_options_bar_family() const {
   if (text_font_combo_ == nullptr) {
-    return QApplication::font().family();
+    return default_text_family();
   }
   const auto family = text_font_combo_->currentFont().family();
   if (available_text_family_match(family).has_value() || available_text_family_style_match(family).has_value()) {
@@ -187,7 +187,7 @@ void MainWindow::show_resolve_missing_fonts_dialog(bool on_open) {
     auto suggested = substituted_text_family(font.family, font.first_text);
     if (suggested.compare(font.family, Qt::CaseInsensitive) == 0) {
       // Nothing installed draws the text; offer the UI font rather than the missing name.
-      suggested = canonical_text_display_family(QApplication::font().family());
+      suggested = default_text_family();
     }
     entries.push_back(MissingFontEntry{font.family, font.no_glyphs, static_cast<int>(font.layers.size()), suggested});
   }
