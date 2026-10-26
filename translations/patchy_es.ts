@@ -13064,6 +13064,42 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Reset to Default</source>
         <translation>Restablecer valores predeterminados</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>Sin pérdida, velocidad %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>Calidad %1, velocidad %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>Sin pérdida, esfuerzo %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>Calidad %1, esfuerzo %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>La codificación tarda más que en los otros formatos; la vista previa se actualiza al terminar.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>Ajustes de AVIF</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>Ajustes de JPEG XL</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>seleccionar para codificar</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>Codificando...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26743,6 +26779,38 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Show All Buttons</source>
         <translation>Mostrar todos los botones</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>Todo mayúsculas</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Versalitas</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Superíndice</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Subíndice</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Subrayado</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Tachado</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Ordinales (fuentes que los tienen)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Fracciones (fuentes que las tienen)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28735,6 +28803,18 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette: valor desconocido &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format debe ser uno de %1.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb no pudo codificar: %1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: el tramo %2: %3 debe ser &apos;%4&apos;, &apos;%5&apos; o &apos;none&apos;.</translation>
     </message>
 </context>
 <context>

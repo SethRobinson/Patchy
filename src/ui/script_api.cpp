@@ -60,6 +60,7 @@
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/script_save_options.hpp"
+#include "ui/web_export.hpp"
 #include "ui/script_vector.hpp"
 #include "ui/watermark_scan_report.hpp"
 #include "core/text_area.hpp"
@@ -269,6 +270,43 @@ bool parse_text_runs(ScriptEngineHost& host, const QJSValue& value, const char* 
         }
         run.color = parsed;
       }
+      // Character-panel styles (GitHub issue 346): caps "all" | "small" | "none", script
+      // "superscript" | "subscript" | "none", and four booleans.
+      const auto choice = [&](const char* key, const char* first, const char* second,
+                              std::optional<int>* out) {
+        const auto property = item.property(QLatin1String(key));
+        if (property.isUndefined() || property.isNull()) {
+          return true;
+        }
+        const auto name = property.toString();
+        if (name == QLatin1String("none")) {
+          *out = 0;
+        } else if (name == QLatin1String(first)) {
+          *out = 1;
+        } else if (name == QLatin1String(second)) {
+          *out = 2;
+        } else {
+          host.throw_js_error(ScriptEngineHost::tr("%1: run %2 %3 must be '%4', '%5' or 'none'.")
+                                  .arg(QLatin1String(verb))
+                                  .arg(index)
+                                  .arg(QLatin1String(key), QLatin1String(first), QLatin1String(second)));
+          return false;
+        }
+        return true;
+      };
+      if (!choice("caps", "small", "all", &run.caps) ||
+          !choice("script", "superscript", "subscript", &run.script)) {
+        return false;
+      }
+      const auto flag = [&](const char* key, std::optional<bool>* out) {
+        if (const auto property = item.property(QLatin1String(key)); property.isBool()) {
+          *out = property.toBool();
+        }
+      };
+      flag("underline", &run.underline);
+      flag("strikethrough", &run.strikethrough);
+      flag("ordinals", &run.ordinals);
+      flag("fractions", &run.fractions);
     } else {
       host.throw_js_error(ScriptEngineHost::tr("%1: run %2 must be a string or an object.").arg(QLatin1String(verb)).arg(index));
       return false;
@@ -900,6 +938,16 @@ QJSValue ScriptLayerObject::text_runs() const {
     object.setProperty(QStringLiteral("bold"), run.bold);
     object.setProperty(QStringLiteral("italic"), run.italic);
     object.setProperty(QStringLiteral("color"), run.color);
+    object.setProperty(QStringLiteral("caps"), run.styles.caps == 2   ? QStringLiteral("all")
+                                               : run.styles.caps == 1 ? QStringLiteral("small")
+                                                                      : QStringLiteral("none"));
+    object.setProperty(QStringLiteral("script"), run.styles.baseline == 1   ? QStringLiteral("superscript")
+                                                 : run.styles.baseline == 2 ? QStringLiteral("subscript")
+                                                                            : QStringLiteral("none"));
+    object.setProperty(QStringLiteral("underline"), run.styles.underline);
+    object.setProperty(QStringLiteral("strikethrough"), run.styles.strikethrough);
+    object.setProperty(QStringLiteral("ordinals"), run.styles.ordinals);
+    object.setProperty(QStringLiteral("fractions"), run.styles.fractions);
     array.setProperty(index++, object);
   }
   return array;
@@ -3353,6 +3401,54 @@ bool ScriptDocumentObject::saveAs(const QString& path, const QJSValue& options) 
 bool ScriptDocumentObject::exportAs(const QString& path, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   return save_to_path(QStringLiteral("exportAs"), path, options, /*export_copy=*/true);
+}
+
+QJSValue ScriptDocumentObject::encodeForWeb(const QString& format, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return QJSValue();
+  }
+  const auto web_format = web_export_format_from_key(format);
+  if (!web_format.has_value()) {
+    QStringList tokens;
+    for (const auto known : web_export_formats()) {
+      tokens << QStringLiteral("\"%1\"").arg(web_export_format_key(known));
+    }
+    host_.throw_js_error(ScriptEngineHost::tr("encodeForWeb: format must be one of %1.").arg(tokens.join(QStringLiteral(", "))));
+    return QJSValue();
+  }
+  auto save_options = host_.save_options_for_session(session_id_);
+  if (!save_options.has_value()) {
+    return QJSValue();
+  }
+  const auto extension = web_export_extension(*web_format);
+  if (!options.isUndefined()) {
+    const auto error =
+        apply_script_image_save_options(QStringLiteral("encodeForWeb"), extension, options, *save_options);
+    if (!error.isEmpty()) {
+      host_.throw_js_error(error);
+      return QJSValue();
+    }
+  }
+  std::vector<std::uint8_t> bytes;
+  QSize size(document->width(), document->height());
+  try {
+    bytes = encode_flat_image_bytes(*document, extension, *save_options);
+    if (const auto decoded = decode_web_export_bytes(*web_format, bytes); !decoded.isNull()) {
+      size = decoded.size();
+    }
+  } catch (const std::exception& error) {
+    host_.throw_js_error(ScriptEngineHost::tr("encodeForWeb could not encode: %1").arg(QObject::tr(error.what())));
+    return QJSValue();
+  }
+  auto result = host_.engine()->newObject();
+  result.setProperty(QStringLiteral("bytes"),
+                     host_.engine()->toScriptValue(QByteArray(reinterpret_cast<const char*>(bytes.data()),
+                                                              static_cast<qsizetype>(bytes.size()))));
+  result.setProperty(QStringLiteral("width"), size.width());
+  result.setProperty(QStringLiteral("height"), size.height());
+  return result;
 }
 
 bool ScriptDocumentObject::save_to_path(const QString& method, const QString& path, const QJSValue& options,

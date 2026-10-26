@@ -13064,6 +13064,42 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Reset to Default</source>
         <translation>Restaurar padrão</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>Sem perdas, velocidade %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>Qualidade %1, velocidade %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>Sem perdas, esforço %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>Qualidade %1, esforço %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>A codificação demora mais que nos outros formatos; a prévia atualiza quando termina.</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>Configurações de AVIF</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>Configurações de JPEG XL</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>selecione para codificar</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>Codificando...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26743,6 +26779,38 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Show All Buttons</source>
         <translation>Mostrar todos os botões</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>Tudo em maiúsculas</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Versalete</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Sobrescrito</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Subscrito</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Sublinhado</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Tachado</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Ordinais (fontes que os têm)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Frações (fontes que as têm)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28735,6 +28803,18 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette: valor desconhecido &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb: format deve ser um de %1.</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb não conseguiu codificar: %1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: o trecho %2: %3 deve ser &apos;%4&apos;, &apos;%5&apos; ou &apos;none&apos;.</translation>
     </message>
 </context>
 <context>

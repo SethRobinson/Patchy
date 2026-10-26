@@ -34,6 +34,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <numeric>
 #include <optional>
 #include <span>
@@ -1986,6 +1987,126 @@ void psd_text_baseline_shift_round_trips_native_text() {
   }
 }
 
+// GitHub issue 346: the Character panel's eight styles round-trip through the PSD writer and
+// reader per run. Ordinals and Fractions have no TySh key, so they come back only through the
+// 'Txt2' object the writer authors; the rest ride in both.
+void psd_text_character_styles_round_trip_native_text() {
+  patchy::Document document(256, 128, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Styled", solid_rgb(256, 128, 0, 0, 0));
+  layer.metadata()[patchy::kLayerMetadataText] = "ABCDEFGHIJ";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  const std::vector<std::string> tokens{"allcaps",       "smallcaps", "superscript", "subscript",
+                                        "underline",     "strikethrough", "ordinals", "fractions",
+                                        "smallcaps,subscript,underline,strikethrough,ordinals,fractions", "-"};
+  std::string runs = "v9";
+  for (std::size_t index = 0; index < tokens.size(); ++index) {
+    runs += "\n" + std::to_string(index) + "\t1\t24\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t0\t" + tokens[index];
+  }
+  layer.metadata()[patchy::kLayerMetadataTextRuns] = runs;
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const std::string_view bytes(reinterpret_cast<const char*>(written.data()), written.size());
+  CHECK(bytes.find("/FontCaps 2") != std::string_view::npos);
+  CHECK(bytes.find("/FontCaps 1") != std::string_view::npos);
+  CHECK(bytes.find("/FontBaseline 1") != std::string_view::npos);
+  CHECK(bytes.find("/FontBaseline 2") != std::string_view::npos);
+  CHECK(bytes.find("/Underline true /YUnderline 0") != std::string_view::npos);
+  CHECK(bytes.find("/Strikethrough true") != std::string_view::npos);
+  const auto read = patchy::psd::DocumentIo::read(written);
+  CHECK(read.layers().size() == 1U);
+  if (read.layers().size() != 1U) {
+    return;
+  }
+  const auto& read_runs = read.layers().front().metadata().at(patchy::kLayerMetadataTextRuns);
+  CHECK(read_runs.starts_with("v9\n"));
+  const auto lines = split_lines(read_runs);
+  CHECK(lines.size() == tokens.size() + 1U);
+  for (std::size_t index = 0; index + 1U < lines.size() && index < tokens.size(); ++index) {
+    const auto fields = split_tabs(lines[index + 1U]);
+    if (fields.size() != 17U || fields[16] != tokens[index]) {
+      std::printf("  run %zu read back as: %s\n", index, lines[index + 1U].c_str());
+    }
+    CHECK(fields.size() == 17U);
+    if (fields.size() == 17U) {
+      CHECK(fields[16] == tokens[index]);
+    }
+  }
+  // A second save of what was read writes the same styles again.
+  auto reread = read;
+  const auto rewritten = patchy::psd::DocumentIo::write_layered_rgb8(reread);
+  const auto again = patchy::psd::DocumentIo::read(rewritten);
+  CHECK(again.layers().size() == 1U);
+  if (again.layers().size() == 1U) {
+    CHECK(again.layers().front().metadata().at(patchy::kLayerMetadataTextRuns) == read_runs);
+  }
+}
+
+// The column-16 token list is a file-format contract: every style has one fixed token, "-" means
+// none, and unknown tokens are skipped.
+void psd_text_character_style_tokens_parse_and_serialize() {
+  patchy::psd::PsdTextStyleRun run;
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) == "-");
+  CHECK(!patchy::psd::text_run_has_character_styles(run));
+  patchy::psd::parse_text_run_character_styles("allcaps,superscript,underline,sparkle,fractions", run);
+  CHECK(run.font_caps == 2 && run.font_baseline == 1 && run.underline && run.fractions);
+  CHECK(!run.strikethrough && !run.ordinals);
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) == "allcaps,superscript,underline,fractions");
+  patchy::psd::parse_text_run_character_styles("-", run);
+  CHECK(!patchy::psd::text_run_has_character_styles(run));
+}
+
+// philipzae's "Character - Styling and Extras.psd" (Photoshop CC 2018, GitHub issue 346): one
+// layer per style. Caps, baselines, underline and strikethrough are TySh keys; Ordinals and
+// Fractions exist only in the 'Txt2' object.
+void psd_text_character_styles_import_photoshop_sample_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("Character - Styling and Extras.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto read = patchy::psd::DocumentIo::read_file(path);
+  std::map<std::string, std::string> runs_by_name;
+  std::function<void(const std::vector<patchy::Layer>&)> collect = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (const auto found = layer.metadata().find(patchy::kLayerMetadataTextRuns); found != layer.metadata().end()) {
+        runs_by_name[layer.name()] = found->second;
+      }
+      collect(layer.children());
+    }
+  };
+  collect(read.layers());
+  const auto tokens_of = [&](const std::string& name) {
+    std::vector<std::string> tokens;
+    const auto found = runs_by_name.find(name);
+    CHECK(found != runs_by_name.end());
+    if (found == runs_by_name.end()) {
+      return tokens;
+    }
+    const auto lines = split_lines(found->second);
+    for (std::size_t index = 1; index < lines.size(); ++index) {
+      const auto fields = split_tabs(lines[index]);
+      tokens.push_back(fields.size() >= 17U ? fields[16] : std::string("-"));
+    }
+    return tokens;
+  };
+  const auto all = [&](const std::string& name, const std::string& token) {
+    const auto tokens = tokens_of(name);
+    CHECK(!tokens.empty());
+    for (const auto& value : tokens) {
+      CHECK(value == token);
+    }
+  };
+  all("All caps", "allcaps");
+  all("Small Caps", "smallcaps");
+  all("Underline", "underline");
+  all("Strikethrough", "strikethrough");
+  all("10th of Ordinals", "ordinals");
+  all("Fractions 1/2", "fractions");
+  all("Faux Bold", "-");
+  // "Super" + "script": only the second run is raised (likewise "Sub" + "script" lowered).
+  const auto super = tokens_of("Superscript");
+  CHECK(super.size() == 2U && super.front() == "-" && super.back() == "superscript");
+  const auto sub = tokens_of("Subscript");
+  CHECK(!sub.empty() && sub.front() == "-" && sub.back() == "subscript");
+}
+
 void psd_text_engine_auto_leading_run_serializes_auto_marker() {
   // AutoLeading true makes the recorded /Leading informational: the run must serialize as
   // "auto" so later size edits keep tracking Photoshop's 1.2 x size rule (COM-verified).
@@ -3135,6 +3256,10 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
       {"psd_text_engine_normal_style_sheet_supplies_missing_run_properties",
        psd_text_engine_normal_style_sheet_supplies_missing_run_properties},
       {"psd_text_baseline_shift_round_trips_native_text", psd_text_baseline_shift_round_trips_native_text},
+      {"psd_text_character_styles_round_trip_native_text", psd_text_character_styles_round_trip_native_text},
+      {"psd_text_character_style_tokens_parse_and_serialize", psd_text_character_style_tokens_parse_and_serialize},
+      {"psd_text_character_styles_import_photoshop_sample_if_available",
+       psd_text_character_styles_import_photoshop_sample_if_available},
       {"psd_text_engine_auto_leading_run_serializes_auto_marker",
        psd_text_engine_auto_leading_run_serializes_auto_marker},
       {"psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available",

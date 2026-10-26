@@ -13027,6 +13027,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Reset to Default</source>
         <translation>恢复默认</translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation>无损，速度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation>品质 %1，速度 %2</translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation>无损，编码强度 %1</translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation>品质 %1，编码强度 %2</translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation>编码比其他格式耗时更长；完成后预览会更新。</translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation>AVIF 设置</translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation>JPEG XL 设置</translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation>选择后编码</translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation>正在编码...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26667,6 +26703,38 @@ The open document keeps its blend modes either way.</source>
         <source>Show All Buttons</source>
         <translation>显示所有按钮</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>全部大写字母</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>小型大写字母</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>上标</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>下标</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>下划线</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>删除线</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>序数 (仅限支持的字体)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>分数 (仅限支持的字体)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28658,6 +28726,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
         <translation>toolPalette：未知的值“%1”。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation>encodeForWeb：format 必须是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation>encodeForWeb 无法编码：%1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1：第 %2 段的 %3 必须是 &apos;%4&apos;、&apos;%5&apos; 或 &apos;none&apos;。</translation>
     </message>
 </context>
 <context>

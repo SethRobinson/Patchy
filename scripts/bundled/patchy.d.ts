@@ -229,11 +229,20 @@ interface PatchyImageData {
 interface PatchyTextRun {
   text: string;
   font?: string; size?: number; bold?: boolean; italic?: boolean; color?: string;
+  /** Character panel styles: capitals drawn for every letter ("all") or small capitals for lowercase ("small"). */
+  caps?: "all" | "small" | "none";
+  /** Drawn smaller and raised or lowered, as Photoshop does (58.3% size, shifted 33.3% of the size). */
+  script?: "superscript" | "subscript" | "none";
+  underline?: boolean; strikethrough?: boolean;
+  /** OpenType ordinals and fractions; text in a font without them stays unchanged. */
+  ordinals?: boolean; fractions?: boolean;
 }
 
 /** A stored run read back from a text layer (see PatchyLayer.textRuns). */
 interface PatchyTextRunInfo {
   text: string; font: string; style: string; size: number; bold: boolean; italic: boolean; color: string;
+  caps: "all" | "small" | "none"; script: "superscript" | "subscript" | "none";
+  underline: boolean; strikethrough: boolean; ordinals: boolean; fractions: boolean;
 }
 
 /** What a smart-object layer holds (see PatchyLayer.getSmartObject). */
@@ -1247,6 +1256,11 @@ interface PatchyDocument {
   /** Writes a copy to the path with the same formats and options as saveAs, and leaves the
    * document alone: its path, title and modified state never change, whatever the format. */
   exportAs(path: string, options?: PatchySaveOptions): boolean;
+  /** File > Export for Web's encoders without a file: the bytes exportAs would write for this
+   *  format ("avif" only where AVIF is built). options are exactly the exportAs keys of that
+   *  format, strictly checked. width and height are the encoded image's size. */
+  encodeForWeb(format: "jpeg" | "webp" | "png" | "gif" | "avif" | "jxl",
+               options?: PatchySaveOptions): {bytes: ArrayBuffer; width: number; height: number};
   /** Exports visible top-level layers, top first, as animated WebP. Groups become one frame.
    * Trailing seconds tokens ("blink 0.033s") override frameDelayMs. Preserves the document path
    * and modified state. loopCount is total plays (0 = forever), defaults to the imported or

@@ -13047,6 +13047,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Reset to Default</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Lossless, speed %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quality %1, speed %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lossless, effort %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quality %1, effort %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Encoding takes longer than the other formats; the preview updates when it is done.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>AVIF settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JPEG XL settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>select to encode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Encoding...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26661,6 +26697,38 @@ The open document keeps its blend modes either way.</source>
         <source>Show All Buttons</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28652,6 +28720,18 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>toolPalette: unknown value &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>encodeForWeb: format must be one of %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>encodeForWeb could not encode: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -60,7 +60,36 @@ struct PsdTextStyleRun {
   // stays FontSize-based (COM-calibrated: VerticalScale does not change auto leading).
   double horizontal_scale{1.0};
   double vertical_scale{1.0};
+  // Character-panel styles (runs v9 column 16, GitHub issue 346). Photoshop /FontCaps: 0 normal,
+  // 1 Small Caps, 2 All Caps; /FontBaseline: 0 normal, 1 superscript, 2 subscript. The text
+  // itself keeps its case and size: these only change how it is drawn.
+  int font_caps{0};
+  int font_baseline{0};
+  bool underline{false};
+  bool strikethrough{false};
+  // The OpenType Ordinals (ordn) and Fractions (frac) features. Photoshop keeps these in its
+  // Txt2 block only (style keys /24 and /23); the TySh EngineData has no key for them.
+  bool ordinals{false};
+  bool fractions{false};
 };
+
+// Photoshop's document-level ratios (TySh /SuperscriptSize .583, /SuperscriptPosition .333,
+// /SmallCapSize .7, the same values in every capture): a superscript or subscript run draws at
+// 58.3% of its size with its baseline moved 33.3% of the size, and Small Caps without the font's
+// own small capitals draws the lowercase as capitals at 70%.
+inline constexpr double kTextScriptSizeFraction = 0.583;
+inline constexpr double kTextScriptPositionFraction = 0.333;
+inline constexpr double kTextSmallCapSizeFraction = 0.7;
+
+// True when a run carries any of the character-panel styles above (runs v9).
+[[nodiscard]] bool text_run_has_character_styles(const PsdTextStyleRun& run) noexcept;
+// Runs v9 column 16: the run's character styles as a comma-separated token list (`allcaps`,
+// `smallcaps`, `superscript`, `subscript`, `underline`, `strikethrough`, `ordinals`,
+// `fractions`), or "-" for none. The tokens are a file-format contract: never rename one.
+[[nodiscard]] std::string serialize_text_run_character_styles(const PsdTextStyleRun& run);
+// Reads a column-16 token list into `run` (unknown tokens are ignored, so a newer writer's
+// additions survive in nothing worse than being dropped).
+void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& run);
 
 struct PsdTextParagraphRun {
   int start{0};

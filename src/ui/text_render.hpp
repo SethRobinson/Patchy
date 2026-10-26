@@ -43,10 +43,29 @@ struct VerticalRenderPlan {
 // document, the line plan, the local rect, and the residual document transform. The
 // QImage render and the editable-PDF text export both draw the same plan, so the PDF's
 // real text lands exactly where the layer's raster does.
+// One underline or strikethrough bar in the plan's local units (GitHub issue 346).
+struct TextDecorationRect {
+  QRectF rect;
+  QColor color;
+};
+
+// Where Photoshop draws a font's lines, as fractions of the em (COM captures of 18 faces at
+// 200 px): the underline is centred halfway between the face's underline position and its
+// lowest point (head yMin), with the post table's thickness; a CFF face's underline position is
+// its CFF value (the post value minus half the thickness). The strikethrough is centred at half
+// the x-height, with the same thickness.
+struct TextDecorationMetrics {
+  double underline_center{0.15};  // below the baseline
+  double strike_center{0.26};     // above the baseline
+  double thickness{0.05};
+};
+TextDecorationMetrics text_decoration_metrics(const QFont& font);
+
 struct TextRenderPlan {
   TextRenderDocument built;
   QRectF local_rect;
   std::vector<BoxTextLineRenderItem> line_render_items;
+  std::vector<TextDecorationRect> decorations;
   QTransform document_transform;  // post-fold residual (identity when none was supplied)
   bool has_document_transform{false};
   bool faux_italic_render{false};

@@ -265,6 +265,15 @@ PsdTextStyleRun fallback_text_run_from_metadata(const Layer& layer) {
   return fallback;
 }
 
+// The version header of a runs list ("v1" .. "v9"; any later "vN" too, so an older build skips a
+// newer header instead of reading it as a run).
+bool is_text_runs_version_line(std::string_view line) {
+  if (line.size() < 2U || line.front() != 'v') {
+    return false;
+  }
+  return std::all_of(line.begin() + 1, line.end(), [](char ch) { return ch >= '0' && ch <= '9'; });
+}
+
 std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view runs_text,
                                                              std::string_view plain_text,
                                                              const PsdTextStyleRun& fallback) {
@@ -279,8 +288,7 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5" || line == "v6" ||
-        line == "v7" || line == "v8") {
+    if (line.empty() || is_text_runs_version_line(line)) {
       continue;
     }
 
@@ -346,6 +354,9 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
           shift.has_value() && std::isfinite(*shift) && std::abs(*shift) < 100000.0) {
         run.baseline_shift = *shift;
       }
+    }
+    if (fields.size() >= 17U) {
+      parse_text_run_character_styles(fields[16], run);
     }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
@@ -459,8 +470,7 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5" || line == "v6" ||
-        line == "v7" || line == "v8") {
+    if (line.empty() || is_text_runs_version_line(line)) {
       continue;
     }
     const auto fields = split_tab_fields(line);
@@ -1559,6 +1569,24 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index, 
   if (std::isfinite(run.baseline_shift) && std::abs(run.baseline_shift) > 0.0001) {
     style += " /BaselineShift " + engine_short_fraction(run.baseline_shift);
   }
+  // Character-panel styles (GitHub issue 346), only when set so default text stays
+  // byte-identical. Photoshop pairs /Underline true with /YUnderline 0 (its "underline left",
+  // the side a horizontal underline maps to in vertical type). Ordinals and Fractions have no
+  // TySh key: they go to the 'Txt2' object only.
+  if (run.font_caps == 1 || run.font_caps == 2) {
+    style += " /FontCaps ";
+    style += std::to_string(run.font_caps);
+  }
+  if (run.font_baseline == 1 || run.font_baseline == 2) {
+    style += " /FontBaseline ";
+    style += std::to_string(run.font_baseline);
+  }
+  if (run.underline) {
+    style += " /Underline true /YUnderline 0";
+  }
+  if (run.strikethrough) {
+    style += " /Strikethrough true";
+  }
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);
   style += " >>";
@@ -1732,7 +1760,13 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   engine += " /UseFractionalGlyphWidths true\n";
   engine += engine_rendered_shape(boxed_text, box_bounds, vertical);
   engine += ">>\n";
-  const PsdTextStyleRun normal_style = runs.empty() ? PsdTextStyleRun{} : runs.front();
+  PsdTextStyleRun normal_style = runs.empty() ? PsdTextStyleRun{} : runs.front();
+  // Runs leave a style key out when it is off, and Photoshop then takes the normal sheet's value,
+  // so the sheet never carries the first run's character styles (GitHub issue 346).
+  normal_style.font_caps = 0;
+  normal_style.font_baseline = 0;
+  normal_style.underline = false;
+  normal_style.strikethrough = false;
   const auto normal_font_index = font_indices.empty() ? 1 : font_indices.front();
   const auto normal_justification = engine_paragraph_runs.empty() ? 0 : engine_paragraph_runs.front().justification;
   const auto resources = engine_text_resources(fonts, normal_style, normal_font_index, normal_justification);

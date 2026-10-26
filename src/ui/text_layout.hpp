@@ -88,6 +88,24 @@ inline constexpr int kTextRotatedRomanFormatProperty = QTextFormat::UserProperty
 // Baseline shift in the same scaled engine pixels as kTextExactSizeFormatProperty.
 inline constexpr int kTextBaselineShiftFormatProperty = QTextFormat::UserProperty + 43;
 
+// Character-panel styles (runs v9 column 16, GitHub issue 346). Flags only, like faux bold: the
+// editor document keeps the run's text, case and size, and build_text_render_document turns them
+// into drawing (apply_text_character_styles_to_document). Caps: 1 Small Caps, 2 All Caps;
+// baseline: 1 superscript, 2 subscript; the rest are bools.
+inline constexpr int kTextFontCapsFormatProperty = QTextFormat::UserProperty + 44;
+inline constexpr int kTextFontBaselineFormatProperty = QTextFormat::UserProperty + 45;
+inline constexpr int kTextUnderlineFormatProperty = QTextFormat::UserProperty + 46;
+inline constexpr int kTextStrikethroughFormatProperty = QTextFormat::UserProperty + 47;
+inline constexpr int kTextOrdinalsFormatProperty = QTextFormat::UserProperty + 48;
+inline constexpr int kTextFractionsFormatProperty = QTextFormat::UserProperty + 49;
+// Render documents only. QTextCharFormat cannot carry OpenType features (Qt 6.8), so a fragment
+// whose features change its glyphs (smcp, ordn, frac) lists their tags here (QStringList), is laid
+// out with its advance corrected to the featured width through extra letter spacing, and is drawn
+// from its own featured shaping (draw_featured_glyph_runs). The second property keeps the letter
+// spacing the fragment had before that correction, which the featured shaping uses.
+inline constexpr int kTextRenderFeaturesFormatProperty = QTextFormat::UserProperty + 50;
+inline constexpr int kTextRenderBaseLetterSpacingFormatProperty = QTextFormat::UserProperty + 51;
+
 // One visual line as the renderer draws it: the line, the origin it is drawn at, and the
 // rect it is clipped to. `block_position` is the owning block's document position, which
 // QTextLine alone cannot recover (its lineNumber() is an index within its own block's

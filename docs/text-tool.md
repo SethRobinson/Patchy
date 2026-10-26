@@ -32,16 +32,15 @@ the caret out at the raw size while the glyphs draw scaled
 render: click and caret share a layout and agree even when it is wrong).
 
 **A face's natural width is `QFont::AnyStretch`, never stretch 100.** Qt synthesizes
-request / face width class, so asking a Condensed face (width class 75, Futura Bold Condensed BT)
-for stretch 100 stretches it 133 percent. Every advance-ratio reference in text_document.cpp and text_render.cpp
+request / face width class, so a Condensed face (width class 75) asked for stretch 100
+stretches 133 percent. Every advance-ratio reference in text_document.cpp and text_render.cpp
 (`set_stretch_for_advance_ratio`, `scale_font_width`, `dominant_run_width_residual`, the
 pixel-aligned glyph drawer) measures against AnyStretch; measuring against 100 stretches an
 unstretched condensed line a third wider than the caret layout
 (`ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available`,
 `ui_psd_text_tracking_click_lands_on_glyphs`).
 
-Mouse hit-testing goes through the same plan, never `QTextEdit::cursorForPosition` (the widget's
-own integer-pixel, Qt-spaced layout).
+Mouse hit-testing goes through the same plan, never `QTextEdit::cursorForPosition`.
 `MainWindow::handle_text_editor_viewport_mouse_event` intercepts left press/drag/double-click for
 the flat case and `TransformedTextEditOverlay::cursor_position_for_overlay_point` the transformed
 one; both end at `TextLineGeometry::position_at`; right-click, middle click and release fall
@@ -147,8 +146,7 @@ the session mid-call (`configure()` runs on every cursor move). Real-click tests
 ## Boxed-text render clipping
 
 Every boxed render path gates whole LINES against the frame, never raster rows: a line straddling
-the frame bottom draws completely (clip band extended by the descent bleed); lines wholly past it
-stay hidden. The editor, Photoshop-layout and metadata re-render
+the frame bottom draws whole (clip band extended by the descent bleed); lines past it stay hidden. The editor, Photoshop-layout and metadata re-render
 paths share this rule in `render_text_pixels_with_local_rect` (skipping the line plan cuts the
 straddling line mid-glyph; Affinity and Photoshop draw it whole). The metadata path keeps the
 buffer origin and width at the frame's and grows only the bottom: pixels-only callers place
@@ -214,7 +212,7 @@ tightly). Test: `ui_script_text_auto_leading_ignores_spacer_paragraphs`.
 
 ## Character panel
 
-- Options bar > Character... (Text tool); edits leading auto/fixed, tracking, H/V glyph scales, faux bold and faux italic. The leading field is never locked: a typed value turns Auto leading off. Number fields apply on Enter, focus loss or +/-. During inline editing it applies to the text selection, or the whole object with a bare caret. Otherwise it applies to every selected unlocked text layer (see the no-session section above), warped text included, and remains usable after switching tools.
+- Options bar > Character... (Text tool); edits leading auto/fixed, tracking, H/V glyph scales, faux bold and faux italic, and the style row ([text-character-styles.md](text-character-styles.md)). The leading field is never locked: a typed value turns Auto leading off. Number fields apply on Enter, focus loss or +/-. During inline editing it applies to the text selection, or the whole object with a bare caret. Otherwise it applies to every selected unlocked text layer (see the no-session section above), warped text included, and remains usable after switching tools.
 - **Faux bold is refused on warped layers** (Photoshop parity, [warp.md](warp.md)): the checkbox shows a status error and reverts when ENABLING on a session whose layer carries an active Warp Text; unchecking stays allowed so imported faux+warp files can be fixed. Ctrl+B's faux fallback refuses the same way; a family with a real Bold face keeps toggling. Faux italic is unrestricted.
 - Without an inline session, the panel reads the first character's format from the active layer's stored runs (transform vertical scale and document resolution applied to displayed leading). A change opens a hidden session per target layer (`add_text_at(..., show_editor=false)`) and commits through the normal Type undo/render path, without preview or focus; mixed run sizes and colors survive. Opening the panel alone mutates nothing. The scripting `text` setter rides the same session ([scripting.md](scripting.md)).
 - Controls disable with neither a live session nor an editable text layer (pixel locks, transform sessions); `refresh_options_bar` and `refresh_layer_controls` resync the panel on session, selection, lock and history changes. Tests: `ui_text_character_panel_tracks_session_and_layer`, `ui_text_character_panel_edits_selected_layer_without_session`.
