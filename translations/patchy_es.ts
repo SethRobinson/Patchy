@@ -13092,24 +13092,8 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation> s</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>Capas seleccionadas:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>Definir tiempo</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>Cambia el nombre de las capas seleccionadas para que terminen con este tiempo de fotograma, como &quot;parpadeo 0.25s&quot;.</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Quitar</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>Quita el tiempo de fotograma final de los nombres de las capas seleccionadas.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13124,12 +13108,80 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Detener</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Reproduce las capas visibles de nivel superior como fotogramas, de arriba abajo, igual que al exportar GIF y WebP animados. Un tiempo al final del nombre de capa, como &quot;blink 0.25s&quot;, establece la duración del fotograma.</translation>
+        <source>Playback</source>
+        <translation>Reproducción</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>Duración de fotograma predeterminada:</translation>
+        <source>Frame delay:</source>
+        <translation>Duración de fotograma:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Cuánto se muestra cada fotograma cuando el nombre de su capa no tiene tiempo. La exportación de GIF, WebP y PNG animados usa el mismo valor predeterminado.</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 s</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Personalizado</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>Duraciones de fotograma habituales. Personalizado es cualquier otro valor escrito en el cuadro.</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>Ignorar tiempos en los nombres de capa</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>Reproduce cada fotograma con la duración de arriba y omite tiempos como &quot;0.25s&quot; al final de los nombres de capa. Solo vista previa: la exportación sigue usando los tiempos de los nombres.</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>Reproducir capas ocultas</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>Incluye las capas ocultas de nivel superior como fotogramas. Solo vista previa: la exportación sigue usando las capas visibles.</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>Tiempo de fotograma en los nombres de capa</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>El tiempo que Definir tiempo escribe al final de los nombres de capa.</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>Cambia el nombre de las capas seleccionadas, o de todas las capas de nivel superior con Aplicar a todas las capas, para que terminen con este tiempo de fotograma, como &quot;parpadeo 0.25s&quot;.</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>Quitar tiempo</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>Quita el tiempo de fotograma del final de los nombres de las capas seleccionadas, o de todas las capas de nivel superior con Aplicar a todas las capas.</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>Aplicar a todas las capas</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>Definir tiempo y Quitar tiempo cambian todas las capas de nivel superior en lugar de solo las seleccionadas.</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Los fotogramas son las capas de nivel superior, primero la de arriba, tal como las escribe la exportación de GIF, WebP y PNG animados. Un tiempo al final del nombre de capa, como &quot;blink 0.25s&quot;, establece la duración del fotograma.</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>No hay capas</translation>
     </message>
 </context>
 <context>
@@ -26009,6 +26061,18 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Vector Mask</source>
         <translation>Máscara vectorial</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>No hay capas</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>Todas las capas ya terminan con ese tiempo</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>Ninguna capa tiene tiempo de fotograma</translation>
     </message>
 </context>
 <context>

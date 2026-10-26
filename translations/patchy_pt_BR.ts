@@ -13092,24 +13092,8 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation> s</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>Camadas selecionadas:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>Definir duração</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>Renomeia as camadas selecionadas para que terminem com esta duração de quadro, como &quot;piscar 0.25s&quot;.</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>Remover</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>Remove a duração de quadro do final dos nomes das camadas selecionadas.</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13124,12 +13108,80 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Parar</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Reproduz as camadas visíveis de nível superior como quadros, de cima para baixo, como na exportação de GIF e WebP animados. Um tempo no final do nome da camada, como &quot;blink 0.25s&quot;, define a duração do quadro.</translation>
+        <source>Playback</source>
+        <translation>Reprodução</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>Duração padrão do quadro:</translation>
+        <source>Frame delay:</source>
+        <translation>Duração do quadro:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Quanto tempo cada quadro aparece quando o nome da camada não tem tempo. A exportação de GIF, WebP e PNG animados usa o mesmo padrão.</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 s</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Personalizado</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>Durações de quadro comuns. Personalizado é qualquer outro valor digitado na caixa.</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>Ignorar tempos nos nomes das camadas</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>Reproduz cada quadro pela duração acima e ignora tempos como &quot;0.25s&quot; no final dos nomes das camadas. Só na prévia: a exportação continua usando os tempos dos nomes.</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>Reproduzir camadas ocultas</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>Inclui as camadas ocultas de nível superior como quadros. Só na prévia: a exportação continua usando as camadas visíveis.</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>Duração do quadro nos nomes das camadas</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>A duração que Definir duração escreve no final dos nomes das camadas.</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>Renomeia as camadas selecionadas, ou todas as camadas de nível superior com Aplicar a todas as camadas, para terminarem com esta duração de quadro, como &quot;blink 0.25s&quot;.</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>Remover duração</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>Remove a duração de quadro do final dos nomes das camadas selecionadas, ou de todas as camadas de nível superior com Aplicar a todas as camadas.</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>Aplicar a todas as camadas</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>Definir duração e Remover duração alteram todas as camadas de nível superior em vez de só as selecionadas.</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Os quadros são as camadas de nível superior, a de cima primeiro, como a exportação de GIF, WebP e PNG animados as grava. Um tempo no final do nome da camada, como &quot;blink 0.25s&quot;, define a duração do quadro.</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Sem camadas</translation>
     </message>
 </context>
 <context>
@@ -26009,6 +26061,18 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Vector Mask</source>
         <translation>Máscara vetorial</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>Sem camadas</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>Todas as camadas já terminam com essa duração</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>Nenhuma camada tem duração de quadro</translation>
     </message>
 </context>
 <context>

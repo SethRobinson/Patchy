@@ -24,6 +24,8 @@
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
 #include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFileInfo>
 #include <QFontDatabase>
@@ -54,6 +56,32 @@ patchy::Document animation_test_document() {
   return document;
 }
 
+// Resets the preview's persisted checkboxes to their defaults (off) for one test and
+// restores the user's values afterwards.
+class AnimationPreviewSettingsReset {
+public:
+  AnimationPreviewSettingsReset() {
+    for (const auto* key : kKeys) {
+      patchy::ui::app_settings().remove(QString::fromLatin1(key));
+    }
+  }
+
+private:
+  static constexpr const char* kKeys[] = {"animationPreview/ignoreNameDelays", "animationPreview/playHiddenLayers",
+                                          "animationPreview/applyToAllLayers"};
+  SettingsValueRestorer ignore_{QString::fromLatin1(kKeys[0])};
+  SettingsValueRestorer hidden_{QString::fromLatin1(kKeys[1])};
+  SettingsValueRestorer all_{QString::fromLatin1(kKeys[2])};
+};
+
+patchy::ui::AnimationPreviewWindow* open_animation_preview(patchy::ui::MainWindow& window) {
+  auto* animation_button = window.findChild<QPushButton*>(QStringLiteral("layerAnimationButton"));
+  CHECK(animation_button != nullptr);
+  animation_button->click();
+  QApplication::processEvents();
+  return window.findChild<patchy::ui::AnimationPreviewWindow*>(QStringLiteral("animationPreviewWindow"));
+}
+
 // Visibility of the four layers bottom to top.
 std::vector<bool> top_level_visibility(patchy::ui::MainWindow& window) {
   std::vector<bool> visibility;
@@ -65,6 +93,7 @@ std::vector<bool> top_level_visibility(patchy::ui::MainWindow& window) {
 }
 
 void ui_animation_preview_plays_visible_layers_and_restores() {
+  AnimationPreviewSettingsReset preview_settings;
   SettingsValueRestorer delay_setting(QStringLiteral("saveOptions/gifFrameDelayCs"));
   SettingsValueRestorer ms_setting(QStringLiteral("saveOptions/animationFrameDelayMs"));
   patchy::ui::app_settings().remove(QStringLiteral("saveOptions/gifFrameDelayCs"));
@@ -164,6 +193,7 @@ std::vector<std::string> top_level_names(patchy::ui::MainWindow& window) {
 }
 
 void ui_animation_preview_sets_and_removes_frame_time_names() {
+  AnimationPreviewSettingsReset preview_settings;
   patchy::ui::MainWindow window;
   window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
   show_window(window);
@@ -237,6 +267,163 @@ void ui_animation_preview_sets_and_removes_frame_time_names() {
   CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, true, true}));
   CHECK(top_level_names(window) ==
         (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top 0.25s"}));
+
+  panel->close();
+  QApplication::processEvents();
+}
+
+// "Ignore delays in layer names" plays every frame at the frame delay; "Play hidden layers"
+// adds hidden top-level layers to the cycle (and restarts a running playback to pick them
+// up). Both persist, and the delay presets drive the same spin.
+void ui_animation_preview_ignores_name_delays_and_plays_hidden_layers() {
+  AnimationPreviewSettingsReset preview_settings;
+  SettingsValueRestorer delay_setting(QStringLiteral("saveOptions/gifFrameDelayCs"));
+  SettingsValueRestorer ms_setting(QStringLiteral("saveOptions/animationFrameDelayMs"));
+  patchy::ui::app_settings().remove(QStringLiteral("saveOptions/gifFrameDelayCs"));
+  patchy::ui::app_settings().remove(QStringLiteral("saveOptions/animationFrameDelayMs"));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+  show_window(window);
+  auto* panel = open_animation_preview(window);
+  CHECK(panel != nullptr);
+  auto* delay_spin = panel->findChild<QDoubleSpinBox*>(QStringLiteral("animationFrameDelaySpin"));
+  auto* presets = panel->findChild<QComboBox*>(QStringLiteral("animationFrameDelayPresetCombo"));
+  auto* ignore_check = panel->findChild<QCheckBox*>(QStringLiteral("animationIgnoreNameDelaysCheck"));
+  auto* hidden_check = panel->findChild<QCheckBox*>(QStringLiteral("animationPlayHiddenLayersCheck"));
+  auto* play_button = panel->findChild<QPushButton*>(QStringLiteral("animationPlayButton"));
+  auto* status_label = panel->findChild<QLabel*>(QStringLiteral("animationFrameStatusLabel"));
+  CHECK(delay_spin != nullptr);
+  CHECK(presets != nullptr);
+  CHECK(ignore_check != nullptr);
+  CHECK(hidden_check != nullptr);
+  CHECK(play_button != nullptr);
+  CHECK(status_label != nullptr);
+  CHECK(!ignore_check->isChecked());
+  CHECK(!hidden_check->isChecked());
+  CHECK(!ignore_check->toolTip().isEmpty());
+  CHECK(!hidden_check->toolTip().isEmpty());
+  CHECK(!presets->toolTip().isEmpty());
+
+  // The presets: 0.1 s (the default) shows as its preset, a typed value as Custom, and
+  // picking a preset sets the spin and the shared export default.
+  CHECK(presets->count() == 6);
+  CHECK(presets->currentData().toInt() == 100);
+  delay_spin->setValue(0.3);
+  CHECK(presets->currentData().toInt() == -1);
+  const int half_second = presets->findData(500);
+  CHECK(half_second >= 0);
+  presets->setCurrentIndex(half_second);
+  emit presets->activated(half_second);
+  CHECK(delay_spin->value() == 0.5);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("saveOptions/animationFrameDelayMs")).toInt() == 500);
+  delay_spin->setValue(0.2);
+  CHECK(presets->currentData().toInt() == 200);
+
+  // Ignoring name delays: "blink 0.25s" plays for the frame delay instead.
+  play_button->click();
+  panel->advance_frame();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, true, false}));
+  CHECK(panel->current_frame_delay_ms() == 250);
+  ignore_check->setChecked(true);
+  CHECK(panel->current_frame_delay_ms() == 200);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("animationPreview/ignoreNameDelays")).toBool());
+  ignore_check->setChecked(false);
+  CHECK(panel->current_frame_delay_ms() == 250);
+  CHECK(status_label->text().contains(QStringLiteral("3")));
+
+  // Playing hidden layers restarts playback with four frames: Top, blink, Hidden, Base.
+  hidden_check->setChecked(true);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("animationPreview/playHiddenLayers")).toBool());
+  CHECK(panel->playing());
+  CHECK(status_label->text().contains(QStringLiteral("4")));
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, false, true}));
+  panel->advance_frame();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, true, false}));
+  panel->advance_frame();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, true, false, false}));
+  panel->advance_frame();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, false, false}));
+  panel->advance_frame();  // wraps back to the top layer
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, false, true}));
+  // Stop restores the hidden layer as hidden.
+  play_button->click();
+  CHECK(!panel->playing());
+  CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, true, true}));
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // A reopened panel reads both choices back.
+  ignore_check->setChecked(true);
+  panel->close();
+  QApplication::processEvents();
+  panel = open_animation_preview(window);
+  CHECK(panel != nullptr);
+  ignore_check = panel->findChild<QCheckBox*>(QStringLiteral("animationIgnoreNameDelaysCheck"));
+  hidden_check = panel->findChild<QCheckBox*>(QStringLiteral("animationPlayHiddenLayersCheck"));
+  CHECK(ignore_check != nullptr && ignore_check->isChecked());
+  CHECK(hidden_check != nullptr && hidden_check->isChecked());
+  save_widget_artifact("ui_animation_preview_options", *panel);
+  panel->close();
+  QApplication::processEvents();
+}
+
+// "Apply to all layers" points Set Time and Remove Time at every top-level layer, the
+// hidden one included, whatever the selection; each is one undo step.
+void ui_animation_preview_sets_and_removes_frame_time_on_all_layers() {
+  AnimationPreviewSettingsReset preview_settings;
+  patchy::ui::MainWindow window;
+  window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+  show_window(window);
+  auto* panel = open_animation_preview(window);
+  CHECK(panel != nullptr);
+  auto* time_spin = panel->findChild<QDoubleSpinBox*>(QStringLiteral("animationSelectionTimeSpin"));
+  auto* set_button = panel->findChild<QPushButton*>(QStringLiteral("animationSetFrameTimeButton"));
+  auto* remove_button = panel->findChild<QPushButton*>(QStringLiteral("animationRemoveFrameTimeButton"));
+  auto* all_check = panel->findChild<QCheckBox*>(QStringLiteral("animationFrameTimeAllLayersCheck"));
+  CHECK(time_spin != nullptr);
+  CHECK(set_button != nullptr);
+  CHECK(remove_button != nullptr);
+  CHECK(all_check != nullptr);
+  CHECK(remove_button->text() == QStringLiteral("Remove Time"));
+  CHECK(!all_check->isChecked());
+  CHECK(!all_check->toolTip().isEmpty());
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  // Only "Top" selected: all layers still change.
+  layer_list->clearSelection();
+  layer_list->item(0)->setSelected(true);
+  all_check->setChecked(true);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("animationPreview/applyToAllLayers")).toBool());
+
+  const auto depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  time_spin->setValue(0.4);
+  set_button->click();
+  CHECK(top_level_names(window) ==
+        (std::vector<std::string>{"Base 0.4s", "Hidden 0.4s", "blink 0.4s", "Top 0.4s"}));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+  // Again: nothing to change, no undo entry.
+  set_button->click();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+
+  remove_button->click();
+  CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink", "Top"}));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 2);
+  remove_button->click();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 2);
+
+  patchy::ui::MainWindowTestAccess::undo(window);
+  CHECK(top_level_names(window) ==
+        (std::vector<std::string>{"Base 0.4s", "Hidden 0.4s", "blink 0.4s", "Top 0.4s"}));
+  patchy::ui::MainWindowTestAccess::undo(window);
+  CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top"}));
+
+  // Unticked, the selection rules again: only "Top" changes.
+  all_check->setChecked(false);
+  layer_list->clearSelection();
+  layer_list->item(0)->setSelected(true);
+  set_button->click();
+  CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top 0.4s"}));
 
   panel->close();
   QApplication::processEvents();
@@ -386,6 +573,10 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_par
        ui_animation_preview_plays_visible_layers_and_restores},
       {"ui_animation_preview_sets_and_removes_frame_time_names",
        ui_animation_preview_sets_and_removes_frame_time_names},
+      {"ui_animation_preview_ignores_name_delays_and_plays_hidden_layers",
+       ui_animation_preview_ignores_name_delays_and_plays_hidden_layers},
+      {"ui_animation_preview_sets_and_removes_frame_time_on_all_layers",
+       ui_animation_preview_sets_and_removes_frame_time_on_all_layers},
       {"ui_animation_preview_stops_on_tab_switch_and_close",
        ui_animation_preview_stops_on_tab_switch_and_close},
       {"ui_animation_preview_fits_its_text_at_larger_fonts",

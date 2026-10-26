@@ -13057,24 +13057,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation> 秒</translation>
     </message>
     <message>
-        <source>Selected layers:</source>
-        <translation>選取的圖層:</translation>
-    </message>
-    <message>
         <source>Set Time</source>
         <translation>設定時間</translation>
-    </message>
-    <message>
-        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
-        <translation>將選取圖層的名稱改為以此影格時間結尾,例如「blink 0.25s」。</translation>
-    </message>
-    <message>
-        <source>Remove</source>
-        <translation>移除</translation>
-    </message>
-    <message>
-        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
-        <translation>從選取圖層的名稱中移除結尾的影格時間。</translation>
     </message>
     <message>
         <source>No visible layers</source>
@@ -13089,12 +13073,80 @@ Each item&apos;s own View setting still applies.</source>
         <translation>停止</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>將可見的頂層圖層由上到下作為影格播放，與動畫 GIF 和 WebP 匯出相同。圖層名稱結尾的時間（如 &quot;blink 0.25s&quot;）指定該影格的顯示時長。</translation>
+        <source>Playback</source>
+        <translation>播放</translation>
     </message>
     <message>
-        <source>Default frame delay:</source>
-        <translation>預設影格間隔:</translation>
+        <source>Frame delay:</source>
+        <translation>影格間隔:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>圖層名稱中沒有時間時每個影格顯示的時長。動畫 GIF、WebP 和 PNG 匯出使用相同的預設值。</translation>
+    </message>
+    <message>
+        <source>%1 s</source>
+        <translation>%1 秒</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>自訂</translation>
+    </message>
+    <message>
+        <source>Common frame delays. Custom is any other value typed in the box.</source>
+        <translation>常用的影格間隔。自訂是在方塊中輸入的其他任何值。</translation>
+    </message>
+    <message>
+        <source>Ignore delays in layer names</source>
+        <translation>忽略圖層名稱中的時間</translation>
+    </message>
+    <message>
+        <source>Plays every frame for the frame delay above and skips times like &quot;0.25s&quot; at the end of layer names. Preview only: export still uses the times in the names.</source>
+        <translation>每個影格都按上方的影格間隔播放，略過圖層名稱結尾的 &quot;0.25s&quot; 這類時間。僅限預視：匯出仍使用名稱中的時間。</translation>
+    </message>
+    <message>
+        <source>Play hidden layers</source>
+        <translation>播放隱藏的圖層</translation>
+    </message>
+    <message>
+        <source>Includes hidden top-level layers as frames. Preview only: export still uses the visible layers.</source>
+        <translation>將隱藏的頂層圖層也作為影格播放。僅限預視：匯出仍只使用可見的圖層。</translation>
+    </message>
+    <message>
+        <source>Frame time in layer names</source>
+        <translation>圖層名稱中的影格時間</translation>
+    </message>
+    <message>
+        <source>The time Set Time writes at the end of layer names.</source>
+        <translation>「設定時間」寫在圖層名稱結尾的時間。</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers, or every top-level layer with Apply to all layers, to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>將選取的圖層（勾選「套用到所有圖層」時為所有頂層圖層）重新命名，使名稱以此影格時間結尾，如 &quot;blink 0.25s&quot;。</translation>
+    </message>
+    <message>
+        <source>Remove Time</source>
+        <translation>移除時間</translation>
+    </message>
+    <message>
+        <source>Removes the frame time from the end of the selected layers&apos; names, or of every top-level layer&apos;s name with Apply to all layers.</source>
+        <translation>移除選取的圖層（勾選「套用到所有圖層」時為所有頂層圖層）名稱結尾的影格時間。</translation>
+    </message>
+    <message>
+        <source>Apply to all layers</source>
+        <translation>套用到所有圖層</translation>
+    </message>
+    <message>
+        <source>Set Time and Remove Time change every top-level layer instead of only the selected ones.</source>
+        <translation>「設定時間」和「移除時間」作用於所有頂層圖層，而不只是選取的圖層。</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>影格就是頂層圖層，由上到下，與動畫 GIF、WebP 和 PNG 匯出寫入的順序相同。圖層名稱結尾的時間（如 &quot;blink 0.25s&quot;）指定該影格的顯示時長。</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>沒有圖層</translation>
     </message>
 </context>
 <context>
@@ -25936,6 +25988,18 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Vector Mask</source>
         <translation>向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>No layers</source>
+        <translation>沒有圖層</translation>
+    </message>
+    <message>
+        <source>All layers already end with that time</source>
+        <translation>所有圖層結尾已經是該影格時間</translation>
+    </message>
+    <message>
+        <source>No frame times on any layer</source>
+        <translation>沒有圖層帶有影格時間</translation>
     </message>
 </context>
 <context>
