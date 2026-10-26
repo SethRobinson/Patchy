@@ -25916,6 +25916,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation et superposition</translation>
     </message>
+    <message>
+        <source>Compare against the average color of a square around the click instead of one pixel</source>
+        <translation>Comparer à la couleur moyenne d&apos;un carré autour du clic au lieu d&apos;un seul pixel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

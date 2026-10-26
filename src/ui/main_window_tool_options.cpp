@@ -2710,6 +2710,21 @@ QString MainWindow::retouch_sample_info_text() const {
   return tr("sample all layers");
 }
 
+void MainWindow::apply_shared_sample_size(int size) {
+  current_eyedropper_sample_size_ = size;
+  if (canvas_ != nullptr) {
+    canvas_->set_eyedropper_sample_size(size);
+    current_eyedropper_sample_size_ = canvas_->eyedropper_sample_size();  // clamped to an odd side
+  }
+  for (QComboBox* combo : {eyedropper_sample_size_combo_, wand_sample_size_combo_}) {
+    if (combo != nullptr) {
+      const QSignalBlocker blocker(combo);
+      combo->setCurrentIndex(std::max(0, combo->findData(current_eyedropper_sample_size_)));
+    }
+  }
+  save_tool_settings();
+}
+
 void MainWindow::save_tool_settings() const {
   // Nothing to save before the stored values were read: a save here would write the
   // defaults donor's values over them (startup_tool_settings_pending_).
@@ -3752,10 +3767,11 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(sponge_mode_combo_);
     sponge_mode_combo_->setCurrentIndex(std::max(0, index));
   }
-  if (eyedropper_sample_size_combo_ != nullptr) {
-    QSignalBlocker blocker(eyedropper_sample_size_combo_);
-    eyedropper_sample_size_combo_->setCurrentIndex(
-        std::max(0, eyedropper_sample_size_combo_->findData(current_eyedropper_sample_size_)));
+  for (QComboBox* combo : {eyedropper_sample_size_combo_, wand_sample_size_combo_}) {
+    if (combo != nullptr) {
+      QSignalBlocker blocker(combo);
+      combo->setCurrentIndex(std::max(0, combo->findData(current_eyedropper_sample_size_)));
+    }
   }
   if (eyedropper_sample_layers_combo_ != nullptr) {
     QSignalBlocker blocker(eyedropper_sample_layers_combo_);

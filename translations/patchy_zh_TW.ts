@@ -25843,6 +25843,10 @@ The open document keeps its blend modes either way.</source>
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>仿製來源設定: 來源、偏移量、縮放、旋轉和疊加</translation>
     </message>
+    <message>
+        <source>Compare against the average color of a square around the click instead of one pixel</source>
+        <translation>與點按位置周圍正方形的平均顏色比較，而非單一像素</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -25989,6 +25989,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
         <translation>Ustawienia źródła klonowania: źródła, przesunięcie, skala, obrót i nakładka</translation>
     </message>
+    <message>
+        <source>Compare against the average color of a square around the click instead of one pixel</source>
+        <translation>Porównuj ze średnim kolorem kwadratu wokół kliknięcia zamiast jednego piksela</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

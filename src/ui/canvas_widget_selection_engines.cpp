@@ -1,5 +1,5 @@
 // CanvasWidget's selection engines, split out of canvas_widget.cpp: the Magic
-// Wand flood select with its tolerance/contiguous/sample-all-layers options,
+// Wand flood select with its tolerance/contiguous/sample-all-layers/sample-size options,
 // the Quick Select stroke lifecycle (seed stamping during the drag, the
 // release-time segmentation in finish_quick_select_stroke, the footprint
 // overlay and the brush cursor) with its size/sample/enhance-edge options, and
@@ -16,6 +16,7 @@
 
 #include "core/layer.hpp"
 #include "core/magnetic_lasso.hpp"
+#include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
 #include "core/smart_object.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -135,7 +136,11 @@ void CanvasWidget::magic_wand_select(QPoint start) {
   const auto pixel = [&source_image](int x, int y) {
     return source_image.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
   };
-  const auto* target = pixel(start.x(), start.y());
+  // The seed averages the Sample Size square around the click (GitHub issue 435); the
+  // setting is the Pick tool's, shared as Photoshop shares it. Point Sample reads the pixel.
+  const auto target = patchy::wand_seed_color(source_image.constBits(), width, height,
+                                              static_cast<std::size_t>(source_image.bytesPerLine()), start.x(),
+                                              start.y(), eyedropper_sample_size_);
   const int target_red = target[0];
   const int target_green = target[1];
   const int target_blue = target[2];

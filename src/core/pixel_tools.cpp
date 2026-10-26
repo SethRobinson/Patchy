@@ -2599,6 +2599,48 @@ bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::u
   return distance_squared <= tolerance_squared;
 }
 
+std::array<std::uint8_t, 4> wand_seed_color(const std::uint8_t* rgba, std::int32_t width, std::int32_t height,
+                                            std::size_t stride, std::int32_t x, std::int32_t y,
+                                            std::int32_t sample_size) noexcept {
+  const auto pixel_at = [rgba, stride](std::int32_t px, std::int32_t py) {
+    return rgba + static_cast<std::size_t>(py) * stride + static_cast<std::size_t>(px) * 4U;
+  };
+  if (sample_size <= 1) {
+    const auto* point = pixel_at(x, y);
+    return {point[0], point[1], point[2], point[3]};
+  }
+  const auto half = sample_size / 2;
+  const auto left = std::max(0, x - half);
+  const auto top = std::max(0, y - half);
+  const auto right = std::min(width - 1, x + half);
+  const auto bottom = std::min(height - 1, y + half);
+  std::array<std::uint64_t, 3> weighted{};
+  std::array<std::uint64_t, 3> plain{};
+  std::uint64_t alpha_sum = 0;
+  std::uint64_t count = 0;
+  for (auto py = top; py <= bottom; ++py) {
+    for (auto px = left; px <= right; ++px) {
+      const auto* color = pixel_at(px, py);
+      const std::uint64_t alpha = color[3];
+      for (std::size_t channel = 0; channel < 3; ++channel) {
+        weighted[channel] += static_cast<std::uint64_t>(color[channel]) * alpha;
+        plain[channel] += color[channel];
+      }
+      alpha_sum += alpha;
+      ++count;
+    }
+  }
+  const auto rounded = [](std::uint64_t sum, std::uint64_t divisor) {
+    return static_cast<std::uint8_t>(std::min<std::uint64_t>((sum + divisor / 2U) / divisor, 255U));
+  };
+  std::array<std::uint8_t, 4> seed{};
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    seed[channel] = alpha_sum > 0U ? rounded(weighted[channel], alpha_sum) : rounded(plain[channel], count);
+  }
+  seed[3] = rounded(alpha_sum, count);
+  return seed;
+}
+
 Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options) {
   auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr || !canvas_rect(document).contains(x, y) || !selection_allows(options, x, y)) {
