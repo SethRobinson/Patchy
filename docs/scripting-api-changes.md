@@ -20,6 +20,13 @@ without writing a file; `options` are the `exportAs` keys of that format, strict
 ([web-export.md](web-export.md)). An unknown format, an unknown key or a bad value throws.
 Permanent identifiers: the method name, the six format tokens and the result keys. Pinned by
 `ui_script_encode_for_web`.
+2026-10-26 (additive): text runs (`addTextLayer`, `setTextRuns`) take the Character panel styles
+(GitHub issue 346, [text-character-styles.md](text-character-styles.md)): `caps` (`"all"`, `"small"`,
+`"none"`), `script` (`"superscript"`, `"subscript"`, `"none"`), and booleans `underline`,
+`strikethrough`, `ordinals`, `fractions`; an unset key keeps the layer's. `textRuns` reads all six
+back. Another `caps` or `script` value throws. Permanent identifiers: those keys and values. Pinned by
+`ui_text_underline_and_strikethrough_match_photoshop_if_available` and its siblings in
+tests/ui/text_character_styles_tests.cpp.
 2026-10-26 (additive): `doc.saveAs`/`doc.exportAs` options `colors` (2..256), `dither` (`"none"`,
 `"diffusion"`) and `ditherAmount` (0..100) for `.gif`, and for `.png` with the new `pngColors`
 (`"full"`, the default, or `"palette"`: an indexed PNG). Defaults keep the old bytes; the palette

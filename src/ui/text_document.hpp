@@ -55,6 +55,33 @@ void scale_document_font_sizes(QTextDocument& document, double scale);
 std::unique_ptr<QTextDocument> copy_text_document_formats(const QTextDocument& source);
 QString rich_text_runs_from_document(const QTextDocument& document, const TextToolSettings& fallback,
                                      QColor fallback_color);
+// A runs-list version header ("v1" .. "v9", or a later one).
+bool is_text_runs_version_line(const QString& line);
+// The character-panel styles of one format (runs v9 column 16, GitHub issue 346): caps 1 Small
+// Caps, 2 All Caps; baseline 1 superscript, 2 subscript.
+struct TextCharacterStyles {
+  int caps{0};
+  int baseline{0};
+  bool underline{false};
+  bool strikethrough{false};
+  bool ordinals{false};
+  bool fractions{false};
+  [[nodiscard]] bool any() const noexcept {
+    return caps != 0 || baseline != 0 || underline || strikethrough || ordinals || fractions;
+  }
+  friend bool operator==(const TextCharacterStyles&, const TextCharacterStyles&) = default;
+};
+TextCharacterStyles text_character_styles_from_format(const QTextCharFormat& format);
+void set_text_character_styles_on_format(QTextCharFormat& format, const TextCharacterStyles& styles);
+QString serialize_text_character_styles(const TextCharacterStyles& styles);
+TextCharacterStyles parse_text_character_styles(const QString& field);
+// Render documents (build_text_render_document): turns the character styles into fonts, baseline
+// shifts and OpenType feature fragments. Underline and strikethrough stay flags; the render plan
+// draws them. Vertical text takes the caps only.
+void apply_text_character_styles_to_document(QTextDocument& document, bool vertical);
+// A render-document fragment drawn from its own featured shaping, and the font that shaping uses.
+bool text_format_has_render_features(const QTextCharFormat& format);
+QFont text_render_featured_font(const QTextCharFormat& format);
 QString paragraph_runs_from_document(const QTextDocument& document);
 void apply_paragraph_runs_to_document(QTextDocument& document, const QString& paragraph_runs, double scale = 1.0);
 void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& runs_text, const QFont& fallback_font,

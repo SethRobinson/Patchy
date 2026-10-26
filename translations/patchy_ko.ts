@@ -26707,6 +26707,38 @@ The open document keeps its blend modes either way.</source>
         <source>Show All Buttons</source>
         <translation>모든 버튼 표시</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>모두 대문자</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>작은 대문자</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>위 첨자</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>아래 첨자</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>밑줄</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>취소선</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>서수 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>분수 (지원하는 글꼴만)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28706,6 +28738,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>encodeForWeb could not encode: %1</source>
         <translation>encodeForWeb에서 인코딩하지 못했습니다: %1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: 텍스트 구간 %2의 %3은(는) &apos;%4&apos;, &apos;%5&apos; 또는 &apos;none&apos;이어야 합니다.</translation>
     </message>
 </context>
 <context>

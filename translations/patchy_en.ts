@@ -26701,6 +26701,38 @@ The open document keeps its blend modes either way.</source>
         <source>Show All Buttons</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28700,6 +28732,10 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>encodeForWeb could not encode: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

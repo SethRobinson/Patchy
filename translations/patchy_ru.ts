@@ -26859,6 +26859,38 @@ The open document keeps its blend modes either way.</source>
         <source>Show All Buttons</source>
         <translation>Показать все кнопки</translation>
     </message>
+    <message>
+        <source>All Caps</source>
+        <translation>Все прописные</translation>
+    </message>
+    <message>
+        <source>Small Caps</source>
+        <translation>Капитель</translation>
+    </message>
+    <message>
+        <source>Superscript</source>
+        <translation>Надстрочный</translation>
+    </message>
+    <message>
+        <source>Subscript</source>
+        <translation>Подстрочный</translation>
+    </message>
+    <message>
+        <source>Underline</source>
+        <translation>Подчеркнутый</translation>
+    </message>
+    <message>
+        <source>Strikethrough</source>
+        <translation>Зачеркнутый</translation>
+    </message>
+    <message>
+        <source>Ordinals (fonts that have them)</source>
+        <translation>Порядковые (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
+        <source>Fractions (fonts that have them)</source>
+        <translation>Дроби (в шрифтах, где они есть)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -28860,6 +28892,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>encodeForWeb could not encode: %1</source>
         <translation>encodeForWeb не удалось закодировать: %1</translation>
+    </message>
+    <message>
+        <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
+        <translation>%1: текстовый фрагмент %2: %3 должен быть &apos;%4&apos;, &apos;%5&apos; или &apos;none&apos;.</translation>
     </message>
 </context>
 <context>

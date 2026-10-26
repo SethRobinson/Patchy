@@ -229,11 +229,20 @@ interface PatchyImageData {
 interface PatchyTextRun {
   text: string;
   font?: string; size?: number; bold?: boolean; italic?: boolean; color?: string;
+  /** Character panel styles: capitals drawn for every letter ("all") or small capitals for lowercase ("small"). */
+  caps?: "all" | "small" | "none";
+  /** Drawn smaller and raised or lowered, as Photoshop does (58.3% size, shifted 33.3% of the size). */
+  script?: "superscript" | "subscript" | "none";
+  underline?: boolean; strikethrough?: boolean;
+  /** OpenType ordinals and fractions; text in a font without them stays unchanged. */
+  ordinals?: boolean; fractions?: boolean;
 }
 
 /** A stored run read back from a text layer (see PatchyLayer.textRuns). */
 interface PatchyTextRunInfo {
   text: string; font: string; style: string; size: number; bold: boolean; italic: boolean; color: string;
+  caps: "all" | "small" | "none"; script: "superscript" | "subscript" | "none";
+  underline: boolean; strikethrough: boolean; ordinals: boolean; fractions: boolean;
 }
 
 /** What a smart-object layer holds (see PatchyLayer.getSmartObject). */

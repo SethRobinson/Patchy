@@ -524,6 +524,17 @@ bool engine_bool_after_key(std::string_view text, std::string_view marker, bool 
   return fallback;
 }
 
+// A small Photoshop enumeration (/FontCaps, /FontBaseline: 0, 1 or 2); anything else reads as
+// the fallback.
+int engine_choice_after_key(std::string_view text, std::string_view marker, int fallback) {
+  const auto value = engine_number_after_key(text, marker);
+  if (!value.has_value() || !std::isfinite(*value)) {
+    return fallback;
+  }
+  const auto choice = static_cast<int>(std::lround(*value));
+  return choice >= 0 && choice <= 2 ? choice : fallback;
+}
+
 std::optional<std::pair<std::size_t, std::size_t>> balanced_range_after(std::string_view text,
                                                                         std::string_view marker,
                                                                         char open, char close) {
@@ -1483,6 +1494,10 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
       }
       defaults.faux_bold = engine_bool_after_key(sheet, "/FauxBold");
       defaults.faux_italic = engine_bool_after_key(sheet, "/FauxItalic");
+      defaults.font_caps = engine_choice_after_key(sheet, "/FontCaps", 0);
+      defaults.font_baseline = engine_choice_after_key(sheet, "/FontBaseline", 0);
+      defaults.underline = engine_bool_after_key(sheet, "/Underline");
+      defaults.strikethrough = engine_bool_after_key(sheet, "/Strikethrough");
       if (const auto baseline = engine_number_after_key(sheet, "/BaselineDirection"); baseline.has_value()) {
         defaults.baseline_direction = static_cast<int>(std::lround(*baseline));
       }
@@ -1495,12 +1510,58 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
 
 }  // namespace
 
+namespace {
+
+// Lays the 'Txt2' object's Ordinals/Fractions runs over the TySh runs, splitting a TySh run where
+// a feature starts or stops inside it (the two run lists normally split at the same places).
+std::vector<PsdTextStyleRun> runs_with_text_object_features(std::vector<PsdTextStyleRun> runs,
+                                                            std::span<const TextStyleRunFeatures> features) {
+  std::vector<PsdTextStyleRun> result;
+  result.reserve(runs.size());
+  for (auto& run : runs) {
+    int position = run.start;
+    const int run_end = run.start + run.length;
+    int feature_start = 0;
+    for (std::size_t f = 0; f < features.size() && position < run_end; ++f) {
+      const int feature_end = f + 1 == features.size() ? std::max(run_end, feature_start + features[f].length)
+                                                       : feature_start + features[f].length;
+      const int piece_end = std::min(run_end, feature_end);
+      if (piece_end > position) {
+        auto piece = run;
+        piece.start = position;
+        piece.length = piece_end - position;
+        piece.ordinals = features[f].ordinals;
+        piece.fractions = features[f].fractions;
+        if (!result.empty() && result.back().start + result.back().length == piece.start &&
+            result.back().ordinals == piece.ordinals && result.back().fractions == piece.fractions &&
+            piece.start > run.start) {
+          result.back().length += piece.length;
+        } else {
+          result.push_back(std::move(piece));
+        }
+        position = piece_end;
+      }
+      feature_start = feature_end;
+    }
+    if (position < run_end) {
+      auto rest = run;
+      rest.start = position;
+      rest.length = run_end - position;
+      result.push_back(std::move(rest));
+    }
+  }
+  return result;
+}
+
+}  // namespace
+
 std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<const std::uint8_t> payload,
                                                                      std::string_view text,
                                                                      int fallback_size,
                                                                      RgbColor fallback_color,
                                                                      const CmykColorConverter& cmyk,
-                                                                     std::span<const TextParagraphFontSize> paragraph_font_sizes) {
+                                                                     std::span<const TextParagraphFontSize> paragraph_font_sizes,
+                                                                     std::span<const TextStyleRunFeatures> style_features) {
   const std::string_view engine(reinterpret_cast<const char*>(payload.data()), payload.size());
   const auto style_pos = engine.find("/StyleRun");
   if (style_pos == std::string_view::npos) {
@@ -1558,6 +1619,12 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
         std::isfinite(shift) && std::abs(shift) < 100000.0) {
       run.baseline_shift = shift;
     }
+    // Character-panel styles (GitHub issue 346). Ordinals and Fractions are not in the TySh at
+    // all; they come from the 'Txt2' object below.
+    run.font_caps = engine_choice_after_key(dictionaries[index], "/FontCaps", defaults.font_caps);
+    run.font_baseline = engine_choice_after_key(dictionaries[index], "/FontBaseline", defaults.font_baseline);
+    run.underline = engine_bool_after_key(dictionaries[index], "/Underline", defaults.underline);
+    run.strikethrough = engine_bool_after_key(dictionaries[index], "/Strikethrough", defaults.strikethrough);
     run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
     // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
     // (non-auto) run's leading participates in layout.
@@ -1627,6 +1694,9 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
 
   if (runs.empty()) {
     return std::nullopt;
+  }
+  if (!style_features.empty()) {
+    runs = runs_with_text_object_features(std::move(runs), style_features);
   }
   return runs;
 }
@@ -1709,6 +1779,61 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 
 }  // namespace
 
+bool text_run_has_character_styles(const PsdTextStyleRun& run) noexcept {
+  return run.font_caps != 0 || run.font_baseline != 0 || run.underline || run.strikethrough || run.ordinals ||
+         run.fractions;
+}
+
+std::string serialize_text_run_character_styles(const PsdTextStyleRun& run) {
+  std::string tokens;
+  const auto add = [&tokens](std::string_view token) {
+    if (!tokens.empty()) {
+      tokens += ',';
+    }
+    tokens += token;
+  };
+  if (run.font_caps == 2) add("allcaps");
+  if (run.font_caps == 1) add("smallcaps");
+  if (run.font_baseline == 1) add("superscript");
+  if (run.font_baseline == 2) add("subscript");
+  if (run.underline) add("underline");
+  if (run.strikethrough) add("strikethrough");
+  if (run.ordinals) add("ordinals");
+  if (run.fractions) add("fractions");
+  return tokens.empty() ? std::string("-") : tokens;
+}
+
+void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& run) {
+  run.font_caps = 0;
+  run.font_baseline = 0;
+  run.underline = false;
+  run.strikethrough = false;
+  run.ordinals = false;
+  run.fractions = false;
+  while (!field.empty()) {
+    const auto comma = field.find(',');
+    const auto token = field.substr(0, comma);
+    field = comma == std::string_view::npos ? std::string_view{} : field.substr(comma + 1U);
+    if (token == "allcaps") {
+      run.font_caps = 2;
+    } else if (token == "smallcaps") {
+      run.font_caps = 1;
+    } else if (token == "superscript") {
+      run.font_baseline = 1;
+    } else if (token == "subscript") {
+      run.font_baseline = 2;
+    } else if (token == "underline") {
+      run.underline = true;
+    } else if (token == "strikethrough") {
+      run.strikethrough = true;
+    } else if (token == "ordinals") {
+      run.ordinals = true;
+    } else if (token == "fractions") {
+      run.fractions = true;
+    }
+  }
+}
+
 // v1: start len size bold italic color family (int size, no leading)
 // v2: v1 + fixed leading (double)
 // v3: v2 with double size, leading may be the literal "auto" (auto leading: paragraph
@@ -1720,14 +1845,19 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 // v5: v4 + the face/style name (percent-encoded), for the styles bold+italic cannot name.
 //     Written only when a run really carries one, for the same byte-stability reason.
 // v6: v5 + Photoshop's faux italic flag (synthetic slant of the named face).
+// v9: v8 + the character-panel styles (column 16, serialize_text_run_character_styles), only when
+//     a run carries one.
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
   const bool include_leading = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
     return run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0;
   });
   // v7: the rotated-Roman flag (BaselineDirection 2), only when a run carries it.
-  const bool include_shift = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
-    return std::isfinite(run.baseline_shift) && std::abs(run.baseline_shift) > 0.0001;
-  });
+  const bool include_character_styles =
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return text_run_has_character_styles(run); });
+  const bool include_shift = include_character_styles ||
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
+        return std::isfinite(run.baseline_shift) && std::abs(run.baseline_shift) > 0.0001;
+      });
   const bool include_rotated = include_shift ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return run.baseline_direction == 2; });
   const bool include_faux_italic = include_rotated ||
@@ -1742,7 +1872,7 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
                std::abs(run.horizontal_scale - 1.0) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001;
       });
   std::string serialized =
-      include_shift ? "v8" : include_rotated
+      include_character_styles ? "v9" : include_shift ? "v8" : include_rotated
           ? "v7"
           : include_faux_italic
           ? "v6"
@@ -1802,6 +1932,10 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
       if (include_shift) {
         serialized += '\t';
         serialized += serialize_paragraph_metric(run.baseline_shift);
+      }
+      if (include_character_styles) {
+        serialized += '\t';
+        serialized += serialize_text_run_character_styles(run);
       }
     } else if (include_leading) {
       serialized += '\t';

@@ -270,6 +270,43 @@ bool parse_text_runs(ScriptEngineHost& host, const QJSValue& value, const char* 
         }
         run.color = parsed;
       }
+      // Character-panel styles (GitHub issue 346): caps "all" | "small" | "none", script
+      // "superscript" | "subscript" | "none", and four booleans.
+      const auto choice = [&](const char* key, const char* first, const char* second,
+                              std::optional<int>* out) {
+        const auto property = item.property(QLatin1String(key));
+        if (property.isUndefined() || property.isNull()) {
+          return true;
+        }
+        const auto name = property.toString();
+        if (name == QLatin1String("none")) {
+          *out = 0;
+        } else if (name == QLatin1String(first)) {
+          *out = 1;
+        } else if (name == QLatin1String(second)) {
+          *out = 2;
+        } else {
+          host.throw_js_error(ScriptEngineHost::tr("%1: run %2 %3 must be '%4', '%5' or 'none'.")
+                                  .arg(QLatin1String(verb))
+                                  .arg(index)
+                                  .arg(QLatin1String(key), QLatin1String(first), QLatin1String(second)));
+          return false;
+        }
+        return true;
+      };
+      if (!choice("caps", "small", "all", &run.caps) ||
+          !choice("script", "superscript", "subscript", &run.script)) {
+        return false;
+      }
+      const auto flag = [&](const char* key, std::optional<bool>* out) {
+        if (const auto property = item.property(QLatin1String(key)); property.isBool()) {
+          *out = property.toBool();
+        }
+      };
+      flag("underline", &run.underline);
+      flag("strikethrough", &run.strikethrough);
+      flag("ordinals", &run.ordinals);
+      flag("fractions", &run.fractions);
     } else {
       host.throw_js_error(ScriptEngineHost::tr("%1: run %2 must be a string or an object.").arg(QLatin1String(verb)).arg(index));
       return false;
@@ -901,6 +938,16 @@ QJSValue ScriptLayerObject::text_runs() const {
     object.setProperty(QStringLiteral("bold"), run.bold);
     object.setProperty(QStringLiteral("italic"), run.italic);
     object.setProperty(QStringLiteral("color"), run.color);
+    object.setProperty(QStringLiteral("caps"), run.styles.caps == 2   ? QStringLiteral("all")
+                                               : run.styles.caps == 1 ? QStringLiteral("small")
+                                                                      : QStringLiteral("none"));
+    object.setProperty(QStringLiteral("script"), run.styles.baseline == 1   ? QStringLiteral("superscript")
+                                                 : run.styles.baseline == 2 ? QStringLiteral("subscript")
+                                                                            : QStringLiteral("none"));
+    object.setProperty(QStringLiteral("underline"), run.styles.underline);
+    object.setProperty(QStringLiteral("strikethrough"), run.styles.strikethrough);
+    object.setProperty(QStringLiteral("ordinals"), run.styles.ordinals);
+    object.setProperty(QStringLiteral("fractions"), run.styles.fractions);
     array.setProperty(index++, object);
   }
   return array;
