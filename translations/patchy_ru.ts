@@ -26147,6 +26147,14 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>Ни у одного слоя нет времени кадра</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Нечего обрезать: все пиксели прозрачны в пределах допуска. Уменьшите Допуск.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Нечего обрезать: все пиксели в пределах допуска от цвета обрезки. Уменьшите Допуск.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

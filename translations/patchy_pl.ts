@@ -26147,6 +26147,14 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>No frame times on any layer</source>
         <translation>Żadna warstwa nie ma czasu klatki</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Nic do przycięcia: każdy piksel jest przezroczysty w granicach tolerancji. Zmniejsz Tolerancję.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Nic do przycięcia: każdy piksel mieści się w tolerancji koloru przycinania. Zmniejsz Tolerancję.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

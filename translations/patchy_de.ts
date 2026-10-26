@@ -26074,6 +26074,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>No frame times on any layer</source>
         <translation>Keine Frame-Zeiten auf den Ebenen</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Nichts zuzuschneiden: Jedes Pixel ist innerhalb der Toleranz transparent. Verringern Sie die Toleranz.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Nichts zuzuschneiden: Jedes Pixel liegt innerhalb der Toleranz der Trim-Farbe. Verringern Sie die Toleranz.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

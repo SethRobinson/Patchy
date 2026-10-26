@@ -26001,6 +26001,14 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>프레임 시간이 있는 레이어가 없습니다.</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>재단할 것이 없습니다: 모든 픽셀이 허용치 안에서 투명합니다. 허용치를 낮추세요.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>재단할 것이 없습니다: 모든 픽셀이 재단 색상의 허용치 안에 있습니다. 허용치를 낮추세요.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

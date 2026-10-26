@@ -26074,6 +26074,14 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>No frame times on any layer</source>
         <translation>Nenhuma camada tem duração de quadro</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Nada para aparar: todos os pixels são transparentes dentro da tolerância. Diminua a Tolerância.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Nada para aparar: todos os pixels estão dentro da tolerância da cor de corte. Diminua a Tolerância.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

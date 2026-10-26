@@ -26074,6 +26074,14 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>No frame times on any layer</source>
         <translation>Ninguna capa tiene tiempo de fotograma</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>Nada que cortar: todos los píxeles son transparentes dentro de la tolerancia. Reduzca la Tolerancia.</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>Nada que cortar: todos los píxeles están dentro de la tolerancia del color de recorte. Reduzca la Tolerancia.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

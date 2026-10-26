@@ -26001,6 +26001,14 @@ The open document keeps its blend modes either way.</source>
         <source>No frame times on any layer</source>
         <translation>没有图层带有帧时间</translation>
     </message>
+    <message>
+        <source>Nothing to trim: every pixel is transparent within the tolerance. Lower the Tolerance.</source>
+        <translation>没有可裁切的内容：在容差范围内每个像素都是透明的。请降低容差。</translation>
+    </message>
+    <message>
+        <source>Nothing to trim: every pixel is within the tolerance of the trim color. Lower the Tolerance.</source>
+        <translation>没有可裁切的内容：每个像素都在裁切颜色的容差范围内。请降低容差。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
