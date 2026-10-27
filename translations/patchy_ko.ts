@@ -13071,6 +13071,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Open Folder</source>
         <translation>폴더 열기</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>일시 정지</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>이전 프레임</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>다음 프레임</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>반복</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>프레임 %1/%2 (%3초)</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>재생</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>%1프레임</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>1회 %1초</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>메모리를 아끼기 위해 미리 보기는 처음 %1개 프레임을 재생합니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

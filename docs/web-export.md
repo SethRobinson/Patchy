@@ -96,7 +96,36 @@ Panes (`WebExportPane`, a ZoomableImagePreview) draw only cached images: below 1
 smooth reduction is built once per size on a worker (`ScaledImageCache`). Compare modes: Split
 (a divider at a fraction of the pane width, original left, result right, dragged with the
 mouse), Side by side (a second pane; `ZoomableImagePreview::view_state`/`set_view_state` keep
-zoom and pan in step), Result only.
+zoom and pan in step), Result only. `ScaledImageCache` keeps up to 64 reductions per size by image,
+so an animation's frames are reduced once each and then reused as it loops.
+
+### Animation playback
+
+An animated result (GIF, WebP or JPEG XL with "Animation from visible layers" and 2+ frames) plays
+in the preview (Seth, October 27, 2026):
+
+- The worker decodes every frame of the encoded bytes (`decode_web_export_animation`): Qt's GIF
+  reader with `nextImageDelay`, `webp::decode_animation`, and `jxl::read_jxl` (frame layers, delays
+  from their names), so palette, dither, lossy artifacts and the written delays (layer-name times
+  included) are what plays. The source frames come from `for_each_animation_export_frame`, the
+  same frame list and per-frame transforms the animated writers encode (visible top-level layers,
+  top first; [animation.md](animation.md)). Both are cached as 8-bit display images in
+  `WebExportResult::frames`/`original_frames` with `frame_delays_ms`; the source is already
+  narrowed to 8 bits, so no deep image reaches the painter.
+- Memory: both sides together stay under `kWebExportAnimationCacheBytes` (384 MB); above it the
+  preview keeps the first frames and the info line says so (`frames_total` is the file's count).
+- The dialog keeps the playing result until another animated result for the selected format
+  replaces it, so playback continues on the last frames while a new encode runs; a stale
+  generation's frames are never shown (results are matched by signature as before).
+- A single-shot timer (`webExportPlaybackTimer`) shows the next cached frame and restarts with
+  that frame's delay (under 20 ms plays at 100 ms, as browsers do); it never decodes or
+  composites. It stops on a still format, on Pause, at the end without Loop, and on close
+  (`QDialog::finished`).
+- Controls (`webExportPlaybackControls`, shown only then): Play/Pause (playing by default),
+  previous and next frame (which pause), "Frame 2 of 4 (0.50 s)", Loop (on). Zoom, pan, the
+  divider and the compare modes keep working while it plays; the info line adds the frame count
+  and the time per loop. Test probes on `webExportPreview`: `webExportFrameIndex`,
+  `webExportFrameCount`, `webExportPlaying`.
 
 ## Settings (permanent identifiers)
 
@@ -132,7 +161,10 @@ Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defau
 `ui_web_export_avif_and_jxl_read_back`, `ui_web_export_slow_encode_never_blocks_the_selected_format`,
 `ui_script_encode_for_web`,
 `ui_web_export_jpeg_progressive_and_optimize_read_back`,
-`ui_web_export_engine_drops_stale_requests`, `ui_web_export_dialog_previews_and_saves` (captures
+`ui_web_export_engine_drops_stale_requests`, `ui_web_export_animation_frames_read_back`,
+`ui_web_export_animation_stale_frames_are_discarded`, `ui_web_export_animation_plays_in_the_preview`
+(captures `web_export_gif_animation` from `test-fixtures/psd/web-export-animation.psd`, the #198
+Animation Preview document made by Patchy), `ui_web_export_dialog_previews_and_saves` (captures
 `web_export_jpeg_split`, `web_export_png_palette`, `web_export_gif_side_by_side`,
 `web_export_avif` and `web_export_jxl`), `ui_web_export_metadata_and_thumbnail_choices`,
 `ui_unicode_export_for_web_writes_encoded_bytes`, `ui_script_export_as_jpeg_coding_options`, the

@@ -13071,6 +13071,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Open Folder</source>
         <translation>フォルダーを開く</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>一時停止</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>前のフレーム</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>次のフレーム</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>ループ</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>フレーム %1 / %2 (%3 秒)</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>再生</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>%1 フレーム</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>1 周 %1 秒</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>メモリを節約するため、プレビューは最初の %1 フレームを再生します。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -13091,6 +13091,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Open Folder</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

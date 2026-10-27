@@ -13071,6 +13071,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Open Folder</source>
         <translation>打开文件夹</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>暂停</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>上一帧</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>下一帧</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>循环</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>第 %1 帧，共 %2 帧（%3 秒）</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>播放</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>%1 帧</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>每轮 %1 秒</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>为节省内存，预览只播放前 %1 帧。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

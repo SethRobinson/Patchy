@@ -2796,20 +2796,7 @@ void write_encoded_image_file(const QString& path, std::span<const std::uint8_t>
   write_bytes_with_save_file(path, bytes);
 }
 
-namespace {
-enum class AnimatedFormat : std::uint8_t { Gif, Webp, Jxl, Png };
-}  // namespace
-
-static void write_animated_layers(const Document& document, const QString& path, const ImageSaveOptions& options,
-                                  std::vector<std::string>* notices, AnimatedFormat format) {
-  const bool as_webp = format == AnimatedFormat::Webp;
-  const bool as_jxl = format == AnimatedFormat::Jxl;
-  const bool as_png = format == AnimatedFormat::Png;
-  const bool palette_mode =
-      document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty();
-  const auto default_delay_cs =
-      static_cast<std::uint16_t>(std::clamp(options.gif_frame_delay_cs, 0, 0xffff));
-
+std::vector<const Layer*> animation_export_layers(const Document& document) {
   std::vector<const Layer*> visible_layers;
   const auto& layers = std::as_const(document).layers();
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
@@ -2817,14 +2804,13 @@ static void write_animated_layers(const Document& document, const QString& path,
       visible_layers.push_back(&*it);
     }
   }
-  if (visible_layers.empty()) {
-    throw std::runtime_error(
-        as_webp  ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated WebP.")
-        : as_jxl ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated JPEG XL.")
-        : as_png ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated PNG.")
-                 : "The document has no visible top-level layers to export as an animated GIF.");
-  }
+  return visible_layers;
+}
 
+void for_each_animation_export_frame(const Document& document, const ImageSaveOptions& options,
+                                     std::vector<std::string>* notices,
+                                     const std::function<void(PixelBuffer rgba, const Layer& layer)>& frame) {
+  const auto visible_layers = animation_export_layers(document);
   // One transform for every frame. Trim needs every frame up front: it crops to the UNION
   // of their visible-alpha bounds so the frames keep a single canvas size (the encoder
   // writes full-canvas frames, no offsets). Without trim the frames render one at a time.
@@ -2856,13 +2842,6 @@ static void write_animated_layers(const Document& document, const QString& path,
   transform.resize = export_resize_target(options, width, height, canvas_width, canvas_height);
   transform.scale = std::max(1, options.export_scale);
 
-  std::unique_ptr<webp::AnimationEncoder> webp_encoder;
-  std::unique_ptr<jxl::AnimationEncoder> jxl_encoder;
-  std::unique_ptr<apng::AnimationEncoder> png_encoder;
-  std::vector<gif::GifFrame> frames;
-  frames.reserve(visible_layers.size());
-  std::int32_t frame_width = canvas_width;
-  std::int32_t frame_height = canvas_height;
   for (std::size_t index = 0; index < visible_layers.size(); ++index) {
     const Layer& layer = *visible_layers[index];
     auto rgba = index < rendered.size() ? std::move(rendered[index])
@@ -2871,6 +2850,39 @@ static void write_animated_layers(const Document& document, const QString& path,
     if (options.export_fill_transparent) {
       composite_over_background(rgba, options.export_background_color);
     }
+    frame(std::move(rgba), layer);
+  }
+}
+
+namespace {
+enum class AnimatedFormat : std::uint8_t { Gif, Webp, Jxl, Png };
+}  // namespace
+
+static void write_animated_layers(const Document& document, const QString& path, const ImageSaveOptions& options,
+                                  std::vector<std::string>* notices, AnimatedFormat format) {
+  const bool as_webp = format == AnimatedFormat::Webp;
+  const bool as_jxl = format == AnimatedFormat::Jxl;
+  const bool as_png = format == AnimatedFormat::Png;
+  const bool palette_mode =
+      document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty();
+  const auto default_delay_cs =
+      static_cast<std::uint16_t>(std::clamp(options.gif_frame_delay_cs, 0, 0xffff));
+
+  if (animation_export_layers(document).empty()) {
+    throw std::runtime_error(
+        as_webp  ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated WebP.")
+        : as_jxl ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated JPEG XL.")
+        : as_png ? PATCHY_TRANSLATE_NOOP("QObject", "The document has no visible top-level layers to export as an animated PNG.")
+                 : "The document has no visible top-level layers to export as an animated GIF.");
+  }
+
+  std::unique_ptr<webp::AnimationEncoder> webp_encoder;
+  std::unique_ptr<jxl::AnimationEncoder> jxl_encoder;
+  std::unique_ptr<apng::AnimationEncoder> png_encoder;
+  std::vector<gif::GifFrame> frames;
+  std::int32_t frame_width = document.width();
+  std::int32_t frame_height = document.height();
+  for_each_animation_export_frame(document, options, notices, [&](PixelBuffer rgba, const Layer& layer) {
     frame_width = rgba.width();
     frame_height = rgba.height();
     if (as_webp) {
@@ -2885,7 +2897,7 @@ static void write_animated_layers(const Document& document, const QString& path,
       }
       webp_encoder->add(rgba, animation::parse_layer_name_delay_ms(layer.name()).value_or(
           static_cast<std::uint32_t>(options.animation_frame_delay_ms)));
-      continue;
+      return;
     }
     if (as_jxl) {
       if (!jxl_encoder) {
@@ -2900,7 +2912,7 @@ static void write_animated_layers(const Document& document, const QString& path,
       }
       jxl_encoder->add(rgba, animation::parse_layer_name_delay_ms(layer.name()).value_or(
           static_cast<std::uint32_t>(options.animation_frame_delay_ms)));
-      continue;
+      return;
     }
     if (as_png) {
       if (!png_encoder) {
@@ -2915,7 +2927,7 @@ static void write_animated_layers(const Document& document, const QString& path,
       }
       png_encoder->add(rgba, animation::parse_layer_name_delay_ms(layer.name()).value_or(
           static_cast<std::uint32_t>(options.animation_frame_delay_ms)));
-      continue;
+      return;
     }
     auto indexed = palette_mode
                        ? indexed_rgba8_with_palette(rgba, document.palette_editing()->palette.colors,
@@ -2927,7 +2939,7 @@ static void write_animated_layers(const Document& document, const QString& path,
     frame.indexes = std::move(indexed.indexes);
     frame.delay_cs = gif::parse_layer_name_delay_cs(layer.name()).value_or(default_delay_cs);
     frames.push_back(std::move(frame));
-  }
+  });
   if (as_jxl) {
     write_file_bytes_atomically(to_filesystem_path(path), jxl_encoder->finish(),
         PATCHY_TRANSLATE_NOOP("QObject", "Could not open JPEG XL file for writing"),

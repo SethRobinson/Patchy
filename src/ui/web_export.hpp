@@ -127,7 +127,29 @@ struct WebExportResult {
   std::vector<std::string> notices;
   // GIF and palette PNG: the colors the file uses (from the decoded result, at most 256).
   std::vector<QRgb> palette;
+  // Animated results (GIF, WebP, JPEG XL with animation and 2+ frames): every frame decoded
+  // from the encoded bytes with the file's own delays, and the source frames the writer
+  // encoded (for_each_animation_export_frame), same order and size. Empty for a still. Only
+  // the first frames are kept when all of them would pass kWebExportAnimationCacheBytes;
+  // frames_total is then the file's real count.
+  std::vector<QImage> frames;
+  std::vector<QImage> original_frames;
+  std::vector<int> frame_delays_ms;
+  int frames_total{0};
 };
+
+// The memory the preview may spend on one animated result's cached frames, both sides together.
+inline constexpr std::size_t kWebExportAnimationCacheBytes = 384U * 1024U * 1024U;
+
+struct WebExportAnimation {
+  std::vector<QImage> frames;  // display images, 8-bit ARGB32 premultiplied
+  std::vector<int> delays_ms;  // as written in the file
+  int total{0};                // frames in the file (frames.size() can be smaller)
+};
+// Every frame of an encoded GIF, WebP or JPEG XL, decoded through the readers Patchy opens
+// those files with, at most `max_frames` of them. A still file gives one frame.
+[[nodiscard]] WebExportAnimation decode_web_export_animation(WebExportFormat format, std::span<const std::uint8_t> bytes,
+                                                             std::size_t max_frames);
 
 // The background preview engine: one worker at a time works through a queue of jobs, the
 // newest request first. request() replaces the queue and bumps the generation; a queued job

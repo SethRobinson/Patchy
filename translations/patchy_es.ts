@@ -13108,6 +13108,42 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Open Folder</source>
         <translation>Abrir carpeta</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>Pausa</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>Fotograma anterior</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>Fotograma siguiente</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>Repetir</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>Fotograma %1 de %2 (%3 s)</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>Reproducir</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>%1 fotogramas</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>%1 s por ciclo</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>La vista previa reproduce los primeros %1 fotogramas para ahorrar memoria.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

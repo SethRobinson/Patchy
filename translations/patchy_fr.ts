@@ -13108,6 +13108,42 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Open Folder</source>
         <translation>Ouvrir le dossier</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>Pause</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>Image précédente</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>Image suivante</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>En boucle</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>Image %1 sur %2 (%3 s)</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>Lire</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>%1 images</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>%1 s par boucle</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>L&apos;aperçu lit les %1 premières images pour économiser la mémoire.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

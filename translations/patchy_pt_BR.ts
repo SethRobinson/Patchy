@@ -13108,6 +13108,42 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Open Folder</source>
         <translation>Abrir pasta</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>Pausar</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>Quadro anterior</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>Próximo quadro</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>Repetir</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>Quadro %1 de %2 (%3 s)</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>Reproduzir</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>%1 quadros</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>%1 s por ciclo</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>A prévia reproduz os primeiros %1 quadros para economizar memória.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -13145,6 +13145,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Open Folder</source>
         <translation>Открыть папку</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>Пауза</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>Предыдущий кадр</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>Следующий кадр</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>Повтор</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>Кадр %1 из %2 (%3 с)</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>Воспроизвести</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>кадров: %1</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>%1 с на цикл</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>Для экономии памяти предпросмотр воспроизводит первые кадры (%1).</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

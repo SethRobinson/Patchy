@@ -13108,6 +13108,42 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Open Folder</source>
         <translation>Apri cartella</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>Pausa</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>Fotogramma precedente</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>Fotogramma successivo</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>Ripeti</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>Fotogramma %1 di %2 (%3 s)</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>Riproduci</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>%1 fotogrammi</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>%1 s per ciclo</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>L&apos;anteprima riproduce i primi %1 fotogrammi per risparmiare memoria.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

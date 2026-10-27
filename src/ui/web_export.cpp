@@ -1,7 +1,10 @@
 #include "ui/web_export.hpp"
 
 #include "color/rgb_profiles.hpp"
+#include "formats/animation_timing.hpp"
 #include "formats/avif_document_io.hpp"
+#include "formats/webp_animation_io.hpp"
+#include "ui/edit_conversions.hpp"
 #include "formats/jxl_document_io.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/activity_spinner.hpp"
@@ -18,7 +21,9 @@
 #include "ui/unit_spin_box.hpp"
 #include "ui/zoomable_image_preview.hpp"
 
+#include <QBuffer>
 #include <QButtonGroup>
+#include <QImageReader>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -180,6 +185,63 @@ QImage decode_web_export_bytes(WebExportFormat format, std::span<const std::uint
   return display_image(QImage::fromData(
       QByteArrayView(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())),
       extension.constData()));
+}
+
+WebExportAnimation decode_web_export_animation(WebExportFormat format, std::span<const std::uint8_t> bytes,
+                                               std::size_t max_frames) {
+  WebExportAnimation animation;
+  max_frames = std::max<std::size_t>(1, max_frames);
+  if (format == WebExportFormat::Gif) {
+    // Qt's GIF reader, as File > Open: composited full-canvas frames, nextImageDelay() the
+    // just-read frame's delay.
+    QByteArray data(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size()));
+    QBuffer buffer(&data);
+    buffer.open(QIODevice::ReadOnly);
+    QImageReader reader(&buffer, "gif");
+    animation.total = std::max(1, reader.imageCount());
+    for (int index = 0; index < animation.total; ++index) {
+      auto image = reader.read();
+      if (image.isNull()) {
+        break;
+      }
+      if (animation.frames.size() < max_frames) {
+        animation.frames.push_back(display_image(std::move(image)));
+        animation.delays_ms.push_back(std::max(0, reader.nextImageDelay()));
+      }
+    }
+  } else if (format == WebExportFormat::Webp) {
+    const bool animated = webp::decode_animation(
+        bytes, std::uint64_t{4} * 1024 * 1024 * 1024,
+        [&animation](const webp::AnimationInfo& info) { animation.total = static_cast<int>(info.frame_count); },
+        [&animation, max_frames](PixelBuffer pixels, std::uint32_t delay_ms) {
+          if (animation.frames.size() < max_frames) {
+            animation.frames.push_back(display_image(display_qimage_from_pixel_buffer(pixels)));
+            animation.delays_ms.push_back(static_cast<int>(delay_ms));
+          }
+        });
+    if (!animated) {
+      animation.frames = {decode_web_export_bytes(format, bytes)};
+      animation.delays_ms = {0};
+      animation.total = 1;
+    }
+  } else if (format == WebExportFormat::Jxl) {
+    // libjxl through Patchy's reader: one full-canvas layer per frame, frame 1 on top, each
+    // named with its delay ("Frame 2 0.25s").
+    auto read = jxl::read_jxl(bytes);
+    std::optional<Document> narrowed;
+    const auto& eight_bit = document_for_8bit_writer(read.document, narrowed);
+    const auto& layers = std::as_const(eight_bit).layers();
+    animation.total = static_cast<int>(layers.size());
+    for (auto it = layers.rbegin(); it != layers.rend() && animation.frames.size() < max_frames; ++it) {
+      animation.frames.push_back(display_image(render_layer_isolated(eight_bit, *it)));
+      animation.delays_ms.push_back(static_cast<int>(animation::parse_layer_name_delay_ms(it->name()).value_or(0)));
+    }
+  } else {
+    animation.frames = {decode_web_export_bytes(format, bytes)};
+    animation.delays_ms = {0};
+    animation.total = 1;
+  }
+  return animation;
 }
 
 const std::vector<WebExportFormat>& web_export_formats() {
@@ -606,7 +668,7 @@ void start_next_web_export_job(const std::shared_ptr<WebExportPreviewEngine::Sta
       try {
         sources = prepared_sources(*state, job);
         encoded = WebExportPreviewEngine::encode(*sources.narrowed, job, sources.prepared);
-        encoded.original = sources.prepared_image;
+        encoded.original = encoded.original_frames.empty() ? sources.prepared_image : encoded.original_frames.front();
         encoded.notices.insert(encoded.notices.begin(), sources.notices.begin(), sources.notices.end());
       } catch (const std::exception& error) {
         encoded.error = QString::fromUtf8(error.what());
@@ -731,7 +793,34 @@ WebExportResult WebExportPreviewEngine::encode(const Document& narrowed_source, 
     options.export_background_color = job.options.export_background_color;
     bytes = encode_flat_image_bytes(source, extension, options, &result.notices);
   }
-  result.decoded = decode_web_export_bytes(job.format, bytes);
+  if (job.animate) {
+    // Every frame of the file as written, and the source frames the writer encoded, both
+    // capped together at kWebExportAnimationCacheBytes.
+    const Document* frame_source = &narrowed_source;
+    std::optional<Document> converted;
+    if (job.convert_to_srgb && rgb_profile_needs_conversion(narrowed_source.color_state().embedded_icc_profile)) {
+      converted.emplace(narrowed_source);
+      (void)convert_document_rgb_profile(*converted, {}, RenderingIntent::RelativeColorimetric, true);
+      frame_source = &*converted;
+    }
+    auto first = decode_web_export_bytes(job.format, bytes);
+    const auto frame_bytes = std::max<std::size_t>(
+        1, static_cast<std::size_t>(std::max(1, first.width())) * static_cast<std::size_t>(std::max(1, first.height())) * 4U);
+    const auto max_frames = std::max<std::size_t>(1, kWebExportAnimationCacheBytes / (2U * frame_bytes));
+    auto animation = decode_web_export_animation(job.format, bytes, max_frames);
+    result.frames = std::move(animation.frames);
+    result.frame_delays_ms = std::move(animation.delays_ms);
+    result.frames_total = animation.total;
+    std::vector<std::string> ignored;
+    for_each_animation_export_frame(*frame_source, job.options, &ignored, [&result](PixelBuffer rgba, const Layer&) {
+      if (result.original_frames.size() < result.frames.size()) {
+        result.original_frames.push_back(display_image(display_qimage_from_pixel_buffer(rgba)));
+      }
+    });
+    result.decoded = result.frames.empty() ? std::move(first) : result.frames.front();
+  } else {
+    result.decoded = decode_web_export_bytes(job.format, bytes);
+  }
   result.bytes = std::make_shared<const std::vector<std::uint8_t>>(std::move(bytes));
   if (job.format == WebExportFormat::Gif || (job.format == WebExportFormat::Png && job.options.png_palette)) {
     result.palette = used_colors(result.decoded);
@@ -756,8 +845,6 @@ public:
       return;
     }
     source_ = std::move(image);
-    scaled_ = {};
-    scaled_key_ = 0;
   }
   [[nodiscard]] const QImage& source() const noexcept { return source_; }
 
@@ -765,8 +852,13 @@ public:
     if (source_.isNull() || device_size.isEmpty() || device_size.width() >= source_.width()) {
       return source_;
     }
-    if (scaled_key_ == source_.cacheKey() && scaled_.size() == device_size) {
-      return scaled_;
+    if (scaled_size_ != device_size) {
+      scaled_.clear();
+      scaled_order_.clear();
+      scaled_size_ = device_size;
+    }
+    if (const auto found = scaled_.find(source_.cacheKey()); found != scaled_.end()) {
+      return found->second;
     }
     request(device_size);
     return source_;
@@ -817,10 +909,17 @@ private:
             if (owner == nullptr) {
               return;
             }
-            // The owner is alive, so this cache (its member) is too.
-            if (generation == state->generation) {
-              scaled_ = std::move(scaled);
-              scaled_key_ = key;
+            // The owner is alive, so this cache (its member) is too. Every finished reduction
+            // at the current size is kept (an animation's frames come round again), up to
+            // kScaledFrames of them.
+            (void)generation;
+            if (scaled.size() == scaled_size_ && scaled_.find(key) == scaled_.end()) {
+              scaled_.emplace(key, std::move(scaled));
+              scaled_order_.push_back(key);
+              while (scaled_order_.size() > kScaledFrames) {
+                scaled_.erase(scaled_order_.front());
+                scaled_order_.pop_front();
+              }
               owner->update();
             }
             start();
@@ -829,11 +928,13 @@ private:
     });
   }
 
+  static constexpr std::size_t kScaledFrames = 64;
   QWidget* owner_;
   std::shared_ptr<State> state_;
   QImage source_;
-  QImage scaled_;
-  qint64 scaled_key_{0};
+  QSize scaled_size_;
+  std::map<qint64, QImage> scaled_;
+  std::deque<qint64> scaled_order_;
 };
 
 // One preview viewport (ZoomableImagePreview's zoom and pan): the original, the encoded
@@ -1543,6 +1644,36 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   view_row->addWidget(zoom_label);
   preview_column->addLayout(view_row);
 
+  // Playback for an animated result (shown only then): Play/Pause, previous and next frame,
+  // the frame counter with the frame's delay, and Loop.
+  auto* playback_row = new QWidget(&dialog);
+  playback_row->setObjectName(QStringLiteral("webExportPlaybackControls"));
+  auto* playback_layout = new QHBoxLayout(playback_row);
+  playback_layout->setContentsMargins(0, 0, 0, 0);
+  playback_layout->setSpacing(4);
+  auto* play_button = new QPushButton(QObject::tr("Pause"), playback_row);
+  play_button->setObjectName(QStringLiteral("webExportPlayButton"));
+  play_button->setFocusPolicy(Qt::NoFocus);
+  play_button->setMinimumWidth(72);
+  auto* previous_frame = make_zoom_button("webExportPreviousFrameButton", QStringLiteral("<"),
+                                          QObject::tr("Previous frame"));
+  auto* next_frame = make_zoom_button("webExportNextFrameButton", QStringLiteral(">"), QObject::tr("Next frame"));
+  auto* frame_label = new QLabel(playback_row);
+  frame_label->setObjectName(QStringLiteral("webExportFrameLabel"));
+  auto* loop_check = new QCheckBox(QObject::tr("Loop"), playback_row);
+  loop_check->setObjectName(QStringLiteral("webExportLoopCheck"));
+  loop_check->setChecked(true);
+  playback_layout->addWidget(play_button);
+  playback_layout->addWidget(previous_frame);
+  playback_layout->addWidget(next_frame);
+  playback_layout->addWidget(frame_label, 1);
+  playback_layout->addWidget(loop_check);
+  playback_row->hide();
+  preview_column->addWidget(playback_row);
+  auto* playback_timer = new QTimer(&dialog);
+  playback_timer->setObjectName(QStringLiteral("webExportPlaybackTimer"));
+  playback_timer->setSingleShot(true);
+
   auto* info_row = new QHBoxLayout();
   info_row->setSpacing(6);
   auto* busy = new ActivitySpinner(&dialog);
@@ -1742,15 +1873,115 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
       original_pane->set_view_state(main_pane->view_state());
     }
   };
+  // The animated result being played: its frames stay cached (display images) until another
+  // animated result for the selected format replaces them, so playback keeps running while a
+  // newer encode is under way. The timer only picks a cached frame and repaints.
+  std::optional<WebExportResult> animation;
+  QString animation_signature;
+  int animation_frame = 0;
+  bool animation_playing = true;
+  const auto frame_delay_ms = [&](int index) {
+    const auto delay = animation.has_value() && index < static_cast<int>(animation->frame_delays_ms.size())
+                           ? animation->frame_delays_ms[static_cast<std::size_t>(index)]
+                           : 100;
+    // Browsers show 0 and 10 ms GIF delays at 100 ms; so does the preview.
+    return delay < 20 ? 100 : delay;
+  };
+  const auto show_frame = [&](int index) {
+    if (!animation.has_value() || animation->frames.empty()) {
+      return;
+    }
+    const auto count = static_cast<int>(animation->frames.size());
+    animation_frame = std::clamp(index, 0, count - 1);
+    const auto at = static_cast<std::size_t>(animation_frame);
+    const auto& original_frame =
+        at < animation->original_frames.size() ? animation->original_frames[at] : animation->original;
+    main_pane->set_images(original_frame, animation->frames[at]);
+    original_pane->set_images(original_frame, {});
+    main_pane->setProperty("webExportFrameIndex", animation_frame);
+    main_pane->setProperty("webExportFrameCount", count);
+    frame_label->setText(QObject::tr("Frame %1 of %2 (%3 s)")
+                             .arg(animation_frame + 1)
+                             .arg(count)
+                             .arg(QLocale().toString(frame_delay_ms(animation_frame) / 1000.0, 'f', 2)));
+  };
+  const auto set_playing = [&](bool playing) {
+    animation_playing = playing;
+    play_button->setText(playing ? QObject::tr("Pause") : QObject::tr("Play"));
+    main_pane->setProperty("webExportPlaying", playing && animation.has_value());
+    if (playing && animation.has_value() && animation->frames.size() > 1) {
+      playback_timer->start(frame_delay_ms(animation_frame));
+    } else {
+      playback_timer->stop();
+    }
+  };
+  const auto stop_animation = [&] {
+    playback_timer->stop();
+    animation.reset();
+    animation_signature.clear();
+    playback_row->hide();
+    main_pane->setProperty("webExportFrameCount", 0);
+    main_pane->setProperty("webExportPlaying", false);
+  };
+  QObject::connect(playback_timer, &QTimer::timeout, &dialog, [&] {
+    if (!animation.has_value() || animation->frames.size() < 2) {
+      return;
+    }
+    auto next = animation_frame + 1;
+    if (next >= static_cast<int>(animation->frames.size())) {
+      if (!loop_check->isChecked()) {
+        set_playing(false);
+        return;
+      }
+      next = 0;
+    }
+    show_frame(next);
+    playback_timer->start(frame_delay_ms(next));
+  });
+  QObject::connect(play_button, &QPushButton::clicked, &dialog, [&] {
+    // Play at the last frame without Loop starts over.
+    if (!animation_playing && animation.has_value() && !loop_check->isChecked() &&
+        animation_frame + 1 >= static_cast<int>(animation->frames.size())) {
+      show_frame(0);
+    }
+    set_playing(!animation_playing);
+  });
+  const auto step_frame = [&](int direction) {
+    if (!animation.has_value() || animation->frames.empty()) {
+      return;
+    }
+    set_playing(false);
+    const auto count = static_cast<int>(animation->frames.size());
+    show_frame((animation_frame + direction + count) % count);
+  };
+  QObject::connect(previous_frame, &QToolButton::clicked, &dialog, [&] { step_frame(-1); });
+  QObject::connect(next_frame, &QToolButton::clicked, &dialog, [&] { step_frame(1); });
+  // Closing or hiding the dialog stops playback.
+  QObject::connect(&dialog, &QDialog::finished, playback_timer, &QTimer::stop);
+
   const auto show_result = [&] {
     const auto current = read_settings();
     const auto format = current.format;
     const auto job = web_export_job(current, format, document_size);
     const auto cached = engine.cached(job.signature);
     const auto format_label = web_export_format_name(format);
+    if (!job.animate) {
+      stop_animation();
+    }
     if (cached.has_value()) {
-      main_pane->set_images(cached->original, cached->decoded);
-      original_pane->set_images(cached->original, {});
+      if (job.animate && cached->frames.size() > 1) {
+        if (animation_signature != job.signature) {
+          animation = cached;
+          animation_signature = job.signature;
+          playback_row->show();
+          show_frame(animation_frame < static_cast<int>(cached->frames.size()) ? animation_frame : 0);
+          set_playing(animation_playing);
+        }
+      } else {
+        stop_animation();
+        main_pane->set_images(cached->original, cached->decoded);
+        original_pane->set_images(cached->original, {});
+      }
       const auto size_text = data_size_text(cached->bytes->size());
       main_pane->set_labels(QObject::tr("Original"), QObject::tr("%1: %2").arg(format_label, size_text));
       original_pane->set_labels(QObject::tr("Original"), {});
@@ -1768,6 +1999,21 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                       .arg(format_label, size_text)
                       .arg(percent)
                       .arg(data_size_text(raw));
+      if (cached->frames.size() > 1) {
+        long long total_ms = 0;
+        for (int index = 0; index < static_cast<int>(cached->frame_delays_ms.size()); ++index) {
+          total_ms += cached->frame_delays_ms[static_cast<std::size_t>(index)] < 20
+                          ? 100
+                          : cached->frame_delays_ms[static_cast<std::size_t>(index)];
+        }
+        text += QStringLiteral(", ") + QObject::tr("%1 frames").arg(cached->frames_total) +
+                QStringLiteral(", ") +
+                QObject::tr("%1 s per loop").arg(QLocale().toString(static_cast<double>(total_ms) / 1000.0, 'f', 2));
+        if (static_cast<int>(cached->frames.size()) < cached->frames_total) {
+          text += QLatin1Char(' ') + QObject::tr("The preview plays the first %1 frames to save memory.")
+                                         .arg(cached->frames.size());
+        }
+      }
       for (const auto& notice : cached->notices) {
         text += QLatin1Char(' ') + QString::fromStdString(notice);
       }
@@ -2045,6 +2291,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   request_encodes();
 
   const auto code = exec_dialog(dialog);
+  playback_timer->stop();
   engine.close();
   if (code != QDialog::Accepted) {
     return std::nullopt;

@@ -396,6 +396,88 @@ void ui_web_export_slow_encode_never_blocks_the_selected_format() {
   engine.close();
 }
 
+// The Animation Preview test document (#198), made by Patchy: five frame layers, bottom to
+// top "Frame 5 1s", "Frame 4 hidden" (hidden), "Frame 3", "Frame 2 0.5s", "Frame 1". Exported
+// animations hold the four visible ones, top first: 0.1 s (the default), 0.5 s, 0.1 s, 1 s.
+patchy::Document animation_fixture_document(patchy::ui::MainWindow& window) {
+  const auto path = patchy::test::committed_format_fixture_path("psd", "web-export-animation.psd");
+  MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  return MainWindowTestAccess::document(window);
+}
+
+const std::vector<int> kAnimationFixtureDelaysMs = {100, 500, 100, 1000};
+
+// An animated GIF, WebP and JPEG XL result decodes every frame from the encoded bytes with
+// the delays as written (layer-name times included) and carries the source frames beside them.
+void ui_web_export_animation_frames_read_back() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto document = animation_fixture_document(window);
+  CHECK(document.layers().size() == 5);
+  const QSize size(document.width(), document.height());
+  WebExportSettings settings;
+  settings.gif_animate = true;
+  settings.webp_animate = true;
+  settings.jxl_animate = true;
+  settings.webp_lossless = true;
+  settings.jxl_lossless = true;
+  for (const auto format : {WebExportFormat::Gif, WebExportFormat::Webp, WebExportFormat::Jxl}) {
+    const auto job = patchy::ui::web_export_job(settings, format, size);
+    CHECK(job.animate);
+    const auto result = WebExportPreviewEngine::encode(document, job, nullptr);
+    CHECK(result.error.isEmpty() && result.bytes != nullptr);
+    CHECK(result.frames.size() == 4 && result.original_frames.size() == 4 && result.frames_total == 4);
+    CHECK(result.frame_delays_ms == kAnimationFixtureDelaysMs);
+    if (result.frames.size() == 4 && result.original_frames.size() == 4) {
+      CHECK(result.frames[0].size() == size && result.original_frames[0].size() == size);
+      // The frames differ from one another, and the first one is the shown result.
+      CHECK(result.frames[0] != result.frames[1]);
+      CHECK(result.decoded == result.frames[0]);
+    }
+    // A cap keeps the first frames and still reports the file's count.
+    const auto capped = patchy::ui::decode_web_export_animation(format, *result.bytes, 2);
+    CHECK(capped.frames.size() == 2 && capped.total == 4);
+  }
+  // A still format carries no frames.
+  const auto still = WebExportPreviewEngine::encode(
+      document, patchy::ui::web_export_job(settings, WebExportFormat::Jpeg, size), nullptr);
+  CHECK(still.frames.empty() && still.frame_delays_ms.empty());
+}
+
+// A newer animated request replaces an older one: the older job is dropped before it encodes
+// or, when it already ran, its frames are never the current ones.
+void ui_web_export_animation_stale_frames_are_discarded() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto document = std::make_shared<const patchy::Document>(animation_fixture_document(window));
+  const QSize size(document->width(), document->height());
+  WebExportPreviewEngine engine(document);
+  std::vector<QString> reported;
+  engine.set_result_callback([&reported](const patchy::ui::WebExportJob& job, const patchy::ui::WebExportResult&) {
+    reported.push_back(job.signature);
+  });
+  WebExportSettings first;
+  first.gif_animate = true;
+  first.gif_frame_delay_ms = 300;
+  WebExportSettings second = first;
+  second.gif_frame_delay_ms = 700;
+  const auto old_job = patchy::ui::web_export_job(first, WebExportFormat::Gif, size);
+  const auto new_job = patchy::ui::web_export_job(second, WebExportFormat::Gif, size);
+  engine.request({old_job});
+  engine.request({new_job});
+  CHECK(wait_until([&engine] { return !engine.busy(); }));
+  CHECK(engine.encodes_started() <= 2);
+  CHECK(!reported.empty() && reported.back() == new_job.signature);
+  const auto current = engine.cached(new_job.signature);
+  CHECK(current.has_value());
+  if (current.has_value()) {
+    // The frames without a time token take the newer default delay.
+    CHECK(current->frame_delays_ms == (std::vector<int>{700, 500, 700, 1000}));
+  }
+  engine.close();
+}
+
 void ui_web_export_engine_drops_stale_requests() {
   auto document = std::make_shared<const patchy::Document>(textured_document(320, 240));
   WebExportPreviewEngine engine(document);
@@ -435,6 +517,113 @@ void ui_web_export_engine_drops_stale_requests() {
   CHECK(wait_until([&engine] { return !engine.busy(); }));
   CHECK(engine.encodes_started() == before);
   engine.close();
+}
+
+// Animated GIF, WebP and JPEG XL play in the preview with Play/Pause, frame steps, the
+// frame counter and Loop; a still format shows no controls; closing stops the timer.
+void ui_web_export_animation_plays_in_the_preview() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  (void)animation_fixture_document(window);
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(1280, 820);
+    auto* list = dialog->findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    auto* preview = dynamic_cast<patchy::ui::ZoomableImagePreview*>(
+        dialog->findChild<QWidget*>(QStringLiteral("webExportPreview")));
+    auto* controls = dialog->findChild<QWidget*>(QStringLiteral("webExportPlaybackControls"));
+    auto* play = dialog->findChild<QPushButton*>(QStringLiteral("webExportPlayButton"));
+    auto* next = dialog->findChild<QAbstractButton*>(QStringLiteral("webExportNextFrameButton"));
+    auto* previous = dialog->findChild<QAbstractButton*>(QStringLiteral("webExportPreviousFrameButton"));
+    auto* frame_label = dialog->findChild<QLabel*>(QStringLiteral("webExportFrameLabel"));
+    auto* timer = dialog->findChild<QTimer*>(QStringLiteral("webExportPlaybackTimer"));
+    auto* side_by_side = dialog->findChild<QPushButton*>(QStringLiteral("webExportCompareSideBySide"));
+    auto* info = dialog->findChild<QLabel*>(QStringLiteral("webExportInfoLabel"));
+    CHECK(list != nullptr && preview != nullptr && controls != nullptr && play != nullptr && next != nullptr &&
+          previous != nullptr && frame_label != nullptr && timer != nullptr && side_by_side != nullptr &&
+          info != nullptr);
+    if (list == nullptr || preview == nullptr || controls == nullptr || play == nullptr || next == nullptr ||
+        previous == nullptr || frame_label == nullptr || timer == nullptr || side_by_side == nullptr ||
+        info == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const auto frame = [preview] { return preview->property("webExportFrameIndex").toInt(); };
+    const auto frames = [preview] { return preview->property("webExportFrameCount").toInt(); };
+    // A still format: no controls.
+    CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+    CHECK(!controls->isVisible());
+    CHECK(frames() == 0);
+
+    struct Case {
+      const char* row;
+      const char* animate;
+    };
+    for (const auto& item : {Case{"GIF", "webExportGifAnimateCheck"}, Case{"WebP", "webExportWebpAnimateCheck"},
+                              Case{"JPEG XL", "webExportJxlAnimateCheck"}}) {
+      auto* row = row_named(list, QString::fromLatin1(item.row));
+      auto* animate = dialog->findChild<QCheckBox*>(QLatin1String(item.animate));
+      CHECK(row != nullptr && animate != nullptr);
+      if (row == nullptr || animate == nullptr) {
+        continue;
+      }
+      list->setCurrentItem(row);
+      CHECK(animate->isVisible());
+      animate->setChecked(true);
+      CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool() && frames() == 4; }, 120000));
+      CHECK(controls->isVisible());
+      CHECK(timer->isActive() && preview->property("webExportPlaying").toBool());
+      CHECK(info->text().contains(QStringLiteral("4 frames")));
+      // It plays: the shown frame moves on by itself.
+      const auto start = frame();
+      CHECK(wait_until([&] { return frame() != start; }, 5000));
+      // Pause, then step both ways.
+      play->click();
+      CHECK(!timer->isActive() && !preview->property("webExportPlaying").toBool());
+      CHECK(play->text() == QStringLiteral("Play"));
+      const auto paused = frame();
+      next->click();
+      CHECK(frame() == (paused + 1) % 4);
+      previous->click();
+      previous->click();
+      CHECK(frame() == (paused + 3) % 4);
+      CHECK(frame_label->text().contains(QStringLiteral("of 4")));
+      if (QLatin1String(item.row) == QLatin1String("GIF")) {
+        side_by_side->click();
+        // Frame 2 shows for 0.5 s (its layer name's time).
+        while (frame() != 1) {
+          next->click();
+        }
+        CHECK(frame_label->text().contains(QStringLiteral("Frame 2 of 4")));
+        CHECK(frame_label->text().contains(QStringLiteral("0.50")));
+        play->click();
+        CHECK(timer->isActive());
+        capture_widget_artifact("web_export_gif_animation", *dialog);
+      } else {
+        play->click();
+        CHECK(timer->isActive());
+      }
+    }
+    // Back to a still format: the controls hide and playback stops.
+    list->setCurrentItem(row_named(list, QStringLiteral("PNG")));
+    QApplication::processEvents();
+    CHECK(!controls->isVisible() && !timer->isActive());
+    // Closing stops the timer.
+    list->setCurrentItem(row_named(list, QStringLiteral("GIF")));
+    CHECK(wait_until([&] { return timer->isActive(); }));
+    inspected = true;
+    dialog->reject();
+    CHECK(!timer->isActive());
+  });
+  patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
 }
 
 void ui_web_export_dialog_previews_and_saves() {
@@ -662,6 +851,9 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_defaults_and_options", ui_web_export_defaults_and_options},
       {"ui_web_export_jpeg_progressive_and_optimize_read_back", ui_web_export_jpeg_progressive_and_optimize_read_back},
       {"ui_web_export_engine_drops_stale_requests", ui_web_export_engine_drops_stale_requests},
+      {"ui_web_export_animation_frames_read_back", ui_web_export_animation_frames_read_back},
+      {"ui_web_export_animation_stale_frames_are_discarded", ui_web_export_animation_stale_frames_are_discarded},
+      {"ui_web_export_animation_plays_in_the_preview", ui_web_export_animation_plays_in_the_preview},
       {"ui_web_export_avif_and_jxl_read_back", ui_web_export_avif_and_jxl_read_back},
       {"ui_web_export_slow_encode_never_blocks_the_selected_format",
        ui_web_export_slow_encode_never_blocks_the_selected_format},

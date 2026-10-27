@@ -13145,6 +13145,42 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Open Folder</source>
         <translation>Otwórz folder</translation>
     </message>
+    <message>
+        <source>Pause</source>
+        <translation>Pauza</translation>
+    </message>
+    <message>
+        <source>Previous frame</source>
+        <translation>Poprzednia klatka</translation>
+    </message>
+    <message>
+        <source>Next frame</source>
+        <translation>Następna klatka</translation>
+    </message>
+    <message>
+        <source>Loop</source>
+        <translation>Zapętl</translation>
+    </message>
+    <message>
+        <source>Frame %1 of %2 (%3 s)</source>
+        <translation>Klatka %1 z %2 (%3 s)</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>Odtwórz</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>klatki: %1</translation>
+    </message>
+    <message>
+        <source>%1 s per loop</source>
+        <translation>%1 s na pętlę</translation>
+    </message>
+    <message>
+        <source>The preview plays the first %1 frames to save memory.</source>
+        <translation>Aby oszczędzać pamięć, podgląd odtwarza pierwsze klatki (%1).</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
