@@ -744,6 +744,12 @@ void ui_layer_context_menu_names_groups_as_groups() {
         for (auto* action : menu->actions()) {
           texts << action->text().remove('&');
         }
+        // Duplicate ... to Document... lives in the Export submenu (#461).
+        if (auto* export_menu = menu->findChild<QMenu*>(QStringLiteral("layerContextExportMenu")); export_menu != nullptr) {
+          for (auto* action : export_menu->actions()) {
+            texts << action->text().remove('&');
+          }
+        }
         menu->close();
         return;
       }
@@ -793,7 +799,13 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu")) {
         continue;
       }
-      for (auto* action : menu->actions()) {
+      // The rasterize actions live in the Rasterize submenu (#461).
+      auto actions = menu->actions();
+      if (auto* rasterize_menu = menu->findChild<QMenu*>(QStringLiteral("layerContextRasterizeMenu"));
+          rasterize_menu != nullptr) {
+        actions += rasterize_menu->actions();
+      }
+      for (auto* action : actions) {
         auto text = action->text();
         text.remove('&');
         if (text == QStringLiteral("Edit Layer Styles...")) {

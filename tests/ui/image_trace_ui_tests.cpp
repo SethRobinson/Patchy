@@ -511,8 +511,12 @@ void ui_layer_context_menu_offers_trace_image_to_shapes() {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu != nullptr && menu->objectName() == QStringLiteral("layerContextMenu") && menu->isVisible()) {
         saw_menu = true;
-        for (auto* action : menu->actions()) {
-          action_names << action->objectName();
+        // In the Rasterize submenu, after the rasterize actions (#461).
+        if (auto* rasterize_menu = menu->findChild<QMenu*>(QStringLiteral("layerContextRasterizeMenu"));
+            rasterize_menu != nullptr) {
+          for (auto* action : rasterize_menu->actions()) {
+            action_names << action->objectName();
+          }
         }
         menu->close();
         poller.stop();

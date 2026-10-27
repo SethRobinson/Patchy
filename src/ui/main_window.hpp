@@ -2013,6 +2013,11 @@ private:
   // layer context menus, its radio actions, and the setter that saves and rebuilds the rows.
   void add_layer_thumbnail_size_menu(QMenu* menu);
   void set_layer_thumbnail_size(LayerThumbnailSize size);
+  // Layer export (#462, main_window_files.cpp): Quick Export as PNG (choose_format false) and
+  // Export As... for the selected layers, each its own file named after the layer (a group as
+  // its composite). add_layer_export_actions adds both shared actions to a context menu.
+  void add_layer_export_actions(QMenu* menu);
+  void export_selected_layers(bool choose_format);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   // A Layers-panel drag over another document (a session canvas, tabbed or
   // floated, or a document tab): accepts it as a copy and defers the copy.
@@ -2132,7 +2137,6 @@ private:
   void end_layer_blend_preview();
   void cancel_layer_blend_preview();
   [[nodiscard]] bool layer_blend_preview_matches_active() const;
-  void set_active_layer_visible(bool visible);
   void set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked);
   void set_active_layer_lock_flag(LayerLockFlags flag, bool locked);
   void set_active_layer_lock_all(bool locked);
@@ -3255,6 +3259,8 @@ private:
   QList<QStringList> default_tab_groups_;
   std::vector<QAction*> window_document_actions_;
   QAction* duplicate_layer_to_document_action_{nullptr};
+  QAction* layer_quick_export_png_action_{nullptr};
+  QAction* layer_export_as_action_{nullptr};
   QAction* dock_document_action_{nullptr};
   QAction* consolidate_tabs_action_{nullptr};
   QAction* float_all_action_{nullptr};

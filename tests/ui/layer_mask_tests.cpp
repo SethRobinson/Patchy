@@ -857,7 +857,10 @@ void ui_layer_thumbnail_right_click_opens_pixels_menu() {
         (QStringList{QStringLiteral("layerThumbnailPixelsSelectAction"), QStringLiteral("layerThumbnailPixelsAddAction"),
                      QStringLiteral("layerThumbnailPixelsSubtractAction"),
                      QStringLiteral("layerThumbnailPixelsIntersectAction"), QStringLiteral("-")}));
-  CHECK(seen.texts.value(5) == QStringLiteral("Thumbnail Size"));
+  // Then the Export submenu (#462) and Thumbnail Size, each after a separator.
+  CHECK(seen.texts.value(5) == QStringLiteral("Export"));
+  CHECK(seen.actions.value(6) == QStringLiteral("-"));
+  CHECK(seen.texts.value(7) == QStringLiteral("Thumbnail Size"));
   CHECK(selected(5, 15) && selected(30, 5) && !selected(30, 15));
 
   click_layer_row_thumbnail(*layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),

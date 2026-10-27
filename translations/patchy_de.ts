@@ -21847,10 +21847,6 @@ Y: %2
         <translation>Flächendeckkraft</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>Sichtbarkeit</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>Ebene fixieren</translation>
     </message>
@@ -27152,6 +27148,46 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Clone Source</source>
         <translation>Kopierquelle</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>Schnellexport als PNG</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>Exportieren als...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>Wählen Sie eine Ebene zum Exportieren</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>Ebene exportieren als</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>Ebenen exportieren als</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>Die Ebene hat keine sichtbaren Pixel zum Exportieren</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>Nichts exportiert: Die ausgewählten Ebenen haben keine sichtbaren Pixel</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>%1 Ebenen nach %2 exportiert</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>%1 Ebenen nach %2 exportiert; %3 Ebenen ohne Pixel wurden übersprungen</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>Zusammenfügen</translation>
     </message>
     <message>
         <source>Brush Settings</source>

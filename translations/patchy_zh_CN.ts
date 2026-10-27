@@ -21797,10 +21797,6 @@ Y: %2
         <translation>填充不透明度</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>可见性</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>锁定图层</translation>
     </message>
@@ -27076,6 +27072,46 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Clone Source</source>
         <translation>仿制源</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>快速导出为 PNG</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>导出为...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>请选择要导出的图层</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>将图层导出为</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>将多个图层导出为</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>该图层没有可导出的可见像素</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>未导出任何内容: 所选图层没有可见像素</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>已将 %1 个图层导出到 %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>已将 %1 个图层导出到 %2; 已跳过 %3 个没有像素的图层</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>合并</translation>
     </message>
     <message>
         <source>Brush Settings</source>

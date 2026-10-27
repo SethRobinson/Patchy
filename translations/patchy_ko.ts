@@ -22935,10 +22935,6 @@ Y: %2
         <translation>칠 불투명도</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>표시 여부</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>레이어 잠금</translation>
     </message>
@@ -27076,6 +27072,46 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Clone Source</source>
         <translation>복제 소스</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>PNG로 빠른 내보내기</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>다른 형식으로 내보내기...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>내보낼 레이어를 선택하십시오</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>레이어 내보내기</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>레이어 여러 개 내보내기</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>레이어에 내보낼 표시 픽셀이 없습니다</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>내보낸 항목 없음: 선택한 레이어에 표시 픽셀이 없습니다</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>레이어 %1개를 %2에 내보냈습니다</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>레이어 %1개를 %2에 내보냈습니다. 픽셀이 없는 레이어 %3개는 건너뛰었습니다</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>병합</translation>
     </message>
     <message>
         <source>Brush Settings</source>

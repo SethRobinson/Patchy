@@ -23057,10 +23057,6 @@ Y: %2
         <translation>Непрозрачность заливки</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>Видимость</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>Заблокировать слой</translation>
     </message>
@@ -27228,6 +27224,46 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Clone Source</source>
         <translation>Источник клонирования</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>Быстрый экспорт в PNG</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>Экспортировать как...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>Выберите слой для экспорта</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>Экспорт слоя как</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>Экспорт слоёв как</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>В слое нет видимых пикселей для экспорта</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>Ничего не экспортировано: в выбранных слоях нет видимых пикселей</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>Экспортировано слоёв: %1, папка %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>Экспортировано слоёв: %1, папка %2; пропущено слоёв без пикселей: %3</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>Объединить</translation>
     </message>
     <message>
         <source>Brush Settings</source>
