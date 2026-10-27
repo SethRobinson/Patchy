@@ -13217,6 +13217,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Screen mode button</source>
         <translation>Przycisk trybu ekranu</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Sugerowana: %1 (te same szerokości znaków)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Sugerowana: %1 (podobny krój)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27268,6 +27276,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Interface scale presets</source>
         <translation>Ustawienia skali interfejsu</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 zostanie zastąpiona przez %2.</translation>
     </message>
 </context>
 <context>

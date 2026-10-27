@@ -46,6 +46,12 @@ Licensing rules for bundled fonts (binding):
   Without them a browser build has no CJK glyphs at all.
 - Every family needs a `NOTICE-THIRD-PARTY.md` entry with its source and
   fetch date. Fetch static instances, not variable fonts.
+- The missing-font substitute table (`src/core/font_substitutes.cpp`,
+  [font-resolution.md](font-resolution.md#substitute-table)) names fonts and links their project
+  pages only; it never bundles, downloads or installs one. Font names there identify the font a
+  document asks for (referential use); UI text says "suggested" and "same character widths", never
+  that two fonts are the same. Each pair is written from the substitute's own documentation, not
+  copied from fontconfig, LibreOffice, Photoshop or any other program's list.
 
 ## Application fonts cannot be embedded in a PDF
 

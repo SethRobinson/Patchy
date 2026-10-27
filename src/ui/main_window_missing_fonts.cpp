@@ -184,12 +184,21 @@ void MainWindow::show_resolve_missing_fonts_dialog(bool on_open) {
   std::vector<MissingFontEntry> entries;
   entries.reserve(fonts.size());
   for (const auto& font : fonts) {
-    auto suggested = substituted_text_family(font.family, font.first_text);
-    if (suggested.compare(font.family, Qt::CaseInsensitive) == 0) {
-      // Nothing installed draws the text; offer the UI font rather than the missing name.
-      suggested = default_text_family();
+    MissingFontEntry entry{font.family, font.no_glyphs, static_cast<int>(font.layers.size()), {}};
+    // The built-in substitute table first (issue 463): metric matches, then look-alikes, then the
+    // face Qt draws the text in now.
+    if (const auto substitutes = installed_text_font_substitutes(font.family, font.first_text); !substitutes.empty()) {
+      entry.suggested = substitutes.front().family;
+      entry.suggestion =
+          substitutes.front().metric ? MissingFontSuggestion::metric : MissingFontSuggestion::lookalike;
+    } else {
+      entry.suggested = substituted_text_family(font.family, font.first_text);
+      if (entry.suggested.compare(font.family, Qt::CaseInsensitive) == 0) {
+        // Nothing installed draws the text; offer the UI font rather than the missing name.
+        entry.suggested = default_text_family();
+      }
     }
-    entries.push_back(MissingFontEntry{font.family, font.no_glyphs, static_cast<int>(font.layers.size()), suggested});
+    entries.push_back(entry);
   }
   bool show_on_open_after = show_on_open;
   const auto result = run_missing_fonts_dialog(this, entries, show_on_open, &show_on_open_after);

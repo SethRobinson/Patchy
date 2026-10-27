@@ -13143,6 +13143,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>スクリーンモードボタン</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>候補: %1 (文字幅が同じ)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>候補: %1 (似たデザイン)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27116,6 +27124,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Interface scale presets</source>
         <translation>インターフェースの拡大率のプリセット</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 は %2 に置き換えられます。</translation>
     </message>
 </context>
 <context>

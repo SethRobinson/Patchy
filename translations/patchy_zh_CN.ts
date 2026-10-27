@@ -13143,6 +13143,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>屏幕模式按钮</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>建议：%1 (字符宽度相同)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>建议：%1 (设计相似)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27116,6 +27124,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Interface scale presets</source>
         <translation>界面缩放预设</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 将替换为 %2。</translation>
     </message>
 </context>
 <context>

@@ -13180,6 +13180,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Screen mode button</source>
         <translation>Botón de modo de pantalla</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Sugerencia: %1 (mismos anchos de carácter)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Sugerencia: %1 (diseño similar)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27192,6 +27200,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Interface scale presets</source>
         <translation>Valores predefinidos de escala de la interfaz</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 se sustituirá por %2.</translation>
     </message>
 </context>
 <context>

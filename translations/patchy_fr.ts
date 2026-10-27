@@ -13180,6 +13180,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Screen mode button</source>
         <translation>Bouton Mode d&apos;affichage</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Suggestion : %1 (mêmes largeurs de caractères)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Suggestion : %1 (dessin similaire)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27192,6 +27200,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Interface scale presets</source>
         <translation>Préréglages d&apos;échelle de l&apos;interface</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 sera remplacée par %2.</translation>
     </message>
 </context>
 <context>
