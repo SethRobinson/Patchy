@@ -2927,10 +2927,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation type="unfinished"></translation>
     </message>
@@ -26483,14 +26479,6 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Overlay</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

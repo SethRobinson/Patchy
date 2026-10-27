@@ -2991,10 +2991,6 @@
         <translation>По умолчанию</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Канал:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -26641,14 +26637,6 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Apply</source>
         <translation>Применить</translation>
-    </message>
-    <message>
-        <source>Show Overlay</source>
-        <translation>Показывать наложение</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Показывает источник под кистью до начала рисования</translation>
     </message>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>

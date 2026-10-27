@@ -3227,17 +3227,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       refresh_clone_source_panel();
     }
   });
-  // Show Overlay (GitHub issue 426): the popup's overlay checkbox, also on the bar after
-  // Aligned; its opacity stays in the popup.
-  clone_overlay_check_ = new CheckGlyphBox(tr("Show Overlay"), toolbar);
-  clone_overlay_check_->setObjectName(QStringLiteral("cloneOverlayCheck"));
-  clone_overlay_check_->setChecked(current_clone_overlay_shown_);
-  bind_tooltip(clone_overlay_check_, QT_TR_NOOP("Preview the source under the brush before you paint"));
-  add_option_widget(clone_overlay_check_, {CanvasTool::Clone, CanvasTool::Healing});
-  connect(clone_overlay_check_, &QCheckBox::toggled, this,
-          [this](bool checked) { apply_clone_overlay_settings(checked, current_clone_overlay_opacity_); });
   // Clone source settings (GitHub issue 424): the slots, offset, scale and rotation and
-  // the overlay, in a popup on a gear button (rule 8) after the checkbox group.
+  // the overlay, in a popup on a gear button (rule 8) after Aligned. Show Overlay lives only
+  // there: on the bar it wrapped the Healing Brush row at 1366 px (GitHub issue 458).
   clone_source_options_button_ = new QToolButton(toolbar);
   clone_source_options_button_->setObjectName(QStringLiteral("cloneSourceOptionsButton"));
   make_options_menu_button(clone_source_options_button_);

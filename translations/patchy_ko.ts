@@ -2991,10 +2991,6 @@
         <translation>기본값</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>채널:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -26491,14 +26487,6 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Apply</source>
         <translation>적용</translation>
-    </message>
-    <message>
-        <source>Show Overlay</source>
-        <translation>오버레이 표시</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>칠하기 전에 브러시 아래에 소스를 미리 봅니다</translation>
     </message>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>

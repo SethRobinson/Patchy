@@ -2927,10 +2927,6 @@
         <translation>Predefinito</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Canale:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -26566,14 +26562,6 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Apply</source>
         <translation>Applica</translation>
-    </message>
-    <message>
-        <source>Show Overlay</source>
-        <translation>Mostra sovrapposizione</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Mostra la sorgente sotto il pennello prima di dipingere</translation>
     </message>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>

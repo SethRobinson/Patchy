@@ -2991,10 +2991,6 @@
         <translation>Padrão</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Canal:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -26566,14 +26562,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Apply</source>
         <translation>Aplicar</translation>
-    </message>
-    <message>
-        <source>Show Overlay</source>
-        <translation>Mostrar sobreposição</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Mostra a origem sob o pincel antes de pintar</translation>
     </message>
     <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
