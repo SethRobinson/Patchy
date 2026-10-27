@@ -451,7 +451,11 @@ int main(int argc, char* argv[]) {
   // user's real Patchy settings (recent files, saved window geometry, panels).
   // Must stay ahead of apply_gui_scale_factor(), the first app_settings() read.
   if (const auto settings_dir = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !settings_dir.isEmpty()) {
+#ifdef Q_OS_WASM
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings_dir);
+#else
     patchy::ui::set_app_settings_root(settings_dir);
+#endif
   }
   // Moves the 1.19-era Patchy.ini and preset folders into RTsoft/Patchy (app_data_migration.hpp).
   patchy::ui::app_data_migration::migrate_legacy_settings();
