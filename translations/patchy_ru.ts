@@ -27281,6 +27281,10 @@ The open document keeps its blend modes either way.</source>
         <source>%1 will be replaced with %2.</source>
         <translation>%1 будет заменён на %2.</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Настройки кисти</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

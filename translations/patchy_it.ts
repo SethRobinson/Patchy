@@ -27205,6 +27205,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>%1 will be replaced with %2.</source>
         <translation>%1 verrà sostituito con %2.</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Impostazioni pennello</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

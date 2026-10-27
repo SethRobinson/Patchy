@@ -27129,6 +27129,10 @@ The open document keeps its blend modes either way.</source>
         <source>%1 will be replaced with %2.</source>
         <translation>%1 は %2 に置き換えられます。</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>ブラシ設定</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

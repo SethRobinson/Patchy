@@ -70,6 +70,7 @@ Dragging a title row, or a group's tab bar, up or down moves that section. `Pane
 
 The Window menu lists every panel and both toolbars as checkable entries (`install_window_panel_entries`, GitHub issue 163). `sorted_window_panel_actions` sorts them by their current text with `QCollator` each time the menu opens. The document-window commands sit under Window > Arrange.
 - **Panel entries.** `toggle_window_panel`: a panel that is open and in front closes, collapsed or not (GitHub issue 234; Photoshop expands a collapsed one instead); any other opens, comes to the front and expands (`show_panel`), so a tab behind another of its group comes forward. The check mark is `panel_visible`, re-read on every open (`ui_window_menu_hides_collapsed_panel`).
+- **Hotkeys** (GitHub issue 469). Each panel entry is a registered command `window.panel_<name>` (layers, channels, paths, history, properties, info, color, palette): F6 Color, F7 Layers and F8 Info by default, Photoshop's panel keys; the rest unbound. F5 stays View > Force Refresh, so **Brush Settings** (`windowBrushSettingsAction`, `window.brush_settings`) ships unbound: it picks the Brush tool and opens its Dynamics popup (`show_brush_settings_popup`). `ui_window_panel_hotkeys_show_and_hide_panels`.
 - **Toolbars.** The toolbars use Qt's own `toggleViewAction`.
 - **Reset Panels.** Window > Reset Panels (`window.reset_panels`) ends the list.
 - **During automation.** Panel entries and Reset Panels stay usable while MCP automation runs (`McpActivity::action_allowed`).

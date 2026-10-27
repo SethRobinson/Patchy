@@ -27205,6 +27205,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>%1 will be replaced with %2.</source>
         <translation>%1 wird durch %2 ersetzt.</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Pinseleinstellungen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -27205,6 +27205,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>%1 will be replaced with %2.</source>
         <translation>%1 será substituída por %2.</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Configurações do pincel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
