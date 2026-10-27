@@ -610,12 +610,12 @@ QString photoshop_style_template() {
       border: 1px solid @category_selected_border;
     }
     /* Customize Tool Palette's rows: room for the tick and the icon with a clear gap above
-       and below (the cluster headings get more through their size hint), the shortcut column
-       clear of the list's right edge (GitHub issue 213 follow-up), and the checkbox look
-       (the rule above hides list indicators). */
+       and below (the cluster headings get more through their size hint), and the checkbox look
+       (the rule above hides list indicators). The shortcut column's gap before the scrollbar is
+       its delegate's (tool_palette_customization.cpp): a padding here does not move
+       right-aligned text. */
     QTreeWidget#toolPaletteCustomizeTree::item {
       min-height: 26px;
-      padding-right: 12px;
     }
     QListWidget#layerFooterButtonsList::item {
       min-height: 30px;
