@@ -31,6 +31,11 @@ if(MSVC)
   target_link_options(${PATCHY_8BF_HOST_NAME} PRIVATE /SUBSYSTEM:CONSOLE)
 endif()
 target_link_libraries(${PATCHY_8BF_HOST_NAME} PRIVATE user32 gdi32 comdlg32 shell32)
+# The static C++ runtime: the hosts sit beside patchy.exe, whose app-local MSVCP140.dll and
+# VCRUNTIME140.dll are the app's architecture (x64, or ARM64 in a Windows ARM64 package).
+# A host of another architecture importing them would find the wrong image there.
+set_target_properties(${PATCHY_8BF_HOST_NAME} PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set_target_properties(${PATCHY_8BF_HOST_NAME} PROPERTIES OUTPUT_NAME ${PATCHY_8BF_HOST_NAME})
 if(DEFINED PATCHY_8BF_HOST_OUTPUT_DIR)
   set_target_properties(${PATCHY_8BF_HOST_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PATCHY_8BF_HOST_OUTPUT_DIR}")

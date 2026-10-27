@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QUrl>
 #include <QString>
+#include <QStringList>
 #include <QTimeZone>
 
 #include <functional>
@@ -77,10 +78,22 @@ using UpdateCheckResultCallback = std::function<void(UpdateCheckResult)>;
 // (CMake PATCHY_STORE_BUILD, for a repository such as Flathub that forbids apps from
 // updating themselves), or PATCHY_NO_UPDATE_CHECK=1 in the environment.
 [[nodiscard]] bool update_checks_available();
+// The manifest entry this build reads first; current_update_platforms() lists every entry
+// it reads, most preferred first (docs/auto-update.md).
 [[nodiscard]] QString current_update_platform();
+[[nodiscard]] QStringList current_update_platforms();
+// The Windows rule behind current_update_platforms(), separate so every platform can test
+// it. An ARM64 build reads "windows-arm64" only. An x64 build reads "windows", except on an
+// ARM64 PC (Windows runs it emulated): there it reads "windows-arm64" first, so its next
+// update installs the native build, and "windows" when the manifest has no ARM64 entry.
+[[nodiscard]] QStringList windows_update_platforms(bool build_is_arm64, bool machine_is_arm64);
 [[nodiscard]] QUrl update_manifest_url();
 [[nodiscard]] bool update_version_is_newer(const QString& latest_version, const QString& current_version);
 [[nodiscard]] UpdateCheckResult inspect_update_manifest(const QByteArray& json, const QString& platform,
+                                                        const QString& current_version);
+// Reads the first of `platforms` the manifest has an entry for; MissingPlatform (naming the
+// first) when it has none of them.
+[[nodiscard]] UpdateCheckResult inspect_update_manifest(const QByteArray& json, const QStringList& platforms,
                                                         const QString& current_version);
 [[nodiscard]] std::optional<UpdateInfo> parse_update_manifest(const QByteArray& json, const QString& platform,
                                                               const QString& current_version);

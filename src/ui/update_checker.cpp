@@ -22,8 +22,26 @@
 #include <utility>
 #include <vector>
 
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace patchy::ui {
 namespace {
+
+#ifdef Q_OS_WIN
+// The processor Windows itself runs on. IsWow64Process2 reports it for an emulated x64
+// process too, where PROCESSOR_ARCHITECTURE says AMD64.
+bool windows_machine_is_arm64() {
+  USHORT process_machine = IMAGE_FILE_MACHINE_UNKNOWN;
+  USHORT native_machine = IMAGE_FILE_MACHINE_UNKNOWN;
+  return IsWow64Process2(GetCurrentProcess(), &process_machine, &native_machine) != FALSE &&
+         native_machine == IMAGE_FILE_MACHINE_ARM64;
+}
+#endif
 
 std::optional<std::vector<std::int64_t>> parse_dotted_version(QString version) {
   version = version.trimmed();
@@ -157,16 +175,36 @@ bool update_checks_available() {
 #endif
 }
 
-QString current_update_platform() {
+QStringList windows_update_platforms(bool build_is_arm64, bool machine_is_arm64) {
+  // "windows-arm64" is a permanent manifest key beside "windows" (docs/auto-update.md).
+  if (build_is_arm64) {
+    return {QStringLiteral("windows-arm64")};
+  }
+  if (machine_is_arm64) {
+    return {QStringLiteral("windows-arm64"), QStringLiteral("windows")};
+  }
+  return {QStringLiteral("windows")};
+}
+
+QStringList current_update_platforms() {
 #if defined(Q_OS_WIN)
-  return QStringLiteral("windows");
+#if defined(Q_PROCESSOR_ARM_64)
+  return windows_update_platforms(true, true);
+#else
+  return windows_update_platforms(false, windows_machine_is_arm64());
+#endif
 #elif defined(Q_OS_MACOS)
-  return QStringLiteral("macos");
+  return {QStringLiteral("macos")};
 #elif defined(Q_OS_LINUX)
-  return QStringLiteral("linux");
+  return {QStringLiteral("linux")};
 #else
   return {};
 #endif
+}
+
+QString current_update_platform() {
+  const auto platforms = current_update_platforms();
+  return platforms.isEmpty() ? QString() : platforms.front();
 }
 
 QUrl update_manifest_url() {
@@ -281,6 +319,20 @@ UpdateCheckResult inspect_update_manifest(const QByteArray& json, const QString&
   return result;
 }
 
+UpdateCheckResult inspect_update_manifest(const QByteArray& json, const QStringList& platforms,
+                                          const QString& current_version) {
+  if (platforms.isEmpty()) {
+    return inspect_update_manifest(json, QString(), current_version);
+  }
+  for (const auto& platform : platforms) {
+    auto result = inspect_update_manifest(json, platform, current_version);
+    if (result.status != UpdateCheckStatus::MissingPlatform) {
+      return result;
+    }
+  }
+  return inspect_update_manifest(json, platforms.front(), current_version);
+}
+
 namespace {
 
 UpdateCheckResult network_error_result() {
@@ -310,7 +362,7 @@ void start_manifest_request(const QPointer<QObject>& owner_guard, const QUrl& ur
                     callback = std::move(callback)]() mutable {
                      UpdateCheckResult result;
                      if (reply->error() == QNetworkReply::NoError) {
-                       result = inspect_update_manifest(reply->readAll(), current_update_platform(), current_version);
+                       result = inspect_update_manifest(reply->readAll(), current_update_platforms(), current_version);
                      } else {
                        result = network_error_result();
                        result.detail = reply->errorString();

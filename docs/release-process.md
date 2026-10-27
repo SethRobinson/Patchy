@@ -25,7 +25,7 @@ and the AppImage ([appimage.md](appimage.md)).
 When bumping the release version, update the version fields:
 
 - `CMakeLists.txt` (`project(... VERSION x.y)`). The version reaches the code through the configure-time generated `patchy_version.hpp` (from `cmake/patchy_version.hpp.in`), not a target-wide define, so a bump recompiles only the handful of files that include it rather than all of `patchy_ui`.
-- Keep `latest_version.json` at the last published version until the new GitHub release and its downloads are verified. Then update its per-platform `version` entries in a separate announcement commit: windows always, with its three installer keys ([auto-update.md](auto-update.md); the publish script prints them); macos/linux only when those artifacts ship. From the first release that ships the AppImage on, the `linux` entry also carries `appimage_url` and the three `appimage_install_*` keys for its one-click update (the publish script prints all four; [auto-update.md](auto-update.md)). Pushing this manifest to main announces the update independently of release publication, so it deliberately differs from an unpublished build.
+- Keep `latest_version.json` at the last published version until the new GitHub release and its downloads are verified. Then update its per-platform `version` entries in a separate announcement commit: windows always, with its three installer keys ([auto-update.md](auto-update.md); the publish script prints them), and `windows-arm64` with the same version and its own `download_url` and installer keys (an x64 copy emulated on an ARM64 PC reads that entry first); macos/linux only when those artifacts ship. From the first release that ships the AppImage on, the `linux` entry also carries `appimage_url` and the three `appimage_install_*` keys for its one-click update (the publish script prints all four; [auto-update.md](auto-update.md)). Pushing this manifest to main announces the update independently of release publication, so it deliberately differs from an unpublished build.
 - A `<release>` with a short `<description>` in `packaging/linux/com.rtsoft.patchy.metainfo.xml`,
   then `python scripts\release\check-metainfo.py --fix`: it repoints the metainfo's screenshot
   URLs at `v<version>` when `docs/images/screenshots/` changed since the tag they pin, and
@@ -95,7 +95,28 @@ and passes only with exit 0, no `[FAIL]` and, on the hosts, the script's closing
 host's user, and stops (never deletes) when a `PatchyMcp-*` endpoint is left in
 `/run/user/<uid>/app/com.rtsoft.patchy`: check nothing listens on it, then remove it by hand.
 Skips for a re-verification after a narrow change: `verify-windows.ps1 -SkipCore` /
-`-SkipUi`, `verify-remote.ps1 -SkipSuites`.
+`-SkipUi`, `verify-remote.ps1 -SkipSuites`. `verify-windows-arm64` checks the ARM64
+package on the ARM64 host (next section).
+
+### Windows ARM64 packages
+
+The `windows` builder (`build-release.bat` with no argument) packages x64 and then Windows
+ARM64 from the same tree and version: `PatchyWindowsArm64Installer.exe` and
+`PatchyWindowsArm64NoInstaller.zip` (permanent names, beside the unchanged x64 ones). ARM64 is
+cross-compiled with `windows-arm64-cross-release` (setup in [building.md](building.md#windows-arm64-cross-builds)),
+signed like x64, staged in `build\package\staging-arm64`, and checked by
+`verify-windows-package.ps1 -Arch arm64`, which on an x64 PC skips the two steps that run its
+executables (the headless smoke check and `patchy-mcp --check` are skipped too). A failure
+in the ARM64 half fails the builder after the x64 packages are already built and verified.
+`verify-windows-arm64` (`verify-remote.ps1 -Target windows-arm64`) runs both full suites from
+a native `windows-arm64-opt-dev` build on the `windows-arm64` host (an LTCG link may not fit
+its 16 GB), then copies the two packages there and runs `verify-windows-package.ps1 -Arch
+arm64 -RequireRun -NoDesktop` (package self-test and connector check included; the wizard
+step already ran here). The plug-in hosts stay x86 and x64 in the ARM64 package. ARM64 has
+no PDF import (no qtpdf for ARM64 in Qt 6.8.3), so its `licenses\qt` has no qtpdf notice.
+The installer refuses to run on an x64 or x86 PC (`PatchyArchitecture.txt` in its payload,
+[packaging/windows/README.md](../packaging/windows/README.md)). The first release that ships
+ARM64 adds its rows to the README download table and platform table.
 
 Keep building, publishing, and announcing in this order:
 
@@ -112,7 +133,7 @@ Never announce first: during the draft upload, `latest/download` still resolves 
 
 GitHub Releases is where users download Patchy (issue 26); rtsoft.com stays a permanent mirror. `scripts\release\publish-github-release.bat` (a wrapper over `publish-github-release.ps1`, `nopause`/`NO_PAUSE` convention, `upload-github` target in `release-all-automated.bat`) publishes tag `v<major>.<minor>` with the desktop artifacts under their stable names plus `SHA256SUMS.txt`, and release notes taken from that version's "What's New" entry in `README.md` (or `RELEASE-HISTORY.md` once it has moved). It needs `gh` logged in as the repo owner (`gh auth status`).
 
-- **Stable asset names inside versioned tags.** `README.md`, `latest_version.json`, and the Linux one-liner use `https://github.com/SethRobinson/Patchy/releases/latest/download/<name>` permalinks. Those only resolve because every release uploads the same names (`PatchyWindowsInstaller.exe`, `PatchyWindowsNoInstaller.zip`, `PatchyMacOS.dmg`, `PatchyLinux.flatpak`, `PatchyLinux.AppImage`, `PatchyLinux.AppImage.zsync`); the script renames the versioned `Patchy-<version>.dmg`/`.flatpak`/`-x86_64.AppImage(.zsync)` while staging under `build\github-release\v<version>` and never touches the stable-name staging copies in `build\package` (those belong to the rtsoft upload scripts and are whatever shipped last). Do not rename an asset or drop one: a permalink would 404 and the in-app update check would offer a dead link.
+- **Stable asset names inside versioned tags.** `README.md`, `latest_version.json`, and the Linux one-liner use `https://github.com/SethRobinson/Patchy/releases/latest/download/<name>` permalinks. Those only resolve because every release uploads the same names (`PatchyWindowsInstaller.exe`, `PatchyWindowsNoInstaller.zip`, `PatchyWindowsArm64Installer.exe`, `PatchyWindowsArm64NoInstaller.zip`, `PatchyMacOS.dmg`, `PatchyLinux.flatpak`, `PatchyLinux.AppImage`, `PatchyLinux.AppImage.zsync`); the script renames the versioned `Patchy-<version>.dmg`/`.flatpak`/`-x86_64.AppImage(.zsync)` while staging under `build\github-release\v<version>` and never touches the stable-name staging copies in `build\package` (those belong to the rtsoft upload scripts and are whatever shipped last). Do not rename an asset or drop one: a permalink would 404 and the in-app update check would offer a dead link.
 - **The tag points at the commit the packages were built from.** Without `-Target` the script refuses unless HEAD is clean and equal to `origin/main`, so push first. Build from the committed release state, not from a tree with later edits. For a backfill or republish from saved files, `-Target <full sha>` (a full SHA, as `gh` requires) names a build commit already on `origin/main`, with `-Version` and `-AssetDir`.
 - **Safe from any shell.** The `.bat` resets `PSModulePath` to the Windows PowerShell 5.1 set (the pwsh 7 problem in "Agent/non-interactive runs" below) and the `.ps1` hashes through .NET rather than `Get-FileHash`, so it also runs from pwsh 7 or the Claude terminal, and it fails rather than write a blank hash into `SHA256SUMS.txt`. To replace one asset on a public release by hand: `gh.exe release upload v<version> <file> --clobber`. Write `gh.exe`, not `gh`, in an interactive PowerShell: Seth's profile aliases `gh` to `Get-History`, which fails with "Cannot bind parameter 'Count'". The script removes that alias for itself.
 - **Draft, verify, then publish.** The release is created as a draft (invisible to visitors, and no tag yet), every asset's size is read back and compared with the local file, and only then is it flipped public and marked Latest, which is when GitHub creates the tag. A failure at any point leaves at most a draft; re-running reuses it and re-uploads with `--clobber`. A tag that is already public is never modified: fix forward with a new version. The "it shipped" evidence is the script's `Published v<version>: <url>` line, or `gh release view v<version> --json assets`.

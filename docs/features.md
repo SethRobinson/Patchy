@@ -62,7 +62,7 @@
 
 ## Files, photographs, and multiple documents
 
-- Multiple document interface: tabbed documents that can float in their own windows, Photoshop-style Tile and Cascade arrangement, a Window menu that lists every open document, and layers that drag or duplicate between documents. Open a whole folder of images as tabs (or drop the folder on the window), and export every open document as a numbered image set to a folder
+- Multiple document interface: tabbed documents that can float in their own windows, Tile and Cascade arrangement, a Window menu that lists every open document, and layers that drag or duplicate between documents. Open a whole folder of images as tabs (or drop the folder on the window), and export every open document as a numbered image set to a folder
 - New Document templates in seven groups (screens, phones and tablets, social, web and ads, print paper, photo prints, icons and game art) showing paper sizes in mm or inches, a search across every group, a document name, color mode and bit depth, an optional empty layer above the Background, and saved presets
 - Import multiple files as layers, preserving a layered file's contents in a group, through File > Import, a drop on the Layers panel, or pasted files
 - Scan and Divide Photos separates prints into individual images with editable crop regions, straightening, and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command are available on Windows and macOS
@@ -96,7 +96,7 @@
 
 ## Platforms, privacy, and interface
 
-- Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon), Linux (Flatpak and AppImage), and a browser build. The [platform support table](../README.md#platform-support) lists the differences
+- Cross-platform: Windows (x64, and native ARM64 without PDF import) leads, with native macOS (Apple Silicon), Linux (Flatpak and AppImage) and a browser build; see the [platform support table](../README.md#platform-support)
 - Native C++ and Qt with CPU rendering. Large documents, high bit depths, and Object Selection need more memory and time
 - No telemetry, tracking or image uploads. Optional update checks contact GitHub; one-click updates on Windows and the Linux AppImage and Object Selection's optional High Quality model download files when requested. Settings live in a plain local file; the installer leaves your file associations unchanged
 - File > File Info shows and edits a document's metadata (EXIF, XMP, IPTC, thumbnails, AI generation data), flags information you may not want to share (Don't Show Again hides the notice; Preferences > Metadata and Watermarks restores it) and strips it. PSD and JPEG saves record Patchy, the save dates, color mode and document IDs as Photoshop does, with a fresh thumbnail

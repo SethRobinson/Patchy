@@ -874,6 +874,69 @@ void ui_open_dialog_opens_every_selected_file() {
   }
 }
 
+// Windows ARM64 (docs/auto-update.md): an ARM64 build reads only the "windows-arm64" entry;
+// an x64 build emulated on an ARM64 PC prefers it, so its next update is the native build,
+// and falls back to "windows" while the manifest has no ARM64 entry.
+void update_platform_prefers_windows_arm64_on_arm64_pcs() {
+  using patchy::ui::windows_update_platforms;
+  const auto arm64 = QStringLiteral("windows-arm64");
+  const auto x64 = QStringLiteral("windows");
+  CHECK(windows_update_platforms(false, false) == QStringList{x64});
+  CHECK(windows_update_platforms(false, true) == (QStringList{arm64, x64}));
+  CHECK(windows_update_platforms(true, true) == QStringList{arm64});
+  CHECK(windows_update_platforms(true, false) == QStringList{arm64});
+#if defined(Q_OS_WIN)
+  CHECK(!patchy::ui::current_update_platforms().isEmpty());
+#if defined(Q_PROCESSOR_ARM_64)
+  CHECK(patchy::ui::current_update_platforms() == QStringList{arm64});
+#else
+  CHECK(patchy::ui::current_update_platforms().back() == x64);
+#endif
+  CHECK(patchy::ui::current_update_platform() == patchy::ui::current_update_platforms().front());
+#endif
+
+  const QByteArray both = R"({"platforms": {
+    "windows": {"version": "0.2", "download_url": "https://rtsoft.com/patchy/PatchyWindowsInstaller.exe",
+                "installer_url": "https://rtsoft.com/v0.2/PatchyWindowsInstaller.exe", "installer_size": 100,
+                "installer_sha256": "0000000000000000000000000000000000000000000000000000000000000001"},
+    "windows-arm64": {"version": "0.2",
+                "download_url": "https://rtsoft.com/patchy/PatchyWindowsArm64Installer.exe",
+                "installer_url": "https://rtsoft.com/v0.2/PatchyWindowsArm64Installer.exe", "installer_size": 200,
+                "installer_sha256": "0000000000000000000000000000000000000000000000000000000000000002"}
+  }})";
+  const auto emulated = patchy::ui::inspect_update_manifest(both, windows_update_platforms(false, true),
+                                                            QStringLiteral("0.1"));
+  CHECK(emulated.status == patchy::ui::UpdateCheckStatus::UpdateAvailable);
+  CHECK(emulated.update.has_value());
+  if (emulated.update.has_value()) {
+    CHECK(emulated.update->platform == arm64);
+    CHECK(emulated.update->installer_url ==
+          QUrl(QStringLiteral("https://rtsoft.com/v0.2/PatchyWindowsArm64Installer.exe")));
+    CHECK(emulated.update->installer_size == 200);
+    CHECK(patchy::ui::update_has_installer(*emulated.update));
+  }
+  const auto native_x64 =
+      patchy::ui::inspect_update_manifest(both, windows_update_platforms(false, false), QStringLiteral("0.1"));
+  CHECK(native_x64.update.has_value() && native_x64.update->platform == x64 &&
+        native_x64.update->installer_size == 100);
+  // The same version on both sides is no update, even though it would change architecture.
+  CHECK(patchy::ui::inspect_update_manifest(both, windows_update_platforms(false, true), QStringLiteral("0.2")).status ==
+        patchy::ui::UpdateCheckStatus::NoUpdateAvailable);
+
+  const QByteArray x64_only = R"({"platforms": {
+    "windows": {"version": "0.2", "download_url": "https://rtsoft.com/patchy/PatchyWindowsInstaller.exe"}
+  }})";
+  const auto fallback =
+      patchy::ui::inspect_update_manifest(x64_only, windows_update_platforms(false, true), QStringLiteral("0.1"));
+  CHECK(fallback.update.has_value() && fallback.update->platform == x64);
+  // An ARM64 build never falls back to the x64 installer.
+  const auto arm64_build =
+      patchy::ui::inspect_update_manifest(x64_only, windows_update_platforms(true, true), QStringLiteral("0.1"));
+  CHECK(arm64_build.status == patchy::ui::UpdateCheckStatus::MissingPlatform);
+  CHECK(arm64_build.platform == arm64);
+  CHECK(!arm64_build.update.has_value());
+}
+
 void update_manifest_parser_handles_supported_cases() {
   const QByteArray newer_manifest = R"({
     "platforms": {
@@ -1149,6 +1212,7 @@ void ui_update_manifest_url_honors_environment_override() {
 // manifest to the owner's thread.
 void ui_update_check_fetches_manifest_after_resolving_host() {
   ManifestServer server(R"({"platforms": {"windows": {"version": "9.9", "download_url": "https://rtsoft.com/w.exe"},
+                                          "windows-arm64": {"version": "9.9", "download_url": "https://rtsoft.com/wa.exe"},
                                           "macos": {"version": "9.9", "download_url": "https://rtsoft.com/m.dmg"},
                                           "linux": {"version": "9.9", "download_url": "https://rtsoft.com/l.flatpak"}}})");
   const UpdateManifestUrlOverride override(server.manifest_url());
@@ -1898,6 +1962,7 @@ void ui_update_checks_can_be_switched_off() {
     settings.sync();
   }
   ManifestServer server(R"({"platforms": {"windows": {"version": "9.9", "download_url": "https://rtsoft.com/w.exe"},
+                                          "windows-arm64": {"version": "9.9", "download_url": "https://rtsoft.com/wa.exe"},
                                           "macos": {"version": "9.9", "download_url": "https://rtsoft.com/m.dmg"},
                                           "linux": {"version": "9.9", "download_url": "https://rtsoft.com/l.flatpak"}}})");
   const UpdateManifestUrlOverride override(server.manifest_url());
@@ -2285,6 +2350,7 @@ void ui_update_startup_check_honors_stored_interval() {
   }
   // Nothing newer, so no prompt opens.
   ManifestServer server(R"({"platforms": {"windows": {"version": "0.0.1", "download_url": "https://rtsoft.com/w.exe"},
+                                          "windows-arm64": {"version": "0.0.1", "download_url": "https://rtsoft.com/wa.exe"},
                                           "macos": {"version": "0.0.1", "download_url": "https://rtsoft.com/m.dmg"},
                                           "linux": {"version": "0.0.1", "download_url": "https://rtsoft.com/l.flatpak"}}})");
   const UpdateManifestUrlOverride override(server.manifest_url());
@@ -2458,6 +2524,7 @@ void ui_update_prompt_skip_version_silences_until_a_newer_one() {
 
   const auto manifest = [](const char* version) {
     return QByteArray(R"({"platforms": {"windows": {"version": "V", "download_url": "https://rtsoft.com/w.exe"},
+                                         "windows-arm64": {"version": "V", "download_url": "https://rtsoft.com/wa.exe"},
                                          "macos": {"version": "V", "download_url": "https://rtsoft.com/m.dmg"},
                                          "linux": {"version": "V", "download_url": "https://rtsoft.com/l.flatpak"}}})")
         .replace("V", version);
@@ -3132,6 +3199,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_open_dialog_opens_every_selected_file", ui_open_dialog_opens_every_selected_file},
       {"ui_open_dialog_cancel_remembers_the_folder", ui_open_dialog_cancel_remembers_the_folder},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
+      {"update_platform_prefers_windows_arm64_on_arm64_pcs", update_platform_prefers_windows_arm64_on_arm64_pcs},
       {"ui_background_worker_wait_is_bounded", ui_background_worker_wait_is_bounded},
       {"ui_update_manifest_url_honors_environment_override", ui_update_manifest_url_honors_environment_override},
       {"ui_update_check_fetches_manifest_after_resolving_host", ui_update_check_fetches_manifest_after_resolving_host},

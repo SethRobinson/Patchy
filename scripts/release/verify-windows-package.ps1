@@ -4,11 +4,14 @@
 # unpacked patchy.exe. build-release.bat runs it after signing; it also runs standalone,
 # for example against files downloaded from a published release:
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release\verify-windows-package.ps1
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release\verify-windows-package.ps1 [-Arch arm64]
 #
 # Windows PowerShell 5.1 compatible (the installer's own host). Needs an interactive
-# desktop session for the wizard step and dumpbin for the DLL step (found on PATH, or
-# through scripts\vs-env.bat). See docs/release-process.md, "Release safety checks".
+# desktop session for the wizard step (-NoDesktop skips it, for an ssh session) and dumpbin
+# for the DLL step (found on PATH, or through scripts\vs-env.bat). An ARM64 package checked
+# on an x64 PC skips the two steps that run its executables; verify-remote.ps1 -Target
+# windows-arm64 runs this script with -RequireRun on the ARM64 host. See
+# docs/release-process.md, "Release safety checks".
 [CmdletBinding()]
 param(
     [string]$Installer,
@@ -16,20 +19,30 @@ param(
     # Expected version; defaults to the installer payload's PatchyVersion.txt.
     [string]$Version,
     # Scratch folder, cleared up front. Only a folder this script created is ever cleared.
-    [string]$WorkDir
+    [string]$WorkDir,
+    # The package's processor architecture; picks the default file names and the PE
+    # machine every shipped executable and DLL must have.
+    [ValidateSet("x64", "arm64")]
+    [string]$Arch = "x64",
+    # Skip the wizard step, which needs a desktop (an ssh session has none).
+    [switch]$NoDesktop,
+    # Fail, instead of skipping, when this PC cannot run the package's executables.
+    [switch]$RequireRun
 )
 
 $ErrorActionPreference = "Stop"
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
-if (-not $Installer) { $Installer = Join-Path $repo "build\package\PatchyWindowsInstaller.exe" }
-if (-not $Zip) { $Zip = Join-Path $repo "build\package\PatchyWindowsNoInstaller.zip" }
-if (-not $WorkDir) { $WorkDir = Join-Path $repo "build\package\verify" }
+$assetSuffix = $(if ($Arch -eq "arm64") { "Arm64" } else { "" })
+if (-not $Installer) { $Installer = Join-Path $repo "build\package\PatchyWindows${assetSuffix}Installer.exe" }
+if (-not $Zip) { $Zip = Join-Path $repo "build\package\PatchyWindows${assetSuffix}NoInstaller.zip" }
+if (-not $WorkDir) { $WorkDir = Join-Path $repo $(if ($Arch -eq "arm64") { "build\package\verify-arm64" } else { "build\package\verify" }) }
 $Installer = [IO.Path]::GetFullPath($Installer)
 $Zip = [IO.Path]::GetFullPath($Zip)
 $WorkDir = [IO.Path]::GetFullPath($WorkDir)
 $marker = Join-Path $WorkDir ".patchy-package-verify"
 
 $script:failures = @()
+$script:skipped = @()
 function Write-Step {
     param([bool]$Ok, [string]$Name, [string]$Detail = "")
     $line = $(if ($Ok) { "PASS" } else { "FAIL" }) + "  " + $Name
@@ -37,6 +50,86 @@ function Write-Step {
     Write-Host $line
     if (-not $Ok) { $script:failures += $Name }
 }
+function Write-Skip {
+    param([string]$Name, [string]$Why)
+    Write-Host ("SKIP  " + $Name + ": " + $Why)
+    $script:skipped += $Name
+}
+
+# PE machine types (IMAGE_FILE_MACHINE_*).
+$machineNames = @{ 0x014C = "x86"; 0x8664 = "x64"; 0xAA64 = "arm64" }
+
+# The processor Windows runs on, from IsWow64Process2 (an emulated x64 PowerShell on an
+# ARM64 PC still gets arm64; PROCESSOR_ARCHITECTURE would say AMD64).
+function Get-NativeArchitecture {
+    if (-not ("PatchyVerify.NativeMachine" -as [type])) {
+        Add-Type -Namespace PatchyVerify -Name NativeMachine -MemberDefinition @"
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool IsWow64Process2(IntPtr process, out ushort processMachine, out ushort nativeMachine);
+"@
+    }
+    [UInt16]$processMachine = 0
+    [UInt16]$nativeMachine = 0
+    if (-not [PatchyVerify.NativeMachine]::IsWow64Process2([Diagnostics.Process]::GetCurrentProcess().Handle,
+            [ref]$processMachine, [ref]$nativeMachine)) {
+        return ""
+    }
+    return [string]$machineNames[[int]$nativeMachine]
+}
+
+# The machine field of a PE image's COFF header, as a name ("" when it is not a PE image).
+function Get-PeArchitecture {
+    param([string]$Path)
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $reader = New-Object IO.BinaryReader $stream
+        if ($stream.Length -lt 64 -or $reader.ReadUInt16() -ne 0x5A4D) { return "" }
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadInt32()
+        if ($peOffset -lt 0 -or $peOffset + 6 -gt $stream.Length) { return "" }
+        $stream.Position = $peOffset
+        if ($reader.ReadUInt32() -ne 0x00004550) { return "" }
+        $machine = [int]$reader.ReadUInt16()
+        $sectionCount = [int]$reader.ReadUInt16()
+        $stream.Position = $peOffset + 20
+        $optionalSize = [int]$reader.ReadUInt16()
+        $optionalHeader = $peOffset + 24
+        $stream.Position = $optionalHeader
+        # An x64 image with hybrid (CHPE) metadata in its PE32+ load config is ARM64X: Microsoft's
+        # ARM64 runtime ships vcruntime140_1.dll that way, for ARM64EC and emulated x64 callers.
+        if ($machine -eq 0x8664 -and $reader.ReadUInt16() -eq 0x20B -and $optionalSize -ge 200) {
+            $stream.Position = $optionalHeader + 192
+            $loadConfigRva = $reader.ReadUInt32()
+            $loadConfigSize = $reader.ReadUInt32()
+            if ($loadConfigRva -ne 0 -and $loadConfigSize -ge 0xD0) {
+                for ($i = 0; $i -lt $sectionCount; $i++) {
+                    $stream.Position = $optionalHeader + $optionalSize + 40 * $i + 8
+                    $virtualSize = $reader.ReadUInt32()
+                    $virtualAddress = $reader.ReadUInt32()
+                    $rawSize = $reader.ReadUInt32()
+                    $rawPointer = $reader.ReadUInt32()
+                    if ($loadConfigRva -ge $virtualAddress -and $loadConfigRva -lt $virtualAddress + [Math]::Max($virtualSize, $rawSize)) {
+                        $stream.Position = $rawPointer + ($loadConfigRva - $virtualAddress)
+                        $structSize = $reader.ReadUInt32()
+                        if ($structSize -ge 0xD0) {
+                            $stream.Position = $rawPointer + ($loadConfigRva - $virtualAddress) + 0xC8
+                            if ($reader.ReadUInt64() -ne 0) { return "arm64x" }
+                        }
+                        break
+                    }
+                }
+            }
+        }
+        if ($machineNames.ContainsKey($machine)) { return $machineNames[$machine] }
+        return ("0x{0:X4}" -f $machine)
+    } finally {
+        $stream.Dispose()
+    }
+}
+
+$nativeArch = Get-NativeArchitecture
+# x64 runs natively or emulated everywhere this script runs; arm64 only on an ARM64 PC.
+$canRun = ($Arch -ne "arm64") -or ($nativeArch -eq "arm64")
 
 function Get-Sha256 {
     param([string]$Path)
@@ -109,7 +202,8 @@ Write-Host "      and $Zip"
 
 # 1. Unpack the installer with IExpress's extract-only switches. Nothing is launched.
 $extract = Invoke-Bounded -FilePath $Installer -Arguments ("/Q /C /T:" + (Quote $payloadDir)) -TimeoutSeconds 180
-$payloadFiles = @("InstallPatchy.exe", "InstallPatchy.ps1", "PatchyWindowsNoInstaller.zip", "Patchy.ico", "PatchyVersion.txt", "UninstallPatchy.exe")
+$payloadFiles = @("InstallPatchy.exe", "InstallPatchy.ps1", "PatchyWindowsNoInstaller.zip", "Patchy.ico", "PatchyVersion.txt",
+    "PatchyArchitecture.txt", "UninstallPatchy.exe")
 $missingPayload = @($payloadFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $payloadDir $_) -PathType Leaf) })
 $payloadOk = (-not $extract.TimedOut) -and ($extract.ExitCode -eq 0) -and ($missingPayload.Count -eq 0)
 Write-Step $payloadOk "installer payload unpacks" $(if ($extract.TimedOut) { "timed out" } elseif ($missingPayload.Count) { "missing " + ($missingPayload -join ", ") } elseif ($extract.ExitCode -ne 0) { "exit code " + $extract.ExitCode } else { "" })
@@ -122,14 +216,28 @@ Write-Step $sameZip "installer payload matches the portable zip"
 $payloadVersion = (Get-Content -LiteralPath (Join-Path $payloadDir "PatchyVersion.txt") -Raw).Trim()
 if (-not $Version) { $Version = $payloadVersion }
 Write-Step ($payloadVersion -eq $Version) "installer version is $Version" $(if ($payloadVersion -ne $Version) { "payload says " + $payloadVersion } else { "" })
+$payloadArch = (Get-Content -LiteralPath (Join-Path $payloadDir "PatchyArchitecture.txt") -Raw).Trim()
+Write-Step ($payloadArch -eq $Arch) "installer payload is $Arch" $(if ($payloadArch -ne $Arch) { "payload says " + $payloadArch } else { "" })
 
 # 3. The wizard builds and shows: the unpacked script with the launcher's own arguments
 #    (packaging\windows\InstallPatchyLauncher.cs) plus -SmokeTest, which never installs.
-$wizardArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File " + (Quote (Join-Path $payloadDir "InstallPatchy.ps1")) +
-    " -PayloadZip " + (Quote $payloadZip) + " -Version " + (Quote $payloadVersion) + " -SmokeTest"
-$wizard = Invoke-Bounded -FilePath $powershellExe -Arguments $wizardArgs -TimeoutSeconds 60 -WorkingDirectory $payloadDir
-$wizardOk = (-not $wizard.TimedOut) -and ($wizard.ExitCode -eq 0) -and ($wizard.Output -match "smoke test passed")
-Write-Step $wizardOk "installer wizard smoke test" $(if ($wizard.TimedOut) { "timed out (a dialog is probably waiting)" } elseif (-not $wizardOk) { "exit code " + $wizard.ExitCode + "; " + $wizard.Output } else { "" })
+if ($NoDesktop) {
+    Write-Skip "installer wizard smoke test" "-NoDesktop (no desktop session)"
+} else {
+    $wizardArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -STA -File " + (Quote (Join-Path $payloadDir "InstallPatchy.ps1")) +
+        " -PayloadZip " + (Quote $payloadZip) + " -Version " + (Quote $payloadVersion) + " -SmokeTest"
+    $wizard = Invoke-Bounded -FilePath $powershellExe -Arguments $wizardArgs -TimeoutSeconds 60 -WorkingDirectory $payloadDir
+    $wizardOk = (-not $wizard.TimedOut) -and ($wizard.ExitCode -eq 0) -and ($wizard.Output -match "smoke test passed")
+    Write-Step $wizardOk "installer wizard smoke test" $(if ($wizard.TimedOut) { "timed out (a dialog is probably waiting)" } elseif (-not $wizardOk) { "exit code " + $wizard.ExitCode + "; " + $wizard.Output } else { "" })
+}
+
+# 3a. The processor rule: an ARM64 payload refuses an x64 or x86 PC before installing
+#     anything (InstallPatchy.ps1 -ArchitectureCheck tests the rule; nothing installs).
+$archArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File " + (Quote (Join-Path $payloadDir "InstallPatchy.ps1")) +
+    " -PayloadZip " + (Quote $payloadZip) + " -ArchitectureCheck"
+$archCheck = Invoke-Bounded -FilePath $powershellExe -Arguments $archArgs -TimeoutSeconds 60 -WorkingDirectory $payloadDir
+$archOk = (-not $archCheck.TimedOut) -and ($archCheck.ExitCode -eq 0) -and ($archCheck.Output -match "architecture check passed \(payload $Arch,")
+Write-Step $archOk "installer processor rule" $(if ($archCheck.TimedOut) { "timed out" } elseif (-not $archOk) { "exit code " + $archCheck.ExitCode + "; " + $archCheck.Output } else { "" })
 
 # 3b. The "Open with" registration, written under a scratch key so the real
 #     HKCU:\Software\Classes tree is never touched, then removed again.
@@ -219,6 +327,21 @@ Write-Step $metadataOk "executable display name and version" $(if (-not $metadat
     "description='$($appVersion.FileDescription)', product='$($appVersion.ProductName)', file version='$($appVersion.FileVersion)', product version='$($appVersion.ProductVersion)', original name='$($appVersion.OriginalFilename)'"
 } else { "" })
 
+# 4c. Every shipped executable and DLL is built for the package's processor, except the two
+#     legacy plug-in hosts: plug-ins are x86 and x64 code, so those hosts stay x86 and x64
+#     in every package (docs/plugin-host.md).
+$expectedMachine = @{ "patchy-8bf-host32.exe" = "x86"; "patchy-8bf-host64.exe" = "x64" }
+$wrongMachine = @()
+$peFiles = @(Get-ChildItem -LiteralPath $appDir -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll" })
+foreach ($file in $peFiles) {
+    $want = $(if ($expectedMachine.ContainsKey($file.Name.ToLowerInvariant())) { $expectedMachine[$file.Name.ToLowerInvariant()] } else { $Arch })
+    $have = Get-PeArchitecture $file.FullName
+    # An ARM64X image runs natively for both x64 and ARM64 callers.
+    if ($have -eq "arm64x" -and $want -ne "x86") { continue }
+    if ($have -ne $want) { $wrongMachine += ($file.FullName.Substring($prefix.Length) + " is " + $have + ", not " + $want) }
+}
+Write-Step ($wrongMachine.Count -eq 0) "binaries are $Arch ($($peFiles.Count) files; plug-in hosts x86 and x64)" (($wrongMachine | Select-Object -First 6) -join "; ")
+
 # 5. The tree is self-contained. Every import of every executable and DLL must be in the
 #    tree or be part of Windows. Redistributables found only in System32 do not count: the
 #    dev box has them, a clean machine does not.
@@ -226,7 +349,10 @@ $dumpbin = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue | Select-Objec
 if (-not $dumpbin) {
     $vsEnv = Join-Path $repo "scripts\vs-env.bat"
     if (Test-Path -LiteralPath $vsEnv -PathType Leaf) {
-        $found = & cmd.exe /s /c ('"' + $vsEnv + '" -arch=x64 -host_arch=x64 >nul 2>&1 && where dumpbin.exe') 2>$null
+        # dumpbin reads any architecture's images; take the tools native to this PC (an ARM64
+        # build host may have no x64-hosted ones).
+        $toolArch = $(if ($nativeArch -eq "arm64") { "arm64" } else { "x64" })
+        $found = & cmd.exe /s /c ('"' + $vsEnv + '" -arch=' + $toolArch + ' -host_arch=' + $toolArch + ' >nul 2>&1 && where dumpbin.exe') 2>$null
         $dumpbin = @($found | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) })[0]
     }
 }
@@ -260,11 +386,21 @@ if (-not $dumpbin) {
 $selfTestScript = Join-Path $repo "packaging\package-selftest.js"
 $selfTestOutput = Join-Path $selfTestDir "output.txt"
 $fixturePlugins = Join-Path $repo "local-test-fixtures\photoshop-plugins\filter-foundry"
+if (-not $canRun) {
+    $why = "this PC is " + $(if ($nativeArch) { $nativeArch } else { "of unknown architecture" }) + "; run on an ARM64 PC (verify-remote.ps1 -Target windows-arm64)"
+    if ($RequireRun) {
+        Write-Step $false "unpacked patchy.exe passes the package self-test" $why
+        Write-Step $false "unpacked patchy-mcp.exe --check" $why
+    } else {
+        Write-Skip "unpacked patchy.exe passes the package self-test" $why
+        Write-Skip "unpacked patchy-mcp.exe --check" $why
+    }
+}
 $savedEnv = @{}
 foreach ($name in "PATH", "PATCHY_SETTINGS_DIR", "PATCHY_NO_SOUND", "QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES") {
     $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
 }
-try {
+if ($canRun) { try {
     $env:PATH = $system32 + ";" + $env:WINDIR
     $env:PATCHY_SETTINGS_DIR = Join-Path $selfTestDir "settings"
     $env:PATCHY_NO_SOUND = "1"
@@ -274,6 +410,10 @@ try {
         " --script-arg " + (Quote ("work=" + (Join-Path $selfTestDir "work"))) + " --script-arg " + (Quote ("version=" + $Version))
     if (Test-Path -LiteralPath $fixturePlugins -PathType Container) {
         $appArgs += " --script-arg " + (Quote ("plugins=" + $fixturePlugins))
+    }
+    if ($Arch -eq "arm64") {
+        # Qt 6.8.3 has no PDF module for ARM64: PDF is written, never opened.
+        $appArgs += " --script-arg pdfopen=0"
     }
     $run = Invoke-Bounded -FilePath (Join-Path $appDir "patchy.exe") -Arguments $appArgs -TimeoutSeconds 240 -WorkingDirectory $appDir
     $outputLines = @()
@@ -295,7 +435,7 @@ try {
     Write-Step ((-not $connector.TimedOut) -and ($connector.ExitCode -eq 0)) "unpacked patchy-mcp.exe --check" $(if ($connector.TimedOut) { "timed out" } elseif ($connector.ExitCode -ne 0) { "exit code " + $connector.ExitCode } else { "" })
 } finally {
     foreach ($name in $savedEnv.Keys) { [Environment]::SetEnvironmentVariable($name, $savedEnv[$name], "Process") }
-}
+} }
 
 if ($script:failures.Count -gt 0) {
     Write-Host ""
@@ -303,5 +443,9 @@ if ($script:failures.Count -gt 0) {
     exit 1
 }
 Write-Host ""
-Write-Host "Windows package verification passed."
+if ($script:skipped.Count -gt 0) {
+    Write-Host "Windows $Arch package verification passed with $($script:skipped.Count) step(s) skipped: $($script:skipped -join '; ')"
+} else {
+    Write-Host "Windows $Arch package verification passed."
+}
 exit 0

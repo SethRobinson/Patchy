@@ -9,6 +9,27 @@ rem sure REPO really is this repository first (AGENTS.md, destructive deletes).
 if not defined REPO goto fail
 if not exist "%REPO%\CMakeLists.txt" goto fail
 
+rem Architecture (docs/release-process.md): no argument, or "all", packages x64 and then
+rem Windows ARM64, each by a run of this script with that argument; "x64" or "arm64"
+rem packages one. Both are built on this x64 PC: ARM64 is cross-compiled
+rem (windows-arm64-cross-release) and its executables are run by verify-remote.ps1
+rem -Target windows-arm64 on the ARM64 host.
+set "PATCHY_ARCH=%~1"
+if not defined PATCHY_ARCH set "PATCHY_ARCH=all"
+if /i "%PATCHY_ARCH%"=="all" (
+  call "%~f0" x64
+  if not "!ERRORLEVEL!"=="0" goto fail
+  call "%~f0" arm64
+  if not "!ERRORLEVEL!"=="0" goto fail
+  popd
+  exit /b 0
+)
+if /i not "%PATCHY_ARCH%"=="x64" if /i not "%PATCHY_ARCH%"=="arm64" (
+  echo Unknown architecture "%PATCHY_ARCH%" ^(expected x64, arm64, or all^).
+  goto fail
+)
+if /i "%PATCHY_ARCH%"=="arm64" (set "PATCHY_ARCH=arm64") else set "PATCHY_ARCH=x64"
+
 set "CMAKE_EXE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"
 set "CSC_EXE=%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
@@ -21,11 +42,42 @@ set "SIGNTOOL_EXE=C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\si
 set "IEXPRESS_EXE=%SystemRoot%\System32\iexpress.exe"
 if not exist "%IEXPRESS_EXE%" set "IEXPRESS_EXE=iexpress.exe"
 
-set "QT_PREFIX=%PATCHY_QT_PREFIX%"
-if not defined QT_PREFIX set "QT_PREFIX=%REPO%\.deps\Qt\6.8.3\msvc2022_64"
-set "WINDEPLOYQT=%QT_PREFIX%\bin\windeployqt.exe"
+rem QT_HOST_PREFIX is the x64 kit: the whole Qt of an x64 package, and the host tools
+rem (windeployqt, lrelease, moc) of an ARM64 one, whose kit holds only target files.
+set "QT_HOST_PREFIX=%PATCHY_QT_PREFIX%"
+if not defined QT_HOST_PREFIX set "QT_HOST_PREFIX=%REPO%\.deps\Qt\6.8.3\msvc2022_64"
+set "WINDEPLOYQT=%QT_HOST_PREFIX%\bin\windeployqt.exe"
+set "QT_PREFIX=%QT_HOST_PREFIX%"
 set "QTPATHS=%QT_PREFIX%\bin\qtpaths.exe"
 if not exist "%QTPATHS%" set "QTPATHS=%QT_PREFIX%\bin\qtpaths6.exe"
+set "WINDEPLOYQT_TARGET="
+set "PRESET=release"
+set "BUILD_DIR=%REPO%\build\release"
+set "PACKAGE_SUFFIX="
+set "STAGING_NAME=staging"
+set "INSTALLER_WORK_NAME=installer"
+set "VERIFY_WORK_NAME=verify"
+set "QT_SBOM_MODULES=qtbase qtimageformats qtsvg qtpdf"
+set "CONFIGURE_EXTRA="
+rem The ARM64 kit, aqt's win64_msvc2022_arm64_cross_compiled per docs/building.md, has no
+rem qtpdf: PDF import is the stub there and its SPDX notice is not shipped. cmd.exe is
+rem native on every Windows, so PROCESSOR_ARCHITECTURE names the real processor here; an
+rem emulated x64 process would see AMD64, which is why Patchy itself never reads it.
+set "CAN_RUN_PACKAGE=1"
+if /i "%PATCHY_ARCH%"=="arm64" (
+  set "QT_PREFIX=%REPO%\.deps\Qt\6.8.3\msvc2022_arm64"
+  set "QTPATHS=%REPO%\.deps\Qt\6.8.3\msvc2022_arm64\bin\qtpaths.bat"
+  set "WINDEPLOYQT_TARGET=--qtpaths "%REPO%\.deps\Qt\6.8.3\msvc2022_arm64\bin\qtpaths.bat""
+  set "PRESET=windows-arm64-cross-release"
+  set "BUILD_DIR=%REPO%\build\windows-arm64-cross-release"
+  set "PACKAGE_SUFFIX=Arm64"
+  set "STAGING_NAME=staging-arm64"
+  set "INSTALLER_WORK_NAME=installer-arm64"
+  set "VERIFY_WORK_NAME=verify-arm64"
+  set "QT_SBOM_MODULES=qtbase qtimageformats qtsvg"
+  set "CONFIGURE_EXTRA=-DQT_HOST_PATH=%QT_HOST_PREFIX:\=/%"
+  if /i not "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "CAN_RUN_PACKAGE=0"
+)
 
 if not exist "%WINDEPLOYQT%" (
   echo windeployqt.exe was not found at "%WINDEPLOYQT%".
@@ -34,27 +86,33 @@ if not exist "%WINDEPLOYQT%" (
 )
 
 if not exist "%QTPATHS%" (
-  echo qtpaths.exe was not found under "%QT_PREFIX%\bin".
-  echo Set PATCHY_QT_PREFIX to a complete Qt 6 MSVC x64 install and run this script again.
+  echo qtpaths was not found under "%QT_PREFIX%\bin".
+  if /i "%PATCHY_ARCH%"=="arm64" (
+    echo Install the ARM64 kit as docs/building.md describes ^("Windows ARM64 cross builds"^).
+  ) else (
+    echo Set PATCHY_QT_PREFIX to a complete Qt 6 MSVC x64 install and run this script again.
+  )
   goto fail
 )
 
-call "%REPO%\scripts\vs-env.bat" -arch=x64 -host_arch=x64 >nul
+call "%REPO%\scripts\vs-env.bat" -arch=%PATCHY_ARCH% -host_arch=x64 >nul
 if not "!ERRORLEVEL!"=="0" goto fail
 
 if not defined PATCHY_PACKAGE_VERSION (
   for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$text = Get-Content -Raw -LiteralPath 'CMakeLists.txt'; $match = [regex]::Match($text, 'project\s*\([\s\S]*?\bVERSION\s+([0-9]+(?:\.[0-9]+){1,3})', [Text.RegularExpressions.RegexOptions]::IgnoreCase); if ($match.Success) { $match.Groups[1].Value } else { '0.0.0' }"`) do set "PATCHY_PACKAGE_VERSION=%%V"
 )
 
-set "BUILD_DIR=%REPO%\build\release"
 set "PACKAGE_ROOT=%REPO%\build\package"
 set "PACKAGE_NAME=Patchy"
-set "STAGE_DIR=%PACKAGE_ROOT%\staging\%PACKAGE_NAME%"
-set "ZIP_FILE_NAME=PatchyWindowsNoInstaller.zip"
+set "STAGE_DIR=%PACKAGE_ROOT%\%STAGING_NAME%\%PACKAGE_NAME%"
+rem Release asset names (permanent: the update manifest and the download links use them).
+set "ZIP_FILE_NAME=PatchyWindows%PACKAGE_SUFFIX%NoInstaller.zip"
 set "ZIP_PATH=%PACKAGE_ROOT%\%ZIP_FILE_NAME%"
+rem Inside the installer the zip keeps the x64 name: InstallPatchyLauncher.cs looks for it.
+set "PAYLOAD_ZIP_NAME=PatchyWindowsNoInstaller.zip"
 set "LEGACY_ZIP_PATH=%PACKAGE_ROOT%\PatchyWindows.zip"
-set "INSTALLER_PATH=%PACKAGE_ROOT%\PatchyWindowsInstaller.exe"
-set "INSTALLER_WORK_DIR=%PACKAGE_ROOT%\installer"
+set "INSTALLER_PATH=%PACKAGE_ROOT%\PatchyWindows%PACKAGE_SUFFIX%Installer.exe"
+set "INSTALLER_WORK_DIR=%PACKAGE_ROOT%\%INSTALLER_WORK_NAME%"
 set "INSTALLER_PAYLOAD_DIR=%INSTALLER_WORK_DIR%\payload"
 set "INSTALLER_SED_PATH=%INSTALLER_WORK_DIR%\PatchyWindowsInstaller.sed"
 set "WINDOWS_PACKAGING_DIR=%REPO%\packaging\windows"
@@ -81,14 +139,14 @@ for %%E in (patchy.exe patchy-mcp.exe patchy-8bf-host32.exe patchy-8bf-host64.ex
   )
 )
 
-echo Configuring release build...
-"%CMAKE_EXE%" --preset release -DPATCHY_BUILD_APP=ON -DPATCHY_REQUIRE_AI_SELECTION=ON -DPATCHY_GMIC_THREADS=ON -DCMAKE_PREFIX_PATH="%QT_PREFIX%"
+echo Configuring %PATCHY_ARCH% release build ^(preset %PRESET%^)...
+"%CMAKE_EXE%" --preset %PRESET% -DPATCHY_BUILD_APP=ON -DPATCHY_REQUIRE_AI_SELECTION=ON -DPATCHY_GMIC_THREADS=ON -DCMAKE_PREFIX_PATH="%QT_PREFIX%" %CONFIGURE_EXTRA%
 if not "!ERRORLEVEL!"=="0" goto fail
 
-echo Building release preset...
-"%CMAKE_EXE%" --build --preset release --target patchy_refresh_build_stamp
+echo Building %PRESET% preset...
+"%CMAKE_EXE%" --build --preset %PRESET% --target patchy_refresh_build_stamp
 if not "!ERRORLEVEL!"=="0" goto fail
-"%CMAKE_EXE%" --build --preset release
+"%CMAKE_EXE%" --build --preset %PRESET%
 if not "!ERRORLEVEL!"=="0" goto fail
 
 if not exist "%APP_EXE%" (
@@ -101,7 +159,7 @@ if not exist "%BUILD_DIR%\patchy-mcp.exe" (
 )
 
 echo Deploying Qt runtime...
-"%WINDEPLOYQT%" --release "%APP_EXE%"
+"%WINDEPLOYQT%" %WINDEPLOYQT_TARGET% --release "%APP_EXE%"
 if not "!ERRORLEVEL!"=="0" goto fail
 
 call :SignReleaseExe
@@ -150,7 +208,7 @@ if not exist "%BUILD_DIR%\ai-models\mobile_sam_image_encoder_int8.onnx" (
   goto fail
 )
 xcopy /E /I /Y "%BUILD_DIR%\ai-models" "%STAGE_DIR%\ai-models" >nul || goto fail
-"%WINDEPLOYQT%" --release ^
+"%WINDEPLOYQT%" %WINDEPLOYQT_TARGET% --release ^
   --dir "%STAGE_DIR%" ^
   --no-compiler-runtime ^
   --no-translations ^
@@ -170,7 +228,7 @@ for %%F in (
 ) do (
   if exist "%%~fF" del /q "%%~fF"
 )
-if exist "%STAGE_DIR%\vc_redist.x64.exe" del /q "%STAGE_DIR%\vc_redist.x64.exe"
+for %%R in ("%STAGE_DIR%\vc_redist.*.exe") do del /q "%%~fR"
 
 call :CopyRequiredImageFormatPlugins
 if not "!ERRORLEVEL!"=="0" goto fail
@@ -203,10 +261,15 @@ if not exist "%STAGE_DIR%\licenses\gmic" mkdir "%STAGE_DIR%\licenses\gmic" || go
 copy /Y "%REPO%\src\filters\gmic\COPYING" "%STAGE_DIR%\licenses\gmic\gmic-COPYING.txt" >nul || goto fail
 copy /Y "%REPO%\src\filters\gmic\pocketfft\LICENSE.md" "%STAGE_DIR%\licenses\gmic\pocketfft-LICENSE.md" >nul || goto fail
 
-call :HeadlessSmokeCheck
-if not "!ERRORLEVEL!"=="0" goto fail
-"%STAGE_DIR%\patchy-mcp.exe" --check
-if not "!ERRORLEVEL!"=="0" goto fail
+if "%CAN_RUN_PACKAGE%"=="1" (
+  call :HeadlessSmokeCheck
+  if not "!ERRORLEVEL!"=="0" goto fail
+  "%STAGE_DIR%\patchy-mcp.exe" --check
+  if not "!ERRORLEVEL!"=="0" goto fail
+) else (
+  echo Skipping the headless smoke check and patchy-mcp --check: ARM64 executables do not run on this PC.
+  echo scripts\release\verify-remote.ps1 -Target windows-arm64 runs them on the ARM64 host.
+)
 
 echo Writing install manifest...
 set "PATCHY_INSTALL_MANIFEST=%STAGE_DIR%\PatchyInstallManifest.txt"
@@ -242,7 +305,7 @@ rem wizard's smoke mode, a self-contained DLL check, and packaging\package-selft
 rem on the unpacked patchy.exe. A package that fails is moved aside so the upload
 rem scripts can never publish it (issue 55 shipped an installer nobody had run).
 echo Verifying the built packages...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\release\verify-windows-package.ps1" -Installer "%INSTALLER_PATH%" -Zip "%ZIP_PATH%" -Version "%PATCHY_PACKAGE_VERSION%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\release\verify-windows-package.ps1" -Arch %PATCHY_ARCH% -Installer "%INSTALLER_PATH%" -Zip "%ZIP_PATH%" -Version "%PATCHY_PACKAGE_VERSION%" -WorkDir "%PACKAGE_ROOT%\%VERIFY_WORK_NAME%"
 if not "!ERRORLEVEL!"=="0" goto rejectpackage
 
 echo Release installer created: "%INSTALLER_PATH%"
@@ -379,7 +442,8 @@ if not exist "%MSVC_REDIST_ROOT%" (
 )
 
 set "PATCHY_MSVC_REDIST_ROOT=%MSVC_REDIST_ROOT%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = [IO.Path]::GetFullPath($env:PATCHY_MSVC_REDIST_ROOT); $stage = [IO.Path]::GetFullPath($env:PATCHY_STAGE_DIR); $crt = Get-ChildItem -LiteralPath $root -Directory | ForEach-Object { Get-ChildItem -Path (Join-Path $_.FullName 'x64\Microsoft.VC*.CRT') -Directory -ErrorAction SilentlyContinue } | Sort-Object FullName -Descending | Select-Object -First 1; if ($null -eq $crt) { Write-Error ('No x64 Microsoft.VC*.CRT directory found under ' + $root); exit 1 }; $files = Get-ChildItem -LiteralPath $crt.FullName -Filter '*.dll' -File | Sort-Object Name; if ($files.Count -eq 0) { Write-Error ('No MSVC runtime DLLs found under ' + $crt.FullName); exit 1 }; foreach ($file in $files) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $stage $file.Name) -Force }; $omp = Get-ChildItem -Path (Join-Path $crt.Parent.FullName 'Microsoft.VC*.OpenMP') -Directory -ErrorAction SilentlyContinue | Select-Object -First 1; if ($null -eq $omp) { Write-Error ('No Microsoft.VC*.OpenMP directory found beside ' + $crt.FullName); exit 1 }; $ompFiles = Get-ChildItem -LiteralPath $omp.FullName -Filter '*.dll' -File; if ($ompFiles.Count -eq 0) { Write-Error ('No OpenMP runtime DLL found under ' + $omp.FullName); exit 1 }; foreach ($file in $ompFiles) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $stage $file.Name) -Force }"
+set "PATCHY_CRT_ARCH=%PATCHY_ARCH%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = [IO.Path]::GetFullPath($env:PATCHY_MSVC_REDIST_ROOT); $stage = [IO.Path]::GetFullPath($env:PATCHY_STAGE_DIR); $arch = $env:PATCHY_CRT_ARCH; $crt = Get-ChildItem -LiteralPath $root -Directory | ForEach-Object { Get-ChildItem -Path (Join-Path $_.FullName ($arch + '\Microsoft.VC*.CRT')) -Directory -ErrorAction SilentlyContinue } | Sort-Object FullName -Descending | Select-Object -First 1; if ($null -eq $crt) { Write-Error ('No ' + $arch + ' Microsoft.VC*.CRT directory found under ' + $root); exit 1 }; $files = Get-ChildItem -LiteralPath $crt.FullName -Filter '*.dll' -File | Sort-Object Name; if ($files.Count -eq 0) { Write-Error ('No MSVC runtime DLLs found under ' + $crt.FullName); exit 1 }; foreach ($file in $files) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $stage $file.Name) -Force }; $omp = Get-ChildItem -Path (Join-Path $crt.Parent.FullName 'Microsoft.VC*.OpenMP') -Directory -ErrorAction SilentlyContinue | Select-Object -First 1; if ($null -eq $omp) { Write-Error ('No Microsoft.VC*.OpenMP directory found beside ' + $crt.FullName); exit 1 }; $ompFiles = Get-ChildItem -LiteralPath $omp.FullName -Filter '*.dll' -File; if ($ompFiles.Count -eq 0) { Write-Error ('No OpenMP runtime DLL found under ' + $omp.FullName); exit 1 }; foreach ($file in $ompFiles) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $stage $file.Name) -Force }"
 exit /b %ERRORLEVEL%
 
 :CopyTranslations
@@ -430,7 +494,7 @@ set "QT_SBOM_DIR=%QT_PREFIX%\sbom"
 set "QT_LICENSE_DIR=%STAGE_DIR%\licenses\qt"
 if not exist "%QT_LICENSE_DIR%" mkdir "%QT_LICENSE_DIR%" || exit /b 1
 
-for %%M in (qtbase qtimageformats qtsvg qtpdf) do (
+for %%M in (%QT_SBOM_MODULES%) do (
   set "QT_SBOM_FILE=%QT_SBOM_DIR%\%%M-%QT_VERSION%.spdx"
   if not exist "!QT_SBOM_FILE!" (
     echo Required Qt license SBOM was not found: "!QT_SBOM_FILE!".
@@ -475,14 +539,17 @@ if exist "%INSTALLER_WORK_DIR%" exit /b 1
 mkdir "%INSTALLER_PAYLOAD_DIR%" || exit /b 1
 
 set "PATCHY_INSTALLER_PAYLOAD_DIR=%INSTALLER_PAYLOAD_DIR%\"
-copy /Y "%ZIP_PATH%" "%INSTALLER_PAYLOAD_DIR%\%ZIP_FILE_NAME%" >nul || exit /b 1
+copy /Y "%ZIP_PATH%" "%INSTALLER_PAYLOAD_DIR%\%PAYLOAD_ZIP_NAME%" >nul || exit /b 1
 copy /Y "%WINDOWS_PACKAGING_DIR%\InstallPatchy.ps1" "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.ps1" >nul || exit /b 1
 copy /Y "%APP_ICON%" "%INSTALLER_PAYLOAD_DIR%\Patchy.ico" >nul || exit /b 1
 rem The wizard draws its logo from that icon; a frame the installer's PowerShell cannot
 rem decode used to stop setup at its first window (issue 55).
-powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.ps1" -PayloadZip "%INSTALLER_PAYLOAD_DIR%\%ZIP_FILE_NAME%" -CheckLogo
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.ps1" -PayloadZip "%INSTALLER_PAYLOAD_DIR%\%PAYLOAD_ZIP_NAME%" -CheckLogo
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-Content -LiteralPath (Join-Path $env:PATCHY_INSTALLER_PAYLOAD_DIR 'PatchyVersion.txt') -Value $env:PATCHY_PACKAGE_VERSION -Encoding ASCII"
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
+rem InstallPatchy.ps1 reads this to refuse an ARM64 payload on an x64 or x86 PC.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-Content -LiteralPath (Join-Path $env:PATCHY_INSTALLER_PAYLOAD_DIR 'PatchyArchitecture.txt') -Value $env:PATCHY_ARCH -Encoding ASCII"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 "%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /reference:System.Windows.Forms.dll /out:"%INSTALLER_PAYLOAD_DIR%\InstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\InstallPatchyLauncher.cs"

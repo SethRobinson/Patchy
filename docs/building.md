@@ -118,7 +118,17 @@ AGENTS.md gives the handoff command and the short rules; these are the details b
 - The version comes from the generated `patchy_version.hpp` (`cmake/patchy_version.hpp.in`), included only where used. Never make it a target-wide define: that recompiles all of `patchy_ui` on every version change.
 - A running `patchy.exe` or `patchy-mcp.exe` in any build folder does not block the link: a PRE_LINK step renames it aside as `<name>.stale-<stamp>.exe`. Never kill either process (Seth may have unsaved work) and never package a `.stale-` file.
 - Batch files compare exit codes against 0, never `if errorlevel 1`: a failed link exits negative.
-- A git worktree has no `.deps`: configure its preset once with `--preset opt-dev -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64` (`--preset release` the same way for a release build); the build command is unchanged.
+- A git worktree has no `.deps`: configure its preset once with `--preset opt-dev -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64` (`--preset release` the same way for a release build); the build command is unchanged. The ARM64 cross presets also name a toolchain file under `.deps`, so give such a worktree a `.deps` junction to the main checkout's instead (remove it with plain `rmdir` before `git worktree remove`).
+
+### Windows ARM64 cross builds
+
+`windows-arm64-cross-release` (packaging) and `windows-arm64-cross-opt-dev` build ARM64 Patchy on the x64 dev box, in `build\<preset>`. Enter `scripts\vs-env.bat -arch=arm64 -host_arch=x64` before configuring and building. One-time setup:
+
+- The VS component `Microsoft.VisualStudio.Component.VC.Tools.ARM64` (the x64-hosted ARM64 compiler, `bin\Hostx64\arm64`). A passive `setup.exe modify --add` must run elevated.
+- The Qt kit: `aqt install-qt windows desktop 6.8.3 win64_msvc2022_arm64_cross_compiled -m qtimageformats -O <absolute path to .deps\Qt>` (Qt 6.8.3 has no qtpdf for ARM64: PDF import is the stub). With a relative `-O`, aqt writes the host path into `bin\qtpaths.bat` and `qmake.bat` relative to the current folder; those lines must read `"%~dp0..\..\msvc2022_64\bin\qtpaths6.exe"`. The kit holds target files only: the presets pass `QT_HOST_PATH` (the x64 kit, for moc, lrelease and windeployqt) and the kit's `qt.toolchain.cmake`, which sets `CMAKE_SYSTEM_PROCESSOR=arm64` (`cmake/patchy_ai.cmake` picks `win-arm64` ONNX Runtime from it).
+- `scripts\setup-ai-deps.ps1 -Platform win-arm64`.
+
+A cross build cannot run what it builds: it skips the translation runtime check that gates `patchy` and `patchy-mcp` (the x64 build of the same tree runs it). The suites run on the ARM64 host from a native `windows-arm64-opt-dev` build ("Windows ARM64" below). The two plug-in hosts link the static C++ runtime (`src/plugins/host/CMakeLists.txt`), because the app-local `MSVCP140.dll` beside them is ARM64.
 
 ## MSVC Release codegen
 
@@ -278,7 +288,7 @@ Create local Windows release artifacts:
 scripts\release\build-release.bat
 ```
 
-The script configures and builds the `release` preset, signs `patchy.exe`, `patchy-mcp.exe`, the two legacy plug-in hosts, the installer helper executables, and the installer (signing is required; `PATCHY_ALLOW_UNSIGNED=1` allows a deliberately unsigned local build), deploys the minimum Qt runtime needed by the current app, copies third-party notices, and creates:
+With no argument the script packages x64 and then Windows ARM64 (`build-release.bat x64` or `arm64` packages one; [release-process.md](release-process.md#windows-arm64-packages)). For x64 it configures and builds the `release` preset, signs `patchy.exe`, `patchy-mcp.exe`, the two legacy plug-in hosts, the installer helper executables, and the installer (signing is required; `PATCHY_ALLOW_UNSIGNED=1` allows a deliberately unsigned local build), deploys the minimum Qt runtime needed by the current app, copies third-party notices, and creates:
 
 ```text
 build\package\PatchyWindowsNoInstaller.zip

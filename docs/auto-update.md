@@ -95,6 +95,26 @@ version: neither raises a prompt.
 8. The updated copy deletes the downloaded installer 30 seconds after startup
    (`remove_update_download`, by exact file name, then the empty folder).
 
+## Windows ARM64
+
+The manifest's `windows-arm64` entry (a permanent key, never a rename of `windows`) has the
+same keys as `windows` and names the ARM64 installer (`PatchyWindowsArm64Installer.exe`).
+`current_update_platforms()` (`update_checker.cpp`) lists the entries a build reads, first
+match wins (`inspect_update_manifest` with a list):
+
+- An ARM64 build reads `windows-arm64` only. Without that entry the check reports
+  `MissingPlatform`: an ARM64 copy is never offered the x64 installer.
+- An x64 build on an ARM64 PC (Windows runs it emulated) reads `windows-arm64` first, so its
+  next update installs the native build into the same folder, and `windows` while the
+  manifest has no ARM64 entry. The PC's processor comes from `IsWow64Process2`'s native
+  machine, never `PROCESSOR_ARCHITECTURE`, which says AMD64 inside an emulated process.
+- Any other x64 build reads `windows`. Builds older than this rule read only `windows`.
+
+A same-version ARM64 entry is no update: the move happens with the next version. The ARM64
+installer refuses an x64 or x86 PC before touching anything
+([packaging/windows/README.md](../packaging/windows/README.md)). Test:
+`update_platform_prefers_windows_arm64_on_arm64_pcs`.
+
 ## Switching it off from the manifest
 
 If a release's self-update turns out to be broken, edit `latest_version.json` on `main`; no

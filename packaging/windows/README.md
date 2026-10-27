@@ -46,6 +46,12 @@ The zip does not include build files, tests, test fixtures, Qt translations for 
 
 The installer copies a signed `UninstallPatchy.exe` into the installed app folder and records it in `PatchyInstallManifest.txt`. The uninstaller uses that manifest to remove only files installed by the package. If a user saves documents into the install directory, those files are left in place and the install directory remains until the user removes them. It also deletes Object Selection's downloaded High Quality model, the two files `efficientvit_sam_xl0_encoder_fp16.onnx` and `efficientvit_sam_xl0_decoder_multi_fp16.onnx` by those exact names in `%APPDATA%\RTsoft\Patchy\ai-models`, and that folder only when nothing else is left in it; the rest of the user's Patchy data stays (docs/ai-selection.md).
 
+## Windows ARM64
+
+`build-release.bat` with no argument also builds `build\package\PatchyWindowsArm64NoInstaller.zip` and `build\package\PatchyWindowsArm64Installer.exe` (`build-release.bat arm64` builds only those; docs/release-process.md). The contents match the x64 package, with these differences: `patchy.exe`, `patchy-mcp.exe`, Qt, ONNX Runtime and the MSVC runtime are ARM64; the two plug-in hosts stay x86 and x64 and link the C++ runtime statically, because plug-ins are x86/x64 code; there is no Qt PDF module or notice. Both installers install to the same folder under the same uninstall entry, so either replaces the other.
+
+The installer payload carries `PatchyArchitecture.txt` (`x64` or `arm64`; a payload without it counts as x64). `InstallPatchy.ps1` reads it before any wizard, update or quiet install and refuses an ARM64 payload on a PC whose processor is x64 or x86, with `WrongArchitectureMessage` (every shipped language) pointing at the releases page. The processor comes from `IsWow64Process2`, so the answer is right inside an emulated process too. An unknown processor is never refused. The launcher stays an x64 .NET program and runs emulated on an ARM64 PC.
+
 ## Install location
 
 The wizard's install folder box is editable and has a Browse button (issue 85). It starts at the folder of the registered install (`InstallLocation` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Patchy`, when `patchy.exe` is still there), else `%LOCALAPPDATA%\Programs\Patchy`. `InstallPatchy.ps1 -InstallDir <folder>` sets the exact folder, for the wizard and for quiet installs.
@@ -92,6 +98,8 @@ After signing, `build-release.bat` runs `scripts\release\verify-windows-package.
 - runs it again with `-OpenWithCheckRoot <scratch key>`, which writes the "Open with" registration under that key instead of the real Classes tree, and checks the name, the command, the type list, and that an extension gets the ProgID in `OpenWithProgids` with no default value;
 - runs it with `-LocationCheckRoot <scratch folder>`, which checks the install folder rules and the Browse rule on cases built inside that folder;
 - runs it with `-UpdateCheckRoot <scratch folder>`, which checks update mode's wait for the closing Patchy and the locked-file check on stand-in files inside that folder;
+- runs it with `-ArchitectureCheck`, which tests the processor rule above and the wrong-processor message in every language, and checks that the payload's `PatchyArchitecture.txt` names the package's architecture;
+- checks the machine type of every shipped `.exe` and `.dll`: the package's architecture (`-Arch x64` or `arm64`), except `patchy-8bf-host32.exe` (x86) and `patchy-8bf-host64.exe` (x64). An ARM64X image (an x64 header with hybrid ARM64EC code; the ARM64 runtime's `vcruntime140_1.dll` is one) passes in either package;
 - unpacks the zip and compares it with `PatchyInstallManifest.txt`;
 - checks the unpacked executable's display name, product name, original filename,
   and file/product versions against the package version;
@@ -99,7 +107,7 @@ After signing, `build-release.bat` runs `scripts\release\verify-windows-package.
 - runs `packaging\package-selftest.js` on the unpacked `patchy.exe` with only Windows on `PATH`: every image format plugin writes and reads a file, the bundled font is listed, the scripts, translations, AI kit and TLS plugin are present, and a 32-bit and a 64-bit legacy plug-in run through their hosts;
 - runs the unpacked `patchy-mcp.exe --check`.
 
-A package that fails is moved to `build\package\rejected` and the build fails, so the upload scripts cannot publish it. The script also runs by itself, with `-Installer` and `-Zip` for files downloaded from a release. The wizard step needs an interactive desktop session.
+A package that fails is moved to `build\package\rejected` and the build fails, so the upload scripts cannot publish it. The script also runs by itself, with `-Installer` and `-Zip` for files downloaded from a release. The wizard step needs an interactive desktop session (`-NoDesktop` skips it). On a PC that cannot run the package (ARM64 on x64) the self-test and connector steps print `SKIP`; `-RequireRun` makes that a failure, as `verify-remote.ps1 -Target windows-arm64` does on the ARM64 host.
 
 `InstallPatchy.ps1 -CheckLogo` is the earlier, narrower check the batch file runs before compiling the launcher. Neither check clicks through the wizard, so run the built installer by hand after changing the installer script.
 

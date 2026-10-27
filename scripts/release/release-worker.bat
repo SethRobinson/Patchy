@@ -24,8 +24,9 @@ if /i "%~1"=="upload-desktop" ( call "%~dp0upload-to-rtsoft.bat" desktop > "%LOG
 if /i "%~1"=="verify-windows" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-windows.ps1" > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="verify-mac" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-remote.ps1" -Target mac > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="verify-linux" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-remote.ps1" -Target linux > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="verify-windows-arm64" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-remote.ps1" -Target windows-arm64 > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="upload-github" ( call "%~dp0publish-github-release.bat" nopause > "%LOG%" 2>&1 & goto done )
-echo Unknown release target "%~1" ^(expected windows, mac, linux, wasm, verify-windows, verify-mac, verify-linux, upload-wasm, upload-all, upload-desktop, or upload-github^). > "%LOG%"
+echo Unknown release target "%~1" ^(expected windows, mac, linux, wasm, verify-windows, verify-windows-arm64, verify-mac, verify-linux, upload-wasm, upload-all, upload-desktop, or upload-github^). > "%LOG%"
 >"%MARKER%" echo exit=2
 exit /b 2
 

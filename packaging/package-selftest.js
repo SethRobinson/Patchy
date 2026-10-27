@@ -8,6 +8,8 @@
 //   work     scratch folder for the files this writes (required)
 //   version  expected application version (optional)
 //   plugins  folder holding the Filter Foundry test plug-ins (optional, Windows)
+//   pdfopen  0 for a package without PDF import (Windows ARM64: no Qt PDF); PDF is then
+//            only written
 
 function check(condition, message) {
   if (!condition) throw new Error("package self-test: " + message);
@@ -36,10 +38,15 @@ paint.fill("#FEBA20");
 paint.fillRect(8, 8, 24, 16, "#363F3B");
 
 var formats = ["png", "jpg", "webp", "tif", "gif", "bmp", "psd", "pdf"];
+var pdfOpens = String(patchy.args.pdfopen || "1") !== "0";
 for (var i = 0; i < formats.length; i++) {
   var file = work + "selftest." + formats[i];
   check(source.exportAs(file), "could not write " + formats[i]);
   check(patchy.io.fileSize(file) > 0, formats[i] + " file is empty");
+  if (formats[i] === "pdf" && !pdfOpens) {
+    console.log("codec ok: pdf (written; this package has no PDF import)");
+    continue;
+  }
   var reopened = app.open(file);
   // A PDF page is sized from the document's resolution, so only its presence is checked.
   if (formats[i] !== "pdf") {

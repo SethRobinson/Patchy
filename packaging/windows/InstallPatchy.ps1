@@ -43,7 +43,12 @@ param(
     # Packaging check: run the install folder rules against cases built inside this
     # scratch folder and exit without installing. Used by
     # scripts\release\verify-windows-package.ps1.
-    [string]$LocationCheckRoot = ""
+    [string]$LocationCheckRoot = "",
+
+    # Packaging check: test the processor rule (an ARM64 payload refuses x64 and x86 PCs)
+    # and the payload's PatchyArchitecture.txt, then exit without installing. Used by
+    # scripts\release\verify-windows-package.ps1.
+    [switch]$ArchitectureCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,6 +72,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = "Choose a full folder path for Patchy, such as D:\Apps\Patchy. A drive root or the Windows folder cannot be used."
         InstallFolderNotEmpty = "The folder {0} already contains other files. Choose an empty folder or a new folder name, so that uninstalling Patchy never removes anything that is not its own."
         InstallFolderNotWritable = "Setup cannot write to {0}. This installer does not use administrator rights, so choose a folder you can write to, such as one in your user folder or on another drive."
+        WrongArchitectureMessage = "This installer is for PCs with an ARM64 processor (Windows on Arm), and this PC has a different processor. Download the standard Patchy installer from {0} instead."
     }
     ja = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002\u4F5C\u696D\u3092\u4FDD\u5B58\u3057\u3066 Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u3001[\u518D\u8A66\u884C] \u3092\u30AF\u30EA\u30C3\u30AF\u3057\u3066\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3092\u7D9A\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
@@ -77,6 +83,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "Patchy \u306E\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u5148\u3068\u3057\u3066\u3001D:\Apps\Patchy \u306E\u3088\u3046\u306A\u5B8C\u5168\u306A\u30D5\u30A9\u30EB\u30C0\u30FC \u30D1\u30B9\u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u30C9\u30E9\u30A4\u30D6\u306E\u30EB\u30FC\u30C8\u3084 Windows \u30D5\u30A9\u30EB\u30C0\u30FC\u306F\u4F7F\u7528\u3067\u304D\u307E\u305B\u3093\u3002"
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "\u30D5\u30A9\u30EB\u30C0\u30FC {0} \u306B\u306F\u65E2\u306B\u4ED6\u306E\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308A\u307E\u3059\u3002Patchy \u306E\u30A2\u30F3\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3067 Patchy \u4EE5\u5916\u306E\u30D5\u30A1\u30A4\u30EB\u304C\u524A\u9664\u3055\u308C\u306A\u3044\u3088\u3046\u3001\u7A7A\u306E\u30D5\u30A9\u30EB\u30C0\u30FC\u304B\u65B0\u3057\u3044\u30D5\u30A9\u30EB\u30C0\u30FC\u540D\u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "{0} \u306B\u66F8\u304D\u8FBC\u3081\u307E\u305B\u3093\u3002\u3053\u306E\u30A4\u30F3\u30B9\u30C8\u30FC\u30E9\u30FC\u306F\u7BA1\u7406\u8005\u6A29\u9650\u3092\u4F7F\u7528\u3057\u306A\u3044\u305F\u3081\u3001\u30E6\u30FC\u30B6\u30FC \u30D5\u30A9\u30EB\u30C0\u30FC\u5185\u3084\u5225\u306E\u30C9\u30E9\u30A4\u30D6\u306A\u3069\u3001\u66F8\u304D\u8FBC\u307F\u53EF\u80FD\u306A\u30D5\u30A9\u30EB\u30C0\u30FC\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\u3053\u306E\u30A4\u30F3\u30B9\u30C8\u30FC\u30E9\u30FC\u306F ARM64 \u30D7\u30ED\u30BB\u30C3\u30B5\u30FC\u642D\u8F09\u306E PC (Windows on Arm) \u7528\u3067\u3059\u304C\u3001\u3053\u306E PC \u306B\u306F\u5225\u306E\u30D7\u30ED\u30BB\u30C3\u30B5\u30FC\u304C\u642D\u8F09\u3055\u308C\u3066\u3044\u307E\u3059\u3002\u4EE3\u308F\u308A\u306B {0} \u304B\u3089\u901A\u5E38\u306E Patchy \u30A4\u30F3\u30B9\u30C8\u30FC\u30E9\u30FC\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
     }
     de = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy wird derzeit ausgef\u00FChrt. Speichern Sie Ihre Arbeit, schlie\u00DFen Sie Patchy und klicken Sie dann auf \u201EWiederholen\u201C, um die Installation fortzusetzen."
@@ -87,6 +94,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "W\u00E4hlen Sie einen vollst\u00E4ndigen Ordnerpfad f\u00FCr Patchy, zum Beispiel D:\Apps\Patchy. Ein Laufwerksstamm oder der Windows-Ordner kann nicht verwendet werden."
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "Der Ordner {0} enth\u00E4lt bereits andere Dateien. W\u00E4hlen Sie einen leeren Ordner oder einen neuen Ordnernamen, damit beim Deinstallieren von Patchy nur dessen eigene Dateien entfernt werden."
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "Setup kann nicht in {0} schreiben. Dieses Installationsprogramm verwendet keine Administratorrechte. W\u00E4hlen Sie daher einen Ordner, in den Sie schreiben k\u00F6nnen, zum Beispiel in Ihrem Benutzerordner oder auf einem anderen Laufwerk."
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Dieses Installationsprogramm ist f\u00FCr PCs mit ARM64-Prozessor (Windows on Arm) bestimmt, dieser PC hat jedoch einen anderen Prozessor. Laden Sie stattdessen das normale Patchy-Installationsprogramm von {0} herunter."
     }
     es = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy se est\u00E1 ejecutando. Guarde su trabajo, cierre Patchy y haga clic en Reintentar para continuar con la instalaci\u00F3n."
@@ -97,6 +105,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "Elija una ruta de carpeta completa para Patchy, como D:\Apps\Patchy. No se puede usar la ra\u00EDz de una unidad ni la carpeta de Windows."
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "La carpeta {0} ya contiene otros archivos. Elija una carpeta vac\u00EDa o un nombre de carpeta nuevo, para que al desinstalar Patchy nunca se eliminen archivos que no sean suyos."
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "El instalador no puede escribir en {0}. Este instalador no usa permisos de administrador, as\u00ED que elija una carpeta en la que pueda escribir, como una dentro de su carpeta de usuario o en otra unidad."
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Este instalador es para equipos con procesador ARM64 (Windows on Arm) y este equipo tiene otro procesador. Descargue en su lugar el instalador normal de Patchy desde {0}."
     }
     fr = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy est en cours d'ex\u00E9cution. Enregistrez votre travail, fermez Patchy, puis cliquez sur R\u00E9essayer pour poursuivre l'installation."
@@ -107,6 +116,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "Choisissez un chemin de dossier complet pour Patchy, par exemple D:\Apps\Patchy. La racine d'un lecteur ou le dossier Windows ne peuvent pas \u00EAtre utilis\u00E9s."
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "Le dossier {0} contient d\u00E9j\u00E0 d'autres fichiers. Choisissez un dossier vide ou un nouveau nom de dossier, afin que la d\u00E9sinstallation de Patchy ne supprime jamais de fichiers qui ne lui appartiennent pas."
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "Le programme d'installation ne peut pas \u00E9crire dans {0}. Il n'utilise pas les droits d'administrateur : choisissez un dossier dans lequel vous pouvez \u00E9crire, par exemple dans votre dossier utilisateur ou sur un autre lecteur."
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Ce programme d\u2019installation est destin\u00E9 aux PC dot\u00E9s d\u2019un processeur ARM64 (Windows on Arm), et ce PC a un autre processeur. T\u00E9l\u00E9chargez plut\u00F4t le programme d\u2019installation standard de Patchy sur {0}."
     }
     it = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u00E8 in esecuzione. Salva il lavoro, chiudi Patchy e fai clic su Riprova per continuare l'installazione."
@@ -117,6 +127,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "Scegli un percorso di cartella completo per Patchy, ad esempio D:\Apps\Patchy. Non \u00E8 possibile usare la radice di un'unit\u00E0 o la cartella di Windows."
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "La cartella {0} contiene gi\u00E0 altri file. Scegli una cartella vuota o un nuovo nome di cartella, cos\u00EC la disinstallazione di Patchy non rimuover\u00E0 mai file che non gli appartengono."
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "Il programma di installazione non pu\u00F2 scrivere in {0}. Non usa i diritti di amministratore, quindi scegli una cartella in cui puoi scrivere, ad esempio nella tua cartella utente o su un'altra unit\u00E0."
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Questo programma di installazione \u00E8 per PC con processore ARM64 (Windows on Arm), ma questo PC ha un processore diverso. Scarica invece il programma di installazione standard di Patchy da {0}."
     }
     ko = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy\uAC00 \uC2E4\uD589 \uC911\uC785\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uC800\uC7A5\uD558\uACE0 Patchy\uB97C \uB2EB\uC740 \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uB97C \uD074\uB9AD\uD558\uC5EC \uC124\uCE58\uB97C \uACC4\uC18D\uD558\uC138\uC694."
@@ -127,6 +138,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "Patchy\uB97C \uC124\uCE58\uD560 \uC804\uCCB4 \uD3F4\uB354 \uACBD\uB85C\uB97C \uC9C0\uC815\uD558\uC138\uC694(\uC608: D:\Apps\Patchy). \uB4DC\uB77C\uC774\uBE0C \uB8E8\uD2B8\uB098 Windows \uD3F4\uB354\uB294 \uC0AC\uC6A9\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "{0} \uD3F4\uB354\uC5D0 \uC774\uBBF8 \uB2E4\uB978 \uD30C\uC77C\uC774 \uC788\uC2B5\uB2C8\uB2E4. Patchy\uB97C \uC81C\uAC70\uD560 \uB54C Patchy\uC758 \uD30C\uC77C\uC774 \uC544\uB2CC \uD56D\uBAA9\uC774 \uC0AD\uC81C\uB418\uC9C0 \uC54A\uB3C4\uB85D \uBE48 \uD3F4\uB354\uB098 \uC0C8 \uD3F4\uB354 \uC774\uB984\uC744 \uC120\uD0DD\uD558\uC138\uC694."
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "{0}\uC5D0 \uC4F8 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uC774 \uC124\uCE58 \uD504\uB85C\uADF8\uB7A8\uC740 \uAD00\uB9AC\uC790 \uAD8C\uD55C\uC744 \uC0AC\uC6A9\uD558\uC9C0 \uC54A\uC73C\uBBC0\uB85C \uC0AC\uC6A9\uC790 \uD3F4\uB354\uB098 \uB2E4\uB978 \uB4DC\uB77C\uC774\uBE0C\uCC98\uB7FC \uC4F0\uAE30 \uAD8C\uD55C\uC774 \uC788\uB294 \uD3F4\uB354\uB97C \uC120\uD0DD\uD558\uC138\uC694."
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\uC774 \uC124\uCE58 \uD504\uB85C\uADF8\uB7A8\uC740 ARM64 \uD504\uB85C\uC138\uC11C\uAC00 \uC788\uB294 PC(Windows on Arm)\uC6A9\uC774\uC9C0\uB9CC \uC774 PC\uC5D0\uB294 \uB2E4\uB978 \uD504\uB85C\uC138\uC11C\uAC00 \uC788\uC2B5\uB2C8\uB2E4. \uB300\uC2E0 {0}\uC5D0\uC11C \uC77C\uBC18 Patchy \uC124\uCE58 \uD504\uB85C\uADF8\uB7A8\uC744 \uB2E4\uC6B4\uB85C\uB4DC\uD558\uC138\uC694."
     }
     pl = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy jest uruchomiony. Zapisz swoj\u0105 prac\u0119, zamknij Patchy, a nast\u0119pnie kliknij Pon\u00F3w pr\u00F3b\u0119, aby kontynuowa\u0107 instalacj\u0119."
@@ -137,6 +149,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "Wybierz pe\u0142n\u0105 \u015Bcie\u017Ck\u0119 folderu dla Patchy, na przyk\u0142ad D:\Apps\Patchy. Nie mo\u017Cna u\u017Cy\u0107 katalogu g\u0142\u00F3wnego dysku ani folderu Windows."
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "Folder {0} zawiera ju\u017C inne pliki. Wybierz pusty folder lub now\u0105 nazw\u0119 folderu, aby odinstalowanie Patchy nigdy nie usun\u0119\u0142o plik\u00F3w, kt\u00F3re do niego nie nale\u017C\u0105."
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "Instalator nie mo\u017Ce zapisywa\u0107 w {0}. Ten instalator nie u\u017Cywa uprawnie\u0144 administratora, wi\u0119c wybierz folder, w kt\u00F3rym mo\u017Cesz zapisywa\u0107, na przyk\u0142ad w folderze u\u017Cytkownika lub na innym dysku."
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Ten instalator jest przeznaczony dla komputer\u00F3w z procesorem ARM64 (Windows on Arm), a ten komputer ma inny procesor. Zamiast tego pobierz standardowy instalator Patchy ze strony {0}."
     }
     pt_BR = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "O Patchy est\u00E1 em execu\u00E7\u00E3o. Salve seu trabalho, feche o Patchy e clique em Repetir para continuar a instala\u00E7\u00E3o."
@@ -147,6 +160,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "Escolha um caminho de pasta completo para o Patchy, como D:\Apps\Patchy. N\u00E3o \u00E9 poss\u00EDvel usar a raiz de uma unidade nem a pasta do Windows."
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "A pasta {0} j\u00E1 cont\u00E9m outros arquivos. Escolha uma pasta vazia ou um novo nome de pasta, para que a desinstala\u00E7\u00E3o do Patchy nunca remova arquivos que n\u00E3o sejam dele."
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "O instalador n\u00E3o pode gravar em {0}. Este instalador n\u00E3o usa direitos de administrador, ent\u00E3o escolha uma pasta na qual voc\u00EA possa gravar, como uma dentro da sua pasta de usu\u00E1rio ou em outra unidade."
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Este instalador \u00E9 para PCs com processador ARM64 (Windows on Arm), e este PC tem outro processador. Baixe o instalador padr\u00E3o do Patchy em {0}."
     }
     ru = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u0443\u0436\u0435 \u0437\u0430\u043F\u0443\u0449\u0435\u043D. \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u0440\u0430\u0431\u043E\u0442\u0443, \u0437\u0430\u043A\u0440\u043E\u0439\u0442\u0435 Patchy \u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \u00AB\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C\u00BB, \u0447\u0442\u043E\u0431\u044B \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0443."
@@ -157,6 +171,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u043B\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043A \u043F\u0430\u043F\u043A\u0435 \u0434\u043B\u044F Patchy, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 D:\Apps\Patchy. \u041A\u043E\u0440\u0435\u043D\u044C \u0434\u0438\u0441\u043A\u0430 \u0438 \u043F\u0430\u043F\u043A\u0443 Windows \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C \u043D\u0435\u043B\u044C\u0437\u044F."
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "\u041F\u0430\u043F\u043A\u0430 {0} \u0443\u0436\u0435 \u0441\u043E\u0434\u0435\u0440\u0436\u0438\u0442 \u0434\u0440\u0443\u0433\u0438\u0435 \u0444\u0430\u0439\u043B\u044B. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0443\u0441\u0442\u0443\u044E \u043F\u0430\u043F\u043A\u0443 \u0438\u043B\u0438 \u043D\u043E\u0432\u043E\u0435 \u0438\u043C\u044F \u043F\u0430\u043F\u043A\u0438, \u0447\u0442\u043E\u0431\u044B \u043F\u0440\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0438 Patchy \u043D\u0435 \u0443\u0434\u0430\u043B\u044F\u043B\u0438\u0441\u044C \u0447\u0443\u0436\u0438\u0435 \u0444\u0430\u0439\u043B\u044B."
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "\u041F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u0430 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438 \u043D\u0435 \u043C\u043E\u0436\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0442\u044C \u0432 {0}. \u041E\u043D\u0430 \u043D\u0435 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u043F\u0440\u0430\u0432\u0430 \u0430\u0434\u043C\u0438\u043D\u0438\u0441\u0442\u0440\u0430\u0442\u043E\u0440\u0430, \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0430\u043F\u043A\u0443, \u0432 \u043A\u043E\u0442\u043E\u0440\u0443\u044E \u0443 \u0432\u0430\u0441 \u0435\u0441\u0442\u044C \u043F\u0440\u0430\u0432\u043E \u0437\u0430\u043F\u0438\u0441\u0438, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 \u0432 \u043F\u0430\u043F\u043A\u0435 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F \u0438\u043B\u0438 \u043D\u0430 \u0434\u0440\u0443\u0433\u043E\u043C \u0434\u0438\u0441\u043A\u0435."
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\u042D\u0442\u043E\u0442 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u0449\u0438\u043A \u043F\u0440\u0435\u0434\u043D\u0430\u0437\u043D\u0430\u0447\u0435\u043D \u0434\u043B\u044F \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u043E\u0432 \u0441 \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440\u043E\u043C ARM64 (Windows on Arm), \u0430 \u0432 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435 \u0434\u0440\u0443\u0433\u043E\u0439 \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440. \u0421\u043A\u0430\u0447\u0430\u0439\u0442\u0435 \u0432\u043C\u0435\u0441\u0442\u043E \u043D\u0435\u0433\u043E \u043E\u0431\u044B\u0447\u043D\u044B\u0439 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u0449\u0438\u043A Patchy \u043F\u043E \u0430\u0434\u0440\u0435\u0441\u0443 {0}."
     }
     zh_CN = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u8FD0\u884C\u3002\u8BF7\u4FDD\u5B58\u60A8\u7684\u5DE5\u4F5C\uFF0C\u5173\u95ED Patchy\uFF0C\u7136\u540E\u5355\u51FB\u201C\u91CD\u8BD5\u201D\u7EE7\u7EED\u5B89\u88C5\u3002"
@@ -167,6 +182,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "\u8BF7\u4E3A Patchy \u9009\u62E9\u5B8C\u6574\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\uFF0C\u4F8B\u5982 D:\Apps\Patchy\u3002\u4E0D\u80FD\u4F7F\u7528\u9A71\u52A8\u5668\u6839\u76EE\u5F55\u6216 Windows \u6587\u4EF6\u5939\u3002"
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "\u6587\u4EF6\u5939 {0} \u4E2D\u5DF2\u6709\u5176\u4ED6\u6587\u4EF6\u3002\u8BF7\u9009\u62E9\u7A7A\u6587\u4EF6\u5939\u6216\u65B0\u7684\u6587\u4EF6\u5939\u540D\u79F0\uFF0C\u4EE5\u786E\u4FDD\u5378\u8F7D Patchy \u65F6\u4E0D\u4F1A\u5220\u9664\u4E0D\u5C5E\u4E8E\u5B83\u7684\u6587\u4EF6\u3002"
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "\u5B89\u88C5\u7A0B\u5E8F\u65E0\u6CD5\u5199\u5165 {0}\u3002\u6B64\u5B89\u88C5\u7A0B\u5E8F\u4E0D\u4F7F\u7528\u7BA1\u7406\u5458\u6743\u9650\uFF0C\u8BF7\u9009\u62E9\u60A8\u6709\u5199\u5165\u6743\u9650\u7684\u6587\u4EF6\u5939\uFF0C\u4F8B\u5982\u7528\u6237\u6587\u4EF6\u5939\u4E2D\u7684\u6587\u4EF6\u5939\u6216\u5176\u4ED6\u9A71\u52A8\u5668\u3002"
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\u6B64\u5B89\u88C5\u7A0B\u5E8F\u9002\u7528\u4E8E\u642D\u8F7D ARM64 \u5904\u7406\u5668\u7684\u7535\u8111 (Windows on Arm)\uFF0C\u800C\u8FD9\u53F0\u7535\u8111\u4F7F\u7528\u7684\u662F\u5176\u4ED6\u5904\u7406\u5668\u3002\u8BF7\u6539\u4E3A\u4ECE {0} \u4E0B\u8F7D\u6807\u51C6\u7248 Patchy \u5B89\u88C5\u7A0B\u5E8F\u3002"
     }
     zh_TW = @{
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u57F7\u884C\u4E2D\u3002\u8ACB\u5132\u5B58\u60A8\u7684\u5DE5\u4F5C\uFF0C\u95DC\u9589 Patchy\uFF0C\u7136\u5F8C\u6309\u4E00\u4E0B\u300C\u91CD\u8A66\u300D\u4EE5\u7E7C\u7E8C\u5B89\u88DD\u3002"
@@ -177,6 +193,7 @@ $PatchyInstallerText = @{
         InstallFolderInvalid = ConvertFrom-PatchyUnicodeEscapes "\u8ACB\u70BA Patchy \u9078\u64C7\u5B8C\u6574\u7684\u8CC7\u6599\u593E\u8DEF\u5F91\uFF0C\u4F8B\u5982 D:\Apps\Patchy\u3002\u4E0D\u80FD\u4F7F\u7528\u78C1\u789F\u6A5F\u6839\u76EE\u9304\u6216 Windows \u8CC7\u6599\u593E\u3002"
         InstallFolderNotEmpty = ConvertFrom-PatchyUnicodeEscapes "\u8CC7\u6599\u593E {0} \u4E2D\u5DF2\u6709\u5176\u4ED6\u6A94\u6848\u3002\u8ACB\u9078\u64C7\u7A7A\u7684\u8CC7\u6599\u593E\u6216\u65B0\u7684\u8CC7\u6599\u593E\u540D\u7A31\uFF0C\u4EE5\u78BA\u4FDD\u89E3\u9664\u5B89\u88DD Patchy \u6642\u4E0D\u6703\u522A\u9664\u4E0D\u5C6C\u65BC\u5B83\u7684\u6A94\u6848\u3002"
         InstallFolderNotWritable = ConvertFrom-PatchyUnicodeEscapes "\u5B89\u88DD\u7A0B\u5F0F\u7121\u6CD5\u5BEB\u5165 {0}\u3002\u6B64\u5B89\u88DD\u7A0B\u5F0F\u4E0D\u4F7F\u7528\u7CFB\u7D71\u7BA1\u7406\u54E1\u6B0A\u9650\uFF0C\u8ACB\u9078\u64C7\u60A8\u6709\u5BEB\u5165\u6B0A\u9650\u7684\u8CC7\u6599\u593E\uFF0C\u4F8B\u5982\u4F7F\u7528\u8005\u8CC7\u6599\u593E\u4E2D\u7684\u8CC7\u6599\u593E\u6216\u5176\u4ED6\u78C1\u789F\u6A5F\u3002"
+        WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\u6B64\u5B89\u88DD\u7A0B\u5F0F\u9069\u7528\u65BC\u642D\u8F09 ARM64 \u8655\u7406\u5668\u7684\u96FB\u8166 (Windows on Arm)\uFF0C\u4F46\u9019\u53F0\u96FB\u8166\u4F7F\u7528\u7684\u662F\u5176\u4ED6\u8655\u7406\u5668\u3002\u8ACB\u6539\u5F9E {0} \u4E0B\u8F09\u6A19\u6E96\u7248 Patchy \u5B89\u88DD\u7A0B\u5F0F\u3002"
     }
 }
 
@@ -218,6 +235,63 @@ function Get-PatchyInstallerText {
         return $PatchyInstallerText[$language][$Key]
     }
     return $PatchyInstallerText["en"][$Key]
+}
+
+# Where the refusal below sends someone who downloaded the wrong installer.
+$PatchyReleasesUrl = "https://github.com/SethRobinson/Patchy/releases/latest"
+
+# The processor the payload was built for: build-release.bat writes PatchyArchitecture.txt
+# (x64 or arm64) beside the payload zip. A payload without one is x64, as every package
+# before Windows ARM64 builds was.
+function Get-PatchyPayloadArchitecture {
+    param([Parameter(Mandatory = $true)][string]$PayloadZip)
+
+    $file = Join-Path (Split-Path -Parent $PayloadZip) "PatchyArchitecture.txt"
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+        return "x64"
+    }
+    return (Get-Content -LiteralPath $file -Raw).Trim().ToLowerInvariant()
+}
+
+# The processor Windows itself runs on: arm64, x64, x86, or "" when unknown. Read with
+# IsWow64Process2, never PROCESSOR_ARCHITECTURE: an x64 process emulated on an ARM64 PC
+# sees AMD64 there.
+function Get-PatchyNativeArchitecture {
+    try {
+        if (-not ("PatchySetup.NativeMachine" -as [type])) {
+            Add-Type -Namespace PatchySetup -Name NativeMachine -MemberDefinition @"
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool IsWow64Process2(IntPtr process, out ushort processMachine, out ushort nativeMachine);
+"@
+        }
+        [UInt16]$processMachine = 0
+        [UInt16]$nativeMachine = 0
+        $handle = [Diagnostics.Process]::GetCurrentProcess().Handle
+        if (-not [PatchySetup.NativeMachine]::IsWow64Process2($handle, [ref]$processMachine, [ref]$nativeMachine)) {
+            return ""
+        }
+        switch ($nativeMachine) {
+            0xAA64 { return "arm64" }
+            0x8664 { return "x64" }
+            0x014C { return "x86" }
+        }
+    } catch {
+    }
+    return ""
+}
+
+# Whether a payload runs on a PC: x64 runs everywhere it always did (ARM64 Windows
+# emulates x64), ARM64 only on an ARM64 PC. An unknown processor is never refused.
+function Test-PatchyPayloadRunsOn {
+    param(
+        [Parameter(Mandatory = $true)][string]$PayloadArchitecture,
+        [AllowEmptyString()][string]$NativeArchitecture
+    )
+
+    if ($PayloadArchitecture -ne "arm64" -or -not $NativeArchitecture) {
+        return $true
+    }
+    return $NativeArchitecture -eq "arm64"
 }
 
 function Test-PathAtOrInsideRoot {
@@ -1741,6 +1815,36 @@ if ($CheckLogo) {
     exit 0
 }
 
+if ($ArchitectureCheck) {
+    $failures = @()
+    $cases = @(
+        @("x64", "x64", $true), @("x64", "arm64", $true), @("x64", "x86", $true), @("x64", "", $true),
+        @("arm64", "arm64", $true), @("arm64", "x64", $false), @("arm64", "x86", $false), @("arm64", "", $true)
+    )
+    foreach ($case in $cases) {
+        if ((Test-PatchyPayloadRunsOn -PayloadArchitecture $case[0] -NativeArchitecture $case[1]) -ne $case[2]) {
+            $failures += "a $($case[0]) payload on a '$($case[1])' PC should give $($case[2])"
+        }
+    }
+    $native = Get-PatchyNativeArchitecture
+    if (-not $native) {
+        $failures += "IsWow64Process2 did not name this PC's processor"
+    }
+    foreach ($language in $PatchyInstallerText.Keys) {
+        $text = $PatchyInstallerText[$language]["WrongArchitectureMessage"]
+        if (-not $text -or -not $text.Contains("{0}")) {
+            $failures += "language $language has no usable wrong-processor message"
+        }
+    }
+    $payload = Get-PatchyPayloadArchitecture -PayloadZip $PayloadZip
+    if ($failures.Count -gt 0) {
+        Write-Host ("Installer architecture check FAILED: " + ($failures -join "; "))
+        exit 1
+    }
+    Write-Host "Installer architecture check passed (payload $payload, this PC $native)."
+    exit 0
+}
+
 if ($OpenWithCheckRoot) {
     # Only a scratch key: the real Classes tree is never a valid target for the check.
     if ($OpenWithCheckRoot -notlike "HKCU:\Software\PatchyVerify-*") {
@@ -2036,6 +2140,12 @@ if ($SmokeTest) {
 }
 
 try {
+    # An ARM64 package cannot run on an x64 or x86 PC: say which download to use instead
+    # (the catch below shows it) before anything is touched.
+    if (-not (Test-PatchyPayloadRunsOn -PayloadArchitecture (Get-PatchyPayloadArchitecture -PayloadZip $PayloadZip) `
+            -NativeArchitecture (Get-PatchyNativeArchitecture))) {
+        throw ((Get-PatchyInstallerText "WrongArchitectureMessage") -f $PatchyReleasesUrl)
+    }
     if ($Update) {
         # Problems still ask (a Retry box) when there is a desktop to ask on; the install
         # itself needs no answers.

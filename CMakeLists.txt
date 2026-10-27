@@ -2030,16 +2030,21 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
       set(PATCHY_TRANSLATION_RUNTIME_MANIFEST "${PATCHY_TRANSLATION_OUTPUT_DIR}/runtime-inputs.txt")
       patchy_write_input_manifest("${PATCHY_TRANSLATION_RUNTIME_MANIFEST}" ${PATCHY_TRANSLATION_RUNTIME_INPUTS})
       list(APPEND PATCHY_TRANSLATION_RUNTIME_INPUTS "${PATCHY_TRANSLATION_RUNTIME_MANIFEST}")
-      patchy_add_success_check(patchy_check_translation_runtime
-        STAMP "${PATCHY_TRANSLATION_OUTPUT_DIR}/runtime-check.stamp"
-        COMMAND $<TARGET_FILE:patchy_translation_checks>
-        DEPENDS ${PATCHY_TRANSLATION_RUNTIME_INPUTS}
-        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        COMMENT "Checking UI translations at startup and after language switches"
-      )
-      add_dependencies(patchy patchy_check_translation_runtime)
-      if(TARGET patchy-mcp)
-        add_dependencies(patchy-mcp patchy_check_translation_runtime)
+      # A cross build (windows-arm64-cross-*) cannot run what it builds. The catalogs are
+      # the same on every architecture, so the x64 build beside it gates them; the UI
+      # suite on the ARM64 host runs the same checks (docs/building.md).
+      if(NOT CMAKE_CROSSCOMPILING)
+        patchy_add_success_check(patchy_check_translation_runtime
+          STAMP "${PATCHY_TRANSLATION_OUTPUT_DIR}/runtime-check.stamp"
+          COMMAND $<TARGET_FILE:patchy_translation_checks>
+          DEPENDS ${PATCHY_TRANSLATION_RUNTIME_INPUTS}
+          WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+          COMMENT "Checking UI translations at startup and after language switches"
+        )
+        add_dependencies(patchy patchy_check_translation_runtime)
+        if(TARGET patchy-mcp)
+          add_dependencies(patchy-mcp patchy_check_translation_runtime)
+        endif()
       endif()
     endif()
     if(WIN32)

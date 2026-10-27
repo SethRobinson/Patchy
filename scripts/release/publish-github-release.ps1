@@ -20,6 +20,7 @@ permalinks, which only work because the asset names never change between version
 
 Assets, taken from -AssetDir (default build\package):
   PatchyWindowsInstaller.exe, PatchyWindowsNoInstaller.zip           (stable names)
+  PatchyWindowsArm64Installer.exe, PatchyWindowsArm64NoInstaller.zip (stable names)
   Patchy-<version>.dmg -> PatchyMacOS.dmg, Patchy-<version>.flatpak -> PatchyLinux.flatpak,
   Patchy-<version>-x86_64.AppImage(.zsync) -> PatchyLinux.AppImage(.zsync)
   (the mac and Linux builders write versioned files; the stable-name copies that
@@ -132,6 +133,8 @@ function Resolve-Asset([string]$stableName, [string]$versionedName) {
 $assets = [ordered]@{
   'PatchyWindowsInstaller.exe'   = Resolve-Asset 'PatchyWindowsInstaller.exe' $null
   'PatchyWindowsNoInstaller.zip' = Resolve-Asset 'PatchyWindowsNoInstaller.zip' $null
+  'PatchyWindowsArm64Installer.exe'   = Resolve-Asset 'PatchyWindowsArm64Installer.exe' $null
+  'PatchyWindowsArm64NoInstaller.zip' = Resolve-Asset 'PatchyWindowsArm64NoInstaller.zip' $null
   'PatchyMacOS.dmg'              = Resolve-Asset 'PatchyMacOS.dmg' "Patchy-$Version.dmg"
   'PatchyLinux.flatpak'          = Resolve-Asset 'PatchyLinux.flatpak' "Patchy-$Version.flatpak"
 }
@@ -175,6 +178,10 @@ foreach ($name in $assets.Keys) {
   if ($name -eq 'PatchyWindowsInstaller.exe') {
     $installerSize = (Get-Item -LiteralPath $dest).Length
     $installerSha256 = $hash
+  }
+  if ($name -eq 'PatchyWindowsArm64Installer.exe') {
+    $arm64InstallerSize = (Get-Item -LiteralPath $dest).Length
+    $arm64InstallerSha256 = $hash
   }
   if ($name -eq 'PatchyLinux.AppImage') {
     $appImageSize = (Get-Item -LiteralPath $dest).Length
@@ -225,6 +232,8 @@ $notesText += @"
 | --- | --- |
 | Windows 10/11 (64-bit) installer | [PatchyWindowsInstaller.exe]($base/PatchyWindowsInstaller.exe) |
 | Windows 10/11 (64-bit) portable zip | [PatchyWindowsNoInstaller.zip]($base/PatchyWindowsNoInstaller.zip) |
+| Windows 11 on Arm (ARM64) installer | [PatchyWindowsArm64Installer.exe]($base/PatchyWindowsArm64Installer.exe) |
+| Windows 11 on Arm (ARM64) portable zip | [PatchyWindowsArm64NoInstaller.zip]($base/PatchyWindowsArm64NoInstaller.zip) |
 | macOS 12+ (Apple Silicon) | [PatchyMacOS.dmg]($base/PatchyMacOS.dmg) |
 | Linux Flatpak bundle | [PatchyLinux.flatpak]($base/PatchyLinux.flatpak) |$appImageRow
 
@@ -304,6 +313,12 @@ Write-Host 'For the windows entry of latest_version.json:'
 Write-Host "      `"installer_url`": `"$base/PatchyWindowsInstaller.exe`","
 Write-Host "      `"installer_size`": $installerSize,"
 Write-Host "      `"installer_sha256`": `"$installerSha256`""
+Write-Host ''
+Write-Host 'For the windows-arm64 entry of latest_version.json (same version as windows):'
+Write-Host "      `"download_url`": `"https://github.com/$Repo/releases/latest/download/PatchyWindowsArm64Installer.exe`","
+Write-Host "      `"installer_url`": `"$base/PatchyWindowsArm64Installer.exe`","
+Write-Host "      `"installer_size`": $arm64InstallerSize,"
+Write-Host "      `"installer_sha256`": `"$arm64InstallerSha256`""
 if (-not $SkipAppImage) {
   # The AppImage one-click update (docs/auto-update.md, "AppImage"): the versioned URL, so
   # the file behind it never changes.
