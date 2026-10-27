@@ -3450,6 +3450,20 @@ std::optional<LayerId> layer_to_activate_after_delete(const std::vector<Layer>& 
   return lowest->parent;
 }
 
+// Delete (Clear) and Delete Layer in a Free Transform or Warp session cancel it, then
+// act on the untransformed layer (GitHub issue 455): the session would otherwise outlive
+// its layer, or commit pixels the clear had removed.
+void cancel_transform_session_for_layer_command(CanvasWidget* canvas) {
+  if (canvas == nullptr) {
+    return;
+  }
+  if (canvas->warp_transform_active()) {
+    canvas->cancel_warp_transform();
+  } else if (canvas->free_transform_active()) {
+    canvas->cancel_free_transform();
+  }
+}
+
 }  // namespace
 
 void MainWindow::delete_active_layer() {
@@ -3466,6 +3480,7 @@ void MainWindow::delete_layers(std::vector<LayerId> ids) {
   if (ids.empty()) {
     return;
   }
+  cancel_transform_session_for_layer_command(canvas_);
   push_undo_snapshot(tr("Delete layer"));
   const auto deleted = static_cast<int>(ids.size());
   remove_layers_in_open_undo_step(std::move(ids));
@@ -4641,6 +4656,7 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
 }
 
 void MainWindow::clear_active_layer() {
+  cancel_transform_session_for_layer_command(canvas_);
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
     canvas_->begin_processing_operation();
     const auto finish_processing = qScopeGuard([this] {

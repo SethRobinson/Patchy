@@ -13143,6 +13143,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>屏幕模式按钮</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>建议：%1 (字符宽度相同)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>建议：%1 (设计相似)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27070,10 +27078,6 @@ The open document keeps its blend modes either way.</source>
         <translation>仿制源设置: 源、位移、缩放、旋转、翻转和叠加</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>仿制源</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>快速导出为 PNG</translation>
     </message>
@@ -27112,6 +27116,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Merge</source>
         <translation>合并</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>输入 %1 到 %2 之间的任意整数百分比，使用 - 和 + 按钮，或从列表中选择预设。</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>界面缩放预设</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 将替换为 %2。</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>画笔设置</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

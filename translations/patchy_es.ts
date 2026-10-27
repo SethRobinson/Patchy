@@ -13180,6 +13180,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Screen mode button</source>
         <translation>Botón de modo de pantalla</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Sugerencia: %1 (mismos anchos de carácter)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Sugerencia: %1 (diseño similar)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27146,10 +27154,6 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>Ajustes del origen de clonación: orígenes, desplazamiento, escala, rotación, volteo y superposición</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Origen de clonación</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Exportación rápida como PNG</translation>
     </message>
@@ -27188,6 +27192,22 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Merge</source>
         <translation>Combinar</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Escribe cualquier porcentaje entero de %1 a %2, usa los botones - y + o elige un valor predefinido de la lista.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Valores predefinidos de escala de la interfaz</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 se sustituirá por %2.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Ajustes de pincel</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

@@ -706,18 +706,29 @@ void MainWindow::install_window_panel_entries() {
     const char* panel_id;
     const char* action_name;
     const char* title;
+    const char* hotkey_id;
+    Qt::Key default_key;
   };
-  // The panels' own title sources, so each entry shares its panel's translation.
+  // The panels' own title sources, so each entry shares its panel's translation. F6, F7 and
+  // F8 are Photoshop's panel keys (GitHub issue 469); F5, its Brush Settings key, stays View >
+  // Force Refresh, so Window > Brush Settings ships unbound.
   static constexpr PanelEntry kPanels[] = {
-      {"layersDock", "windowPanelLayersAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layers")},
-      {"channelsDock", "windowPanelChannelsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Channels")},
-      {"pathsDock", "windowPanelPathsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paths")},
-      {"historyDock", "windowPanelHistoryAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "History")},
-      {"propertiesDock", "windowPanelPropertiesAction",
-       QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Properties")},
-      {"infoDock", "windowPanelInfoAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Info")},
-      {"colorDock", "windowPanelColorAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color")},
-      {"paletteDock", "windowPanelPaletteAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Palette")},
+      {"layersDock", "windowPanelLayersAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layers"),
+       "window.panel_layers", Qt::Key_F7},
+      {"channelsDock", "windowPanelChannelsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Channels"),
+       "window.panel_channels", Qt::Key_unknown},
+      {"pathsDock", "windowPanelPathsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paths"),
+       "window.panel_paths", Qt::Key_unknown},
+      {"historyDock", "windowPanelHistoryAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "History"),
+       "window.panel_history", Qt::Key_unknown},
+      {"propertiesDock", "windowPanelPropertiesAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Properties"),
+       "window.panel_properties", Qt::Key_unknown},
+      {"infoDock", "windowPanelInfoAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Info"),
+       "window.panel_info", Qt::Key_F8},
+      {"colorDock", "windowPanelColorAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color"),
+       "window.panel_color", Qt::Key_F6},
+      {"paletteDock", "windowPanelPaletteAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Palette"),
+       "window.panel_palette", Qt::Key_unknown},
   };
   for (const auto& panel : kPanels) {
     const auto id = QString::fromLatin1(panel.panel_id);
@@ -732,25 +743,24 @@ void MainWindow::install_window_panel_entries() {
     action->setProperty(kWorksWithoutDocumentProperty, true);
     action->setProperty(kWindowPanelIdProperty, id);
     bind_action_text(action, panel.title);
+    register_hotkey(action, QLatin1String(panel.hotkey_id),
+                    panel.default_key == Qt::Key_unknown ? QKeySequence() : QKeySequence(panel.default_key));
     connect(action, &QAction::triggered, this, [this, action, id] {
       toggle_window_panel(id);
       action->setChecked(panel_column_->panel_visible(id));
     });
     window_panel_actions_.push_back(action);
   }
-  // Clone Source (GitHub issue 424) is the Clone Stamp's gear popup, not a panel of the
-  // column: the entry opens it (docs/healing.md "Clone source settings").
-  window_clone_source_action_ = new QAction(window_menu);
-  window_clone_source_action_->setObjectName(QStringLiteral("windowCloneSourceAction"));
-  window_clone_source_action_->setMenuRole(QAction::NoRole);
-  bind_action_text(window_clone_source_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clone Source"));
-  register_hotkey(window_clone_source_action_, "window.clone_source", QKeySequence());
-  // The popup hangs from the canvas's options bar: nothing to show without a document.
-  register_document_action(window_clone_source_action_);
-  // Once the Window menu has closed, so its popup does not take the new one down with it.
-  connect(window_clone_source_action_, &QAction::triggered, this,
-          [this] { QTimer::singleShot(0, this, [this] { show_clone_source_popup(); }); });
-  window_panel_actions_.push_back(window_clone_source_action_);
+  // Brush Settings is the Brush tool's Dynamics popup on the options bar, opened the same way.
+  window_brush_settings_action_ = new QAction(window_menu);
+  window_brush_settings_action_->setObjectName(QStringLiteral("windowBrushSettingsAction"));
+  window_brush_settings_action_->setMenuRole(QAction::NoRole);
+  bind_action_text(window_brush_settings_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush Settings"));
+  register_hotkey(window_brush_settings_action_, "window.brush_settings", QKeySequence());
+  register_document_action(window_brush_settings_action_);
+  connect(window_brush_settings_action_, &QAction::triggered, this,
+          [this] { QTimer::singleShot(0, this, [this] { show_brush_settings_popup(); }); });
+  window_panel_actions_.push_back(window_brush_settings_action_);
   for (const auto* toolbar_name : {"toolPalette", "Options"}) {
     if (auto* toolbar = findChild<QToolBar*>(QLatin1String(toolbar_name)); toolbar != nullptr) {
       window_panel_actions_.push_back(toolbar->toggleViewAction());

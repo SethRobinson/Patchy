@@ -13180,6 +13180,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Screen mode button</source>
         <translation>Botão Modo de tela</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Sugestão: %1 (mesmas larguras de caractere)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Sugestão: %1 (design semelhante)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27146,10 +27154,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>Configurações da origem do clone: origens, deslocamento, escala, rotação, inversão e sobreposição</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Origem do clone</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Exportação rápida como PNG</translation>
     </message>
@@ -27188,6 +27192,22 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Merge</source>
         <translation>Mesclar</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Digite qualquer porcentagem inteira de %1 a %2, use os botões - e + ou escolha uma predefinição da lista.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Predefinições de escala de interface</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 será substituída por %2.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Configurações do pincel</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

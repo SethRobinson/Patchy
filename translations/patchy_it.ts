@@ -13180,6 +13180,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Screen mode button</source>
         <translation>Pulsante Modalità schermo</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Suggerito: %1 (stesse larghezze dei caratteri)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Suggerito: %1 (design simile)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27146,10 +27154,6 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <translation>Impostazioni della sorgente di clonazione: sorgenti, spostamento, scala, rotazione, riflesso e sovrapposizione</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Sorgente di clonazione</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Esportazione rapida come PNG</translation>
     </message>
@@ -27188,6 +27192,22 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Merge</source>
         <translation>Unisci</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Digita una percentuale intera da %1 a %2, usa i pulsanti - e + oppure scegli un valore predefinito dall&apos;elenco.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Valori predefiniti della scala dell&apos;interfaccia</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 verrà sostituito con %2.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Impostazioni pennello</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

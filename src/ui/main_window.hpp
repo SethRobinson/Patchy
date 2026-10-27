@@ -2670,8 +2670,8 @@ private:
   // Clone source settings (GitHub issue 424, docs/healing.md "Clone source settings"):
   // the gear popup's panel follows the active canvas.
   void refresh_clone_source_panel();
-  // Window > Clone Source: picks the Clone Stamp from any other tool and opens the popup.
-  void show_clone_source_popup();
+  // Window > Brush Settings: picks the Brush tool from any other tool and opens its Dynamics popup.
+  void show_brush_settings_popup();
   // Applies the shared overlay settings to every canvas and both checkboxes, and saves them.
   void apply_clone_overlay_settings(bool shown, int opacity);
   // The Sample choice for the document info lines ("active layer", ...).
@@ -2974,7 +2974,7 @@ private:
   QToolButton* clone_source_options_button_{nullptr};
   QMenu* clone_source_menu_{nullptr};
   CloneSourcePanel* clone_source_panel_{nullptr};
-  QAction* window_clone_source_action_{nullptr};
+  QAction* window_brush_settings_action_{nullptr};
   // The overlay settings every canvas shares (tools/cloneOverlay, tools/cloneOverlayOpacity).
   bool current_clone_overlay_shown_{true};
   int current_clone_overlay_opacity_{100};
@@ -3643,6 +3643,8 @@ private:
   OptionsFlowContainer* options_flow_container_{nullptr};
   // refresh_options_bar_rows() rebuilds the per-tool rows only when this key changes.
   qint64 options_bar_rows_key_{-1};
+  // Each tool's index into those rows, for the per-tool slider collapse.
+  std::vector<std::pair<CanvasTool, int>> options_bar_tool_rows_;
   std::vector<std::function<void()>> retranslation_callbacks_;
   bool updating_transform_controls_{false};
   bool updating_layer_controls_{false};

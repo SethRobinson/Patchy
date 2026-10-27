@@ -4,8 +4,8 @@
 // tool's controls left to right and folds them onto more rows when the window is
 // narrow; OptionsFlowContainer sizes the bar from every tool's row, not just the
 // active one, so switching tools never changes the bar height (which would shift
-// the tool palette, canvas and docks) and duplicate inline sliders drop out before
-// anything wraps.
+// the tool palette, canvas and docks) and a tool's duplicate inline sliders drop out
+// before its row would wrap.
 
 #include <QFrame>
 #include <QLayout>
@@ -23,8 +23,9 @@ namespace patchy::ui {
 
 // Set to true on an Options-bar widget that duplicates a control beside it (the
 // inline sliders next to a spin box that already has a popup slider and a scrub
-// label). The bar hides every such widget at widths where a row that contains one
-// would otherwise wrap; MainWindow::refresh_options_bar applies it.
+// label). The bar hides them for the active tool at widths where that tool's own row
+// would otherwise wrap (other tools' rows do not count: GitHub issue 458 follow-up);
+// MainWindow::refresh_options_bar applies it.
 inline constexpr char kOptionsBarCollapsibleProperty[] = "optionsBarCollapsible";
 
 // True on an Options-bar control while it holds keyboard focus that came from Tab or
@@ -80,13 +81,23 @@ public:
   // layout keeps its own item order). Hidden widgets are measured too.
   void set_rows(std::vector<QSet<QWidget*>> rows);
   [[nodiscard]] bool has_rows() const { return !rows_.empty(); }
+  // Bumped by every set_rows() that changes the rows, so a row index can be told
+  // apart from the same index in an older set.
+  [[nodiscard]] int rows_generation() const { return rows_generation_; }
+  // The active tool's index into the rows (-1: none, nothing collapses).
+  void set_active_row(int index) { active_row_ = index; }
+  [[nodiscard]] int active_row() const { return active_row_; }
 
   struct RowsMeasure {
-    bool collapse = false;  // hide kOptionsBarCollapsibleProperty widgets at this width
-    int height = 0;         // the tallest row once collapsed widgets are dropped
+    // Per row: hide its kOptionsBarCollapsibleProperty widgets at this width, because
+    // that row would wrap with them.
+    std::vector<bool> collapse;
+    int height = 0;  // the tallest row once each row's own collapsed widgets are dropped
   };
   // Cached per width until the next invalidate() or set_rows().
   [[nodiscard]] RowsMeasure measure_rows(int width) const;
+  // Whether the active row drops its duplicate sliders at this width.
+  [[nodiscard]] bool active_row_collapses(int width) const;
 
 private:
   struct Flow {
@@ -102,6 +113,8 @@ private:
   bool center_rows_ = false;
   std::function<QMargins(const QWidget&)> ink_insets_;
   std::vector<QSet<QWidget*>> rows_;
+  int rows_generation_ = 0;
+  int active_row_ = -1;
   mutable int cached_width_ = -1;
   mutable RowsMeasure cached_measure_;
 };
@@ -120,12 +133,13 @@ public:
   QSize sizeHint() const override;
   QSize minimumSizeHint() const override;
 
-  // Whether the duplicate sliders should hide at the current width.
+  // Whether the active tool's duplicate sliders should hide at the current width.
   [[nodiscard]] bool wants_collapse() const;
   // MainWindow reports the collapse state it applied, and gets a callback when a
   // resize or a control's size change crosses the threshold so it can re-run its
-  // visibility pass. A change of state also drops the height reservation: it was
-  // learned with the other set of sliders (GitHub issue 364).
+  // visibility pass. A change of state on the same row also drops the height
+  // reservation: it was learned with the other set of sliders (GitHub issue 364). A
+  // tool switch keeps it, so the bar never changes height on one (GitHub issue 91).
   void set_collapse_applied(bool collapsed);
   [[nodiscard]] bool collapse_applied() const { return collapse_applied_; }
   void set_collapse_changed_callback(std::function<void()> callback) { collapse_changed_ = std::move(callback); }
@@ -142,6 +156,9 @@ private:
   [[nodiscard]] int height_for(int width) const;
 
   bool collapse_applied_ = false;
+  // The row (index and rows generation) collapse_applied_ was applied to.
+  int applied_row_ = -1;
+  int applied_rows_generation_ = -1;
   bool updating_ = false;
   std::function<void()> collapse_changed_;
   // The sticky reservation: the tallest height any tool row needed at reserved_width_.

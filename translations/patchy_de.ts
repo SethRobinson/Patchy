@@ -13180,6 +13180,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Screen mode button</source>
         <translation>Schaltfläche „Bildschirmmodus“</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Vorschlag: %1 (gleiche Zeichenbreiten)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Vorschlag: %1 (ähnliches Design)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27146,10 +27154,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung, Spiegelung und Überlagerung</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Kopierquelle</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Schnellexport als PNG</translation>
     </message>
@@ -27188,6 +27192,22 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Merge</source>
         <translation>Zusammenfügen</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Geben Sie einen ganzen Prozentwert von %1 bis %2 ein, verwenden Sie die Schaltflächen - und + oder wählen Sie eine Vorgabe aus der Liste.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Vorgaben für die Oberflächenskalierung</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 wird durch %2 ersetzt.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Pinseleinstellungen</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

@@ -591,6 +591,14 @@ BrushDynamicsButton::BrushDynamicsButton(QWidget* parent) : QToolButton(parent) 
   set_active_entry(nullptr);
 }
 
+void BrushDynamicsButton::open_popup() {
+  if (popup_ != nullptr) {
+    return;
+  }
+  popup_dismissed_ms_ = -1;
+  show_popup();
+}
+
 void BrushDynamicsButton::retranslate() {
   setText(tr("Dynamics"));
   setAccessibleName(tr("Dynamics"));
@@ -774,7 +782,8 @@ void BrushDynamicsButton::show_popup() {
     }
   }
   popup->resize(popup_width, popup_height);
-  auto position = mapToGlobal(QPoint(0, height()));
+  // A hidden options bar (Window > Brush Settings): under the window's top-left corner.
+  auto position = isVisible() ? mapToGlobal(QPoint(0, height())) : window()->mapToGlobal(QPoint(12, 12));
   if (screen != nullptr) {
     const auto available = screen->availableGeometry();
     if (position.y() + popup->height() > available.bottom()) {

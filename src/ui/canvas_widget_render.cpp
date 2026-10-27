@@ -376,6 +376,7 @@ void CanvasWidget::document_changed() {
   mask_display_image_channel_ = 0;
   mask_display_image_revision_ = 0;
   invalidate_display_mip_cache();
+  cancel_transform_sessions_on_removed_layers();
   refresh_free_transform_preview_caches();
   notify_document_changed();
   if (isVisible()) {
@@ -626,6 +627,7 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   clear_preview_scaled_document();
   invalidate_retained_move_caches();
   cancel_async_render_cache_refresh();
+  cancel_transform_sessions_on_removed_layers();
   refresh_free_transform_preview_caches();
   if (mask_display_mode_ != MaskDisplayMode::None) {
     const bool component_preview = CanvasWidget::is_component_preview(layer_edit_target_);

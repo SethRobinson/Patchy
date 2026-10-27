@@ -13180,6 +13180,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Screen mode button</source>
         <translation>Bouton Mode d&apos;affichage</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Suggestion : %1 (mêmes largeurs de caractères)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Suggestion : %1 (dessin similaire)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27146,10 +27154,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation, symétrie et superposition</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Source de duplication</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Exportation rapide au format PNG</translation>
     </message>
@@ -27188,6 +27192,22 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Merge</source>
         <translation>Fusionner</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Saisissez un pourcentage entier de %1 à %2, utilisez les boutons - et +, ou choisissez un préréglage dans la liste.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Préréglages d&apos;échelle de l&apos;interface</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 sera remplacée par %2.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Paramètres du pinceau</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

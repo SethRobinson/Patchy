@@ -2814,6 +2814,8 @@ private:
   // Quiet state teardown shared by cancel/commit and the warp mode switch: no
   // cursor/update/notify side effects.
   void reset_free_transform_session_state();
+  // Cancels a Free Transform or Warp session whose layer left the document.
+  void cancel_transform_sessions_on_removed_layers();
   void clear_pending_warp();
   bool resume_pending_warp_session();
   // Warp Transform internals: the working cage lives in CONTENT space and maps to

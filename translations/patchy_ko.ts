@@ -13143,6 +13143,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>화면 모드 버튼</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>추천: %1(같은 문자 폭)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>추천: %1(비슷한 디자인)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27070,10 +27078,6 @@ The open document keeps its blend modes either way.</source>
         <translation>복제 소스 설정: 소스, 오프셋, 비율, 회전, 뒤집기, 오버레이</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>복제 소스</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>PNG로 빠른 내보내기</translation>
     </message>
@@ -27112,6 +27116,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Merge</source>
         <translation>병합</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>%1~%2 사이의 정수 백분율을 입력하거나, - 및 + 버튼을 사용하거나, 목록에서 사전 설정을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>인터페이스 배율 사전 설정</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 글꼴이 %2(으)로 대체됩니다.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>브러시 설정</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

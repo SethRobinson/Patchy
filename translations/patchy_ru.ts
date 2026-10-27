@@ -13217,6 +13217,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>Кнопка режима экрана</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Предлагается: %1 (та же ширина символов)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Предлагается: %1 (похожий рисунок)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27222,10 +27230,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Параметры источника клонирования: источники, сдвиг, масштаб, поворот, отражение и наложение</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Источник клонирования</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Быстрый экспорт в PNG</translation>
     </message>
@@ -27264,6 +27268,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Merge</source>
         <translation>Объединить</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Введите любое целое значение в процентах от %1 до %2, воспользуйтесь кнопками - и + или выберите готовое значение из списка.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Готовые значения масштаба интерфейса</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 будет заменён на %2.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Настройки кисти</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

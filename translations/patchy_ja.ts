@@ -13143,6 +13143,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>スクリーンモードボタン</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>候補: %1 (文字幅が同じ)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>候補: %1 (似たデザイン)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27070,10 +27078,6 @@ The open document keeps its blend modes either way.</source>
         <translation>クローン元の設定: ソース、オフセット、スケール、回転、反転、オーバーレイ</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>クローン元</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>PNG としてクイック書き出し</translation>
     </message>
@@ -27112,6 +27116,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Merge</source>
         <translation>結合</translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>%1～%2 の任意の整数パーセントを入力するか、- と + ボタンを使うか、リストからプリセットを選択します。</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>インターフェースの拡大率のプリセット</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 は %2 に置き換えられます。</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>ブラシ設定</translation>
     </message>
     <message>
         <source>Bring to &amp;Front</source>

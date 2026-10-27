@@ -967,6 +967,94 @@ void ui_window_menu_hides_collapsed_panel() {
   CHECK(history_entry->isChecked());
 }
 
+// F6, F7 and F8 show the Color, Layers and Info panels and bring them to the front; the
+// same key on a panel already in front hides it (GitHub issue 469). Brush Settings has a
+// command of its own with no key, which opens the Brush tool's Dynamics popup.
+void ui_window_panel_hotkeys_show_and_hide_panels() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(patchy::Document(64, 48, patchy::PixelFormat::rgba8()), QStringLiteral("Panel keys"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr);
+  if (column == nullptr) {
+    return;
+  }
+  struct PanelKey {
+    const char* panel_id;
+    const char* action_name;
+    const char* hotkey_id;
+    Qt::Key key;
+  };
+  const PanelKey keys[] = {{"colorDock", "windowPanelColorAction", "window.panel_color", Qt::Key_F6},
+                           {"layersDock", "windowPanelLayersAction", "window.panel_layers", Qt::Key_F7},
+                           {"infoDock", "windowPanelInfoAction", "window.panel_info", Qt::Key_F8}};
+  const auto press = [&](Qt::Key key) {
+    canvas->setFocus();
+    QTest::keyClick(canvas, key);
+    QApplication::processEvents();
+  };
+  for (const auto& entry : keys) {
+    const auto id = QString::fromLatin1(entry.panel_id);
+    auto* action = require_action(window, entry.action_name);
+    const auto* command = window.hotkey_registry().find_command(QString::fromLatin1(entry.hotkey_id));
+    CHECK(command != nullptr && command->action == action);
+    CHECK(command != nullptr && command->default_shortcuts == QList<QKeySequence>{QKeySequence(entry.key)});
+    CHECK(action->shortcuts().contains(QKeySequence(entry.key)));
+    // Start from a closed panel: the key opens it in front, expanded.
+    column->set_panel_visible(id, false);
+    QApplication::processEvents();
+    press(entry.key);
+    CHECK(column->panel_visible(id));
+    CHECK(column->panel_in_front(id));
+    CHECK(column->panel_expanded(id));
+    CHECK(column->section_widget(id)->isVisible());
+    CHECK(action->isChecked());
+    // In front: the same key hides it (a tab group's other tabs stay).
+    press(entry.key);
+    CHECK(!column->panel_visible(id));
+    CHECK(!action->isChecked());
+    press(entry.key);
+    CHECK(column->panel_visible(id) && column->panel_in_front(id));
+  }
+  // A tab behind another of its group comes to the front instead of closing.
+  const auto layers = QStringLiteral("layersDock");
+  const auto channels = QStringLiteral("channelsDock");
+  column->bring_to_front(channels);
+  QApplication::processEvents();
+  CHECK(column->panel_in_front(channels) && !column->panel_in_front(layers));
+  press(Qt::Key_F7);
+  CHECK(column->panel_visible(layers) && column->panel_in_front(layers));
+
+  // F5 stays Force Refresh.
+  CHECK(require_action(window, "windowForceRefreshAction")->shortcuts().contains(QKeySequence(Qt::Key_F5)));
+
+  auto* brush_settings = require_action(window, "windowBrushSettingsAction");
+  const auto* brush_command = window.hotkey_registry().find_command(QStringLiteral("window.brush_settings"));
+  CHECK(brush_command != nullptr && brush_command->action == brush_settings);
+  CHECK(brush_command != nullptr && brush_command->default_shortcuts.isEmpty());
+  CHECK(brush_settings->shortcuts().isEmpty());
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  QApplication::processEvents();
+  brush_settings->trigger();
+  const auto popup_open = [] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+        return widget;
+      }
+    }
+    return static_cast<QWidget*>(nullptr);
+  };
+  CHECK(process_events_until([&] { return popup_open() != nullptr; }));
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
+  if (auto* popup = popup_open(); popup != nullptr) {
+    save_widget_artifact("ui_window_brush_settings_popup", window);
+    popup->close();
+    QApplication::processEvents();
+  }
+}
+
 void ui_window_menu_lists_panels_and_toolbars() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
@@ -4787,6 +4875,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_layer_panel_new_layer_menu_lists_fills_and_adjustments", ui_layer_panel_new_layer_menu_lists_fills_and_adjustments},
       {"ui_window_menu_lists_panels_and_toolbars", ui_window_menu_lists_panels_and_toolbars},
       {"ui_window_menu_hides_collapsed_panel", ui_window_menu_hides_collapsed_panel},
+      {"ui_window_panel_hotkeys_show_and_hide_panels", ui_window_panel_hotkeys_show_and_hide_panels},
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},
       {"ui_panel_collapse_and_close_leave_no_gap", ui_panel_collapse_and_close_leave_no_gap},
       {"ui_panel_all_collapsed_stack_at_top", ui_panel_all_collapsed_stack_at_top},

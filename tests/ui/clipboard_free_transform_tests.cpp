@@ -37,6 +37,7 @@
 #include <QIODevice>
 #include <QPushButton>
 #include <QRegion>
+#include <QTextEdit>
 #include <QTimer>
 #include <QToolBar>
 #include <QUrl>
@@ -1286,6 +1287,164 @@ void ui_free_transform_arrow_keys_nudge_bounding_box() {
   CHECK(std::abs(QRectF(*committed_rect).center().y() - box_center_before_commit.y()) <= 1.0);
 
   save_widget_artifact("ui_free_transform_arrow_nudge", window);
+}
+
+// The options bar's lines: the distinct tops of its visible controls.
+int visible_options_rows(QWidget& options) {
+  std::vector<int> tops;
+  for (auto* child : options.findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+    if (!child->isVisible()) {
+      continue;
+    }
+    const int top = child->geometry().top();
+    if (std::none_of(tops.begin(), tops.end(), [top](int other) { return std::abs(other - top) < 8; })) {
+      tops.push_back(top);
+    }
+  }
+  return static_cast<int>(tops.size());
+}
+
+// Records a bar control shown while the transform row is still up: Qt lays the bar out
+// at once on each show, so that wraps it onto a second row for a painted frame (GitHub
+// issue 455).
+class TransformRowOverlapProbe final : public QObject {
+public:
+  TransformRowOverlapProbe(QWidget& options, QWidget& transform_control) : transform_control_(transform_control) {
+    for (auto* child : options.findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      child->installEventFilter(this);
+    }
+  }
+  bool overlapped{false};
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Show && watched != &transform_control_ && transform_control_.isVisible()) {
+      overlapped = true;
+    }
+    return false;
+  }
+
+private:
+  QWidget& transform_control_;
+};
+
+// GitHub issue 455: Delete on a text layer in a Free Transform session showed the Type row
+// while the transform row was still up, so the bar flashed two rows. Delete (Clear) and
+// Delete Layer now end the session first and the bar hides the session rows before it
+// shows the tool's; on a pixel layer Delete clears the untransformed pixels (the session
+// used to stay open over them), and undo brings each layer back.
+void ui_free_transform_delete_layer_ends_the_session() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1366, 800);
+  patchy::Document document(320, 240, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(320, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto square_id =
+      document.add_pixel_layer("Square", solid_pixels(320, 240, patchy::PixelFormat::rgba8(), QColor(Qt::red))).id();
+  window.add_document_session(std::move(document), QStringLiteral("Transform Delete"));
+  auto* canvas = require_canvas(window);
+  QApplication::processEvents();
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  auto* pivot = window.findChild<QComboBox*>(QStringLiteral("freeTransformReferenceCombo"));
+  auto* x = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  CHECK(options_bar != nullptr && options != nullptr && apply != nullptr && pivot != nullptr && x != nullptr);
+  if (options_bar == nullptr || options == nullptr || apply == nullptr || pivot == nullptr || x == nullptr) {
+    return;
+  }
+  const auto transform_row_hidden = [&] { return !apply->isVisible() && !pivot->isVisible() && !x->isVisible(); };
+  const auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  // The reporter's steps: a committed text layer, the Type tool, Ctrl+T, Delete.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  patchy::ui::MainWindowTestAccess::add_text_at(window, QPoint(60, 60));
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("Delete me"));
+  QApplication::processEvents();
+  auto* text_apply = window.findChild<QPushButton*>(QStringLiteral("textApplyButton"));
+  CHECK(text_apply != nullptr);
+  if (text_apply != nullptr) {
+    text_apply->click();
+  }
+  process_events_for(100);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  const auto text_id = doc.active_layer_id();
+  CHECK(text_id.has_value() && doc.find_layer(*text_id) != nullptr && patchy::layer_is_text(*doc.find_layer(*text_id)));
+  if (!text_id.has_value()) {
+    return;
+  }
+  const int type_rows = visible_options_rows(*options);
+  const int type_bar_height = options_bar->height();
+  CHECK(type_rows == 1);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(apply->isVisible());
+  {
+    TransformRowOverlapProbe probe(*options, *apply);
+    require_action(window, "layerClearAction")->trigger();  // the Delete key
+    CHECK(!probe.overlapped);
+  }
+  process_events_for(100);
+  save_widget_artifact("ui_free_transform_delete_text_layer_options_bar", *options_bar);
+  CHECK(doc.find_layer(*text_id) == nullptr);
+  CHECK(!canvas->free_transform_active());
+  CHECK(!canvas->warp_transform_active());
+  CHECK(transform_row_hidden());
+  CHECK(visible_options_rows(*options) == type_rows);
+  CHECK(options_bar->height() == type_bar_height);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  process_events_for(100);
+  CHECK(doc.find_layer(*text_id) != nullptr);
+  CHECK(!canvas->free_transform_active());
+  CHECK(transform_row_hidden());
+
+  // A pixel layer, from the Move tool: Layer > Delete Layer ends the session too.
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  patchy::ui::MainWindowTestAccess::select_layers(window, {square_id}, square_id);
+  QApplication::processEvents();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  {
+    TransformRowOverlapProbe probe(*options, *apply);
+    require_action(window, "layerDeleteAction")->trigger();
+    CHECK(!probe.overlapped);
+  }
+  process_events_for(100);
+  CHECK(doc.find_layer(square_id) == nullptr);
+  CHECK(!canvas->free_transform_active());
+  CHECK(transform_row_hidden());
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  process_events_for(100);
+  CHECK(doc.find_layer(square_id) != nullptr);
+  CHECK(!canvas->free_transform_active());
+
+  // Delete on a pixel layer in a session clears the untransformed layer.
+  patchy::ui::MainWindowTestAccess::select_layers(window, {square_id}, square_id);
+  QApplication::processEvents();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->set_transform_controls_state(canvas->transform_controls_state()->reference_position, 50.0, 50.0, 0.0));
+  QApplication::processEvents();
+  require_action(window, "layerClearAction")->trigger();
+  process_events_for(100);
+  CHECK(!canvas->free_transform_active());
+  CHECK(transform_row_hidden());
+  CHECK(doc.find_layer(square_id) != nullptr);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(160, 120)), QColor(Qt::white), 2));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(10, 10)), QColor(Qt::white), 2));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  process_events_for(100);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(10, 10)), QColor(Qt::red), 2));
 }
 
 void ui_transform_numeric_controls_apply_values() {
@@ -3529,6 +3688,7 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
        ui_transform_shift_aspect_preference_restores_legacy},
       {"ui_free_transform_arrow_keys_nudge_bounding_box", ui_free_transform_arrow_keys_nudge_bounding_box},
       {"ui_transform_numeric_controls_apply_values", ui_transform_numeric_controls_apply_values},
+      {"ui_free_transform_delete_layer_ends_the_session", ui_free_transform_delete_layer_ends_the_session},
       {"ui_transform_fields_accept_unit_tokens", ui_transform_fields_accept_unit_tokens},
       {"ui_transform_numeric_fraction_snaps_to_pixel_grid", ui_transform_numeric_fraction_snaps_to_pixel_grid},
       {"ui_transform_numeric_odd_layer_keeps_half_pixel_reference",

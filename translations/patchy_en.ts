@@ -13163,6 +13163,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27064,10 +27072,6 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27105,6 +27109,22 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Merge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

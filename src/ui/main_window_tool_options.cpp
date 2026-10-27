@@ -129,6 +129,7 @@
 #include <QtGlobal>
 
 #include <algorithm>
+#include <iterator>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -2682,24 +2683,17 @@ void MainWindow::refresh_clone_source_panel() {
   clone_source_panel_->set_state(state);
 }
 
-void MainWindow::show_clone_source_popup() {
-  if (clone_source_menu_ == nullptr || canvas_ == nullptr) {
+void MainWindow::show_brush_settings_popup() {
+  if (brush_dynamics_button_ == nullptr || canvas_ == nullptr) {
     return;
   }
-  // The settings belong to the Clone Stamp and the Healing Brush: from any other tool the
-  // entry picks the Clone Stamp, so the gear the popup hangs from is on the bar.
-  if (canvas_->tool() != CanvasTool::Clone && canvas_->tool() != CanvasTool::Healing) {
-    activate_tool(CanvasTool::Clone);
+  // The Dynamics button sits on the Brush tool's bar only.
+  if (canvas_->tool() != CanvasTool::Brush) {
+    activate_tool(CanvasTool::Brush);
   }
-  refresh_clone_source_panel();
-  QPoint anchor;
-  if (clone_source_options_button_ != nullptr && clone_source_options_button_->isVisible()) {
-    anchor = clone_source_options_button_->mapToGlobal(QPoint(0, clone_source_options_button_->height()));
-  } else {
-    // A hidden options bar: under the canvas's top-left corner.
-    anchor = canvas_->mapToGlobal(QPoint(12, 12));
+  if (brush_dynamics_button_->isEnabled()) {
+    brush_dynamics_button_->open_popup();
   }
-  clone_source_menu_->popup(anchor);
 }
 
 QString MainWindow::retouch_sample_info_text() const {
@@ -3432,6 +3426,7 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
     return;
   }
   options_bar_rows_key_ = key;
+  options_bar_tool_rows_.clear();
   std::vector<CanvasTool> tools;
   for (const auto& [widget, widget_tools] : option_actions_) {
     for (const auto tool : widget_tools) {
@@ -3465,9 +3460,12 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
         }
       }
     }
-    if (std::find(rows.begin(), rows.end(), row) == rows.end()) {
+    auto existing = std::find(rows.begin(), rows.end(), row);
+    if (existing == rows.end()) {
       rows.push_back(std::move(row));
+      existing = std::prev(rows.end());
     }
+    options_bar_tool_rows_.emplace_back(tool, static_cast<int>(std::distance(rows.begin(), existing)));
   }
   if (auto* flow = dynamic_cast<FlowLayout*>(options_flow_container_->layout()); flow != nullptr) {
     flow->set_rows(std::move(rows));
@@ -3506,10 +3504,15 @@ void MainWindow::refresh_options_bar() {
   const auto mode_rules = vector_option_mode_rules();
   // GitHub issue 91: the bar takes the height of the tallest tool row at this
   // width, and the inline sliders that duplicate a spin box drop out first when
-  // a row carrying one would wrap.
+  // the active tool's row would wrap with them (issue 458 follow-up: only its own row).
   bool collapse_sliders = false;
   if (options_flow_container_ != nullptr) {
     refresh_options_bar_rows(mode_rules.live_shape);
+    if (auto* flow = dynamic_cast<FlowLayout*>(options_flow_container_->layout()); flow != nullptr) {
+      const auto active = std::find_if(options_bar_tool_rows_.begin(), options_bar_tool_rows_.end(),
+                                       [this](const auto& entry) { return entry.first == current_tool_; });
+      flow->set_active_row(active != options_bar_tool_rows_.end() ? active->second : -1);
+    }
     collapse_sliders = options_flow_container_->wants_collapse();
     options_flow_container_->set_collapse_applied(collapse_sliders);
   }
@@ -3527,6 +3530,19 @@ void MainWindow::refresh_options_bar() {
   const auto final_visibility = [&](QWidget* widget, const std::vector<CanvasTool>& tools) {
     return tool_visibility(widget, tools) && !stray_separators.contains(widget);
   };
+  // The session rows hide in this first pass too (GitHub issue 455): when a session
+  // ended, the tool's row showed while the transform row was still up, and the bar
+  // flashed two rows.
+  const auto hide_session_widgets = [](const std::vector<QWidget*>& widgets, bool keep) {
+    for (auto* widget : widgets) {
+      if (widget != nullptr && !keep && !widget->isHidden()) {
+        widget->setVisible(false);
+      }
+    }
+  };
+  hide_session_widgets(transform_option_actions_, free_transform_session);
+  hide_session_widgets(warp_option_actions_, warp_session);
+  hide_session_widgets(transform_session_actions_, transform_session_active);
   for (const auto& [widget, tools] : option_actions_) {
     if (widget != nullptr && !final_visibility(widget, tools) && !widget->isHidden()) {
       widget->setVisible(false);
