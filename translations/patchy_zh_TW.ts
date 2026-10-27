@@ -13371,6 +13371,36 @@ Each item&apos;s own View setting still applies.</source>
         <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
         <translation>勾選圖層面板顯示的按鈕，拖曳它們或使用「上移」和「下移」設定順序。隱藏按鈕的命令仍在選單中。</translation>
     </message>
+    <message>
+        <source>Adobe Photoshop</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Adobe Photoshop</translation>
+    </message>
+    <message>
+        <source>Affinity Photo</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Affinity Photo</translation>
+    </message>
+    <message>
+        <source>GIMP</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>GIMP</translation>
+    </message>
+    <message>
+        <source>Krita</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Krita</translation>
+    </message>
+    <message>
+        <source>Patchy</source>
+        <comment>Layers buttons preset: Patchy&apos;s own default</comment>
+        <translation>Patchy</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
+        <translation>自訂</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

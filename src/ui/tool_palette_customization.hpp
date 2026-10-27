@@ -66,6 +66,26 @@ inline constexpr const char* kToolPaletteFooterItemIds[] = {kToolPaletteColorsId
 // the button it follows in kLayerFooterButtonIds, or first when none of those is placed.
 [[nodiscard]] QStringList resolved_layer_footer_order(const QStringList& stored);
 
+// The Layers buttons tab's presets (GitHub issue 471): Patchy's own default and, at Seth's
+// request, arrangements of Patchy's own buttons in the order other editors' Layers panels use
+// (docs/tool-palette.md, "Customizing the palette"). A preset is not stored: the dialog shows
+// the one whose shown buttons, in order, match the customization, else Custom.
+enum class LayerFooterPreset { Patchy, Photoshop, AffinityPhoto, Gimp, Krita };
+inline constexpr LayerFooterPreset kLayerFooterPresets[] = {LayerFooterPreset::Patchy, LayerFooterPreset::Photoshop,
+                                                            LayerFooterPreset::AffinityPhoto, LayerFooterPreset::Gimp,
+                                                            LayerFooterPreset::Krita};
+// The combo's item token for each preset ("patchy", "photoshop", "affinity_photo", "gimp",
+// "krita"; "custom" for none) and its translated label.
+[[nodiscard]] QString layer_footer_preset_token(LayerFooterPreset preset);
+[[nodiscard]] QString layer_footer_preset_label(LayerFooterPreset preset);
+// Sets the footer order and hidden buttons to the preset's: its buttons shown in its order,
+// every other one hidden after them in kLayerFooterButtonIds' order.
+void apply_layer_footer_preset(ToolPaletteCustomization& value, LayerFooterPreset preset);
+// The footer buttons the customization shows, in footer order.
+[[nodiscard]] QStringList shown_layer_footer_buttons(const ToolPaletteCustomization& value);
+// The preset showing the same buttons in the same order, or nothing (Custom).
+[[nodiscard]] std::optional<LayerFooterPreset> matching_layer_footer_preset(const ToolPaletteCustomization& value);
+
 // Sorted, without duplicates or empty ids, so equal choices compare and store equal; the
 // footer order resolved, and empty when it is the default one.
 [[nodiscard]] ToolPaletteCustomization normalized_tool_palette_customization(ToolPaletteCustomization value);

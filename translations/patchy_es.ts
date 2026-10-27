@@ -13408,6 +13408,36 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
         <translation>Marque los botones que muestra el panel Capas y arrástrelos o use Subir y Bajar para fijar su orden. Los comandos de los botones ocultos siguen en los menús.</translation>
     </message>
+    <message>
+        <source>Adobe Photoshop</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Adobe Photoshop</translation>
+    </message>
+    <message>
+        <source>Affinity Photo</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Affinity Photo</translation>
+    </message>
+    <message>
+        <source>GIMP</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>GIMP</translation>
+    </message>
+    <message>
+        <source>Krita</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Krita</translation>
+    </message>
+    <message>
+        <source>Patchy</source>
+        <comment>Layers buttons preset: Patchy&apos;s own default</comment>
+        <translation>Patchy</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
+        <translation>Personalizado</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
