@@ -3527,6 +3527,19 @@ void MainWindow::refresh_options_bar() {
   const auto final_visibility = [&](QWidget* widget, const std::vector<CanvasTool>& tools) {
     return tool_visibility(widget, tools) && !stray_separators.contains(widget);
   };
+  // The session rows hide in this first pass too (GitHub issue 455): when a session
+  // ended, the tool's row showed while the transform row was still up, and the bar
+  // flashed two rows.
+  const auto hide_session_widgets = [](const std::vector<QWidget*>& widgets, bool keep) {
+    for (auto* widget : widgets) {
+      if (widget != nullptr && !keep && !widget->isHidden()) {
+        widget->setVisible(false);
+      }
+    }
+  };
+  hide_session_widgets(transform_option_actions_, free_transform_session);
+  hide_session_widgets(warp_option_actions_, warp_session);
+  hide_session_widgets(transform_session_actions_, transform_session_active);
   for (const auto& [widget, tools] : option_actions_) {
     if (widget != nullptr && !final_visibility(widget, tools) && !widget->isHidden()) {
       widget->setVisible(false);
