@@ -7877,27 +7877,61 @@ void MainWindow::open_text_character_dialog() {
   set_themed_style(*text_character_hint_label_, QStringLiteral("color: @hint_text;"));
   layout->addRow(text_character_hint_label_);
 
-  text_character_auto_leading_ = new QCheckBox(tr("Auto leading"), dialog);
-  text_character_auto_leading_->setObjectName(QStringLiteral("textCharacterAutoLeading"));
-  layout->addRow(QString(), text_character_auto_leading_);
-
-  text_character_faux_bold_ = new QCheckBox(tr("Faux bold"), dialog);
-  text_character_faux_bold_->setObjectName(QStringLiteral("textCharacterFauxBold"));
-  text_character_faux_bold_->setToolTip(
-      tr("Thicken the current face synthetically instead of switching to the family's bold face"));
-  layout->addRow(QString(), text_character_faux_bold_);
-
-  text_character_faux_italic_ = new QCheckBox(tr("Faux italic"), dialog);
-  text_character_faux_italic_->setObjectName(QStringLiteral("textCharacterFauxItalic"));
-  text_character_faux_italic_->setToolTip(
-      tr("Slant the current face synthetically instead of switching to the family's italic face"));
-  layout->addRow(QString(), text_character_faux_italic_);
-
-  text_character_rotate_roman_ = new QCheckBox(tr("Rotate Latin (vertical text)"), dialog);
-  text_character_rotate_roman_->setObjectName(QStringLiteral("textCharacterRotateRoman"));
-  text_character_rotate_roman_->setToolTip(
-      tr("Lay Latin letters on their side along the column instead of upright (Photoshop's Standard Vertical Roman Alignment)"));
-  layout->addRow(QString(), text_character_rotate_roman_);
+  // Character styles first (GitHub issue 346): one row of toggles led by faux bold and faux
+  // italic. The buttons keep no focus, so the keyboard stays in a live text session.
+  {
+    const auto make_button = [](QWidget* parent, const char* object_name, int icon, const QString& name,
+                                const QString& detail) {
+      auto* button = new QPushButton(parent);
+      button->setObjectName(QLatin1String(object_name));
+      button->setCheckable(true);
+      button->setFocusPolicy(Qt::NoFocus);
+      button->setIcon(text_character_style_icon(icon));
+      button->setIconSize(QSize(20, 20));
+      button->setFixedSize(30, 26);
+      button->setToolTip(detail.isEmpty() ? name : name + QLatin1Char('\n') + detail);
+      button->setAccessibleName(name);
+      return button;
+    };
+    struct StyleButton {
+      const char* object_name;
+      QString tooltip;
+    };
+    const std::array<StyleButton, 8> styles{{
+        {"textCharacterAllCapsButton", tr("All Caps")},
+        {"textCharacterSmallCapsButton", tr("Small Caps")},
+        {"textCharacterSuperscriptButton", tr("Superscript")},
+        {"textCharacterSubscriptButton", tr("Subscript")},
+        {"textCharacterUnderlineButton", tr("Underline")},
+        {"textCharacterStrikethroughButton", tr("Strikethrough")},
+        {"textCharacterOrdinalsButton", tr("Ordinals (fonts that have them)")},
+        {"textCharacterFractionsButton", tr("Fractions (fonts that have them)")},
+    }};
+    auto* row = new QWidget(dialog);
+    row->setObjectName(QStringLiteral("textCharacterStyleRow"));
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(0, 0, 0, 0);
+    row_layout->setSpacing(2);
+    text_character_faux_bold_ =
+        make_button(row, "textCharacterFauxBold", 8, tr("Faux bold"),
+                    tr("Thicken the current face synthetically instead of switching to the family's bold face"));
+    text_character_faux_italic_ =
+        make_button(row, "textCharacterFauxItalic", 9, tr("Faux italic"),
+                    tr("Slant the current face synthetically instead of switching to the family's italic face"));
+    row_layout->addWidget(text_character_faux_bold_);
+    row_layout->addWidget(text_character_faux_italic_);
+    row_layout->addSpacing(6);
+    for (int index = 0; index < static_cast<int>(styles.size()); ++index) {
+      const auto& style = styles[static_cast<std::size_t>(index)];
+      auto* button = make_button(row, style.object_name, index, style.tooltip, QString());
+      connect(button, &QPushButton::toggled, this,
+              [this, index](bool on) { apply_text_character_style_to_active_editor(index, on); });
+      text_character_style_buttons_[static_cast<std::size_t>(index)] = button;
+      row_layout->addWidget(button);
+    }
+    row_layout->addStretch(1);
+    layout->addRow(tr("Style:"), row);
+  }
 
   text_character_leading_spin_ = new UnitSpinBox(SpinUnit::Points, dialog);
   text_character_leading_spin_->setObjectName(QStringLiteral("textCharacterLeadingSpin"));
@@ -7911,6 +7945,10 @@ void MainWindow::open_text_character_dialog() {
   configure_dialog_spinbox(text_character_leading_spin_);
   configure_text_character_spin(text_character_leading_spin_);
   layout->addRow(tr("Leading:"), text_character_leading_spin_);
+  // Auto leading sits directly under the field it governs.
+  text_character_auto_leading_ = new QCheckBox(tr("Auto leading"), dialog);
+  text_character_auto_leading_->setObjectName(QStringLiteral("textCharacterAutoLeading"));
+  layout->addRow(QString(), text_character_auto_leading_);
 
   text_character_tracking_spin_ = new QSpinBox(dialog);
   text_character_tracking_spin_->setObjectName(QStringLiteral("textCharacterTrackingSpin"));
@@ -7937,52 +7975,17 @@ void MainWindow::open_text_character_dialog() {
   configure_text_character_spin(text_character_v_scale_spin_);
   layout->addRow(tr("Vertical scale:"), text_character_v_scale_spin_);
 
-  // Character styles (GitHub issue 346): one row of toggles. The buttons keep no focus, so the
-  // keyboard stays in a live text session.
-  {
-    struct StyleButton {
-      const char* object_name;
-      QString tooltip;
-    };
-    const std::array<StyleButton, 8> styles{{
-        {"textCharacterAllCapsButton", tr("All Caps")},
-        {"textCharacterSmallCapsButton", tr("Small Caps")},
-        {"textCharacterSuperscriptButton", tr("Superscript")},
-        {"textCharacterSubscriptButton", tr("Subscript")},
-        {"textCharacterUnderlineButton", tr("Underline")},
-        {"textCharacterStrikethroughButton", tr("Strikethrough")},
-        {"textCharacterOrdinalsButton", tr("Ordinals (fonts that have them)")},
-        {"textCharacterFractionsButton", tr("Fractions (fonts that have them)")},
-    }};
-    auto* row = new QWidget(dialog);
-    row->setObjectName(QStringLiteral("textCharacterStyleRow"));
-    auto* row_layout = new QHBoxLayout(row);
-    row_layout->setContentsMargins(0, 0, 0, 0);
-    row_layout->setSpacing(2);
-    for (int index = 0; index < static_cast<int>(styles.size()); ++index) {
-      auto* button = new QPushButton(row);
-      button->setObjectName(QLatin1String(styles[static_cast<std::size_t>(index)].object_name));
-      button->setCheckable(true);
-      button->setFocusPolicy(Qt::NoFocus);
-      button->setIcon(text_character_style_icon(index));
-      button->setIconSize(QSize(20, 20));
-      button->setFixedSize(30, 26);
-      button->setToolTip(styles[static_cast<std::size_t>(index)].tooltip);
-      button->setAccessibleName(styles[static_cast<std::size_t>(index)].tooltip);
-      connect(button, &QPushButton::toggled, this,
-              [this, index](bool on) { apply_text_character_style_to_active_editor(index, on); });
-      text_character_style_buttons_[static_cast<std::size_t>(index)] = button;
-      row_layout->addWidget(button);
-    }
-    row_layout->addStretch(1);
-    layout->addRow(tr("Style:"), row);
-  }
+  text_character_rotate_roman_ = new QCheckBox(tr("Rotate Latin (vertical text)"), dialog);
+  text_character_rotate_roman_->setObjectName(QStringLiteral("textCharacterRotateRoman"));
+  text_character_rotate_roman_->setToolTip(
+      tr("Lay Latin letters on their side along the column instead of upright (Photoshop's Standard Vertical Roman Alignment)"));
+  layout->addRow(QString(), text_character_rotate_roman_);
 
   connect(text_character_auto_leading_, &QCheckBox::toggled, this,
           [this](bool) { apply_text_character_leading_to_active_editor(); });
-  connect(text_character_faux_bold_, &QCheckBox::toggled, this,
+  connect(text_character_faux_bold_, &QPushButton::toggled, this,
           [this](bool) { apply_text_character_faux_bold_to_active_editor(); });
-  connect(text_character_faux_italic_, &QCheckBox::toggled, this,
+  connect(text_character_faux_italic_, &QPushButton::toggled, this,
           [this](bool) { apply_text_character_faux_italic_to_active_editor(); });
   connect(text_character_rotate_roman_, &QCheckBox::toggled, this,
           [this](bool) { apply_text_character_rotate_roman_to_active_editor(); });

@@ -714,7 +714,8 @@ QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical) {
 QIcon text_character_style_icon(int style) {
   // Drawn in a 22-unit square from the interface font's own letters (bold), so the eight marks
   // read as one set: two capitals, a capital and a small capital, x with a raised or lowered 2,
-  // an underlined U, a struck S, 1 with a raised "st" and a built fraction.
+  // an underlined U, a struck S, 1 with a raised "st" and a built fraction; then the faux pair,
+  // a B thickened by an outline and a serifed I leaning on a shear.
   auto glyph = [style](QPainter& painter, const QColor& ink) {
     painter.setRenderHint(QPainter::Antialiasing, true);
     const auto letters = [](const QString& text, double size, double x, double baseline) {
@@ -734,6 +735,7 @@ QIcon text_character_style_icon(int style) {
       path.addPath(letters(text, size, x, baseline));
     };
     std::optional<QRectF> bar;
+    double outline = 0.0;
     switch (style) {
       case 0:
         append_after(QStringLiteral("AA"), 13.0, 16.0, 0.0);
@@ -762,6 +764,24 @@ QIcon text_character_style_icon(int style) {
         append_after(QStringLiteral("1"), 14.0, 18.0, 0.0);
         append_after(QStringLiteral("st"), 8.5, 10.0, 0.6);
         break;
+      case 8:
+        append_after(QStringLiteral("B"), 15.0, 17.5, 0.0);
+        outline = 0.9;
+        break;
+      case 9: {
+        // Stem and serifs upright, then sheared about the baseline like the render's faux italic.
+        QPainterPath letter;
+        letter.addRect(QRectF(8.4, 3.5, 3.2, 14.0));
+        letter.addRect(QRectF(6.0, 3.5, 8.0, 2.2));
+        letter.addRect(QRectF(6.0, 15.3, 8.0, 2.2));
+        letter.setFillRule(Qt::WindingFill);
+        QTransform shear;
+        shear.translate(0.0, 17.5);
+        shear.shear(-0.3, 0.0);
+        shear.translate(0.0, -17.5);
+        path.addPath(shear.map(letter));
+        break;
+      }
       default: {
         path.addPath(letters(QStringLiteral("1"), 9.0, 0.0, 10.0));
         const auto slash_left = path.boundingRect().right() - 0.5;
@@ -780,7 +800,7 @@ QIcon text_character_style_icon(int style) {
     const auto bounds = path.boundingRect();
     const auto shift = 11.0 - (bounds.left() + bounds.right()) / 2.0;
     path.translate(shift, 0.0);
-    painter.setPen(Qt::NoPen);
+    painter.setPen(outline > 0.0 ? QPen(ink, outline, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin) : QPen(Qt::NoPen));
     painter.setBrush(ink);
     painter.drawPath(path);
     if (bar.has_value()) {

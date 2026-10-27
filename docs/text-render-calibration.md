@@ -28,7 +28,7 @@ in Photoshop's own raster while Georgia **Bold** Italic renders 63. Photoshop's 
 shows the same split, so clicking into such a layer must come up Italic, not Bold + Italic.
 
 - `PsdTextStyleRun::faux_bold` carries it, `bold`/`italic` keep meaning the real face, and runs
-  v4 serializes it in column 11. The Character panel's `textCharacterFauxBold` checkbox edits it
+  v4 serializes it in column 11. The Character panel's `textCharacterFauxBold` button edits it
   live per selection.
 - Rendering: `apply_faux_bold_to_document` strokes the glyph outlines with a pen
   `kFauxBoldEmFraction` (0.03) of the em wide and adds the same amount to every advance, as

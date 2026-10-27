@@ -2324,7 +2324,7 @@ void ui_text_placeholder_survives_panels_and_warp() {
         process_events_for(20);
         character_spin_ok = ready();
       }
-      if (auto* faux_italic = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterFauxItalic"));
+      if (auto* faux_italic = dialog->findChild<QAbstractButton*>(QStringLiteral("textCharacterFauxItalic"));
           faux_italic != nullptr) {
         faux_italic->setFocus(Qt::MouseFocusReason);
         faux_italic->click();
