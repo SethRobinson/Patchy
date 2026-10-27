@@ -1788,6 +1788,15 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  // A hover over the rulers or their corner ends on the arrow, whatever the tool set on the
+  // way (GitHub issue 472); a press there starts a guide, so no tool cursor applies.
+  ruler_hover_ = rect().contains(event->pos()) && over_ruler_bars(event->pos());
+  const auto ruler_arrow = qScopeGuard([this, event] {
+    if (ruler_hover_ && event->buttons() == Qt::NoButton && !dragging_guide_ && !spacebar_panning_ &&
+        !sample_loupe_hides_cursor_ && !transient_read_callback_) {
+      setCursor(Qt::ArrowCursor);
+    }
+  });
   emit_info_for_widget_position(event->pos());
   track_brush_hover_position(event->pos());
   track_eyedropper_sample_outline(event->pos());
@@ -2583,6 +2592,7 @@ void CanvasWidget::hideEvent(QHideEvent* event) {
 }
 
 void CanvasWidget::leaveEvent(QEvent* event) {
+  ruler_hover_ = false;
   clear_move_hover_outline();
   hide_stroke_connect_preview();
   hide_eyedropper_sample_outline();
