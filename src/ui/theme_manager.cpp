@@ -187,6 +187,7 @@ void ThemeManager::set_custom_theme(const QString& id, const CustomTheme& theme,
   // base scheme's label with the scheme already active while carrying an
   // entirely different palette, so that function's equal-scheme guard must
   // not suppress this apply.
+  Q_ASSERT(theme.assets == nullptr || !theme.assets->summary);  // a list summary: load it in full first
   active_custom_id_ = id;
   // The assets go in first: set_active_custom_palette moves theme_generation(),
   // which is what the icon engine and the backdrop cache key on.

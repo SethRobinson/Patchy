@@ -324,14 +324,24 @@ QString theme_file_path_for_id(const QString& id) {
   return directory.isEmpty() ? QString() : QDir(directory).filePath(id);
 }
 
-ThemeLoadResult load_theme_by_id(const QString& id) {
+namespace {
+
+ThemeLoadResult load_theme_for_id(const QString& id, bool summary) {
   const auto path = theme_file_path_for_id(id);
   if (!path.isEmpty() && !is_bundled_theme_id(id)) {
     const QFileInfo info(path);
     if (info.isDir()) {
-      return load_theme_package_directory(path);
+      return summary ? load_theme_package_directory_summary(path) : load_theme_package_directory(path);
     }
     if (is_theme_package_zip_name(id)) {
+      if (!summary) {
+        return load_theme_package_zip_file(path);
+      }
+      QFile zip(path);
+      if (zip.open(QIODevice::ReadOnly) && zip.size() <= ThemePackageLimits{}.max_package_bytes) {
+        return load_theme_package_zip_summary(zip.readAll());
+      }
+      // Too large or unreadable: the full loader says which.
       return load_theme_package_zip_file(path);
     }
   }
@@ -343,6 +353,12 @@ ThemeLoadResult load_theme_by_id(const QString& id) {
   }
   return load_theme_from_json(file.readAll());
 }
+
+}  // namespace
+
+ThemeLoadResult load_theme_by_id(const QString& id) { return load_theme_for_id(id, /*summary=*/false); }
+
+ThemeLoadResult load_theme_summary_by_id(const QString& id) { return load_theme_for_id(id, /*summary=*/true); }
 
 bool is_theme_package_directory_id(const QString& id) {
   if (id.isEmpty() || is_bundled_theme_id(id)) {

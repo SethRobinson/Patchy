@@ -107,6 +107,9 @@ inline constexpr QLatin1StringView kBundledThemeIdPrefix{"bundled:"};
 // Reads and parses the file, zip or folder behind an id. A missing or unreadable
 // one is an error like any other, so callers have one branch.
 [[nodiscard]] ThemeLoadResult load_theme_by_id(const QString& id);
+// load_theme_by_id for a list row: a package reads only its theme.json and backdrop
+// (ThemeAssets::summary, theme_package.hpp); single-file themes load in full.
+[[nodiscard]] ThemeLoadResult load_theme_summary_by_id(const QString& id);
 // True when the id names a folder package in user_themes_directory().
 [[nodiscard]] bool is_theme_package_directory_id(const QString& id);
 // Every theme id in user_themes_directory(), sorted by name: *.patchytheme files,
