@@ -52,7 +52,8 @@ QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical);
 // start (left) or end (right).
 QIcon line_arrowhead_icon(bool at_end);
 // Character panel style toggles (GitHub issue 346): 0 All Caps, 1 Small Caps, 2 Superscript,
-// 3 Subscript, 4 Underline, 5 Strikethrough, 6 Ordinals, 7 Fractions.
+// 3 Subscript, 4 Underline, 5 Strikethrough, 6 Ordinals, 7 Fractions; 8 Faux Bold and 9 Faux
+// Italic, which share the row.
 QIcon text_character_style_icon(int style);
 
 // A one-off procedural mark: a glyph outside the shared icon vocabulary, drawn by

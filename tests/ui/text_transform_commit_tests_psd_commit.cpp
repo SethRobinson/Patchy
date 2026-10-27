@@ -1891,7 +1891,7 @@ void ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available() {
     if (dialog == nullptr) {
       return;
     }
-    auto* faux_bold = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterFauxBold"));
+    auto* faux_bold = dialog->findChild<QAbstractButton*>(QStringLiteral("textCharacterFauxBold"));
     CHECK(faux_bold != nullptr);
     if (faux_bold != nullptr) {
       CHECK(faux_bold->isEnabled());

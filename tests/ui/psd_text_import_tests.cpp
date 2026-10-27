@@ -4004,7 +4004,7 @@ void ui_faux_italic_on_a_selection_slants_only_the_selected_characters() {
         if (dialog == nullptr) {
           return;
         }
-        if (auto* box = dialog->findChild<QCheckBox*>(QString::fromLatin1(checkbox)); box != nullptr) {
+        if (auto* box = dialog->findChild<QAbstractButton*>(QString::fromLatin1(checkbox)); box != nullptr) {
           CHECK(!box->isChecked());
           box->click();
           process_events_for(50);

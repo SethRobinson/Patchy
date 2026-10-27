@@ -70,10 +70,13 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
 
 ## Panel and scripting
 
-- `textCharacterStyleRow`: eight checkable `NoFocus` buttons (`textCharacterAllCapsButton` ...
-  `textCharacterFractionsButton`, icons `text_character_style_icon`). The caps pair and the
-  baseline pair exclude each other. Each toggle is one Type step on the selection, the whole
-  object with a bare caret, or every selected text layer.
+- `textCharacterStyleRow`, the dialog's first row: the faux pair (`textCharacterFauxBold`,
+  `textCharacterFauxItalic`, icons 8 and 9) then eight checkable `NoFocus` buttons
+  (`textCharacterAllCapsButton` ... `textCharacterFractionsButton`, icons
+  `text_character_style_icon`). The caps pair and the baseline pair exclude each other. Each
+  toggle is one Type step on the selection, the whole object with a bare caret, or every selected
+  text layer. A selection's toggle never reaches the runs outside it, on or off, in the runs or
+  the pixels (issue 466; `ui_text_character_styles_apply_only_to_the_selection` covers all ten).
 - Scripting: text runs take `caps` (`"all"`, `"small"`, `"none"`), `script` (`"superscript"`,
   `"subscript"`, `"none"`), `underline`, `strikethrough`, `ordinals`, `fractions`; `textRuns`
   reads them back ([scripting-api-changes.md](scripting-api-changes.md)).
@@ -100,4 +103,5 @@ Core: `psd_text_character_styles_round_trip_native_text`,
 `psd_text_character_styles_import_photoshop_sample_if_available` (philipzae's
 `Character - Styling and Extras.psd` in local-test-fixtures/psd). UI
 (tests/ui/text_character_styles_tests.cpp): the Photoshop-calibrated bar, script and caps renders
-in both layout modes, ordinals and fractions, the panel toggles, and the sample re-render.
+in both layout modes, ordinals and fractions, the panel toggles, every toggle on a partial selection
+(`ui_text_character_styles_apply_only_to_the_selection`), and the sample re-render.

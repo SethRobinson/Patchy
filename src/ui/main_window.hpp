@@ -3125,8 +3125,9 @@ private:
   QSpinBox* text_character_tracking_spin_{nullptr};
   QSpinBox* text_character_h_scale_spin_{nullptr};
   QSpinBox* text_character_v_scale_spin_{nullptr};
-  QCheckBox* text_character_faux_bold_{nullptr};
-  QCheckBox* text_character_faux_italic_{nullptr};
+  // Checkable buttons at the head of the style row (text_character_style_icon 8 and 9).
+  QPushButton* text_character_faux_bold_{nullptr};
+  QPushButton* text_character_faux_italic_{nullptr};
   // Vertical type only: rotate Roman glyphs along the column (Photoshop's Standard Vertical
   // Roman Alignment, /BaselineDirection 2).
   QCheckBox* text_character_rotate_roman_{nullptr};

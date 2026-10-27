@@ -1516,7 +1516,7 @@ void ui_warped_text_refuses_faux_bold_toggle() {
     if (dialog == nullptr) {
       return;
     }
-    auto* faux_bold = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterFauxBold"));
+    auto* faux_bold = dialog->findChild<QAbstractButton*>(QStringLiteral("textCharacterFauxBold"));
     CHECK(faux_bold != nullptr && faux_bold->isEnabled() && !faux_bold->isChecked());
     if (faux_bold != nullptr) {
       faux_bold->click();
@@ -1595,8 +1595,8 @@ void ui_text_character_panel_edits_selected_layer_without_session() {
         auto* vertical = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterVScaleSpin"));
         auto* automatic = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterAutoLeading"));
         auto* leading = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("textCharacterLeadingSpin"));
-        auto* faux_bold = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterFauxBold"));
-        auto* faux_italic = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterFauxItalic"));
+        auto* faux_bold = dialog->findChild<QAbstractButton*>(QStringLiteral("textCharacterFauxBold"));
+        auto* faux_italic = dialog->findChild<QAbstractButton*>(QStringLiteral("textCharacterFauxItalic"));
         CHECK(tracking && horizontal && vertical && automatic && leading && faux_bold && faux_italic);
         CHECK(tracking->isEnabled() && tracking->value() == 0);
         CHECK(automatic->isChecked());
@@ -1968,7 +1968,7 @@ void ui_text_character_panel_edits_all_selected_layers_without_session() {
       auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
       CHECK(dialog != nullptr);
       auto* tracking = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterTrackingSpin"));
-      auto* faux_bold = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterFauxBold"));
+      auto* faux_bold = dialog->findChild<QAbstractButton*>(QStringLiteral("textCharacterFauxBold"));
       CHECK(tracking != nullptr && faux_bold != nullptr);
       tracking->setValue(100);
       QApplication::processEvents();
