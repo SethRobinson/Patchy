@@ -16,6 +16,8 @@ class AppStyle : public QProxyStyle {
                 QStyleHintReturn* return_data) const override;
   QIcon standardIcon(StandardPixmap standard_icon, const QStyleOption* option,
                      const QWidget* widget) const override;
+  void drawPrimitive(PrimitiveElement element, const QStyleOption* option, QPainter* painter,
+                     const QWidget* widget) const override;
 };
 
 }  // namespace patchy::ui

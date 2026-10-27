@@ -49,6 +49,8 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QSet>
+#include <QSpinBox>
+#include <QStyleFactory>
 #include <QStyle>
 #include <QStyleOptionSlider>
 #include <QTabBar>
@@ -2444,6 +2446,52 @@ void ui_app_style_keeps_desktop_icons_off_dialog_buttons_and_toolbars() {
   CHECK(!style.standardIcon(QStyle::SP_DirIcon, nullptr, nullptr).isNull());
 }
 
+// GitHub issue 404: the step buttons of a spin box framed by the app sheet (the Color panel's
+// number boxes) showed no arrows in every offscreen capture, while the Windows app draws them.
+// Fusion, the offscreen and Linux style, draws nothing in the arrow rect the sheet hands it;
+// AppStyle widens that rect, and the suite installs AppStyle as main.cpp does, so captures
+// show what the app shows. The dialogs' -/+ buttons are stylesheet SVG images instead, which
+// need the SVG image plug-in.
+void ui_app_style_draws_spin_box_step_arrows_on_fusion() {
+  CHECK(dynamic_cast<const patchy::ui::AppStyle*>(QApplication::style()) != nullptr);
+  for (const auto* name : {"spin-plus", "spin-minus", "spin-plus-disabled", "spin-minus-disabled"}) {
+    CHECK(!QPixmap(patchy::ui::themed_icon_url(QString::fromLatin1(name))).isNull());
+  }
+  auto* fusion = QStyleFactory::create(QStringLiteral("Fusion"));
+  CHECK(fusion != nullptr);
+  patchy::ui::AppStyle style(fusion);  // owns the base
+  QWidget host;
+  host.setStyleSheet(patchy::ui::photoshop_style());
+  auto* spin = new QSpinBox(&host);
+  spin->setStyle(&style);
+  spin->setRange(0, 100);
+  spin->setValue(50);  // both steps enabled
+  spin->setGeometry(0, 0, 120, 24);
+  host.resize(120, 24);
+  host.show();
+  QApplication::processEvents();
+  const auto shot = spin->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+  host.hide();
+  spin->setStyle(nullptr);
+  // The arrows are drawn in the field's text color; the digits sit at the left edge.
+  const auto ink = patchy::ui::theme().text_primary;
+  const auto arrow_pixels = [&](int top, int bottom) {
+    int count = 0;
+    for (int y = top; y < bottom; ++y) {
+      for (int x = shot.width() - 18; x < shot.width(); ++x) {
+        const QColor pixel = QColor::fromRgb(shot.pixel(x, y));
+        count += std::abs(pixel.red() - ink.red()) + std::abs(pixel.green() - ink.green()) +
+                         std::abs(pixel.blue() - ink.blue()) < 60
+                     ? 1
+                     : 0;
+      }
+    }
+    return count;
+  };
+  CHECK(arrow_pixels(0, shot.height() / 2) >= 3);
+  CHECK(arrow_pixels(shot.height() / 2, shot.height()) >= 3);
+}
+
 // Handing token text to setStyleSheet is silently destructive: Qt drops the whole
 // declaration, so a rule simply stops existing and only shows up as a wrongly
 // drawn control in one state. ThemedQss makes that a compile error for the shared
@@ -2545,6 +2593,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
       {"ui_icon_color_map_covers_every_authored_color", ui_icon_color_map_covers_every_authored_color},
       {"ui_app_style_keeps_desktop_icons_off_dialog_buttons_and_toolbars", ui_app_style_keeps_desktop_icons_off_dialog_buttons_and_toolbars},
+      {"ui_app_style_draws_spin_box_step_arrows_on_fusion", ui_app_style_draws_spin_box_step_arrows_on_fusion},
       {"ui_dock_tab_bars_draw_no_native_base", ui_dock_tab_bars_draw_no_native_base},
       {"ui_no_widget_ships_unresolved_theme_tokens", ui_no_widget_ships_unresolved_theme_tokens},
   };

@@ -4,6 +4,7 @@
 
 #include <QFormLayout>
 #include <QIcon>
+#include <QStyleOptionSpinBox>
 
 namespace patchy::ui {
 
@@ -57,6 +58,31 @@ QIcon AppStyle::standardIcon(StandardPixmap standard_icon, const QStyleOption* o
     return themed_svg_icon(QStringLiteral("chevron-right"));
   }
   return QProxyStyle::standardIcon(standard_icon, option, widget);
+}
+
+void AppStyle::drawPrimitive(PrimitiveElement element, const QStyleOption* option, QPainter* painter,
+                             const QWidget* widget) const {
+  // A spin box framed by the app stylesheet (the Color panel's number boxes) gets its step
+  // arrows from the base style. Fusion, the Linux desktop style and the style of every
+  // offscreen run (Qt's offscreen platform names no other), receives an arrow rect one frame
+  // width too small and draws nothing in it, so the buttons came out blank (the internal
+  // screenshots of GitHub issue 404). Hand it the frame back; the Windows style draws there
+  // already.
+  if ((element == PE_IndicatorSpinUp || element == PE_IndicatorSpinDown) && option != nullptr &&
+      baseStyle()->name().compare(QStringLiteral("fusion"), Qt::CaseInsensitive) == 0) {
+    const int frame = baseStyle()->pixelMetric(PM_DefaultFrameWidth, option, widget);
+    if (const auto* spin = qstyleoption_cast<const QStyleOptionSpinBox*>(option)) {
+      QStyleOptionSpinBox widened(*spin);
+      widened.rect = spin->rect.adjusted(-frame, -frame, frame, frame);
+      QProxyStyle::drawPrimitive(element, &widened, painter, widget);
+      return;
+    }
+    QStyleOption widened(*option);
+    widened.rect = option->rect.adjusted(-frame, -frame, frame, frame);
+    QProxyStyle::drawPrimitive(element, &widened, painter, widget);
+    return;
+  }
+  QProxyStyle::drawPrimitive(element, option, painter, widget);
 }
 
 }  // namespace patchy::ui
