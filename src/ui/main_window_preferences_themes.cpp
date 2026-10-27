@@ -471,7 +471,14 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   extras_layout->addStretch(1);
   layout->addWidget(extras);
 
-  QObject::connect(list_, &QListWidget::currentRowChanged, &dialog_, [this] { apply_selection(); });
+  QObject::connect(list_, &QListWidget::currentRowChanged, &dialog_, [this] {
+    apply_selection();
+    // Picking a theme previews how it sounds too: its startup sound, under the dialog's
+    // own Play theme sounds box (not yet stored).
+    if (const auto* custom = current_custom_theme(); custom != nullptr) {
+      play_theme_startup_preview(custom->assets.get(), sounds_check_->isChecked());
+    }
+  });
   QObject::connect(scripts_check_, &QCheckBox::toggled, &dialog_, [this](bool checked) {
     if (const auto* custom = current_custom_theme(); custom != nullptr && custom->assets != nullptr &&
                                                      custom->assets->has_scripts()) {

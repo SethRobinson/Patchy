@@ -59,6 +59,13 @@ void set_theme_sounds_enabled(bool enabled);
 // to the player (the preference is on and the theme has one), whether or not
 // PATCHY_NO_SOUND then keeps it quiet.
 bool play_theme_sound(ThemeSoundEvent event);
+// Plays `assets`' startup sound whatever theme is active: the Preferences theme list's
+// preview when a row is picked. `enabled` is the dialog's Play theme sounds box, which
+// may not be stored yet. Returns true when a sound was handed to the player.
+bool play_theme_startup_preview(const ThemeAssets* assets, bool enabled);
+// Sounds play_theme_sound and play_theme_startup_preview handed to the player since
+// launch, so tests can see one play under PATCHY_NO_SOUND.
+[[nodiscard]] int theme_sound_play_count_for_testing();
 
 // Called once at launch, before the main window is built, when the startup event will
 // fire: if the active theme has a startup sound, wakes the audio output now

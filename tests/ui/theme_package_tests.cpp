@@ -791,6 +791,60 @@ void ui_preferences_theme_list_loads_packages_when_selected() {
   CHECK(!patchy::ui::has_active_custom_palette());
 }
 
+// Picking a theme row plays that theme's startup sound, under the dialog's own (not yet
+// stored) Play theme sounds box; a theme without one stays silent.
+void ui_preferences_theme_row_plays_its_startup_sound() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
+  SettingsValueRestorer restore_sounds(QStringLiteral("preferences/playThemeSounds"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  PackageThemesDir themes;
+  write_sample_package(themes.file(QStringLiteral("Loud")), QColor(30, 40, 50));
+  write_bytes(themes.file(QStringLiteral("Loud/sounds/startup.wav")),
+              patchy::ui::build_tone_wav(440.0, 40, 0.5, patchy::ui::ToneWave::Sine));
+  write_sample_package(themes.file(QStringLiteral("Quiet")), QColor(60, 70, 80));
+  patchy::ui::set_theme_sounds_enabled(true);
+
+  const auto loud = patchy::ui::load_theme_by_id(QStringLiteral("Loud"));
+  CHECK(loud.theme && patchy::ui::play_theme_startup_preview(loud.theme->assets.get(), true));
+  CHECK(loud.theme && !patchy::ui::play_theme_startup_preview(loud.theme->assets.get(), false));
+  CHECK(!patchy::ui::play_theme_startup_preview(nullptr, true));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* sounds = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPlayThemeSoundsCheck"));
+    CHECK(sounds != nullptr && preferences_theme_list(*dialog) != nullptr);
+    if (sounds == nullptr || preferences_theme_list(*dialog) == nullptr) {
+      dialog->reject();
+      return;
+    }
+    auto plays = patchy::ui::theme_sound_play_count_for_testing();
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Loud")));
+    CHECK(patchy::ui::theme_sound_play_count_for_testing() == plays + 1);
+    plays = patchy::ui::theme_sound_play_count_for_testing();
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Quiet")));
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("dark")));
+    CHECK(patchy::ui::theme_sound_play_count_for_testing() == plays);
+    sounds->setChecked(false);
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Loud")));
+    CHECK(patchy::ui::theme_sound_play_count_for_testing() == plays);
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(patchy::ui::theme_sounds_enabled());  // the box was never stored
+}
+
 void ui_theme_package_icon_template_and_example_package() {
   const auto stems = patchy::ui::overridable_icon_stems();
   CHECK(stems.contains(QStringLiteral("tool-brush")));
@@ -1185,6 +1239,7 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
       {"ui_theme_package_summary_reads_only_manifest_and_backdrop",
        ui_theme_package_summary_reads_only_manifest_and_backdrop},
       {"ui_preferences_theme_list_loads_packages_when_selected", ui_preferences_theme_list_loads_packages_when_selected},
+      {"ui_preferences_theme_row_plays_its_startup_sound", ui_preferences_theme_row_plays_its_startup_sound},
       {"ui_theme_package_icon_template_and_example_package", ui_theme_package_icon_template_and_example_package},
       {"ui_theme_package_capture_shots", ui_theme_package_capture_shots},
       {"ui_theme_info_shows_version_author_and_minimum_patchy", ui_theme_info_shows_version_author_and_minimum_patchy},
