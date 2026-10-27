@@ -410,9 +410,7 @@ void MainWindow::retranslate_blend_combo() {
     return;
   }
   QSignalBlocker blocker(blend_combo_);
-  for (int index = 0; index < blend_combo_->count(); ++index) {
-    blend_combo_->setItemText(index, blend_mode_name(static_cast<BlendMode>(blend_combo_->itemData(index).toInt())));
-  }
+  retranslate_blend_mode_items(blend_combo_);
 }
 
 void MainWindow::retranslate_brush_preset_combo() {

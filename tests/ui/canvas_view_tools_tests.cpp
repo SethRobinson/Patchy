@@ -8687,7 +8687,9 @@ void ui_blend_mode_combos_step_past_paint_dot_net_modes() {
   const auto luminosity = combo.findData(static_cast<int>(patchy::BlendMode::Luminosity));
   const auto negation = combo.findData(static_cast<int>(patchy::BlendMode::Negation));
   const auto xor_row = combo.findData(static_cast<int>(patchy::BlendMode::Xor));
-  CHECK(negation == luminosity + 1 && xor_row == luminosity + 2 && xor_row == combo.count() - 1);
+  // After Photoshop's list and a separator (GitHub issue 456).
+  CHECK(patchy::ui::is_blend_mode_separator(&combo, luminosity + 1));
+  CHECK(negation == luminosity + 2 && xor_row == luminosity + 3 && xor_row == combo.count() - 1);
   int activated = 0;
   QObject::connect(&combo, &QComboBox::activated, [&](int) { ++activated; });
   combo.setCurrentIndex(luminosity);
@@ -8744,12 +8746,226 @@ void ui_blend_mode_combos_step_with_left_and_right_arrows() {
   CHECK(view->currentIndex().row() == 0);
   send_key(*view, Qt::Key_Right);
   send_key(*view, Qt::Key_Right);
-  CHECK(view->currentIndex().row() == 2);
+  CHECK(view->currentIndex().row() == 3);  // Darken, past the separator after Dissolve
   send_key(*view, Qt::Key_Left);
   CHECK(view->currentIndex().row() == 1);
   CHECK(combo.currentIndex() == 0);  // the open list only moves its highlight
   combo.hidePopup();
   QApplication::processEvents();
+}
+
+// Every blend mode list has a separator between Photoshop's mode groups (GitHub issue
+// 456): Normal/Dissolve (with Pass Through, and the brush's Behind and Clear), darken,
+// lighten, contrast, comparative, component. Separators carry no mode, are never a stop
+// for keys or the wheel, and follow the Pass Through and Paint.NET offers.
+namespace {
+
+// The rows as text, "-" for a separator.
+QStringList blend_list_rows(const QComboBox& combo) {
+  QStringList rows;
+  for (int index = 0; index < combo.count(); ++index) {
+    rows << (patchy::ui::is_blend_mode_separator(&combo, index) ? QStringLiteral("-") : combo.itemText(index));
+  }
+  return rows;
+}
+
+QStringList expected_blend_list_rows(const QString& first_group) {
+  return (first_group +
+          QStringLiteral(",-,Darken,Multiply,Color Burn,Linear Burn,Darker Color"
+                         ",-,Lighten,Screen,Color Dodge,Linear Dodge (Add),Lighter Color"
+                         ",-,Overlay,Soft Light,Hard Light,Vivid Light,Linear Light,Pin Light,Hard Mix"
+                         ",-,Difference,Exclusion,Subtract,Divide"
+                         ",-,Hue,Saturation,Color,Luminosity"))
+      .split(QLatin1Char(','));
+}
+
+void check_blend_list_rows(const QComboBox& combo, const QStringList& want) {
+  const auto rows = blend_list_rows(combo);
+  CHECK(rows == want);
+  if (rows != want) {
+    std::cerr << "    rows: " << rows.join(QLatin1Char('|')).toStdString() << '\n';
+  }
+  for (int index = 0; index < combo.count(); ++index) {
+    if (patchy::ui::is_blend_mode_separator(&combo, index)) {
+      CHECK(!combo.itemData(index).isValid());
+      CHECK(!(combo.model()->flags(combo.model()->index(index, 0)) & Qt::ItemIsEnabled));
+    }
+  }
+}
+
+}  // namespace
+
+void ui_blend_mode_lists_separate_mode_groups() {
+  using patchy::ui::BlendModeMenu;
+  const auto layer_rows = expected_blend_list_rows(QStringLiteral("Normal,Dissolve"));
+  for (const auto menu : {BlendModeMenu::Layer, BlendModeMenu::Effect}) {
+    QComboBox combo;
+    patchy::ui::add_blend_mode_items(&combo, menu);
+    check_blend_list_rows(combo, layer_rows);
+  }
+  {
+    QComboBox combo;
+    patchy::ui::add_blend_mode_items(&combo, BlendModeMenu::Folder);
+    check_blend_list_rows(combo, expected_blend_list_rows(QStringLiteral("Pass Through,Normal,Dissolve")));
+  }
+  {
+    // No Dissolve: Normal keeps its group, with no empty group or doubled separator.
+    QComboBox combo;
+    patchy::ui::add_blend_mode_items(&combo, BlendModeMenu::Filter);
+    check_blend_list_rows(combo, expected_blend_list_rows(QStringLiteral("Normal")));
+  }
+  {
+    QComboBox combo;
+    patchy::ui::add_paint_mode_items(&combo);
+    const auto paint_rows = expected_blend_list_rows(QStringLiteral("Normal,Dissolve,Behind,Clear"));
+    check_blend_list_rows(combo, paint_rows);
+    // A language change renames the modes and leaves the separators blank.
+    patchy::ui::retranslate_paint_mode_items(&combo);
+    check_blend_list_rows(combo, paint_rows);
+    CHECK(combo.itemText(4).isEmpty());
+  }
+
+  // The Layers panel's combo: Pass Through comes and goes at the top, the Paint.NET rows
+  // and their separator at the end, and a 32-bit document's disabled modes leave the
+  // separators alone.
+  QComboBox combo;
+  patchy::ui::add_blend_mode_items(&combo, BlendModeMenu::Layer);
+  patchy::ui::set_blend_mode_pass_through_offered(&combo, true);
+  check_blend_list_rows(combo, expected_blend_list_rows(QStringLiteral("Pass Through,Normal,Dissolve")));
+  patchy::ui::set_blend_mode_pass_through_offered(&combo, false);
+  check_blend_list_rows(combo, layer_rows);
+  patchy::ui::set_non_photoshop_blend_modes_offered(&combo, {patchy::BlendMode::Xor});
+  check_blend_list_rows(combo, layer_rows + QStringList{QStringLiteral("-"), QStringLiteral("Xor")});
+  patchy::ui::set_non_photoshop_blend_modes_offered(&combo, {patchy::BlendMode::Xor, patchy::BlendMode::Negation});
+  check_blend_list_rows(combo,
+                        layer_rows + QStringList{QStringLiteral("-"), QStringLiteral("Xor"), QStringLiteral("Negation")});
+  patchy::ui::set_non_photoshop_blend_modes_offered(&combo, {patchy::BlendMode::Negation});
+  check_blend_list_rows(combo, layer_rows + QStringList{QStringLiteral("-"), QStringLiteral("Negation")});
+  patchy::ui::set_non_photoshop_blend_modes_offered(&combo, {patchy::BlendMode::Multiply});
+  check_blend_list_rows(combo, layer_rows);
+  patchy::ui::set_non_photoshop_blend_modes_offered(&combo, {});
+  check_blend_list_rows(combo, layer_rows);
+  patchy::ui::enable_blend_mode_items_for_depth(&combo, patchy::BitDepth::Float32);
+  patchy::ui::enable_blend_mode_items_for_depth(&combo, patchy::BitDepth::UInt8);
+  check_blend_list_rows(combo, layer_rows);
+  patchy::ui::retranslate_blend_mode_items(&combo);
+  check_blend_list_rows(combo, layer_rows);
+
+  // Stepping the closed combo goes from one group's last mode to the next group's first.
+  int activated = 0;
+  QObject::connect(&combo, &QComboBox::activated, [&](int index) {
+    ++activated;
+    CHECK(!patchy::ui::is_blend_mode_separator(&combo, index));
+  });
+  const auto row = [&combo](const char* name) { return combo.findText(QString::fromLatin1(name)); };
+  combo.setCurrentIndex(row("Dissolve"));
+  QTest::keyClick(&combo, Qt::Key_Down);
+  CHECK(combo.currentText() == QStringLiteral("Darken"));
+  QTest::keyClick(&combo, Qt::Key_Up);
+  CHECK(combo.currentText() == QStringLiteral("Dissolve"));
+  combo.setCurrentIndex(row("Darker Color"));
+  QTest::keyClick(&combo, Qt::Key_Right);
+  CHECK(combo.currentText() == QStringLiteral("Lighten"));
+  QTest::keyClick(&combo, Qt::Key_Left);
+  CHECK(combo.currentText() == QStringLiteral("Darker Color"));
+  combo.setCurrentIndex(row("Divide"));
+  QWheelEvent down(QPointF(5, 5), combo.mapToGlobal(QPointF(5, 5)), QPoint(), QPoint(0, -120), Qt::NoButton,
+                   Qt::NoModifier, Qt::NoScrollPhase, false);
+  QCoreApplication::sendEvent(&combo, &down);
+  CHECK(combo.currentText() == QStringLiteral("Hue"));
+  QWheelEvent up(QPointF(5, 5), combo.mapToGlobal(QPointF(5, 5)), QPoint(), QPoint(0, 120), Qt::NoButton,
+                 Qt::NoModifier, Qt::NoScrollPhase, false);
+  QCoreApplication::sendEvent(&combo, &up);
+  CHECK(combo.currentText() == QStringLiteral("Divide"));
+  QTest::keyClick(&combo, Qt::Key_End);
+  CHECK(combo.currentText() == QStringLiteral("Luminosity"));
+  QTest::keyClick(&combo, Qt::Key_Home);
+  CHECK(combo.currentText() == QStringLiteral("Normal"));
+  CHECK(activated == 8);
+  // Every step from every mode lands on a mode.
+  for (int start = 0; start < combo.count(); ++start) {
+    if (patchy::ui::is_blend_mode_separator(&combo, start)) {
+      continue;
+    }
+    for (const auto key : {Qt::Key_Down, Qt::Key_Up, Qt::Key_PageDown, Qt::Key_PageUp}) {
+      combo.setCurrentIndex(start);
+      QTest::keyClick(&combo, key);
+      CHECK(!patchy::ui::is_blend_mode_separator(&combo, combo.currentIndex()));
+    }
+  }
+}
+
+// The open lists with their group separators in both schemes (GitHub issue 456): the
+// Layers panel, Layer Style's Blending Options and the Brush tool's Mode. The artifacts
+// are the issue shots.
+void ui_blend_mode_lists_separator_shots() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+    patchy::Layer layer(document.allocate_layer_id(), "Layer 1",
+                        solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(60, 120, 220, 255)));
+    const auto layer_id = layer.id();
+    document.add_layer(std::move(layer));
+    document.set_active_layer(layer_id);
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("Separators"));
+    show_window(window);
+    window.resize(1280, 860);
+    QApplication::processEvents();
+
+    const auto shoot_list = [](QComboBox& combo, const std::string& name) {
+      combo.showPopup();
+      QApplication::processEvents();
+      process_events_for(30);
+      auto* popup = combo.view()->window();
+      CHECK(popup != nullptr && popup->isVisible());
+      int separators = 0;
+      for (int index = 0; index < combo.count(); ++index) {
+        separators += patchy::ui::is_blend_mode_separator(&combo, index) ? 1 : 0;
+      }
+      CHECK(separators == 5);
+      // The whole list shows without a scroll bar.
+      CHECK(!combo.view()->verticalScrollBar()->isVisible());
+      if (popup != nullptr) {
+        save_widget_artifact(name, *popup);
+      }
+      combo.hidePopup();
+      QApplication::processEvents();
+    };
+
+    auto* layer_blend = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+    CHECK(layer_blend != nullptr);
+    if (layer_blend != nullptr) {
+      shoot_list(*layer_blend, "i456_layers_panel_blend_list" + suffix);
+    }
+
+    bool saw_style_dialog = false;
+    QTimer::singleShot(0, &window, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+      if (dialog == nullptr) {
+        return;
+      }
+      saw_style_dialog = true;
+      if (auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendModeCombo")); blend != nullptr) {
+        shoot_list(*blend, "i456_layer_style_blend_list" + suffix);
+      }
+      dialog->reject();
+    });
+    require_action(window, "layerBlendingOptionsAction")->trigger();
+    QApplication::processEvents();
+    CHECK(saw_style_dialog);
+
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    auto* brush_mode = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+    CHECK(brush_mode != nullptr && brush_mode->isVisible());
+    if (brush_mode != nullptr) {
+      shoot_list(*brush_mode, "i456_brush_mode_list" + suffix);
+    }
+  }
 }
 
 // Stepping the Layers-panel blend mode is one undo entry per run, like an
@@ -10023,6 +10239,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_layer_opacity_control_defers_slow_rendering_and_undoes_once",
        ui_layer_opacity_control_defers_slow_rendering_and_undoes_once},
       {"ui_blend_mode_combos_step_with_left_and_right_arrows", ui_blend_mode_combos_step_with_left_and_right_arrows},
+      {"ui_blend_mode_lists_separate_mode_groups", ui_blend_mode_lists_separate_mode_groups},
+      {"ui_blend_mode_lists_separator_shots", ui_blend_mode_lists_separator_shots},
       {"ui_blend_mode_combos_step_past_paint_dot_net_modes", ui_blend_mode_combos_step_past_paint_dot_net_modes},
       {"ui_layer_blend_mode_steps_coalesce_into_one_undo_entry",
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
