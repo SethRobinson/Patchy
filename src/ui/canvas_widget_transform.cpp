@@ -1886,6 +1886,26 @@ void CanvasWidget::cancel_free_transform() {
   notify_transform_controls_changed();
 }
 
+// GitHub issue 455: a session whose layer was deleted under it (the Layers panel, a
+// script) stayed open, so the options bar kept the transform row beside the tool's
+// own and wrapped onto a second line. Any document change that removes a session
+// layer ends the session.
+void CanvasWidget::cancel_transform_sessions_on_removed_layers() {
+  if (document_ == nullptr) {
+    return;
+  }
+  const auto& document = std::as_const(*document_);
+  const auto removed = [&document](LayerId id) { return document.find_layer(id) == nullptr; };
+  if (transforming_layer_ &&
+      ((transform_layer_id_.has_value() && removed(*transform_layer_id_)) ||
+       std::ranges::any_of(transform_targets_, [&](const TransformTarget& target) { return removed(target.id); }))) {
+    cancel_free_transform();
+  }
+  if (warping_layer_ && warp_layer_id_.has_value() && removed(*warp_layer_id_)) {
+    cancel_warp_transform();
+  }
+}
+
 void CanvasWidget::finish_free_transform() {
   if (!transforming_layer_) {
     return;
