@@ -234,11 +234,12 @@ not render nothing).
 - **Type > Resolve Missing Fonts** (issue 169; hotkey id `type.resolve_missing_fonts`;
   `src/ui/missing_fonts_dialog.*`, `main_window_missing_fonts.cpp`). One row per family any text
   layer cannot draw, hidden and grouped layers included, deduped by `text_font_replacement_key`
-  (the compact key), with a `@dlg_divider` line between rows. Rows start unchecked, Photoshop's
-  "Don't Resolve": the file keeps the name, so a machine with the font still shows the original.
-  The picker starts on the face drawing the text now. The accept button is always enabled and
-  reads "Don't Resolve" until a row is ticked (then "Resolve Fonts"); either way, and on Cancel,
-  the "Don't show" box is saved. Resolve runs one hidden session per affected layer with `text_font_replacements_` set:
+  (the compact key), with a `@dlg_divider` line between rows. Every row starts ticked (Seth,
+  issue 463 follow-up) with its picker on the suggested stand-in ("Substitute table" below), else
+  the face drawing the text now. "Resolve Fonts" is enabled while at least one row is ticked;
+  there is no "Don't Resolve" button: Cancel or Escape keeps every font (the file keeps the
+  names, so a machine with the fonts shows the originals) and still opens the document. On
+  Resolve and on Cancel the "Don't show" box is saved. Resolve runs one hidden session per affected layer with `text_font_replacements_` set:
   only the mapped families change (base family and runs), other missing families keep their
   names, and all commits share one "Resolve Missing Fonts" undo step. A commit regenerates the
   layer, so its TySh and the Txt2 object name the replacement on the next save. Locked layers and
@@ -274,8 +275,7 @@ from the substitute's own documentation, never another program's substitution li
   missing font (both the base family and `substitute_missing_document_font_families`) moves onto
   the table's substitute, and the raster-preview prompt's informative text names it ("Helvetica
   will be replaced with Arial."). Resolve Missing Fonts starts each listed font's picker on the
-  first substitute with a "Suggested: X (same character widths)" or "(similar design)" line; rows
-  stay unticked. The stored name changes only on a commit or a resolved row, as before, so the PSD
+  first substitute with a "Suggested: X (same character widths)" or "(similar design)" line. The stored name changes only on a commit or a resolved row, as before, so the PSD
   still names the original font for Photoshop.
 - **Rendering.** `render_text_families_for_display_family` appends the first installed substitute
   after a family that is not installed (cached per family, cleared on `fontDatabaseChanged`, locked

@@ -12737,10 +12737,6 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
         <translation>此文件使用的部分字體在這台電腦上遺失。請為每種字體選擇一種已安裝的字體，在使用它的所有文字圖層中取代，或保持不解析。</translation>
     </message>
-    <message>
-        <source>Don&apos;t Resolve</source>
-        <translation>不解析</translation>
-    </message>
     <message numerus="yes">
         <source>Used in %n text layer(s).</source>
         <translation>

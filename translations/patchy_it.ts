@@ -12771,10 +12771,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
         <translation>Alcuni font usati in questo documento mancano su questo computer. Scegli un font installato per sostituire ciascuno in tutti i livelli di testo che lo usano, oppure lascialo non risolto.</translation>
     </message>
-    <message>
-        <source>Don&apos;t Resolve</source>
-        <translation>Non risolvere</translation>
-    </message>
     <message numerus="yes">
         <source>Used in %n text layer(s).</source>
         <translation>
