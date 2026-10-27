@@ -671,6 +671,9 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
       spacebar_panning_ || !preview_points_.empty()) {
     return;
   }
+  if (over_ruler_bars(brush_hover_widget_position_)) {
+    return;  // the arrow stands alone over the rulers (GitHub issue 472)
+  }
   painter.save();
   const QPoint center = brush_hover_widget_position_;
   if (brush_tip_ != nullptr && tool_paints_with_brush_tip(tool_)) {

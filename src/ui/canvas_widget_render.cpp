@@ -1148,9 +1148,19 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_preview_point_handles(painter);
   draw_zoom_preview(painter);
   draw_rulers(painter);
-  draw_stroke_connect_preview(painter);
-  draw_brush_hover_outline(painter);
-  draw_eyedropper_sample_outline(painter);
+  {
+    // The pointer overlays stay off the rulers and their corner (GitHub issue 472).
+    painter.save();
+    if (rulers_visible_) {
+      painter.setClipRegion(QRegion(rect())
+                                .subtracted(QRegion(0, 0, width(), kTopRulerHeight))
+                                .subtracted(QRegion(0, 0, kLeftRulerWidth, height())));
+    }
+    draw_stroke_connect_preview(painter);
+    draw_brush_hover_outline(painter);
+    draw_eyedropper_sample_outline(painter);
+    painter.restore();
+  }
   draw_sample_loupe(painter);
   draw_stroke_leash_overlay(painter);
   draw_brush_adjust_overlay(painter);

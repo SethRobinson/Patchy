@@ -1494,6 +1494,73 @@ void ui_guide_cursors_over_rulers_and_during_drags() {
   CHECK(shape() == move_shape);
 }
 
+// A brush too big for an OS cursor paints its outline on the canvas: it never draws over the
+// rulers, and over a ruler the arrow stands alone, at every zoom and right after a zoom change
+// (GitHub issue 472 follow-up: past about 155 screen pixels the outline came back there).
+void ui_brush_outline_stays_off_the_rulers_at_every_zoom() {
+  patchy::Document document(200, 150, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(200, 150, patchy::PixelFormat::rgb8(), Qt::white));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(400, 300);
+  canvas.set_document(&document);
+  canvas.set_rulers_visible(true);
+  canvas.show();
+  QApplication::processEvents();
+  constexpr int kRulerWidth = 32;   // kLeftRulerWidth
+  constexpr int kRulerHeight = 24;  // kTopRulerHeight
+  const QRect left_strip(0, 0, kRulerWidth, canvas.height());
+  const QRect top_strip(0, 0, canvas.width(), kRulerHeight);
+  const auto settled_grab = [&canvas] {
+    CHECK(process_events_until([&canvas] { return canvas.render_settled(); }, 10000));
+    QApplication::processEvents();
+    return canvas.grab().toImage();
+  };
+  const QPoint near_left_ruler(kRulerWidth + 6, 150);
+  const QPoint near_top_ruler(220, kRulerHeight + 6);
+  const QPoint on_left_ruler(12, 150);
+  const QPoint on_top_ruler(220, 12);
+
+  for (const auto tool : {patchy::ui::CanvasTool::Brush, patchy::ui::CanvasTool::Eraser,
+                          patchy::ui::CanvasTool::Clone, patchy::ui::CanvasTool::MixerBrush}) {
+    canvas.set_tool(tool);
+    canvas.set_brush_size(100);
+    for (const double zoom : {1.0, 2.0, 8.0}) {
+      canvas.set_zoom_centered(zoom);
+      QEvent leave(QEvent::Leave);
+      QApplication::sendEvent(&canvas, &leave);
+      const auto baseline = settled_grab();
+
+      // On the canvas beside each ruler: the outline (an overlay at 200% and 800%) shows
+      // there but is clipped at the ruler edge.
+      for (const auto& beside : {near_left_ruler, near_top_ruler}) {
+        send_mouse(canvas, QEvent::MouseMove, beside, Qt::NoButton, Qt::NoButton);
+        CHECK(canvas.cursor().shape() != Qt::ArrowCursor);
+        const auto frame = settled_grab();
+        CHECK(frame.copy(left_strip) == baseline.copy(left_strip));
+        CHECK(frame.copy(top_strip) == baseline.copy(top_strip));
+        if (zoom > 1.0) {
+          CHECK(frame != baseline);  // the overlay outline is drawn on the canvas
+        }
+      }
+      // On a ruler: the arrow, and no outline anywhere.
+      for (const auto& over : {on_left_ruler, on_top_ruler}) {
+        send_mouse(canvas, QEvent::MouseMove, over, Qt::NoButton, Qt::NoButton);
+        CHECK(canvas.cursor().shape() == Qt::ArrowCursor);
+        CHECK(settled_grab() == baseline);
+      }
+      // A zoom change with the pointer still on the ruler keeps it that way.
+      canvas.set_zoom_centered(zoom * 1.5);
+      QApplication::processEvents();
+      CHECK(canvas.cursor().shape() == Qt::ArrowCursor);
+      const auto zoomed = settled_grab();
+      QApplication::sendEvent(&canvas, &leave);
+      const auto zoomed_baseline = settled_grab();
+      CHECK(zoomed == zoomed_baseline);
+    }
+  }
+}
+
 // The reporter's file (ag-psd's test/read/psb-test/src.psb, GitHub issue 231), a 549 x 864
 // PSB whose guides sit at x -154.2 and 1617.0 and y -1637.3 and 864.3, all on the
 // pasteboard. At 12% every one of them shows across the view.
@@ -3069,6 +3136,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part1() {
       {"ui_guides_draw_across_the_pasteboard", ui_guides_draw_across_the_pasteboard},
       {"ui_guide_dragged_onto_pasteboard_stays", ui_guide_dragged_onto_pasteboard_stays},
       {"ui_guide_cursors_over_rulers_and_during_drags", ui_guide_cursors_over_rulers_and_during_drags},
+      {"ui_brush_outline_stays_off_the_rulers_at_every_zoom", ui_brush_outline_stays_off_the_rulers_at_every_zoom},
       {"ui_issue231_sample_guides_outside_document_if_available",
        ui_issue231_sample_guides_outside_document_if_available},
       {"ui_deep_zoom_pixel_grid_matches_rendered_pixels",
