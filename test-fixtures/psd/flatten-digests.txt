@@ -150,3 +150,4 @@ ce9b7512bd9a35ab photoshop-vector-mask-hides-effects.psd
 e7e0a37d1a1cedd2 photoshop-vector-mask-on-pixel.psd
 d2caa64e76f47c25 photoshop-warp-text.psd
 884a8fc8c58935b0 qual_rca_pinout.psd
+5680ddbc09579095 web-export-animation.psd
