@@ -6,6 +6,7 @@
 #include "formats/metadata/xmp.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -121,6 +122,27 @@ std::string exif_date_to_xmp(std::string text) {
     text[4] = '-';
     text[7] = '-';
     text[10] = 'T';
+  }
+  return text;
+}
+
+// An EXIF date with its OffsetTime* tag ("+03:00") as an XMP date. Without an offset, the
+// XMP date is used when it names the same second, so its time zone is kept.
+std::string exif_date_with_offset(const std::string& date, const std::string& offset, const std::string& xmp_date) {
+  auto text = exif_date_to_xmp(date);
+  if (text.size() != 19 || text[10] != 'T') {
+    return text;
+  }
+  const bool valid_offset = offset.size() == 6 && (offset[0] == '+' || offset[0] == '-') && offset[3] == ':' &&
+                            std::isdigit(static_cast<unsigned char>(offset[1])) &&
+                            std::isdigit(static_cast<unsigned char>(offset[2])) &&
+                            std::isdigit(static_cast<unsigned char>(offset[4])) &&
+                            std::isdigit(static_cast<unsigned char>(offset[5]));
+  if (valid_offset) {
+    return text + offset;
+  }
+  if (xmp_date.size() > text.size() && xmp_date.compare(0, text.size(), text) == 0) {
+    return xmp_date;
   }
   return text;
 }
@@ -437,10 +459,12 @@ FileInfoFields read_fields(const DocumentFileInfo& info) {
     fields.copyright_notice = exif_text(stream, IfdKind::Ifd0, exif_tag::kCopyright);
   }
   if (const auto original = exif_text(stream, IfdKind::Exif, exif_tag::kDateTimeOriginal); !original.empty()) {
-    fields.created = exif_date_to_xmp(original);
+    fields.created =
+        exif_date_with_offset(original, exif_text(stream, IfdKind::Exif, exif_tag::kOffsetTimeOriginal), fields.created);
   }
   if (fields.modified.empty()) {
-    fields.modified = exif_date_to_xmp(exif_text(stream, IfdKind::Ifd0, exif_tag::kDateTime));
+    fields.modified = exif_date_with_offset(exif_text(stream, IfdKind::Ifd0, exif_tag::kDateTime),
+                                            exif_text(stream, IfdKind::Exif, exif_tag::kOffsetTime), {});
   }
   if (fields.creator_tool.empty()) {
     fields.creator_tool = exif_text(stream, IfdKind::Ifd0, exif_tag::kSoftware);

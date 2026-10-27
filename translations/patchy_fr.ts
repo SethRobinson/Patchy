@@ -21855,10 +21855,6 @@ Y : %2
         <translation>Opacité du fond</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>Visibilité</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>Verrouiller le calque</translation>
     </message>
@@ -27160,6 +27156,46 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Clone Source</source>
         <translation>Source de duplication</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>Exportation rapide au format PNG</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>Exporter sous...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>Sélectionnez un calque à exporter</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>Exporter le calque sous</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>Exporter les calques sous</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>Le calque n&apos;a aucun pixel visible à exporter</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>Rien n&apos;a été exporté : les calques sélectionnés n&apos;ont aucun pixel visible</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>%1 calques exportés vers %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>%1 calques exportés vers %2 ; %3 calques sans pixels ont été ignorés</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>Fusionner</translation>
     </message>
     <message>
         <source>%1 will be replaced with %2.</source>

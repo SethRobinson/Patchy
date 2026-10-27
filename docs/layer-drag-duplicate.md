@@ -1,4 +1,4 @@
-# Layer drags to other documents and Duplicate Layer
+# Layer drags to other documents, Duplicate Layer and layer export
 
 The rest of the Layers panel, Delete Layer included, is in [layer-panel.md](layer-panel.md).
 
@@ -46,7 +46,7 @@ runs `move_layers_for_drop` on the CLONES, so the originals never move; the copi
 the selection under one snapshot. `ui_layer_alt_drag_duplicates_in_panel` pins it.
 
 The same core backs Duplicate Layer to Document... (`layerDuplicateToDocumentAction`, hotkey
-id `layer.duplicate_to_document`, in the layer context menu and on the window itself since
+id `layer.duplicate_to_document`, in the layer context menu's Export submenu and on the window itself since
 the Layer menu's row count is pinned): its dialog (`duplicateLayerToDocumentDialog`) takes
 a name for a lone copy (`duplicateLayerNameEdit`) and a destination
 (`duplicateLayerTargetCombo`: every other open document, then New Document, a fresh
@@ -55,3 +55,23 @@ API's `layer.duplicate(targetDocument)` routes through
 `ScriptEngineHost::duplicate_layers_to_session`, so the run's own snapshot covers the
 target and no activation happens. `ui_duplicate_layer_to_document_dialog_copies` and
 `ui_script_layer_duplicate_to_document` pin them.
+
+## Layer export (Quick Export as PNG, Export As...)
+
+The row and pixel-thumbnail menus' Export submenus (#462) hold `layerQuickExportPngAction`
+and `layerExportAsAction` (hotkey ids `layer.quick_export_png`, `layer.export_as`, no
+default keys, on the window for that reason). Both run `MainWindow::export_selected_layers`
+(main_window_files.cpp) over `selected_or_active_layer_ids()`: each layer renders alone
+(`render_layer_isolated`, a group as its composite, a hidden layer as if shown) and is
+written by `write_flat_image_file` (atomic) to a file named after it
+(`image_sequence_file_names` layer-name mode: unsafe characters become `_`, repeats get
+" 2", " 3"). Layers without visible pixels are skipped and the status bar says so; a lone
+empty layer stops before any dialog. One layer asks for a file name (the layer's name
+filled in); Quick Export with several asks for a folder (`get_existing_directory`; the
+browser build writes to a MEMFS folder and downloads each file). Export As always uses the
+save dialog for the format (several layers: its folder, layer names) and then that
+format's options dialog. Quick Export trims each PNG to its pixels; Export As keeps the
+canvas so the dialog's Trim and Resize apply as for a document. The folder is remembered as
+`layerExport/lastFolder`. Tests: `ui_layer_quick_export_png_writes_trimmed_named_files`,
+`ui_layer_export_as_uses_chosen_format_and_options`,
+`ui_layer_thumbnail_menu_offers_layer_export`.

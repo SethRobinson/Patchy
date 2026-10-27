@@ -193,6 +193,12 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
     add_selection_entries({QT_TR_NOOP("Select Pixels"), QT_TR_NOOP("Add Pixels to Selection"),
                            QT_TR_NOOP("Subtract Pixels from Selection"), QT_TR_NOOP("Intersect Pixels with Selection")},
                           QStringLiteral("layerThumbnailPixels"));
+    // The row menu's export actions (#462), for the layer under the pointer, which the
+    // selection includes (a right-click on an unselected row selects it first).
+    menu.addSeparator();
+    auto* export_menu = menu.addMenu(tr("Export"));
+    export_menu->setObjectName(QStringLiteral("layerThumbnailExportMenu"));
+    add_layer_export_actions(export_menu);
     add_layer_thumbnail_size_menu(&menu);  // after its own separator
   } else {
     menu.setObjectName(raster_mask ? QStringLiteral("layerMaskThumbnailMenu")

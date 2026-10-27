@@ -21855,10 +21855,6 @@ Y: %2
         <translation>Opacidad de relleno</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>Visibilidad</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>Bloquear capa</translation>
     </message>
@@ -27160,6 +27156,46 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Clone Source</source>
         <translation>Origen de clonación</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>Exportación rápida como PNG</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>Exportar como...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>Seleccione una capa para exportar</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>Exportar capa como</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>Exportar capas como</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>La capa no tiene píxeles visibles para exportar</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>No se exportó nada: las capas seleccionadas no tienen píxeles visibles</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>Se exportaron %1 capas a %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>Se exportaron %1 capas a %2; se omitieron %3 capas sin píxeles</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>Combinar</translation>
     </message>
     <message>
         <source>%1 will be replaced with %2.</source>

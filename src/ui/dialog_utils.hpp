@@ -4,13 +4,16 @@
 #include "ui/theme_qss.hpp"
 #include "ui/unit_spin_box.hpp"
 
+#include <QCheckBox>
 #include <QColor>
 #include <QPoint>
 #include <QFont>
 #include <QString>
 #include <QStringList>
 #include <QMessageBox>
+#include <QRadioButton>
 #include <QSizeGrip>
+#include <QStyleOptionButton>
 
 #include <exception>
 #include <initializer_list>
@@ -230,6 +233,41 @@ public:
 protected:
   void paintEvent(QPaintEvent* event) override;
 };
+// A check box or radio button whose text wraps onto more lines when its row is narrower
+// than the text (Qt's never wrap, so one long option sets the whole dialog's minimum width;
+// GitHub issue 451). The indicator sits beside the first line, the height follows the width
+// the layout gives it, a click on the indicator or the text toggles it, and the minimum
+// width is the indicator plus kWrappingToggleMinimumTextWidth (less for a shorter text).
+// Preferences uses them for every option whose text could outgrow a narrow page.
+inline constexpr int kWrappingToggleMinimumTextWidth = 220;
+class WrappingCheckBox : public QCheckBox {
+public:
+  explicit WrappingCheckBox(const QString& text, QWidget* parent = nullptr);
+  [[nodiscard]] QSize minimumSizeHint() const override;
+  [[nodiscard]] bool hasHeightForWidth() const override;
+  [[nodiscard]] int heightForWidth(int width) const override;
+
+protected:
+  [[nodiscard]] bool hitButton(const QPoint& pos) const override;
+  void paintEvent(QPaintEvent* event) override;
+
+private:
+  [[nodiscard]] QStyleOptionButton style_option() const;
+};
+class WrappingRadioButton : public QRadioButton {
+public:
+  explicit WrappingRadioButton(const QString& text, QWidget* parent = nullptr);
+  [[nodiscard]] QSize minimumSizeHint() const override;
+  [[nodiscard]] bool hasHeightForWidth() const override;
+  [[nodiscard]] int heightForWidth(int width) const override;
+
+protected:
+  [[nodiscard]] bool hitButton(const QPoint& pos) const override;
+  void paintEvent(QPaintEvent* event) override;
+
+private:
+  [[nodiscard]] QStyleOptionButton style_option() const;
+};
 // Width of the outline a frameless window draws at its edge: 1 px where the window
 // server shadows the window (Windows DWM, macOS), 2 px on X11, Wayland and wasm, which
 // draw no shadow for a client-decorated window, so the outline is all that separates
@@ -333,6 +371,11 @@ enum class FilterNameDetails { Shown, Hidden };
                                           const QString& filter, QString* selected_filter = nullptr,
                                           const QString& object_name = QString(),
                                           const QStringList& recent_files = QStringList());
+// A folder picker with an object name (tests find it like the file dialogs). Empty when
+// cancelled. The browser build has no folders to pick: it returns a fresh MEMFS folder, and
+// each file written there goes out through offer_browser_download_for_saved_file.
+[[nodiscard]] QString get_existing_directory(QWidget* parent, const QString& caption, const QString& dir,
+                                              const QString& object_name = QString());
 // Call after successfully writing `path`. On wasm the write landed in MEMFS,
 // which the user cannot see, so this hands the file to the browser as a
 // download; desktop builds write real files and this is a no-op.

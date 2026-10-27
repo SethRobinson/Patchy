@@ -4328,6 +4328,189 @@ void MainWindow::export_image_sequence() {
   }
 }
 
+namespace {
+
+// Remembered folder of the layer exports (#462); falls back to the last save folder.
+constexpr char kLayerExportFolderSettingsKey[] = "layerExport/lastFolder";
+
+// The bounds of the pixels with any alpha, or an empty rect when there are none.
+QRect visible_alpha_rect(const QImage& image) {
+  const auto argb = image.format() == QImage::Format_ARGB32 ? image : image.convertToFormat(QImage::Format_ARGB32);
+  int left = argb.width();
+  int top = argb.height();
+  int right = -1;
+  int bottom = -1;
+  for (int y = 0; y < argb.height(); ++y) {
+    const auto* row = reinterpret_cast<const QRgb*>(argb.constScanLine(y));
+    for (int x = 0; x < argb.width(); ++x) {
+      if (qAlpha(row[x]) != 0) {
+        left = std::min(left, x);
+        right = std::max(right, x);
+        top = std::min(top, y);
+        bottom = y;
+      }
+    }
+  }
+  return right < 0 ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom));
+}
+
+}  // namespace
+
+void MainWindow::add_layer_export_actions(QMenu* menu) {
+  for (auto* action : {layer_quick_export_png_action_, layer_export_as_action_}) {
+    if (action != nullptr) {
+      menu->addAction(action);
+    }
+  }
+}
+
+void MainWindow::export_selected_layers(bool choose_format) {
+  if (!has_active_document()) {
+    show_status_error(tr("No document"));
+    return;
+  }
+  finish_active_text_editor();
+  const auto& doc = std::as_const(document());
+  std::vector<const Layer*> layers;
+  std::vector<QString> layer_names;
+  for (const auto id : selected_or_active_layer_ids()) {
+    if (const auto* layer = doc.find_layer(id); layer != nullptr) {
+      layers.push_back(layer);
+      layer_names.push_back(QString::fromStdString(layer->name()));
+    }
+  }
+  if (layers.empty()) {
+    show_status_error(tr("Select a layer to export"));
+    return;
+  }
+  const auto caption = choose_format ? (layers.size() == 1U ? tr("Export Layer As") : tr("Export Layers As"))
+                                     : tr("Quick Export as PNG");
+  // One layer is checked before any dialog: a layer with no pixels writes nothing.
+  std::optional<QImage> single_render;
+  if (layers.size() == 1U) {
+    single_render = render_layer_isolated(doc, *layers.front());
+    if (visible_alpha_rect(*single_render).isEmpty()) {
+      show_status_error(tr("The layer has no visible pixels to export"));
+      return;
+    }
+  }
+
+  auto folder = app_settings().value(QLatin1String(kLayerExportFolderSettingsKey)).toString();
+  if (folder.isEmpty() || !QFileInfo(folder).isDir()) {
+    folder = last_save_directory();
+  }
+  const ImageSequenceNaming by_layer_name{true, QString(), 1, 3};
+  QString extension = QStringLiteral("png");
+  const auto first_file_name = image_sequence_file_names(layer_names, by_layer_name, extension).front();
+  QString chosen_path;  // the file a save dialog confirmed (one layer, or Export As)
+  ImageSaveOptions options;
+  if (choose_format) {
+    QString selected_filter;
+    chosen_path = get_save_file_name(this, caption, QDir(folder).filePath(first_file_name), export_image_filter(),
+                                     &selected_filter, QStringLiteral("layerExportAsFileDialog"));
+    if (chosen_path.isEmpty()) {
+      return;
+    }
+    chosen_path = path_with_default_extension(chosen_path, selected_filter);
+    extension = extension_for_path(chosen_path);
+    folder = QFileInfo(chosen_path).absolutePath();
+    auto picked = prompt_image_save_options(this, extension, image_save_defaults_for_document(), /*for_export*/ true,
+                                            QSize(doc.width(), doc.height()));
+    if (!picked.has_value()) {
+      return;
+    }
+    options = std::move(*picked);
+  } else if (layers.size() == 1U) {
+    const auto png_filter = save_file_filter_for_path(first_file_name);
+    QString selected_filter = png_filter;
+    chosen_path = get_save_file_name(this, caption, QDir(folder).filePath(first_file_name), png_filter,
+                                     &selected_filter, QStringLiteral("layerQuickExportFileDialog"));
+    if (chosen_path.isEmpty()) {
+      return;
+    }
+    chosen_path = path_with_default_extension(chosen_path, png_filter);
+    folder = QFileInfo(chosen_path).absolutePath();
+  } else {
+    folder = get_existing_directory(this, caption, folder, QStringLiteral("layerQuickExportFolderDialog"));
+    if (folder.isEmpty()) {
+      return;
+    }
+  }
+
+  // One layer writes the confirmed file; several write one file per layer into the folder,
+  // named after the layers (sanitized, duplicates numbered).
+  QStringList paths;
+  if (layers.size() == 1U) {
+    paths.push_back(chosen_path);
+  } else {
+    const QDir directory(folder);
+    for (const auto& name : image_sequence_file_names(layer_names, by_layer_name, extension)) {
+      paths.push_back(directory.filePath(name));
+    }
+    // A save dialog confirmed overwriting only the name it showed.
+    int existing = 0;
+    for (const auto& path : paths) {
+      if (path != chosen_path && QFileInfo::exists(path)) {
+        ++existing;
+      }
+    }
+    if (existing > 0) {
+      const auto answer = show_warning_message(
+          this, caption,
+          tr("%1 of %2 files already exist in this folder. Overwrite them?").arg(existing).arg(paths.size()),
+          QMessageBox::Yes | QMessageBox::No, QMessageBox::No, QStringLiteral("layerExportOverwriteMessageBox"));
+      if (answer != QMessageBox::Yes) {
+        return;
+      }
+    }
+  }
+
+  try {
+    int written = 0;
+    int skipped = 0;
+    for (std::size_t index = 0; index < layers.size(); ++index) {
+      const auto image = single_render.has_value() ? *single_render : render_layer_isolated(doc, *layers[index]);
+      const auto bounds = visible_alpha_rect(image);
+      if (bounds.isEmpty()) {
+        ++skipped;
+        continue;
+      }
+      // Quick Export trims to the layer's pixels; Export As keeps the canvas so the dialog's
+      // Trim and Resize choices apply the way they do to a document export.
+      auto layer_document =
+          document_from_qimage(choose_format ? image : image.copy(bounds), layers[index]->name());
+      layer_document.print_settings() = doc.print_settings();
+      const auto& path = paths[static_cast<qsizetype>(index)];
+      write_flat_image_file(layer_document, path, extension, options);
+      offer_browser_download_for_saved_file(path);
+      ++written;
+    }
+    auto settings = app_settings();
+    settings.setValue(QLatin1String(kLayerExportFolderSettingsKey), QDir(folder).absolutePath());
+    if (written == 0) {
+      show_status_error(tr("Nothing was exported: the selected layers have no visible pixels"));
+      return;
+    }
+    if (paths.size() == 1) {
+      statusBar()->showMessage(tr("Exported %1").arg(QDir::toNativeSeparators(paths.front())));
+    } else if (skipped == 0) {
+      statusBar()->showMessage(tr("Exported %1 layers to %2").arg(written).arg(QDir::toNativeSeparators(folder)));
+    } else {
+      statusBar()->showMessage(tr("Exported %1 layers to %2; %3 layers without pixels were skipped")
+                                   .arg(written)
+                                   .arg(QDir::toNativeSeparators(folder))
+                                   .arg(skipped));
+    }
+    fire_theme_event(ThemeSoundEvent::ExportDone);
+    if (options.export_reveal_in_file_explorer) {
+      reveal_path_in_file_explorer(paths.size() == 1 ? paths.front() : folder, /*is_file*/ paths.size() == 1);
+    }
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
+                          QStringLiteral("exportFailedMessageBox"));
+  }
+}
+
 void MainWindow::export_animated_gif() {
   if (!has_active_document()) {
     show_status_error(tr("No document"));

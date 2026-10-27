@@ -21,6 +21,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QCursor>
+#include <QDateTime>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QDir>
@@ -65,6 +66,8 @@
 #include <QString>
 #include <QStringList>
 #include <QStyle>
+#include <QStyleOptionButton>
+#include <QStylePainter>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QToolButton>
@@ -2485,6 +2488,146 @@ void VisibleSizeGrip::paintEvent(QPaintEvent* /*event*/) {
   }
 }
 
+namespace {
+
+// The style elements of a check box or a radio button.
+struct ToggleElements {
+  QStyle::ControlElement control;
+  QStyle::SubElement contents;
+  QStyle::SubElement click;
+};
+constexpr ToggleElements kCheckBoxElements{QStyle::CE_CheckBox, QStyle::SE_CheckBoxContents,
+                                           QStyle::SE_CheckBoxClickRect};
+constexpr ToggleElements kRadioButtonElements{QStyle::CE_RadioButton, QStyle::SE_RadioButtonContents,
+                                              QStyle::SE_RadioButtonClickRect};
+
+// What WrappingCheckBox and WrappingRadioButton measure and paint with.
+struct WrappingToggleParts {
+  const QAbstractButton& button;
+  QStyleOptionButton option;  // the button's own, text included
+  ToggleElements elements;
+  // The base class's one-line height (the subclasses keep its sizeHint).
+  int line_height = button.sizeHint().height();
+};
+
+constexpr int kWrappingToggleTextFlags = Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap | Qt::TextShowMnemonic;
+
+// Where the text goes when the button is `width` wide: right of the indicator, its first
+// line centered on the indicator the way the style places a single line.
+QRect wrapping_toggle_text_rect(const WrappingToggleParts& parts, int width) {
+  auto option = parts.option;
+  option.rect = QRect(0, 0, std::max(width, 1), parts.line_height);
+  const auto contents = parts.button.style()->subElementRect(parts.elements.contents, &option, &parts.button);
+  const int top = std::max(0, (parts.line_height - parts.button.fontMetrics().height()) / 2);
+  return {contents.left(), top, std::max(1, width - contents.left()), QWIDGETSIZE_MAX / 2};
+}
+
+QRect wrapping_toggle_text_bounds(const WrappingToggleParts& parts, int width) {
+  return parts.button.fontMetrics().boundingRect(wrapping_toggle_text_rect(parts, width), kWrappingToggleTextFlags,
+                                                 parts.button.text());
+}
+
+QSize wrapping_toggle_minimum_size(const WrappingToggleParts& parts) {
+  const auto one_line = parts.button.sizeHint();
+  const int text_left = wrapping_toggle_text_rect(parts, one_line.width()).left();
+  const int text_width = std::max(0, one_line.width() - text_left);
+  return {text_left + std::min(text_width, kWrappingToggleMinimumTextWidth), one_line.height()};
+}
+
+int wrapping_toggle_height_for_width(const WrappingToggleParts& parts, int width) {
+  const auto bounds = wrapping_toggle_text_bounds(parts, width);
+  return std::max(parts.line_height, bounds.bottom() + 1 + bounds.top());
+}
+
+bool wrapping_toggle_hit(const WrappingToggleParts& parts, const QPoint& pos) {
+  auto option = parts.option;
+  option.text.clear();
+  option.rect.setHeight(parts.line_height);
+  const auto indicator = parts.button.style()->subElementRect(parts.elements.click, &option, &parts.button);
+  return indicator.united(wrapping_toggle_text_bounds(parts, parts.button.width())).contains(pos);
+}
+
+void paint_wrapping_toggle(QWidget& widget, const WrappingToggleParts& parts) {
+  QStylePainter painter(&widget);
+  // The style draws the indicator (and its focus frame) beside the first line; the text
+  // is drawn here, wrapped to the width.
+  auto option = parts.option;
+  option.text.clear();
+  option.rect.setHeight(parts.line_height);
+  painter.drawControl(parts.elements.control, option);
+  painter.drawItemText(wrapping_toggle_text_rect(parts, widget.width()), kWrappingToggleTextFlags, option.palette,
+                       widget.isEnabled(), parts.option.text, QPalette::WindowText);
+}
+
+// Vertically Preferred, not the base's Fixed: a fixed policy caps the height at one line.
+QSizePolicy wrapping_toggle_size_policy() {
+  QSizePolicy policy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+  policy.setHeightForWidth(true);
+  return policy;
+}
+
+}  // namespace
+
+WrappingCheckBox::WrappingCheckBox(const QString& text, QWidget* parent) : QCheckBox(text, parent) {
+  setSizePolicy(wrapping_toggle_size_policy());
+}
+
+QStyleOptionButton WrappingCheckBox::style_option() const {
+  QStyleOptionButton option;
+  initStyleOption(&option);
+  return option;
+}
+
+QSize WrappingCheckBox::minimumSizeHint() const {
+  return wrapping_toggle_minimum_size({*this, style_option(), kCheckBoxElements});
+}
+
+bool WrappingCheckBox::hasHeightForWidth() const {
+  return true;
+}
+
+int WrappingCheckBox::heightForWidth(int width) const {
+  return wrapping_toggle_height_for_width({*this, style_option(), kCheckBoxElements}, width);
+}
+
+bool WrappingCheckBox::hitButton(const QPoint& pos) const {
+  return wrapping_toggle_hit({*this, style_option(), kCheckBoxElements}, pos);
+}
+
+void WrappingCheckBox::paintEvent(QPaintEvent* /*event*/) {
+  paint_wrapping_toggle(*this, {*this, style_option(), kCheckBoxElements});
+}
+
+WrappingRadioButton::WrappingRadioButton(const QString& text, QWidget* parent) : QRadioButton(text, parent) {
+  setSizePolicy(wrapping_toggle_size_policy());
+}
+
+QStyleOptionButton WrappingRadioButton::style_option() const {
+  QStyleOptionButton option;
+  initStyleOption(&option);
+  return option;
+}
+
+QSize WrappingRadioButton::minimumSizeHint() const {
+  return wrapping_toggle_minimum_size({*this, style_option(), kRadioButtonElements});
+}
+
+bool WrappingRadioButton::hasHeightForWidth() const {
+  return true;
+}
+
+int WrappingRadioButton::heightForWidth(int width) const {
+  return wrapping_toggle_height_for_width({*this, style_option(), kRadioButtonElements}, width);
+}
+
+bool WrappingRadioButton::hitButton(const QPoint& pos) const {
+  return wrapping_toggle_hit({*this, style_option(), kRadioButtonElements}, pos);
+}
+
+void WrappingRadioButton::paintEvent(QPaintEvent* /*event*/) {
+  paint_wrapping_toggle(*this, {*this, style_option(), kRadioButtonElements});
+}
+
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title,
                                         DialogChromeCloseMode close_mode) {
   dialog.setWindowTitle(title);
@@ -3136,6 +3279,31 @@ QString get_save_file_name(QWidget* parent, const QString& caption, const QStrin
   }
   const auto files = dialog.selectedFiles();
   return files.isEmpty() ? QString() : files.front();
+#endif
+}
+
+QString get_existing_directory(QWidget* parent, const QString& caption, const QString& dir,
+                               const QString& object_name) {
+#ifdef Q_OS_WASM
+  Q_UNUSED(parent);
+  Q_UNUSED(caption);
+  Q_UNUSED(dir);
+  Q_UNUSED(object_name);
+  const auto folder = QDir(QDir::tempPath()).filePath(
+      QStringLiteral("patchy-export-%1").arg(QDateTime::currentMSecsSinceEpoch()));
+  return QDir().mkpath(folder) ? folder : QString();
+#else
+  QFileDialog dialog(parent, caption);
+  configure_file_dialog(dialog, object_name, QString(), QFileDialog::AcceptOpen, QFileDialog::Directory, nullptr);
+  dialog.setOption(QFileDialog::ShowDirsOnly, true);
+  if (!dir.isEmpty() && QFileInfo(dir).isDir()) {
+    dialog.setDirectory(dir);
+  }
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return {};
+  }
+  const auto folders = dialog.selectedFiles();
+  return folders.isEmpty() ? QString() : folders.front();
 #endif
 }
 

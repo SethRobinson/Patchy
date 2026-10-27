@@ -21855,10 +21855,6 @@ Y: %2
         <translation>Opacità riempimento</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>Visibilità</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>Blocca livello</translation>
     </message>
@@ -27160,6 +27156,46 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Clone Source</source>
         <translation>Sorgente di clonazione</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>Esportazione rapida come PNG</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>Esporta come...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>Seleziona un livello da esportare</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>Esporta livello come</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>Esporta livelli come</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>Il livello non ha pixel visibili da esportare</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>Nessuna esportazione: i livelli selezionati non hanno pixel visibili</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>%1 livelli esportati in %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>%1 livelli esportati in %2; %3 livelli senza pixel sono stati saltati</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>Unisci</translation>
     </message>
     <message>
         <source>%1 will be replaced with %2.</source>

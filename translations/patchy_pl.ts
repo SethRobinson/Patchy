@@ -23065,10 +23065,6 @@ Y: %2
         <translation>Krycie wypełnienia</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>Widoczność</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>Zablokuj warstwę</translation>
     </message>
@@ -27236,6 +27232,46 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Clone Source</source>
         <translation>Źródło klonowania</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>Szybki eksport do PNG</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>Eksportuj jako...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>Zaznacz warstwę do wyeksportowania</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>Eksportuj warstwę jako</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>Eksportuj warstwy jako</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>Warstwa nie ma widocznych pikseli do wyeksportowania</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>Nic nie wyeksportowano: zaznaczone warstwy nie mają widocznych pikseli</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>Wyeksportowano warstwy (%1) do %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>Wyeksportowano warstwy (%1) do %2; pominięto warstwy bez pikseli (%3)</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>Scal</translation>
     </message>
     <message>
         <source>%1 will be replaced with %2.</source>

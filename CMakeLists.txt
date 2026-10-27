@@ -2400,6 +2400,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/pickers_notices_hotkeys_tests.cpp
       tests/ui/canvas_view_tools_tests.cpp
       tests/ui/layer_context_lifecycle_tests.cpp
+      tests/ui/layer_export_tests.cpp
       tests/ui/brush_pattern_palette_tests.cpp
       tests/ui/brush_pattern_palette_tests_patterns_palette.cpp
       tests/ui/brush_pattern_palette_tests_brush_dynamics.cpp

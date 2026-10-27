@@ -3594,8 +3594,9 @@ void MainWindow::show_layer_context_menu(QPoint position) {
         return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize_layer_style(*layer);
       });
 
-  // The flat menu outgrew the screen (July 2026), so related actions live in
-  // submenus now. Edit Layer Styles... deliberately stays the FIRST item, always.
+  // The flat menu outgrew the screen (July 2026, and again at 1366x768 in #461), so related
+  // actions live in submenus. Edit Layer Styles... deliberately stays the FIRST item, always;
+  // ui_layer_context_menu_fits_short_screens caps the top-level rows and the menu height.
   QMenu menu(this);
   menu.setObjectName(QStringLiteral("layerContextMenu"));
   if (layer_blending_options_action_ != nullptr) {
@@ -3665,18 +3666,15 @@ void MainWindow::show_layer_context_menu(QPoint position) {
       });
   auto* duplicate_action = menu.addAction(simple_icon(QStringLiteral("dup")),
                                           group_target ? tr("Duplicate Group") : tr("Duplicate Layer"));
-  auto* duplicate_to_document_action =
-      menu.addAction(simple_icon(QStringLiteral("dup")),
-                     group_target ? tr("Duplicate Group to Document...") : tr("Duplicate Layer to Document..."));
   auto* rename_action = menu.addAction(simple_icon(QStringLiteral("RN")),
                                        group_target ? tr("Rename Group...") : tr("Rename Layer..."));
+  auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")),
+                                       group_target ? tr("Delete Group") : tr("Delete Layer"));
   // The Layer menu's color labels (GitHub issue 244), on the same shared actions.
   auto* color_menu = menu.addMenu(tr("Color"));
   color_menu->setObjectName(QStringLiteral("layerContextColorMenu"));
   populate_layer_color_actions(color_menu);
   refresh_layer_color_action_states();
-  auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")),
-                                       group_target ? tr("Delete Group") : tr("Delete Layer"));
   QAction* ungroup_action = nullptr;
   if (active_layer != nullptr && active_layer->kind() == LayerKind::Group) {
     ungroup_action = menu.addAction(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)),
@@ -3685,23 +3683,30 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   menu.addSeparator();
   auto* merge_down_action =
       menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Down"));
-  auto* merge_visible_layers_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible"));
+  // Merge Down stays on top as the common one; the whole-document merges share a submenu.
+  auto* merge_menu = menu.addMenu(tr("Merge"));
+  merge_menu->setObjectName(QStringLiteral("layerContextMergeMenu"));
+  auto* merge_visible_layers_action = merge_menu->addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible"));
   merge_visible_layers_action->setObjectName(QStringLiteral("layerContextMergeVisibleLayersAction"));
   merge_visible_layers_action->setEnabled(merge_visible_layer_count(std::as_const(document())) >= 2U);
-  auto* merge_visible_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer (Copy)"));
+  auto* merge_visible_action =
+      merge_menu->addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer (Copy)"));
   if (image_flatten_action_ != nullptr) {
-    menu.addAction(image_flatten_action_);
+    merge_menu->addAction(image_flatten_action_);
   }
+  auto* rasterize_menu = menu.addMenu(tr("Rasterize"));
+  rasterize_menu->setObjectName(QStringLiteral("layerContextRasterizeMenu"));
   if (layer_rasterize_action_ != nullptr) {
     layer_rasterize_action_->setEnabled(has_rasterizable_layer);
-    menu.addAction(layer_rasterize_action_);
+    rasterize_menu->addAction(layer_rasterize_action_);
   }
   if (layer_rasterize_layer_style_action_ != nullptr) {
     layer_rasterize_layer_style_action_->setEnabled(has_rasterizable_layer_style);
-    menu.addAction(layer_rasterize_layer_style_action_);
+    rasterize_menu->addAction(layer_rasterize_layer_style_action_);
   }
   if (layer_trace_image_action_ != nullptr) {
-    menu.addAction(layer_trace_image_action_);  // its own guards report non-pixel layers
+    rasterize_menu->addSeparator();
+    rasterize_menu->addAction(layer_trace_image_action_);  // its own guards report non-pixel layers
   }
   {
     refresh_smart_object_action_states();
@@ -3722,10 +3727,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
       }
     }
   }
+  // No Visible entry (#461): the eye and its right-click menu cover it.
   menu.addSeparator();
-  auto* visibility_action = menu.addAction(tr("Visible"));
-  visibility_action->setCheckable(true);
-  visibility_action->setChecked(active_layer == nullptr || active_layer->visible());
   auto* lock_menu = menu.addMenu(tr("Lock"));
   const auto all_selected_have_lock = [this, &ids](LayerLockFlags flag) {
     return !ids.empty() && std::all_of(ids.begin(), ids.end(), [this, flag](LayerId id) {
@@ -3832,13 +3835,22 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     }
   }
   vector_mask_menu->setEnabled(active_layer != nullptr);
+  // Export (#462): the selected layers as files, plus Duplicate Layer to Document..., which
+  // also sends the layer somewhere else.
+  menu.addSeparator();
+  auto* export_menu = menu.addMenu(tr("Export"));
+  export_menu->setObjectName(QStringLiteral("layerContextExportMenu"));
+  add_layer_export_actions(export_menu);
+  export_menu->addSeparator();
+  auto* duplicate_to_document_action =
+      export_menu->addAction(simple_icon(QStringLiteral("dup")),
+                             group_target ? tr("Duplicate Group to Document...") : tr("Duplicate Layer to Document..."));
 
   duplicate_action->setEnabled(has_layer);
   duplicate_to_document_action->setEnabled(has_layer);
   rename_action->setEnabled(active_layer != nullptr);
   delete_action->setEnabled(has_layer);
   merge_down_action->setEnabled(has_layer);
-  visibility_action->setEnabled(has_layer);
   lock_menu->setEnabled(has_layer);
   select_opaque_action->setEnabled(active_layer != nullptr && canvas_ != nullptr);
   const auto active_pixels_locked = active_layer != nullptr && layer_id_locks_image_pixels(active_layer->id());
@@ -3877,7 +3889,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (chosen == layer_blending_options_action_ || chosen == layer_copy_style_action_ ||
       chosen == layer_paste_style_action_ || chosen == layer_delete_style_action_ ||
       chosen == layer_rasterize_action_ || chosen == layer_rasterize_layer_style_action_ ||
-      chosen == layer_trace_image_action_ || chosen == layer_clipping_mask_action_) {
+      chosen == layer_trace_image_action_ || chosen == layer_clipping_mask_action_ ||
+      chosen == layer_quick_export_png_action_ || chosen == layer_export_as_action_) {
     return;
   }
   if (chosen == edit_adjustment_action) {
@@ -3910,8 +3923,6 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     merge_visible_layers();
   } else if (chosen == merge_visible_action) {
     merge_visible_to_new_layer();
-  } else if (chosen == visibility_action) {
-    set_active_layer_visible(visibility_action->isChecked());
   } else if (chosen == transparent_lock_action) {
     set_active_layer_lock_flag(kLayerLockTransparentPixels, transparent_lock_action->isChecked());
   } else if (chosen == image_lock_action) {

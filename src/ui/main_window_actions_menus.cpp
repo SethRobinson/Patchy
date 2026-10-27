@@ -1490,6 +1490,24 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
           [this] { duplicate_layer_to_document(); });
   addAction(duplicate_layer_to_document_action_);
   register_document_action(duplicate_layer_to_document_action_);
+  // Layer export (#462): in the layer context menus' Export submenu and on the window for
+  // hotkeys (the Layer menu's row count is pinned). No default keys.
+  layer_quick_export_png_action_ = new QAction(tr("Quick Export as PNG"), this);
+  layer_quick_export_png_action_->setObjectName(QStringLiteral("layerQuickExportPngAction"));
+  bind_action_text(layer_quick_export_png_action_, QT_TR_NOOP("Quick Export as PNG"));
+  layer_quick_export_png_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(layer_quick_export_png_action_, "layer.quick_export_png");
+  connect(layer_quick_export_png_action_, &QAction::triggered, this, [this] { export_selected_layers(false); });
+  addAction(layer_quick_export_png_action_);
+  register_document_action(layer_quick_export_png_action_);
+  layer_export_as_action_ = new QAction(tr("Export As..."), this);
+  layer_export_as_action_->setObjectName(QStringLiteral("layerExportAsAction"));
+  bind_action_text(layer_export_as_action_, QT_TR_NOOP("Export As..."));
+  layer_export_as_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(layer_export_as_action_, "layer.export_as");
+  connect(layer_export_as_action_, &QAction::triggered, this, [this] { export_selected_layers(true); });
+  addAction(layer_export_as_action_);
+  register_document_action(layer_export_as_action_);
   // Prevent Auto-Nesting (GitHub issue 246): checkable, in the layer context menu's Lock
   // submenu beside the other locks and on the window for its hotkey. Locks have no
   // menu-bar entry (the Layer menu's row count is pinned).

@@ -1438,6 +1438,22 @@ void xcf_gimp_image_metadata_tag_list_fills_file_info() {
   }
 }
 
+// The Created date keeps the Exif offset GIMP 3 writes beside DateTimeOriginal (issue 450).
+void xcf_gimp_image_metadata_created_date_keeps_time_offset() {
+  const std::string tags = R"(<metadata>
+  <tag name="Exif.Image.DateTime">2026:10:26 13:12:12</tag>
+  <tag name="Exif.Photo.DateTimeOriginal">2026:10:26 13:12:12</tag>
+  <tag name="Exif.Photo.OffsetTime">+03:00</tag>
+  <tag name="Exif.Photo.OffsetTimeOriginal">+03:00</tag>
+  <tag name="Xmp.xmp.CreateDate">2026-10-26T13:12:12+03:00</tag>
+  <tag name="Xmp.xmp.ModifyDate">2026-10-26T13:12:12+03:00</tag>
+</metadata>)";
+  const auto document = read_with_parasites({{"gimp-image-metadata", text_bytes(tags)}});
+  const auto fields = md::read_fields(document.file_info());
+  CHECK(fields.created == "2026-10-26T13:12:12+03:00");
+  CHECK(fields.modified == "2026-10-26T13:12:12+03:00");
+}
+
 // gimp-metadata (XMP) and exif-data keep precedence; the tag list only fills what they
 // lack. A damaged tag list is ignored and the comment still arrives.
 void xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage() {
@@ -1631,6 +1647,7 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_floating_selection_opens_above_its_layer", xcf_floating_selection_opens_above_its_layer},
       {"xcf_reads_channels_selection_paths_guides_and_metadata", xcf_reads_channels_selection_paths_guides_and_metadata},
       {"xcf_gimp_image_metadata_tag_list_fills_file_info", xcf_gimp_image_metadata_tag_list_fills_file_info},
+      {"xcf_gimp_image_metadata_created_date_keeps_time_offset", xcf_gimp_image_metadata_created_date_keeps_time_offset},
       {"xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage", xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage},
       {"xcf_metadata_sample_comment", xcf_metadata_sample_comment},
       {"xcf_metadata_sample_description", xcf_metadata_sample_description},

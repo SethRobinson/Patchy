@@ -1530,35 +1530,6 @@ bool MainWindow::layer_blend_preview_matches_active() const {
          selected_or_active_layer_ids() == layer_blend_preview_->selection;
 }
 
-void MainWindow::set_active_layer_visible(bool visible) {
-  if (updating_layer_controls_) {
-    return;
-  }
-  if (preview_dialog_edit_locked()) {
-    show_preview_dialog_edit_lock_message();
-    refresh_layer_controls();
-    return;
-  }
-  const auto ids = selected_or_active_layer_ids();
-  if (ids.empty()) {
-    return;
-  }
-  auto& doc = document();
-  push_undo_snapshot(tr("Visibility"));
-  Rect affected;
-  for (const auto id : ids) {
-    auto* layer = doc.find_layer(id);
-    if (layer == nullptr) {
-      continue;
-    }
-    layer->set_visible(visible);
-    affected = unite_rect(affected, layer_render_bounds(*layer));
-  }
-  canvas_->document_changed(to_qrect(affected));
-  refresh_layer_list();
-  refresh_layer_controls();
-}
-
 void MainWindow::set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked) {
   if (updating_layer_controls_ || !has_active_document()) {
     return;
