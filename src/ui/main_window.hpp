@@ -3625,6 +3625,8 @@ private:
   OptionsFlowContainer* options_flow_container_{nullptr};
   // refresh_options_bar_rows() rebuilds the per-tool rows only when this key changes.
   qint64 options_bar_rows_key_{-1};
+  // Each tool's index into those rows, for the per-tool slider collapse.
+  std::vector<std::pair<CanvasTool, int>> options_bar_tool_rows_;
   std::vector<std::function<void()>> retranslation_callbacks_;
   bool updating_transform_controls_{false};
   bool updating_layer_controls_{false};

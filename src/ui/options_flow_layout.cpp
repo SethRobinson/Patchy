@@ -118,6 +118,7 @@ void FlowLayout::set_rows(std::vector<QSet<QWidget*>> rows) {
     return;
   }
   rows_ = std::move(rows);
+  ++rows_generation_;
   cached_width_ = -1;
 }
 
@@ -126,20 +127,19 @@ FlowLayout::RowsMeasure FlowLayout::measure_rows(int width) const {
     return cached_measure_;
   }
   RowsMeasure measure;
+  measure.collapse.reserve(rows_.size());
   const QRect rect(0, 0, width, 0);
-  // Collapse when any row that carries a duplicate slider would wrap with it.
+  // Each row that carries a duplicate slider drops it when it would wrap with it; other
+  // rows never cost it its slider (GitHub issue 458 follow-up: a wider tool's row hid
+  // the Clone Stamp's Size slider with room to spare).
   for (const auto& row : rows_) {
-    if (std::none_of(row.begin(), row.end(), is_collapsible)) {
-      continue;
+    bool collapse = false;
+    if (std::any_of(row.begin(), row.end(), is_collapsible)) {
+      const std::function<bool(QWidget*)> include = [&row](QWidget* widget) { return row.contains(widget); };
+      collapse = do_layout(rect, true, &include).lines > 1;
     }
-    const std::function<bool(QWidget*)> include = [&row](QWidget* widget) { return row.contains(widget); };
-    if (do_layout(rect, true, &include).lines > 1) {
-      measure.collapse = true;
-      break;
-    }
-  }
-  for (const auto& row : rows_) {
-    const std::function<bool(QWidget*)> include = [&row, collapse = measure.collapse](QWidget* widget) {
+    measure.collapse.push_back(collapse);
+    const std::function<bool(QWidget*)> include = [&row, collapse](QWidget* widget) {
       return row.contains(widget) && !(collapse && is_collapsible(widget));
     };
     measure.height = std::max(measure.height, do_layout(rect, true, &include).height);
@@ -147,6 +147,14 @@ FlowLayout::RowsMeasure FlowLayout::measure_rows(int width) const {
   cached_width_ = width;
   cached_measure_ = measure;
   return measure;
+}
+
+bool FlowLayout::active_row_collapses(int width) const {
+  if (active_row_ < 0 || active_row_ >= static_cast<int>(rows_.size())) {
+    return false;
+  }
+  const auto measure = measure_rows(width);
+  return measure.collapse[static_cast<std::size_t>(active_row_)];
 }
 
 FlowLayout::Flow FlowLayout::do_layout(const QRect& rect, bool test_only,
@@ -250,14 +258,19 @@ bool OptionsFlowContainer::wants_collapse() const {
   if (flow == nullptr || !flow->has_rows() || width() <= 0) {
     return collapse_applied_;
   }
-  return flow->measure_rows(width()).collapse;
+  return flow->active_row_collapses(width());
 }
 
 void OptionsFlowContainer::set_collapse_applied(bool collapsed) {
-  if (collapsed != collapse_applied_) {
+  const auto* flow = dynamic_cast<const FlowLayout*>(layout());
+  const int row = flow != nullptr ? flow->active_row() : -1;
+  const int generation = flow != nullptr ? flow->rows_generation() : -1;
+  if (collapsed != collapse_applied_ && row == applied_row_ && generation == applied_rows_generation_) {
     reserved_width_ = -1;
   }
   collapse_applied_ = collapsed;
+  applied_row_ = row;
+  applied_rows_generation_ = generation;
 }
 
 bool OptionsFlowContainer::event(QEvent* event) {

@@ -129,6 +129,7 @@
 #include <QtGlobal>
 
 #include <algorithm>
+#include <iterator>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -3461,6 +3462,7 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
     return;
   }
   options_bar_rows_key_ = key;
+  options_bar_tool_rows_.clear();
   std::vector<CanvasTool> tools;
   for (const auto& [widget, widget_tools] : option_actions_) {
     for (const auto tool : widget_tools) {
@@ -3494,9 +3496,12 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
         }
       }
     }
-    if (std::find(rows.begin(), rows.end(), row) == rows.end()) {
+    auto existing = std::find(rows.begin(), rows.end(), row);
+    if (existing == rows.end()) {
       rows.push_back(std::move(row));
+      existing = std::prev(rows.end());
     }
+    options_bar_tool_rows_.emplace_back(tool, static_cast<int>(std::distance(rows.begin(), existing)));
   }
   if (auto* flow = dynamic_cast<FlowLayout*>(options_flow_container_->layout()); flow != nullptr) {
     flow->set_rows(std::move(rows));
@@ -3535,10 +3540,15 @@ void MainWindow::refresh_options_bar() {
   const auto mode_rules = vector_option_mode_rules();
   // GitHub issue 91: the bar takes the height of the tallest tool row at this
   // width, and the inline sliders that duplicate a spin box drop out first when
-  // a row carrying one would wrap.
+  // the active tool's row would wrap with them (issue 458 follow-up: only its own row).
   bool collapse_sliders = false;
   if (options_flow_container_ != nullptr) {
     refresh_options_bar_rows(mode_rules.live_shape);
+    if (auto* flow = dynamic_cast<FlowLayout*>(options_flow_container_->layout()); flow != nullptr) {
+      const auto active = std::find_if(options_bar_tool_rows_.begin(), options_bar_tool_rows_.end(),
+                                       [this](const auto& entry) { return entry.first == current_tool_; });
+      flow->set_active_row(active != options_bar_tool_rows_.end() ? active->second : -1);
+    }
     collapse_sliders = options_flow_container_->wants_collapse();
     options_flow_container_->set_collapse_applied(collapse_sliders);
   }

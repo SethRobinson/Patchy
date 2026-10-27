@@ -27,7 +27,7 @@ Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (a
 
 - The bar never shrinks on a tool switch, because a height change there moves the tool palette, the canvas and the docks. Nor does it grow before it has to: `OptionsFlowContainer` reports the visible controls' wrapped height, kept sticky per width (the tallest any tool needed since the last width change), so a tool that fits one row never shows an empty second row, a tool that needs two grows the bar once and later tools keep it, and a resize resets the reservation to the current tool. (GitHub issue 91.)
 - `refresh_options_bar` swaps control visibility under `set_updating(true)`: a layout pass in the middle can see the old and new controls together, and the reservation must not learn that transient height.
-- `MainWindow::refresh_options_bar_rows` hands `FlowLayout` (`src/ui/options_flow_layout.hpp`) every tool's row: the widgets `refresh_options_bar` would show for that tool under the current vector mode, live shape layer and crop style. It rebuilds the rows only when that key changes. The rows drive the slider collapse below, which stays global so the bar looks the same from tool to tool.
+- `MainWindow::refresh_options_bar_rows` hands `FlowLayout` (`src/ui/options_flow_layout.hpp`) every tool's row: the widgets `refresh_options_bar` would show for that tool under the current vector mode, live shape layer and crop style. It rebuilds the rows only when that key changes, and records each tool's row index (`options_bar_tool_rows_`); `refresh_options_bar` sets the active tool's (`FlowLayout::set_active_row`). The rows drive the per-tool slider collapse below and the tallest-row height.
 - Hidden widgets are measured the way `QWidgetItem` would measure them shown, after `ensurePolished`. A widget added to the flow outside `register_option_action` is invisible to the measure and can still grow the bar.
 
 ## Selection tool rows
@@ -46,9 +46,9 @@ Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (a
 ## Duplicate sliders drop first
 
 - An inline slider that repeats the spin box beside it (the spin box already has the popup slider and the scrub label) carries `kOptionsBarCollapsibleProperty`. Today: Brush Size, Gradient Opacity, Quick Select Size, Fill Opacity and Soft. The brush family's Opacity and Soft have no inline slider at all (October 2026), like Flow and Smooth: the popup slider, a drag on the label or inside the field, and the number keys reach them.
-- At a width where any row holding one would wrap with it, all of them hide, for every tool at once, so the bar looks the same from tool to tool. A resize across that width calls back into `refresh_options_bar`.
+- Per tool: the active tool's sliders hide only when its own row would wrap with them (`FlowLayout::measure_rows` decides per row). Other tools' rows never cost it its slider: a global decision hid the Clone Stamp's Size slider at 1330 px with 300 px to spare because the Healing Brush row wrapped (GitHub issue 458 follow-up; `ui_options_bar_sliders_collapse_per_tool`). A resize across a tool's width calls back into `refresh_options_bar`. The bar height is the tallest row after each row's own collapse, and the sticky reservation keeps it across tool switches.
 - Mark only true duplicates. Never mark a control that is the only way to reach a setting.
-- The decision is rechecked whenever a control changes size without the width changing (`OptionsFlowContainer::event` on `LayoutRequest`), and a change of decision drops the height reservation. (GitHub issue 364.)
+- The decision is rechecked whenever a control changes size without the width changing (`OptionsFlowContainer::event` on `LayoutRequest`), and a change of decision on the same row drops the height reservation; a tool switch never does. (GitHub issue 364.)
 - A control whose content changes (a name, a preset) keeps one width: the Brush Tip picker and the Artboard preset picker size from their size hints, elide the name and show it in full in the tooltip (`ui_brush_tip_picker_keeps_a_fixed_width`).
 
 ## Popups and the cursor
