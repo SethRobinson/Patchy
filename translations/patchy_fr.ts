@@ -15260,10 +15260,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Réinitialiser</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>Retour à 100 % et 0 degré</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>Afficher la superposition</translation>
     </message>
@@ -15300,8 +15296,32 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Votre prochain trait définit le décalage.</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>L&apos;échelle et la rotation s&apos;appliquent au Tampon de duplication.</translation>
+        <source>Flip:</source>
+        <translation>Symétrie :</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>Symétrie horizontale : inverse le contenu dupliqué de gauche à droite</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Symétrie horizontale</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>Symétrie verticale : inverse le contenu dupliqué de haut en bas</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Symétrie verticale</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>Retour à 100 %, 0 degré et sans symétrie</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>L&apos;échelle, la rotation et la symétrie s&apos;appliquent au Tampon de duplication.</translation>
     </message>
 </context>
 <context>
@@ -26512,10 +26532,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Supprimer le paramètre prédéfini « %1 » ?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation et superposition</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Comparer à la couleur moyenne d&apos;un carré autour du clic au lieu d&apos;un seul pixel</translation>
     </message>
@@ -27128,6 +27144,14 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>Clic maintenu</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation, symétrie et superposition</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Source de duplication</translation>
     </message>
 </context>
 <context>

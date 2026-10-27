@@ -21,7 +21,7 @@
 - Free Transform, Skew, Distort and Perspective work on the selected pixels when a selection is active: the pixels lift out, the box fits them, and the selection follows them on Enter
 - Ctrl-drag a corner or side of the Move tool's transform box to distort it; Ctrl mid-drag toggles distort and resize
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush blends the completed stroke on release and offers Replace and blend modes; Red Eye works with a click or a box over the eye
-- Clone source settings on the Clone Stamp gear: four saved sources, an editable offset, scale and rotation, and a source overlay under the brush
+- Clone source settings (Clone Stamp gear or Window > Clone Source): four saved sources, offset, scale, rotation, flips, and a source overlay
 - Brush tip libraries with Photoshop .abr import, custom tips from selections, spacing, angle, roundness, texture, dual-brush effects, wet edges, and dynamics for size, opacity, flow, scatter, and color. Supported dynamics can respond to pen pressure, tilt, rotation, or stroke direction
 - Mixer Brush with Wet, Load, Mix, Flow, and Sample All Layers controls, plus stroke smoothing with pulled-string and catch-up options
 - Painting tools show their mouse gestures in the status bar; Ctrl+click (Command+click on macOS) selects the layer under the pointer and Ctrl+drag moves the selected layer without switching tools; Alt+right-drag sets brush size and softness (Quick Select: size) with a readout on the canvas; holding Shift previews the line a Shift+click paints

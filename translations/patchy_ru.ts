@@ -15297,10 +15297,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Сбросить</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>Вернуть 100% и 0 градусов</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>Показывать наложение</translation>
     </message>
@@ -15337,8 +15333,32 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Следующий мазок задаст сдвиг.</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>Масштаб и поворот применяются к Штампу.</translation>
+        <source>Flip:</source>
+        <translation>Отражение:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>Отразить по горизонтали: зеркально отражает клонируемое содержимое слева направо</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Отразить по горизонтали</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>Отразить по вертикали: зеркально отражает клонируемое содержимое сверху вниз</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Отразить по вертикали</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>Вернуть 100%, 0 градусов и без отражения</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>Масштаб, поворот и отражение применяются к Штампу.</translation>
     </message>
 </context>
 <context>
@@ -26587,10 +26607,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Удалить предустановку «%1»?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>Параметры источника клонирования: источники, сдвиг, масштаб, поворот и наложение</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Сравнивать со средним цветом квадрата вокруг щелчка вместо одного пикселя</translation>
     </message>
@@ -27204,6 +27220,14 @@ The open document keeps its blend modes either way.</source>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>Нажатие с удержанием</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>Параметры источника клонирования: источники, сдвиг, масштаб, поворот, отражение и наложение</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Источник клонирования</translation>
     </message>
 </context>
 <context>

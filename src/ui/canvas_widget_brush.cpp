@@ -2939,7 +2939,9 @@ void CanvasWidget::draw_clone_source_overlay(QPainter& painter) const {
   to_widget.scale(zoom_, zoom_);
   to_widget.translate(anchor.x(), anchor.y());
   to_widget.rotate(transform.rotation_degrees);
-  to_widget.scale(transform.scale_percent / 100.0, transform.scale_percent / 100.0);
+  // The flips mirror before the scale and the turn, as CloneSourceMapping does.
+  const auto scale = transform.scale_percent / 100.0;
+  to_widget.scale(transform.flip_horizontal ? -scale : scale, transform.flip_vertical ? -scale : scale);
   to_widget.translate(-source_center.x(), -source_center.y());
 
   const auto brush = effective_brush_input();

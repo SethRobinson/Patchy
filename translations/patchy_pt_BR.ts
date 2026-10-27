@@ -15260,10 +15260,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Redefinir</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>Volta para 100% e 0 grau</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>Mostrar sobreposição</translation>
     </message>
@@ -15300,8 +15296,32 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>O próximo traço define o deslocamento.</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>A escala e a rotação valem para o Carimbo.</translation>
+        <source>Flip:</source>
+        <translation>Inverter:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>Inverter horizontal: espelha o conteúdo clonado da esquerda para a direita</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Inverter horizontal</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>Inverter vertical: espelha o conteúdo clonado de cima para baixo</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Inverter vertical</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>Volta para 100%, 0 grau e sem inversão</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>A escala, a rotação e a inversão valem para o Carimbo.</translation>
     </message>
 </context>
 <context>
@@ -26512,10 +26532,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>Excluir a predefinição &quot;%1&quot;?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>Configurações da origem do clone: origens, deslocamento, escala, rotação e sobreposição</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Comparar com a cor média de um quadrado ao redor do clique em vez de um único pixel</translation>
     </message>
@@ -27128,6 +27144,14 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>Clicar e segurar</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>Configurações da origem do clone: origens, deslocamento, escala, rotação, inversão e sobreposição</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Origem do clone</translation>
     </message>
 </context>
 <context>

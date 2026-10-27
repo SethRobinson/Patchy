@@ -14,7 +14,8 @@ constexpr double kQ24 = 16777216.0;
 
 bool CloneSourceTransform::is_identity() const noexcept {
   const auto value = normalized();
-  return value.scale_percent == 100.0 && value.rotation_degrees == 0.0;
+  return value.scale_percent == 100.0 && value.rotation_degrees == 0.0 && !value.flip_horizontal &&
+         !value.flip_vertical;
 }
 
 CloneSourceTransform CloneSourceTransform::normalized() const noexcept {
@@ -28,6 +29,8 @@ CloneSourceTransform CloneSourceTransform::normalized() const noexcept {
     rotation += 360.0;
   }
   value.rotation_degrees = rotation == 0.0 ? 0.0 : rotation;  // no -0
+  value.flip_horizontal = flip_horizontal;
+  value.flip_vertical = flip_vertical;
   return value;
 }
 
@@ -63,13 +66,22 @@ CloneSourceMapping::CloneSourceMapping(std::int32_t source_x, std::int32_t sourc
     c = std::cos(radians);
     s = std::sin(radians);
   }
-  // The forward transform turns by the rotation after scaling; its inverse is the
-  // opposite turn divided by the scale.
+  // The forward transform mirrors, scales, then turns by the rotation; its inverse is the
+  // opposite turn divided by the scale, then the same mirror (a flip is its own inverse),
+  // which negates the matrix's row for each flipped axis.
   const auto inverse_scale = 100.0 / value.scale_percent;
   m00_ = std::llround(c * inverse_scale * kQ24);
   m01_ = std::llround(s * inverse_scale * kQ24);
   m10_ = -m01_;
   m11_ = m00_;
+  if (value.flip_horizontal) {
+    m00_ = -m00_;
+    m01_ = -m01_;
+  }
+  if (value.flip_vertical) {
+    m10_ = -m10_;
+    m11_ = -m11_;
+  }
 }
 
 std::array<std::int64_t, 2> CloneSourceMapping::map_q8(std::int32_t x, std::int32_t y) const noexcept {

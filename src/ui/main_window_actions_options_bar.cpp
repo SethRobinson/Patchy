@@ -3234,7 +3234,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   clone_source_options_button_->setObjectName(QStringLiteral("cloneSourceOptionsButton"));
   make_options_menu_button(clone_source_options_button_);
   bind_tooltip(clone_source_options_button_,
-               QT_TR_NOOP("Clone source settings: sources, offset, scale, rotation and overlay"));
+               QT_TR_NOOP("Clone source settings: sources, offset, scale, rotation, flip and overlay"));
   {
     clone_source_menu_ = new QMenu(clone_source_options_button_);
     clone_source_menu_->setObjectName(QStringLiteral("cloneSourceMenu"));

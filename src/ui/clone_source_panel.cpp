@@ -1,5 +1,6 @@
 #include "ui/clone_source_panel.hpp"
 
+#include "ui/action_icons.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/modifier_names.hpp"
@@ -91,7 +92,7 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   offset_note_->setWordWrap(true);
   layout->addWidget(offset_note_, 3, 1, 1, 4);
 
-  // Rows 4 and 5: the Clone Stamp's scale and rotation, and Reset.
+  // Rows 4 and 5: the Clone Stamp's scale, rotation and flips, and Reset.
   scale_label_ = new QLabel(this);
   layout->addWidget(scale_label_, 4, 0);
   scale_spin_ = new QDoubleSpinBox(this);
@@ -116,6 +117,28 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   layout->addWidget(rotation_spin_, 4, 4);
   connect(scale_spin_, &QDoubleSpinBox::valueChanged, this, [this] { emit_transform(); });
   connect(rotation_spin_, &QDoubleSpinBox::valueChanged, this, [this] { emit_transform(); });
+  // The flips mirror the source about the source point (one eye onto the other).
+  flip_label_ = new QLabel(this);
+  layout->addWidget(flip_label_, 5, 0);
+  auto* flip_row = new QHBoxLayout();
+  flip_row->setSpacing(4);
+  flip_horizontal_button_ = new QToolButton(this);
+  flip_horizontal_button_->setObjectName(QStringLiteral("cloneSourceFlipHorizontalButton"));
+  flip_horizontal_button_->setIcon(simple_icon(QStringLiteral("FH")));
+  flip_vertical_button_ = new QToolButton(this);
+  flip_vertical_button_->setObjectName(QStringLiteral("cloneSourceFlipVerticalButton"));
+  flip_vertical_button_->setIcon(simple_icon(QStringLiteral("FV")));
+  for (auto* button : {flip_horizontal_button_, flip_vertical_button_}) {
+    button->setCheckable(true);
+    button->setAutoRaise(false);
+    button->setFixedSize(28, 22);
+    button->setIconSize(QSize(16, 16));
+    button->setFocusPolicy(Qt::NoFocus);
+    flip_row->addWidget(button);
+    connect(button, &QToolButton::toggled, this, [this] { emit_transform(); });
+  }
+  flip_row->addStretch(1);
+  layout->addLayout(flip_row, 5, 1, 1, 2);
   reset_button_ = new QPushButton(this);
   reset_button_->setObjectName(QStringLiteral("cloneSourceResetButton"));
   reset_button_->setAutoDefault(false);
@@ -125,19 +148,19 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   transform_note_ = new QLabel(this);
   transform_note_->setObjectName(QStringLiteral("cloneSourceTransformNote"));
   transform_note_->setWordWrap(true);
-  layout->addWidget(transform_note_, 5, 0, 1, 4);
+  layout->addWidget(transform_note_, 6, 0, 1, 5);
 
-  // Row 6: the overlay.
+  // Row 7: the overlay.
   overlay_check_ = new QCheckBox(this);
   overlay_check_->setObjectName(QStringLiteral("cloneSourceOverlayCheck"));
-  layout->addWidget(overlay_check_, 6, 0, 1, 3);
+  layout->addWidget(overlay_check_, 7, 0, 1, 3);
   overlay_opacity_label_ = new QLabel(this);
-  layout->addWidget(overlay_opacity_label_, 6, 3);
+  layout->addWidget(overlay_opacity_label_, 7, 3);
   overlay_opacity_spin_ = new QSpinBox(this);
   overlay_opacity_spin_->setObjectName(QStringLiteral("cloneSourceOverlayOpacitySpin"));
   overlay_opacity_spin_->setRange(1, 100);
   configure_dialog_spinbox(overlay_opacity_spin_, 84);
-  layout->addWidget(overlay_opacity_spin_, 6, 4);
+  layout->addWidget(overlay_opacity_spin_, 7, 4);
   const auto overlay_changed = [this] { emit overlay_edited(overlay_check_->isChecked(), overlay_opacity_spin_->value()); };
   connect(overlay_check_, &QCheckBox::toggled, this, overlay_changed);
   connect(overlay_opacity_spin_, &QSpinBox::valueChanged, this, overlay_changed);
@@ -161,7 +184,10 @@ void CloneSourcePanel::set_state(const State& state) {
 }
 
 void CloneSourcePanel::emit_transform() {
-  emit transform_edited(patchy::CloneSourceTransform{scale_spin_->value(), rotation_spin_->value()});
+  patchy::CloneSourceTransform transform{scale_spin_->value(), rotation_spin_->value()};
+  transform.flip_horizontal = flip_horizontal_button_->isChecked();
+  transform.flip_vertical = flip_vertical_button_->isChecked();
+  emit transform_edited(transform);
 }
 
 void CloneSourcePanel::changeEvent(QEvent* event) {
@@ -184,8 +210,13 @@ void CloneSourcePanel::retranslate() {
   scale_spin_->setToolTip(tr("Size of the cloned content"));
   rotation_label_->setText(tr("Rotation:"));
   rotation_spin_->setToolTip(tr("Turns the cloned content clockwise"));
+  flip_label_->setText(tr("Flip:"));
+  flip_horizontal_button_->setToolTip(tr("Flip Horizontal: mirror the cloned content left to right"));
+  flip_horizontal_button_->setAccessibleName(tr("Flip Horizontal"));
+  flip_vertical_button_->setToolTip(tr("Flip Vertical: mirror the cloned content top to bottom"));
+  flip_vertical_button_->setAccessibleName(tr("Flip Vertical"));
   reset_button_->setText(tr("Reset"));
-  reset_button_->setToolTip(tr("Back to 100% and 0 degrees"));
+  reset_button_->setToolTip(tr("Back to 100%, 0 degrees and no flip"));
   overlay_check_->setText(tr("Show overlay"));
   overlay_check_->setToolTip(tr("Preview the source under the brush before you paint"));
   overlay_opacity_label_->setText(tr("Opacity:"));
@@ -244,11 +275,19 @@ void CloneSourcePanel::refresh() {
     scale_spin_->setValue(state_.transform.scale_percent);
     rotation_spin_->setValue(state_.transform.rotation_degrees);
   }
+  for (auto* button : {flip_horizontal_button_, flip_vertical_button_}) {
+    const QSignalBlocker blocker(button);
+    button->setChecked(button == flip_horizontal_button_ ? state_.transform.flip_horizontal
+                                                         : state_.transform.flip_vertical);
+  }
   const bool transform_editable = state_.has_document && state_.transform_applies;
   scale_spin_->setEnabled(transform_editable);
   rotation_spin_->setEnabled(transform_editable);
+  flip_horizontal_button_->setEnabled(transform_editable);
+  flip_vertical_button_->setEnabled(transform_editable);
   reset_button_->setEnabled(transform_editable && !state_.transform.is_identity());
-  transform_note_->setText(state_.transform_applies ? QString() : tr("Scale and rotation apply to the Clone Stamp."));
+  transform_note_->setText(state_.transform_applies ? QString()
+                                                    : tr("Scale, rotation and flip apply to the Clone Stamp."));
   transform_note_->setVisible(!state_.transform_applies);
 
   {
