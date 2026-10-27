@@ -1,6 +1,8 @@
 // The layer row context menu's size and submenus (#461) and the layer export actions in its
 // Export submenu (#462): Quick Export as PNG and Export As....
 #include "core/layer_metadata.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/main_window.hpp"
@@ -17,6 +19,8 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
+#include <QLabel>
+#include <QPixmap>
 #include <QListWidget>
 #include <QMenu>
 #include <QPainter>
@@ -322,6 +326,9 @@ void ui_layer_thumbnail_menu_offers_layer_export() {
     return;
   }
   const QStringList both_actions{QStringLiteral("layerQuickExportPngAction"), QStringLiteral("layerExportAsAction")};
+  // A mask thumbnail's entries export the mask itself: the menu's own actions.
+  const QStringList mask_actions{QStringLiteral("layerMaskQuickExportPngAction"),
+                                 QStringLiteral("layerMaskExportAsAction")};
 
   auto seen = read_thumbnail_menu(window, *layers, QStringLiteral("Spot"), QStringLiteral("layerContentThumbnail"),
                                   "issue462_thumbnail_menu");
@@ -335,14 +342,14 @@ void ui_layer_thumbnail_menu_offers_layer_export() {
   CHECK(seen.name == QStringLiteral("layerMaskThumbnailMenu"));
   CHECK(seen.entries.size() >= 2 && seen.entries.mid(seen.entries.size() - 2) ==
                                         (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu")}));
-  CHECK(seen.export_entries == both_actions);
+  CHECK(seen.export_entries == mask_actions);
 
   seen = read_thumbnail_menu(window, *layers, QStringLiteral("Vector Masked"),
                              QStringLiteral("layerVectorMaskThumbnail"));
   CHECK(seen.name == QStringLiteral("layerVectorMaskThumbnailMenu"));
   CHECK(seen.entries.size() >= 2 && seen.entries.mid(seen.entries.size() - 2) ==
                                         (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu")}));
-  CHECK(seen.export_entries == both_actions);
+  CHECK(seen.export_entries == mask_actions);
 }
 
 // A document for the export tests: a small red layer with a Unicode name, the same name
@@ -546,6 +553,275 @@ void ui_layer_export_as_uses_chosen_format_and_options() {
   settings.setValue(QStringLiteral("saveOptions/exportTrim"), false);
 }
 
+// A layer whose 20x20 vector mask square spans (10, 10) to (30, 30).
+patchy::LayerVectorMask square_vector_mask() {
+  patchy::LiveShapeParams params;
+  params.kind = patchy::LiveShapeKind::Rectangle;
+  params.left = 10;
+  params.top = 10;
+  params.right = 30;
+  params.bottom = 30;
+  params.index = 0;
+  patchy::populate_live_shape_box_corners(params);
+  patchy::LayerVectorMask mask;
+  mask.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  return mask;
+}
+
+// Right-clicks `part` of the named row and picks `action_name` in its Export submenu.
+void pick_thumbnail_export_entry(QListWidget& layers, const QString& row_name, const QString& part,
+                                 const QString& action_name, bool& picked) {
+  QTimer::singleShot(0, [&layers, action_name, &picked] {
+    static_cast<void>(layers);
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || !menu->isVisible()) {
+        continue;
+      }
+      auto* export_menu = menu->findChild<QMenu*>(QStringLiteral("layerThumbnailExportMenu"));
+      QAction* entry = nullptr;
+      for (auto* action : export_menu != nullptr ? export_menu->actions() : QList<QAction*>{}) {
+        if (action->objectName() == action_name) {
+          entry = action;
+        }
+      }
+      CHECK(entry != nullptr);
+      if (entry == nullptr) {
+        menu->close();
+        return;
+      }
+      picked = true;
+      menu->setActiveAction(export_menu->menuAction());
+      QTest::keyClick(menu, Qt::Key_Right);
+      QApplication::processEvents();
+      export_menu->setActiveAction(entry);
+      QTest::keyClick(export_menu, Qt::Key_Return);
+      return;
+    }
+  });
+  auto* row = layers.itemWidget(require_layer_item(layers, row_name));
+  auto* thumbnail = row != nullptr ? row->findChild<QWidget*>(part) : nullptr;
+  CHECK(thumbnail != nullptr);
+  if (thumbnail != nullptr) {
+    const auto local = thumbnail->rect().center();
+    QContextMenuEvent event(QContextMenuEvent::Mouse, local, thumbnail->mapToGlobal(local));
+    QApplication::sendEvent(thumbnail, &event);
+  }
+  QApplication::processEvents();
+}
+
+// Accepts the named file dialog with `path` whenever it comes up (polls, so it also catches a
+// dialog opened from a menu's own event loop).
+struct FileDialogAcceptor {
+  QTimer poll;
+  bool seen{false};
+  QString suggested;  // the file name the dialog showed
+  int polls{0};
+
+  FileDialogAcceptor(const QString& object_name, const QString& path) {
+    QObject::connect(&poll, &QTimer::timeout, [this, object_name, path] {
+      auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));
+      if (dialog == nullptr || !dialog->isVisible()) {
+        // Some other dialog (or none) for 5 s: close it so a wrong flow fails instead of hanging.
+        if (++polls > 500) {
+          poll.stop();
+          if (auto* modal = QApplication::activeModalWidget(); modal != nullptr) {
+            std::printf("[INFO] unexpected modal dialog: %s\n", qPrintable(modal->objectName()));
+            modal->close();
+          }
+        }
+        return;
+      }
+      poll.stop();
+      seen = true;
+      const auto selected = dialog->selectedFiles();
+      suggested = selected.isEmpty() ? QString() : QFileInfo(selected.front()).fileName();
+      if (dialog->fileMode() == QFileDialog::Directory) {
+        dialog->setDirectory(path);
+      }
+      dialog->selectFile(path);
+      static_cast<QDialog*>(dialog)->accept();  // QFileDialog::accept is protected
+    });
+    poll.start(10);
+  }
+};
+
+// Export from a mask thumbnail writes the mask itself (#462 follow-up): a canvas-size 8-bit
+// grayscale PNG, untrimmed, white where it reveals, the default color outside the raster
+// mask's rect, a vector mask's path coverage (inside white, outside black); several selected
+// layers write one mask each and skip a layer without that mask.
+void ui_layer_mask_thumbnail_export_writes_the_mask() {
+  using patchy::test::kUnicodePathStems;
+  const auto stem = QString::fromStdString(patchy::test::utf8_string(kUnicodePathStems[1]));
+  const auto folder = patchy::ui::to_qstring(
+      std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"layer-mask-export")));
+  const QDir directory(folder);
+  patchy::ui::MainWindow window;
+  patchy::Document built(64, 48, patchy::PixelFormat::rgba8());
+  // A small red patch whose raster mask covers (8, 4) to (40, 24): black on its left half,
+  // 200 on its right half, white (the default color) outside it.
+  auto masked = solid_layer(built, patchy::test::utf8_string(kUnicodePathStems[1]), QRect(20, 10, 6, 6),
+                            QColor(220, 20, 20));
+  patchy::PixelBuffer mask(32, 20, patchy::PixelFormat::gray8());
+  for (int y = 0; y < mask.height(); ++y) {
+    for (int x = 0; x < mask.width(); ++x) {
+      *mask.pixel(x, y) = x < 16 ? std::uint8_t{0} : std::uint8_t{200};
+    }
+  }
+  masked.set_mask(patchy::LayerMask{patchy::Rect{8, 4, 32, 20}, std::move(mask), 255, false});
+  const auto masked_id = masked.id();
+  built.add_layer(std::move(masked));
+  auto plain = solid_layer(built, "Plain", QRect(0, 0, 8, 8), QColor(20, 200, 20));
+  const auto plain_id = plain.id();
+  built.add_layer(std::move(plain));
+  auto shaped = solid_layer(built, "Shaped", QRect(0, 0, 64, 48), QColor(20, 20, 220));
+  shaped.set_vector_mask(square_vector_mask());
+  patchy::update_vector_mask_raster(shaped, patchy::Rect{0, 0, 64, 48});
+  const auto shaped_id = shaped.id();
+  built.add_layer(std::move(shaped));
+  auto framed = solid_layer(built, "Framed", QRect(0, 0, 64, 48), QColor(200, 200, 20));
+  framed.set_vector_mask(square_vector_mask());
+  patchy::update_vector_mask_raster(framed, patchy::Rect{0, 0, 64, 48});
+  const auto framed_id = framed.id();
+  built.add_layer(std::move(framed));
+  window.add_document_session(std::move(built), QStringLiteral("Mask Export"));
+  show_window(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  if (layers == nullptr) {
+    return;
+  }
+
+  // One layer: the save dialog suggests "<layer> mask"; the PNG is the whole mask.
+  patchy::ui::MainWindowTestAccess::select_layers(window, {masked_id}, masked_id);
+  QApplication::processEvents();
+  const auto single = directory.filePath(stem + QStringLiteral(" single.png"));
+  {
+    FileDialogAcceptor accept(QStringLiteral("layerQuickExportFileDialog"), single);
+    bool picked = false;
+    pick_thumbnail_export_entry(*layers, stem, QStringLiteral("layerMaskThumbnail"),
+                                QStringLiteral("layerMaskQuickExportPngAction"), picked);
+    process_events_until([&] { return accept.seen && QFileInfo::exists(single); });
+    CHECK(picked);
+    CHECK(accept.seen);
+    CHECK(accept.suggested == stem + QStringLiteral(" mask.png"));
+  }
+  const QImage raster(single, "PNG");
+  CHECK(raster.size() == QSize(64, 48));
+  CHECK(raster.format() == QImage::Format_Grayscale8);
+  CHECK(raster.isGrayscale());
+  CHECK(qGray(raster.pixel(2, 2)) == 255);    // outside the rect: the default color
+  CHECK(qGray(raster.pixel(10, 10)) == 0);    // the black half
+  CHECK(qGray(raster.pixel(30, 10)) == 200);  // the 200 half
+  CHECK(qGray(raster.pixel(60, 40)) == 255);
+  save_image_artifact("issue462_mask_export", raster);
+  if (auto* panel = layers->parentWidget(); panel != nullptr) {
+    save_widget_artifact("issue462_mask_export_panel", *panel);
+  }
+
+  // Several layers from the vector mask menu: one file per vector mask, the two layers without
+  // one skipped.
+  patchy::ui::MainWindowTestAccess::select_layers(window, {masked_id, plain_id, shaped_id, framed_id}, shaped_id);
+  QApplication::processEvents();
+  {
+    FileDialogAcceptor accept(QStringLiteral("layerQuickExportFolderDialog"), folder);
+    bool picked = false;
+    pick_thumbnail_export_entry(*layers, QStringLiteral("Shaped"), QStringLiteral("layerVectorMaskThumbnail"),
+                                QStringLiteral("layerMaskQuickExportPngAction"), picked);
+    process_events_until([&] {
+      return accept.seen && QFileInfo::exists(directory.filePath(QStringLiteral("Shaped vector mask.png")));
+    });
+    CHECK(picked);
+    CHECK(accept.seen);
+  }
+  const QImage vector(directory.filePath(QStringLiteral("Shaped vector mask.png")), "PNG");
+  CHECK(vector.size() == QSize(64, 48));
+  CHECK(vector.format() == QImage::Format_Grayscale8);
+  CHECK(qGray(vector.pixel(20, 20)) == 255);  // inside the square
+  CHECK(qGray(vector.pixel(2, 2)) == 0);      // outside it
+  CHECK(qGray(vector.pixel(50, 40)) == 0);
+  CHECK(QImage(directory.filePath(QStringLiteral("Framed vector mask.png")), "PNG").size() == QSize(64, 48));
+  // The two layers without a vector mask are skipped and the status bar says so.
+  CHECK(!QFileInfo::exists(directory.filePath(stem + QStringLiteral(" vector mask.png"))));
+  CHECK(!QFileInfo::exists(directory.filePath(QStringLiteral("Plain vector mask.png"))));
+  const auto message = window.statusBar()->currentMessage();
+  CHECK(message.contains(QStringLiteral("Exported 2 masks")) && message.contains(QStringLiteral("2 layers")));
+
+  // The pixel thumbnail menu keeps exporting the layer as composited and trimmed: of the 6x6
+  // patch at (20, 10), only the two columns over the mask's 200 half show.
+  patchy::ui::MainWindowTestAccess::select_layers(window, {masked_id}, masked_id);
+  QApplication::processEvents();
+  const auto layer_file = directory.filePath(QStringLiteral("layer.png"));
+  {
+    FileDialogAcceptor accept(QStringLiteral("layerQuickExportFileDialog"), layer_file);
+    bool picked = false;
+    pick_thumbnail_export_entry(*layers, stem, QStringLiteral("layerContentThumbnail"),
+                                QStringLiteral("layerQuickExportPngAction"), picked);
+    process_events_until([&] { return accept.seen && QFileInfo::exists(layer_file); });
+    CHECK(picked);
+  }
+  const auto composited = read_png(layer_file);
+  CHECK(composited.size() == QSize(2, 6));
+  CHECK(qAlpha(composited.pixel(0, 0)) == 200);
+}
+
+// With thumbnails zoomed to content (the default), the layer and vector mask previews frame
+// the mask itself, not the layer's pixels (#462 follow-up): a canvas-size mask keeps the
+// document's shape beside a small layer's square tile, and a vector mask shows the canvas.
+void ui_layer_mask_thumbnails_frame_the_mask() {
+  SettingsValueRestorer restore_zoom(QStringLiteral("view/zoomLayerThumbnailsToContent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), true);
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  patchy::Document built(160, 40, patchy::PixelFormat::rgba8());
+  auto blob = solid_layer(built, "Blob", QRect(10, 10, 20, 20), QColor(220, 20, 20));
+  patchy::PixelBuffer mask(160, 40, patchy::PixelFormat::gray8());
+  mask.clear(255);
+  for (int y = 0; y < 40; ++y) {
+    for (int x = 100; x < 160; ++x) {
+      *mask.pixel(x, y) = 0;
+    }
+  }
+  blob.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 160, 40}, std::move(mask), 255, false});
+  built.add_layer(std::move(blob));
+  auto strip = solid_layer(built, "Strip", QRect(0, 0, 160, 10), QColor(20, 20, 220));
+  strip.set_vector_mask(square_vector_mask());
+  patchy::update_vector_mask_raster(strip, patchy::Rect{0, 0, 160, 40});
+  built.add_layer(std::move(strip));
+  window.add_document_session(std::move(built), QStringLiteral("Mask Thumbnails"));
+  show_window(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  if (layers == nullptr) {
+    return;
+  }
+  const auto pixmap = [layers](const QString& row_name, const QString& part) {
+    auto* row = layers->itemWidget(require_layer_item(*layers, row_name));
+    auto* label = row != nullptr ? row->findChild<QLabel*>(part) : nullptr;
+    CHECK(label != nullptr);
+    return label != nullptr ? label->pixmap(Qt::ReturnByValue) : QPixmap();
+  };
+  if (auto* panel = layers->parentWidget(); panel != nullptr) {
+    save_widget_artifact("issue462_mask_thumbnails", *panel);
+  }
+  // The 20x20 blob zooms to a square tile; its canvas-size mask keeps the canvas's 4:1 shape
+  // and shows the black right part that lies outside the blob.
+  CHECK(pixmap(QStringLiteral("Blob"), QStringLiteral("layerContentThumbnail")).size() == QSize(28, 28));
+  const auto mask_image = pixmap(QStringLiteral("Blob"), QStringLiteral("layerMaskThumbnail")).toImage();
+  CHECK(mask_image.size() == QSize(28, 7));
+  CHECK(qGray(mask_image.pixel(4, 3)) == 255);
+  CHECK(qGray(mask_image.pixel(24, 3)) == 0);
+  // The strip's pixels zoom to a 16:1 tile; its vector mask shows the whole canvas: the white
+  // square at the left, black elsewhere.
+  const auto vector_image = pixmap(QStringLiteral("Strip"), QStringLiteral("layerVectorMaskThumbnail")).toImage();
+  CHECK(vector_image.size() == QSize(28, 7));
+  CHECK(qGray(vector_image.pixel(3, 3)) > 200);
+  CHECK(qGray(vector_image.pixel(20, 3)) == 0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_export_tests() {
@@ -554,5 +830,7 @@ std::vector<patchy::test::TestCase> layer_export_tests() {
       {"ui_layer_thumbnail_menu_offers_layer_export", ui_layer_thumbnail_menu_offers_layer_export},
       {"ui_layer_quick_export_png_writes_trimmed_named_files", ui_layer_quick_export_png_writes_trimmed_named_files},
       {"ui_layer_export_as_uses_chosen_format_and_options", ui_layer_export_as_uses_chosen_format_and_options},
+      {"ui_layer_mask_thumbnail_export_writes_the_mask", ui_layer_mask_thumbnail_export_writes_the_mask},
+      {"ui_layer_mask_thumbnails_frame_the_mask", ui_layer_mask_thumbnails_frame_the_mask},
   };
 }

@@ -214,6 +214,9 @@ class MainWindow final : public QMainWindow {
   Q_OBJECT
 
 public:
+  // What a layer export writes (#462): the layer as composited, or its layer mask or vector
+  // mask as a canvas-size grayscale image (the mask thumbnails' Export submenus).
+  enum class LayerExportSource { Layer, LayerMask, VectorMask };
   // Legacy plug-ins: true from the moment a folder scan is scheduled until its
   // result is applied (tests and Preferences wait on it; docs/plugins.md).
   [[nodiscard]] bool legacy_plugin_scan_in_flight() const noexcept;
@@ -2036,9 +2039,10 @@ private:
   void set_layer_thumbnail_size(LayerThumbnailSize size);
   // Layer export (#462, main_window_files.cpp): Quick Export as PNG (choose_format false) and
   // Export As... for the selected layers, each its own file named after the layer (a group as
-  // its composite). add_layer_export_actions adds both shared actions to a context menu.
+  // its composite; a mask source writes each selected layer's mask of that kind instead).
+  // add_layer_export_actions adds both shared actions to a context menu.
   void add_layer_export_actions(QMenu* menu);
-  void export_selected_layers(bool choose_format);
+  void export_selected_layers(bool choose_format, LayerExportSource source = LayerExportSource::Layer);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   // A Layers-panel drag over another document (a session canvas, tabbed or
   // floated, or a document tab): accepts it as a copy and defers the copy.

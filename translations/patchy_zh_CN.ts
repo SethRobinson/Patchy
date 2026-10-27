@@ -27477,6 +27477,38 @@ The open document keeps its blend modes either way.</source>
         <source>Applied Perspective Planes</source>
         <translation>已应用透视平面</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 矢量蒙版</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 蒙版</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>所选图层没有矢量蒙版</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>所选图层没有图层蒙版</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>将蒙版导出为</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>已将 %1 个蒙版导出到 %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>已将 %1 个蒙版导出到 %2; 已跳过 %3 个没有该蒙版的图层</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>已导出 %1; 已跳过 %2 个没有该蒙版的图层</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

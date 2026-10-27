@@ -27471,6 +27471,38 @@ The open document keeps its blend modes either way.</source>
         <source>Applied Perspective Planes</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

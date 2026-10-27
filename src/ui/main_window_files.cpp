@@ -90,6 +90,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QBuffer>
 #include <QCollator>
 #include <QColorSpace>
 #include <QCoreApplication>
@@ -110,6 +111,7 @@
 #include <QImage>
 #include <QImageIOHandler>
 #include <QImageReader>
+#include <QImageWriter>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLatin1Char>
@@ -130,6 +132,7 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QRect>
+#include <QSaveFile>
 #include <QScopeGuard>
 #include <QSet>
 #include <QSettings>
@@ -164,6 +167,8 @@
 #include "ui/scanner_import.hpp"
 #include "core/photo_divide.hpp"
 #include "ui/divide_photos_dialog.hpp"
+#include "core/layer_render_utils.hpp"
+#include "core/vector_raster.hpp"
 #include "ui/image_sequence_dialog.hpp"
 #include "formats/gif_document_io.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
@@ -4354,6 +4359,63 @@ QRect visible_alpha_rect(const QImage& image) {
   return right < 0 ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom));
 }
 
+bool layer_has_export_mask(const Layer& layer, MainWindow::LayerExportSource source) {
+  return source == MainWindow::LayerExportSource::VectorMask ? layer.vector_mask() != nullptr
+                                                             : layer.mask().has_value();
+}
+
+// A layer or vector mask as an 8-bit grayscale image at canvas size, white where it reveals
+// (#462 follow-up): what the mask does when on, whether or not it is turned off right now. A
+// raster mask folds in its density and feather and reads its default color outside its rect;
+// a vector mask is its antialiased path coverage with its density and feather.
+QImage layer_mask_export_image(const Layer& layer, MainWindow::LayerExportSource source, int width, int height) {
+  const Rect canvas{0, 0, width, height};
+  const bool vector = source == MainWindow::LayerExportSource::VectorMask;
+  Layer copy = layer;
+  if (vector) {
+    auto mask = *std::as_const(copy).vector_mask();
+    mask.disabled = false;
+    copy.set_vector_mask(std::move(mask));
+    update_vector_mask_raster(copy, canvas);
+  } else {
+    if (std::as_const(copy).mask()->disabled) {
+      copy.mask()->disabled = false;
+    }
+    sync_layer_mask_feather_canvas(copy, canvas);
+  }
+  const LayerMaskParts parts{!vector, vector};
+  QImage image(width, height, QImage::Format_Grayscale8);
+  for (int y = 0; y < height; ++y) {
+    auto* row = image.scanLine(y);
+    for (int x = 0; x < width; ++x) {
+      const auto alpha = layer_mask_alpha_at(std::as_const(copy), x, y, parts);
+      row[x] = static_cast<std::uint8_t>(std::clamp(std::lround(alpha * 255.0F), 0L, 255L));
+    }
+  }
+  return image;
+}
+
+// Quick Export of a mask: the gray image as an 8-bit grayscale PNG, written through a
+// QSaveFile so a failed write never truncates an existing file.
+void write_grayscale_png_atomically(const QImage& image, const QString& path) {
+  QByteArray bytes;
+  {
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    QImageWriter writer(&buffer, QByteArrayLiteral("png"));
+    if (!writer.write(image)) {
+      throw std::runtime_error(writer.errorString().toStdString());
+    }
+  }
+  QSaveFile file(path);
+  if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size()) {
+    throw std::runtime_error(file.errorString().toStdString());
+  }
+  if (!file.commit()) {
+    throw std::runtime_error(file.errorString().toStdString());
+  }
+}
+
 }  // namespace
 
 void MainWindow::add_layer_export_actions(QMenu* menu) {
@@ -4364,30 +4426,47 @@ void MainWindow::add_layer_export_actions(QMenu* menu) {
   }
 }
 
-void MainWindow::export_selected_layers(bool choose_format) {
+void MainWindow::export_selected_layers(bool choose_format, LayerExportSource source) {
   if (!has_active_document()) {
     show_status_error(tr("No document"));
     return;
   }
   finish_active_text_editor();
+  const bool mask_export = source != LayerExportSource::Layer;
   const auto& doc = std::as_const(document());
   std::vector<const Layer*> layers;
   std::vector<QString> layer_names;
+  int without_mask = 0;
   for (const auto id : selected_or_active_layer_ids()) {
-    if (const auto* layer = doc.find_layer(id); layer != nullptr) {
-      layers.push_back(layer);
-      layer_names.push_back(QString::fromStdString(layer->name()));
+    const auto* layer = doc.find_layer(id);
+    if (layer == nullptr) {
+      continue;
     }
+    if (mask_export && !layer_has_export_mask(*layer, source)) {
+      ++without_mask;
+      continue;
+    }
+    layers.push_back(layer);
+    const auto name = QString::fromStdString(layer->name());
+    // A mask file is named after its layer and kind.
+    layer_names.push_back(!mask_export ? name
+                          : source == LayerExportSource::VectorMask ? tr("%1 vector mask").arg(name)
+                                                                    : tr("%1 mask").arg(name));
   }
   if (layers.empty()) {
-    show_status_error(tr("Select a layer to export"));
+    show_status_error(!mask_export ? tr("Select a layer to export")
+                      : source == LayerExportSource::VectorMask ? tr("The selected layers have no vector mask")
+                                                                : tr("The selected layers have no layer mask"));
     return;
   }
-  const auto caption = choose_format ? (layers.size() == 1U ? tr("Export Layer As") : tr("Export Layers As"))
-                                     : tr("Quick Export as PNG");
-  // One layer is checked before any dialog: a layer with no pixels writes nothing.
+  const auto caption = choose_format
+                           ? (mask_export ? tr("Export Mask As")
+                                          : (layers.size() == 1U ? tr("Export Layer As") : tr("Export Layers As")))
+                           : tr("Quick Export as PNG");
+  // One layer is checked before any dialog: a layer with no pixels writes nothing. A mask
+  // always has content (black is content), so it is never skipped as empty.
   std::optional<QImage> single_render;
-  if (layers.size() == 1U) {
+  if (layers.size() == 1U && !mask_export) {
     single_render = render_layer_isolated(doc, *layers.front());
     if (visible_alpha_rect(*single_render).isEmpty()) {
       show_status_error(tr("The layer has no visible pixels to export"));
@@ -4467,8 +4546,23 @@ void MainWindow::export_selected_layers(bool choose_format) {
 
   try {
     int written = 0;
-    int skipped = 0;
+    int skipped = mask_export ? without_mask : 0;
     for (std::size_t index = 0; index < layers.size(); ++index) {
+      const auto& path = paths[static_cast<qsizetype>(index)];
+      if (mask_export) {
+        // The mask at canvas size, never trimmed: its black is content too.
+        const auto mask = layer_mask_export_image(*layers[index], source, doc.width(), doc.height());
+        if (choose_format) {
+          auto mask_document = document_from_qimage(mask, layer_names[index].toStdString());
+          mask_document.print_settings() = doc.print_settings();
+          write_flat_image_file(mask_document, path, extension, options);
+        } else {
+          write_grayscale_png_atomically(mask, path);
+        }
+        offer_browser_download_for_saved_file(path);
+        ++written;
+        continue;
+      }
       const auto image = single_render.has_value() ? *single_render : render_layer_isolated(doc, *layers[index]);
       const auto bounds = visible_alpha_rect(image);
       if (bounds.isEmpty()) {
@@ -4480,7 +4574,6 @@ void MainWindow::export_selected_layers(bool choose_format) {
       auto layer_document =
           document_from_qimage(choose_format ? image : image.copy(bounds), layers[index]->name());
       layer_document.print_settings() = doc.print_settings();
-      const auto& path = paths[static_cast<qsizetype>(index)];
       write_flat_image_file(layer_document, path, extension, options);
       offer_browser_download_for_saved_file(path);
       ++written;
@@ -4491,14 +4584,28 @@ void MainWindow::export_selected_layers(bool choose_format) {
       show_status_error(tr("Nothing was exported: the selected layers have no visible pixels"));
       return;
     }
-    if (paths.size() == 1) {
-      statusBar()->showMessage(tr("Exported %1").arg(QDir::toNativeSeparators(paths.front())));
+    const auto where = QDir::toNativeSeparators(paths.size() == 1 ? paths.front() : folder);
+    if (mask_export) {
+      // Selected layers without a mask of the clicked kind were left out.
+      if (skipped == 0) {
+        statusBar()->showMessage(paths.size() == 1 ? tr("Exported %1").arg(where)
+                                                   : tr("Exported %1 masks to %2").arg(written).arg(where));
+      } else if (paths.size() == 1) {
+        statusBar()->showMessage(tr("Exported %1; %2 layers without that mask were skipped").arg(where).arg(skipped));
+      } else {
+        statusBar()->showMessage(tr("Exported %1 masks to %2; %3 layers without that mask were skipped")
+                                     .arg(written)
+                                     .arg(where)
+                                     .arg(skipped));
+      }
+    } else if (paths.size() == 1) {
+      statusBar()->showMessage(tr("Exported %1").arg(where));
     } else if (skipped == 0) {
-      statusBar()->showMessage(tr("Exported %1 layers to %2").arg(written).arg(QDir::toNativeSeparators(folder)));
+      statusBar()->showMessage(tr("Exported %1 layers to %2").arg(written).arg(where));
     } else {
       statusBar()->showMessage(tr("Exported %1 layers to %2; %3 layers without pixels were skipped")
                                    .arg(written)
-                                   .arg(QDir::toNativeSeparators(folder))
+                                   .arg(where)
                                    .arg(skipped));
     }
     fire_theme_event(ThemeSoundEvent::ExportDone);

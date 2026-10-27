@@ -27553,6 +27553,38 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>Applied Perspective Planes</source>
         <translation>Piani prospettici applicato</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 maschera</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>I livelli selezionati non hanno una maschera vettoriale</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>I livelli selezionati non hanno una maschera di livello</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>Esporta maschera come</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>%1 maschere esportate in %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>%1 maschere esportate in %2; %3 livelli senza quella maschera sono stati saltati</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>%1 esportato; %2 livelli senza quella maschera sono stati saltati</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

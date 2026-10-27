@@ -27477,6 +27477,38 @@ The open document keeps its blend modes either way.</source>
         <source>Applied Perspective Planes</source>
         <translation>遠近平面を適用しました</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 ベクトルマスク</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 マスク</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>選択したレイヤーにはベクトルマスクがありません</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>選択したレイヤーにはレイヤーマスクがありません</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>マスクを書き出し</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>%1 個のマスクを %2 に書き出しました</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>%1 個のマスクを %2 に書き出しました。そのマスクのない %3 個のレイヤーはスキップしました</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>%1 を書き出しました。そのマスクのない %2 個のレイヤーはスキップしました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

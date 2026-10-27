@@ -58,7 +58,7 @@ target and no activation happens. `ui_duplicate_layer_to_document_dialog_copies`
 
 ## Layer export (Quick Export as PNG, Export As...)
 
-The Export submenus (#462) of the row menu and of the pixel, mask and vector mask thumbnail menus (a mask thumbnail exports the layer as composited, not the mask) hold `layerQuickExportPngAction`
+The Export submenus (#462) of the row menu and the pixel thumbnail menu hold `layerQuickExportPngAction`
 and `layerExportAsAction` (hotkey ids `layer.quick_export_png`, `layer.export_as`, no
 default keys, on the window for that reason). Both run `MainWindow::export_selected_layers`
 (main_window_files.cpp) over `selected_or_active_layer_ids()`: each layer renders alone
@@ -75,3 +75,14 @@ canvas so the dialog's Trim and Resize apply as for a document. The folder is re
 `layerExport/lastFolder`. Tests: `ui_layer_quick_export_png_writes_trimmed_named_files`,
 `ui_layer_export_as_uses_chosen_format_and_options`,
 `ui_layer_thumbnail_menu_offers_layer_export`.
+
+The layer and vector mask thumbnail menus' Export submenus carry their own unregistered
+`layerMaskQuickExportPngAction` and `layerMaskExportAsAction` (the same labels): they call
+`export_selected_layers` with `LayerExportSource::LayerMask` or `VectorMask` and write each
+selected layer's mask of that kind, skipping layers without one (the status bar counts them),
+named "<layer> mask" or "<layer> vector mask". The mask is a canvas-size grayscale image
+(`layer_mask_export_image`: white reveals, the default color outside a raster mask's rect,
+density and feather folded in, a vector mask's antialiased coverage), drawn as if turned on,
+never trimmed. Quick Export writes it as an 8-bit grayscale PNG through a `QSaveFile`; Export
+As sends it through `write_flat_image_file` as an opaque gray document
+(`ui_layer_mask_thumbnail_export_writes_the_mask`).
