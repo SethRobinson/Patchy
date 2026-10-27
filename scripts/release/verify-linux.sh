@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Release verification on the linux build host (docs/release-process.md, docs/appimage.md
 # "Testing"), after the full native suites:
-#   - the MCP client suite natively, then inside the Flatpak sandbox, and
+#   - the MCP client suite on the suites' linux-flatpak-qt build (in its SDK), then inside
+#     the installed Flatpak, and
 #     tests/flatpak_mcp_tests.py (attachment between separate app and connector sandboxes);
 #   - the AppImage: clean-distro containers (test-appimage.sh), the MCP suite through a
 #     patchy-mcp symlink (AppRun's symlink dispatch), attachment across two FUSE launches,
@@ -27,8 +28,17 @@ APPIMAGE_FILE="$PWD/build/package/Patchy-$VERSION-x86_64.AppImage"
 [ -f "$FLATPAK_BUNDLE" ] || { echo "missing $FLATPAK_BUNDLE (run the linux builder first)" >&2; exit 1; }
 [ -x "$APPIMAGE_FILE" ] || { echo "missing $APPIMAGE_FILE (run the linux builder first)" >&2; exit 1; }
 
-echo '== NATIVE MCP SUITE =='
-nice -n 10 "$PYTHON" tests/mcp_client_tests.py build/linux-release/patchy-mcp
+echo '== NATIVE MCP SUITE (linux-flatpak-qt, inside its SDK) =='
+# The build the full suites just made, run in the SDK it was built in. Not linux-release:
+# nothing rebuilds that preset any more, so this suite checked a weeks-old binary until the
+# 1.20 settings folder change broke its recent-history test.
+MANIFEST=packaging/linux/flatpak/com.rtsoft.patchy.yml
+SDK=$(sed -nE 's/^sdk:[[:space:]]*([A-Za-z0-9._-]+).*$/\1/p' "$MANIFEST" | head -1)
+SDK_VERSION=$(sed -nE "s/^runtime-version:[[:space:]]*'?([0-9.]+)'?.*$/\1/p" "$MANIFEST" | head -1)
+[ -n "$SDK" ] && [ -n "$SDK_VERSION" ] || { echo "could not read the SDK from $MANIFEST" >&2; exit 1; }
+[ -x build/linux-flatpak-qt/patchy ] || { echo 'missing build/linux-flatpak-qt/patchy (run the full suites first)' >&2; exit 1; }
+nice -n 10 flatpak run --user --filesystem=home --command=bash "$SDK//$SDK_VERSION" -c \
+  'cd "$HOME/patchy/src" && .deps/mcp-client-flatpak/bin/python tests/mcp_client_tests.py build/linux-flatpak-qt/patchy-mcp'
 
 if flatpak ps --columns=application | grep -qx com.rtsoft.patchy; then
   echo 'A Patchy Flatpak is running: close it before the installation and attachment tests.' >&2
