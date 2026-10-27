@@ -45,6 +45,39 @@ bool separable_shader_blend_mode(BlendMode mode) {
   case BlendMode::DarkerColor:
   case BlendMode::LighterColor:
   case BlendMode::Dissolve:
+  // October 2026 import modes (Paint.NET issue 379, GIMP .xcf, Krita .kra).
+  // The GPU shader tiers do not implement them, so documents using them stay
+  // on the CPU, which remains the authority for compositing.
+  case BlendMode::Reflect:
+  case BlendMode::Glow:
+  case BlendMode::Negation:
+  case BlendMode::Xor:
+  case BlendMode::GrainExtract:
+  case BlendMode::GrainMerge:
+  case BlendMode::HsvHue:
+  case BlendMode::HsvSaturation:
+  case BlendMode::HslColor:
+  case BlendMode::HsvValue:
+  case BlendMode::LchHue:
+  case BlendMode::LchChroma:
+  case BlendMode::LchColor:
+  case BlendMode::LchLightness:
+  case BlendMode::Luminance:
+  case BlendMode::LumaDarkenOnly:
+  case BlendMode::LumaLightenOnly:
+  case BlendMode::LinearMultiply:
+  case BlendMode::LinearAddition:
+  case BlendMode::LinearSubtract:
+  case BlendMode::LinearDivide:
+  case BlendMode::SoftLightSvg:
+  case BlendMode::AdditiveSubtractive:
+  case BlendMode::ArcTangent:
+  case BlendMode::GeometricMean:
+  case BlendMode::Allanon:
+  case BlendMode::Parallel:
+  case BlendMode::HardOverlay:
+  case BlendMode::Interpolation:
+  case BlendMode::EasyDodge:
     return false;
   }
   return false;
