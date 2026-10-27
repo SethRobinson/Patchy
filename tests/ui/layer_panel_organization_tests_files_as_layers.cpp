@@ -30,6 +30,7 @@
 // (the aggregator in layer_panel_organization_tests.cpp appends this part's
 // vector). Paste and the script API have their own tests beside their peers.
 #include "psd/psd_document_io.hpp"
+#include "core/layer_metadata.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "test_harness.hpp"
@@ -37,6 +38,7 @@
 #include "ui_test_support.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QColor>
 #include <QDir>
 #include <QDragEnterEvent>
@@ -449,12 +451,103 @@ void ui_import_files_as_layers_progress_dialog_cancels_cleanly() {
   CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, target.canvas) == 1);
 }
 
+// A file's Background joins the target as an ordinary layer (Layer from Background):
+// the position, transparency and auto-nest locks it held as a Background go, while a
+// lock saved on an ordinary layer stays. Files as Layers and a Paste in Place of a
+// path copied as text share add_files_as_layers.
+void ui_files_as_layers_unlock_a_files_background() {
+  constexpr auto kBackgroundLocks =
+      patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels | patchy::kLayerLockArtboardAutonest;
+  // A Background has no alpha channel (core background_layer).
+  const auto background_pixels = [](QColor color) {
+    return solid_pixels(kTargetWidth, kTargetHeight, patchy::PixelFormat::rgb8(), color);
+  };
+  const auto write_psd = [](const QString& name, const patchy::Document& document) {
+    const auto path = artifact_path(name);
+    QFile::remove(path);
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
+    return path;
+  };
+  patchy::Document background_only(kTargetWidth, kTargetHeight, patchy::PixelFormat::rgba8());
+  background_only.add_pixel_layer("Background", background_pixels(QColor(250, 250, 250)));
+  background_only.layers().front().set_lock_flags(patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels);
+  const auto background_path = write_psd(QStringLiteral("bg-only.psd"), background_only);
+
+  patchy::Document layered(kTargetWidth, kTargetHeight, patchy::PixelFormat::rgba8());
+  layered.add_pixel_layer("Background", background_pixels(QColor(240, 240, 240)));
+  layered.layers().front().set_lock_flags(patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels);
+  patchy::Layer pinned(layered.allocate_layer_id(), "Pinned", opaque_pixels(6, 6, QColor(20, 20, 200)));
+  pinned.set_bounds(patchy::Rect{10, 8, 6, 6});
+  pinned.set_lock_flags(patchy::kLayerLockPosition | patchy::kLayerLockImagePixels);
+  layered.add_layer(std::move(pinned));
+  const auto layered_path = write_psd(QStringLiteral("bg-and-pinned.psd"), layered);
+
+  // The files really hold a locked Background (the reader adopts Photoshop's).
+  {
+    const auto reread = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(background_path));
+    const auto* background = patchy::background_layer(reread.layers(), reread.width(), reread.height());
+    CHECK(background != nullptr);
+    CHECK(background != nullptr && (background->lock_flags() & patchy::kLayerLockPosition) != 0U);
+  }
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  const auto target = open_target(window);
+  const auto& document = std::as_const(*target.document);
+  const auto target_background_id = document.layers().front().id();
+  const auto root_named = [&document](const std::string& name) -> const patchy::Layer* {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        return &layer;
+      }
+    }
+    return nullptr;
+  };
+  // No added layer becomes the target's Background (the target's own may or may not be one).
+  const auto only_target_background = [&] {
+    const auto* background = patchy::background_layer(document.layers(), document.width(), document.height());
+    return background == nullptr || background->id() == target_background_id;
+  };
+
+  patchy::ui::MainWindowTestAccess::import_files_as_layers_with_paths(window, {background_path, layered_path});
+  QApplication::processEvents();
+  const auto* added = root_named("bg-only");
+  CHECK(added != nullptr);
+  CHECK(added != nullptr && added->kind() == patchy::LayerKind::Pixel);
+  CHECK(added != nullptr && (added->lock_flags() & kBackgroundLocks) == 0U);
+  const auto* folder = root_named("bg-and-pinned");
+  CHECK(folder != nullptr && folder->children().size() == 2);
+  if (folder != nullptr && folder->children().size() == 2) {
+    CHECK((folder->children()[0].lock_flags() & kBackgroundLocks) == 0U);
+    CHECK(folder->children()[1].name() == "Pinned");
+    CHECK(folder->children()[1].lock_flags() == (patchy::kLayerLockPosition | patchy::kLayerLockImagePixels));
+  }
+  CHECK(only_target_background());
+
+  // The same file through Paste in Place of its path copied as text.
+  const auto layers_before = document.layers().size();
+  QApplication::clipboard()->setText(QStringLiteral("\"%1\"").arg(background_path));
+  QApplication::processEvents();
+  require_action(window, "editPasteInPlaceAction")->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_before + 1);
+  const auto active = document.active_layer_id();
+  const auto* pasted = active.has_value() ? document.find_layer(*active) : nullptr;
+  CHECK(pasted != nullptr && pasted->name().starts_with("bg-only"));
+  CHECK(pasted != nullptr && pasted->name() != "bg-only");
+  CHECK(pasted != nullptr && (pasted->lock_flags() & kBackgroundLocks) == 0U);
+  CHECK(only_target_background());
+  QApplication::clipboard()->clear();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_files_as_layers_part() {
   return {
       {"ui_import_files_as_layers_progress_dialog_cancels_cleanly",
        ui_import_files_as_layers_progress_dialog_cancels_cleanly},
+      {"ui_files_as_layers_unlock_a_files_background", ui_files_as_layers_unlock_a_files_background},
       {"ui_layer_panel_file_drop_adds_layers_at_drop_position", ui_layer_panel_file_drop_adds_layers_at_drop_position},
       {"ui_layer_panel_file_drop_targets_folder_and_stack_ends",
        ui_layer_panel_file_drop_targets_folder_and_stack_ends},

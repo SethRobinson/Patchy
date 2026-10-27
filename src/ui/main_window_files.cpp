@@ -2557,6 +2557,16 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
         note_failure(path, tr("the file holds no layers"));
         continue;
       }
+      // The file's Background joins the target as an ordinary layer, as Layer from
+      // Background makes it: its position, transparency and auto-nest locks came from
+      // being a Background (docs/background-layer.md), not from the user.
+      if (const auto* background = background_layer(std::as_const(document).layers(), document.width(),
+                                                    document.height());
+          background != nullptr) {
+        auto* layer = document.find_layer(background->id());
+        set_layer_lock_flags(*layer, layer_lock_flags(*layer) & ~(kLayerLockPosition | kLayerLockTransparentPixels |
+                                                                  kLayerLockArtboardAutonest));
+      }
       const auto layer_name = QFileInfo(path).completeBaseName().toStdString();
       if (document.layers().size() == 1U) {
         if (!layer_name.empty()) {
