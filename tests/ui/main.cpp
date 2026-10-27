@@ -24,6 +24,7 @@
 #include "test_harness.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/app_style.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
 #include "ui/psd_font_resolver.hpp"
@@ -257,6 +258,9 @@ int main(int argc, char* argv[]) {
     return patchy::test::ui::run_bundled_web_fonts_probe();
   }
   app.setFont(visual_test_font());
+  // The app's style, as main.cpp installs it: captures then draw what the app draws (on
+  // Fusion, the offscreen style, the spin box step arrows come from AppStyle; GitHub issue 404).
+  app.setStyle(new patchy::ui::AppStyle);
   // The app installs this at startup, so the suite must too: imported-PSD text tests
   // resolve PostScript font names against whatever fonts each test has registered.
   patchy::ui::install_font_database_psd_font_resolver();
