@@ -48,7 +48,8 @@ enum class ThemeScriptTrust { Unknown, Allowed, Denied };
 // holds only while the scripts are unchanged.
 [[nodiscard]] QString theme_scripts_digest(const ThemeAssets& assets);
 // "themeScripts/trust" (a persisted key): theme id -> "<digest>:allow" or ":deny". Each
-// theme keeps its own answer; nothing turns every theme's scripts on at once.
+// theme keeps its own answer; nothing turns every theme's scripts on at once. A bundled
+// theme (shipped with Patchy) is Allowed until a ":deny" is stored, whatever its digest.
 [[nodiscard]] ThemeScriptTrust stored_theme_script_trust(const QString& theme_id, const QString& digest);
 void store_theme_script_trust(const QString& theme_id, const QString& digest, bool allowed);
 

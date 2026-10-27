@@ -33,6 +33,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QIcon>
@@ -869,6 +870,84 @@ void ui_theme_package_icon_template_and_example_package() {
   }
 }
 
+// A bundled package (docs/theme-files.md, "Bundled themes") loads from the generated
+// resource folder, which holds exactly its source files but the README; its scripts run
+// until the user turns them off; PATCHY_THEME_SOURCE_DIR reads and watches the source.
+void ui_bundled_theme_package_loads_from_resources_and_source() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  EnvironmentVariableRestorer restore_source("PATCHY_THEME_SOURCE_DIR");
+  qunsetenv("PATCHY_THEME_SOURCE_DIR");
+  const auto id = patchy::ui::kBundledThemeIdPrefix + QStringLiteral("dink-smallwood");
+  CHECK(patchy::ui::bundled_theme_file_names().contains(QStringLiteral("dink-smallwood")));
+  const auto resource = patchy::ui::theme_file_path_for_id(id);
+  CHECK(resource == QStringLiteral(":/patchy/themes/dink-smallwood"));
+  CHECK(!patchy::ui::is_theme_package_directory_id(id));  // nothing on disk to watch
+
+  const QDir source(QDir(QStringLiteral(PATCHY_SOURCE_DIR)).filePath(QStringLiteral("themes/bundled/dink-smallwood")));
+  int compared = 0;
+  QDirIterator files(source.path(), QDir::Files, QDirIterator::Subdirectories);
+  while (files.hasNext()) {
+    const auto relative = source.relativeFilePath(files.next());
+    QFile packaged(QDir(resource).filePath(relative));
+    if (relative == QStringLiteral("README.txt")) {
+      CHECK(!packaged.exists());
+      continue;
+    }
+    QFile original(files.filePath());
+    CHECK(packaged.open(QIODevice::ReadOnly) && original.open(QIODevice::ReadOnly));
+    if (packaged.readAll() != original.readAll()) {
+      std::printf("  resource differs from source: %s\n", qPrintable(relative));
+      CHECK(false);
+    }
+    ++compared;
+  }
+  CHECK(compared > 20);
+
+  const auto summary = patchy::ui::load_theme_summary_by_id(id);
+  CHECK(summary.theme.has_value() && summary.theme->assets != nullptr && summary.theme->assets->summary);
+  const auto result = patchy::ui::load_theme_by_id(id);
+  CHECK(result.error.isEmpty());
+  CHECK(result.warnings.isEmpty());
+  CHECK(result.theme.has_value());
+  if (!result.theme) {
+    return;
+  }
+  const auto* assets = result.theme->assets.get();
+  CHECK(assets != nullptr && !assets->summary && assets->has_scripts());
+  CHECK(assets != nullptr && !assets->backdrop.isNull() && !assets->icons.isEmpty());
+  CHECK(!patchy::ui::theme_sound_for_event(assets, patchy::ui::ThemeSoundEvent::Startup).isEmpty());
+
+  SettingsValueRestorer restore_trust(QStringLiteral("themeScripts/trust"));
+  patchy::ui::app_settings().remove(QStringLiteral("themeScripts/trust"));
+  const auto digest = patchy::ui::theme_scripts_digest(*assets);
+  CHECK(patchy::ui::stored_theme_script_trust(id, digest) == patchy::ui::ThemeScriptTrust::Allowed);
+  CHECK(patchy::ui::stored_theme_script_trust(QStringLiteral("dink-smallwood"), digest) ==
+        patchy::ui::ThemeScriptTrust::Unknown);  // a user copy still asks
+  patchy::ui::store_theme_script_trust(id, QStringLiteral("older-scripts"), false);
+  CHECK(patchy::ui::stored_theme_script_trust(id, digest) == patchy::ui::ThemeScriptTrust::Denied);
+  patchy::ui::store_theme_script_trust(id, digest, true);
+  CHECK(patchy::ui::stored_theme_script_trust(id, digest) == patchy::ui::ThemeScriptTrust::Allowed);
+
+  // The source override: a folder named like the package, read and watched from disk.
+  QTemporaryDir bundled_source;
+  write_sample_package(QDir(bundled_source.path()).filePath(QStringLiteral("dink-smallwood")), QColor(40, 50, 60));
+  qputenv("PATCHY_THEME_SOURCE_DIR", bundled_source.path().toUtf8());
+  CHECK(QDir(patchy::ui::theme_file_path_for_id(id)) ==
+        QDir(QDir(bundled_source.path()).filePath(QStringLiteral("dink-smallwood"))));
+  CHECK(patchy::ui::is_theme_package_directory_id(id));
+  CHECK(!patchy::ui::is_theme_package_directory_id(QStringLiteral("bundled:../dink-smallwood")));
+  CHECK(patchy::ui::theme_file_path_for_id(QStringLiteral("bundled:nord.patchytheme")).startsWith(QStringLiteral(":/")));
+  apply_package(id);
+  CHECK(patchy::ui::theme().window_bg == QColor(40, 50, 60));
+  CHECK(!ThemeManager::instance().watched_package_paths().isEmpty());
+  write_bytes(QDir(bundled_source.path()).filePath(QStringLiteral("dink-smallwood/theme.json")),
+              manifest_json(QColor(70, 80, 90)));
+  CHECK(process_events_until([] { return patchy::ui::theme().window_bg == QColor(70, 80, 90); }, 5000));
+  ThemeManager::instance().clear_custom_theme(/*persist=*/false);
+  CHECK(ThemeManager::instance().watched_package_paths().isEmpty());
+}
+
 // Card screenshots: the Preferences Application tab, then the example package's
 // tool palette and pasteboard (artifacts theme-package-*.png).
 void ui_theme_package_capture_shots() {
@@ -1241,6 +1320,8 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
       {"ui_preferences_theme_list_loads_packages_when_selected", ui_preferences_theme_list_loads_packages_when_selected},
       {"ui_preferences_theme_row_plays_its_startup_sound", ui_preferences_theme_row_plays_its_startup_sound},
       {"ui_theme_package_icon_template_and_example_package", ui_theme_package_icon_template_and_example_package},
+      {"ui_bundled_theme_package_loads_from_resources_and_source",
+       ui_bundled_theme_package_loads_from_resources_and_source},
       {"ui_theme_package_capture_shots", ui_theme_package_capture_shots},
       {"ui_theme_info_shows_version_author_and_minimum_patchy", ui_theme_info_shows_version_author_and_minimum_patchy},
       {"ui_theme_svg_icons_reaching_outside_are_refused", ui_theme_svg_icons_reaching_outside_are_refused},

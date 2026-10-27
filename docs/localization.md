@@ -146,7 +146,8 @@ missing from the template, so a new binding pattern that lupdate cannot see is c
 ## Deliberately English
 
 Scripting API identifiers and bundled script text (`@name`, `@description`, in-script
-dialogs: scripts are user content with no `tr`), MCP wire text (tool descriptions, usage,
+dialogs: scripts are user content with no `tr`; bundled theme scripts' menu commands and
+status lines too), MCP wire text (tool descriptions, usage,
 JSON-RPC errors, read by AI clients; the MCP activity panel is translated), settings keys,
 object names, hotkey ids, file-format tokens, log and console output, the AI setup prompt,
 the wasm loader page, the stress-test harness report, and the layer name `"Background"`

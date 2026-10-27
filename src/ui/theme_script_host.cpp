@@ -7,6 +7,7 @@
 #include "ui/sound_effects.hpp"
 #include "ui/theme_backdrop.hpp"
 #include "ui/theme_effects.hpp"
+#include "ui/theme_file.hpp"
 #include "ui/theme_package.hpp"
 
 #include <QCoreApplication>
@@ -201,6 +202,11 @@ ThemeScriptTrust stored_theme_script_trust(const QString& theme_id, const QStrin
   }
   if (stored == digest + QStringLiteral(":deny")) {
     return ThemeScriptTrust::Denied;
+  }
+  // A bundled theme's scripts ship with Patchy: they run until the user turns them off,
+  // and that answer outlasts an update that changes them.
+  if (is_bundled_theme_id(theme_id)) {
+    return stored.endsWith(QStringLiteral(":deny")) ? ThemeScriptTrust::Denied : ThemeScriptTrust::Allowed;
   }
   return ThemeScriptTrust::Unknown;
 }

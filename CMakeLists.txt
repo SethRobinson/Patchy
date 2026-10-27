@@ -1139,6 +1139,30 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         COMMENT "Assembling the Patchy control skill")
       add_custom_target(patchy_agent_kit ALL DEPENDS "${PATCHY_AGENT_KIT_STAMP}")
     endif()
+    # Bundled theme packages: every file in a themes/bundled/<name>/ folder but its
+    # README.txt, under /patchy/themes/<name>/ in a generated qrc (docs/theme-files.md,
+    # "Bundled themes"). CONFIGURE_DEPENDS regenerates it when a file is added or removed;
+    # rcc tracks edits to the listed files itself. Written through configure_file so an
+    # unchanged list does not rerun rcc.
+    set(PATCHY_THEME_PACKAGES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/themes/bundled")
+    file(GLOB_RECURSE PATCHY_THEME_PACKAGE_FILES CONFIGURE_DEPENDS LIST_DIRECTORIES false
+         RELATIVE "${PATCHY_THEME_PACKAGES_DIR}" "${PATCHY_THEME_PACKAGES_DIR}/*")
+    list(SORT PATCHY_THEME_PACKAGE_FILES)
+    set(PATCHY_THEME_PACKAGES_QRC_TEXT "<RCC>\n  <qresource prefix=\"/patchy/themes\">\n")
+    foreach(PATCHY_THEME_PACKAGE_FILE IN LISTS PATCHY_THEME_PACKAGE_FILES)
+      if(NOT PATCHY_THEME_PACKAGE_FILE MATCHES "/" OR PATCHY_THEME_PACKAGE_FILE MATCHES "^[^/]+/README\\.txt$")
+        continue()  # the single-file themes are in src/ui/themes.qrc
+      endif()
+      if(PATCHY_THEME_PACKAGE_FILE MATCHES "[&<>\"]")
+        message(FATAL_ERROR "Theme package file name needs XML escaping: ${PATCHY_THEME_PACKAGE_FILE}")
+      endif()
+      string(APPEND PATCHY_THEME_PACKAGES_QRC_TEXT
+             "    <file alias=\"${PATCHY_THEME_PACKAGE_FILE}\">${PATCHY_THEME_PACKAGES_DIR}/${PATCHY_THEME_PACKAGE_FILE}</file>\n")
+    endforeach()
+    string(APPEND PATCHY_THEME_PACKAGES_QRC_TEXT "  </qresource>\n</RCC>\n")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/theme_packages.qrc.new" "${PATCHY_THEME_PACKAGES_QRC_TEXT}")
+    configure_file("${CMAKE_CURRENT_BINARY_DIR}/theme_packages.qrc.new"
+                   "${CMAKE_CURRENT_BINARY_DIR}/theme_packages.qrc" COPYONLY)
     add_library(patchy_ui
       src/ui/action_icons.cpp
       src/ui/icon_theme.hpp
@@ -1591,6 +1615,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/icons.qrc
       src/ui/textures.qrc
       src/ui/themes.qrc
+      "${CMAKE_CURRENT_BINARY_DIR}/theme_packages.qrc"
       src/ui/color_profiles.qrc
     )
     # The G'MIC Filter Library (docs/gmic.md). Its interface compiles in every build;

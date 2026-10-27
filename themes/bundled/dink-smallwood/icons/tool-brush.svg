@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- A quill: cream vane, brown shaft, ink-dark nib. -->
+  <path d="M28.5 3.5C21 4.5 14.5 9.5 11 17.5L14.5 21C22.5 17.5 27.5 11 28.5 3.5Z" fill="#efe1bd" stroke="#6b4a24" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M27.6 4.4L9.2 22.8" fill="none" stroke="#8a5a2b" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M18.5 11.8L22.6 12.4M15.8 15.6L19.6 16.1M21.2 8.4L25 8.7" fill="none" stroke="#b39a6b" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M10.2 21.8L5 28.5L3.6 27.1L9 21.9Z" fill="#2a1d10"/>
+  <circle cx="4.6" cy="28.4" r="1.6" fill="#3a6b9c"/>
+</svg>

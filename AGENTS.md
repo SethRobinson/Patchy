@@ -134,7 +134,7 @@ Read these before acting in the named area:
 - **PSD adjustment layers, clipping masks, layer styles, and Photoshop text:** [docs/ps-compat.md](docs/ps-compat.md), [docs/file-formats.md](docs/file-formats.md), [docs/adjustments-calibration.md](docs/adjustments-calibration.md), and the Photoshop text model in [docs/text-render-calibration.md](docs/text-render-calibration.md). Photoshop 5.x `tySh` type records (no EngineData; a fixed layout) are in [docs/psd-legacy-text.md](docs/psd-legacy-text.md).
 - **Filter Gallery, recipes, Saved Looks, and visual filters** *(legal)*: [docs/filters.md](docs/filters.md), shipped Looks in [docs/builtin-looks.md](docs/builtin-looks.md), [docs/smart-objects.md](docs/smart-objects.md).
 - **Blend modes:** [docs/blend-modes.md](docs/blend-modes.md).
-- **User themes (.patchytheme files, packages with icons, backdrop and sounds, ThemeManager apply path):** [docs/theme-files.md](docs/theme-files.md), which overlays [docs/ui-conventions.md](docs/ui-conventions.md)'s Dark/Light system.
+- **Themes (.patchytheme files, packages, ThemeManager apply):** [docs/theme-files.md](docs/theme-files.md) over [docs/ui-conventions.md](docs/ui-conventions.md)'s Dark/Light; bundled: [docs/bundled-themes.md](docs/bundled-themes.md).
 - **Layer-style and pattern presets:** [docs/style-presets.md](docs/style-presets.md).
 - **Gradients and GRD:** [docs/gradients.md](docs/gradients.md).
 - **Text tool, Character panel and Paragraph panel:** [docs/text-tool.md](docs/text-tool.md), text inside shapes in [docs/area-text.md](docs/area-text.md), with the Photoshop layout/measurement calibration in [docs/text-render-calibration.md](docs/text-render-calibration.md).
