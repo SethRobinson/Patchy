@@ -1903,6 +1903,8 @@ private:
   void update_guide_drag(QPoint widget_position, Qt::KeyboardModifiers modifiers);
   void finish_guide_drag(QPoint widget_position, Qt::KeyboardModifiers modifiers);
   void cancel_guide_drag();
+  // The split cursor across the dragged guide's axis, for the whole drag (GitHub issue 472).
+  void apply_guide_drag_cursor();
   [[nodiscard]] bool document_contains(QPoint point) const noexcept;
   [[nodiscard]] bool selection_allows(QPoint point) const noexcept;
   [[nodiscard]] bool selection_clips_grayscale_edits() const noexcept;
@@ -2986,6 +2988,8 @@ private:
   std::vector<QImage> display_mip_cache_{};
   QSize display_mip_source_size_{};
   QPoint last_mouse_position_{};
+  // The pointer's last move was over the rulers or their corner (GitHub issue 472).
+  bool ruler_hover_{false};
   QPoint last_document_position_{};
   QPointF last_document_position_f_{};
   QPointF stroke_constraint_start_{};

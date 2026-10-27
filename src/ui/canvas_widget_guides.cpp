@@ -21,6 +21,7 @@
 #include "ui/theme_palette.hpp"
 
 #include <QAction>
+#include <QScopeGuard>
 #include <QPainter>
 #include <QColor>
 #include <QMenu>
@@ -968,6 +969,11 @@ void CanvasWidget::begin_guide_drag(int guide_index, QPoint widget_position) {
   update_guide_drag(widget_position, Qt::NoModifier);
 }
 
+void CanvasWidget::apply_guide_drag_cursor() {
+  // The same mapping as the Move tool's hover over a guide: a vertical guide moves sideways.
+  setCursor(guide_drag_orientation_ == GuideOrientation::Vertical ? Qt::SplitHCursor : Qt::SplitVCursor);
+}
+
 void CanvasWidget::begin_new_guide_drag(QPoint widget_position) {
   if (document_ == nullptr) {
     return;
@@ -995,6 +1001,7 @@ void CanvasWidget::update_guide_drag(QPoint widget_position, Qt::KeyboardModifie
     orientation = orientation == GuideOrientation::Vertical ? GuideOrientation::Horizontal : GuideOrientation::Vertical;
   }
   guide_drag_orientation_ = orientation;
+  apply_guide_drag_cursor();
 
   if (!creating_guide_ && widget_position == guide_drag_press_widget_ &&
       orientation == guide_drag_original_orientation_) {
@@ -1080,6 +1087,9 @@ void CanvasWidget::finish_guide_drag(QPoint widget_position, Qt::KeyboardModifie
   }
   update_guide_drag(widget_position, modifiers);
   clear_drag_readout();
+  // Every way out below hands the cursor back: the tool's, or the arrow over a ruler.
+  ruler_hover_ = rect().contains(widget_position) && over_ruler_bars(widget_position);
+  const auto restore_cursor = qScopeGuard([this] { update_tool_cursor(); });
 
   if (creating_guide_) {
     if (!guide_drag_remove_) {
@@ -1129,6 +1139,7 @@ void CanvasWidget::cancel_guide_drag() {
   creating_guide_ = false;
   guide_drag_remove_ = false;
   clear_drag_readout();
+  update_tool_cursor();
   update();
 }
 

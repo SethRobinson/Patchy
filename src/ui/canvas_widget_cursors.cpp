@@ -357,8 +357,16 @@ void CanvasWidget::apply_move_tool_cursor(QPoint widget_position) {
 
 void CanvasWidget::update_tool_cursor() {
   ZoomTraceScope trace("tool_cursor", zoom_);
+  if (dragging_guide_) {
+    apply_guide_drag_cursor();  // a guide drag owns the cursor until it ends (GitHub issue 472)
+    return;
+  }
   if (sample_loupe_hides_cursor_) {
     setCursor(Qt::BlankCursor);  // the sample loupe stands in for the pointer (GitHub issue 320)
+    return;
+  }
+  if (ruler_hover_ && rulers_visible_ && !spacebar_panning_ && !transient_read_callback_) {
+    setCursor(Qt::ArrowCursor);  // the rulers and their corner, whatever the tool (GitHub issue 472)
     return;
   }
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {

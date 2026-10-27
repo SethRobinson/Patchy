@@ -1418,6 +1418,82 @@ void ui_guide_dragged_onto_pasteboard_stays() {
   CHECK(document.guides().size() == 2 && document.guides().back().position_32 == -7 * 32);
 }
 
+// The rulers show the arrow whatever the tool; a guide drag, new or moved, shows the split
+// cursor for its whole length; release and Esc hand the tool's cursor back (GitHub issue 472).
+void ui_guide_cursors_over_rulers_and_during_drags() {
+  patchy::Document document(40, 30, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(40, 30, patchy::PixelFormat::rgb8(), Qt::white));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(360, 260);
+  canvas.set_document(&document);
+  canvas.set_rulers_visible(true);
+  canvas.set_guides_visible(true);
+  canvas.set_snap_enabled(false);
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_zoom_centered(2.0);
+  QApplication::processEvents();
+  const auto shape = [&canvas] { return canvas.cursor().shape(); };
+
+  const auto on_canvas = canvas.widget_position_for_document_point(QPoint(20, 15));
+  send_mouse(canvas, QEvent::MouseMove, on_canvas, Qt::NoButton, Qt::NoButton);
+  const auto tool_shape = shape();
+  CHECK(tool_shape != Qt::ArrowCursor);
+  const QPoint top_ruler(on_canvas.x(), 12);
+  const QPoint left_ruler(12, on_canvas.y());
+  for (const auto& over_ruler : {top_ruler, left_ruler, QPoint(5, 5)}) {
+    send_mouse(canvas, QEvent::MouseMove, over_ruler, Qt::NoButton, Qt::NoButton);
+    CHECK(shape() == Qt::ArrowCursor);
+    // A tool cursor refresh while the pointer rests there keeps the arrow.
+    canvas.set_guides_locked(false);
+    CHECK(shape() == Qt::ArrowCursor);
+  }
+
+  // A new horizontal guide from the top ruler, cancelled with Esc away from the ruler.
+  send_mouse(canvas, QEvent::MouseMove, top_ruler, Qt::NoButton, Qt::NoButton);
+  send_mouse(canvas, QEvent::MouseButtonPress, top_ruler, Qt::LeftButton, Qt::LeftButton);
+  CHECK(shape() == Qt::SplitVCursor);
+  send_mouse(canvas, QEvent::MouseMove, on_canvas, Qt::NoButton, Qt::LeftButton);
+  CHECK(shape() == Qt::SplitVCursor);
+  send_key(canvas, Qt::Key_Escape);
+  CHECK(shape() == tool_shape);
+  send_mouse(canvas, QEvent::MouseButtonRelease, on_canvas, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().empty());
+
+  // From the left ruler: vertical, Alt flips it mid-drag, and the release keeps the guide.
+  send_mouse(canvas, QEvent::MouseButtonPress, left_ruler, Qt::LeftButton, Qt::LeftButton);
+  CHECK(shape() == Qt::SplitHCursor);
+  send_mouse(canvas, QEvent::MouseMove, on_canvas, Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  CHECK(shape() == Qt::SplitVCursor);
+  send_mouse(canvas, QEvent::MouseMove, on_canvas, Qt::NoButton, Qt::LeftButton);
+  CHECK(shape() == Qt::SplitHCursor);
+  send_mouse(canvas, QEvent::MouseButtonRelease, on_canvas, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 1);
+  CHECK(shape() == tool_shape);
+
+  // An existing guide moved with the Move tool keeps the split cursor off the line, and a
+  // drop on the top ruler removes it and leaves the arrow there.
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  const auto beside_guide = canvas.widget_position_for_document_point(QPoint(30, 15));
+  send_mouse(canvas, QEvent::MouseMove, beside_guide, Qt::NoButton, Qt::NoButton);
+  const auto move_shape = shape();
+  CHECK(move_shape != Qt::SplitHCursor && move_shape != Qt::ArrowCursor);
+  send_mouse(canvas, QEvent::MouseButtonPress, on_canvas, Qt::LeftButton, Qt::LeftButton);
+  CHECK(shape() == Qt::SplitHCursor);
+  const auto far_below = canvas.widget_position_for_document_point(QPoint(5, 40));
+  send_mouse(canvas, QEvent::MouseMove, far_below, Qt::NoButton, Qt::LeftButton);
+  CHECK(shape() == Qt::SplitHCursor);
+  send_mouse(canvas, QEvent::MouseMove, top_ruler, Qt::NoButton, Qt::LeftButton);
+  CHECK(shape() == Qt::SplitHCursor);
+  send_mouse(canvas, QEvent::MouseButtonRelease, top_ruler, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().empty());
+  CHECK(shape() == Qt::ArrowCursor);
+  send_mouse(canvas, QEvent::MouseMove, beside_guide, Qt::NoButton, Qt::NoButton);
+  CHECK(shape() == move_shape);
+}
+
 // The reporter's file (ag-psd's test/read/psb-test/src.psb, GitHub issue 231), a 549 x 864
 // PSB whose guides sit at x -154.2 and 1617.0 and y -1637.3 and 864.3, all on the
 // pasteboard. At 12% every one of them shows across the view.
@@ -2992,6 +3068,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part1() {
       {"ui_guide_drag_lands_on_whole_pixels", ui_guide_drag_lands_on_whole_pixels},
       {"ui_guides_draw_across_the_pasteboard", ui_guides_draw_across_the_pasteboard},
       {"ui_guide_dragged_onto_pasteboard_stays", ui_guide_dragged_onto_pasteboard_stays},
+      {"ui_guide_cursors_over_rulers_and_during_drags", ui_guide_cursors_over_rulers_and_during_drags},
       {"ui_issue231_sample_guides_outside_document_if_available",
        ui_issue231_sample_guides_outside_document_if_available},
       {"ui_deep_zoom_pixel_grid_matches_rendered_pixels",
