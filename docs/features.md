@@ -42,7 +42,7 @@
 - Dynamic Vector Preview keeps native shapes and vector masks sharp when zoomed in, alongside pixel layers, masks, adjustments, and effects. Merge Layers can preserve editable vectors and keep bitmap runs separate, with options for merging within groups or making a merged copy
 - Trace Image to Shapes: converts a pixel layer (logo, scan, photo) into a group of editable shape layers, one per color, with Illustrator-style presets, color, grayscale, and black-and-white modes, abutting or overlapping shapes, noise removal, and a live preview; export the result as SVG
 - Point text, paragraph (box) text, and area text that flows inside a closed shape or path, saved as native Photoshop text frames
-- Rich text with per-run color, font, size, and style, a searchable font picker, and Character controls (leading, tracking, glyph scale, caps, small caps, super/subscript, underline, strikethrough, ordinals, fractions) that edit selected text layers outside text editing
+- Rich text with per-run color, font, size, and style, a searchable font picker, suggested free substitutes for missing fonts, and Character controls (leading, tracking, glyph scale, caps, small caps, super/subscript, underline, strikethrough, ordinals, fractions) that edit selected text layers outside text editing
 - Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraph direction
 
 ## Pixel art and game assets
@@ -145,7 +145,7 @@ warnings describe conversions that affect a particular document.
 
 ### Affinity import
 
-Patchy imports Affinity documents for editing: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (including 16-bit, float, CMYK, and Lab sources, converted to 8-bit RGB), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes (rectangles, ellipses, stars, cogs and the rest), compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (as embedded Smart Objects) all import, checked against Affinity's renders. Vector fills and strokes keep their width, alignment, dash pattern, and miter limit, crop-to-shape containers come in as masked groups, and the Erase blend mode imports as an isolated group with an inverse-alpha mask. A file that can't be imported as layers opens as its embedded preview, with a notice of what was skipped.
+Patchy imports Affinity documents for editing: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (16-bit, float, CMYK and Lab sources become 8-bit RGB), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes, compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (as embedded Smart Objects) all import, checked against Affinity's renders. Vector fills and strokes keep their width, alignment, dash pattern, and miter limit, crop-to-shape containers come in as masked groups, and the Erase blend mode imports as an isolated group with an inverse-alpha mask. A file that can't be imported as layers opens as its embedded preview, with a notice of what was skipped.
 
 Affinity features that are not supported yet, or are only partially supported:
 

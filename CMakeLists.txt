@@ -188,6 +188,7 @@ add_library(patchy_core
   src/core/mask_outline.cpp
   src/core/palette.cpp
   src/core/palette_presets.cpp
+  src/core/font_substitutes.cpp
   src/core/path_fit.cpp
   src/core/path_simplify.cpp
   src/core/shape_combine.cpp
@@ -2275,6 +2276,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/unicode_path_tests.cpp
     tests/core/atomic_write_recovery_tests.cpp
     tests/core/font_zip_tests.cpp
+    tests/core/font_substitutes_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp

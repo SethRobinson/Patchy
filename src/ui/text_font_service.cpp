@@ -4,6 +4,7 @@
 #include "ui/user_fonts.hpp"
 #include "ui/localization.hpp"
 #include "ui/ui_font.hpp"
+#include "core/font_substitutes.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "psd/psd_text_engine_block.hpp"
@@ -764,6 +765,59 @@ QString text_font_replacement_key(const QString& family) {
   return compact.isEmpty() ? family.trimmed().toCaseFolded() : compact;
 }
 
+std::vector<TextFontSubstitute> installed_text_font_substitutes(const QString& family, const QString& demanded) {
+  std::vector<TextFontSubstitute> substitutes;
+  const auto utf8 = family.trimmed().toUtf8();
+  const auto lookup = find_font_substitutes(std::string_view(utf8.constData(), static_cast<std::size_t>(utf8.size())));
+  if (!lookup.has_value() || lookup->entry == nullptr) {
+    return substitutes;
+  }
+  const auto installed_family = [](std::string_view candidate) {
+    return available_text_family_match(
+        QString::fromUtf8(candidate.data(), static_cast<qsizetype>(candidate.size())));
+  };
+  // The face a face-baked request names beyond what bold + italic express ("Semibold" in "Myriad
+  // Pro Semibold"). PostScript suffixes ("BoldMT") and flag faces leave it to the run's flags.
+  auto face = QString::fromStdString(lookup->style).trimmed();
+  for (const auto suffix : {QStringLiteral("PSMT"), QStringLiteral("MT")}) {
+    if (face.endsWith(suffix, Qt::CaseInsensitive)) {
+      face.chop(suffix.size());
+      break;
+    }
+  }
+  face = face.trimmed();
+  const bool face_needs_family = !face.isEmpty() && !text_style_is_flag_expressible(face) &&
+                                 face.compare(QStringLiteral("It"), Qt::CaseInsensitive) != 0 &&
+                                 face.compare(QStringLiteral("BoldIt"), Qt::CaseInsensitive) != 0;
+  const auto ranked = rank_font_substitutes(
+      *lookup->entry, [&installed_family](std::string_view candidate) { return installed_family(candidate).has_value(); });
+  for (const auto& suggestion : ranked) {
+    const auto installed = installed_family(suggestion.family);
+    if (!installed.has_value()) {
+      continue;
+    }
+    TextFontSubstitute substitute{*installed, *installed, suggestion.match == FontSubstituteMatch::metric};
+    if (face_needs_family) {
+      const auto with_face = *installed + QLatin1Char(' ') + face;
+      if (available_text_family_match(with_face).has_value() ||
+          available_text_family_style_match(with_face, false).has_value()) {
+        substitute.face_family = with_face;
+      } else {
+        substitute.metric = false;  // another face of the substitute: its widths are not promised
+      }
+    }
+    QStringList missing;
+    append_missing_text_family(missing, substitute.face_family, demanded);
+    if (missing.isEmpty()) {
+      substitutes.push_back(substitute);
+    }
+  }
+  // A face fallback can demote a metric match below a look-alike that kept its face.
+  std::stable_sort(substitutes.begin(), substitutes.end(),
+                   [](const TextFontSubstitute& a, const TextFontSubstitute& b) { return a.metric && !b.metric; });
+  return substitutes;
+}
+
 QString substituted_text_family(const QString& family, const QString& demanded) {
   const auto cannot_draw = [&demanded](const QString& candidate) {
     QStringList missing;
@@ -772,6 +826,11 @@ QString substituted_text_family(const QString& family, const QString& demanded) 
   };
   if (!cannot_draw(family)) {
     return family;
+  }
+  // The built-in substitute table first (GitHub issue 463): a metric match keeps the line breaks,
+  // where Qt's own fallback (Tahoma on Windows) does not.
+  if (const auto substitutes = installed_text_font_substitutes(family, demanded); !substitutes.empty()) {
+    return substitutes.front().face_family;
   }
   QFont probe;
   probe.setFamilies(render_text_families_for_display_family(family));

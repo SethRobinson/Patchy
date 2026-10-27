@@ -81,6 +81,18 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     name_column->setSpacing(1);
     name_column->addWidget(name);
     name_column->addWidget(detail);
+    // A substitute from the built-in table (issue 463) says how close it is; the row stays
+    // unticked, so the file keeps the original name until the user picks.
+    if (entry.suggestion != MissingFontSuggestion::fallback && !entry.suggested.isEmpty()) {
+      auto* suggestion = new QLabel(entry.suggestion == MissingFontSuggestion::metric
+                                        ? QObject::tr("Suggested: %1 (same character widths)").arg(entry.suggested)
+                                        : QObject::tr("Suggested: %1 (similar design)").arg(entry.suggested),
+                                    rows_widget);
+      suggestion->setObjectName(QStringLiteral("missingFontSuggestion%1").arg(index));
+      suggestion->setProperty("patchyMissingFontSuggestion", true);
+      suggestion->setTextFormat(Qt::PlainText);
+      name_column->addWidget(suggestion);
+    }
     grid->addLayout(name_column, grid_row, 0);
 
     // Unchecked is Photoshop's "Don't Resolve": the file keeps naming the font, so a colleague
@@ -131,7 +143,8 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
   resolve_button->setDefault(true);
   sync_resolve_button();
 
-  append_themed_style(dialog, QStringLiteral("QLabel#missingFontDetail { color: @text_secondary; }"
+  append_themed_style(dialog, QStringLiteral("QLabel#missingFontDetail, QLabel[patchyMissingFontSuggestion=\"true\"] { "
+                                             "color: @text_secondary; }"
                                              "QFrame#missingFontsRowDivider { background: @dlg_divider; color: "
                                              "@dlg_divider; min-height: 1px; max-height: 1px; border: 0; }"));
   // Wide enough for either label (measured with the theme applied), so ticking a row does not

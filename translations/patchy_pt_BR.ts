@@ -13180,6 +13180,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Screen mode button</source>
         <translation>Botão Modo de tela</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Sugestão: %1 (mesmas larguras de caractere)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Sugestão: %1 (design semelhante)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27152,6 +27160,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Clone Source</source>
         <translation>Origem do clone</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 será substituída por %2.</translation>
     </message>
 </context>
 <context>

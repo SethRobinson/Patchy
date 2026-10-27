@@ -13180,6 +13180,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Screen mode button</source>
         <translation>Pulsante Modalità schermo</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Suggerito: %1 (stesse larghezze dei caratteri)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Suggerito: %1 (design simile)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27152,6 +27160,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Clone Source</source>
         <translation>Sorgente di clonazione</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 verrà sostituito con %2.</translation>
     </message>
 </context>
 <context>

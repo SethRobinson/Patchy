@@ -881,8 +881,127 @@ void ui_unattended_open_skips_the_missing_fonts_dialog() {
   CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
 }
 
+// The suite's Latin font as the substitute table's stand-in for Helvetica (Arial on Windows and
+// macOS, Liberation Sans on Linux; GitHub issue 463). Skips on a host that has Helvetica itself or
+// registered none of its substitutes.
+patchy::ui::TextFontSubstitute helvetica_substitute_or_skip() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  if (patchy::ui::available_text_family_match(QStringLiteral("Helvetica")).has_value()) {
+    patchy::test::skip("Helvetica is installed on this host");
+  }
+  const auto substitutes = patchy::ui::installed_text_font_substitutes(QStringLiteral("Helvetica"),
+                                                                       QStringLiteral("Headline"));
+  if (substitutes.empty()) {
+    patchy::test::skip("no Helvetica substitute is registered on this host");
+  }
+  return substitutes.front();
+}
+
+// GitHub issue 463: Resolve Missing Fonts starts a listed font's picker on the installed
+// substitute and says how close it is; the row stays unticked, and a font the table does not list
+// keeps today's fallback with no suggestion line.
+void ui_missing_fonts_dialog_offers_the_installed_substitute_first() {
+  const auto substitute = helvetica_substitute_or_skip();
+  CHECK(substitute.metric);
+  const auto helvetica = QStringLiteral("Helvetica");
+  auto document = white_document();
+  const auto id = document.add_layer(missing_font_text_layer(document, "Headline", helvetica, 20)).id();
+  document.add_layer(missing_font_text_layer(document, "Other", kMissing, 80));
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Substitutes"));
+  QApplication::processEvents();
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto row = missing_font_row(dialog, helvetica);
+        const auto other_row = missing_font_row(dialog, kMissing);
+        CHECK(row >= 0 && other_row >= 0);
+        auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck%1").arg(row));
+        auto* picker =
+            dialog.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("missingFontReplacementCombo%1").arg(row));
+        auto* suggestion = dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(row));
+        CHECK(check != nullptr && !check->isChecked());
+        CHECK(picker != nullptr && picker->currentFont().family() == substitute.family);
+        CHECK(suggestion != nullptr &&
+              suggestion->text() == QStringLiteral("Suggested: %1 (same character widths)").arg(substitute.family));
+        CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(other_row)) == nullptr);
+        save_widget_artifact("ui_missing_fonts_dialog_suggests_substitute", dialog);
+        dialog.reject();
+      },
+      seen);
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  action->trigger();
+  process_events_for(200);
+  CHECK(*seen == 1);
+  CHECK(layer_font(window, id) == helvetica);
+}
+
+// GitHub issue 463: editing imported type whose font is missing works in the table's substitute,
+// the prompt says so, and the layer keeps naming the original font until the edit is committed.
+void ui_missing_font_edit_session_uses_the_table_substitute() {
+  const auto substitute = helvetica_substitute_or_skip();
+  const auto helvetica = QStringLiteral("Helvetica");
+  auto document = white_document();
+  const auto id = document.add_layer(missing_font_text_layer(document, "Headline", helvetica, 40)).id();
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Substitute Edit"));
+  QApplication::processEvents();
+
+  auto informative = std::make_shared<QString>();
+  auto answered = std::make_shared<int>(0);
+  const std::function<void(int)> answer = [informative, answered, &answer](int attempts) {
+    QTimer::singleShot(20, [informative, answered, attempts, &answer] {
+      auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+      if (box == nullptr) {
+        if (attempts > 0) {
+          answer(attempts - 1);
+        }
+        return;
+      }
+      ++*answered;
+      *informative = box->informativeText();
+      for (auto* button : box->findChildren<QPushButton*>()) {
+        if (box->buttonRole(button) == QMessageBox::AcceptRole) {
+          button->click();
+          return;
+        }
+      }
+    });
+  };
+  answer(100);
+  MainWindowTestAccess::edit_text_layer(window, id);
+  process_events_for(300);
+  CHECK(*answered == 1);
+  CHECK(*informative == QStringLiteral("Helvetica will be replaced with %1.").arg(substitute.face_family));
+  auto* editor = require_canvas(window)->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.documentTextFamily").toString() == substitute.face_family);
+  CHECK(layer_font(window, id) == helvetica);  // nothing is stored until the commit
+  send_key(*editor, Qt::Key_End);
+  QTest::keyClicks(editor, QStringLiteral("s"));
+  send_key(*editor, Qt::Key_Enter, Qt::KeypadModifier);
+  process_events_for(200);
+  CHECK(require_canvas(window)->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_font(window, id) == substitute.face_family);
+}
+
 std::vector<patchy::test::TestCase> missing_fonts_tests() {
   return {
+      {"ui_missing_fonts_dialog_offers_the_installed_substitute_first",
+       ui_missing_fonts_dialog_offers_the_installed_substitute_first},
+      {"ui_missing_font_edit_session_uses_the_table_substitute", ui_missing_font_edit_session_uses_the_table_substitute},
       {"ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer",
        ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer},
       {"ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge",

@@ -13180,6 +13180,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Screen mode button</source>
         <translation>Schaltfläche „Bildschirmmodus“</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Vorschlag: %1 (gleiche Zeichenbreiten)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Vorschlag: %1 (ähnliches Design)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27152,6 +27160,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Clone Source</source>
         <translation>Kopierquelle</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 wird durch %2 ersetzt.</translation>
     </message>
 </context>
 <context>

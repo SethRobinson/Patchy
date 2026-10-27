@@ -8,6 +8,7 @@
 #include <QString>
 #include <QStringList>
 #include <optional>
+#include <vector>
 
 namespace patchy { class Layer; }
 namespace patchy::ui {
@@ -33,6 +34,19 @@ struct TextFontProblems {
 // unresolved.
 using TextFontReplacements = QHash<QString, QString>;
 QString text_font_replacement_key(const QString& family);
+
+// An installed stand-in for a missing font from the built-in substitute table
+// (core/font_substitutes.hpp, GitHub issue 463).
+struct TextFontSubstitute {
+  QString family;       // the installed family, as the font database lists it
+  QString face_family;  // `family` plus the face a face-baked request named ("Source Sans 3 Semibold")
+                        // when the substitute has that face; `family` otherwise
+  bool metric{false};   // same character widths as the requested font (and face)
+};
+// The table's installed substitutes for `family` that draw `demanded` (empty: availability only),
+// metric matches first. Empty when the table does not list the family or nothing is installed.
+std::vector<TextFontSubstitute> installed_text_font_substitutes(const QString& family,
+                                                                const QString& demanded = QString());
 
 std::optional<QString> available_text_family_match(const QString& family);
 std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const QString& family,

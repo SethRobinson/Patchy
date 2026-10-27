@@ -13217,6 +13217,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>Кнопка режима экрана</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Предлагается: %1 (та же ширина символов)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Предлагается: %1 (похожий рисунок)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27228,6 +27236,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Clone Source</source>
         <translation>Источник клонирования</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 будет заменён на %2.</translation>
     </message>
 </context>
 <context>

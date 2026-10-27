@@ -249,6 +249,39 @@ not render nothing).
   set that key. The UI test main sets it false; tests that need
   the dialog turn it on. Tests: the `missing_font` filter (tests/ui/missing_fonts_tests.cpp).
 
+### Substitute table
+
+`src/core/font_substitutes.{hpp,cpp}` (issue 463, Qt-free) lists well-known fonts with the
+fonts that stand in for them: each candidate is `metric` (the substitute's own project states the
+same character widths: Arial to Liberation Sans or Arimo, Calibri to Carlito, Cambria to Caladea)
+or `lookalike` (similar design, text can reflow: Myriad Pro to Source Sans 3, which is NOT
+metric-compatible), plus a class column (serif, sans, mono, script, display) for the class-based
+default that is not built yet. Names and project links only: no font data, and every pair comes
+from the substitute's own documentation, never another program's substitution list
+([fonts.md](fonts.md), licensing rules).
+
+- **Keys** are `font_substitute_key`: ASCII case and punctuation ignored, non-ASCII kept (the
+  `photoshop_font_names_match` rule). An entry matches by family or alias (PostScript stems such as
+  `ArialMT`, `TimesNewRomanPSMT`). A miss is retried with trailing face words dropped
+  ("Myriad Pro Semibold", "Arial-BoldMT"); the dropped words come back as the lookup's style.
+- **Ranking** (`rank_font_substitutes`): metric before look-alike, table order within each, never
+  the requested font itself. `installed_text_font_substitutes` (text_font_service) keeps the
+  installed candidates that draw the text. A face the flags cannot express ("Semibold") is asked of
+  the substitute as `family + " " + face`; when the substitute lacks it the match is demoted to
+  look-alike.
+- **Uses.** `substituted_text_family` asks the table before Qt's fallback, so an edit session on a
+  missing font (both the base family and `substitute_missing_document_font_families`) moves onto
+  the table's substitute, and the raster-preview prompt's informative text names it ("Helvetica
+  will be replaced with Arial."). Resolve Missing Fonts starts each listed font's picker on the
+  first substitute with a "Suggested: X (same character widths)" or "(similar design)" line; rows
+  stay unticked. The stored name changes only on a commit or a resolved row, as before, so the PSD
+  still names the original font for Photoshop.
+- The wasm alias table (`kWasmFamilyAliases`, [fonts.md](fonts.md)) stays separate: its targets
+  are the bundled fonts.
+- Tests: `font_substitutes_` (core), `ui_missing_fonts_dialog_offers_the_installed_substitute_first`,
+  `ui_missing_font_edit_session_uses_the_table_substitute` (skip where Helvetica is installed or
+  none of its substitutes is registered).
+
 ## Photoshop 5.x `tySh` faces
 
 A PS 5 type record names each face three ways: PostScript name, GDI family and style string

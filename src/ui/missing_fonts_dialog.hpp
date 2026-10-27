@@ -15,11 +15,16 @@ namespace patchy::ui {
 // MainWindow collects the rows and applies the answer (resolve_missing_fonts); this file owns
 // only the dialog.
 
+// Where `suggested` comes from: the built-in substitute table (issue 463, a "Suggested:" line under
+// the name) or the face Qt falls back to (no line).
+enum class MissingFontSuggestion { fallback, metric, lookalike };
+
 struct MissingFontEntry {
   QString family;          // as the text layers name it
   bool no_glyphs{false};   // installed, but draws none of the text it is asked for
   int layer_count{0};      // text layers that use it
-  QString suggested;       // the installed family the layers are drawn in now
+  QString suggested;       // the installed family the picker starts on
+  MissingFontSuggestion suggestion{MissingFontSuggestion::fallback};
 };
 
 struct MissingFontsDialogResult {
