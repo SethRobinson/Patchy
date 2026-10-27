@@ -50,6 +50,8 @@ public:
   ColorPlaneWidget(HsvFieldSource& source, QWidget* parent);
 
   [[nodiscard]] QSize sizeHint() const override { return {kDefaultSize, kDefaultSize}; }
+  // How many times the gradient was rendered (the drag-cost tests read it).
+  [[nodiscard]] int plane_render_count() const noexcept { return plane_render_count_; }
 
 protected:
   void paintEvent(QPaintEvent* event) override;
@@ -62,6 +64,7 @@ private:
   // The gradient is rendered only when the hue or the size changes, not per repaint.
   QImage plane_;
   int plane_hue_{-1};
+  int plane_render_count_{0};
 };
 
 // Hue top (0) to bottom (359), with a line at the source's hue.

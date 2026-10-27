@@ -15364,6 +15364,46 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Color panel settings</source>
         <translation>Einstellungen des Farbbedienfelds</translation>
     </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>CMYK-Regler</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cyan</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Gelb</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Schwarz</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

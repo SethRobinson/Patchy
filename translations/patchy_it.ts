@@ -13150,7 +13150,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>The author, copyright notice and contact details from File Info.</source>
-        <translation>L'autore, la nota di copyright e i dati di contatto dalle informazioni file.</translation>
+        <translation>L&apos;autore, la nota di copyright e i dati di contatto dalle informazioni file.</translation>
     </message>
     <message>
         <source>Everything in File Info.</source>
@@ -15363,6 +15363,46 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Color panel settings</source>
         <translation>Impostazioni del pannello Colore</translation>
+    </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>Cursori CMYK</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Ciano</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Giallo</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Nero</translation>
     </message>
 </context>
 <context>

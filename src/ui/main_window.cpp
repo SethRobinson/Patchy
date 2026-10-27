@@ -5606,6 +5606,10 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // Flush any tool-option change still waiting on the save debounce; the timer
   // will not fire once the window is gone.
   save_tool_settings();
+  if (color_settings_save_pending_) {
+    color_settings_save_pending_ = false;
+    save_color_settings();
+  }
 #ifndef Q_OS_WASM
   // A consented quit: no more recovery writes, and the destructor drops the folder.
   if (recovery_coordinator_ != nullptr) {
