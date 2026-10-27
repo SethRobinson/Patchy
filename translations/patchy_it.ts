@@ -13448,6 +13448,36 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
         <translation>Nuovo livello sopra lascia questo livello com&apos;è e mette il risultato sopra; Sostituisci questo livello mette il risultato in questo livello stesso</translation>
     </message>
+    <message>
+        <source>Adobe Photoshop</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Adobe Photoshop</translation>
+    </message>
+    <message>
+        <source>Affinity Photo</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Affinity Photo</translation>
+    </message>
+    <message>
+        <source>GIMP</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>GIMP</translation>
+    </message>
+    <message>
+        <source>Krita</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Krita</translation>
+    </message>
+    <message>
+        <source>Patchy</source>
+        <comment>Layers buttons preset: Patchy&apos;s own default</comment>
+        <translation>Patchy</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
+        <translation>Personalizzato</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

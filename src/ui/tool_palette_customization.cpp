@@ -306,6 +306,112 @@ QStringList resolved_layer_footer_order(const QStringList& stored) {
   return order;
 }
 
+QString layer_footer_preset_token(LayerFooterPreset preset) {
+  switch (preset) {
+    case LayerFooterPreset::Patchy:
+      break;
+    case LayerFooterPreset::Photoshop:
+      return QStringLiteral("photoshop");
+    case LayerFooterPreset::AffinityPhoto:
+      return QStringLiteral("affinity_photo");
+    case LayerFooterPreset::Gimp:
+      return QStringLiteral("gimp");
+    case LayerFooterPreset::Krita:
+      return QStringLiteral("krita");
+  }
+  return QStringLiteral("patchy");
+}
+
+// The other editors' names are product names: translators keep them as they are.
+QString layer_footer_preset_label(LayerFooterPreset preset) {
+  switch (preset) {
+    case LayerFooterPreset::Patchy:
+      break;
+    case LayerFooterPreset::Photoshop:
+      return QObject::tr("Adobe Photoshop", "Layers buttons preset; a product name");
+    case LayerFooterPreset::AffinityPhoto:
+      return QObject::tr("Affinity Photo", "Layers buttons preset; a product name");
+    case LayerFooterPreset::Gimp:
+      return QObject::tr("GIMP", "Layers buttons preset; a product name");
+    case LayerFooterPreset::Krita:
+      return QObject::tr("Krita", "Layers buttons preset; a product name");
+  }
+  return QObject::tr("Patchy", "Layers buttons preset: Patchy's own default");
+}
+
+void apply_layer_footer_preset(ToolPaletteCustomization& value, LayerFooterPreset preset) {
+  const auto known = default_layer_footer_order();
+  QStringList unknown_hidden;
+  for (const auto& id : value.hidden_layer_buttons) {
+    if (!known.contains(id)) {
+      unknown_hidden.push_back(id);
+    }
+  }
+  if (preset == LayerFooterPreset::Patchy) {
+    value.layer_button_order.clear();
+    value.hidden_layer_buttons = unknown_hidden;
+    for (const auto* id : kLayerFooterButtonIdsHiddenByDefault) {
+      value.hidden_layer_buttons.push_back(QString::fromLatin1(id));
+    }
+    return;
+  }
+  // The other editors' Layers panel buttons, left to right, that Patchy also has (their link,
+  // live filter, anchor and properties buttons have no Patchy counterpart).
+  QStringList shown;
+  switch (preset) {
+    case LayerFooterPreset::Patchy:
+      break;
+    case LayerFooterPreset::Photoshop:
+      shown = {QStringLiteral("layer_styles"), QStringLiteral("add_mask"),   QStringLiteral("new_adjustment"),
+               QStringLiteral("new_folder"),   QStringLiteral("new_layer"), QStringLiteral("delete")};
+      break;
+    case LayerFooterPreset::AffinityPhoto:
+      shown = {QStringLiteral("duplicate"),  QStringLiteral("add_mask"),  QStringLiteral("new_adjustment"),
+               QStringLiteral("layer_styles"), QStringLiteral("new_folder"), QStringLiteral("new_layer"),
+               QStringLiteral("delete")};
+      break;
+    case LayerFooterPreset::Gimp:
+      shown = {QStringLiteral("new_layer"), QStringLiteral("new_folder"), QStringLiteral("move_up"),
+               QStringLiteral("move_down"), QStringLiteral("duplicate"),  QStringLiteral("merge_down"),
+               QStringLiteral("add_mask"),  QStringLiteral("delete")};
+      break;
+    case LayerFooterPreset::Krita:
+      shown = {QStringLiteral("new_layer"), QStringLiteral("duplicate"), QStringLiteral("move_down"),
+               QStringLiteral("move_up"), QStringLiteral("delete")};
+      break;
+  }
+  value.layer_button_order = shown;
+  value.hidden_layer_buttons = unknown_hidden;
+  for (const auto& id : known) {
+    if (!shown.contains(id)) {
+      value.layer_button_order.push_back(id);
+      value.hidden_layer_buttons.push_back(id);
+    }
+  }
+}
+
+QStringList shown_layer_footer_buttons(const ToolPaletteCustomization& value) {
+  QStringList shown;
+  for (const auto& id : resolved_layer_footer_order(value.layer_button_order)) {
+    if (!value.hidden_layer_buttons.contains(id)) {
+      shown.push_back(id);
+    }
+  }
+  return shown;
+}
+
+std::optional<LayerFooterPreset> matching_layer_footer_preset(const ToolPaletteCustomization& value) {
+  const auto shown = shown_layer_footer_buttons(value);
+  for (const auto preset : kLayerFooterPresets) {
+    ToolPaletteCustomization arranged;
+    apply_layer_footer_preset(arranged, preset);
+    if (shown_layer_footer_buttons(arranged) == shown) {
+      return preset;
+    }
+  }
+  return std::nullopt;
+}
+
 ToolPaletteCustomization normalized_tool_palette_customization(ToolPaletteCustomization value) {
   value.hidden_tools = normalized_ids(std::move(value.hidden_tools));
   value.hidden_layer_buttons = normalized_ids(std::move(value.hidden_layer_buttons));
@@ -540,6 +646,22 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
                                  layers_page);
   layers_hint->setWordWrap(true);
   layers_layout->addWidget(layers_hint);
+  // A preset sets the order and which buttons show; any other change makes it Custom.
+  auto* preset_row = new QHBoxLayout();
+  auto* preset_label = new QLabel(QObject::tr("Preset:"), layers_page);
+  auto* preset_combo = new QComboBox(layers_page);
+  preset_combo->setObjectName(QStringLiteral("layerFooterPresetCombo"));
+  for (const auto preset : kLayerFooterPresets) {
+    preset_combo->addItem(layer_footer_preset_label(preset), layer_footer_preset_token(preset));
+  }
+  preset_combo->addItem(QObject::tr("Custom", "Layers buttons preset: the user's own arrangement"),
+                        QStringLiteral("custom"));
+  preset_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  preset_label->setBuddy(preset_combo);
+  preset_row->addWidget(preset_label);
+  preset_row->addWidget(preset_combo);
+  preset_row->addStretch(1);
+  layers_layout->addLayout(preset_row);
   auto* layers_row = new QHBoxLayout();
   auto* layer_list = new QListWidget(layers_page);
   layer_list->setObjectName(QStringLiteral("layerFooterButtonsList"));
@@ -686,6 +808,46 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
       preview->set_choice(read_widgets());
     }
   };
+  // The Layers rows' order and hidden buttons, and the rows set from a customization's.
+  const auto layer_rows_customization = [&] {
+    ToolPaletteCustomization value;
+    value.hidden_layer_buttons.clear();
+    for (int index = 0; index < layer_list->count(); ++index) {
+      auto* item = layer_list->item(index);
+      const auto id = item->data(kIdRole).toString();
+      value.layer_button_order.push_back(id);
+      if (item->checkState() != Qt::Checked) {
+        value.hidden_layer_buttons.push_back(id);
+      }
+    }
+    keep_unlisted(current.customization.hidden_layer_buttons, listed_layer_buttons, value.hidden_layer_buttons);
+    return value;
+  };
+  const auto set_layer_rows = [&](const ToolPaletteCustomization& value) {
+    // The rows in the footer order; a row the order does not name stays below.
+    int next_row = 0;
+    for (const auto& id : resolved_layer_footer_order(value.layer_button_order)) {
+      for (int index = next_row; index < layer_list->count(); ++index) {
+        if (layer_list->item(index)->data(kIdRole).toString() == id) {
+          layer_list->insertItem(next_row++, layer_list->takeItem(index));
+          break;
+        }
+      }
+    }
+    layer_list->setCurrentRow(-1);
+    for (int index = 0; index < layer_list->count(); ++index) {
+      auto* item = layer_list->item(index);
+      item->setCheckState(value.hidden_layer_buttons.contains(item->data(kIdRole).toString()) ? Qt::Unchecked
+                                                                                            : Qt::Checked);
+    }
+  };
+  // The combo names the preset the rows match, else Custom.
+  const auto refresh_preset_combo = [&] {
+    const auto preset = matching_layer_footer_preset(layer_rows_customization());
+    const auto token = preset.has_value() ? layer_footer_preset_token(*preset) : QStringLiteral("custom");
+    const QSignalBlocker block(preset_combo);
+    preset_combo->setCurrentIndex(std::max(0, preset_combo->findData(token)));
+  };
   const auto populate = [&](const ToolPaletteDialogChoice& choice) {
     const auto& value = choice.customization;
     populating = true;
@@ -708,22 +870,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     }
     (value.two_columns ? two_columns : one_column)->setChecked(true);
     wheel_scroll->setChecked(value.wheel_scroll);
-    // The rows in the choice's footer order; a row the order does not name stays below.
-    int next_row = 0;
-    for (const auto& id : resolved_layer_footer_order(value.layer_button_order)) {
-      for (int index = next_row; index < layer_list->count(); ++index) {
-        if (layer_list->item(index)->data(kIdRole).toString() == id) {
-          layer_list->insertItem(next_row++, layer_list->takeItem(index));
-          break;
-        }
-      }
-    }
-    layer_list->setCurrentRow(-1);
-    for (int index = 0; index < layer_list->count(); ++index) {
-      auto* item = layer_list->item(index);
-      item->setCheckState(value.hidden_layer_buttons.contains(item->data(kIdRole).toString()) ? Qt::Unchecked
-                                                                                            : Qt::Checked);
-    }
+    set_layer_rows(value);
+    refresh_preset_combo();
     for (const auto& check : footer_checks) {
       check.box->setChecked(!value.hidden_footer_items.contains(QString::fromLatin1(check.id)));
     }
@@ -737,7 +885,29 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   tree->resizeColumnToContents(1);
 
   QObject::connect(tree, &QTreeWidget::itemChanged, &dialog, [&](QTreeWidgetItem*, int) { refresh_preview(); });
-  QObject::connect(layer_list, &QListWidget::itemChanged, &dialog, [&](QListWidgetItem*) { refresh_preview(); });
+  QObject::connect(layer_list, &QListWidget::itemChanged, &dialog, [&](QListWidgetItem*) {
+    if (!populating) {
+      refresh_preset_combo();
+    }
+    refresh_preview();
+  });
+  // A preset sets the rows; Custom leaves them as they are.
+  QObject::connect(preset_combo, &QComboBox::activated, &dialog, [&](int index) {
+    const auto token = preset_combo->itemData(index).toString();
+    for (const auto preset : kLayerFooterPresets) {
+      if (layer_footer_preset_token(preset) != token) {
+        continue;
+      }
+      auto value = layer_rows_customization();
+      apply_layer_footer_preset(value, preset);
+      populating = true;
+      set_layer_rows(value);
+      populating = false;
+      refresh_preset_combo();
+      refresh_preview();
+      return;
+    }
+  });
   // Move Up and Move Down act on the current row; each is off where it would do nothing.
   const auto refresh_order_buttons = [&] {
     const int row = layer_list->currentRow();
@@ -753,9 +923,15 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     layer_list->insertItem(target, layer_list->takeItem(row));
     layer_list->setCurrentRow(target);
     refresh_order_buttons();
+    refresh_preset_combo();
   };
   QObject::connect(layer_list, &QListWidget::currentRowChanged, &dialog, [&](int) { refresh_order_buttons(); });
-  QObject::connect(layer_list->model(), &QAbstractItemModel::rowsMoved, &dialog, [&] { refresh_order_buttons(); });
+  QObject::connect(layer_list->model(), &QAbstractItemModel::rowsMoved, &dialog, [&] {
+    refresh_order_buttons();
+    if (!populating) {
+      refresh_preset_combo();
+    }
+  });
   QObject::connect(order_up, &QPushButton::clicked, &dialog, [&] { move_current_row(-1); });
   QObject::connect(order_down, &QPushButton::clicked, &dialog, [&] { move_current_row(1); });
   refresh_order_buttons();

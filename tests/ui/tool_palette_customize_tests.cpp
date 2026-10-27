@@ -50,6 +50,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace patchy::test::ui;
@@ -1485,6 +1486,180 @@ void ui_tool_palette_dialog_reorders_layer_buttons() {
   }
 }
 
+// Each Layers buttons preset's shown buttons, left to right (GitHub issue 471).
+QStringList preset_shown_buttons(patchy::ui::LayerFooterPreset preset) {
+  using patchy::ui::LayerFooterPreset;
+  switch (preset) {
+    case LayerFooterPreset::Patchy:
+      break;
+    case LayerFooterPreset::Photoshop:
+      return footer_ids({"layer_styles", "add_mask", "new_adjustment", "new_folder", "new_layer", "delete"});
+    case LayerFooterPreset::AffinityPhoto:
+      return footer_ids(
+          {"duplicate", "add_mask", "new_adjustment", "layer_styles", "new_folder", "new_layer", "delete"});
+    case LayerFooterPreset::Gimp:
+      return footer_ids(
+          {"new_layer", "new_folder", "move_up", "move_down", "duplicate", "merge_down", "add_mask", "delete"});
+    case LayerFooterPreset::Krita:
+      return footer_ids({"new_layer", "duplicate", "move_down", "move_up", "delete"});
+  }
+  return footer_ids(
+      {"new_layer", "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "animation", "delete"});
+}
+
+// GitHub issue 471: a preset shows its buttons in its order and hides the rest after them;
+// Patchy is the default; a customization showing a preset's buttons in its order matches it,
+// after a store and reload too, and any other arrangement matches none (Custom).
+void ui_layer_footer_presets_set_order_and_shown_buttons() {
+  CustomizationSettingsGuard settings_guard;
+  using patchy::ui::LayerFooterPreset;
+  const auto known = default_footer_order();
+  for (const auto preset : patchy::ui::kLayerFooterPresets) {
+    ToolPaletteCustomization value;
+    value.hidden_layer_buttons.push_back(QStringLiteral("future_button"));
+    patchy::ui::apply_layer_footer_preset(value, preset);
+    const auto expected = preset_shown_buttons(preset);
+    CHECK(patchy::ui::shown_layer_footer_buttons(value) == expected);
+    for (const auto& id : known) {
+      CHECK(value.hidden_layer_buttons.contains(id) != expected.contains(id));
+    }
+    // Ids this build does not know survive a preset.
+    CHECK(value.hidden_layer_buttons.contains(QStringLiteral("future_button")));
+    CHECK(patchy::ui::matching_layer_footer_preset(value) == preset);
+    patchy::ui::set_stored_tool_palette_customization(value);
+    CHECK(patchy::ui::matching_layer_footer_preset(patchy::ui::stored_tool_palette_customization()) == preset);
+  }
+  ToolPaletteCustomization patchy_preset;
+  patchy::ui::apply_layer_footer_preset(patchy_preset, LayerFooterPreset::Krita);
+  patchy::ui::apply_layer_footer_preset(patchy_preset, LayerFooterPreset::Patchy);
+  CHECK(patchy::ui::normalized_tool_palette_customization(patchy_preset) == ToolPaletteCustomization{});
+  CHECK(patchy::ui::matching_layer_footer_preset(ToolPaletteCustomization{}) == LayerFooterPreset::Patchy);
+  // Krita with Animation shown too, or two of its buttons swapped: Custom.
+  ToolPaletteCustomization krita;
+  patchy::ui::apply_layer_footer_preset(krita, LayerFooterPreset::Krita);
+  auto with_animation = krita;
+  with_animation.hidden_layer_buttons.removeAll(QStringLiteral("animation"));
+  CHECK(!patchy::ui::matching_layer_footer_preset(with_animation).has_value());
+  auto swapped = krita;
+  swapped.layer_button_order.swapItemsAt(2, 3);
+  CHECK(!patchy::ui::matching_layer_footer_preset(swapped).has_value());
+  // Hidden buttons' places do not matter: the footer looks the same.
+  auto hidden_moved = krita;
+  hidden_moved.layer_button_order.move(hidden_moved.layer_button_order.size() - 1, 0);
+  CHECK(patchy::ui::matching_layer_footer_preset(hidden_moved) == LayerFooterPreset::Krita);
+}
+
+// GitHub issue 471: the Layers buttons tab's Preset combo shows the matching preset when the
+// dialog opens, picking one sets the rows' order and ticks, a manual change makes it Custom,
+// OK applies the preset to the footer (kept after a restart), and Reset to Default is Patchy.
+void ui_tool_palette_dialog_layer_button_presets() {
+  CustomizationSettingsGuard settings_guard;
+  using patchy::ui::LayerFooterPreset;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  settle();
+  const auto shown_rows = [](QListWidget& list) {
+    QStringList ids;
+    for (int index = 0; index < list.count(); ++index) {
+      if (list.item(index)->checkState() == Qt::Checked) {
+        ids.push_back(list.item(index)->data(Qt::UserRole).toString());
+      }
+    }
+    return ids;
+  };
+  const auto pick = [](QComboBox& combo, const char* token) {
+    const int index = combo.findData(QString::fromLatin1(token));
+    CHECK(index >= 0);
+    combo.setCurrentIndex(index);
+    emit combo.activated(index);
+    QApplication::processEvents();
+  };
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* list = dialog.findChild<QListWidget*>(QStringLiteral("layerFooterButtonsList"));
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("layerFooterPresetCombo"));
+    auto* up = dialog.findChild<QPushButton*>(QStringLiteral("layerFooterOrderUpButton"));
+    CHECK(list != nullptr && combo != nullptr && up != nullptr);
+    if (list == nullptr || combo == nullptr || up == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(combo->count() == 6);
+    CHECK(combo->currentData().toString() == QStringLiteral("patchy"));
+    const std::pair<const char*, LayerFooterPreset> presets[] = {{"photoshop", LayerFooterPreset::Photoshop},
+                                                                 {"affinity_photo", LayerFooterPreset::AffinityPhoto},
+                                                                 {"gimp", LayerFooterPreset::Gimp},
+                                                                 {"krita", LayerFooterPreset::Krita},
+                                                                 {"patchy", LayerFooterPreset::Patchy}};
+    for (const auto& [token, preset] : presets) {
+      pick(*combo, token);
+      CHECK(shown_rows(*list) == preset_shown_buttons(preset));
+      CHECK(combo->currentData().toString() == QString::fromLatin1(token));
+    }
+    // A tick, then a move: Custom; ticking back matches the preset again.
+    pick(*combo, "photoshop");
+    (void)capture_widget_artifact("ui_tool_palette_customize_layer_button_presets", dialog);
+    auto* animation = list->findItems(QStringLiteral("Animation Preview"), Qt::MatchExactly).value(0);
+    CHECK(animation != nullptr);
+    if (animation != nullptr) {
+      animation->setCheckState(Qt::Checked);
+      CHECK(combo->currentData().toString() == QStringLiteral("custom"));
+      animation->setCheckState(Qt::Unchecked);
+      CHECK(combo->currentData().toString() == QStringLiteral("photoshop"));
+    }
+    list->setCurrentRow(1);
+    up->click();
+    CHECK(combo->currentData().toString() == QStringLiteral("custom"));
+    pick(*combo, "krita");
+    CHECK(combo->currentData().toString() == QStringLiteral("krita"));
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+  CHECK(ran);
+  settle();
+  CHECK(patchy::ui::matching_layer_footer_preset(window.tool_palette_customization()) == LayerFooterPreset::Krita);
+  // The footer: New Layer, Duplicate, Move Down, Move Up, Delete, in one row; the rest hidden.
+  std::vector<QWidget*> shown;
+  for (const auto* name : {"layerNewButton", "layerDuplicateButton", "layerMoveDownButton", "layerMoveUpButton",
+                           "layerDeleteButton"}) {
+    auto* button = window.findChild<QWidget*>(QLatin1String(name));
+    CHECK(button != nullptr && button->isVisible());
+    shown.push_back(button);
+  }
+  for (std::size_t index = 1; index < shown.size(); ++index) {
+    if (shown[index - 1] != nullptr && shown[index] != nullptr) {
+      CHECK(shown[index - 1]->y() == shown[index]->y() && shown[index - 1]->x() < shown[index]->x());
+    }
+  }
+  for (const auto* name : {"layerNewFolderButton", "layerAddMaskButton", "layerStylesButton", "layerAnimationButton"}) {
+    auto* button = window.findChild<QWidget*>(QLatin1String(name));
+    CHECK(button != nullptr && !button->isVisible());
+  }
+  if (!shown.empty() && shown.front() != nullptr && shown.front()->parentWidget() != nullptr) {
+    (void)capture_widget_artifact("ui_layer_footer_krita_preset", *shown.front()->parentWidget());
+  }
+  // A restart keeps it.
+  {
+    patchy::ui::MainWindow second;
+    CHECK(patchy::ui::matching_layer_footer_preset(second.tool_palette_customization()) == LayerFooterPreset::Krita);
+  }
+  // Reopened, the combo names Krita; Reset to Default is Patchy.
+  ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("layerFooterPresetCombo"));
+    CHECK(combo != nullptr && combo->currentData().toString() == QStringLiteral("krita"));
+    dialog.findChild<QPushButton*>(QStringLiteral("toolPaletteCustomizeResetButton"))->click();
+    QApplication::processEvents();
+    CHECK(combo == nullptr || combo->currentData().toString() == QStringLiteral("patchy"));
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+  CHECK(ran);
+  settle();
+  CHECK(window.tool_palette_customization() == ToolPaletteCustomization{});
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
@@ -1509,5 +1684,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_layer_footer_order_resolves_unknown_and_missing_ids", ui_layer_footer_order_resolves_unknown_and_missing_ids},
       {"ui_layer_footer_follows_stored_order", ui_layer_footer_follows_stored_order},
       {"ui_tool_palette_dialog_reorders_layer_buttons", ui_tool_palette_dialog_reorders_layer_buttons},
+      {"ui_layer_footer_presets_set_order_and_shown_buttons", ui_layer_footer_presets_set_order_and_shown_buttons},
+      {"ui_tool_palette_dialog_layer_button_presets", ui_tool_palette_dialog_layer_button_presets},
   };
 }

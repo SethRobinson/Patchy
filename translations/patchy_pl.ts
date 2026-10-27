@@ -13485,6 +13485,36 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
         <translation>Nowa warstwa powyżej zostawia tę warstwę bez zmian i umieszcza wynik nad nią; Zastąp tę warstwę zapisuje wynik w tej warstwie</translation>
     </message>
+    <message>
+        <source>Adobe Photoshop</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Adobe Photoshop</translation>
+    </message>
+    <message>
+        <source>Affinity Photo</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Affinity Photo</translation>
+    </message>
+    <message>
+        <source>GIMP</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>GIMP</translation>
+    </message>
+    <message>
+        <source>Krita</source>
+        <comment>Layers buttons preset; a product name</comment>
+        <translation>Krita</translation>
+    </message>
+    <message>
+        <source>Patchy</source>
+        <comment>Layers buttons preset: Patchy&apos;s own default</comment>
+        <translation>Patchy</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
+        <translation>Własny</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
