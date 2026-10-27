@@ -23,7 +23,13 @@ void run_preferences_dialog(patchy::ui::MainWindow& window, bool accept, Inspect
     if (dialog == nullptr) {
       return;
     }
-    inspect(*dialog);
+    // A failed CHECK must not unwind through the dialog's event loop (that crashes the suite
+    // with the message lost): record it and close the dialog as usual.
+    try {
+      inspect(*dialog);
+    } catch (const std::exception& error) {
+      patchy::test::report_failure(error.what());
+    }
     saw_dialog = true;
     if (accept) {
       dialog->accept();

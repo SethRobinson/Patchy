@@ -2399,9 +2399,12 @@ void ui_preferences_minimum_width_fits_and_fields_stay_compact() {
           }
         }
         for (auto* spin : page->findChildren<QAbstractSpinBox*>()) {
+          // 200 px, or the field's own width where its widest value needs more (the grid
+          // spacing's three decimals and unit in Russian on Linux fonts).
           if (spin->isVisibleTo(page)) {
-            expect(spin->width() <= 200, where + spin->objectName().toStdString() + " is " +
-                                                std::to_string(spin->width()) + " px wide");
+            expect(spin->width() <= std::max(200, spin->sizeHint().width()),
+                   where + spin->objectName().toStdString() + " is " + std::to_string(spin->width()) +
+                       " px wide (hint " + std::to_string(spin->sizeHint().width()) + ")");
           }
         }
       }

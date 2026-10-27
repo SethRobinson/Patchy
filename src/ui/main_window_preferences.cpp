@@ -2040,6 +2040,17 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // The pages scroll only vertically, so the page area is as wide as the widest page's
   // content plus a scroll bar; the scroll areas themselves report almost no minimum.
   fit_minimum_width_to_pages = [&dialog, page_stack, root] {
+    // Polishing changes size hints without telling the layouts that measured the widgets
+    // before it, and activate() keeps a clean layout's cached sizes: drop them all, or a
+    // field measured unpolished is squeezed and the minimum comes out short (Linux, where the
+    // sheet's paddings changed the interface scale row by a few pixels).
+    page_stack->ensurePolished();
+    for (auto* widget : page_stack->findChildren<QWidget*>()) {
+      widget->updateGeometry();
+    }
+    for (auto* layout : page_stack->findChildren<QLayout*>()) {
+      layout->invalidate();
+    }
     int page_content_width = 0;
     for (const auto* scroll : page_stack->findChildren<QScrollArea*>(QStringLiteral("preferencesTabScroll"))) {
       if (const auto* content_widget = scroll->widget(); content_widget != nullptr) {
