@@ -402,6 +402,27 @@ void gmic_engine_reports_errors_and_output_names() {
   CHECK(result.status == "patchy_done");
 }
 
+// An `input` whose value list makes a title past CImg's 256-byte buffer names the image with
+// the title cut short. On MSVC the cut came back without its terminating zero (docs/gmic.md,
+// "Patchy's changes to the vendored sources"), so the name ran on past the buffer: garbage on
+// x64, a crash on Windows ARM64.
+void gmic_engine_cuts_a_long_input_title_cleanly() {
+  const gmic::Engine engine(standard_library());
+  std::string values;
+  for (int value = 1; value <= 100; ++value) {
+    values += (value > 1 ? "," : "") + std::to_string(value);
+  }
+  std::vector<gmic::Image> images;
+  const auto result = engine.run("input 100,1,1,1," + values, images);
+  CHECK(result.ok);
+  CHECK(images.size() == 1U);
+  if (images.size() == 1U) {
+    CHECK(images[0].width == 100);
+    CHECK(images[0].name.size() <= 255U);
+    CHECK(images[0].name.rfind("[1,2,3,", 0) == 0);
+  }
+}
+
 // The Patchy build of the interpreter starts no programs and holds neither the
 // patch correspondence search nor patch-based inpainting (docs/legal-constraints.md).
 void gmic_engine_leaves_out_programs_and_patch_algorithms() {
@@ -589,6 +610,7 @@ std::vector<patchy::test::TestCase> gmic_tests() {
     tests.insert(tests.end(),
                  {{"gmic_engine_runs_a_library_filter", gmic_engine_runs_a_library_filter},
                   {"gmic_engine_reports_errors_and_output_names", gmic_engine_reports_errors_and_output_names},
+                  {"gmic_engine_cuts_a_long_input_title_cleanly", gmic_engine_cuts_a_long_input_title_cleanly},
                   {"gmic_engine_fft_works_at_any_size", gmic_engine_fft_works_at_any_size},
                   {"gmic_engine_leaves_out_programs_and_patch_algorithms",
                    gmic_engine_leaves_out_programs_and_patch_algorithms},

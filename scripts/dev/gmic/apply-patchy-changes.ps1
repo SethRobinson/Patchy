@@ -58,5 +58,13 @@ $c = InsertAfter $c 4031 @(
   '      return popen(command,"r");',
   '#endif',
   '    }')
+# MSVC: cimg::_snprintf calls _vsnprintf before cimg::_vsnprintf is declared, so the call binds
+# to the CRT's, which does not terminate a cut string.
+Expect $c 2480 '#if cimg_OS==2 && defined(_MSC_VER)'
+Expect $c 2481 'inline int _snprintf(char *const s, const size_t size, const char *const format, ...) {'
+$c = InsertAfter $c 2480 @(
+  '    // PATCHY: declared ahead of _snprintf, whose call would otherwise bind to the CRT''s _vsnprintf,',
+  '    // which leaves a cut string without its terminating zero (an unterminated G''MIC title crashed on ARM64).',
+  '    inline int _vsnprintf(char *const s, const size_t size, const char *const format, va_list ap);')
 Save 'CImg.h' $c
 'patched'

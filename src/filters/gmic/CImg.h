@@ -2489,6 +2489,9 @@ namespace cimg_library {
     // Mandatory because Microsoft's _snprintf() and _vsnprintf() do not add the '\0' character
     // at the end of the string.
 #if cimg_OS==2 && defined(_MSC_VER)
+    // PATCHY: declared ahead of _snprintf, whose call would otherwise bind to the CRT's _vsnprintf,
+    // which leaves a cut string without its terminating zero (an unterminated G'MIC title crashed on ARM64).
+    inline int _vsnprintf(char *const s, const size_t size, const char *const format, va_list ap);
     inline int _snprintf(char *const s, const size_t size, const char *const format, ...) {
       va_list ap;
       va_start(ap,format);

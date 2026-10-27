@@ -39,6 +39,10 @@ Every change carries a `PATCHY` marker; `git diff` against the tarball shows exa
   with error stubs, including continuation lines. Built-in `denoise` is refused at dispatch.
 - `CImg.h`: the four `popen` call sites go through `cimg::patchy_popen`, which starts nothing
   when `cimg_no_system_calls` is defined.
+- `CImg.h`, MSVC: `cimg::_vsnprintf` is declared ahead of `cimg::_snprintf`. Upstream's call
+  there bound to the CRT `_vsnprintf`, which leaves a cut string unterminated: every
+  `cimg_snprintf` that truncated (an `input` title over 256 bytes) read past its buffer, a
+  crash in `gmic_allowlisted_filters_run_with_defaults` on Windows ARM64.
 - `CImg.h`, FFT: under `patchy_gmic_use_pocketfft` both `CImg<T>::FFT` entry points (per axis
   and N-dimensional) call the added `_patchy_pocketfft`, and the pocketfft header is included
   after the FFTW include block. See "FFT".
