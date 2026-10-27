@@ -13200,10 +13200,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13384,18 +13380,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13459,6 +13443,70 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -29692,6 +29740,10 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

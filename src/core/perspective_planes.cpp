@@ -980,8 +980,68 @@ Rect PerspectiveCanvas::set_original_region(Rect rect, const PixelBuffer& pixels
     std::memcpy(original_.pixel(rect.x, rect.y + y), pixels.pixel(0, y), static_cast<std::size_t>(rect.width) * 4);
   }
   refresh(rect);
-  composite_sampler_.update(composite_, rect);
+  refresh_sampler(rect);
   return rect;
+}
+
+void PerspectiveCanvas::set_sample_context(PixelBuffer below, PixelBuffer above) {
+  const auto usable = [this](const PixelBuffer& pixels) {
+    return pixels.width() == width() && pixels.height() == height() && pixels.format() == PixelFormat::rgba8();
+  };
+  below_ = usable(below) ? std::move(below) : PixelBuffer();
+  above_ = usable(above) ? std::move(above) : PixelBuffer();
+  refresh_sampler(Rect{0, 0, width(), height()});
+}
+
+void PerspectiveCanvas::set_sample_layers(SampleLayers mode) {
+  if (mode == SampleLayers::AllLayersNoAdjustments) {
+    mode = SampleLayers::AllLayers;
+  } else if (mode == SampleLayers::CurrentAndBelowNoAdjustments) {
+    mode = SampleLayers::CurrentAndBelow;
+  }
+  if (mode == sample_layers_) {
+    return;
+  }
+  sample_layers_ = mode;
+  refresh_sampler(Rect{0, 0, width(), height()});
+}
+
+void PerspectiveCanvas::refresh_sampler(Rect rect) {
+  rect = intersect_rect(rect, Rect{0, 0, width(), height()});
+  if (rect.empty()) {
+    return;
+  }
+  const bool with_below = sample_layers_ != SampleLayers::CurrentLayer && !below_.empty();
+  const bool with_above = sample_layers_ == SampleLayers::AllLayers && !above_.empty();
+  if (!with_below && !with_above) {
+    composite_sampler_.update(composite_, rect);
+    return;
+  }
+  if (sample_image_.width() != width() || sample_image_.height() != height()) {
+    sample_image_ = PixelBuffer(width(), height(), PixelFormat::rgba8());
+    sample_image_.clear(0);
+    rect = Rect{0, 0, width(), height()};
+  }
+  (void)sample_image_.data();
+  const auto& below = std::as_const(below_);
+  const auto& above = std::as_const(above_);
+  const auto& layer = std::as_const(composite_);
+  for (std::int32_t y = rect.y; y < rect.y + rect.height; ++y) {
+    for (std::int32_t x = rect.x; x < rect.x + rect.width; ++x) {
+      auto* out = sample_image_.pixel(x, y);
+      if (with_below) {
+        over_straight(layer.pixel(x, y), below.pixel(x, y), out);
+      } else {
+        std::memcpy(out, layer.pixel(x, y), 4);
+      }
+      if (with_above) {
+        std::array<std::uint8_t, 4> merged{};
+        over_straight(above.pixel(x, y), out, merged.data());
+        std::memcpy(out, merged.data(), 4);
+      }
+    }
+  }
+  composite_sampler_.update(sample_image_, rect);
 }
 
 bool PerspectiveCanvas::original_changed() const {
@@ -1089,7 +1149,7 @@ PerspectiveCanvas::Change PerspectiveCanvas::paste(const PlaneGeometry& plane, c
       render_perspective_image(edits_, Homography{}, Rect{0, 0, width(), height()}, plane, sampler, image_to_plane);
   auto change = make_change(std::move(backup), changed);
   refresh(change.bounds);
-  composite_sampler_.update(composite_, change.bounds);
+  refresh_sampler(change.bounds);
   return change;
 }
 
@@ -1258,21 +1318,21 @@ PerspectiveCanvas::Change PerspectiveCanvas::end_stroke() {
   }
   auto change = make_change(std::move(stroke_->backup), stroke_->bounds);
   stroke_.reset();
-  composite_sampler_.update(composite_, change.bounds);
+  refresh_sampler(change.bounds);
   return change;
 }
 
 Rect PerspectiveCanvas::revert(const Change& change) {
   write_tiles(change, false);
   refresh(change.bounds);
-  composite_sampler_.update(composite_, change.bounds);
+  refresh_sampler(change.bounds);
   return change.bounds;
 }
 
 Rect PerspectiveCanvas::reapply(const Change& change) {
   write_tiles(change, true);
   refresh(change.bounds);
-  composite_sampler_.update(composite_, change.bounds);
+  refresh_sampler(change.bounds);
   return change.bounds;
 }
 

@@ -12,6 +12,7 @@
 #include "ui_test_support.hpp"
 
 #include <QApplication>
+#include <QClipboard>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -268,11 +269,11 @@ void ui_perspective_planes_cancel_leaves_the_document_untouched() {
   bool ran = false;
   schedule_workspace_driver(
       [](QDialog& dialog, QWidget& view) {
-        CHECK(hint_text(dialog).contains(QStringLiteral("first corner")));
+        CHECK(hint_text(dialog).contains(QStringLiteral("Step 1 of 2")));
         click_corners(view, QSize(800, 600), kWall);
         // A new plane switches to Edit Plane and says how to adjust it.
         CHECK(tool(dialog, "perspectiveEditPlaneTool")->isChecked());
-        CHECK(hint_text(dialog).contains(QStringLiteral("guide")));
+        CHECK(hint_text(dialog).contains(QStringLiteral("Step 2 of 2")));
         QTest::mouseClick(tool(dialog, "perspectivePaintTool"), Qt::LeftButton);
         drag(view, view_point(QSize(800, 600), {250.0, 250.0}), view_point(QSize(800, 600), {400.0, 280.0}));
         dialog.reject();
@@ -390,7 +391,7 @@ void ui_perspective_planes_place_layer_replaces_the_layer() {
   schedule_workspace_driver(
       [](QDialog& dialog, QWidget& view) {
         click_corners(view, QSize(800, 600), kWall);
-        CHECK(hint_text(dialog).contains(QStringLiteral("guide")));
+        CHECK(hint_text(dialog).contains(QStringLiteral("Step 2 of 2")));
         auto* place = button(dialog, "perspectivePlaceLayerButton");
         CHECK(place->isVisible() && place->isEnabled());
         CHECK(button(dialog, "perspectivePasteOntoPlaneButton")->isVisible());
@@ -443,6 +444,172 @@ void ui_perspective_planes_place_layer_replaces_the_layer() {
   QApplication::processEvents();
   const auto* restored = find_layer(window, poster_id);
   CHECK(restored != nullptr && restored->bounds().x == kPosterX && restored->bounds().y == kPosterY);
+}
+
+QString label_text(QDialog& dialog, const char* name) {
+  auto* label = dialog.findChild<QLabel*>(QLatin1String(name));
+  CHECK(label != nullptr);
+  return label->text();
+}
+
+// Seth's second report (#457): setting the target plane comes first. Before any plane the
+// tools that put something on a plane are disabled and the hint is a Step 1 banner; a
+// finished plane is the target (Step 2); with two planes a click picks the target.
+void ui_perspective_planes_needs_a_target_plane_first() {
+  patchy::ui::MainWindow window;
+  (void)add_poster_document(window, QStringLiteral("Perspective Target"));
+  show_window(window);
+  (void)require_canvas(window);
+  std::exception_ptr error;
+  bool ran = false;
+  schedule_workspace_driver(
+      [](QDialog& dialog, QWidget& view) {
+        const QSize document(800, 600);
+        CHECK(tool(dialog, "perspectiveCreatePlaneTool")->isChecked());
+        CHECK(!tool(dialog, "perspectiveCloneTool")->isEnabled());
+        CHECK(!tool(dialog, "perspectivePaintTool")->isEnabled());
+        CHECK(!tool(dialog, "perspectivePasteButton")->isEnabled());
+        CHECK(!tool(dialog, "perspectivePlaceLayerTool")->isEnabled());
+        CHECK(tool(dialog, "perspectiveCloneTool")->toolTip().contains(QStringLiteral("Draw a plane first")));
+        CHECK(hint_text(dialog).startsWith(QStringLiteral("Step 1 of 2: set the target plane")));
+        auto* hint = dialog.findChild<QLabel*>(QStringLiteral("perspectivePlanesHint"));
+        CHECK(hint->property("patchy.step").toBool() && hint->font().bold());
+        CHECK(label_text(dialog, "perspectiveTargetLabel").contains(QStringLiteral("no plane yet")));
+        CHECK(label_text(dialog, "perspectiveTargetLabel").contains(QStringLiteral("Editing: Poster")));
+        std::filesystem::create_directories("test-artifacts/perspective-planes");
+        save_widget_artifact("perspective-planes/after-step-one", dialog);
+        click_corners(view, document, kWall);
+        CHECK(tool(dialog, "perspectiveCloneTool")->isEnabled());
+        CHECK(hint_text(dialog).startsWith(QStringLiteral("Step 2 of 2")));
+        CHECK(label_text(dialog, "perspectiveTargetLabel").contains(QStringLiteral("plane 1 of 1")));
+        // A second plane becomes the target; a click inside the first picks it again.
+        QTest::mouseClick(tool(dialog, "perspectiveCreatePlaneTool"), Qt::LeftButton);
+        click_corners(view, document, {{{600.0, 120.0}, {760.0, 100.0}, {760.0, 300.0}, {600.0, 290.0}}});
+        CHECK(label_text(dialog, "perspectiveTargetLabel").contains(QStringLiteral("plane 2 of 2")));
+        CHECK(hint_text(dialog).contains(QStringLiteral("make it the target")));
+        QTest::mouseClick(&view, Qt::LeftButton, Qt::NoModifier, view_point(document, {300.0, 260.0}));
+        QApplication::processEvents();
+        CHECK(label_text(dialog, "perspectiveTargetLabel").contains(QStringLiteral("plane 1 of 2")));
+        send_mouse(view, QEvent::MouseMove, view_point(document, {700.0, 500.0}), Qt::NoButton, Qt::NoButton);
+        QApplication::processEvents();
+        save_widget_artifact("perspective-planes/after-target-plane", dialog);
+        dialog.reject();
+      },
+      error, ran);
+  require_action(window, "filterPerspectivePlanesAction")->trigger();
+  QApplication::processEvents();
+  if (error) {
+    std::rethrow_exception(error);
+  }
+  CHECK(ran);
+}
+
+// Clone's Sample choice: on an empty layer over the wall, All Layers clones the wall's
+// bricks onto the new layer, Current Layer clones nothing, and an image placed in the
+// session is cloned even with Current Layer.
+void ui_perspective_planes_clone_samples_the_layers_below() {
+  const auto run = [](int sample_index, bool place_poster, bool capture) {
+    patchy::ui::MainWindow window;
+    patchy::Document document(800, 600, patchy::PixelFormat::rgba8());
+    patchy::Layer wall(document.allocate_layer_id(), "Street", wall_scene());
+    wall.set_bounds(patchy::Rect{0, 0, 800, 600});
+    document.add_layer(std::move(wall));
+    patchy::PixelBuffer empty(800, 600, patchy::PixelFormat::rgba8());
+    empty.clear(0);
+    patchy::Layer target(document.allocate_layer_id(), "Patch", std::move(empty));
+    target.set_bounds(patchy::Rect{0, 0, 800, 600});
+    const auto target_id = target.id();
+    document.add_layer(std::move(target));
+    document.set_active_layer(target_id);
+    window.add_document_session(std::move(document), QStringLiteral("Perspective Clone Sample"));
+    show_window(window);
+    (void)require_canvas(window);
+    if (place_poster) {
+      const auto art = poster();
+      QImage image(art.width(), art.height(), QImage::Format_RGBA8888);
+      for (int row = 0; row < art.height(); ++row) {
+        std::copy_n(art.pixel(0, row), static_cast<std::size_t>(art.width()) * 4, image.scanLine(row));
+      }
+      QApplication::clipboard()->setImage(image);
+    }
+    const auto layers_before = layer_count(window);
+    std::exception_ptr error;
+    bool ran = false;
+    schedule_workspace_driver(
+        [&](QDialog& dialog, QWidget& view) {
+          const QSize document_size(800, 600);
+          click_corners(view, document_size, kWall);
+          if (place_poster) {
+            auto* paste = dialog.findChild<QToolButton*>(QStringLiteral("perspectivePasteButton"));
+            CHECK(paste != nullptr && paste->isEnabled());
+            auto* source = paste->menu()->findChild<QAction*>(QStringLiteral("perspectivePasteSource0"));
+            CHECK(source != nullptr);
+            source->trigger();
+            QTest::keyClick(&view, Qt::Key_Return);
+            QApplication::processEvents();
+          }
+          QTest::mouseClick(tool(dialog, "perspectiveCloneTool"), Qt::LeftButton);
+          auto* sample = dialog.findChild<QComboBox*>(QStringLiteral("perspectiveCloneSampleCombo"));
+          CHECK(sample != nullptr && sample->isVisible());
+          sample->setCurrentIndex(sample_index);
+          QApplication::processEvents();
+          // The poster sits at the wall's middle; the source is there, the copy goes near the wall's left end.
+          const auto camera = patchy::perspective_camera_for({{1, kWall, 0.0, std::nullopt}}, 800, 600);
+          const auto plane = patchy::plane_geometry(kWall, camera);
+          CHECK(plane.has_value());
+          const auto from = plane->to_image.map({plane->width * 0.5, plane->height * 0.5});
+          const auto to = plane->to_image.map({plane->width * 0.12, plane->height * 0.5});
+          CHECK(from.has_value() && to.has_value());
+          QTest::mouseClick(&view, Qt::LeftButton, Qt::AltModifier, view_point(document_size, *from));
+          drag(view, view_point(document_size, *to),
+               view_point(document_size, {to->x, to->y + 40.0}));
+          if (capture) {
+            // A wider patch for the picture, then the other layers hidden: the cloned bricks sit
+            // on the empty layer itself.
+            const auto across = plane->to_image.map({plane->width * 0.3, plane->height * 0.62});
+            CHECK(across.has_value());
+            drag(view, view_point(document_size, {to->x, to->y + 40.0}), view_point(document_size, *across));
+
+            auto* show_others = dialog.findChild<QCheckBox*>(QStringLiteral("perspectiveShowOtherLayersCheck"));
+            CHECK(show_others != nullptr);
+            show_others->setChecked(false);
+            send_mouse(view, QEvent::MouseMove, view_point(document_size, {to->x + 20.0, to->y + 60.0}), Qt::NoButton,
+                       Qt::NoButton);
+            QApplication::processEvents();
+            save_widget_artifact("perspective-planes/after-clone-sample", dialog);
+          }
+          dialog.accept();
+        },
+        error, ran);
+    require_action(window, "filterPerspectivePlanesAction")->trigger();
+    QApplication::processEvents();
+    if (error) {
+      std::rethrow_exception(error);
+    }
+    CHECK(ran);
+    // The stroke's pixel, on whichever layer the result went to (the new layer when there is one).
+    const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+    const auto camera = patchy::perspective_camera_for({{1, kWall, 0.0, std::nullopt}}, 800, 600);
+    const auto plane = patchy::plane_geometry(kWall, camera);
+    const auto to = plane->to_image.map({plane->width * 0.12, plane->height * 0.5});
+    const int x = static_cast<int>(to->x);
+    const int y = static_cast<int>(to->y) + 20;
+    std::array<int, 4> color{0, 0, 0, 0};
+    if (layer_count(window) > layers_before) {
+      const auto& top = doc.layers().back();
+      const auto bounds = top.bounds();
+      if (x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.width && y < bounds.y + bounds.height) {
+        const auto* p = std::as_const(top).pixels().pixel(x - bounds.x, y - bounds.y);
+        color = {p[0], p[1], p[2], p[3]};
+      }
+    }
+    return color;
+  };
+  const auto bricks = run(2, false, true);
+  CHECK(bricks[3] == 255 && bricks[0] > bricks[2]);
+  CHECK(run(0, false, false)[3] == 0);
+  const auto placed = run(0, true, false);
+  CHECK(placed[3] == 255);
 }
 
 void ui_perspective_planes_explains_impossible_corners() {
@@ -602,6 +769,19 @@ void ui_script_perspective_paste_paint_and_clone() {
       return sbytes[((y - sb.y) * sb.width + (x - sb.x)) * 4 + 3];
     };
     console.log("placeSame=" + (placed.id === sticker.id) + " filled=" + sat(120, 110) + " old=" + sat(10, 10));
+    var patch = doc.addLayer("Patch");
+    doc.activeLayer = patch;
+    var none = patchy.perspective.clone(patch, {plane: plane, from: [60, 170], points: [[150, 150]], size: 16});
+    var all = patchy.perspective.clone(patch, {plane: plane, from: [60, 170], points: [[150, 150]], size: 16,
+                                               sample: "all"});
+    var ab = all.getPixels();
+    var abytes = new Uint8Array(ab.data);
+    console.log("cloneCurrent=" + (none === null) + " cloneAll=" +
+                abytes[((150 - ab.y) * ab.width + (150 - ab.x)) * 4 + 3]);
+    var badSample = "none";
+    try { patchy.perspective.clone(patch, {plane: plane, from: [60, 170], points: [[150, 150]], sample: "below"}); }
+    catch (e) { badSample = "refused"; }
+    console.log("badSample=" + badSample);
     var thrown = "none";
     try { patchy.perspective.paint(base, {plane: [[0, 0], [1, 0], [1, 1], [0, 1]], points: [[0, 0]]}); }
     catch (e) { thrown = "refused"; }
@@ -616,6 +796,8 @@ void ui_script_perspective_paste_paint_and_clone() {
   CHECK(backlog_contains(window, QStringLiteral("clone=true")));
   CHECK(backlog_contains(window, QStringLiteral("tiny=refused")));
   CHECK(backlog_contains(window, QStringLiteral("placeSame=true filled=255 old=0")));
+  CHECK(backlog_contains(window, QStringLiteral("cloneCurrent=true cloneAll=255")));
+  CHECK(backlog_contains(window, QStringLiteral("badSample=refused")));
 }
 
 }  // namespace
@@ -627,6 +809,8 @@ std::vector<patchy::test::TestCase> perspective_planes_ui_tests() {
       {"ui_perspective_planes_ok_writes_one_undo_step", ui_perspective_planes_ok_writes_one_undo_step},
       {"ui_perspective_planes_shows_the_other_layers_behind", ui_perspective_planes_shows_the_other_layers_behind},
       {"ui_perspective_planes_place_layer_replaces_the_layer", ui_perspective_planes_place_layer_replaces_the_layer},
+      {"ui_perspective_planes_needs_a_target_plane_first", ui_perspective_planes_needs_a_target_plane_first},
+      {"ui_perspective_planes_clone_samples_the_layers_below", ui_perspective_planes_clone_samples_the_layers_below},
       {"ui_perspective_planes_explains_impossible_corners", ui_perspective_planes_explains_impossible_corners},
       {"ui_perspective_planes_workspace_captures", ui_perspective_planes_workspace_captures},
       {"ui_script_perspective_paste_paint_and_clone", ui_script_perspective_paste_paint_and_clone},

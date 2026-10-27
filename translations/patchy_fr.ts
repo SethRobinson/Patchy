@@ -13217,10 +13217,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Faites glisser l&apos;image sur un plan. Elle prend la perspective de ce plan.</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>Cliquez le premier coin d&apos;une surface plane : un mur, un sol ou le côté d&apos;une boîte.</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>Cliquez le coin suivant, dans l&apos;ordre autour de la surface. Retour arrière retire le dernier coin.</translation>
     </message>
@@ -13401,18 +13397,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Le calque remplit maintenant le plan. Faites-le glisser pour le déplacer, un coin pour le redimensionner ou la poignée ronde pour le faire pivoter. Entrée le place ; Échap le remet en place.</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>Cliquez les quatre coins de la surface où ce calque doit aller, puis appuyez sur Placer le calque.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>Le plan est un guide ; rien ne change tant que vous n&apos;y placez rien. Appuyez sur Placer le calque pour y mettre ce calque, ou sur Coller sur le plan, Cloner ou Peindre.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>Le plan est un guide ; rien ne change tant que vous n&apos;y placez rien. Appuyez sur Coller sur le plan, Cloner ou Peindre.</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>Ensuite :</translation>
     </message>
@@ -13477,6 +13461,70 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>Personnalisé</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>Étape 1 sur 2 : définissez le plan cible. Cliquez les quatre coins de la surface où ce calque doit aller.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Étape 1 sur 2 : définissez le plan cible. Cliquez les quatre coins d&apos;une surface plane : un mur, un sol ou le côté d&apos;une boîte.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>Étape 1 sur 2 : cliquez le coin suivant, dans l&apos;ordre autour de la surface. Retour arrière retire le dernier coin.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>Étape 1 sur 2 : cliquez le dernier coin pour terminer le plan cible.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Cliquez le premier coin d&apos;une autre surface plane : un mur, un sol ou le côté d&apos;une boîte.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Étape 2 sur 2 : placez quelque chose sur le plan cible. Appuyez sur Placer le calque pour y mettre ce calque, ou sur Coller sur le plan, Cloner ou Peindre.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Étape 2 sur 2 : placez quelque chose sur le plan cible. Appuyez sur Coller sur le plan, Cloner ou Peindre.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>Faites glisser un coin ou un bord pour l&apos;ajuster à la surface.</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>Cliquez dans un autre plan pour en faire la cible.</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>Échantillon :</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>Les calques que lit Cloner : ce calque, lui et ceux du dessous, ou tout ce que vous voyez. Une image collée est lue une fois placée. Partagé avec l&apos;outil Tampon de duplication.</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>ce calque</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>Dessinez d&apos;abord un plan : cliquez les quatre coins d&apos;une surface plane avec Créer un plan.</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>Modification : %1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>Cible : plan %1 sur %2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>Cible : pas encore de plan</translation>
     </message>
 </context>
 <context>
@@ -29775,6 +29823,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer : le calque est vide.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone : sample vaut &quot;current&quot;, &quot;currentAndBelow&quot; ou &quot;all&quot;.</translation>
     </message>
 </context>
 <context>

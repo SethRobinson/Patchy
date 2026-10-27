@@ -13217,10 +13217,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Ziehen Sie das Bild auf eine Ebene. Es übernimmt deren Perspektive.</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>Klicken Sie die erste Ecke einer flachen Fläche, etwa einer Wand, eines Bodens oder einer Kistenseite.</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>Klicken Sie die nächste Ecke, der Reihe nach um die Fläche herum. Rücktaste entfernt die letzte Ecke.</translation>
     </message>
@@ -13401,18 +13397,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Die Ebene füllt jetzt die Fläche. Ziehen Sie sie zum Verschieben, eine Ecke zum Skalieren oder den runden Griff zum Drehen. Eingabe platziert sie, Esc setzt sie zurück.</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>Klicken Sie die vier Ecken der Fläche, auf die diese Ebene soll, und dann auf „Ebene platzieren“.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>Die Ebene ist eine Hilfe; nichts ändert sich, bis Sie etwas darauf legen. Klicken Sie auf „Ebene platzieren“, um diese Ebene darauf zu legen, oder auf „Auf Ebene einfügen“, „Klonen“ oder „Malen“.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>Die Ebene ist eine Hilfe; nichts ändert sich, bis Sie etwas darauf legen. Klicken Sie auf „Auf Ebene einfügen“, „Klonen“ oder „Malen“.</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>Dann:</translation>
     </message>
@@ -13477,6 +13461,70 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>Benutzerdefiniert</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>Schritt 1 von 2: Zielebene festlegen. Klicken Sie die vier Ecken der Fläche, auf die diese Ebene soll.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Schritt 1 von 2: Zielebene festlegen. Klicken Sie die vier Ecken einer flachen Fläche, etwa einer Wand, eines Bodens oder einer Kistenseite.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>Schritt 1 von 2: Klicken Sie die nächste Ecke, der Reihe nach um die Fläche herum. Rücktaste entfernt die letzte Ecke.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>Schritt 1 von 2: Klicken Sie die letzte Ecke, um die Zielebene fertigzustellen.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Klicken Sie die erste Ecke einer weiteren flachen Fläche, etwa einer Wand, eines Bodens oder einer Kistenseite.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Schritt 2 von 2: Legen Sie etwas auf die Zielebene. Klicken Sie auf „Ebene platzieren“, um diese Ebene darauf zu legen, oder auf „Auf Ebene einfügen“, „Klonen“ oder „Malen“.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Schritt 2 von 2: Legen Sie etwas auf die Zielebene. Klicken Sie auf „Auf Ebene einfügen“, „Klonen“ oder „Malen“.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>Ziehen Sie eine Ecke oder Kante, um sie an die Fläche anzupassen.</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>Klicken Sie in eine andere Ebene, um sie zum Ziel zu machen.</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>Aufnehmen:</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>Welche Ebenen Klonen liest: diese Ebene, sie und die darunter, oder alles Sichtbare. Ein eingefügtes Bild wird gelesen, sobald es platziert ist. Gemeinsam mit dem Kopierstempel.</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>diese Ebene</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>Zeichnen Sie zuerst eine Ebene: Klicken Sie mit „Ebene erstellen“ die vier Ecken einer flachen Fläche.</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>Bearbeitet: %1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>Ziel: Ebene %1 von %2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>Ziel: noch keine Ebene</translation>
     </message>
 </context>
 <context>
@@ -29775,6 +29823,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer: Die Ebene ist leer.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone: sample ist &quot;current&quot;, &quot;currentAndBelow&quot; oder &quot;all&quot;.</translation>
     </message>
 </context>
 <context>

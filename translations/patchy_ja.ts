@@ -13180,10 +13180,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>画像を平面にドラッグします。その平面の遠近感に合わせて変形します。</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>壁、床、箱の側面など、平らな面の最初の角をクリックします。</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>面の周りを順に次の角をクリックします。Backspace で最後の角を取り消します。</translation>
     </message>
@@ -13364,18 +13360,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>レイヤーが平面いっぱいに配置されました。ドラッグで移動、角のドラッグで拡大縮小、丸いハンドルのドラッグで回転します。Enter で配置、Esc で元に戻します。</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>このレイヤーを置く面の 4 つの角をクリックして、「レイヤーを配置」を押します。</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>平面はガイドです。何かを置くまで何も変わりません。「レイヤーを配置」でこのレイヤーを置くか、「平面にペースト」「複製」「ペイント」を使います。</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>平面はガイドです。何かを置くまで何も変わりません。「平面にペースト」「複製」「ペイント」を使います。</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>次に:</translation>
     </message>
@@ -13440,6 +13424,70 @@ Each item&apos;s own View setting still applies.</source>
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>カスタム</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>ステップ 1/2: 対象の平面を決めます。このレイヤーを置く面の 4 つの角をクリックします。</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>ステップ 1/2: 対象の平面を決めます。壁、床、箱の側面など、平らな面の 4 つの角をクリックします。</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>ステップ 1/2: 面の周りを順に次の角をクリックします。Backspace で最後の角を取り消します。</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>ステップ 1/2: 最後の角をクリックして対象の平面を完成させます。</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>壁、床、箱の側面など、別の平らな面の最初の角をクリックします。</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>ステップ 2/2: 対象の平面に何かを置きます。「レイヤーを配置」でこのレイヤーを置くか、「平面にペースト」「複製」「ペイント」を使います。</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>ステップ 2/2: 対象の平面に何かを置きます。「平面にペースト」「複製」「ペイント」を使います。</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>角や辺をドラッグして面に合わせます。</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>別の平面の内側をクリックすると、それが対象になります。</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>サンプル:</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>複製が読み取るレイヤー: このレイヤー、このレイヤーと下のレイヤー、または見えているすべて。ペーストした画像は配置した後に読み取られます。コピースタンプツールと共通です。</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>このレイヤー</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>先に平面を描いてください: 「平面を作成」で平らな面の 4 つの角をクリックします。</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>編集中: %1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>対象: 平面 %1/%2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>対象: まだ平面がありません</translation>
     </message>
 </context>
 <context>
@@ -29698,6 +29746,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer: レイヤーが空です。</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone: sample は &quot;current&quot;、&quot;currentAndBelow&quot;、&quot;all&quot; のいずれかです。</translation>
     </message>
 </context>
 <context>

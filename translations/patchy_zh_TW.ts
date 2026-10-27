@@ -13180,10 +13180,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>將影像拖曳到平面上。它會採用該平面的透視。</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>按一下平面的第一個角，例如牆面、地面或盒子的側面。</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>沿表面依序按一下下一個角。按 Backspace 刪除最後一個角。</translation>
     </message>
@@ -13364,18 +13360,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>圖層現已填滿平面。拖曳可移動，拖曳角可縮放，拖曳圓形控點可旋轉。按 Enter 放置，按 Esc 放回原處。</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>按一下要放置此圖層的表面的四個角，然後按「放置圖層」。</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>平面只是參考，在放上內容之前不會有任何變化。按「放置圖層」把此圖層放上去，或使用「貼上到平面」、「仿製」或「繪畫」。</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>平面只是參考，在放上內容之前不會有任何變化。請使用「貼上到平面」、「仿製」或「繪畫」。</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>然後:</translation>
     </message>
@@ -13440,6 +13424,70 @@ Each item&apos;s own View setting still applies.</source>
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>自訂</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>第 1 步（共 2 步）：設定目標平面。按一下要放置此圖層的表面的四個角。</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>第 1 步（共 2 步）：設定目標平面。按一下平面的四個角，例如牆面、地面或盒子的側面。</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>第 1 步（共 2 步）：沿表面依序按一下下一個角。按 Backspace 刪除最後一個角。</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>第 1 步（共 2 步）：按一下最後一個角以完成目標平面。</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>按一下另一個平面的第一個角，例如牆面、地面或盒子的側面。</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>第 2 步（共 2 步）：在目標平面上放置內容。按「放置圖層」把此圖層放上去，或使用「貼上到平面」、「仿製」或「繪畫」。</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>第 2 步（共 2 步）：在目標平面上放置內容。請使用「貼上到平面」、「仿製」或「繪畫」。</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>拖曳角或邊以貼合表面。</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>按一下另一個平面內部可將其設為目標。</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>樣本:</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>仿製讀取哪些圖層：此圖層、此圖層及其下方圖層，或所見的全部。貼上的影像在放置後才會被讀取。與仿製印章工具共用。</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>此圖層</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>請先繪製平面：用「建立平面」按一下平面的四個角。</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>正在編輯：%1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>目標：平面 %1/%2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>目標：尚無平面</translation>
     </message>
 </context>
 <context>
@@ -29698,6 +29746,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer: 圖層為空。</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone: sample 為 &quot;current&quot;、&quot;currentAndBelow&quot; 或 &quot;all&quot;。</translation>
     </message>
 </context>
 <context>

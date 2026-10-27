@@ -13254,10 +13254,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Перетащите изображение на плоскость. Оно примет её перспективу.</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>Щёлкните первый угол плоской поверхности: стены, пола или стороны коробки.</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>Щёлкните следующий угол, по порядку вокруг поверхности. Backspace удаляет последний угол.</translation>
     </message>
@@ -13438,18 +13434,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Слой теперь заполняет плоскость. Перетащите его, чтобы сдвинуть, угол, чтобы изменить размер, или круглый маркер, чтобы повернуть. Enter размещает, Esc возвращает.</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>Щёлкните четыре угла поверхности, куда должен лечь этот слой, затем нажмите «Разместить слой».</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>Плоскость — это направляющая; ничего не изменится, пока вы что-нибудь на неё не положите. Нажмите «Разместить слой», чтобы положить на неё этот слой, или «Вставить на плоскость», «Клонировать» или «Рисовать».</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>Плоскость — это направляющая; ничего не изменится, пока вы что-нибудь на неё не положите. Нажмите «Вставить на плоскость», «Клонировать» или «Рисовать».</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>Далее:</translation>
     </message>
@@ -13514,6 +13498,70 @@ Each item&apos;s own View setting still applies.</source>
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>Свой</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>Шаг 1 из 2: задайте целевую плоскость. Щёлкните четыре угла поверхности, куда должен лечь этот слой.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Шаг 1 из 2: задайте целевую плоскость. Щёлкните четыре угла плоской поверхности: стены, пола или стороны коробки.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>Шаг 1 из 2: щёлкните следующий угол, по порядку вокруг поверхности. Backspace удаляет последний угол.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>Шаг 1 из 2: щёлкните последний угол, чтобы завершить целевую плоскость.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Щёлкните первый угол другой плоской поверхности: стены, пола или стороны коробки.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Шаг 2 из 2: положите что-нибудь на целевую плоскость. Нажмите «Разместить слой», чтобы положить на неё этот слой, или «Вставить на плоскость», «Клонировать» или «Рисовать».</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Шаг 2 из 2: положите что-нибудь на целевую плоскость. Нажмите «Вставить на плоскость», «Клонировать» или «Рисовать».</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>Перетащите угол или край, чтобы подогнать к поверхности.</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>Щёлкните внутри другой плоскости, чтобы сделать её целевой.</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>Образец:</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>Какие слои читает клонирование: этот слой, его и слои ниже или всё видимое. Вставленное изображение читается после размещения. Общая настройка со Штампом.</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>этот слой</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>Сначала нарисуйте плоскость: щёлкните четыре угла плоской поверхности инструментом «Создать плоскость».</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>Редактируется: %1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>Цель: плоскость %1 из %2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>Цель: плоскости пока нет</translation>
     </message>
 </context>
 <context>
@@ -29852,6 +29900,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer: слой пуст.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone: sample — это &quot;current&quot;, &quot;currentAndBelow&quot; или &quot;all&quot;.</translation>
     </message>
 </context>
 <context>

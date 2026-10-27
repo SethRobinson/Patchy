@@ -13217,10 +13217,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Trascina l&apos;immagine su un piano. Ne assume la prospettiva.</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>Fai clic sul primo angolo di una superficie piana, come un muro, un pavimento o il lato di una scatola.</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>Fai clic sull&apos;angolo successivo, in ordine attorno alla superficie. Backspace rimuove l&apos;ultimo angolo.</translation>
     </message>
@@ -13401,18 +13397,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Il livello ora riempie il piano. Trascinalo per spostarlo, trascina un angolo per ridimensionarlo o la maniglia rotonda per ruotarlo. Invio lo posiziona; Esc lo rimette com&apos;era.</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>Fai clic sui quattro angoli della superficie dove deve andare questo livello, poi premi Posiziona livello.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>Il piano è una guida; nulla cambia finché non ci metti qualcosa. Premi Posiziona livello per metterci questo livello, oppure Incolla sul piano, Clona o Dipingi.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>Il piano è una guida; nulla cambia finché non ci metti qualcosa. Premi Incolla sul piano, Clona o Dipingi.</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>Poi:</translation>
     </message>
@@ -13477,6 +13461,70 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>Personalizzato</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>Passo 1 di 2: imposta il piano di destinazione. Fai clic sui quattro angoli della superficie dove deve andare questo livello.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Passo 1 di 2: imposta il piano di destinazione. Fai clic sui quattro angoli di una superficie piana, come un muro, un pavimento o il lato di una scatola.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>Passo 1 di 2: fai clic sull&apos;angolo successivo, in ordine attorno alla superficie. Backspace rimuove l&apos;ultimo angolo.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>Passo 1 di 2: fai clic sull&apos;ultimo angolo per completare il piano di destinazione.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Fai clic sul primo angolo di un&apos;altra superficie piana, come un muro, un pavimento o il lato di una scatola.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Passo 2 di 2: metti qualcosa sul piano di destinazione. Premi Posiziona livello per metterci questo livello, oppure Incolla sul piano, Clona o Dipingi.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Passo 2 di 2: metti qualcosa sul piano di destinazione. Premi Incolla sul piano, Clona o Dipingi.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>Trascina un angolo o un bordo per adattarlo alla superficie.</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>Fai clic dentro un altro piano per renderlo la destinazione.</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>Campiona:</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>Quali livelli legge Clona: questo livello, questo e quelli sotto, o tutto ciò che vedi. Un&apos;immagine incollata viene letta una volta posizionata. Condiviso con lo strumento Timbro clone.</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>questo livello</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>Disegna prima un piano: fai clic sui quattro angoli di una superficie piana con Crea piano.</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>In modifica: %1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>Destinazione: piano %1 di %2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>Destinazione: ancora nessun piano</translation>
     </message>
 </context>
 <context>
@@ -29775,6 +29823,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer: il livello è vuoto.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone: sample è &quot;current&quot;, &quot;currentAndBelow&quot; o &quot;all&quot;.</translation>
     </message>
 </context>
 <context>

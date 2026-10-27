@@ -13217,10 +13217,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Arraste a imagem para um plano. Ela assume a perspectiva desse plano.</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>Clique no primeiro canto de uma superfície plana, como uma parede, um piso ou o lado de uma caixa.</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>Clique no próximo canto, em ordem ao redor da superfície. Backspace remove o último canto.</translation>
     </message>
@@ -13401,18 +13397,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>A camada agora preenche o plano. Arraste-a para movê-la, um canto para redimensioná-la ou a alça redonda para girá-la. Enter a posiciona; Esc a devolve.</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>Clique nos quatro cantos da superfície onde esta camada deve ficar e pressione Posicionar camada.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>O plano é uma guia; nada muda até você colocar algo nele. Pressione Posicionar camada para colocar esta camada nele, ou Colar no plano, Clonar ou Pintar.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>O plano é uma guia; nada muda até você colocar algo nele. Pressione Colar no plano, Clonar ou Pintar.</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>Depois:</translation>
     </message>
@@ -13477,6 +13461,70 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>Personalizado</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>Passo 1 de 2: defina o plano de destino. Clique nos quatro cantos da superfície onde esta camada deve ficar.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Passo 1 de 2: defina o plano de destino. Clique nos quatro cantos de uma superfície plana, como uma parede, um piso ou o lado de uma caixa.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>Passo 1 de 2: clique no próximo canto, em ordem ao redor da superfície. Backspace remove o último canto.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>Passo 1 de 2: clique no último canto para concluir o plano de destino.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Clique no primeiro canto de outra superfície plana, como uma parede, um piso ou o lado de uma caixa.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Passo 2 de 2: coloque algo no plano de destino. Pressione Posicionar camada para colocar esta camada nele, ou Colar no plano, Clonar ou Pintar.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Passo 2 de 2: coloque algo no plano de destino. Pressione Colar no plano, Clonar ou Pintar.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>Arraste um canto ou uma borda para ajustar à superfície.</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>Clique dentro de outro plano para torná-lo o destino.</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>Amostra:</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>Quais camadas Clonar lê: esta camada, ela e as de baixo, ou tudo o que você vê. Uma imagem colada é lida depois de posicionada. Compartilhado com a ferramenta Carimbo.</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>esta camada</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>Primeiro desenhe um plano: clique nos quatro cantos de uma superfície plana com Criar plano.</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>Editando: %1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>Destino: plano %1 de %2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>Destino: ainda não há plano</translation>
     </message>
 </context>
 <context>
@@ -29775,6 +29823,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer: a camada está vazia.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone: sample é &quot;current&quot;, &quot;currentAndBelow&quot; ou &quot;all&quot;.</translation>
     </message>
 </context>
 <context>

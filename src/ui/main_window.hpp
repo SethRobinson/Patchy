@@ -1400,6 +1400,14 @@ private:
     bool can_write_onto_layer{false};
   };
   [[nodiscard]] std::optional<PerspectiveLayerInput> perspective_layer_input(LayerId layer_id) const;
+  // The visible layers under and over `layer_id`, each composited to straight RGBA8
+  // (document-sized; empty for none): what Perspective Planes draws behind the layer and
+  // what its Clone Sample choice reads.
+  struct PerspectiveSampleContext {
+    PixelBuffer below;
+    PixelBuffer above;
+  };
+  [[nodiscard]] PerspectiveSampleContext perspective_sample_context(LayerId layer_id) const;
   // Writes perspective edits (straight RGBA8 at document `edits.second`) as one undo step: onto
   // the layer when asked and possible, else onto a new layer above it. `lifted_layer` (Place
   // Layer; document-sized RGBA8) replaces the layer's own canvas pixels first. Returns the

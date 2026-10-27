@@ -4,6 +4,7 @@
 
 #include "core/perspective_planes.hpp"
 #include "render/compositor.hpp"
+#include "core/layer_tree.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/smart_object.hpp"
 #include "ui/canvas_widget.hpp"
@@ -16,12 +17,14 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QImage>
 #include <QStatusBar>
 
 #include <algorithm>
 #include <cstring>
 #include <functional>
+#include <set>
 #include <utility>
 
 namespace patchy::ui {
@@ -53,7 +56,86 @@ PixelBuffer rgba8_from(const PixelBuffer& pixels) {
   return result;
 }
 
+// A document composited to straight RGBA8; empty when nothing in it is visible.
+PixelBuffer flatten_rgba8(const Document& document) {
+  PixelBuffer result;
+  if (document.format().bit_depth == BitDepth::UInt8) {
+    std::vector<std::uint8_t> coverage;
+    const auto rgb = Compositor().flatten_rgb8(document, &coverage);
+    if (rgb.width() != document.width() || rgb.height() != document.height() ||
+        coverage.size() != static_cast<std::size_t>(rgb.width()) * static_cast<std::size_t>(rgb.height())) {
+      return {};
+    }
+    result = PixelBuffer(rgb.width(), rgb.height(), PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < rgb.height(); ++y) {
+      for (std::int32_t x = 0; x < rgb.width(); ++x) {
+        const auto* source = rgb.pixel(x, y);
+        auto* out = result.pixel(x, y);
+        out[0] = source[0];
+        out[1] = source[1];
+        out[2] = source[2];
+        out[3] = coverage[static_cast<std::size_t>(y) * static_cast<std::size_t>(rgb.width()) + x];
+      }
+    }
+  } else {
+    result = rgba8_from(convert_pixel_buffer_depth(Compositor().flatten_rgba_deep(document), BitDepth::UInt8,
+                                                   SampleKind::Color));
+  }
+  const auto bytes = std::as_const(result).data();
+  for (std::size_t i = 3; i < bytes.size(); i += 4) {
+    if (bytes[i] != 0) {
+      return result;
+    }
+  }
+  return {};
+}
+
+// Hides every layer except the `keep` ones (and the folders holding them). True when one stays.
+bool hide_all_but(std::vector<Layer>& layers, const std::set<LayerId>& keep) {
+  bool kept = false;
+  for (auto& layer : layers) {
+    if (keep.count(layer.id()) != 0) {
+      kept = true;
+      continue;
+    }
+    if (layer.kind() == LayerKind::Group && hide_all_but(layer.children(), keep)) {
+      kept = true;
+      continue;
+    }
+    layer.set_visible(false);
+  }
+  return kept;
+}
+
 }  // namespace
+
+MainWindow::PerspectiveSampleContext MainWindow::perspective_sample_context(LayerId layer_id) const {
+  PerspectiveSampleContext context;
+  const auto& doc = std::as_const(document());
+  // The layers above in compositing order: Current & Below's walk (docs/healing.md, "Sample").
+  const auto above_ids = sample_layers_excluded_ids(doc.layers(), layer_id, SampleLayers::CurrentAndBelow)
+                             .value_or(std::vector<LayerId>{});
+  {
+    Document below = doc;
+    for (const auto id : above_ids) {
+      if (auto* layer = below.find_layer(id); layer != nullptr) {
+        layer->set_visible(false);
+      }
+    }
+    if (auto* layer = below.find_layer(layer_id); layer != nullptr) {
+      layer->set_visible(false);
+    }
+    context.below = flatten_rgba8(below);
+  }
+  if (!above_ids.empty()) {
+    Document above = doc;
+    const std::set<LayerId> keep(above_ids.begin(), above_ids.end());
+    if (hide_all_but(above.layers(), keep)) {
+      context.above = flatten_rgba8(above);
+    }
+  }
+  return context;
+}
 
 std::optional<MainWindow::PerspectiveLayerInput> MainWindow::perspective_layer_input(LayerId layer_id) const {
   const auto& doc = std::as_const(document());
@@ -250,41 +332,15 @@ void MainWindow::perspective_planes_dialog() {
   workspace.write_onto_layer = perspective_write_onto_layer_ && input->can_write_onto_layer;
   workspace.foreground = canvas_ != nullptr ? canvas_->primary_color() : QColor(Qt::black);
   {
-    // Every other visible layer, composited once, drawn behind the layer being edited.
-    Document others = std::as_const(doc);
-    if (auto* hidden = others.find_layer(*active); hidden != nullptr) {
-      hidden->set_visible(false);
-    }
-    std::vector<std::uint8_t> coverage;
-    PixelBuffer backdrop;
-    if (std::as_const(doc).format().bit_depth == BitDepth::UInt8) {
-      const auto rgb = Compositor().flatten_rgb8(others, &coverage);
-      if (rgb.width() == doc.width() && rgb.height() == doc.height() &&
-          coverage.size() == static_cast<std::size_t>(doc.width()) * static_cast<std::size_t>(doc.height())) {
-        backdrop = PixelBuffer(rgb.width(), rgb.height(), PixelFormat::rgba8());
-        for (std::int32_t y = 0; y < rgb.height(); ++y) {
-          for (std::int32_t x = 0; x < rgb.width(); ++x) {
-            const auto* source = rgb.pixel(x, y);
-            auto* out = backdrop.pixel(x, y);
-            out[0] = source[0];
-            out[1] = source[1];
-            out[2] = source[2];
-            out[3] = coverage[static_cast<std::size_t>(y) * static_cast<std::size_t>(rgb.width()) + x];
-          }
-        }
-      }
-    } else {
-      backdrop = rgba8_from(convert_pixel_buffer_depth(Compositor().flatten_rgba_deep(others), BitDepth::UInt8,
-                                                       SampleKind::Color));
-    }
-    const auto backdrop_bytes = std::as_const(backdrop).data();
-    bool visible = false;
-    for (std::size_t i = 3; i < backdrop_bytes.size() && !visible; i += 4) {
-      visible = backdrop_bytes[i] != 0;
-    }
-    if (visible) {
-      workspace.backdrop = std::move(backdrop);
-    }
+    // The layers under and over this one, composited once: the view draws the ones under it,
+    // and Clone's Sample choice reads them.
+    auto context = perspective_sample_context(*active);
+    workspace.backdrop = std::move(context.below);
+    workspace.above = std::move(context.above);
+  }
+  workspace.sample_layers = canvas_ != nullptr ? canvas_->retouch_sample_layers() : SampleLayers::AllLayers;
+  if (const auto* named = std::as_const(doc).find_layer(*active); named != nullptr) {
+    workspace.layer_name = QString::fromStdString(named->name());
   }
   if (canvas_ != nullptr && !canvas_->selected_document_region().isEmpty()) {
     workspace.selection = selection_mask_pixels(*canvas_, QRect(0, 0, doc.width(), doc.height()));
@@ -356,6 +412,16 @@ void MainWindow::perspective_planes_dialog() {
     return;
   }
   perspective_write_onto_layer_ = result.write_onto_layer;
+  // Clone's Sample is the retouch tools' shared choice: keep what was picked here.
+  if (canvas_ != nullptr && retouch_sample_layers_combo_ != nullptr && result.sample_layers != SampleLayers::AllLayersNoAdjustments &&
+      result.sample_layers != SampleLayers::CurrentAndBelowNoAdjustments &&
+      result.sample_layers != canvas_->retouch_sample_layers()) {
+    const auto index = retouch_sample_layers_combo_->findData(QString::fromLatin1(sample_layers_token(result.sample_layers)));
+    if (index >= 0) {
+      retouch_sample_layers_combo_->setCurrentIndex(index);
+    }
+    canvas_->set_retouch_sample_layers(result.sample_layers);
+  }
   if ((!result.edits.has_value() && !result.lifted_layer.has_value()) || active_session() == nullptr ||
       active_session()->session_id != session_id) {
     statusBar()->showMessage(tr("Perspective Planes made no changes"));
