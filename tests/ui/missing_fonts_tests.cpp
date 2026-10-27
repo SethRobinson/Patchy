@@ -503,9 +503,9 @@ void ui_resolve_missing_fonts_replaces_the_font_in_every_layer() {
         CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingFontName2")) == nullptr);
         auto* resolve = dialog.findChild<QPushButton*>(QStringLiteral("missingFontsResolveButton"));
         CHECK(resolve != nullptr);
-        // Nothing is replaced until a row is ticked: the button is always enabled and reads
-        // "Don't Resolve" until then (issue 169 follow-up).
-        CHECK(resolve != nullptr && resolve->isEnabled() && resolve->text() == QStringLiteral("Don't Resolve"));
+        // Every row starts ticked with its picker enabled, and the button reads "Resolve Fonts"
+        // (issue 463 follow-up).
+        CHECK(resolve != nullptr && resolve->isEnabled() && resolve->text() == QStringLiteral("Resolve Fonts"));
         // One divider line between the two rows, no "Not installed." prefix on the details, and
         // the "Don't show" label names the way back.
         CHECK(dialog.findChildren<QFrame*>(QStringLiteral("missingFontsRowDivider")).size() == 1);
@@ -526,10 +526,23 @@ void ui_resolve_missing_fonts_replaces_the_font_in_every_layer() {
           dialog.reject();
           return;
         }
-        CHECK(!picker->isEnabled());
+        auto* other_check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck%1").arg(other_row));
+        CHECK(other_check != nullptr);
+        if (other_check == nullptr) {
+          dialog.reject();
+          return;
+        }
+        CHECK(check->isChecked() && other_check->isChecked() && picker->isEnabled());
+        save_widget_artifact("ui_resolve_missing_fonts_dialog_default", dialog);
+        // With no row ticked there is nothing to resolve: the button is disabled (Cancel keeps
+        // every font) and the pickers go gray.
+        check->setChecked(false);
+        other_check->setChecked(false);
+        CHECK(!picker->isEnabled() && !resolve->isEnabled() && resolve->text() == QStringLiteral("Resolve Fonts"));
         save_widget_artifact("ui_resolve_missing_fonts_dialog_none_ticked", dialog);
+        // One ticked row enables it again; the unticked family keeps its name.
         check->setChecked(true);
-        CHECK(picker->isEnabled() && resolve->isEnabled() && resolve->text() == QStringLiteral("Resolve Fonts"));
+        CHECK(picker->isEnabled() && resolve->isEnabled());
         picker->setCurrentFont(QFont(replacement));
         save_widget_artifact("ui_resolve_missing_fonts_dialog", dialog);
         resolve->click();
@@ -623,6 +636,8 @@ void ui_missing_fonts_dialog_shows_on_open_until_turned_off() {
   handle_missing_fonts_dialog(
       [](QDialog& dialog) {
         CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingFontName0")) != nullptr);
+        auto* row = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck0"));
+        CHECK(row != nullptr && row->isChecked());
         auto* dont_show = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontsDontShowCheck"));
         CHECK(dont_show != nullptr && !dont_show->isChecked());
         if (dont_show != nullptr) {
@@ -631,10 +646,16 @@ void ui_missing_fonts_dialog_shows_on_open_until_turned_off() {
         dialog.reject();
       },
       seen);
+  const auto tabs_before = MainWindowTestAccess::document_tab_count(window);
   MainWindowTestAccess::open_document_path(window, path);
   process_events_for(100);
   CHECK(*seen == 1);
   CHECK(!patchy::ui::app_settings().value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
+  // Cancel keeps the document open with its fonts as they were (issue 463 follow-up).
+  CHECK(MainWindowTestAccess::document_tab_count(window) == tabs_before + 1);
+  const auto opened = first_text_layer_id(std::as_const(MainWindowTestAccess::document(window)).layers());
+  CHECK(opened.has_value() && patchy::ui::text_font_replacement_key(layer_font(window, *opened))
+                                  .startsWith(QStringLiteral("qzxqz")));
 
   // Off: a second open stays quiet (the poller would count a dialog and close it).
   handle_missing_fonts_dialog([](QDialog& dialog) { dialog.reject(); }, seen, 10);
@@ -649,9 +670,10 @@ void ui_missing_fonts_dialog_shows_on_open_until_turned_off() {
   CHECK(*seen == 2);
 }
 
-// Issue 169 follow-up: with no row ticked the button reads "Don't Resolve"; pressing it closes the
-// dialog, changes no layer, adds no undo step, and still saves the "Don't show" box.
-void ui_missing_fonts_dont_resolve_keeps_fonts_and_saves_dont_show() {
+// Cancel is the way to keep every font (issue 463 follow-up; the "Don't Resolve" button is gone):
+// with every row ticked by default, Cancel (and Escape) closes the dialog, changes no layer, adds no
+// undo step, and still saves the "Don't show" box (issue 169 follow-up).
+void ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
   patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
@@ -673,11 +695,19 @@ void ui_missing_fonts_dont_resolve_keeps_fonts_and_saves_dont_show() {
           dialog.reject();
           return;
         }
-        // A single row: no divider.
+        // A single row: no divider. It starts ticked, so Resolve Fonts is enabled.
         CHECK(dialog.findChildren<QFrame*>(QStringLiteral("missingFontsRowDivider")).isEmpty());
-        CHECK(resolve->isEnabled() && resolve->text() == QStringLiteral("Don't Resolve"));
+        auto* row = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck0"));
+        CHECK(row != nullptr && row->isChecked());
+        CHECK(resolve->isEnabled() && resolve->text() == QStringLiteral("Resolve Fonts"));
+        auto* cancel = dialog.findChild<QPushButton*>(QStringLiteral("missingFontsCancelButton"));
+        CHECK(cancel != nullptr);
         dont_show->setChecked(true);
-        resolve->click();
+        if (cancel == nullptr) {
+          dialog.reject();
+          return;
+        }
+        cancel->click();
       },
       seen);
   const auto depth_before = MainWindowTestAccess::active_session_undo_depth(window);
@@ -689,6 +719,24 @@ void ui_missing_fonts_dont_resolve_keeps_fonts_and_saves_dont_show() {
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before);
   CHECK(layer_font(window, layer_id) == kMissing);
   CHECK(!patchy::ui::app_settings().value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
+
+  // Escape is Cancel too, and the box saves the other way as well.
+  handle_missing_fonts_dialog(
+      [](QDialog& dialog) {
+        auto* dont_show = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontsDontShowCheck"));
+        CHECK(dont_show != nullptr && dont_show->isChecked());
+        if (dont_show != nullptr) {
+          dont_show->setChecked(false);
+        }
+        send_key(dialog, Qt::Key_Escape);
+      },
+      seen);
+  window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"))->trigger();
+  process_events_for(200);
+  CHECK(*seen == 2);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before);
+  CHECK(layer_font(window, layer_id) == kMissing);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showMissingFontsDialog"), false).toBool());
 }
 
 // GitHub issue 185: Free Transform on imported type whose font is missing gave no warning.
@@ -909,7 +957,7 @@ patchy::ui::TextFontSubstitute helvetica_substitute_or_skip() {
 }
 
 // GitHub issue 463: Resolve Missing Fonts starts a listed font's picker on the installed
-// substitute and says how close it is; the row stays unticked, and a font the table does not list
+// substitute and says how close it is; the row starts ticked, and a font the table does not list
 // keeps today's fallback with no suggestion line.
 void ui_missing_fonts_dialog_offers_the_installed_substitute_first() {
   const auto substitute = helvetica_substitute_or_skip();
@@ -937,7 +985,7 @@ void ui_missing_fonts_dialog_offers_the_installed_substitute_first() {
         auto* picker =
             dialog.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("missingFontReplacementCombo%1").arg(row));
         auto* suggestion = dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(row));
-        CHECK(check != nullptr && !check->isChecked());
+        CHECK(check != nullptr && check->isChecked());
         CHECK(picker != nullptr && picker->currentFont().family() == substitute.family);
         CHECK(suggestion != nullptr &&
               suggestion->text() == QStringLiteral("Suggested: %1 (same character widths)").arg(substitute.family));
@@ -1074,7 +1122,7 @@ void ui_missing_font_psd_keeps_its_font_name_until_resolved() {
         auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck0"));
         suggestion_text = suggestion == nullptr ? QString() : suggestion->text();
         picker_family = picker == nullptr ? QString() : picker->currentFont().family();
-        CHECK(check != nullptr && !check->isChecked());
+        CHECK(check != nullptr && check->isChecked());
         save_widget_artifact("ui_missing_fonts_dialog_times_suggestion", dialog);
         dialog.reject();
       },
@@ -1169,7 +1217,7 @@ void accept_missing_font_prompt_keeping_text(std::shared_ptr<QString> informativ
 
 // GitHub issue 463: a missing font the table does not list gets an installed font of the same type
 // (serif, sans-serif, monospaced) in Resolve Missing Fonts, with a line saying so; rows stay
-// unticked, and a font whose type nothing states keeps Qt's fallback with no line.
+// ticked, and a font whose type nothing states keeps Qt's fallback with no line.
 void ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts() {
   register_same_type_test_fonts();
   const auto serif = same_type_substitute_or_skip(kMissingSerif, patchy::FontClass::serif);
@@ -1203,7 +1251,7 @@ void ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts() {
           auto* picker = dialog.findChild<patchy::ui::FontPickerCombo*>(
               QStringLiteral("missingFontReplacementCombo%1").arg(row));
           auto* line = dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(row));
-          CHECK(check != nullptr && !check->isChecked());
+          CHECK(check != nullptr && check->isChecked());
           CHECK(picker != nullptr && picker->currentFont().family() == expected_family);
           CHECK(line != nullptr && line->text() == expected_line);
         };
@@ -1372,8 +1420,7 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_resolve_missing_fonts_replaces_the_font_in_every_layer",
        ui_resolve_missing_fonts_replaces_the_font_in_every_layer},
       {"ui_missing_fonts_dialog_shows_on_open_until_turned_off", ui_missing_fonts_dialog_shows_on_open_until_turned_off},
-      {"ui_missing_fonts_dont_resolve_keeps_fonts_and_saves_dont_show",
-       ui_missing_fonts_dont_resolve_keeps_fonts_and_saves_dont_show},
+      {"ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show", ui_missing_fonts_cancel_keeps_fonts_and_saves_dont_show},
       {"ui_unattended_open_skips_the_missing_fonts_dialog", ui_unattended_open_skips_the_missing_fonts_dialog},
       {"ui_transforming_missing_font_text_warns_and_keeps_its_pixels",
        ui_transforming_missing_font_text_warns_and_keeps_its_pixels},

@@ -45,15 +45,12 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     FontPickerCombo* picker;
   };
   std::vector<Row> rows;
-  // Always enabled (issue 169 follow-up): with no row ticked it reads "Don't Resolve" and closes
-  // keeping every font, so the "Don't show" box is plainly saved either way.
-  const auto resolve_text = QObject::tr("Resolve Fonts");
-  const auto dont_resolve_text = QObject::tr("Don't Resolve");
-  auto* resolve_button = new QPushButton(resolve_text, &dialog);
+  // Enabled while at least one row is ticked (issue 463 follow-up). Cancel is the way to keep
+  // every font; it still saves the "Don't show" box (issue 169 follow-up).
+  auto* resolve_button = new QPushButton(QObject::tr("Resolve Fonts"), &dialog);
   resolve_button->setObjectName(QStringLiteral("missingFontsResolveButton"));
-  const auto sync_resolve_button = [&rows, resolve_button, resolve_text, dont_resolve_text] {
-    const bool any = std::ranges::any_of(rows, [](const Row& row) { return row.replace->isChecked(); });
-    resolve_button->setText(any ? resolve_text : dont_resolve_text);
+  const auto sync_resolve_button = [&rows, resolve_button] {
+    resolve_button->setEnabled(std::ranges::any_of(rows, [](const Row& row) { return row.replace->isChecked(); }));
   };
   for (const auto& entry : fonts) {
     const auto index = static_cast<int>(rows.size());
@@ -82,7 +79,7 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     name_column->addWidget(name);
     name_column->addWidget(detail);
     // A substitute from the built-in table or a same-type default (issue 463) says how close it
-    // is; the row stays unticked, so the file keeps the original name until the user picks.
+    // is; the picker starts on it.
     QString suggestion_text;
     switch (entry.suggestion) {
       case MissingFontSuggestion::metric:
@@ -112,10 +109,12 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     }
     grid->addLayout(name_column, grid_row, 0);
 
-    // Unchecked is Photoshop's "Don't Resolve": the file keeps naming the font, so a colleague
-    // who has it still sees the original. The picker starts on the face drawing the text now.
+    // Ticked by default (issue 463 follow-up, Seth): Resolve Fonts replaces every listed font with
+    // the picker's choice (the suggested stand-in, else the face drawing the text now). Unticking
+    // a row, or Cancel, keeps the file naming the font, so a machine that has it shows the original.
     auto* replace = new QCheckBox(QObject::tr("Replace with:"), rows_widget);
     replace->setObjectName(QStringLiteral("missingFontReplaceCheck%1").arg(index));
+    replace->setChecked(true);
     grid->addWidget(replace, grid_row, 1, Qt::AlignVCenter);
     auto* picker = new FontPickerCombo(rows_widget);
     picker->setObjectName(QStringLiteral("missingFontReplacementCombo%1").arg(index));
@@ -123,7 +122,6 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     if (!entry.suggested.isEmpty()) {
       picker->setCurrentFont(QFont(entry.suggested));
     }
-    picker->setEnabled(false);
     grid->addWidget(picker, grid_row, 2, Qt::AlignVCenter);
     QObject::connect(replace, &QCheckBox::toggled, picker, &QWidget::setEnabled);
     QObject::connect(replace, &QCheckBox::toggled, &dialog, [&sync_resolve_button](bool) { sync_resolve_button(); });
@@ -164,13 +162,6 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
                                              "color: @text_secondary; }"
                                              "QFrame#missingFontsRowDivider { background: @dlg_divider; color: "
                                              "@dlg_divider; min-height: 1px; max-height: 1px; border: 0; }"));
-  // Wide enough for either label (measured with the theme applied), so ticking a row does not
-  // shift the buttons.
-  resolve_button->ensurePolished();
-  const auto metrics = resolve_button->fontMetrics();
-  const auto padding = resolve_button->sizeHint().width() - metrics.horizontalAdvance(resolve_button->text());
-  resolve_button->setMinimumWidth(
-      padding + std::max(metrics.horizontalAdvance(resolve_text), metrics.horizontalAdvance(dont_resolve_text)));
   dialog.resize(std::max(560, dialog.sizeHint().width()), dialog.sizeHint().height());
   remember_dialog_position(dialog);
   const auto accepted = exec_dialog(dialog) == QDialog::Accepted;

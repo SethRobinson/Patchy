@@ -12737,10 +12737,6 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
         <translation>이 문서에 사용된 일부 글꼴이 이 컴퓨터에 없습니다. 해당 글꼴을 사용하는 모든 텍스트 레이어에서 각 글꼴을 대체할 설치된 글꼴을 선택하거나 해결하지 않은 상태로 두십시오.</translation>
     </message>
-    <message>
-        <source>Don&apos;t Resolve</source>
-        <translation>해결 안 함</translation>
-    </message>
     <message numerus="yes">
         <source>Used in %n text layer(s).</source>
         <translation>

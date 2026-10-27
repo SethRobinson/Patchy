@@ -12771,10 +12771,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
         <translation>Faltan en este ordenador algunas fuentes usadas en este documento. Elija una fuente instalada para reemplazar cada una en todas las capas de texto que la usan, o déjela sin resolver.</translation>
     </message>
-    <message>
-        <source>Don&apos;t Resolve</source>
-        <translation>No resolver</translation>
-    </message>
     <message numerus="yes">
         <source>Used in %n text layer(s).</source>
         <translation>

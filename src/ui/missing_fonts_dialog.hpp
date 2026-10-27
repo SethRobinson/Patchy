@@ -32,8 +32,8 @@ struct MissingFontEntry {
 };
 
 struct MissingFontsDialogResult {
-  // text_font_replacement_key(family) -> the installed family chosen for it. Rows left on
-  // "Don't Resolve" are absent.
+  // text_font_replacement_key(family) -> the installed family chosen for it. Unticked rows are
+  // absent.
   QHash<QString, QString> replacements;
   // The "Don't show when opening documents" box, inverted (imports/showMissingFontsDialog).
   bool show_on_open{true};

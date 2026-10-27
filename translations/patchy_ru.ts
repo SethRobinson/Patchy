@@ -12805,10 +12805,6 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
         <translation>Некоторые шрифты, используемые в этом документе, отсутствуют на этом компьютере. Выберите установленный шрифт для замены каждого из них во всех текстовых слоях, где он используется, или оставьте его без изменений.</translation>
     </message>
-    <message>
-        <source>Don&apos;t Resolve</source>
-        <translation>Не заменять</translation>
-    </message>
     <message numerus="yes">
         <source>Used in %n text layer(s).</source>
         <translation>

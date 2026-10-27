@@ -12737,10 +12737,6 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some fonts used in this document are missing on this computer. Choose an installed font to replace each one in every text layer that uses it, or leave it unresolved.</source>
         <translation>このドキュメントで使用されている一部のフォントがこのコンピューターにありません。それぞれを使用しているすべてのテキストレイヤーで置き換えるインストール済みフォントを選択するか、未解決のままにしてください。</translation>
     </message>
-    <message>
-        <source>Don&apos;t Resolve</source>
-        <translation>解決しない</translation>
-    </message>
     <message numerus="yes">
         <source>Used in %n text layer(s).</source>
         <translation>
