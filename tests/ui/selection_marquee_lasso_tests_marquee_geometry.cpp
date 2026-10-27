@@ -42,6 +42,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -2591,6 +2592,40 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
       CHECK(first < y(rows));
       CHECK(y(rows) < second);
       CHECK(second < y(top_margin));
+    }
+    // One label column (GitHub issue 403): every label starts at one of two x positions, sits
+    // centered on its field, and the fields after them start at shared x positions too.
+    {
+      const auto rect_of = [dialog](const QWidget* widget) {
+        return QRect(widget->mapTo(dialog, QPoint(0, 0)), widget->size());
+      };
+      std::set<int> label_x;
+      std::set<int> field_x;
+      int labels_checked = 0;
+      for (auto* label : dialog->findChildren<QLabel*>()) {
+        auto* field = label->buddy();
+        if (field == nullptr || !label->isVisible()) {
+          continue;
+        }
+        const auto label_rect = rect_of(label);
+        const auto field_rect = rect_of(field);
+        label_x.insert(label_rect.left());
+        if (qobject_cast<QAbstractSpinBox*>(field) != nullptr) {
+          field_x.insert(field_rect.left());
+        }
+        CHECK(std::abs(label_rect.center().y() - field_rect.center().y()) <= 1);
+        CHECK(label_rect.right() < field_rect.left());
+        ++labels_checked;
+      }
+      CHECK(labels_checked == 9);  // Preset, then two per Columns, Rows and margin row
+      CHECK(label_x.size() == 2);
+      CHECK(field_x.size() == 2);
+    }
+    // Save Preset and Delete Preset are framed push buttons that never take Enter from OK.
+    for (const auto* name : {"newGuideLayoutSavePresetButton", "newGuideLayoutDeletePresetButton"}) {
+      auto* button = dialog->findChild<QPushButton*>(QString::fromLatin1(name));
+      CHECK(button != nullptr);
+      CHECK(button == nullptr || (!button->autoDefault() && !button->isFlat()));
     }
     const auto three = preset->findData(QStringLiteral("guideLayout.3x3"));
     CHECK(three > 0);

@@ -2432,9 +2432,14 @@ void MainWindow::new_guide_layout_dialog() {
   dialog.setObjectName(QStringLiteral("newGuideLayoutDialog"));
   auto* root = new QVBoxLayout(&dialog);
   auto* content = install_dark_dialog_chrome(dialog, root, tr("New Guide Layout"));
-  auto* form = new QFormLayout();
-  form->setContentsMargins(0, 0, 0, 0);
-  form->setSpacing(8);
+  // One grid for the whole dialog (GitHub issue 403): every row's label sits in column 0 and
+  // every second label in column 2, centered on its field, so all labels and fields line up.
+  auto* grid = new QGridLayout();
+  grid->setContentsMargins(0, 0, 0, 0);
+  grid->setHorizontalSpacing(8);
+  grid->setVerticalSpacing(8);
+  grid->setColumnStretch(1, 1);
+  grid->setColumnStretch(3, 1);
 
   // The last layout used comes back (GitHub issue 403); lengths are stored in pixels.
   auto settings = app_settings();
@@ -2477,16 +2482,15 @@ void MainWindow::new_guide_layout_dialog() {
     return static_cast<std::size_t>(index);
   };
   // Saved presets are managed beside the box; built-in presets cannot be replaced or deleted.
-  auto* save_preset = new QToolButton(&dialog);
+  // Push buttons like New Document's Save Preset; never the default, so Enter still means OK.
+  auto* save_preset = new QPushButton(tr("Save Preset..."), &dialog);
   save_preset->setObjectName(QStringLiteral("newGuideLayoutSavePresetButton"));
-  save_preset->setText(tr("Save Preset..."));
   save_preset->setToolTip(tr("Save the current layout as a preset"));
-  save_preset->setAutoRaise(true);
-  auto* delete_preset = new QToolButton(&dialog);
+  save_preset->setAutoDefault(false);
+  auto* delete_preset = new QPushButton(tr("Delete Preset"), &dialog);
   delete_preset->setObjectName(QStringLiteral("newGuideLayoutDeletePresetButton"));
-  delete_preset->setText(tr("Delete Preset"));
   delete_preset->setToolTip(tr("Delete the selected saved preset"));
-  delete_preset->setAutoRaise(true);
+  delete_preset->setAutoDefault(false);
   delete_preset->setEnabled(false);
   auto* preset_row = new QHBoxLayout();
   preset_row->setContentsMargins(0, 0, 0, 0);
@@ -2538,44 +2542,40 @@ void MainWindow::new_guide_layout_dialog() {
   clear_existing->setObjectName(QStringLiteral("newGuideLayoutClearExistingCheck"));
   clear_existing->setChecked(settings.value(QStringLiteral("view/guideLayoutClearExisting"), false).toBool());
 
-  // "Columns: [n]  Gutter: [px]" on one row; each label scrubs the field after it.
-  std::vector<QLabel*> second_labels;
-  const auto pair_row = [&dialog, &second_labels](QWidget* first, const QString& second_label, QWidget* second) {
-    auto* row = new QHBoxLayout();
-    row->setContentsMargins(0, 0, 0, 0);
-    row->setSpacing(8);
-    row->addWidget(first, 1);
-    auto* label = new QLabel(second_label, &dialog);
-    second_labels.push_back(label);
-    row->addWidget(label);
-    row->addWidget(second, 1);
-    return row;
+  // Each label is its field's buddy, so it scrubs that field.
+  int grid_row = 0;
+  const auto add_label = [&dialog, grid, &grid_row](const QString& text, QWidget* field, int column) {
+    auto* label = new QLabel(text, &dialog);
+    label->setBuddy(field);
+    grid->addWidget(label, grid_row, column, Qt::AlignLeft | Qt::AlignVCenter);
+  };
+  // "Columns: [n]  Gutter: [px]" on one row.
+  const auto add_pair_row = [&](const QString& first_label, QWidget* first, const QString& second_label,
+                                QWidget* second) {
+    add_label(first_label, first, 0);
+    grid->addWidget(first, grid_row, 1);
+    add_label(second_label, second, 2);
+    grid->addWidget(second, grid_row, 3);
+    ++grid_row;
   };
   // Dividers above and below the Rows row tell its Gutter from the Columns one (GitHub issue 403).
-  const auto add_divider = [&dialog, form] {
+  const auto add_divider = [&dialog, grid, &grid_row] {
     auto* divider = new QFrame(&dialog);
     divider->setObjectName(QStringLiteral("newGuideLayoutDivider"));
     divider->setFrameShape(QFrame::HLine);
     divider->setFrameShadow(QFrame::Plain);
-    form->addRow(divider);
+    grid->addWidget(divider, grid_row++, 0, 1, 4);
   };
-  form->addRow(tr("Preset:"), preset_row);
-  form->addRow(tr("Columns:"), pair_row(columns_spin, tr("Gutter:"), column_gutter_spin));
+  add_label(tr("Preset:"), preset_combo, 0);
+  grid->addLayout(preset_row, grid_row++, 1, 1, 3);
+  add_pair_row(tr("Columns:"), columns_spin, tr("Gutter:"), column_gutter_spin);
   add_divider();
-  form->addRow(tr("Rows:"), pair_row(rows_spin, tr("Gutter:"), row_gutter_spin));
+  add_pair_row(tr("Rows:"), rows_spin, tr("Gutter:"), row_gutter_spin);
   add_divider();
-  form->addRow(tr("Top margin:"), pair_row(top_spin, tr("Bottom:"), bottom_spin));
-  form->addRow(tr("Left margin:"), pair_row(left_spin, tr("Right:"), right_spin));
-  form->addRow(QString(), clear_existing);
-  content->addLayout(form);
-  // One width for the inner labels lines the second fields up in a column.
-  int second_label_width = 0;
-  for (const auto* label : second_labels) {
-    second_label_width = std::max(second_label_width, label->sizeHint().width());
-  }
-  for (auto* label : second_labels) {
-    label->setMinimumWidth(second_label_width);
-  }
+  add_pair_row(tr("Top margin:"), top_spin, tr("Bottom:"), bottom_spin);
+  add_pair_row(tr("Left margin:"), left_spin, tr("Right:"), right_spin);
+  grid->addWidget(clear_existing, grid_row++, 1, 1, 3);
+  content->addLayout(grid);
 
   const auto current_layout = [=] {
     return GuideLayout{
@@ -2649,7 +2649,7 @@ void MainWindow::new_guide_layout_dialog() {
     connect(spin, &QDoubleSpinBox::valueChanged, &dialog, [&] { sync_preset(); });
   }
 
-  connect(save_preset, &QToolButton::clicked, &dialog, [&] {
+  connect(save_preset, &QPushButton::clicked, &dialog, [&] {
     const auto title = tr("Save Guide Layout Preset");
     QString initial_name;
     if (const auto user = user_index_at(preset_combo->currentIndex()); user.has_value()) {
@@ -2718,7 +2718,7 @@ void MainWindow::new_guide_layout_dialog() {
     rebuild_preset_combo();
     sync_preset();
   });
-  connect(delete_preset, &QToolButton::clicked, &dialog, [&] {
+  connect(delete_preset, &QPushButton::clicked, &dialog, [&] {
     const auto user = user_index_at(preset_combo->currentIndex());
     if (!user.has_value()) {
       return;
