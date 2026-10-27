@@ -2199,6 +2199,138 @@ void ui_preferences_interface_scale_and_icon_size_share_a_row() {
   CHECK(manager.set_language(QStringLiteral("en"), false));
 }
 
+// GitHub issue 451 (follow-up): the dialog's minimum width, page list included, stays near
+// 750 px in every shipped language, nothing on any page is clipped at that width, and on a
+// wide dialog the combo boxes and spin boxes keep a compact width instead of running to the
+// page's right edge.
+void ui_preferences_minimum_width_fits_and_fields_stay_compact() {
+  SettingsValueRestorer restore_size(QStringLiteral("preferences/dialogSize"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("preferences/dialogSize"));
+    settings.sync();
+  }
+  // Every problem in every language is reported, not only the first.
+  const auto expect = [](bool ok, const std::string& message) {
+    if (!ok) {
+      patchy::test::report_failure(message);
+    }
+  };
+  // A page built on its first visit (Hotkeys) lays out over several posted layout requests.
+  const auto settle = [] {
+    for (int pass = 0; pass < 6; ++pass) {
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+      QApplication::processEvents();
+    }
+  };
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  for (const auto& language : manager.languages()) {
+    CHECK(manager.set_language(language.code, false));
+    QApplication::processEvents();
+    const auto lang = language.code.toStdString();
+    run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+      auto* list = preferences_page_list(dialog);
+      CHECK(list != nullptr);
+      if (list == nullptr) {
+        return;
+      }
+      expect(dialog.minimumWidth() <= 760, lang + ": minimum width " + std::to_string(dialog.minimumWidth()));
+      dialog.resize(dialog.minimumWidth(), 700);
+      settle();
+      for (int row = 0; row < list->count(); ++row) {
+        list->setCurrentRow(row);
+        settle();
+        auto* page = preferences_current_page(dialog);
+        auto* scroll = page != nullptr ? page->findChild<QScrollArea*>() : nullptr;
+        auto* content = scroll != nullptr ? scroll->widget() : nullptr;
+        CHECK(content != nullptr);
+        if (content == nullptr) {
+          continue;
+        }
+        const auto where = lang + " / " + list->item(row)->text().toStdString() + ": ";
+        // The pages never scroll sideways, so content wider than the viewport is cut off.
+        expect(content->minimumSizeHint().width() <= scroll->viewport()->width(),
+                  where + "content needs " + std::to_string(content->minimumSizeHint().width()) + " px, has " +
+                      std::to_string(scroll->viewport()->width()));
+        for (auto* widget : content->findChildren<QWidget*>()) {
+          if (!widget->isVisibleTo(content) || widget->width() <= 0) {
+            continue;
+          }
+          const auto name = where + widget->metaObject()->className() + " " + widget->objectName().toStdString();
+          const int right = widget->mapTo(scroll->viewport(), QPoint(widget->width(), 0)).x();
+          expect(right <= scroll->viewport()->width(), name + " ends past the page's right edge");
+          if (auto* label = qobject_cast<QLabel*>(widget);
+              label != nullptr && !label->text().isEmpty() && label->pixmap().isNull()) {
+            if (label->wordWrap()) {
+              expect(label->heightForWidth(label->width()) <= label->height(),
+                     name + " '" + label->text().left(40).toStdString() + "' is cut off: needs " +
+                         std::to_string(label->heightForWidth(label->width())) + " px at " +
+                         std::to_string(label->width()) + ", has " + std::to_string(label->height()));
+            } else if (label->textFormat() != Qt::RichText) {
+              expect(label->fontMetrics().horizontalAdvance(label->text()) <= label->width(),
+                        name + " '" + label->text().toStdString() + "' is cut off");
+            }
+          } else if (auto* button = qobject_cast<QAbstractButton*>(widget);
+                     button != nullptr && !button->text().isEmpty()) {
+            if (button->hasHeightForWidth()) {
+              expect(button->heightForWidth(button->width()) <= button->height(),
+                        name + " '" + button->text().toStdString() + "' is cut off");
+            } else {
+              expect(button->sizeHint().width() <= button->width(),
+                     name + " '" + button->text().toStdString() + "' is cut off: needs " +
+                         std::to_string(button->sizeHint().width()) + " px, has " + std::to_string(button->width()));
+            }
+          } else if (auto* combo = qobject_cast<QComboBox*>(widget); combo != nullptr) {
+            expect(combo->minimumSizeHint().width() <= combo->width(),
+                   name + " is squeezed: needs " + std::to_string(combo->minimumSizeHint().width()) + " px, has " +
+                       std::to_string(combo->width()) + " (max " + std::to_string(combo->maximumWidth()) + ")");
+          }
+        }
+      }
+      // Wide: the fields keep their size.
+      dialog.resize(1500, 700);
+      settle();
+      for (int row = 0; row < list->count(); ++row) {
+        list->setCurrentRow(row);
+        settle();
+        auto* page = preferences_current_page(dialog);
+        if (page == nullptr) {
+          continue;
+        }
+        const auto where = lang + " / " + list->item(row)->text().toStdString() + ": ";
+        for (auto* combo : page->findChildren<QComboBox*>()) {
+          if (combo->isVisibleTo(page)) {
+            expect(combo->width() <= 340, where + combo->objectName().toStdString() + " is " +
+                                                 std::to_string(combo->width()) + " px wide");
+          }
+        }
+        for (auto* spin : page->findChildren<QAbstractSpinBox*>()) {
+          if (spin->isVisibleTo(page)) {
+            expect(spin->width() <= 200, where + spin->objectName().toStdString() + " is " +
+                                                std::to_string(spin->width()) + " px wide");
+          }
+        }
+      }
+      if (language.code == QStringLiteral("en") || language.code == QStringLiteral("de")) {
+        dialog.resize(dialog.minimumWidth(), 700);
+        for (const auto& [page_row, tag] : {std::pair{0, "application"}, std::pair{1, "themes"}, std::pair{3, "metadata"},
+                                                  std::pair{7, "hotkeys"}}) {
+          list->setCurrentRow(page_row);
+          settle();
+          (void)capture_widget_artifact("preferences_min_width_" + std::string(tag) + "_" + lang, dialog);
+        }
+        dialog.resize(1200, 700);
+        list->setCurrentRow(0);
+        settle();
+        (void)capture_widget_artifact("preferences_wide_application_" + lang, dialog);
+      }
+    });
+  }
+  CHECK(manager.set_language(QStringLiteral("en"), false));
+}
+
 // GitHub issue 144: Preferences answers Photoshop's Ctrl+K off macOS (Cmd+, there).
 void ui_preferences_hotkey_is_ctrl_k_off_macos() {
   patchy::ui::MainWindow window;
@@ -3158,6 +3290,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_preferences_interval_combos_fit_their_longest_entry", ui_preferences_interval_combos_fit_their_longest_entry},
       {"ui_preferences_interface_scale_and_icon_size_share_a_row", ui_preferences_interface_scale_and_icon_size_share_a_row},
       {"ui_preferences_hotkey_is_ctrl_k_off_macos", ui_preferences_hotkey_is_ctrl_k_off_macos},
+      {"ui_preferences_minimum_width_fits_and_fields_stay_compact",
+       ui_preferences_minimum_width_fits_and_fields_stay_compact},
       {"ui_update_check_interval_gates_the_startup_check", ui_update_check_interval_gates_the_startup_check},
       {"ui_update_startup_check_honors_stored_interval", ui_update_startup_check_honors_stored_interval},
       {"ui_update_preference_persists_check_interval", ui_update_preference_persists_check_interval},
