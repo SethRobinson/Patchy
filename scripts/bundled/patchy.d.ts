@@ -1793,6 +1793,47 @@ interface PatchyGmicParameter {
   choices?: string[];
 }
 
+/** A plane: four [x, y] corners in document pixels, in order around the surface. */
+type PatchyPlaneCorners = [[number, number], [number, number], [number, number], [number, number]];
+
+/** Filter > Perspective Planes from scripts. Every edit is clipped to its one plane. */
+interface PatchyPerspective {
+  /** "" when the corners make a plane, else "tooSmall", "crossing" or "concave". */
+  checkPlane(corners: PatchyPlaneCorners): "" | "tooSmall" | "crossing" | "concave";
+  /** The document's planes (what the workspace shows); grid 0 is Auto. Session-only. */
+  getPlanes(document: PatchyDocument): { corners: PatchyPlaneCorners; grid: number }[];
+  setPlanes(document: PatchyDocument, planes: (PatchyPlaneCorners | { corners: PatchyPlaneCorners; grid?: number })[]): void;
+  /**
+   * Pastes `source`'s pixels onto the plane: "fill" (default) stretches them to its corners,
+   * "fit" centres them upright inside it, {x, y, scale, rotation} places their center in plane
+   * units (pixels along the plane's nearest side). Writes a new layer above `layer` (or onto it
+   * with target "layer") and returns the layer written, or null when nothing changed.
+   */
+  paste(layer: PatchyLayer, options: {
+    plane: PatchyPlaneCorners | number;
+    source: PatchyLayer;
+    placement?: "fill" | "fit" | { x: number; y: number; scale?: number; rotation?: number };
+    target?: "newLayer" | "layer";
+  }): PatchyLayer | null;
+  /** Clone stroke along `points`; `from` is the source point, read through `sourcePlane` (default `plane`). */
+  clone(layer: PatchyLayer, options: {
+    plane: PatchyPlaneCorners | number;
+    sourcePlane?: PatchyPlaneCorners | number;
+    from: [number, number];
+    points: [number, number][];
+    size?: number; hardness?: number; opacity?: number;
+    target?: "newLayer" | "layer";
+  }): PatchyLayer | null;
+  /** Paint stroke along `points` with `color` ("#rrggbb" or [r, g, b], default black). */
+  paint(layer: PatchyLayer, options: {
+    plane: PatchyPlaneCorners | number;
+    points: [number, number][];
+    color?: string | [number, number, number];
+    size?: number; hardness?: number; opacity?: number;
+    target?: "newLayer" | "layer";
+  }): PatchyLayer | null;
+}
+
 interface PatchyGmic {
   /** False in builds without the G'MIC engine; list() is then empty and applyGmic throws. */
   readonly available: boolean;
@@ -1845,6 +1886,7 @@ interface PatchyNamespace {
   readonly recovery: PatchyRecovery;
   readonly plugins: PatchyPlugins;
   readonly gmic: PatchyGmic;
+  readonly perspective: PatchyPerspective;
   readonly scripts: PatchyScripts;
   readonly brushes: PatchyBrushes;
   readonly apiVersion: number;

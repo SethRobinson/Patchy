@@ -130,6 +130,12 @@ if(NOT MSVC)
     src/formats/stb/stb_dxt_impl.c
     PROPERTIES COMPILE_OPTIONS "-ffp-contract=off"
   )
+  # Perspective plane geometry and resampling run in double; their pixels must match
+  # MSVC's on every toolchain (docs/perspective-planes.md).
+  set_source_files_properties(
+    src/core/perspective_planes.cpp
+    PROPERTIES COMPILE_OPTIONS "-ffp-contract=off"
+  )
   set_source_files_properties(
     src/formats/bcdec/bcdec_impl.c
     PROPERTIES COMPILE_OPTIONS "-std=gnu2x"
@@ -207,6 +213,7 @@ add_library(patchy_core
   src/core/smart_object.cpp
   src/core/spot_heal.cpp
   src/core/red_eye.cpp
+  src/core/perspective_planes.cpp
   src/core/exemplar_inpaint.cpp
   src/core/floating_selection.cpp
   src/core/stroke_stabilizer.cpp
@@ -1334,6 +1341,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/layer_list_widget.cpp
       src/ui/liquify_dialog.hpp
       src/ui/liquify_dialog.cpp
+      src/ui/perspective_planes_dialog.hpp
+      src/ui/perspective_planes_dialog.cpp
+      src/ui/main_window_perspective.cpp
       src/ui/localization.cpp
       src/ui/memory_info.hpp
       src/ui/memory_info.cpp
@@ -1505,6 +1515,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/js_syntax_highlighter.cpp
       src/ui/script_api.hpp
       src/ui/script_api.cpp
+      src/ui/script_perspective.hpp
+      src/ui/script_perspective.cpp
       src/ui/display_hdr_info.hpp
       src/ui/display_hdr_info.cpp
       src/ui/script_save_options.hpp
@@ -2293,6 +2305,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/pixel_depth_tests.cpp
     tests/core/pixel_tools_tests.cpp
     tests/core/red_eye_tests.cpp
+    tests/core/perspective_planes_tests.cpp
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_deep_io_tests.cpp
     tests/core/psd_cmyk_proof_tests.cpp
@@ -2504,6 +2517,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/watermark_preferences_tests.cpp
       tests/ui/save_metadata_tests.cpp
       tests/ui/layered_tiff_tests.cpp
+      tests/ui/perspective_planes_ui_tests.cpp
       tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/open_with_registration_tests.cpp
       tests/ui/composite_render_tests.cpp

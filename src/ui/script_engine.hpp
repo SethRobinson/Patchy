@@ -11,6 +11,7 @@
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "core/layer_alignment.hpp"
+#include "core/perspective_planes.hpp"
 #include "core/resample.hpp"
 
 #include <QColor>
@@ -361,6 +362,17 @@ public:
   // error thrown) when refused or when no red was found.
   bool red_eye(std::int64_t session_id, LayerId layer_id, QPoint point, std::optional<QRect> box, int pupil_size,
                int darken_amount, std::int64_t* pupil_pixels, QRect* changed);
+  // patchy.perspective (script_perspective.cpp, docs/perspective-planes.md): the document's
+  // session planes, a layer's pixels as straight RGBA8 (active document only), and one
+  // edit on the active document's `layer_id` through `plane`, written as Filter >
+  // Perspective Planes writes it and riding this run's undo snapshot. perspective_edit
+  // returns the written layer, nullopt when nothing changed or (with a JS error) refused.
+  [[nodiscard]] std::optional<std::vector<PerspectivePlane>> perspective_planes(std::int64_t session_id);
+  bool set_perspective_planes(std::int64_t session_id, std::vector<PerspectivePlane> planes);
+  [[nodiscard]] std::optional<PixelBuffer> perspective_source_pixels(std::int64_t session_id, LayerId layer_id);
+  std::optional<LayerId> perspective_edit(
+      std::int64_t session_id, LayerId layer_id, const PlaneQuad& plane, bool onto_layer,
+      const std::function<bool(PerspectiveCanvas&, const PlaneGeometry&, QString&)>& edit);
   // Layer > Arrange > Align / Distribute over `root_ids` (empty = the
   // session's layer selection) through its canvas, riding this run's undo
   // snapshot. Returns the number of layers moved; -1 with a JS error thrown

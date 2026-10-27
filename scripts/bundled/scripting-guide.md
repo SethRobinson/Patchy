@@ -683,6 +683,35 @@ replaces the layer you called `applyGmic` on. Locked, text, shape and Smart Obje
 the chosen ones are read but never changed.
 `applyGmic` throws on a text, shape or Smart Object layer, on a layer with locked pixels, and when
 no layer matches `inputLayers` or none of them can be changed.
+### Perspective planes (patchy.perspective)
+
+Filter > Perspective Planes from a script: paste a layer onto a flat surface in perspective, or
+clone and paint on it with a brush that shrinks with distance. A plane is four `[x, y]` corners
+in document pixels, in order around the surface, or the index of one of the document's planes
+(the ones the workspace shows). Each edit is clipped to its one plane, as in the workspace, and
+writes a new layer named Perspective above `layer` (or onto `layer` with `target: "layer"`),
+returning the layer written, or `null` when nothing changed. `layer` must be an 8-bit or
+16-bit RGB pixel layer of the active document.
+
+| Call | What it does |
+|---|---|
+| `patchy.perspective.checkPlane(corners)` | `""` when the corners make a plane, else `"tooSmall"`, `"crossing"` or `"concave"`. |
+| `patchy.perspective.getPlanes(doc)` / `setPlanes(doc, planes)` | The document's planes, `[{corners, grid}]` (`grid` 0 is Auto). Kept while the document is open, never saved in the file. |
+| `patchy.perspective.paste(layer, {plane, source, placement, target})` | Pastes the `source` layer's pixels onto the plane. `placement` is `"fill"` (default: stretched to the plane's corners), `"fit"` (centred, upright, inside the plane) or `{x, y, scale, rotation}` (center in plane units, which are pixels along the plane's nearest side; degrees). |
+| `patchy.perspective.clone(layer, {plane, sourcePlane, from, points, size, hardness, opacity, target})` | Clone stroke along `points` (document pixels) on `plane`; `from` is the source point (where you would Alt-click), read through `sourcePlane` (default: `plane`). The first point lines up with `from`. |
+| `patchy.perspective.paint(layer, {plane, points, color, size, hardness, opacity, target})` | Paint stroke with `color` (`"#rrggbb"` or `[r, g, b]`, default black). |
+
+`size` is the brush diameter in plane units (default 60), `hardness` 0 to 100 (50) and `opacity`
+1 to 100 (100). Corners that cannot be a plane, and a locked layer, throw.
+
+```js
+var doc = app.activeDocument;
+var wall = [[120, 60], [560, 140], [560, 400], [120, 470]];
+var poster = doc.layers[1];  // the picture to paste
+patchy.perspective.paste(doc.activeLayer, {plane: wall, source: poster, placement: "fit"});
+patchy.perspective.setPlanes(doc, [wall]);
+```
+
 ### The script library (patchy.scripts)
 
 Scripts can manage scripts: list what the Scripts menu shows, write a new one into your scripts folder, and put it on a key. This is how an agent driving Patchy through MCP answers "make a script that does X and assign it to Ctrl+Alt+X":

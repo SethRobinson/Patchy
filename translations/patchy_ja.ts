@@ -13143,6 +13143,218 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>スクリーンモードボタン</translation>
     </message>
+    <message>
+        <source>the corners are too close together.</source>
+        <translation>角が近すぎます。</translation>
+    </message>
+    <message>
+        <source>two sides cross. Click the corners in order around the surface.</source>
+        <translation>2 つの辺が交差しています。面の周りを順に角をクリックしてください。</translation>
+    </message>
+    <message>
+        <source>a corner points inward, or three corners are in a line.</source>
+        <translation>角が内側を向いているか、3 つの角が一直線上にあります。</translation>
+    </message>
+    <message>
+        <source>it would bend behind the view.</source>
+        <translation>視点の後ろに回り込んでしまいます。</translation>
+    </message>
+    <message>
+        <source>Drag the image to move it on the plane, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc removes it.</source>
+        <translation>画像をドラッグして平面上で移動、角をドラッグして拡大縮小、丸いハンドルをドラッグして回転します。Enter で配置、Esc で取り消します。</translation>
+    </message>
+    <message>
+        <source>Drag the image onto a plane. It takes on that plane&apos;s perspective.</source>
+        <translation>画像を平面にドラッグします。その平面の遠近感に合わせて変形します。</translation>
+    </message>
+    <message>
+        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>壁、床、箱の側面など、平らな面の最初の角をクリックします。</translation>
+    </message>
+    <message>
+        <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>面の周りを順に次の角をクリックします。Backspace で最後の角を取り消します。</translation>
+    </message>
+    <message>
+        <source>This shape cannot be a plane: %1</source>
+        <translation>この形は平面にできません: %1</translation>
+    </message>
+    <message>
+        <source>Click the last corner to finish the plane.</source>
+        <translation>最後の角をクリックして平面を完成させます。</translation>
+    </message>
+    <message>
+        <source>Draw a plane first with Create Plane.</source>
+        <translation>先に「平面を作成」で平面を描いてください。</translation>
+    </message>
+    <message>
+        <source>Click a plane to select it.</source>
+        <translation>平面をクリックして選択します。</translation>
+    </message>
+    <message>
+        <source>This plane cannot be used: %1</source>
+        <translation>この平面は使用できません: %1</translation>
+    </message>
+    <message>
+        <source>This plane is joined to an edge of another. Set its Angle, or drag the diamond on its far edge to set its depth. Dragging a corner unjoins it.</source>
+        <translation>この平面は別の平面の辺につながっています。角度を設定するか、奥の辺のひし形をドラッグして奥行きを設定します。角をドラッグするとつながりが解除されます。</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface. Drag a + tab to pull out a joined plane. Delete removes the plane.</source>
+        <translation>角や辺をドラッグして面に合わせます。+ タブをドラッグすると、つながった平面を引き出せます。Delete で平面を削除します。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click on a plane to set where to clone from.</source>
+        <translation>平面を %ALT%-クリックして、複製元を設定します。</translation>
+    </message>
+    <message>
+        <source>Paint on a plane to clone. The brush shrinks with distance. %ALT%-click to pick a new source.</source>
+        <translation>平面上をペイントして複製します。ブラシは遠いほど小さくなります。%ALT%-クリックで新しい複製元を選びます。</translation>
+    </message>
+    <message>
+        <source>Paint on a plane with the color. The brush shrinks with distance.</source>
+        <translation>色で平面上をペイントします。ブラシは遠いほど小さくなります。</translation>
+    </message>
+    <message>
+        <source>Drag to scroll the view.</source>
+        <translation>ドラッグして表示をスクロールします。</translation>
+    </message>
+    <message>
+        <source>Click to zoom in, %ALT%-click to zoom out.</source>
+        <translation>クリックで拡大、%ALT%-クリックで縮小します。</translation>
+    </message>
+    <message>
+        <source>Create Plane</source>
+        <translation>平面を作成</translation>
+    </message>
+    <message>
+        <source>Click four corners of a flat surface</source>
+        <translation>平らな面の 4 つの角をクリックします</translation>
+    </message>
+    <message>
+        <source>Edit Plane</source>
+        <translation>平面を編集</translation>
+    </message>
+    <message>
+        <source>Select, move and reshape planes, or pull out a joined plane</source>
+        <translation>平面を選択、移動、変形するか、つながった平面を引き出します</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>複製</translation>
+    </message>
+    <message>
+        <source>Copy one part of a plane onto another, in perspective</source>
+        <translation>平面の一部を遠近感に合わせて別の場所に複製します</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>ペイント</translation>
+    </message>
+    <message>
+        <source>Paint a color onto a plane, in perspective</source>
+        <translation>遠近感に合わせて平面に色をペイントします</translation>
+    </message>
+    <message>
+        <source>Hand</source>
+        <translation>手のひら</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>表示をスクロール</translation>
+    </message>
+    <message>
+        <source>Zoom the view</source>
+        <translation>表示を拡大縮小</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>遠近平面</translation>
+    </message>
+    <message>
+        <source>Grid:</source>
+        <translation>グリッド:</translation>
+    </message>
+    <message>
+        <source>The grid cell size on the selected plane, measured along its nearest edge</source>
+        <translation>選択した平面のグリッドのマス目の大きさ (最も手前の辺で測ります)</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> 度</translation>
+    </message>
+    <message>
+        <source>The angle between a joined plane and the plane it was pulled from: 90 is a square corner toward you, 180 is flat, 270 a corner away from you</source>
+        <translation>つながった平面と元の平面のなす角度: 90 は手前に向いた直角、180 は平ら、270 は奥に向いた角です</translation>
+    </message>
+    <message>
+        <source>Delete Plane</source>
+        <translation>平面を削除</translation>
+    </message>
+    <message>
+        <source>Brush diameter where the plane is nearest; it shrinks with distance</source>
+        <translation>平面が最も手前にある所でのブラシの直径。遠いほど小さくなります</translation>
+    </message>
+    <message>
+        <source>Hardness:</source>
+        <translation>硬さ:</translation>
+    </message>
+    <message>
+        <source>The color Paint uses (starts as the foreground color)</source>
+        <translation>ペイントで使う色 (最初は描画色)</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>回転:</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>配置</translation>
+    </message>
+    <message>
+        <source>Write the image onto its plane</source>
+        <translation>画像を平面に書き込みます</translation>
+    </message>
+    <message>
+        <source>Remove the image without placing it</source>
+        <translation>画像を配置せずに取り消します</translation>
+    </message>
+    <message>
+        <source>Paste...</source>
+        <translation>ペースト...</translation>
+    </message>
+    <message>
+        <source>Copy an image, or make a selection, before opening Perspective Planes to paste it</source>
+        <translation>貼り付けるには、遠近平面を開く前に画像をコピーするか選択範囲を作成してください</translation>
+    </message>
+    <message>
+        <source>Paste an image onto a plane</source>
+        <translation>画像を平面に貼り付けます</translation>
+    </message>
+    <message>
+        <source>Fit the image in the view</source>
+        <translation>画像を表示に合わせます</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>結果:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>新規レイヤー</translation>
+    </message>
+    <message>
+        <source>Current layer</source>
+        <translation>現在のレイヤー</translation>
+    </message>
+    <message>
+        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
+        <translation>結果を現在のレイヤーの上の新規レイヤーに置くか、現在のレイヤー自体に書き込みます</translation>
+    </message>
+    <message>
+        <source>Paint Color</source>
+        <translation>ペイントの色</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27121,6 +27333,54 @@ The open document keeps its blend modes either way.</source>
         <source>Interface scale presets</source>
         <translation>インターフェースの拡大率のプリセット</translation>
     </message>
+    <message>
+        <source>&amp;Perspective Planes...</source>
+        <translation>遠近平面(&amp;P)...</translation>
+    </message>
+    <message>
+        <source>Paste, clone, or paint onto flat surfaces in perspective</source>
+        <translation>平らな面に遠近感に合わせて貼り付け、複製、ペイントします</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable in Quick Mask mode</source>
+        <translation>クイックマスクモードでは遠近平面を使用できません</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable while viewing a document channel</source>
+        <translation>ドキュメントのチャンネルを表示中は遠近平面を使用できません</translation>
+    </message>
+    <message>
+        <source>Perspective Planes works on 8-bit and 16-bit documents</source>
+        <translation>遠近平面は 8 bit と 16 bit のドキュメントで使用できます</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object before using Perspective Planes</source>
+        <translation>遠近平面を使う前にスマートオブジェクトをラスタライズしてください</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>遠近平面</translation>
+    </message>
+    <message>
+        <source>Selection on This Layer</source>
+        <translation>このレイヤーの選択範囲</translation>
+    </message>
+    <message>
+        <source>Layer: %1</source>
+        <translation>レイヤー: %1</translation>
+    </message>
+    <message>
+        <source>Cancelled Perspective Planes</source>
+        <translation>遠近平面をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Perspective Planes made no changes</source>
+        <translation>遠近平面による変更はありません</translation>
+    </message>
+    <message>
+        <source>Applied Perspective Planes</source>
+        <translation>遠近平面を適用しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -29124,6 +29384,102 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1: ラン %2 の %3 は &apos;%4&apos;、&apos;%5&apos;、&apos;none&apos; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>checkPlane: pass four [x, y] corners.</source>
+        <translation>checkPlane: 4 つの [x, y] の角を渡してください。</translation>
+    </message>
+    <message>
+        <source>getPlanes needs an open document.</source>
+        <translation>getPlanes には開いているドキュメントが必要です。</translation>
+    </message>
+    <message>
+        <source>setPlanes: pass a document and an array of planes.</source>
+        <translation>setPlanes: ドキュメントと平面の配列を渡してください。</translation>
+    </message>
+    <message>
+        <source>setPlanes: plane %1 needs four [x, y] corners.</source>
+        <translation>setPlanes: 平面 %1 には 4 つの [x, y] の角が必要です。</translation>
+    </message>
+    <message>
+        <source>setPlanes needs an open document.</source>
+        <translation>setPlanes には開いているドキュメントが必要です。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: pass a layer and {plane, source}.</source>
+        <translation>perspective.paste: レイヤーと {plane, source} を渡してください。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: plane must be four [x, y] corners or a plane index, and source a layer of this document.</source>
+        <translation>perspective.paste: plane は 4 つの [x, y] の角か平面の番号、source はこのドキュメントのレイヤーにしてください。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.paste: placement は &quot;fill&quot;、&quot;fit&quot;、{x, y, scale, rotation} のいずれかです。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.paste: placement には有限の x と y、正の scale が必要です。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: the source must be an 8-bit or 16-bit pixel layer.</source>
+        <translation>perspective.paste: source は 8 bit または 16 bit のピクセルレイヤーにしてください。</translation>
+    </message>
+    <message>
+        <source>%1: pass a layer and an options object.</source>
+        <translation>%1: レイヤーとオプションのオブジェクトを渡してください。</translation>
+    </message>
+    <message>
+        <source>%1: plane must be four [x, y] corners or a plane index.</source>
+        <translation>%1: plane は 4 つの [x, y] の角か平面の番号にしてください。</translation>
+    </message>
+    <message>
+        <source>%1: points must be [x, y] pairs.</source>
+        <translation>%1: points は [x, y] の組にしてください。</translation>
+    </message>
+    <message>
+        <source>%1: points needs at least one [x, y] point.</source>
+        <translation>%1: points には [x, y] の点が少なくとも 1 つ必要です。</translation>
+    </message>
+    <message>
+        <source>perspective.clone: from must be an [x, y] point on sourcePlane (default: plane).</source>
+        <translation>perspective.clone: from は sourcePlane (既定は plane) 上の [x, y] の点にしてください。</translation>
+    </message>
+    <message>
+        <source>perspective.paint: color is &quot;#rrggbb&quot; or [r, g, b].</source>
+        <translation>perspective.paint: color は &quot;#rrggbb&quot; または [r, g, b] です。</translation>
+    </message>
+    <message>
+        <source>%1: the first point is past the plane&apos;s horizon.</source>
+        <translation>%1: 最初の点が平面の地平線より向こうにあります。</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sourcePlane cannot be used.</source>
+        <translation>perspective.clone: sourcePlane は使用できません。</translation>
+    </message>
+    <message>
+        <source>patchy.perspective edits the active document (call doc.activate() first).</source>
+        <translation>patchy.perspective はアクティブなドキュメントを編集します (先に doc.activate() を呼んでください)。</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane&apos;s corners cannot be a plane (%1).</source>
+        <translation>patchy.perspective: 平面の角では平面になりません (%1)。</translation>
+    </message>
+    <message>
+        <source>Layer pixels are locked.</source>
+        <translation>レイヤーの画像ピクセルはロックされています。</translation>
+    </message>
+    <message>
+        <source>patchy.perspective needs an editable 8-bit or 16-bit RGB pixel layer.</source>
+        <translation>patchy.perspective には編集可能な 8 bit または 16 bit の RGB ピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane cannot be used.</source>
+        <translation>patchy.perspective: この平面は使用できません。</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>遠近平面</translation>
     </message>
 </context>
 <context>

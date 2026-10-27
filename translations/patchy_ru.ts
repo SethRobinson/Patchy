@@ -13217,6 +13217,218 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>Кнопка режима экрана</translation>
     </message>
+    <message>
+        <source>the corners are too close together.</source>
+        <translation>углы слишком близко друг к другу.</translation>
+    </message>
+    <message>
+        <source>two sides cross. Click the corners in order around the surface.</source>
+        <translation>две стороны пересекаются. Щёлкайте углы по порядку вокруг поверхности.</translation>
+    </message>
+    <message>
+        <source>a corner points inward, or three corners are in a line.</source>
+        <translation>угол направлен внутрь или три угла лежат на одной прямой.</translation>
+    </message>
+    <message>
+        <source>it would bend behind the view.</source>
+        <translation>она загнётся за точку обзора.</translation>
+    </message>
+    <message>
+        <source>Drag the image to move it on the plane, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc removes it.</source>
+        <translation>Перетащите изображение, чтобы сдвинуть его по плоскости, угол, чтобы изменить размер, или круглый маркер, чтобы повернуть. Enter размещает, Esc убирает.</translation>
+    </message>
+    <message>
+        <source>Drag the image onto a plane. It takes on that plane&apos;s perspective.</source>
+        <translation>Перетащите изображение на плоскость. Оно примет её перспективу.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Щёлкните первый угол плоской поверхности: стены, пола или стороны коробки.</translation>
+    </message>
+    <message>
+        <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>Щёлкните следующий угол, по порядку вокруг поверхности. Backspace удаляет последний угол.</translation>
+    </message>
+    <message>
+        <source>This shape cannot be a plane: %1</source>
+        <translation>Эта фигура не может быть плоскостью: %1</translation>
+    </message>
+    <message>
+        <source>Click the last corner to finish the plane.</source>
+        <translation>Щёлкните последний угол, чтобы завершить плоскость.</translation>
+    </message>
+    <message>
+        <source>Draw a plane first with Create Plane.</source>
+        <translation>Сначала нарисуйте плоскость инструментом «Создать плоскость».</translation>
+    </message>
+    <message>
+        <source>Click a plane to select it.</source>
+        <translation>Щёлкните плоскость, чтобы выбрать её.</translation>
+    </message>
+    <message>
+        <source>This plane cannot be used: %1</source>
+        <translation>Эту плоскость нельзя использовать: %1</translation>
+    </message>
+    <message>
+        <source>This plane is joined to an edge of another. Set its Angle, or drag the diamond on its far edge to set its depth. Dragging a corner unjoins it.</source>
+        <translation>Эта плоскость присоединена к краю другой. Задайте угол или перетащите ромб на дальнем краю, чтобы задать глубину. Перетаскивание угла отсоединяет её.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface. Drag a + tab to pull out a joined plane. Delete removes the plane.</source>
+        <translation>Перетащите угол или край, чтобы подогнать к поверхности. Перетащите вкладку +, чтобы вытянуть присоединённую плоскость. Delete удаляет плоскость.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click on a plane to set where to clone from.</source>
+        <translation>%ALT%-щелчок по плоскости задаёт источник клонирования.</translation>
+    </message>
+    <message>
+        <source>Paint on a plane to clone. The brush shrinks with distance. %ALT%-click to pick a new source.</source>
+        <translation>Рисуйте по плоскости, чтобы клонировать. Кисть уменьшается с расстоянием. %ALT%-щелчок выбирает новый источник.</translation>
+    </message>
+    <message>
+        <source>Paint on a plane with the color. The brush shrinks with distance.</source>
+        <translation>Рисуйте цветом по плоскости. Кисть уменьшается с расстоянием.</translation>
+    </message>
+    <message>
+        <source>Drag to scroll the view.</source>
+        <translation>Перетаскивайте, чтобы прокрутить вид.</translation>
+    </message>
+    <message>
+        <source>Click to zoom in, %ALT%-click to zoom out.</source>
+        <translation>Щелчок увеличивает, %ALT%-щелчок уменьшает.</translation>
+    </message>
+    <message>
+        <source>Create Plane</source>
+        <translation>Создать плоскость</translation>
+    </message>
+    <message>
+        <source>Click four corners of a flat surface</source>
+        <translation>Щёлкните четыре угла плоской поверхности</translation>
+    </message>
+    <message>
+        <source>Edit Plane</source>
+        <translation>Изменить плоскость</translation>
+    </message>
+    <message>
+        <source>Select, move and reshape planes, or pull out a joined plane</source>
+        <translation>Выбор, перемещение и изменение формы плоскостей или вытягивание присоединённой плоскости</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>Клонировать</translation>
+    </message>
+    <message>
+        <source>Copy one part of a plane onto another, in perspective</source>
+        <translation>Копирование одной части плоскости на другую с учётом перспективы</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Рисовать</translation>
+    </message>
+    <message>
+        <source>Paint a color onto a plane, in perspective</source>
+        <translation>Рисование цветом по плоскости с учётом перспективы</translation>
+    </message>
+    <message>
+        <source>Hand</source>
+        <translation>Рука</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>Прокрутить вид</translation>
+    </message>
+    <message>
+        <source>Zoom the view</source>
+        <translation>Масштабировать вид</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>Плоскости перспективы</translation>
+    </message>
+    <message>
+        <source>Grid:</source>
+        <translation>Сетка:</translation>
+    </message>
+    <message>
+        <source>The grid cell size on the selected plane, measured along its nearest edge</source>
+        <translation>Размер ячейки сетки выбранной плоскости, измеренный по её ближнему краю</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> град</translation>
+    </message>
+    <message>
+        <source>The angle between a joined plane and the plane it was pulled from: 90 is a square corner toward you, 180 is flat, 270 a corner away from you</source>
+        <translation>Угол между присоединённой плоскостью и плоскостью, из которой её вытянули: 90 — прямой угол к вам, 180 — плоско, 270 — угол от вас</translation>
+    </message>
+    <message>
+        <source>Delete Plane</source>
+        <translation>Удалить плоскость</translation>
+    </message>
+    <message>
+        <source>Brush diameter where the plane is nearest; it shrinks with distance</source>
+        <translation>Диаметр кисти там, где плоскость ближе всего; уменьшается с расстоянием</translation>
+    </message>
+    <message>
+        <source>Hardness:</source>
+        <translation>Жёсткость:</translation>
+    </message>
+    <message>
+        <source>The color Paint uses (starts as the foreground color)</source>
+        <translation>Цвет для рисования (сначала цвет переднего плана)</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>Поворот:</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>Разместить</translation>
+    </message>
+    <message>
+        <source>Write the image onto its plane</source>
+        <translation>Записать изображение на его плоскость</translation>
+    </message>
+    <message>
+        <source>Remove the image without placing it</source>
+        <translation>Убрать изображение, не размещая его</translation>
+    </message>
+    <message>
+        <source>Paste...</source>
+        <translation>Вставить...</translation>
+    </message>
+    <message>
+        <source>Copy an image, or make a selection, before opening Perspective Planes to paste it</source>
+        <translation>Скопируйте изображение или создайте выделение перед открытием «Плоскостей перспективы», чтобы вставить его</translation>
+    </message>
+    <message>
+        <source>Paste an image onto a plane</source>
+        <translation>Вставить изображение на плоскость</translation>
+    </message>
+    <message>
+        <source>Fit the image in the view</source>
+        <translation>Вписать изображение в вид</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>Результат:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>Новый слой</translation>
+    </message>
+    <message>
+        <source>Current layer</source>
+        <translation>Текущий слой</translation>
+    </message>
+    <message>
+        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
+        <translation>Поместить результат на новый слой над текущим или на сам текущий слой</translation>
+    </message>
+    <message>
+        <source>Paint Color</source>
+        <translation>Цвет рисования</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27273,6 +27485,54 @@ The open document keeps its blend modes either way.</source>
         <source>Interface scale presets</source>
         <translation>Готовые значения масштаба интерфейса</translation>
     </message>
+    <message>
+        <source>&amp;Perspective Planes...</source>
+        <translation>Плоскости &amp;перспективы...</translation>
+    </message>
+    <message>
+        <source>Paste, clone, or paint onto flat surfaces in perspective</source>
+        <translation>Вставка, клонирование и рисование на плоских поверхностях с учётом перспективы</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable in Quick Mask mode</source>
+        <translation>«Плоскости перспективы» недоступны в режиме быстрой маски</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable while viewing a document channel</source>
+        <translation>«Плоскости перспективы» недоступны при просмотре канала документа</translation>
+    </message>
+    <message>
+        <source>Perspective Planes works on 8-bit and 16-bit documents</source>
+        <translation>«Плоскости перспективы» работают с 8- и 16-битными документами</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object before using Perspective Planes</source>
+        <translation>Растрируйте смарт-объект перед использованием «Плоскостей перспективы»</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>Плоскости перспективы</translation>
+    </message>
+    <message>
+        <source>Selection on This Layer</source>
+        <translation>Выделение на этом слое</translation>
+    </message>
+    <message>
+        <source>Layer: %1</source>
+        <translation>Слой: %1</translation>
+    </message>
+    <message>
+        <source>Cancelled Perspective Planes</source>
+        <translation>«Плоскости перспективы» отменены</translation>
+    </message>
+    <message>
+        <source>Perspective Planes made no changes</source>
+        <translation>«Плоскости перспективы» ничего не изменили</translation>
+    </message>
+    <message>
+        <source>Applied Perspective Planes</source>
+        <translation>«Плоскости перспективы» применены</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -29278,6 +29538,102 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1: текстовый фрагмент %2: %3 должен быть &apos;%4&apos;, &apos;%5&apos; или &apos;none&apos;.</translation>
+    </message>
+    <message>
+        <source>checkPlane: pass four [x, y] corners.</source>
+        <translation>checkPlane: передайте четыре угла [x, y].</translation>
+    </message>
+    <message>
+        <source>getPlanes needs an open document.</source>
+        <translation>getPlanes нужен открытый документ.</translation>
+    </message>
+    <message>
+        <source>setPlanes: pass a document and an array of planes.</source>
+        <translation>setPlanes: передайте документ и массив плоскостей.</translation>
+    </message>
+    <message>
+        <source>setPlanes: plane %1 needs four [x, y] corners.</source>
+        <translation>setPlanes: плоскости %1 нужны четыре угла [x, y].</translation>
+    </message>
+    <message>
+        <source>setPlanes needs an open document.</source>
+        <translation>setPlanes нужен открытый документ.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: pass a layer and {plane, source}.</source>
+        <translation>perspective.paste: передайте слой и {plane, source}.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: plane must be four [x, y] corners or a plane index, and source a layer of this document.</source>
+        <translation>perspective.paste: plane должен быть четырьмя углами [x, y] или индексом плоскости, а source — слоем этого документа.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.paste: placement — это &quot;fill&quot;, &quot;fit&quot; или {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.paste: placement нужны конечные x и y и положительный scale.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: the source must be an 8-bit or 16-bit pixel layer.</source>
+        <translation>perspective.paste: source должен быть 8- или 16-битным пиксельным слоем.</translation>
+    </message>
+    <message>
+        <source>%1: pass a layer and an options object.</source>
+        <translation>%1: передайте слой и объект параметров.</translation>
+    </message>
+    <message>
+        <source>%1: plane must be four [x, y] corners or a plane index.</source>
+        <translation>%1: plane должен быть четырьмя углами [x, y] или индексом плоскости.</translation>
+    </message>
+    <message>
+        <source>%1: points must be [x, y] pairs.</source>
+        <translation>%1: points должны быть парами [x, y].</translation>
+    </message>
+    <message>
+        <source>%1: points needs at least one [x, y] point.</source>
+        <translation>%1: points нужна хотя бы одна точка [x, y].</translation>
+    </message>
+    <message>
+        <source>perspective.clone: from must be an [x, y] point on sourcePlane (default: plane).</source>
+        <translation>perspective.clone: from должен быть точкой [x, y] на sourcePlane (по умолчанию plane).</translation>
+    </message>
+    <message>
+        <source>perspective.paint: color is &quot;#rrggbb&quot; or [r, g, b].</source>
+        <translation>perspective.paint: color — это &quot;#rrggbb&quot; или [r, g, b].</translation>
+    </message>
+    <message>
+        <source>%1: the first point is past the plane&apos;s horizon.</source>
+        <translation>%1: первая точка лежит за горизонтом плоскости.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sourcePlane cannot be used.</source>
+        <translation>perspective.clone: sourcePlane нельзя использовать.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective edits the active document (call doc.activate() first).</source>
+        <translation>patchy.perspective изменяет активный документ (сначала вызовите doc.activate()).</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane&apos;s corners cannot be a plane (%1).</source>
+        <translation>patchy.perspective: углы плоскости не образуют плоскость (%1).</translation>
+    </message>
+    <message>
+        <source>Layer pixels are locked.</source>
+        <translation>Пиксели слоя заблокированы.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective needs an editable 8-bit or 16-bit RGB pixel layer.</source>
+        <translation>patchy.perspective нужен редактируемый 8- или 16-битный пиксельный слой RGB.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane cannot be used.</source>
+        <translation>patchy.perspective: эту плоскость нельзя использовать.</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>Плоскости перспективы</translation>
     </message>
 </context>
 <context>

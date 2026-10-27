@@ -459,6 +459,7 @@ int main(int argc, char* argv[]) {
            watermark_preferences_tests,
            save_metadata_tests,
            layered_tiff_ui_tests,
+           perspective_planes_ui_tests,
            appimage_menu_entry_tests,
            open_with_registration_tests,
            composite_render_tests,

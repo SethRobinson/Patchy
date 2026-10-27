@@ -11963,6 +11963,7 @@ void MainWindow::update_document_action_state() {
       const bool unavailable =
           document_depth == BitDepth::Float32 &&
           (command.id == QStringLiteral("filter.gallery") || command.id == QStringLiteral("filter.liquify") ||
+           command.id == QStringLiteral("filter.perspective_planes") ||
            command.id == QStringLiteral("image.auto_all"));
       if (unavailable) {
         command.action->setEnabled(false);

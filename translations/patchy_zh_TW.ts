@@ -13143,6 +13143,218 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>螢幕模式按鈕</translation>
     </message>
+    <message>
+        <source>the corners are too close together.</source>
+        <translation>角點靠得太近。</translation>
+    </message>
+    <message>
+        <source>two sides cross. Click the corners in order around the surface.</source>
+        <translation>兩條邊相交。請沿表面依序按一下各個角。</translation>
+    </message>
+    <message>
+        <source>a corner points inward, or three corners are in a line.</source>
+        <translation>有一個角朝內，或三個角在一條直線上。</translation>
+    </message>
+    <message>
+        <source>it would bend behind the view.</source>
+        <translation>它會折到視點後方。</translation>
+    </message>
+    <message>
+        <source>Drag the image to move it on the plane, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc removes it.</source>
+        <translation>拖曳影像可在平面上移動，拖曳角可縮放，拖曳圓形控點可旋轉。按 Enter 放置，按 Esc 移除。</translation>
+    </message>
+    <message>
+        <source>Drag the image onto a plane. It takes on that plane&apos;s perspective.</source>
+        <translation>將影像拖曳到平面上。它會採用該平面的透視。</translation>
+    </message>
+    <message>
+        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>按一下平面的第一個角，例如牆面、地面或盒子的側面。</translation>
+    </message>
+    <message>
+        <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>沿表面依序按一下下一個角。按 Backspace 刪除最後一個角。</translation>
+    </message>
+    <message>
+        <source>This shape cannot be a plane: %1</source>
+        <translation>此形狀不能作為平面：%1</translation>
+    </message>
+    <message>
+        <source>Click the last corner to finish the plane.</source>
+        <translation>按一下最後一個角以完成平面。</translation>
+    </message>
+    <message>
+        <source>Draw a plane first with Create Plane.</source>
+        <translation>請先用「建立平面」繪製一個平面。</translation>
+    </message>
+    <message>
+        <source>Click a plane to select it.</source>
+        <translation>按一下平面以選取它。</translation>
+    </message>
+    <message>
+        <source>This plane cannot be used: %1</source>
+        <translation>無法使用此平面：%1</translation>
+    </message>
+    <message>
+        <source>This plane is joined to an edge of another. Set its Angle, or drag the diamond on its far edge to set its depth. Dragging a corner unjoins it.</source>
+        <translation>此平面連接在另一個平面的邊上。設定其角度，或拖曳遠邊上的菱形以設定深度。拖曳角會中斷連接。</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface. Drag a + tab to pull out a joined plane. Delete removes the plane.</source>
+        <translation>拖曳角或邊以貼合表面。拖曳 + 標籤可拉出相連的平面。按 Delete 刪除平面。</translation>
+    </message>
+    <message>
+        <source>%ALT%-click on a plane to set where to clone from.</source>
+        <translation>在平面上 %ALT%-按一下以設定仿製來源。</translation>
+    </message>
+    <message>
+        <source>Paint on a plane to clone. The brush shrinks with distance. %ALT%-click to pick a new source.</source>
+        <translation>在平面上繪畫以仿製。筆刷隨距離縮小。%ALT%-按一下可選擇新來源。</translation>
+    </message>
+    <message>
+        <source>Paint on a plane with the color. The brush shrinks with distance.</source>
+        <translation>用顏色在平面上繪畫。筆刷隨距離縮小。</translation>
+    </message>
+    <message>
+        <source>Drag to scroll the view.</source>
+        <translation>拖曳以捲動檢視。</translation>
+    </message>
+    <message>
+        <source>Click to zoom in, %ALT%-click to zoom out.</source>
+        <translation>按一下放大，%ALT%-按一下縮小。</translation>
+    </message>
+    <message>
+        <source>Create Plane</source>
+        <translation>建立平面</translation>
+    </message>
+    <message>
+        <source>Click four corners of a flat surface</source>
+        <translation>按一下平面的四個角</translation>
+    </message>
+    <message>
+        <source>Edit Plane</source>
+        <translation>編輯平面</translation>
+    </message>
+    <message>
+        <source>Select, move and reshape planes, or pull out a joined plane</source>
+        <translation>選取、移動和調整平面，或拉出相連的平面</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>仿製</translation>
+    </message>
+    <message>
+        <source>Copy one part of a plane onto another, in perspective</source>
+        <translation>依透視將平面的一部分複製到另一處</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>繪畫</translation>
+    </message>
+    <message>
+        <source>Paint a color onto a plane, in perspective</source>
+        <translation>依透視在平面上繪製顏色</translation>
+    </message>
+    <message>
+        <source>Hand</source>
+        <translation>手形</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>捲動檢視</translation>
+    </message>
+    <message>
+        <source>Zoom the view</source>
+        <translation>縮放檢視</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>透視平面</translation>
+    </message>
+    <message>
+        <source>Grid:</source>
+        <translation>格點:</translation>
+    </message>
+    <message>
+        <source>The grid cell size on the selected plane, measured along its nearest edge</source>
+        <translation>所選平面的格點單元大小，沿其最近的邊測量</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> 度</translation>
+    </message>
+    <message>
+        <source>The angle between a joined plane and the plane it was pulled from: 90 is a square corner toward you, 180 is flat, 270 a corner away from you</source>
+        <translation>相連平面與其來源平面之間的角度：90 是朝向你的直角，180 是平的，270 是背向你的角</translation>
+    </message>
+    <message>
+        <source>Delete Plane</source>
+        <translation>刪除平面</translation>
+    </message>
+    <message>
+        <source>Brush diameter where the plane is nearest; it shrinks with distance</source>
+        <translation>平面最近處的筆刷直徑；隨距離縮小</translation>
+    </message>
+    <message>
+        <source>Hardness:</source>
+        <translation>硬度:</translation>
+    </message>
+    <message>
+        <source>The color Paint uses (starts as the foreground color)</source>
+        <translation>繪畫使用的顏色（初始為前景色）</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>旋轉:</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>放置</translation>
+    </message>
+    <message>
+        <source>Write the image onto its plane</source>
+        <translation>將影像寫入其平面</translation>
+    </message>
+    <message>
+        <source>Remove the image without placing it</source>
+        <translation>移除影像而不放置</translation>
+    </message>
+    <message>
+        <source>Paste...</source>
+        <translation>貼上...</translation>
+    </message>
+    <message>
+        <source>Copy an image, or make a selection, before opening Perspective Planes to paste it</source>
+        <translation>要貼上，請在開啟透視平面之前複製影像或建立選取範圍</translation>
+    </message>
+    <message>
+        <source>Paste an image onto a plane</source>
+        <translation>將影像貼上到平面上</translation>
+    </message>
+    <message>
+        <source>Fit the image in the view</source>
+        <translation>使影像符合檢視</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>結果:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>新增圖層</translation>
+    </message>
+    <message>
+        <source>Current layer</source>
+        <translation>目前圖層</translation>
+    </message>
+    <message>
+        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
+        <translation>將結果放到目前圖層上方的新圖層，或直接放到目前圖層上</translation>
+    </message>
+    <message>
+        <source>Paint Color</source>
+        <translation>繪畫顏色</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27121,6 +27333,54 @@ The open document keeps its blend modes either way.</source>
         <source>Interface scale presets</source>
         <translation>介面縮放預設值</translation>
     </message>
+    <message>
+        <source>&amp;Perspective Planes...</source>
+        <translation>透視平面(&amp;P)...</translation>
+    </message>
+    <message>
+        <source>Paste, clone, or paint onto flat surfaces in perspective</source>
+        <translation>依透視在平面上貼上、仿製或繪畫</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable in Quick Mask mode</source>
+        <translation>快速遮色片模式下無法使用透視平面</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable while viewing a document channel</source>
+        <translation>檢視文件色版時無法使用透視平面</translation>
+    </message>
+    <message>
+        <source>Perspective Planes works on 8-bit and 16-bit documents</source>
+        <translation>透視平面適用於 8 位元和 16 位元文件</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object before using Perspective Planes</source>
+        <translation>使用透視平面前請先點陣化智慧型物件</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>透視平面</translation>
+    </message>
+    <message>
+        <source>Selection on This Layer</source>
+        <translation>此圖層上的選取範圍</translation>
+    </message>
+    <message>
+        <source>Layer: %1</source>
+        <translation>圖層：%1</translation>
+    </message>
+    <message>
+        <source>Cancelled Perspective Planes</source>
+        <translation>已取消透視平面</translation>
+    </message>
+    <message>
+        <source>Perspective Planes made no changes</source>
+        <translation>透視平面未做任何變更</translation>
+    </message>
+    <message>
+        <source>Applied Perspective Planes</source>
+        <translation>已套用透視平面</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -29124,6 +29384,102 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1：第 %2 段的 %3 必須是 &apos;%4&apos;、&apos;%5&apos; 或 &apos;none&apos;。</translation>
+    </message>
+    <message>
+        <source>checkPlane: pass four [x, y] corners.</source>
+        <translation>checkPlane: 請傳入四個 [x, y] 角點。</translation>
+    </message>
+    <message>
+        <source>getPlanes needs an open document.</source>
+        <translation>getPlanes 需要一個開啟的文件。</translation>
+    </message>
+    <message>
+        <source>setPlanes: pass a document and an array of planes.</source>
+        <translation>setPlanes: 請傳入文件和平面陣列。</translation>
+    </message>
+    <message>
+        <source>setPlanes: plane %1 needs four [x, y] corners.</source>
+        <translation>setPlanes: 平面 %1 需要四個 [x, y] 角點。</translation>
+    </message>
+    <message>
+        <source>setPlanes needs an open document.</source>
+        <translation>setPlanes 需要一個開啟的文件。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: pass a layer and {plane, source}.</source>
+        <translation>perspective.paste: 請傳入圖層和 {plane, source}。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: plane must be four [x, y] corners or a plane index, and source a layer of this document.</source>
+        <translation>perspective.paste: plane 必須是四個 [x, y] 角點或平面索引，source 必須是此文件的圖層。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.paste: placement 為 &quot;fill&quot;、&quot;fit&quot; 或 {x, y, scale, rotation}。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.paste: placement 需要有限的 x 和 y 以及正的 scale。</translation>
+    </message>
+    <message>
+        <source>perspective.paste: the source must be an 8-bit or 16-bit pixel layer.</source>
+        <translation>perspective.paste: source 必須是 8 位元或 16 位元像素圖層。</translation>
+    </message>
+    <message>
+        <source>%1: pass a layer and an options object.</source>
+        <translation>%1: 請傳入圖層和選項物件。</translation>
+    </message>
+    <message>
+        <source>%1: plane must be four [x, y] corners or a plane index.</source>
+        <translation>%1: plane 必須是四個 [x, y] 角點或平面索引。</translation>
+    </message>
+    <message>
+        <source>%1: points must be [x, y] pairs.</source>
+        <translation>%1: points 必須是 [x, y] 對。</translation>
+    </message>
+    <message>
+        <source>%1: points needs at least one [x, y] point.</source>
+        <translation>%1: points 至少需要一個 [x, y] 點。</translation>
+    </message>
+    <message>
+        <source>perspective.clone: from must be an [x, y] point on sourcePlane (default: plane).</source>
+        <translation>perspective.clone: from 必須是 sourcePlane（預設為 plane）上的 [x, y] 點。</translation>
+    </message>
+    <message>
+        <source>perspective.paint: color is &quot;#rrggbb&quot; or [r, g, b].</source>
+        <translation>perspective.paint: color 為 &quot;#rrggbb&quot; 或 [r, g, b]。</translation>
+    </message>
+    <message>
+        <source>%1: the first point is past the plane&apos;s horizon.</source>
+        <translation>%1: 第一個點位於平面的地平線之外。</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sourcePlane cannot be used.</source>
+        <translation>perspective.clone: 無法使用 sourcePlane。</translation>
+    </message>
+    <message>
+        <source>patchy.perspective edits the active document (call doc.activate() first).</source>
+        <translation>patchy.perspective 編輯使用中的文件（請先呼叫 doc.activate()）。</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane&apos;s corners cannot be a plane (%1).</source>
+        <translation>patchy.perspective: 平面的角點無法構成平面（%1）。</translation>
+    </message>
+    <message>
+        <source>Layer pixels are locked.</source>
+        <translation>圖層像素已鎖定。</translation>
+    </message>
+    <message>
+        <source>patchy.perspective needs an editable 8-bit or 16-bit RGB pixel layer.</source>
+        <translation>patchy.perspective 需要可編輯的 8 位元或 16 位元 RGB 像素圖層。</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane cannot be used.</source>
+        <translation>patchy.perspective: 無法使用此平面。</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>透視平面</translation>
     </message>
 </context>
 <context>

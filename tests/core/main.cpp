@@ -208,6 +208,7 @@ int main(int argc, char** argv) {
            tiff_layers_tests,
            hdr_display_tests,
            red_eye_tests,
+           perspective_planes_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

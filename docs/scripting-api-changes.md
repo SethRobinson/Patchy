@@ -14,6 +14,13 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-27 (additive): `patchy.perspective` ([perspective-planes.md](perspective-planes.md)):
+`checkPlane(corners)`, `getPlanes(doc)` / `setPlanes(doc, planes)`, and `paste(layer, {plane, source,
+placement, target})`, `clone(layer, {plane, sourcePlane, from, points, size, hardness, opacity, target})`
+and `paint(layer, {plane, points, color, size, hardness, opacity, target})`, each one edit clipped to
+its plane. Permanent identifiers: the namespace, the six names, their option keys, the
+`checkPlane` results `"tooSmall"`, `"crossing"`, `"concave"`, `placement` `"fill"`/`"fit"` and
+`target` `"newLayer"`/`"layer"`. Pinned by `ui_script_perspective_paste_paint_and_clone`.
 2026-10-27 (additive): `metadata` in `doc.saveAs`/`doc.exportAs`/`doc.encodeForWeb` options takes
 `"basic"`: the save stamp alone (program, creation and modification dates, the file's format,
 size and resolution), nothing from File Info ([file-info.md](file-info.md)). An explicit

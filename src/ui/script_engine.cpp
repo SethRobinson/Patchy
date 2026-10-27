@@ -38,6 +38,7 @@
 #include "ui/localization.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/script_api.hpp"
+#include "ui/script_perspective.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_folders.hpp"
@@ -137,6 +138,7 @@ constexpr const char* kBootstrapSource = R"JS(
     recovery: g.__patchy_recovery,
     plugins: g.__patchy_plugins,
     gmic: g.__patchy_gmic,
+    perspective: g.__patchy_perspective,
     scripts: g.__patchy_scripts,
     apiVersion: g.app.apiVersion,
     version: g.app.version,
@@ -407,6 +409,9 @@ void ScriptEngineHost::install_bindings(const RunOptions& options) {
   auto* gmic_object = new ScriptGmicObject(*this);
   gmic_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_gmic"), engine.newQObject(gmic_object));
+  auto* perspective_object = new ScriptPerspectiveObject(*this);
+  perspective_object->setParent(&engine);
+  global.setProperty(QStringLiteral("__patchy_perspective"), engine.newQObject(perspective_object));
   auto* scripts_object = new ScriptLibraryObject(*this);
   scripts_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_scripts"), engine.newQObject(scripts_object));

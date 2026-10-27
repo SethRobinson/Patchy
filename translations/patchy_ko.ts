@@ -13143,6 +13143,218 @@ Each item&apos;s own View setting still applies.</source>
         <source>Screen mode button</source>
         <translation>화면 모드 버튼</translation>
     </message>
+    <message>
+        <source>the corners are too close together.</source>
+        <translation>모서리가 너무 가깝습니다.</translation>
+    </message>
+    <message>
+        <source>two sides cross. Click the corners in order around the surface.</source>
+        <translation>두 변이 교차합니다. 면의 모서리를 순서대로 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>a corner points inward, or three corners are in a line.</source>
+        <translation>모서리가 안쪽을 향하거나 세 모서리가 한 줄에 있습니다.</translation>
+    </message>
+    <message>
+        <source>it would bend behind the view.</source>
+        <translation>시점 뒤로 꺾이게 됩니다.</translation>
+    </message>
+    <message>
+        <source>Drag the image to move it on the plane, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc removes it.</source>
+        <translation>이미지를 드래그해 평면에서 이동하고, 모서리를 드래그해 크기를 바꾸고, 둥근 핸들을 드래그해 회전합니다. Enter로 배치하고 Esc로 제거합니다.</translation>
+    </message>
+    <message>
+        <source>Drag the image onto a plane. It takes on that plane&apos;s perspective.</source>
+        <translation>이미지를 평면으로 드래그하세요. 그 평면의 원근을 따릅니다.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>벽, 바닥, 상자 옆면 같은 평평한 면의 첫 모서리를 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>면을 따라 순서대로 다음 모서리를 클릭하세요. Backspace로 마지막 모서리를 지웁니다.</translation>
+    </message>
+    <message>
+        <source>This shape cannot be a plane: %1</source>
+        <translation>이 모양은 평면이 될 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Click the last corner to finish the plane.</source>
+        <translation>마지막 모서리를 클릭해 평면을 완성하세요.</translation>
+    </message>
+    <message>
+        <source>Draw a plane first with Create Plane.</source>
+        <translation>먼저 평면 만들기로 평면을 그리세요.</translation>
+    </message>
+    <message>
+        <source>Click a plane to select it.</source>
+        <translation>평면을 클릭해 선택하세요.</translation>
+    </message>
+    <message>
+        <source>This plane cannot be used: %1</source>
+        <translation>이 평면은 사용할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>This plane is joined to an edge of another. Set its Angle, or drag the diamond on its far edge to set its depth. Dragging a corner unjoins it.</source>
+        <translation>이 평면은 다른 평면의 가장자리에 붙어 있습니다. 각도를 설정하거나 먼 쪽 가장자리의 마름모를 드래그해 깊이를 정하세요. 모서리를 드래그하면 분리됩니다.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface. Drag a + tab to pull out a joined plane. Delete removes the plane.</source>
+        <translation>모서리나 가장자리를 드래그해 면에 맞추세요. + 탭을 드래그하면 연결된 평면을 끌어낼 수 있습니다. Delete로 평면을 지웁니다.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click on a plane to set where to clone from.</source>
+        <translation>평면을 %ALT%-클릭해 복제할 위치를 정하세요.</translation>
+    </message>
+    <message>
+        <source>Paint on a plane to clone. The brush shrinks with distance. %ALT%-click to pick a new source.</source>
+        <translation>평면에 칠해 복제하세요. 브러시는 멀수록 작아집니다. %ALT%-클릭으로 새 소스를 고릅니다.</translation>
+    </message>
+    <message>
+        <source>Paint on a plane with the color. The brush shrinks with distance.</source>
+        <translation>색으로 평면에 칠하세요. 브러시는 멀수록 작아집니다.</translation>
+    </message>
+    <message>
+        <source>Drag to scroll the view.</source>
+        <translation>드래그해 보기를 스크롤하세요.</translation>
+    </message>
+    <message>
+        <source>Click to zoom in, %ALT%-click to zoom out.</source>
+        <translation>클릭해 확대하고 %ALT%-클릭해 축소하세요.</translation>
+    </message>
+    <message>
+        <source>Create Plane</source>
+        <translation>평면 만들기</translation>
+    </message>
+    <message>
+        <source>Click four corners of a flat surface</source>
+        <translation>평평한 면의 네 모서리를 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Edit Plane</source>
+        <translation>평면 편집</translation>
+    </message>
+    <message>
+        <source>Select, move and reshape planes, or pull out a joined plane</source>
+        <translation>평면을 선택, 이동, 변형하거나 연결된 평면을 끌어냅니다</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>복제</translation>
+    </message>
+    <message>
+        <source>Copy one part of a plane onto another, in perspective</source>
+        <translation>평면의 한 부분을 원근에 맞춰 다른 곳에 복사합니다</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>칠하기</translation>
+    </message>
+    <message>
+        <source>Paint a color onto a plane, in perspective</source>
+        <translation>원근에 맞춰 평면에 색을 칠합니다</translation>
+    </message>
+    <message>
+        <source>Hand</source>
+        <translation>손</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>보기 스크롤</translation>
+    </message>
+    <message>
+        <source>Zoom the view</source>
+        <translation>보기 확대/축소</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>원근 평면</translation>
+    </message>
+    <message>
+        <source>Grid:</source>
+        <translation>격자:</translation>
+    </message>
+    <message>
+        <source>The grid cell size on the selected plane, measured along its nearest edge</source>
+        <translation>선택한 평면의 격자 칸 크기(가장 가까운 가장자리 기준)</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation>도</translation>
+    </message>
+    <message>
+        <source>The angle between a joined plane and the plane it was pulled from: 90 is a square corner toward you, 180 is flat, 270 a corner away from you</source>
+        <translation>연결된 평면과 원래 평면 사이의 각도: 90은 앞쪽으로 꺾인 직각, 180은 평평함, 270은 뒤쪽으로 꺾인 모서리입니다</translation>
+    </message>
+    <message>
+        <source>Delete Plane</source>
+        <translation>평면 삭제</translation>
+    </message>
+    <message>
+        <source>Brush diameter where the plane is nearest; it shrinks with distance</source>
+        <translation>평면이 가장 가까운 곳의 브러시 지름이며 멀수록 작아집니다</translation>
+    </message>
+    <message>
+        <source>Hardness:</source>
+        <translation>경도:</translation>
+    </message>
+    <message>
+        <source>The color Paint uses (starts as the foreground color)</source>
+        <translation>칠하기에 쓰는 색(처음에는 전경색)</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>회전:</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>배치</translation>
+    </message>
+    <message>
+        <source>Write the image onto its plane</source>
+        <translation>이미지를 평면에 기록합니다</translation>
+    </message>
+    <message>
+        <source>Remove the image without placing it</source>
+        <translation>이미지를 배치하지 않고 제거합니다</translation>
+    </message>
+    <message>
+        <source>Paste...</source>
+        <translation>붙여넣기...</translation>
+    </message>
+    <message>
+        <source>Copy an image, or make a selection, before opening Perspective Planes to paste it</source>
+        <translation>붙여넣으려면 원근 평면을 열기 전에 이미지를 복사하거나 선택 영역을 만드세요</translation>
+    </message>
+    <message>
+        <source>Paste an image onto a plane</source>
+        <translation>이미지를 평면에 붙여넣습니다</translation>
+    </message>
+    <message>
+        <source>Fit the image in the view</source>
+        <translation>이미지를 보기에 맞춥니다</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>결과:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>새 레이어</translation>
+    </message>
+    <message>
+        <source>Current layer</source>
+        <translation>현재 레이어</translation>
+    </message>
+    <message>
+        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
+        <translation>결과를 현재 레이어 위의 새 레이어에 두거나 현재 레이어 자체에 씁니다</translation>
+    </message>
+    <message>
+        <source>Paint Color</source>
+        <translation>칠하기 색</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27121,6 +27333,54 @@ The open document keeps its blend modes either way.</source>
         <source>Interface scale presets</source>
         <translation>인터페이스 배율 사전 설정</translation>
     </message>
+    <message>
+        <source>&amp;Perspective Planes...</source>
+        <translation>원근 평면(&amp;P)...</translation>
+    </message>
+    <message>
+        <source>Paste, clone, or paint onto flat surfaces in perspective</source>
+        <translation>평평한 면에 원근에 맞춰 붙여넣기, 복제, 칠하기를 합니다</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable in Quick Mask mode</source>
+        <translation>빠른 마스크 모드에서는 원근 평면을 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable while viewing a document channel</source>
+        <translation>문서 채널을 보는 동안에는 원근 평면을 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Perspective Planes works on 8-bit and 16-bit documents</source>
+        <translation>원근 평면은 8비트와 16비트 문서에서 작동합니다</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object before using Perspective Planes</source>
+        <translation>원근 평면을 사용하기 전에 고급 개체를 래스터화하세요</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>원근 평면</translation>
+    </message>
+    <message>
+        <source>Selection on This Layer</source>
+        <translation>이 레이어의 선택 영역</translation>
+    </message>
+    <message>
+        <source>Layer: %1</source>
+        <translation>레이어: %1</translation>
+    </message>
+    <message>
+        <source>Cancelled Perspective Planes</source>
+        <translation>원근 평면을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Perspective Planes made no changes</source>
+        <translation>원근 평면으로 변경된 내용이 없습니다</translation>
+    </message>
+    <message>
+        <source>Applied Perspective Planes</source>
+        <translation>원근 평면을 적용했습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -29124,6 +29384,102 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1: 텍스트 구간 %2의 %3은(는) &apos;%4&apos;, &apos;%5&apos; 또는 &apos;none&apos;이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>checkPlane: pass four [x, y] corners.</source>
+        <translation>checkPlane: [x, y] 모서리 네 개를 전달하세요.</translation>
+    </message>
+    <message>
+        <source>getPlanes needs an open document.</source>
+        <translation>getPlanes에는 열린 문서가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>setPlanes: pass a document and an array of planes.</source>
+        <translation>setPlanes: 문서와 평면 배열을 전달하세요.</translation>
+    </message>
+    <message>
+        <source>setPlanes: plane %1 needs four [x, y] corners.</source>
+        <translation>setPlanes: 평면 %1에는 [x, y] 모서리 네 개가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>setPlanes needs an open document.</source>
+        <translation>setPlanes에는 열린 문서가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: pass a layer and {plane, source}.</source>
+        <translation>perspective.paste: 레이어와 {plane, source}를 전달하세요.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: plane must be four [x, y] corners or a plane index, and source a layer of this document.</source>
+        <translation>perspective.paste: plane은 [x, y] 모서리 네 개 또는 평면 번호, source는 이 문서의 레이어여야 합니다.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.paste: placement는 &quot;fill&quot;, &quot;fit&quot; 또는 {x, y, scale, rotation}입니다.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.paste: placement에는 유한한 x, y와 양수 scale이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: the source must be an 8-bit or 16-bit pixel layer.</source>
+        <translation>perspective.paste: source는 8비트 또는 16비트 픽셀 레이어여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: pass a layer and an options object.</source>
+        <translation>%1: 레이어와 옵션 개체를 전달하세요.</translation>
+    </message>
+    <message>
+        <source>%1: plane must be four [x, y] corners or a plane index.</source>
+        <translation>%1: plane은 [x, y] 모서리 네 개 또는 평면 번호여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: points must be [x, y] pairs.</source>
+        <translation>%1: points는 [x, y] 쌍이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: points needs at least one [x, y] point.</source>
+        <translation>%1: points에는 [x, y] 점이 하나 이상 필요합니다.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: from must be an [x, y] point on sourcePlane (default: plane).</source>
+        <translation>perspective.clone: from은 sourcePlane(기본값: plane) 위의 [x, y] 점이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>perspective.paint: color is &quot;#rrggbb&quot; or [r, g, b].</source>
+        <translation>perspective.paint: color는 &quot;#rrggbb&quot; 또는 [r, g, b]입니다.</translation>
+    </message>
+    <message>
+        <source>%1: the first point is past the plane&apos;s horizon.</source>
+        <translation>%1: 첫 점이 평면의 지평선 너머에 있습니다.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sourcePlane cannot be used.</source>
+        <translation>perspective.clone: sourcePlane을 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective edits the active document (call doc.activate() first).</source>
+        <translation>patchy.perspective는 활성 문서를 편집합니다(먼저 doc.activate()를 호출하세요).</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane&apos;s corners cannot be a plane (%1).</source>
+        <translation>patchy.perspective: 평면의 모서리로 평면을 만들 수 없습니다(%1).</translation>
+    </message>
+    <message>
+        <source>Layer pixels are locked.</source>
+        <translation>레이어 픽셀이 잠겨 있습니다.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective needs an editable 8-bit or 16-bit RGB pixel layer.</source>
+        <translation>patchy.perspective에는 편집 가능한 8비트 또는 16비트 RGB 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane cannot be used.</source>
+        <translation>patchy.perspective: 이 평면은 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>원근 평면</translation>
     </message>
 </context>
 <context>

@@ -9,6 +9,7 @@
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "core/layer_tree.hpp"
+#include "core/perspective_planes.hpp"
 #include "ui/session_history.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/image_save_options.hpp"
@@ -52,6 +53,9 @@ struct DocumentSession {
   // working CMYK profile, and saves to JPEG, TIFF and flattened PDF write CMYK. Session-only:
   // never stored in a file.
   bool cmyk_proof{false};
+  // Filter > Perspective Planes' planes (docs/perspective-planes.md). Session-only: kept
+  // while the document is open, never written to a file.
+  std::vector<PerspectivePlane> perspective_planes;
   // The user agreed to save this CMYK Proof document in RGB to a format without a CMYK
   // form; the warning is not repeated in this session.
   bool cmyk_proof_rgb_save_accepted{false};

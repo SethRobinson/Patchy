@@ -1943,11 +1943,23 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(liquify_action, &QAction::triggered, this,
           [this] { liquify_dialog(); });
   register_document_action(liquify_action);
+  auto* perspective_action = filter_menu->addAction(tr("&Perspective Planes..."));
+  perspective_action->setObjectName(QStringLiteral("filterPerspectivePlanesAction"));
+  perspective_action->setProperty("patchy.channelViewBlocked", true);
+  perspective_action->setIcon(simple_icon(QStringLiteral("PP")));
+  perspective_action->setStatusTip(tr("Paste, clone, or paint onto flat surfaces in perspective"));
+  bind_action_text(perspective_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Perspective Planes..."));
+  bind_translated_status_tip(perspective_action, "Paste, clone, or paint onto flat surfaces in perspective");
+  apply_bound_translation(perspective_action);
+  refresh_action_tooltip(perspective_action);
+  register_hotkey(perspective_action, "filter.perspective_planes", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_V));
+  connect(perspective_action, &QAction::triggered, this, [this] { perspective_planes_dialog(); });
+  register_document_action(perspective_action);
   filter_menu->addSeparator();
 
   // Only builds with the G'MIC engine offer its library (docs/gmic.md). It sits below
-  // Liquify in its own group: ui_filter_catalog_and_menu_contracts_are_stable pins the
-  // first seven rows.
+  // Liquify and Perspective Planes in its own group: ui_filter_catalog_and_menu_contracts_are_stable
+  // pins the first eight rows.
   if (gmic::engine_available()) {
     auto* gmic_library_action = filter_menu->addAction(tr("G'&MIC Filter Library..."));
     gmic_library_action->setObjectName(QStringLiteral("filterGmicLibraryAction"));

@@ -1,6 +1,6 @@
 # Patent research: perspective planes and perspective warp
 
-Research record for two features Patchy does not have yet: perspective planes with clone, paste and paint in perspective (Photoshop's Vanishing Point filter), and a quad-based perspective warp (Photoshop's Perspective Warp), requested in #457. The binding summary is the "Perspective editing" section of [legal-constraints.md](legal-constraints.md); this file is an engineering record and follows the conventions of [patent-research.md](patent-research.md). Read October 27, 2026 from Google Patents claim pages. Legal status and expiry dates are Google's assumption, not a legal conclusion; re-check them before building either feature.
+Research record for two features Patchy does not have yet: perspective planes with clone, paste and paint in perspective (Photoshop's Vanishing Point filter), and a quad-based perspective warp (Photoshop's Perspective Warp), requested in #457. The binding summary is the "Perspective editing" section of [legal-constraints.md](legal-constraints.md); this file is an engineering record and follows the conventions of [patent-research.md](patent-research.md). Read October 27, 2026 from Google Patents claim pages. Status and expiry dates are Google's computed values; re-check them before extending either feature. Perspective planes were built on October 27, 2026 within the rule below ([perspective-planes.md](perspective-planes.md)); the warp is not built.
 
 ## Perspective planes (clone, paste and paint in perspective)
 
@@ -15,7 +15,7 @@ Research record for two features Patchy does not have yet: perspective planes wi
 - Adobe US 9117253 B2 (Intwala, Agarwala, "Perspective warp", filed 2012-07-20): Active, Google gives 2033-06-17; maintenance fees paid in 2019 and 2023.
 - Independent claims 1, 15, 19 and 22 each need all of: a portion of the image, or a user-defined quadrilateral, to warp; a sub-portion that the user marks through the interface to stay unchanged (constraint information); and a real-time preview in which that sub-portion stays unchanged. Claims 1 and 15 also need a visual indicator for the marked sub-portion.
 - Dependent claims: point, line and quad constraints (3, 11 to 13), as-rigid-as-possible deformation outside the quads (7), automatic detection that helps pick the portion (10), and default automatic manipulation (6).
-- Design-around: quads drawn by the user, shared edges between quads, and corner drags, warped by a homography per quad. No edge, line or point the user marks to stay fixed, no pins, and no marker for a fixed part. Each feature beyond that needs a new claim read.
+- Patchy's form: quads drawn by the user, shared edges between quads, and corner drags, warped by a homography per quad. No edge, line or point the user marks to stay fixed, no pins, and no marker for a fixed part. Each feature beyond that needs a new claim read.
 
 ## Automatic straightening
 

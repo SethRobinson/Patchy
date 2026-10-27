@@ -13180,6 +13180,218 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Screen mode button</source>
         <translation>Schaltfläche „Bildschirmmodus“</translation>
     </message>
+    <message>
+        <source>the corners are too close together.</source>
+        <translation>die Ecken liegen zu dicht beieinander.</translation>
+    </message>
+    <message>
+        <source>two sides cross. Click the corners in order around the surface.</source>
+        <translation>zwei Seiten kreuzen sich. Klicken Sie die Ecken der Reihe nach um die Fläche herum.</translation>
+    </message>
+    <message>
+        <source>a corner points inward, or three corners are in a line.</source>
+        <translation>eine Ecke zeigt nach innen oder drei Ecken liegen auf einer Linie.</translation>
+    </message>
+    <message>
+        <source>it would bend behind the view.</source>
+        <translation>sie würde hinter die Ansicht knicken.</translation>
+    </message>
+    <message>
+        <source>Drag the image to move it on the plane, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc removes it.</source>
+        <translation>Ziehen Sie das Bild, um es auf der Ebene zu verschieben, eine Ecke zum Skalieren oder den runden Griff zum Drehen. Eingabe platziert es, Esc entfernt es.</translation>
+    </message>
+    <message>
+        <source>Drag the image onto a plane. It takes on that plane&apos;s perspective.</source>
+        <translation>Ziehen Sie das Bild auf eine Ebene. Es übernimmt deren Perspektive.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Klicken Sie die erste Ecke einer flachen Fläche, etwa einer Wand, eines Bodens oder einer Kistenseite.</translation>
+    </message>
+    <message>
+        <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>Klicken Sie die nächste Ecke, der Reihe nach um die Fläche herum. Rücktaste entfernt die letzte Ecke.</translation>
+    </message>
+    <message>
+        <source>This shape cannot be a plane: %1</source>
+        <translation>Diese Form kann keine Ebene sein: %1</translation>
+    </message>
+    <message>
+        <source>Click the last corner to finish the plane.</source>
+        <translation>Klicken Sie die letzte Ecke, um die Ebene fertigzustellen.</translation>
+    </message>
+    <message>
+        <source>Draw a plane first with Create Plane.</source>
+        <translation>Zeichnen Sie zuerst mit „Ebene erstellen“ eine Ebene.</translation>
+    </message>
+    <message>
+        <source>Click a plane to select it.</source>
+        <translation>Klicken Sie auf eine Ebene, um sie auszuwählen.</translation>
+    </message>
+    <message>
+        <source>This plane cannot be used: %1</source>
+        <translation>Diese Ebene kann nicht verwendet werden: %1</translation>
+    </message>
+    <message>
+        <source>This plane is joined to an edge of another. Set its Angle, or drag the diamond on its far edge to set its depth. Dragging a corner unjoins it.</source>
+        <translation>Diese Ebene hängt an der Kante einer anderen. Stellen Sie ihren Winkel ein oder ziehen Sie die Raute an ihrer fernen Kante, um die Tiefe festzulegen. Das Ziehen einer Ecke löst sie.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface. Drag a + tab to pull out a joined plane. Delete removes the plane.</source>
+        <translation>Ziehen Sie eine Ecke oder Kante, um sie an die Fläche anzupassen. Ziehen Sie eine +-Lasche, um eine verbundene Ebene herauszuziehen. Entf entfernt die Ebene.</translation>
+    </message>
+    <message>
+        <source>%ALT%-click on a plane to set where to clone from.</source>
+        <translation>%ALT%-Klick auf eine Ebene legt fest, wovon geklont wird.</translation>
+    </message>
+    <message>
+        <source>Paint on a plane to clone. The brush shrinks with distance. %ALT%-click to pick a new source.</source>
+        <translation>Malen Sie auf einer Ebene, um zu klonen. Der Pinsel wird mit der Entfernung kleiner. %ALT%-Klick wählt eine neue Quelle.</translation>
+    </message>
+    <message>
+        <source>Paint on a plane with the color. The brush shrinks with distance.</source>
+        <translation>Malen Sie mit der Farbe auf einer Ebene. Der Pinsel wird mit der Entfernung kleiner.</translation>
+    </message>
+    <message>
+        <source>Drag to scroll the view.</source>
+        <translation>Ziehen, um die Ansicht zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Click to zoom in, %ALT%-click to zoom out.</source>
+        <translation>Klicken zum Vergrößern, %ALT%-Klick zum Verkleinern.</translation>
+    </message>
+    <message>
+        <source>Create Plane</source>
+        <translation>Ebene erstellen</translation>
+    </message>
+    <message>
+        <source>Click four corners of a flat surface</source>
+        <translation>Klicken Sie vier Ecken einer flachen Fläche</translation>
+    </message>
+    <message>
+        <source>Edit Plane</source>
+        <translation>Ebene bearbeiten</translation>
+    </message>
+    <message>
+        <source>Select, move and reshape planes, or pull out a joined plane</source>
+        <translation>Ebenen auswählen, verschieben und umformen oder eine verbundene Ebene herausziehen</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>Klonen</translation>
+    </message>
+    <message>
+        <source>Copy one part of a plane onto another, in perspective</source>
+        <translation>Einen Teil einer Ebene perspektivisch an eine andere Stelle kopieren</translation>
+    </message>
+    <message>
+        <source>Paint</source>
+        <translation>Malen</translation>
+    </message>
+    <message>
+        <source>Paint a color onto a plane, in perspective</source>
+        <translation>Eine Farbe perspektivisch auf eine Ebene malen</translation>
+    </message>
+    <message>
+        <source>Hand</source>
+        <translation>Hand</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>Ansicht verschieben</translation>
+    </message>
+    <message>
+        <source>Zoom the view</source>
+        <translation>Ansicht zoomen</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>Perspektivebenen</translation>
+    </message>
+    <message>
+        <source>Grid:</source>
+        <translation>Raster:</translation>
+    </message>
+    <message>
+        <source>The grid cell size on the selected plane, measured along its nearest edge</source>
+        <translation>Die Rasterzellengröße der ausgewählten Ebene, gemessen an ihrer nächsten Kante</translation>
+    </message>
+    <message>
+        <source> deg</source>
+        <translation> Grad</translation>
+    </message>
+    <message>
+        <source>The angle between a joined plane and the plane it was pulled from: 90 is a square corner toward you, 180 is flat, 270 a corner away from you</source>
+        <translation>Der Winkel zwischen einer verbundenen Ebene und der Ebene, aus der sie gezogen wurde: 90 ist eine rechtwinklige Ecke zu Ihnen hin, 180 ist flach, 270 eine Ecke von Ihnen weg</translation>
+    </message>
+    <message>
+        <source>Delete Plane</source>
+        <translation>Ebene löschen</translation>
+    </message>
+    <message>
+        <source>Brush diameter where the plane is nearest; it shrinks with distance</source>
+        <translation>Pinseldurchmesser dort, wo die Ebene am nächsten ist; er nimmt mit der Entfernung ab</translation>
+    </message>
+    <message>
+        <source>Hardness:</source>
+        <translation>Härte:</translation>
+    </message>
+    <message>
+        <source>The color Paint uses (starts as the foreground color)</source>
+        <translation>Die Farbe für Malen (zu Beginn die Vordergrundfarbe)</translation>
+    </message>
+    <message>
+        <source>Rotation:</source>
+        <translation>Drehung:</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>Platzieren</translation>
+    </message>
+    <message>
+        <source>Write the image onto its plane</source>
+        <translation>Das Bild auf seine Ebene schreiben</translation>
+    </message>
+    <message>
+        <source>Remove the image without placing it</source>
+        <translation>Das Bild entfernen, ohne es zu platzieren</translation>
+    </message>
+    <message>
+        <source>Paste...</source>
+        <translation>Einfügen...</translation>
+    </message>
+    <message>
+        <source>Copy an image, or make a selection, before opening Perspective Planes to paste it</source>
+        <translation>Kopieren Sie ein Bild oder erstellen Sie eine Auswahl, bevor Sie Perspektivebenen öffnen, um es einzufügen</translation>
+    </message>
+    <message>
+        <source>Paste an image onto a plane</source>
+        <translation>Ein Bild auf eine Ebene einfügen</translation>
+    </message>
+    <message>
+        <source>Fit the image in the view</source>
+        <translation>Bild in die Ansicht einpassen</translation>
+    </message>
+    <message>
+        <source>Result:</source>
+        <translation>Ergebnis:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>Neue Ebene</translation>
+    </message>
+    <message>
+        <source>Current layer</source>
+        <translation>Aktuelle Ebene</translation>
+    </message>
+    <message>
+        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
+        <translation>Das Ergebnis auf eine neue Ebene über der aktuellen oder auf die aktuelle Ebene selbst legen</translation>
+    </message>
+    <message>
+        <source>Paint Color</source>
+        <translation>Malfarbe</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27197,6 +27409,54 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Interface scale presets</source>
         <translation>Vorgaben für die Oberflächenskalierung</translation>
     </message>
+    <message>
+        <source>&amp;Perspective Planes...</source>
+        <translation>&amp;Perspektivebenen...</translation>
+    </message>
+    <message>
+        <source>Paste, clone, or paint onto flat surfaces in perspective</source>
+        <translation>Perspektivisch auf flache Flächen einfügen, klonen oder malen</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable in Quick Mask mode</source>
+        <translation>Perspektivebenen ist im Maskierungsmodus nicht verfügbar</translation>
+    </message>
+    <message>
+        <source>Perspective Planes is unavailable while viewing a document channel</source>
+        <translation>Perspektivebenen ist nicht verfügbar, während ein Dokumentkanal angezeigt wird</translation>
+    </message>
+    <message>
+        <source>Perspective Planes works on 8-bit and 16-bit documents</source>
+        <translation>Perspektivebenen funktioniert mit 8-Bit- und 16-Bit-Dokumenten</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object before using Perspective Planes</source>
+        <translation>Rastern Sie das Smartobjekt, bevor Sie Perspektivebenen verwenden</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>Perspektivebenen</translation>
+    </message>
+    <message>
+        <source>Selection on This Layer</source>
+        <translation>Auswahl auf dieser Ebene</translation>
+    </message>
+    <message>
+        <source>Layer: %1</source>
+        <translation>Ebene: %1</translation>
+    </message>
+    <message>
+        <source>Cancelled Perspective Planes</source>
+        <translation>Perspektivebenen abgebrochen</translation>
+    </message>
+    <message>
+        <source>Perspective Planes made no changes</source>
+        <translation>Perspektivebenen hat nichts geändert</translation>
+    </message>
+    <message>
+        <source>Applied Perspective Planes</source>
+        <translation>Perspektivebenen angewendet</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -29201,6 +29461,102 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>%1: run %2 %3 must be &apos;%4&apos;, &apos;%5&apos; or &apos;none&apos;.</source>
         <translation>%1: Textabschnitt %2: %3 muss &apos;%4&apos;, &apos;%5&apos; oder &apos;none&apos; sein.</translation>
+    </message>
+    <message>
+        <source>checkPlane: pass four [x, y] corners.</source>
+        <translation>checkPlane: Übergeben Sie vier [x, y]-Ecken.</translation>
+    </message>
+    <message>
+        <source>getPlanes needs an open document.</source>
+        <translation>getPlanes benötigt ein geöffnetes Dokument.</translation>
+    </message>
+    <message>
+        <source>setPlanes: pass a document and an array of planes.</source>
+        <translation>setPlanes: Übergeben Sie ein Dokument und ein Array von Ebenen.</translation>
+    </message>
+    <message>
+        <source>setPlanes: plane %1 needs four [x, y] corners.</source>
+        <translation>setPlanes: Ebene %1 benötigt vier [x, y]-Ecken.</translation>
+    </message>
+    <message>
+        <source>setPlanes needs an open document.</source>
+        <translation>setPlanes benötigt ein geöffnetes Dokument.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: pass a layer and {plane, source}.</source>
+        <translation>perspective.paste: Übergeben Sie eine Ebene und {plane, source}.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: plane must be four [x, y] corners or a plane index, and source a layer of this document.</source>
+        <translation>perspective.paste: plane muss aus vier [x, y]-Ecken oder einem Ebenenindex bestehen und source eine Ebene dieses Dokuments sein.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.paste: placement ist &quot;fill&quot;, &quot;fit&quot; oder {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.paste: placement benötigt endliche x und y und einen positiven scale.</translation>
+    </message>
+    <message>
+        <source>perspective.paste: the source must be an 8-bit or 16-bit pixel layer.</source>
+        <translation>perspective.paste: source muss eine 8-Bit- oder 16-Bit-Pixelebene sein.</translation>
+    </message>
+    <message>
+        <source>%1: pass a layer and an options object.</source>
+        <translation>%1: Übergeben Sie eine Ebene und ein Optionsobjekt.</translation>
+    </message>
+    <message>
+        <source>%1: plane must be four [x, y] corners or a plane index.</source>
+        <translation>%1: plane muss aus vier [x, y]-Ecken oder einem Ebenenindex bestehen.</translation>
+    </message>
+    <message>
+        <source>%1: points must be [x, y] pairs.</source>
+        <translation>%1: points müssen [x, y]-Paare sein.</translation>
+    </message>
+    <message>
+        <source>%1: points needs at least one [x, y] point.</source>
+        <translation>%1: points benötigt mindestens einen [x, y]-Punkt.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: from must be an [x, y] point on sourcePlane (default: plane).</source>
+        <translation>perspective.clone: from muss ein [x, y]-Punkt auf sourcePlane sein (Standard: plane).</translation>
+    </message>
+    <message>
+        <source>perspective.paint: color is &quot;#rrggbb&quot; or [r, g, b].</source>
+        <translation>perspective.paint: color ist &quot;#rrggbb&quot; oder [r, g, b].</translation>
+    </message>
+    <message>
+        <source>%1: the first point is past the plane&apos;s horizon.</source>
+        <translation>%1: Der erste Punkt liegt hinter dem Horizont der Ebene.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sourcePlane cannot be used.</source>
+        <translation>perspective.clone: sourcePlane kann nicht verwendet werden.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective edits the active document (call doc.activate() first).</source>
+        <translation>patchy.perspective bearbeitet das aktive Dokument (rufen Sie zuerst doc.activate() auf).</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane&apos;s corners cannot be a plane (%1).</source>
+        <translation>patchy.perspective: Die Ecken der Ebene ergeben keine Ebene (%1).</translation>
+    </message>
+    <message>
+        <source>Layer pixels are locked.</source>
+        <translation>Die Ebenenpixel sind gesperrt.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective needs an editable 8-bit or 16-bit RGB pixel layer.</source>
+        <translation>patchy.perspective benötigt eine bearbeitbare 8-Bit- oder 16-Bit-RGB-Pixelebene.</translation>
+    </message>
+    <message>
+        <source>patchy.perspective: the plane cannot be used.</source>
+        <translation>patchy.perspective: Die Ebene kann nicht verwendet werden.</translation>
+    </message>
+    <message>
+        <source>Perspective Planes</source>
+        <translation>Perspektivebenen</translation>
     </message>
 </context>
 <context>

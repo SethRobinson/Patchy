@@ -1388,6 +1388,19 @@ private:
   bool prompt_rasterize_procedural_layer(LayerId layer_id, const QString& operation_name,
                                          bool offer_convert_to_smart_object);
   void liquify_dialog();
+  // Filter > Perspective Planes... (docs/perspective-planes.md).
+  void perspective_planes_dialog();
+  struct PerspectiveLayerInput {
+    PixelBuffer pixels;  // straight RGBA8 (a 16-bit layer narrowed for the workspace)
+    Rect bounds{};
+    bool can_write_onto_layer{false};
+  };
+  [[nodiscard]] std::optional<PerspectiveLayerInput> perspective_layer_input(LayerId layer_id) const;
+  // Writes perspective edits (straight RGBA8 at document `edits.second`) as one undo step: onto
+  // the layer when asked and possible, else onto a new layer above it. Returns the written
+  // layer, or nullopt when nothing changed.
+  std::optional<LayerId> apply_perspective_edits(LayerId layer_id, std::pair<PixelBuffer, Rect> edits, bool onto_layer,
+                                                 const QString& undo_label, bool record_history = true);
   void camera_raw_filter_dialog();
   void convert_for_smart_filters();
   void gaussian_smart_filter_dialog(
@@ -2555,6 +2568,8 @@ private:
   // next File menu open (recent_menus_stale_).
   void remove_recent_path(const QString& path, bool is_folder, bool rebuild_menus = true);
   bool recent_menus_stale_{false};
+  // Perspective Planes' Result choice, kept for the next visit.
+  bool perspective_write_onto_layer_{false};
   void open_recent_document(QString path);
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
                            QKeySequence shortcut, int cluster);

@@ -114,6 +114,7 @@ Read these before acting in the named area:
 
 - **Smart Objects and Smart Filters** *(legal)*: [docs/smart-objects.md](docs/smart-objects.md), editing and linked/placed authoring in [docs/smart-object-editing.md](docs/smart-object-editing.md), the native-filter calibration in [docs/smart-filters-native.md](docs/smart-filters-native.md) (table-described filters: [docs/smart-filters-pixelate-render.md](docs/smart-filters-pixelate-render.md), [docs/smart-filters-distort-stylize.md](docs/smart-filters-distort-stylize.md); Image > Adjustments entries: [docs/smart-filters-adjustments.md](docs/smart-filters-adjustments.md)).
 - **Liquify** *(legal)*: [docs/liquify.md](docs/liquify.md).
+- **Perspective Planes** *(legal)*: [docs/perspective-planes.md](docs/perspective-planes.md); an edit stays on the plane it starts on.
 - **Warp:** [docs/warp.md](docs/warp.md).
 - **Brush tips, dynamics, Flow/Airbrush, Pattern Stamp, and ABR** *(legal)*: [docs/brushes.md](docs/brushes.md).
 - **Mixer Brush pickup engine and stroke Smoothing** *(legal)*: [docs/mixer.md](docs/mixer.md).
@@ -127,7 +128,7 @@ Read these before acting in the named area:
 - **GIMP .xcf import** *(legal)*: [docs/xcf.md](docs/xcf.md). Clean-room; GIMP-only blend modes are Patchy modes a PSD save bakes.
 - **Krita (.kra) import** *(legal)*: [docs/kra.md](docs/kra.md). Clean-room from files Krita writes; never read Krita or libkra source.
 - **PDF import/export:** [docs/pdf.md](docs/pdf.md); timings in [docs/pdf-performance.md](docs/pdf-performance.md).
-- **Artboards (model, compositor, PSD `artb`/`artd`, tool, exports, scripts):** [docs/artboards.md](docs/artboards.md). Artboards stay top-level groups; nothing infers one from edit history.
+- **Artboards (model, PSD `artb`/`artd`, tool, exports):** [docs/artboards.md](docs/artboards.md). Artboards stay top-level groups; nothing infers one from edit history.
 - **Document channels:** [docs/channels.md](docs/channels.md).
 - **Resolution and measurement units:** [docs/resolution-units.md](docs/resolution-units.md).
 - **Image Size resampling:** [docs/resampling.md](docs/resampling.md).
@@ -141,12 +142,12 @@ Read these before acting in the named area:
 - **Photoshop's Txt2 text engine block:** [docs/txt2.md](docs/txt2.md), read before any Txt2, text-run or list-style work. Photoshop trusts Txt2 over the TySh: a new TySh key needs its Txt2 twin. Vertical type and paragraph direction are in both text docs.
 - **Bundled, wasm-aliased and user-added fonts:** [docs/fonts.md](docs/fonts.md).
 - **Selection tools** *(legal)*: [docs/selection-tools.md](docs/selection-tools.md). ML Select Subject and Object Selection: [docs/ai-selection.md](docs/ai-selection.md); one prompt per solve, no negative points or mask feedback. Select Subject/Background and Remove Background are held back (CMake `PATCHY_ENABLE_SELECT_SUBJECT`, default off) pending patent review of US 12051225.
-- **Free Transform Skew/Distort/Perspective (corner offsets, one session delta), session steps (undo inside a pending transform) and the transform drag preview:** [docs/free-transform.md](docs/free-transform.md).
-- **Shape tools, the Fill tool and Fill command, Free Transform modifiers, pixel-grid snapping (Photoshop's whole-pixel rule, `core/pixel_grid.hpp`), Merge Down, and the Background lock:** [docs/tools.md](docs/tools.md); vector merges and Flatten Image in [docs/layer-merging.md](docs/layer-merging.md); the Crop tool in [docs/crop-tool.md](docs/crop-tool.md); tool palette layout, flyouts and icons in [docs/tool-palette.md](docs/tool-palette.md); which tool and options survive a restart in [docs/tool-options.md](docs/tool-options.md).
-- **Background layer (bottom of the stack, no layer styles, padlock badge, Layer from Background, PSD records without transparency):** [docs/background-layer.md](docs/background-layer.md).
+- **Free Transform Skew/Distort/Perspective, session steps (undo inside a pending transform) and the transform drag preview:** [docs/free-transform.md](docs/free-transform.md).
+- **Shape tools, the Fill tool and Fill command, Free Transform modifiers, pixel-grid snapping (`core/pixel_grid.hpp`), Merge Down, and the Background lock:** [docs/tools.md](docs/tools.md); vector merges and Flatten Image in [docs/layer-merging.md](docs/layer-merging.md); the Crop tool in [docs/crop-tool.md](docs/crop-tool.md); tool palette layout, flyouts and icons in [docs/tool-palette.md](docs/tool-palette.md); which tool and options survive a restart in [docs/tool-options.md](docs/tool-options.md).
+- **Background layer (stack position, no layer styles, padlock, Layer from Background, PSD records):** [docs/background-layer.md](docs/background-layer.md).
 - **New Document dialog, the panel column and tab groups, Options bar layout, Dynamic Vector Preview:** [docs/new-document.md](docs/new-document.md), [docs/right-docks.md](docs/right-docks.md), [docs/options-bar.md](docs/options-bar.md), [docs/vector-preview.md](docs/vector-preview.md).
 - **Pick tool (Eyedropper): options, sample outline and loupe; the Ruler and Straighten:** [docs/pick-tool.md](docs/pick-tool.md). The loupe reads only its lens square per move.
-- **Zoom tool, Scrubby Zoom, pen and wheel zoom, the status-bar zoom box and document info field:** [docs/view-navigation.md](docs/view-navigation.md).
+- **Zoom tool, Scrubby Zoom, pen and wheel zoom, the status-bar zoom and info fields:** [docs/view-navigation.md](docs/view-navigation.md).
 - **Ruler guides (drawing, drags, New Guide, PSD resource 1032):** [docs/guides.md](docs/guides.md). Guides may sit on the pasteboard: never clamp a position to the canvas.
 - **Move-tool alignment guides and Layer > Arrange > Align / Distribute** *(legal)*: [docs/alignment.md](docs/alignment.md); options bar, Auto-Select, transform box hit zones, Move cursor: [docs/move-tool.md](docs/move-tool.md).
 - **Vector tools, shape layers, vector masks, and Paths** *(legal)*: [docs/vector-tools.md](docs/vector-tools.md) (PSD fixtures in [docs/vector-fixtures.md](docs/vector-fixtures.md)).

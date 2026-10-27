@@ -450,7 +450,7 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
   CHECK(liquify_action->property("patchy.channelViewBlocked").toBool());
   CHECK(!filter_menu->actions().isEmpty());
   // Photoshop's order: Last Filter, then Convert for Smart Filters, each in its own group.
-  CHECK(filter_menu->actions().size() >= 8);
+  CHECK(filter_menu->actions().size() >= 9);
   CHECK(filter_menu->actions().front() == last_filter_action);
   CHECK(filter_menu->actions()[1]->isSeparator());
   CHECK(filter_menu->actions()[2] == convert_action);
@@ -458,7 +458,8 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
   CHECK(filter_menu->actions()[4] == gallery_action);
   CHECK(filter_menu->actions()[5] == camera_raw_filter_action);
   CHECK(filter_menu->actions()[6] == liquify_action);
-  CHECK(filter_menu->actions()[7]->isSeparator());
+  CHECK(filter_menu->actions()[7] == require_action(window, "filterPerspectivePlanesAction"));
+  CHECK(filter_menu->actions()[8]->isSeparator());
   const auto* convert_command = window.hotkey_registry().find_command(
       QStringLiteral("filter.convert_for_smart_filters"));
   CHECK(convert_command != nullptr);
