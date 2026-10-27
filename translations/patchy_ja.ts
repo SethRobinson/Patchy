@@ -27070,10 +27070,6 @@ The open document keeps its blend modes either way.</source>
         <translation>クローン元の設定: ソース、オフセット、スケール、回転、反転、オーバーレイ</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>クローン元</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>PNG としてクイック書き出し</translation>
     </message>

@@ -27146,10 +27146,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung, Spiegelung und Überlagerung</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Kopierquelle</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Schnellexport als PNG</translation>
     </message>

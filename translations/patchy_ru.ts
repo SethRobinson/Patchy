@@ -27222,10 +27222,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Параметры источника клонирования: источники, сдвиг, масштаб, поворот, отражение и наложение</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Источник клонирования</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Быстрый экспорт в PNG</translation>
     </message>

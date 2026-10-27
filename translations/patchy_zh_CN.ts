@@ -27070,10 +27070,6 @@ The open document keeps its blend modes either way.</source>
         <translation>仿制源设置: 源、位移、缩放、旋转、翻转和叠加</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>仿制源</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>快速导出为 PNG</translation>
     </message>

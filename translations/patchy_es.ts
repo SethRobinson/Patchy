@@ -27146,10 +27146,6 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>Ajustes del origen de clonación: orígenes, desplazamiento, escala, rotación, volteo y superposición</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Origen de clonación</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Exportación rápida como PNG</translation>
     </message>

@@ -1,7 +1,7 @@
 // Clone source settings (GitHub issue 424; docs/healing.md "Clone source settings"): the
 // Clone Stamp's scale, rotation and flips (byte-identical output at the identity), the
 // editable offset, the four source slots, the Healing Brush keeping its untransformed
-// source, the overlay under the hovered brush, and the gear popup with Window > Clone Source.
+// source, the overlay under the hovered brush, and the gear popup.
 #include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
@@ -405,8 +405,8 @@ void ui_clone_source_overlay_shows_flipped_source() {
   CHECK(color_close(mirrored_right, QColor(220, 40, 30), 12));
 }
 
-// The gear on the Clone Stamp bar opens the settings; edits reach the canvas, the overlay
-// settings persist, and Window > Clone Source picks the Clone Stamp and opens the popup.
+// The gear on the Clone Stamp bar opens the settings and edits reach the canvas. The
+// gear is the only way in: no Window menu entry, no hotkey command.
 void ui_clone_source_gear_popup_drives_canvas() {
   SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
   SettingsValueRestorer saved_overlay(QStringLiteral("tools/cloneOverlay"));
@@ -423,23 +423,16 @@ void ui_clone_source_gear_popup_drives_canvas() {
   }
   CHECK(!gear->isVisible());
 
-  // Window > Clone Source from the Brush: the Clone Stamp, and the popup under the gear.
-  auto* entry = require_action(window, "windowCloneSourceAction");
-  CHECK(entry->menuRole() == QAction::NoRole);
-  if (auto* window_menu = qobject_cast<QMenu*>(entry->parent()); window_menu != nullptr) {
-    CHECK(window_menu->actions().contains(entry));
-    window_menu->popup(window.mapToGlobal(QPoint(40, 0)));
-    QApplication::processEvents();
-    save_widget_artifact("ui_clone_source_window_menu_entry", *window_menu);
-    window_menu->hide();
-    QApplication::processEvents();
-  } else {
-    CHECK(false);
+  CHECK(window.findChild<QAction*>(QStringLiteral("windowCloneSourceAction")) == nullptr);
+  for (auto* action : window.findChildren<QAction*>()) {
+    CHECK(action->text().remove(QLatin1Char('&')) != QStringLiteral("Clone Source"));
   }
-  entry->trigger();
+
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == CanvasTool::Clone);
   CHECK(gear->isVisible());
+  open_gear_popup(*gear, *menu);
   CHECK(menu->isVisible());
   // An earlier test may have saved Aligned off; the offset fields need it on.
   if (auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck")); aligned != nullptr) {
@@ -505,14 +498,6 @@ void ui_clone_source_gear_popup_drives_canvas() {
   CHECK(canvas->tool() == CanvasTool::Healing);
   CHECK(!panel->scale_spin()->isEnabled());
   CHECK(!panel->flip_horizontal_button()->isEnabled() && !panel->flip_vertical_button()->isEnabled());
-  menu->close();
-  QApplication::processEvents();
-
-  // From the Healing Brush the entry keeps the tool and opens the popup.
-  entry->trigger();
-  QApplication::processEvents();
-  CHECK(canvas->tool() == CanvasTool::Healing);
-  CHECK(menu->isVisible());
   menu->close();
   QApplication::processEvents();
 }
