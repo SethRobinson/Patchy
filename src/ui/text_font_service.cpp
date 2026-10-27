@@ -727,6 +727,42 @@ QString display_text_family_from_font(const QFont& font) {
   return family.isEmpty() ? default_text_family() : family;
 }
 
+// The installed table substitute a family that is not installed renders in (GitHub issue 463), or
+// empty. Every text render asks, so it is cached; fontDatabaseChanged clears it. Locked: PDF saves
+// draw text on a worker thread.
+namespace {
+QString render_substitute_for_missing_family(const QString& display_family) {
+  static QHash<QString, QString> cache;
+  static QMutex cache_mutex;
+  static std::once_flag invalidation_connected;
+  if (qGuiApp != nullptr) {
+    std::call_once(invalidation_connected, [] {
+      QObject::connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, qGuiApp, [] {
+        const QMutexLocker lock(&cache_mutex);
+        cache.clear();
+      });
+    });
+  }
+  const auto key = display_family.trimmed().toCaseFolded();
+  {
+    const QMutexLocker lock(&cache_mutex);
+    if (const auto it = cache.constFind(key); it != cache.constEnd()) {
+      return *it;
+    }
+  }
+  QString substitute;
+  if (!key.isEmpty() && !available_text_family_match(display_family).has_value() &&
+      !available_text_family_style_match(display_family).has_value()) {
+    if (const auto substitutes = installed_text_font_substitutes(display_family); !substitutes.empty()) {
+      substitute = substitutes.front().family;
+    }
+  }
+  const QMutexLocker lock(&cache_mutex);
+  cache.insert(key, substitute);
+  return substitute;
+}
+}  // namespace
+
 QStringList render_text_families_for_display_family(const QString& family) {
   const auto display_family = canonical_text_display_family(family);
   QStringList families;
@@ -734,6 +770,11 @@ QStringList render_text_families_for_display_family(const QString& family) {
     families = QStringList{preferred_latin_text_fallback_family(), display_family};
   } else {
     families = QStringList{display_family};
+  }
+  // A missing family draws in the table's substitute (a metric match keeps the line breaks) while
+  // the run still names the family it asked for: QFont::family() stays the first entry.
+  if (const auto substitute = render_substitute_for_missing_family(display_family); !substitute.isEmpty()) {
+    families.append(substitute);
   }
 #ifdef Q_OS_WASM
   // Per-glyph CJK fallback: CJK text typed into any Latin-only face renders

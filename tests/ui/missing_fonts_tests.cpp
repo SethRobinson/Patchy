@@ -24,6 +24,7 @@
 #include <QFile>
 #include <QFontComboBox>
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <QFrame>
 #include <QLabel>
 #include <QListWidget>
@@ -149,7 +150,9 @@ int missing_font_row(QDialog& dialog, const QString& family) {
 // new "Source" document of `window` in the suite's Latin font, saved as PSD, then its family
 // renamed in the bytes to one no machine has: same length, so every length prefix still holds.
 // ASCII and UTF-16BE cover EngineData, descriptors and Txt2. Empty on failure.
-std::vector<std::uint8_t> psd_with_missing_font(MainWindow& window, const QString& text) {
+// `renamed_stem` replaces the family's first word (same length); empty picks a made-up name.
+std::vector<std::uint8_t> psd_with_missing_font(MainWindow& window, const QString& text,
+                                                const QString& renamed_stem = QString()) {
   window.add_document_session(white_document(), QStringLiteral("Source"));
   const auto family = patchy::test::visual_test_font().family();
   auto* combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
@@ -170,7 +173,12 @@ std::vector<std::uint8_t> psd_with_missing_font(MainWindow& window, const QStrin
   process_events_for(150);
   auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
   const auto stem = family.section(QLatin1Char(' '), 0, 0);
-  const auto renamed = QStringLiteral("Qzxqzxqzxqzxqzxqzx").left(stem.size());
+  const auto renamed =
+      renamed_stem.isEmpty() ? QStringLiteral("Qzxqzxqzxqzxqzxqzx").left(stem.size()) : renamed_stem;
+  CHECK(renamed.size() == stem.size());
+  if (renamed.size() != stem.size()) {
+    return {};
+  }
   std::size_t replaced = 0;
   const auto replace_all = [&bytes, &replaced](const std::vector<std::uint8_t>& from, const std::vector<std::uint8_t>& to) {
     for (auto it = std::search(bytes.begin(), bytes.end(), from.begin(), from.end()); it != bytes.end();
@@ -902,6 +910,9 @@ patchy::ui::TextFontSubstitute helvetica_substitute_or_skip() {
 // keeps today's fallback with no suggestion line.
 void ui_missing_fonts_dialog_offers_the_installed_substitute_first() {
   const auto substitute = helvetica_substitute_or_skip();
+  // The shipped default, so the saved dialog image shows what a user sees.
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
   CHECK(substitute.metric);
   const auto helvetica = QStringLiteral("Helvetica");
   auto document = white_document();
@@ -997,8 +1008,112 @@ void ui_missing_font_edit_session_uses_the_table_substitute() {
   CHECK(layer_font(window, id) == substitute.face_family);
 }
 
+// GitHub issue 463: text whose font is missing renders in the table's substitute (every text
+// render builds its QFont here) while the font still names the family the layer asked for, so a
+// re-rendered Patchy-made layer keeps "Helvetica" for a machine that has it. A font the table does
+// not list keeps Qt's own fallback.
+void ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name() {
+  const auto substitute = helvetica_substitute_or_skip();
+  const auto helvetica = QStringLiteral("Helvetica");
+  CHECK(patchy::ui::render_text_families_for_display_family(helvetica) == (QStringList{helvetica, substitute.family}));
+  const auto font = patchy::ui::render_text_font_for_display_family(helvetica, 32, false, false, 1);
+  CHECK(QFontInfo(font).family() == substitute.family);
+  CHECK(patchy::ui::display_text_family_from_font(font) == helvetica);
+  const auto bold = patchy::ui::render_text_font_for_display_family(helvetica, 32, true, false, 1);
+  CHECK(QFontInfo(bold).family() == substitute.family && QFontInfo(bold).bold());
+  CHECK(patchy::ui::render_text_families_for_display_family(kMissing) == QStringList{kMissing});
+  CHECK(patchy::ui::render_text_families_for_display_family(substitute.family) == QStringList{substitute.family});
+}
+
+// GitHub issue 463: a real PSD whose type names Times (a PostScript core font Windows lacks) opens
+// with an installed substitute suggested when there is one, and saving it unedited still names
+// Times, so Photoshop opens it with the original font. The artifact missing_font_times.psd is the
+// test file for manual checks. Registers no Times face itself: Times New Roman registered this
+// early changes the faces later text tests see.
+void ui_missing_font_psd_keeps_its_font_name_until_resolved() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto times = QStringLiteral("Times");
+  if (patchy::ui::available_text_family_match(times).has_value()) {
+    patchy::test::skip("Times is installed on this host");
+  }
+  if (patchy::test::visual_test_font().family().section(QLatin1Char(' '), 0, 0).size() != times.size()) {
+    patchy::test::skip("the suite font's name is not five letters long (the byte rename keeps lengths)");
+  }
+  const auto substitutes = patchy::ui::installed_text_font_substitutes(times, QStringLiteral("Headline"));
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  ensure_artifact_dir();
+  const auto path = QDir::current().absoluteFilePath(QStringLiteral("test-artifacts/missing_font_times.psd"));
+
+  MainWindow window;
+  show_window(window);
+  {
+    const auto bytes = psd_with_missing_font(window, QStringLiteral("Headline"), times);
+    CHECK(!bytes.empty());
+    if (bytes.empty()) {
+      return;
+    }
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+    file.close();
+  }
+
+  auto seen = std::make_shared<int>(0);
+  QString suggestion_text;
+  QString picker_family;
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        auto* name = dialog.findChild<QLabel*>(QStringLiteral("missingFontName0"));
+        CHECK(name != nullptr && patchy::ui::text_font_replacement_key(name->text()).startsWith(QStringLiteral("times")));
+        auto* suggestion = dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion0"));
+        auto* picker = dialog.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("missingFontReplacementCombo0"));
+        auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck0"));
+        suggestion_text = suggestion == nullptr ? QString() : suggestion->text();
+        picker_family = picker == nullptr ? QString() : picker->currentFont().family();
+        CHECK(check != nullptr && !check->isChecked());
+        save_widget_artifact("ui_missing_fonts_dialog_times_suggestion", dialog);
+        dialog.reject();
+      },
+      seen);
+  MainWindowTestAccess::open_document_path(window, path);
+  process_events_for(200);
+  CHECK(*seen == 1);
+  if (!substitutes.empty()) {
+    CHECK(picker_family == substitutes.front().family);
+    CHECK(suggestion_text == QStringLiteral("Suggested: %1 (same character widths)").arg(substitutes.front().family));
+  } else {
+    CHECK(suggestion_text.isEmpty());
+  }
+
+  // Saved without an edit, the type still names Times and never the substitute.
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+  const auto reopened = patchy::psd::DocumentIo::read(bytes);
+  const auto id = first_text_layer_id(reopened.layers());
+  CHECK(id.has_value());
+  if (!id.has_value()) {
+    return;
+  }
+  const auto* layer = reopened.find_layer(*id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto font = layer->metadata().find(patchy::kLayerMetadataTextFont);
+  CHECK(font != layer->metadata().end() &&
+        patchy::ui::text_font_replacement_key(QString::fromStdString(font->second)).startsWith(QStringLiteral("times")));
+  const auto& blocks = layer->unknown_psd_blocks();
+  CHECK(std::ranges::any_of(blocks, [&](const auto& block) {
+    return block.key == "TySh" && payload_names(block, times) &&
+           !payload_names(block, QStringLiteral("Times New Roman"));
+  }));
+}
+
 std::vector<patchy::test::TestCase> missing_fonts_tests() {
   return {
+      {"ui_missing_font_psd_keeps_its_font_name_until_resolved", ui_missing_font_psd_keeps_its_font_name_until_resolved},
+      {"ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name",
+       ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name},
       {"ui_missing_fonts_dialog_offers_the_installed_substitute_first",
        ui_missing_fonts_dialog_offers_the_installed_substitute_first},
       {"ui_missing_font_edit_session_uses_the_table_substitute", ui_missing_font_edit_session_uses_the_table_substitute},

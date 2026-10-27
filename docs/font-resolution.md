@@ -276,10 +276,15 @@ from the substitute's own documentation, never another program's substitution li
   first substitute with a "Suggested: X (same character widths)" or "(similar design)" line; rows
   stay unticked. The stored name changes only on a commit or a resolved row, as before, so the PSD
   still names the original font for Photoshop.
+- **Rendering.** `render_text_families_for_display_family` appends the first installed substitute
+  after a family that is not installed (cached per family, cleared on `fontDatabaseChanged`, locked
+  for the PDF worker), so Patchy-made type in a missing font draws in it with the same line breaks
+  while `QFont::family()` and the stored run still name the original.
 - The wasm alias table (`kWasmFamilyAliases`, [fonts.md](fonts.md)) stays separate: its targets
   are the bundled fonts.
 - Tests: `font_substitutes_` (core), `ui_missing_fonts_dialog_offers_the_installed_substitute_first`,
-  `ui_missing_font_edit_session_uses_the_table_substitute` (skip where Helvetica is installed or
+  `ui_missing_font_edit_session_uses_the_table_substitute`,
+  `ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name` (skip where Helvetica is installed or
   none of its substitutes is registered).
 
 ## Photoshop 5.x `tySh` faces
