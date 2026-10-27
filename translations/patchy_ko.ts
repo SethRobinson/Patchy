@@ -2991,10 +2991,6 @@
         <translation>기본값</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>채널:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>

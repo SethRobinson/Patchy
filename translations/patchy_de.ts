@@ -2927,10 +2927,6 @@
         <translation>Standard</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Kanal:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>

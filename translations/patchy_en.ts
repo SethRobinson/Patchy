@@ -2927,10 +2927,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation type="unfinished"></translation>
     </message>

@@ -2927,10 +2927,6 @@
         <translation>默认值</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>通道:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>

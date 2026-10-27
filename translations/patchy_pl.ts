@@ -2991,10 +2991,6 @@
         <translation>Domyślny</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Kanał:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>

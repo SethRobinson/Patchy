@@ -2927,10 +2927,6 @@
         <translation>Predefinito</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Canale:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>

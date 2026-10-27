@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 
+#include <QColor>
 #include <QWidget>
 
 #include <array>
@@ -57,6 +58,11 @@ inline constexpr std::uint64_t kHistogramCeilingMeanMultiple = 4;
 // Bar height (0..1) for one bin: linear in the count and clipped at the
 // ceiling from histogram_display_ceiling. Returns 0 when the ceiling is 0.
 [[nodiscard]] double histogram_display_fraction(std::uint64_t count, double ceiling);
+
+// Histogram bar color for a channel's graph, drawn over the dark plot: the
+// channel's own hue for Red, Green and Blue, near-white for the composite.
+// Shared by the Curves and Levels dialogs so both tint a channel alike.
+[[nodiscard]] QColor channel_histogram_color(CurvesChannel channel);
 
 // Reusable Curves editing panel. The host owns the authoritative adjustment:
 // every interaction reports a proposed copy through adjustment_changed, and
