@@ -450,6 +450,92 @@ void ui_options_bar_keeps_one_height_across_tools() {
   }
 }
 
+// GitHub issue 458 follow-up: the duplicate sliders drop per tool. At a width where the
+// Clone Stamp's row fits with its Size slider but the Brush row would wrap with its own,
+// the Clone Stamp keeps the slider and the Brush loses it; the bar keeps one height
+// across tool switches once every tool has been picked at that width (issue 91). The
+// artifacts are the issue shots: the Clone Stamp and Healing Brush bars at 1330 px.
+void ui_options_bar_sliders_collapse_per_tool() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options_bar != nullptr && options != nullptr);
+  if (options_bar == nullptr || options == nullptr) {
+    return;
+  }
+  const auto tools = options_bar_test_tool_actions(window);
+  const auto settle = [] {
+    QApplication::processEvents();
+    process_events_for(20);
+  };
+  const auto shown_sliders = [&] {
+    int count = 0;
+    for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      if (child->isVisible() && child->property(patchy::ui::kOptionsBarCollapsibleProperty).toBool()) {
+        ++count;
+      }
+    }
+    return count;
+  };
+  // The issue shots at the reporter's width (taken first, so a failure below keeps them).
+  window.resize(1330, 738);
+  settle();
+  require_action(window, "toolCloneAction")->trigger();
+  settle();
+  std::printf("  1330 px: Clone Stamp shows %d slider(s)\n", shown_sliders());
+  save_widget_artifact("issue458_clone_bar_1330", *options_bar);
+  require_action(window, "toolHealingBrushAction")->trigger();
+  settle();
+  std::printf("  1330 px: Healing Brush shows %d slider(s), row %d px in %d px\n", shown_sliders(),
+              options_row_extent(*options).first, options->width());
+  save_widget_artifact("issue458_healing_bar_1330", *options_bar);
+  window.resize(2600, 800);
+  settle();
+  const int chrome = window.width() - options->width();
+  require_action(window, "toolCloneAction")->trigger();
+  settle();
+  const int clone_row = options_row_extent(*options).first;
+  CHECK(shown_sliders() == 1);
+  require_action(window, "toolBrushAction")->trigger();
+  settle();
+  const int brush_row = options_row_extent(*options).first;
+  CHECK(shown_sliders() >= 1);
+  std::printf("  natural rows: Clone Stamp %d px, Brush %d px; window chrome %d px\n", clone_row, brush_row, chrome);
+  // Room for the Clone Stamp row and 40 px more, not for the Brush row.
+  const int width = clone_row + 40 + chrome;
+  CHECK(brush_row > clone_row + 40);
+  window.resize(width, 738);
+  settle();
+  for (auto* action : tools) {
+    action->trigger();
+    settle();
+  }
+  const int bar_height = options_bar->height();
+  for (auto* action : tools) {
+    action->trigger();
+    settle();
+    if (options_bar->height() != bar_height) {
+      std::fprintf(stderr, "  %d px: %s changed the bar to %d px from %d px\n", width,
+                   qPrintable(action->objectName()), options_bar->height(), bar_height);
+    }
+    CHECK(options_bar->height() == bar_height);
+    if (action->objectName() == QStringLiteral("toolCloneAction")) {
+      CHECK(shown_sliders() == 1);
+      CHECK(options_row_extent(*options).second == 1);
+    } else if (action->objectName() == QStringLiteral("toolBrushAction")) {
+      CHECK(shown_sliders() == 0);
+    }
+  }
+  // Back and forth: Clone Stamp gets its slider back after the Brush, and the bar stays.
+  require_action(window, "toolBrushAction")->trigger();
+  settle();
+  require_action(window, "toolCloneAction")->trigger();
+  settle();
+  CHECK(shown_sliders() == 1);
+  CHECK(options_bar->height() == bar_height);
+}
+
 // GitHub issue 409 follow-up: every tool's controls sit on the middle of the Options
 // strip, the gap from the strip's top to the controls equal to the gap below them, and
 // the strip itself sits evenly in the toolbar. Each control is centered on its row
@@ -1914,10 +2000,16 @@ void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   settle();
   CHECK(size_spin->isVisible());
   CHECK(!size_slider->isVisible());
-  // The decision covers every tool at this width, not just the active one.
+  // The decision is per tool (GitHub issue 458 follow-up): the Gradient row fits here
+  // with its slider, so it keeps it, and drops it only where its own row would wrap.
   require_action(window, "toolGradientAction")->trigger();
   settle();
+  CHECK(gradient_slider->isVisible());
+  window.resize(600, 800);
+  settle();
   CHECK(!gradient_slider->isVisible());
+  window.resize(1000, 800);
+  settle();
   // The spin box still drives the value.
   require_action(window, "toolBrushAction")->trigger();
   settle();
@@ -10202,6 +10294,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_gradient_toolbar_preset_popup_applies_stops", ui_gradient_toolbar_preset_popup_applies_stops},
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
+      {"ui_options_bar_sliders_collapse_per_tool", ui_options_bar_sliders_collapse_per_tool},
       {"ui_options_bar_controls_sit_centered_on_the_strip", ui_options_bar_controls_sit_centered_on_the_strip},
       {"ui_options_bar_short_row_stays_on_line_one_after_a_wrapped_tool",
        ui_options_bar_short_row_stays_on_line_one_after_a_wrapped_tool},
