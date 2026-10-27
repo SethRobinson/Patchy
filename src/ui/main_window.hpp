@@ -84,6 +84,7 @@ class QFrame;
 class QImage;
 class QKeyEvent;
 class QLabel;
+class QLayout;
 class QLineEdit;
 class QMenu;
 class QMimeData;
@@ -2570,7 +2571,8 @@ private:
   [[nodiscard]] ToolPaletteCatalog tool_palette_catalog() const;
   // The palette's right-click menu: Customize Tool Palette..., then the panel list.
   void show_tool_palette_context_menu(const QPoint& global_position);
-  // Shows the Layers footer buttons the customization keeps (GitHub issue 199).
+  // Shows the Layers footer buttons the customization keeps (GitHub issue 199), in its order
+  // (GitHub issue 471).
   void apply_layer_footer_visibility();
   // The Layers footer buttons' right-click menu: a tick per button, Show All Buttons and
   // Customize Tool Palette... on its Layers buttons tab.
@@ -2864,6 +2866,10 @@ private:
     const char* name_source;
   };
   std::vector<LayerFooterButton> layer_footer_buttons_;
+  // The footer's wrapping row; apply_layer_footer_visibility re-adds the buttons in order.
+  QLayout* layer_footer_layout_{nullptr};
+  // The footer buttons in the customization's order (resolved_layer_footer_order).
+  [[nodiscard]] std::vector<const LayerFooterButton*> ordered_layer_footer_buttons() const;
   // Layer > Arrange > Bring to Front / Send to Back (GitHub issue 468); the footer's Shift-click
   // Move Up / Move Down run them too.
   QAction* layer_bring_to_front_action_{nullptr};

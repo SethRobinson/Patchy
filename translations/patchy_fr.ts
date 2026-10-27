@@ -13037,10 +13037,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Outils</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>Cochez les boutons affichés par le panneau Calques. Les commandes des boutons masqués restent dans les menus.</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>Boutons des calques</translation>
     </message>
@@ -13199,6 +13195,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Suggested: %1 (also a monospaced font)</source>
         <translation>Suggestion : %1 (aussi une police à chasse fixe)</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Cochez les boutons affichés par le panneau Calques, et faites-les glisser ou utilisez Monter et Descendre pour choisir leur ordre. Les commandes des boutons masqués restent dans les menus.</translation>
     </message>
 </context>
 <context>

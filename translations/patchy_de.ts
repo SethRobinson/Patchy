@@ -13037,10 +13037,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Werkzeuge</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>Haken Sie die Schaltflächen an, die das Ebenen-Bedienfeld zeigt. Die Befehle ausgeblendeter Schaltflächen bleiben in den Menüs.</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>Ebenen-Schaltflächen</translation>
     </message>
@@ -13199,6 +13195,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Suggested: %1 (also a monospaced font)</source>
         <translation>Vorschlag: %1 (ebenfalls eine dicktengleiche Schrift)</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Haken Sie die Schaltflächen an, die das Ebenen-Bedienfeld zeigt, und ziehen Sie sie oder verwenden Sie „Nach oben“ und „Nach unten“, um ihre Reihenfolge festzulegen. Die Befehle ausgeblendeter Schaltflächen bleiben in den Menüs.</translation>
     </message>
 </context>
 <context>

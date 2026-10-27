@@ -13074,10 +13074,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Narzędzia</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>Zaznacz przyciski widoczne w panelu Warstwy. Polecenia ukrytych przycisków pozostają w menu.</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>Przyciski warstw</translation>
     </message>
@@ -13236,6 +13232,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Suggested: %1 (also a monospaced font)</source>
         <translation>Sugerowana: %1 (również krój o stałej szerokości)</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Zaznacz przyciski widoczne w panelu Warstwy, a ich kolejność ustaw, przeciągając je lub używając przycisków Przesuń w górę i Przesuń w dół. Polecenia ukrytych przycisków pozostają w menu.</translation>
     </message>
 </context>
 <context>

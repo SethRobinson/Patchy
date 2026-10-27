@@ -13000,10 +13000,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>工具</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>勾選圖層面板顯示的按鈕。隱藏按鈕的命令仍在選單中。</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>圖層按鈕</translation>
     </message>
@@ -13162,6 +13158,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Suggested: %1 (also a monospaced font)</source>
         <translation>建議：%1 (同為等寬字型)</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>勾選圖層面板顯示的按鈕，拖曳它們或使用「上移」和「下移」設定順序。隱藏按鈕的命令仍在選單中。</translation>
     </message>
 </context>
 <context>

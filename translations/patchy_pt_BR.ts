@@ -13037,10 +13037,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Ferramentas</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>Marque os botões que o painel Camadas mostra. Os comandos dos botões ocultos continuam nos menus.</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>Botões de camadas</translation>
     </message>
@@ -13199,6 +13195,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Suggested: %1 (also a monospaced font)</source>
         <translation>Sugestão: %1 (também uma fonte monoespaçada)</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Marque os botões que o painel Camadas mostra e arraste-os ou use Subir e Mover para baixo para definir a ordem. Os comandos dos botões ocultos continuam nos menus.</translation>
     </message>
 </context>
 <context>

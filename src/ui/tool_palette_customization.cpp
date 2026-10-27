@@ -49,6 +49,8 @@ QString hidden_layer_buttons_key() { return QStringLiteral("layersPanel/hiddenFo
 // The optional footer buttons the user showed (kLayerFooterButtonIdsHiddenByDefault).
 QString shown_layer_buttons_key() { return QStringLiteral("layersPanel/shownFooterButtons"); }
 QString hidden_footer_items_key() { return QStringLiteral("toolPalette/hiddenFooterItems"); }
+// The footer buttons' order (GitHub issue 471), every known id once; absent for the default order.
+QString layer_button_order_key() { return QStringLiteral("layersPanel/footerButtonOrder"); }
 // The layout token; anything else (or nothing) is one column.
 constexpr auto kTwoColumnsToken = "two_columns";
 
@@ -270,12 +272,46 @@ protected:
   }
 };
 
+QStringList default_layer_footer_order() {
+  QStringList order;
+  for (const auto* id : kLayerFooterButtonIds) {
+    order.push_back(QString::fromLatin1(id));
+  }
+  return order;
+}
+
 }  // namespace
+
+QStringList resolved_layer_footer_order(const QStringList& stored) {
+  const auto known = default_layer_footer_order();
+  QStringList order;
+  for (const auto& id : stored) {
+    if (known.contains(id) && !order.contains(id)) {
+      order.push_back(id);
+    }
+  }
+  for (qsizetype index = 0; index < known.size(); ++index) {
+    if (order.contains(known[index])) {
+      continue;
+    }
+    qsizetype position = 0;
+    for (auto previous = index; previous > 0; --previous) {
+      if (const auto at = order.indexOf(known[previous - 1]); at >= 0) {
+        position = at + 1;
+        break;
+      }
+    }
+    order.insert(position, known[index]);
+  }
+  return order;
+}
 
 ToolPaletteCustomization normalized_tool_palette_customization(ToolPaletteCustomization value) {
   value.hidden_tools = normalized_ids(std::move(value.hidden_tools));
   value.hidden_layer_buttons = normalized_ids(std::move(value.hidden_layer_buttons));
   value.hidden_footer_items = normalized_ids(std::move(value.hidden_footer_items));
+  auto order = resolved_layer_footer_order(value.layer_button_order);
+  value.layer_button_order = order == default_layer_footer_order() ? QStringList{} : std::move(order);
   return value;
 }
 
@@ -293,6 +329,7 @@ ToolPaletteCustomization stored_tool_palette_customization() {
     }
   }
   value.hidden_footer_items = settings.value(hidden_footer_items_key()).toStringList();
+  value.layer_button_order = settings.value(layer_button_order_key()).toStringList();
   return normalized_tool_palette_customization(std::move(value));
 }
 
@@ -325,6 +362,7 @@ void set_stored_tool_palette_customization(const ToolPaletteCustomization& value
   store_list(hidden_layer_buttons_key(), hidden_layer_buttons);
   store_list(shown_layer_buttons_key(), normalized_ids(std::move(shown_layer_buttons)));
   store_list(hidden_footer_items_key(), normalized.hidden_footer_items);
+  store_list(layer_button_order_key(), normalized.layer_button_order);
   if (normalized.two_columns) {
     settings.setValue(layout_key(), QString::fromLatin1(kTwoColumnsToken));
   } else {
@@ -492,23 +530,42 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   tools_layout->addLayout(preview_column);
   tabs->addTab(tools_page, QObject::tr("Tools"));
 
-  // Layers buttons tab: one tickable row per footer button.
+  // Layers buttons tab: one tickable row per footer button, in footer order. Move Up and Move
+  // Down beside the list, or a drag, change the order (GitHub issue 471).
   auto* layers_page = new QWidget(tabs);
   auto* layers_layout = new QVBoxLayout(layers_page);
-  auto* layers_hint = new QLabel(
-      QObject::tr("Tick the buttons the Layers panel shows. Hidden buttons' commands stay in the menus."), layers_page);
+  auto* layers_hint = new QLabel(QObject::tr("Tick the buttons the Layers panel shows, and drag them or use Move Up "
+                                             "and Move Down to set their order. Hidden buttons' commands stay in the "
+                                             "menus."),
+                                 layers_page);
   layers_hint->setWordWrap(true);
   layers_layout->addWidget(layers_hint);
+  auto* layers_row = new QHBoxLayout();
   auto* layer_list = new QListWidget(layers_page);
   layer_list->setObjectName(QStringLiteral("layerFooterButtonsList"));
   layer_list->setIconSize(QSize(20, 20));
-  layer_list->setSelectionMode(QAbstractItemView::NoSelection);
+  layer_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  layer_list->setDragDropMode(QAbstractItemView::InternalMove);
+  layer_list->setDefaultDropAction(Qt::MoveAction);
   for (const auto& button : catalog.layer_buttons) {
     auto* item = new QListWidgetItem(button.icon, button.name, layer_list);
     item->setData(kIdRole, button.id);
-    item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
+    // No ItemIsDropEnabled: a drop lands between rows, never onto one.
+    item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled);
   }
-  layers_layout->addWidget(layer_list, 1);
+  layers_row->addWidget(layer_list, 1);
+  auto* order_column = new QVBoxLayout();
+  auto* order_up = new QPushButton(QObject::tr("Move Up"), layers_page);
+  order_up->setObjectName(QStringLiteral("layerFooterOrderUpButton"));
+  order_up->setAutoDefault(false);
+  auto* order_down = new QPushButton(QObject::tr("Move Down"), layers_page);
+  order_down->setObjectName(QStringLiteral("layerFooterOrderDownButton"));
+  order_down->setAutoDefault(false);
+  order_column->addWidget(order_up);
+  order_column->addWidget(order_down);
+  order_column->addStretch(1);
+  layers_row->addLayout(order_column);
+  layers_layout->addLayout(layers_row, 1);
   tabs->addTab(layers_page, QObject::tr("Layers buttons"));
 
   // The tree: a header row per cluster, a tickable row per slot, and a flyout's members
@@ -601,6 +658,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     keep_unlisted(current.customization.hidden_tools, listed_tools, value.hidden_tools);
     value.two_columns = two_columns->isChecked();
     value.wheel_scroll = wheel_scroll->isChecked();
+    // The default choice already hides the optional buttons: start from the rows alone.
+    value.hidden_layer_buttons.clear();
     for (int index = 0; index < layer_list->count(); ++index) {
       auto* item = layer_list->item(index);
       if (item->checkState() != Qt::Checked) {
@@ -608,6 +667,9 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
       }
     }
     keep_unlisted(current.customization.hidden_layer_buttons, listed_layer_buttons, value.hidden_layer_buttons);
+    for (int index = 0; index < layer_list->count(); ++index) {
+      value.layer_button_order.push_back(layer_list->item(index)->data(kIdRole).toString());
+    }
     for (const auto& check : footer_checks) {
       if (!check.box->isChecked()) {
         value.hidden_footer_items.push_back(QString::fromLatin1(check.id));
@@ -646,6 +708,17 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     }
     (value.two_columns ? two_columns : one_column)->setChecked(true);
     wheel_scroll->setChecked(value.wheel_scroll);
+    // The rows in the choice's footer order; a row the order does not name stays below.
+    int next_row = 0;
+    for (const auto& id : resolved_layer_footer_order(value.layer_button_order)) {
+      for (int index = next_row; index < layer_list->count(); ++index) {
+        if (layer_list->item(index)->data(kIdRole).toString() == id) {
+          layer_list->insertItem(next_row++, layer_list->takeItem(index));
+          break;
+        }
+      }
+    }
+    layer_list->setCurrentRow(-1);
     for (int index = 0; index < layer_list->count(); ++index) {
       auto* item = layer_list->item(index);
       item->setCheckState(value.hidden_layer_buttons.contains(item->data(kIdRole).toString()) ? Qt::Unchecked
@@ -665,6 +738,27 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
 
   QObject::connect(tree, &QTreeWidget::itemChanged, &dialog, [&](QTreeWidgetItem*, int) { refresh_preview(); });
   QObject::connect(layer_list, &QListWidget::itemChanged, &dialog, [&](QListWidgetItem*) { refresh_preview(); });
+  // Move Up and Move Down act on the current row; each is off where it would do nothing.
+  const auto refresh_order_buttons = [&] {
+    const int row = layer_list->currentRow();
+    order_up->setEnabled(row > 0);
+    order_down->setEnabled(row >= 0 && row + 1 < layer_list->count());
+  };
+  const auto move_current_row = [&](int step) {
+    const int row = layer_list->currentRow();
+    const int target = row + step;
+    if (row < 0 || target < 0 || target >= layer_list->count()) {
+      return;
+    }
+    layer_list->insertItem(target, layer_list->takeItem(row));
+    layer_list->setCurrentRow(target);
+    refresh_order_buttons();
+  };
+  QObject::connect(layer_list, &QListWidget::currentRowChanged, &dialog, [&](int) { refresh_order_buttons(); });
+  QObject::connect(layer_list->model(), &QAbstractItemModel::rowsMoved, &dialog, [&] { refresh_order_buttons(); });
+  QObject::connect(order_up, &QPushButton::clicked, &dialog, [&] { move_current_row(-1); });
+  QObject::connect(order_down, &QPushButton::clicked, &dialog, [&] { move_current_row(1); });
+  refresh_order_buttons();
   std::vector<QAbstractButton*> toggles{two_columns, wheel_scroll};
   for (const auto& check : footer_checks) {
     toggles.push_back(check.box);

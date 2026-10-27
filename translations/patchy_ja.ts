@@ -13000,10 +13000,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ツール</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>レイヤーパネルに表示するボタンにチェックを入れます。非表示のボタンのコマンドはメニューに残ります。</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>レイヤーのボタン</translation>
     </message>
@@ -13162,6 +13158,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Suggested: %1 (also a monospaced font)</source>
         <translation>候補: %1 (同じ等幅フォント)</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>レイヤーパネルに表示するボタンにチェックを入れ、ドラッグするか「上へ」「下へ」で並び順を決めます。非表示のボタンのコマンドはメニューに残ります。</translation>
     </message>
 </context>
 <context>

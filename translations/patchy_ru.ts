@@ -13074,10 +13074,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Инструменты</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>Отметьте кнопки, которые показывает панель «Слои». Команды скрытых кнопок остаются в меню.</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>Кнопки слоёв</translation>
     </message>
@@ -13236,6 +13232,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Suggested: %1 (also a monospaced font)</source>
         <translation>Предлагается: %1 (тоже моноширинный шрифт)</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Отметьте кнопки, которые показывает панель «Слои», и задайте их порядок перетаскиванием или кнопками «Переместить вверх» и «Переместить вниз». Команды скрытых кнопок остаются в меню.</translation>
     </message>
 </context>
 <context>
