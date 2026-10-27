@@ -82,6 +82,7 @@
 #endif
 #include <windows.h>
 #include <dbghelp.h>
+#include "stack_walk_frame.hpp"
 #include <tlhelp32.h>
 #pragma comment(lib, "dbghelp.lib")
 #endif
@@ -581,15 +582,10 @@ class MainThreadSampler {
     CONTEXT context = {};
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
     if (GetThreadContext(main_thread_, &context) != FALSE) {
-      STACKFRAME64 frame = {};
-      frame.AddrPC.Offset = context.Rip;
-      frame.AddrPC.Mode = AddrModeFlat;
-      frame.AddrFrame.Offset = context.Rbp;
-      frame.AddrFrame.Mode = AddrModeFlat;
-      frame.AddrStack.Offset = context.Rsp;
-      frame.AddrStack.Mode = AddrModeFlat;
+      STACKFRAME64 frame;
+      const DWORD machine = init_stack_walk_frame(context, frame);
       while (depth < 26) {
-        if (StackWalk64(IMAGE_FILE_MACHINE_AMD64, process_, main_thread_, &frame, &context, nullptr,
+        if (StackWalk64(machine, process_, main_thread_, &frame, &context, nullptr,
                         SymFunctionTableAccess64, SymGetModuleBase64, nullptr) == FALSE ||
             frame.AddrPC.Offset == 0) {
           break;
@@ -681,15 +677,10 @@ void print_main_thread_stack() {
   CONTEXT context = {};
   context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
   if (GetThreadContext(g_main_thread_handle, &context) != FALSE) {
-    STACKFRAME64 frame = {};
-    frame.AddrPC.Offset = context.Rip;
-    frame.AddrPC.Mode = AddrModeFlat;
-    frame.AddrFrame.Offset = context.Rbp;
-    frame.AddrFrame.Mode = AddrModeFlat;
-    frame.AddrStack.Offset = context.Rsp;
-    frame.AddrStack.Mode = AddrModeFlat;
+    STACKFRAME64 frame;
+    const DWORD machine = init_stack_walk_frame(context, frame);
     while (depth < 48) {
-      if (StackWalk64(IMAGE_FILE_MACHINE_AMD64, process, g_main_thread_handle, &frame, &context, nullptr,
+      if (StackWalk64(machine, process, g_main_thread_handle, &frame, &context, nullptr,
                       SymFunctionTableAccess64, SymGetModuleBase64, nullptr) == FALSE ||
           frame.AddrPC.Offset == 0) {
         break;

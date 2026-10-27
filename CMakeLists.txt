@@ -56,6 +56,12 @@ function(patchy_configure_target target)
   # the standard its own sources are written for.
   target_compile_features(${target} PRIVATE cxx_std_20)
   target_include_directories(${target} PUBLIC ${PROJECT_SOURCE_DIR}/src)
+  # Sources are UTF-8. Qt adds -utf-8 only to targets that link it; without the flag
+  # MSVC reads a Qt-free target's sources in the system code page, which mangles
+  # non-ASCII literals and warns C4819 on a Japanese (932) Windows.
+  if(MSVC)
+    target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:C,CXX>:/utf-8>)
+  endif()
 
   if(PATCHY_ENABLE_STRICT_WARNINGS)
     if(MSVC)
@@ -446,32 +452,42 @@ patchy_configure_target(patchy_plugins)
 
 if(WIN32)
   # The out-of-process host for classic Photoshop filter plug-ins
-  # (docs/plugins.md): one Qt-free Win32 program built twice. The 64-bit
+  # (docs/plugins.md): one Qt-free Win32 program built twice. On x64 the 64-bit
   # helper is an ordinary target of this build; the 32-bit helper is the same
   # sources configured as their own Ninja project inside the x86 developer
-  # environment (scripts\build-8bf-host32.bat), because a 64-bit process cannot
-  # load a 32-bit plug-in. Both land next to patchy.exe.
+  # environment (scripts\build-8bf-host.bat), because a 64-bit process cannot
+  # load a 32-bit plug-in. A Windows ARM64 build makes the 64-bit helper the same
+  # way as x64 code, since plug-ins are x64 code an ARM64 process cannot load
+  # either; it runs under Windows' x64 emulation. Both land next to patchy.exe.
   set(PATCHY_8BF_HOST_OUTPUT_DIR "${CMAKE_BINARY_DIR}")
-  set(PATCHY_8BF_HOST_NAME patchy-8bf-host64)
-  add_subdirectory(src/plugins/host)
-  set(PATCHY_8BF_HOST32_EXE "${CMAKE_BINARY_DIR}/patchy-8bf-host32.exe")
   file(GLOB PATCHY_8BF_HOST_SOURCES CONFIGURE_DEPENDS
        "${PROJECT_SOURCE_DIR}/src/plugins/host/*.cpp"
        "${PROJECT_SOURCE_DIR}/src/plugins/host/*.hpp"
        "${PROJECT_SOURCE_DIR}/src/plugins/host/CMakeLists.txt")
-  add_custom_command(
-    OUTPUT "${PATCHY_8BF_HOST32_EXE}"
-    COMMAND "${PROJECT_SOURCE_DIR}/scripts/build-8bf-host32.bat"
-            "${PROJECT_SOURCE_DIR}/src/plugins/host"
-            "${CMAKE_BINARY_DIR}/8bf-host32"
-            "${CMAKE_BINARY_DIR}"
-            "${CMAKE_COMMAND}"
-            "$<IF:$<CONFIG:Debug>,Debug,Release>"
-            "${CMAKE_MAKE_PROGRAM}"
-    DEPENDS ${PATCHY_8BF_HOST_SOURCES} "${PROJECT_SOURCE_DIR}/scripts/build-8bf-host32.bat"
-    COMMENT "Building the 32-bit legacy plug-in host (patchy-8bf-host32.exe)"
-    VERBATIM)
-  add_custom_target(patchy_8bf_host32 ALL DEPENDS "${PATCHY_8BF_HOST32_EXE}")
+  function(patchy_add_external_8bf_host target arch bits)
+    set(exe "${CMAKE_BINARY_DIR}/patchy-8bf-host${bits}.exe")
+    add_custom_command(
+      OUTPUT "${exe}"
+      COMMAND "${PROJECT_SOURCE_DIR}/scripts/build-8bf-host.bat"
+              "${PROJECT_SOURCE_DIR}/src/plugins/host"
+              "${CMAKE_BINARY_DIR}/8bf-host${bits}"
+              "${CMAKE_BINARY_DIR}"
+              "${CMAKE_COMMAND}"
+              "$<IF:$<CONFIG:Debug>,Debug,Release>"
+              "${CMAKE_MAKE_PROGRAM}"
+              "${arch}"
+      DEPENDS ${PATCHY_8BF_HOST_SOURCES} "${PROJECT_SOURCE_DIR}/scripts/build-8bf-host.bat"
+      COMMENT "Building the ${bits}-bit legacy plug-in host (patchy-8bf-host${bits}.exe, ${arch})"
+      VERBATIM)
+    add_custom_target(${target} ALL DEPENDS "${exe}")
+  endfunction()
+  if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "ARM64")
+    patchy_add_external_8bf_host(patchy-8bf-host64 x64 64)
+  else()
+    set(PATCHY_8BF_HOST_NAME patchy-8bf-host64)
+    add_subdirectory(src/plugins/host)
+  endif()
+  patchy_add_external_8bf_host(patchy_8bf_host32 x86 32)
 endif()
 
 add_library(patchy_filters

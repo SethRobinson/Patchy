@@ -2,11 +2,15 @@
 Builds the current working tree (uncommitted changes included) on a remote test machine
 and runs the test suites there.
 
-  scripts\remote\remote-build.ps1 -Target mac|linux|windows [-TestFilter ui_palette] [-CoreTestFilter psd]
+  scripts\remote\remote-build.ps1 -Target mac|linux|windows|windows-arm64 [-TestFilter ui_palette] [-CoreTestFilter psd]
                                   [-BuildTarget patchy_ui_visual_tests[,patchy_core_tests]] [-Preset opt-dev]
                                   [-SkipTests] [-FetchArtifacts]
   linux only:   [-NativeQt]
   windows only: [-WindowsHost <ssh target>] [-WaitMinutes 30] [-PerfScenario startup] [-PerfEnv 'NAME=value;...']
+
+-Target windows-arm64 works like -Target windows (the windows-only switches included) on
+the hosts in the config's windows-arm64 list, a native ARM64 build with the
+windows-arm64-release preset by default (-Preset windows-arm64-opt-dev to iterate).
 
 A typical worker loop builds only the suite it runs, in the optimized no-LTCG preset:
 
@@ -66,7 +70,7 @@ On a failing test run (or with -FetchArtifacts) the remote test-artifacts folder
 copied to build\remote-artifacts\<target>\ for inspection.
 #>
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows')][string]$Target,
+  [Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64')][string]$Target,
   [string]$TestFilter = '',
   # Core-suite name filter.
   [string]$CoreTestFilter = '',
@@ -98,8 +102,9 @@ $ErrorActionPreference = 'Continue'
 
 . "$PSScriptRoot\remote-hosts.ps1"
 . "$PSScriptRoot\remote-lock.ps1"
-if (($WindowsHost -or $WaitMinutes) -and $Target -ne 'windows') { throw '-WindowsHost and -WaitMinutes are only supported for -Target windows' }
-if (($PerfScenario -or $PerfEnv) -and $Target -ne 'windows') { throw '-PerfScenario and -PerfEnv are only supported for -Target windows' }
+$winTarget = $Target -like 'windows*'
+if (($WindowsHost -or $WaitMinutes) -and -not $winTarget) { throw '-WindowsHost and -WaitMinutes are only supported for -Target windows and windows-arm64' }
+if (($PerfScenario -or $PerfEnv) -and -not $winTarget) { throw '-PerfScenario and -PerfEnv are only supported for -Target windows and windows-arm64' }
 $repoRoot = (git rev-parse --show-toplevel 2>$null)
 if (-not $repoRoot) { throw 'remote-build.ps1 must run inside the Patchy repository' }
 $lockOwner = Get-PatchyLockOwner $repoRoot.Trim()
@@ -113,11 +118,11 @@ foreach ($name in @($targets) + @($Preset | Where-Object { $_ })) {
 }
 if ($TestFilter -match "'" -or $CoreTestFilter -match "'") { throw 'test filters cannot contain single quotes' }
 
-if ($Target -eq 'windows') {
-  $candidates = Get-PatchyWindowsHosts
+if ($winTarget) {
+  $candidates = Get-PatchyWindowsHosts $Target
   if ($WindowsHost) {
     $remote = $candidates | Where-Object { $_.ssh -eq $WindowsHost } | Select-Object -First 1
-    if (-not $remote) { throw "-WindowsHost '$WindowsHost' is not a windows entry in hosts.local.json ($(($candidates | ForEach-Object { $_.ssh }) -join ', '))" }
+    if (-not $remote) { throw "-WindowsHost '$WindowsHost' is not a $Target entry in hosts.local.json ($(($candidates | ForEach-Object { $_.ssh }) -join ', '))" }
     $path = Get-PatchyLockPath $true $remote
     $why = Enter-PatchyRemoteLock $remote.ssh $true $path $lockOwner -BreakLock:$BreakLock
     if ($why) { Write-Host "== not starting: $why =="; exit 75 }
@@ -147,7 +152,7 @@ if ($Target -eq 'windows') {
         if ($state -ne 'unreachable') { $anyReachable = $true }
       }
       if ($remote) { break }
-      if (-not $anyReachable) { throw 'no windows build host is reachable (all switched off, or ssh is not set up)' }
+      if (-not $anyReachable) { throw "no $Target build host is reachable (all switched off, or ssh is not set up)" }
       if ((Get-Date) -ge $deadline) {
         Write-Host 'every reachable windows build host is busy; not starting another build beside them (-WaitMinutes N waits)'
         exit 75
@@ -174,6 +179,7 @@ else {
 $remoteHost = $remote.ssh
 $preset = if ($Preset) { $Preset }
   elseif ($Target -eq 'windows') { 'release' }
+  elseif ($Target -eq 'windows-arm64') { 'windows-arm64-release' }
   elseif ($Target -eq 'linux' -and -not $NativeQt) { 'linux-flatpak-qt' }
   else { "$Target-release" }
 
@@ -185,7 +191,7 @@ try {
   $snap = Push-PatchySnapshot -RemoteHost $remoteHost
   Write-Host "== building snapshot $($snap.Substring(0, 12)) on $remoteHost =="
 
-  if ($Target -eq 'windows') {
+  if ($winTarget) {
     # A Windows OpenSSH shell is Windows PowerShell 5.1: no &&, and every step's exit code is
     # checked explicitly. Single quotes only: local PowerShell mangles embedded double
     # quotes in native-command arguments.
@@ -227,6 +233,6 @@ try {
   exit $remoteExit
 }
 finally {
-  if ($lockPath) { Exit-PatchyRemoteLock $remoteHost ($Target -eq 'windows') $lockPath $lockOwner }
+  if ($lockPath) { Exit-PatchyRemoteLock $remoteHost $winTarget $lockPath $lockOwner }
   Pop-Location
 }

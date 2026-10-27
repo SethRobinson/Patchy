@@ -4,6 +4,7 @@ Resolves the ssh target of a remote build machine. Dot-source it, then:
   . "$PSScriptRoot\remote-hosts.ps1"
   $remote = Get-PatchyRemoteHost mac        # .ssh, plus .workTree for windows
   $hosts = Get-PatchyWindowsHosts           # every windows entry, in preference order
+  $arm = Get-PatchyWindowsHosts windows-arm64   # the Windows ARM64 hosts, same shape
 
 Machine names, users, and paths are developer-specific, so they live in
 scripts\remote\hosts.local.json (gitignored; copy hosts.example.json) and never in the
@@ -12,10 +13,11 @@ the script has no hosts.local.json, the main checkout's copy is used.
 
 The windows entry may be one object or an ordered list of them (first choice first);
 remote-build.ps1 -Target windows uses the first one that is reachable and idle, and
-Get-PatchyRemoteHost windows returns the first.
+Get-PatchyRemoteHost windows returns the first. windows-arm64 lists the Windows ARM64 hosts
+the same way; it is a separate entry so an x64 build never lands on one.
 #>
 function Get-PatchyHostsEntry {
-  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows')][string]$Target)
+  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64')][string]$Target)
 
   $candidates = @(Join-Path $PSScriptRoot 'hosts.local.json')
   $commonDir = git -C $PSScriptRoot rev-parse --path-format=absolute --git-common-dir 2>$null
@@ -33,8 +35,8 @@ function Get-PatchyHostsEntry {
       if (-not $entry.ssh) {
         throw "$path has a '$Target' entry without an 'ssh' value (see scripts\remote\hosts.example.json)"
       }
-      if ($Target -eq 'windows' -and -not $entry.workTree) {
-        throw "$path 'windows' entry '$($entry.ssh)' needs a 'workTree' (see scripts\remote\hosts.example.json)"
+      if ($Target -like 'windows*' -and -not $entry.workTree) {
+        throw "$path '$Target' entry '$($entry.ssh)' needs a 'workTree' (see scripts\remote\hosts.example.json)"
       }
     }
     return , $entries
@@ -44,10 +46,11 @@ function Get-PatchyHostsEntry {
 }
 
 function Get-PatchyRemoteHost {
-  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows')][string]$Target)
+  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64')][string]$Target)
   return (Get-PatchyHostsEntry $Target)[0]
 }
 
 function Get-PatchyWindowsHosts {
-  return , (Get-PatchyHostsEntry windows)
+  param([ValidateSet('windows', 'windows-arm64')][string]$Target = 'windows')
+  return , (Get-PatchyHostsEntry $Target)
 }

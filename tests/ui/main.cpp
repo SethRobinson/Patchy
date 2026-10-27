@@ -54,6 +54,7 @@
 #endif
 #include <windows.h>
 #include <dbghelp.h>
+#include "stack_walk_frame.hpp"
 #pragma comment(lib, "dbghelp.lib")
 #else
 #include <csignal>
@@ -97,15 +98,10 @@ LONG WINAPI report_access_violation(EXCEPTION_POINTERS* info) {
           reinterpret_cast<void*>(info->ExceptionRecord->ExceptionInformation[1]),
           info->ExceptionRecord->ExceptionAddress);
   CONTEXT walk_context = *info->ContextRecord;
-  STACKFRAME64 frame = {};
-  frame.AddrPC.Offset = walk_context.Rip;
-  frame.AddrPC.Mode = AddrModeFlat;
-  frame.AddrFrame.Offset = walk_context.Rbp;
-  frame.AddrFrame.Mode = AddrModeFlat;
-  frame.AddrStack.Offset = walk_context.Rsp;
-  frame.AddrStack.Mode = AddrModeFlat;
+  STACKFRAME64 frame;
+  const DWORD machine = init_stack_walk_frame(walk_context, frame);
   for (int depth = 0; depth < 40; ++depth) {
-    if (StackWalk64(IMAGE_FILE_MACHINE_AMD64, process, GetCurrentThread(), &frame, &walk_context, nullptr,
+    if (StackWalk64(machine, process, GetCurrentThread(), &frame, &walk_context, nullptr,
                     SymFunctionTableAccess64, SymGetModuleBase64, nullptr) == FALSE ||
         frame.AddrPC.Offset == 0) {
       break;

@@ -65,6 +65,24 @@
       }
     },
     {
+      "name": "windows-arm64-release",
+      "displayName": "Windows ARM64 release build (native ARM64 developer environment)",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/windows-arm64-release",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/Qt/6.8.3/msvc2022_arm64"
+      }
+    },
+    {
+      "name": "windows-arm64-opt-dev",
+      "displayName": "Windows ARM64 optimized developer build without link-time code generation",
+      "inherits": "opt-dev",
+      "binaryDir": "${sourceDir}/build/windows-arm64-opt-dev",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/Qt/6.8.3/msvc2022_arm64"
+      }
+    },
+    {
       "name": "mac-release",
       "displayName": "macOS release build",
       "generator": "Ninja",
@@ -278,6 +296,14 @@
     {
       "name": "opt-dev-no-pch",
       "configurePreset": "opt-dev-no-pch"
+    },
+    {
+      "name": "windows-arm64-release",
+      "configurePreset": "windows-arm64-release"
+    },
+    {
+      "name": "windows-arm64-opt-dev",
+      "configurePreset": "windows-arm64-opt-dev"
     }
   ],
   "testPresets": [

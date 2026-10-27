@@ -62,10 +62,12 @@ void plugin_host_and_legacy_probe_work() {
     bytes[0x3c] = 0x80;
     bytes[0x80] = 'P';
     bytes[0x81] = 'E';
+    // Windows on Arm runs x64 plug-ins in the emulated x64 helper (docs/plugin-host.md), so
+    // a Windows ARM64 build probes an x64 plug-in like an x64 build does.
 #if defined(_M_IX86) || defined(__i386__)
     bytes[0x84] = 0x4c;
     bytes[0x85] = 0x01;
-#elif defined(_M_ARM64) || defined(__aarch64__)
+#elif (defined(_M_ARM64) || defined(__aarch64__)) && !defined(_WIN32)
     bytes[0x84] = 0x64;
     bytes[0x85] = 0xaa;
 #else

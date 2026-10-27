@@ -41,7 +41,10 @@ param(
 $ErrorActionPreference = 'Continue'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $repo
-$vsEnv = 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul'
+# The windows-arm64-* presets build natively on an ARM64 host (its Qt kit is msvc2022_arm64);
+# every other Windows preset is x64.
+$vsArch = if ($Preset -like 'windows-arm64*') { 'arm64' } else { 'x64' }
+$vsEnv = "scripts\vs-env.bat -arch=$vsArch -host_arch=$vsArch >nul"
 $buildDir = Join-Path $repo "build\$Preset"
 $targets = @($BuildTarget -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $targetArgs = ''

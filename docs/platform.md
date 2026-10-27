@@ -36,6 +36,7 @@ test binary compile.
 | Platform | Debug preset | Release preset |
 |---|---|---|
 | Windows MSVC | `debug` | `release` |
+| Windows MSVC ARM64 | none (`windows-arm64-opt-dev`) | `windows-arm64-release` |
 | macOS Clang arm64 | `mac-dev` | `mac-release` |
 | Linux GCC x64 | `linux-dev` | `linux-release` |
 
