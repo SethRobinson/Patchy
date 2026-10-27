@@ -605,8 +605,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   gui_scale_field->setSpacing(1);
   gui_scale_field->addWidget(gui_scale_spin);
   gui_scale_field->addWidget(gui_scale_presets_button);
+  // Tight: at Preferences' minimum width the Spanish and Russian rows have only a few
+  // pixels to spare (ui_preferences_minimum_width_fits_and_fields_stay_compact).
   scale_layout->addLayout(gui_scale_field);
-  scale_layout->addSpacing(8);
+  scale_layout->addSpacing(2);
   scale_layout->addWidget(toolbar_icon_size_label);
   scale_layout->addWidget(toolbar_icon_size_combo);
   scale_layout->addStretch(1);
@@ -1993,8 +1995,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       border-top-color: @field_bevel_top;
       border-radius: 0;
       padding: 0;
-      min-width: 18px;
-      max-width: 18px;
+      min-width: 16px;
+      max-width: 16px;
       min-height: 24px;
     }
     QDialog#patchyPreferencesDialog QToolButton#preferencesGuiScalePresetsButton:hover {

@@ -3043,8 +3043,10 @@ void ui_gui_scale_preference_lists_presets_and_takes_typed_values() {
     spin->interpretText();
     CHECK(spin->value() == patchy::ui::kMinGuiScalePercent);
 
-    // Visual record: the field, then the dialog with the preset list open over it.
+    // Visual record: the field, then the dialog with the preset list open over it, wide
+    // enough that the row sits beside its label.
     spin->setValue(110);
+    dialog.resize(std::max(dialog.width(), 900), dialog.height());
     for (auto* parent = spin->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
       if (auto* scroll = qobject_cast<QScrollArea*>(parent)) {
         scroll->ensureWidgetVisible(spin);
