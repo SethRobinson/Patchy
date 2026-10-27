@@ -370,6 +370,7 @@ public:
   [[nodiscard]] std::optional<std::vector<PerspectivePlane>> perspective_planes(std::int64_t session_id);
   bool set_perspective_planes(std::int64_t session_id, std::vector<PerspectivePlane> planes);
   [[nodiscard]] std::optional<PixelBuffer> perspective_source_pixels(std::int64_t session_id, LayerId layer_id);
+  [[nodiscard]] bool perspective_layer_can_place(std::int64_t session_id, LayerId layer_id);
   std::optional<LayerId> perspective_edit(
       std::int64_t session_id, LayerId layer_id, const PlaneQuad& plane, bool onto_layer,
       const std::function<bool(PerspectiveCanvas&, const PlaneGeometry&, QString&)>& edit);

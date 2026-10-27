@@ -1816,6 +1816,16 @@ interface PatchyPerspective {
     placement?: "fill" | "fit" | { x: number; y: number; scale?: number; rotation?: number };
     target?: "newLayer" | "layer";
   }): PatchyLayer | null;
+  /**
+   * Place Layer: takes `layer`'s own content off it and puts it on the plane ("fill" by
+   * default). Replaces the layer unless target is "newLayer" (the content moves to a new
+   * layer above). Needs an 8-bit layer with transparency.
+   */
+  placeLayer(layer: PatchyLayer, options: {
+    plane: PatchyPlaneCorners | number;
+    placement?: "fill" | "fit" | { x: number; y: number; scale?: number; rotation?: number };
+    target?: "layer" | "newLayer";
+  }): PatchyLayer | null;
   /** Clone stroke along `points`; `from` is the source point, read through `sourcePlane` (default `plane`). */
   clone(layer: PatchyLayer, options: {
     plane: PatchyPlaneCorners | number;

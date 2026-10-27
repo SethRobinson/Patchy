@@ -13397,20 +13397,60 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Résultat :</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>Nouveau calque</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>Calque actif</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>Placer le résultat sur un nouveau calque au-dessus du calque actif, ou sur le calque actif lui-même</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>Couleur de peinture</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>Le calque remplit maintenant le plan. Faites-le glisser pour le déplacer, un coin pour le redimensionner ou la poignée ronde pour le faire pivoter. Entrée le place ; Échap le remet en place.</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>Cliquez les quatre coins de la surface où ce calque doit aller, puis appuyez sur Placer le calque.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Le plan est un guide ; rien ne change tant que vous n&apos;y placez rien. Appuyez sur Placer le calque pour y mettre ce calque, ou sur Coller sur le plan, Cloner ou Peindre.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Le plan est un guide ; rien ne change tant que vous n&apos;y placez rien. Appuyez sur Coller sur le plan, Cloner ou Peindre.</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>Ensuite :</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>Placer le calque</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>Mettre ce calque sur le plan, d&apos;un coin à l&apos;autre (seulement la partie sélectionnée s&apos;il y a une sélection) ; OK remplace le calque par le résultat</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>Coller sur le plan</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>Afficher les autres calques</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>Afficher les autres calques du document derrière celui-ci ; les modifications ne vont toujours que dans ce calque</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>Nouveau calque au-dessus</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>Remplacer ce calque</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>Nouveau calque au-dessus laisse ce calque tel quel et place le résultat au-dessus ; Remplacer ce calque écrit le résultat dans ce calque même</translation>
     </message>
 </context>
 <context>
@@ -29685,6 +29725,30 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Perspective Planes</source>
         <translation>Plans en perspective</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer : passez un calque et {plane}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer : plane doit être quatre coins [x, y] ou un indice de plan.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer : placement nécessite x et y finis et un scale positif.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer : placement vaut &quot;fill&quot;, &quot;fit&quot; ou {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer nécessite un calque 8 bits avec transparence.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer : le calque est vide.</translation>
     </message>
 </context>
 <context>

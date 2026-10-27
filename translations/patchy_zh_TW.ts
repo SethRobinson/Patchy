@@ -13360,20 +13360,60 @@ Each item&apos;s own View setting still applies.</source>
         <translation>結果:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>新增圖層</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>目前圖層</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>將結果放到目前圖層上方的新圖層，或直接放到目前圖層上</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>繪畫顏色</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>圖層現已填滿平面。拖曳可移動，拖曳角可縮放，拖曳圓形控點可旋轉。按 Enter 放置，按 Esc 放回原處。</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>按一下要放置此圖層的表面的四個角，然後按「放置圖層」。</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>平面只是參考，在放上內容之前不會有任何變化。按「放置圖層」把此圖層放上去，或使用「貼上到平面」、「仿製」或「繪畫」。</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>平面只是參考，在放上內容之前不會有任何變化。請使用「貼上到平面」、「仿製」或「繪畫」。</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>然後:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>放置圖層</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>將此圖層放到平面上，從角到角填滿（有選取範圍時只放選取的部分）；確定會用結果取代此圖層</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>貼上到平面</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>顯示其他圖層</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>在此圖層後面顯示文件的其他圖層；編輯仍只寫入此圖層</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>上方新增圖層</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>取代此圖層</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>「上方新增圖層」保留此圖層不變並把結果放在上方；「取代此圖層」把結果寫入此圖層本身</translation>
     </message>
 </context>
 <context>
@@ -29608,6 +29648,30 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Perspective Planes</source>
         <translation>透視平面</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: 請傳入圖層和 {plane}。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane 必須是四個 [x, y] 角點或平面索引。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement 需要有限的 x 和 y 以及正的 scale。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement 為 &quot;fill&quot;、&quot;fit&quot; 或 {x, y, scale, rotation}。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer 需要具透明度的 8 位元圖層。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: 圖層為空。</translation>
     </message>
 </context>
 <context>

@@ -13397,20 +13397,60 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Resultado:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>Nova camada</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>Camada atual</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>Colocar o resultado em uma nova camada acima da atual ou na própria camada atual</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>Cor de pintura</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>A camada agora preenche o plano. Arraste-a para movê-la, um canto para redimensioná-la ou a alça redonda para girá-la. Enter a posiciona; Esc a devolve.</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>Clique nos quatro cantos da superfície onde esta camada deve ficar e pressione Posicionar camada.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>O plano é uma guia; nada muda até você colocar algo nele. Pressione Posicionar camada para colocar esta camada nele, ou Colar no plano, Clonar ou Pintar.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>O plano é uma guia; nada muda até você colocar algo nele. Pressione Colar no plano, Clonar ou Pintar.</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>Depois:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>Posicionar camada</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>Colocar esta camada no plano, de canto a canto (só a parte selecionada quando há uma seleção); OK substitui a camada pelo resultado</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>Colar no plano</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>Mostrar outras camadas</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>Mostrar as outras camadas do documento atrás desta; as edições continuam indo só para esta camada</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>Nova camada acima</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>Substituir esta camada</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>Nova camada acima mantém esta camada como está e coloca o resultado acima; Substituir esta camada grava o resultado nesta própria camada</translation>
     </message>
 </context>
 <context>
@@ -29685,6 +29725,30 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>Perspective Planes</source>
         <translation>Planos de perspectiva</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: passe uma camada e {plane}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane deve ser quatro cantos [x, y] ou um índice de plano.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement precisa de x e y finitos e um scale positivo.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement é &quot;fill&quot;, &quot;fit&quot; ou {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer precisa de uma camada de 8 bits com transparência.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: a camada está vazia.</translation>
     </message>
 </context>
 <context>

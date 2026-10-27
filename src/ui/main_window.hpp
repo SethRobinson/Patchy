@@ -1400,9 +1400,11 @@ private:
   };
   [[nodiscard]] std::optional<PerspectiveLayerInput> perspective_layer_input(LayerId layer_id) const;
   // Writes perspective edits (straight RGBA8 at document `edits.second`) as one undo step: onto
-  // the layer when asked and possible, else onto a new layer above it. Returns the written
-  // layer, or nullopt when nothing changed.
-  std::optional<LayerId> apply_perspective_edits(LayerId layer_id, std::pair<PixelBuffer, Rect> edits, bool onto_layer,
+  // the layer when asked and possible, else onto a new layer above it. `lifted_layer` (Place
+  // Layer; document-sized RGBA8) replaces the layer's own canvas pixels first. Returns the
+  // written layer, or nullopt when nothing changed.
+  std::optional<LayerId> apply_perspective_edits(LayerId layer_id, std::optional<std::pair<PixelBuffer, Rect>> edits,
+                                                 const PixelBuffer* lifted_layer, bool onto_layer,
                                                  const QString& undo_label, bool record_history = true);
   void camera_raw_filter_dialog();
   void convert_for_smart_filters();

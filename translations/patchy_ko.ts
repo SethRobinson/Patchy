@@ -13360,20 +13360,60 @@ Each item&apos;s own View setting still applies.</source>
         <translation>결과:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>새 레이어</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>현재 레이어</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>결과를 현재 레이어 위의 새 레이어에 두거나 현재 레이어 자체에 씁니다</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>칠하기 색</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>레이어가 평면을 채웠습니다. 드래그해 이동하고, 모서리를 드래그해 크기를 바꾸고, 둥근 핸들을 드래그해 회전합니다. Enter로 배치하고 Esc로 되돌립니다.</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>이 레이어를 놓을 면의 네 모서리를 클릭한 다음 레이어 배치를 누르세요.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>평면은 안내선입니다. 무언가를 올리기 전에는 아무것도 바뀌지 않습니다. 레이어 배치를 눌러 이 레이어를 올리거나, 평면에 붙여넣기, 복제, 칠하기를 사용하세요.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>평면은 안내선입니다. 무언가를 올리기 전에는 아무것도 바뀌지 않습니다. 평면에 붙여넣기, 복제, 칠하기를 사용하세요.</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>다음:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>레이어 배치</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>이 레이어를 평면의 모서리에서 모서리까지 채워 올립니다(선택 영역이 있으면 그 부분만). 확인을 누르면 레이어가 결과로 바뀝니다</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>평면에 붙여넣기</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>다른 레이어 표시</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>문서의 다른 레이어를 이 레이어 뒤에 표시합니다. 편집은 여전히 이 레이어에만 적용됩니다</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>위에 새 레이어</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>이 레이어 바꾸기</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>위에 새 레이어는 이 레이어를 그대로 두고 결과를 위에 놓고, 이 레이어 바꾸기는 결과를 이 레이어 자체에 씁니다</translation>
     </message>
 </context>
 <context>
@@ -29608,6 +29648,30 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Perspective Planes</source>
         <translation>원근 평면</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: 레이어와 {plane}을 전달하세요.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane은 [x, y] 모서리 네 개 또는 평면 번호여야 합니다.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement에는 유한한 x, y와 양수 scale이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement는 &quot;fill&quot;, &quot;fit&quot; 또는 {x, y, scale, rotation}입니다.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer에는 투명도가 있는 8비트 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: 레이어가 비어 있습니다.</translation>
     </message>
 </context>
 <context>

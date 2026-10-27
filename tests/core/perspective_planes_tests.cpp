@@ -416,6 +416,57 @@ void perspective_planes_sampler_filters_strong_foreshortening() {
   CHECK(sampler.sample(-3.0, 10.0, 1.0)[3] == 0U);
 }
 
+// Place Layer: the layer's own content comes out of the layer (all of it, or what a
+// selection covers) and goes back exactly on undo; a fill placement maps its corners to
+// the plane's corners.
+void perspective_planes_lift_takes_the_layer_content_out_and_back() {
+  PixelBuffer layer(100, 80, PixelFormat::rgba8());
+  layer.clear(0);
+  for (int y = 10; y < 30; ++y) {
+    for (int x = 10; x < 30; ++x) {
+      auto* p = layer.pixel(x, y);
+      p[0] = 220;
+      p[1] = 30;
+      p[2] = 40;
+      p[3] = 255;
+    }
+  }
+  PerspectiveCanvas canvas(layer, Rect{0, 0, 100, 80}, 100, 80);
+  CHECK(!canvas.original_changed());
+  auto lifted = canvas.lift(nullptr);
+  CHECK(lifted.has_value());
+  CHECK(lifted->second.rect.x == 10 && lifted->second.rect.y == 10 && lifted->second.rect.width == 20 &&
+        lifted->second.rect.height == 20);
+  CHECK(lifted->first.pixel(5, 5)[0] == 220 && lifted->first.pixel(5, 5)[3] == 255);
+  CHECK(canvas.original().pixel(15, 15)[3] == 0 && canvas.composite().pixel(15, 15)[3] == 0);
+  CHECK(canvas.original_changed());
+  canvas.set_original_region(lifted->second.rect, lifted->second.before);
+  CHECK(!canvas.original_changed());
+  CHECK(canvas.composite().pixel(15, 15)[3] == 255);
+  // A selection takes only its part.
+  PixelBuffer coverage(100, 80, PixelFormat::gray8());
+  coverage.clear(0);
+  for (int y = 0; y < 80; ++y) {
+    for (int x = 0; x < 20; ++x) {
+      coverage.pixel(x, y)[0] = 255;
+    }
+  }
+  const auto half = canvas.lift(&coverage);
+  CHECK(half.has_value() && half->second.rect.width == 10);
+  CHECK(canvas.original().pixel(15, 15)[3] == 0 && canvas.original().pixel(25, 15)[3] == 255);
+  // Nothing to lift on an empty layer.
+  PerspectiveCanvas empty(solid(100, 80, {0, 0, 0, 0}), Rect{0, 0, 100, 80}, 100, 80);
+  CHECK(!empty.lift(nullptr).has_value());
+  // Fill: the image's corners land on the plane's corners, and it can still be turned.
+  const auto geometry = geometry_of(kTrapezoid);
+  const auto fill = patchy::fill_placement(geometry, 40, 20);
+  const auto map = patchy::placement_to_plane(fill, 40, 20);
+  const auto origin = map.map({0.0, 0.0});
+  const auto far = map.map({40.0, 20.0});
+  CHECK(origin.has_value() && near(origin->x, 0.0, 1.0e-9) && near(origin->y, 0.0, 1.0e-9));
+  CHECK(far.has_value() && near(far->x, geometry.width, 1.0e-9) && near(far->y, geometry.height, 1.0e-9));
+}
+
 void perspective_planes_results_are_deterministic() {
   const auto run = [] {
     const auto geometry = geometry_of(kTrapezoid);
@@ -463,6 +514,8 @@ std::vector<patchy::test::TestCase> perspective_planes_tests() {
       {"perspective_planes_changes_undo_and_redo_exactly", perspective_planes_changes_undo_and_redo_exactly},
       {"perspective_planes_connected_plane_hinges_on_the_edge", perspective_planes_connected_plane_hinges_on_the_edge},
       {"perspective_planes_sampler_filters_strong_foreshortening", perspective_planes_sampler_filters_strong_foreshortening},
+      {"perspective_planes_lift_takes_the_layer_content_out_and_back",
+       perspective_planes_lift_takes_the_layer_content_out_and_back},
       {"perspective_planes_results_are_deterministic", perspective_planes_results_are_deterministic},
   };
 }

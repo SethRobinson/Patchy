@@ -13380,19 +13380,59 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Paint Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -29602,6 +29642,30 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Perspective Planes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

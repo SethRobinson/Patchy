@@ -13434,20 +13434,60 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Результат:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>Новый слой</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>Текущий слой</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>Поместить результат на новый слой над текущим или на сам текущий слой</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>Цвет рисования</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>Слой теперь заполняет плоскость. Перетащите его, чтобы сдвинуть, угол, чтобы изменить размер, или круглый маркер, чтобы повернуть. Enter размещает, Esc возвращает.</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>Щёлкните четыре угла поверхности, куда должен лечь этот слой, затем нажмите «Разместить слой».</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Плоскость — это направляющая; ничего не изменится, пока вы что-нибудь на неё не положите. Нажмите «Разместить слой», чтобы положить на неё этот слой, или «Вставить на плоскость», «Клонировать» или «Рисовать».</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Плоскость — это направляющая; ничего не изменится, пока вы что-нибудь на неё не положите. Нажмите «Вставить на плоскость», «Клонировать» или «Рисовать».</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>Далее:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>Разместить слой</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>Положить этот слой на плоскость от угла до угла (при выделении только выделенную часть); OK заменяет слой результатом</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>Вставить на плоскость</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>Показывать другие слои</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>Показывать другие слои документа за этим; изменения по-прежнему идут только в этот слой</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>Новый слой выше</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>Заменить этот слой</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>«Новый слой выше» оставляет этот слой как есть и кладёт результат над ним; «Заменить этот слой» записывает результат в сам этот слой</translation>
     </message>
 </context>
 <context>
@@ -29762,6 +29802,30 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Perspective Planes</source>
         <translation>Плоскости перспективы</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: передайте слой и {plane}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane должен быть четырьмя углами [x, y] или индексом плоскости.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement нужны конечные x и y и положительный scale.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement — это &quot;fill&quot;, &quot;fit&quot; или {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer нужен 8-битный слой с прозрачностью.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: слой пуст.</translation>
     </message>
 </context>
 <context>

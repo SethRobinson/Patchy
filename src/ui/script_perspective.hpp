@@ -24,6 +24,9 @@ public:
   // Each writes one edit on `layer` (the active layer of the active document) and returns
   // the layer written: a new layer above it, or the layer itself with target "layer".
   Q_INVOKABLE QJSValue paste(const QJSValue& layer, const QJSValue& options);
+  // Place Layer: the layer's own content onto the plane ("fill" by default), replacing the
+  // layer (target "newLayer" moves it to a new layer above instead).
+  Q_INVOKABLE QJSValue placeLayer(const QJSValue& layer, const QJSValue& options);
   Q_INVOKABLE QJSValue clone(const QJSValue& layer, const QJSValue& options);
   Q_INVOKABLE QJSValue paint(const QJSValue& layer, const QJSValue& options);
 

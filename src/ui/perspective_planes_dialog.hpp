@@ -26,6 +26,14 @@ struct PerspectiveWorkspaceInput {
   std::int32_t document_height{0};
   std::vector<PerspectivePlane> planes;
   std::vector<PerspectivePasteSource> paste_sources;
+  // The document's other visible layers composited (straight RGBA8, document-sized), drawn
+  // behind the layer so there is something to line planes up with; empty for none.
+  PixelBuffer backdrop;
+  // The document selection's coverage (gray8, document-sized), empty for none: what Place
+  // Layer takes out of the layer.
+  PixelBuffer selection;
+  // The layer can give up its own content to Place Layer (an 8-bit layer with transparency).
+  bool can_place_layer{false};
   QColor foreground{Qt::black};
   bool write_onto_layer{false};
   // False when the layer cannot take the edits itself (it is then always a new layer).
@@ -38,6 +46,10 @@ struct PerspectiveWorkspaceResult {
   std::vector<PerspectivePlane> planes;
   // The edits alone, cropped to what they cover, in document pixels.
   std::optional<std::pair<PixelBuffer, Rect>> edits;
+  // After Place Layer: the layer's own pixels on the canvas with the placed content taken
+  // out (straight RGBA8, document-sized). The layer becomes this plus, for Replace this
+  // layer, the edits.
+  std::optional<PixelBuffer> lifted_layer;
   bool write_onto_layer{false};
 };
 

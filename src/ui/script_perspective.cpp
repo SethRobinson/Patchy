@@ -220,6 +220,77 @@ QJSValue ScriptPerspectiveObject::paste(const QJSValue& layer, const QJSValue& o
   return written.has_value() ? make_layer_value(host_, target->session_id(), *written) : QJSValue(QJSValue::NullValue);
 }
 
+QJSValue ScriptPerspectiveObject::placeLayer(const QJSValue& layer, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto* target = qobject_cast<ScriptLayerObject*>(layer.toQObject());
+  if (target == nullptr || !options.isObject()) {
+    host_.throw_js_error(ScriptEngineHost::tr("perspective.placeLayer: pass a layer and {plane}."));
+    return QJSValue();
+  }
+  const auto planes = host_.perspective_planes(target->session_id()).value_or(std::vector<PerspectivePlane>{});
+  const auto plane_value = options.property(QStringLiteral("plane"));
+  std::optional<PlaneQuad> quad;
+  if (plane_value.isNumber()) {
+    const auto index = plane_value.toInt();
+    if (index >= 0 && index < static_cast<int>(planes.size())) {
+      quad = planes[static_cast<std::size_t>(index)].corners;
+    }
+  } else {
+    quad = parse_corners(plane_value);
+  }
+  if (!quad.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("perspective.placeLayer: plane must be four [x, y] corners or a plane index."));
+    return QJSValue();
+  }
+  const auto placement_value = options.property(QStringLiteral("placement"));
+  bool fit = false;
+  std::optional<PerspectivePlacement> custom;
+  if (placement_value.isString() && placement_value.toString() == QLatin1String("fit")) {
+    fit = true;
+  } else if (placement_value.isObject()) {
+    PerspectivePlacement placed;
+    placed.center_x = placement_value.property(QStringLiteral("x")).toNumber();
+    placed.center_y = placement_value.property(QStringLiteral("y")).toNumber();
+    const auto scale = placement_value.property(QStringLiteral("scale"));
+    placed.scale = scale.isNumber() ? scale.toNumber() : 1.0;
+    placed.rotation_degrees = placement_value.property(QStringLiteral("rotation")).toNumber();
+    if (!std::isfinite(placed.center_x) || !std::isfinite(placed.center_y) || !(placed.scale > 0.0) ||
+        !std::isfinite(placed.rotation_degrees)) {
+      host_.throw_js_error(
+          ScriptEngineHost::tr("perspective.placeLayer: placement needs finite x and y and a positive scale."));
+      return QJSValue();
+    }
+    custom = placed;
+  } else if (!placement_value.isUndefined() &&
+             !(placement_value.isString() && placement_value.toString() == QLatin1String("fill"))) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("perspective.placeLayer: placement is \"fill\", \"fit\" or {x, y, scale, rotation}."));
+    return QJSValue();
+  }
+  // Place Layer replaces the layer unless a new layer is asked for.
+  const bool onto_layer = options.property(QStringLiteral("target")).toString() != QLatin1String("newLayer");
+  if (!host_.perspective_layer_can_place(target->session_id(), target->layer_id())) {
+    host_.throw_js_error(ScriptEngineHost::tr("perspective.placeLayer needs an 8-bit layer with transparency."));
+    return QJSValue();
+  }
+  const auto written = host_.perspective_edit(
+      target->session_id(), target->layer_id(), *quad, onto_layer,
+      [&](PerspectiveCanvas& canvas, const PlaneGeometry& geometry, QString& error) {
+        auto lifted = canvas.lift(nullptr);
+        if (!lifted.has_value()) {
+          error = ScriptEngineHost::tr("perspective.placeLayer: the layer is empty.");
+          return false;
+        }
+        const auto& content = lifted->first;
+        const auto placement = custom.has_value() ? *custom
+                               : fit             ? fit_placement(geometry, content.width(), content.height())
+                                                 : fill_placement(geometry, content.width(), content.height());
+        canvas.paste(geometry, content, placement_to_plane(placement, content.width(), content.height()));
+        return true;
+      });
+  return written.has_value() ? make_layer_value(host_, target->session_id(), *written) : QJSValue(QJSValue::NullValue);
+}
+
 QJSValue ScriptPerspectiveObject::clone(const QJSValue& layer, const QJSValue& options) {
   return stroke(layer, options, true);
 }
@@ -365,6 +436,17 @@ bool ScriptEngineHost::set_perspective_planes(std::int64_t session_id, std::vect
   return true;
 }
 
+bool ScriptEngineHost::perspective_layer_can_place(std::int64_t session_id, LayerId layer_id) {
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || window_.active_session() != session) {
+    return false;
+  }
+  const auto* layer = std::as_const(session->document).find_layer(layer_id);
+  const auto input = window_.perspective_layer_input(layer_id);
+  return layer != nullptr && input.has_value() && input->can_write_onto_layer &&
+         std::as_const(*layer).pixels().format() == PixelFormat::rgba8();
+}
+
 std::optional<PixelBuffer> ScriptEngineHost::perspective_source_pixels(std::int64_t session_id, LayerId layer_id) {
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr || window_.active_session() != session) {
@@ -418,7 +500,8 @@ std::optional<LayerId> ScriptEngineHost::perspective_edit(
     return std::nullopt;
   }
   auto edits = canvas.cropped_edits();
-  if (!edits.has_value()) {
+  const bool lifted = canvas.original_changed();
+  if (!edits.has_value() && !lifted) {
     return std::nullopt;
   }
   if (!prepare_mutation(session_id)) {
@@ -429,14 +512,14 @@ std::optional<LayerId> ScriptEngineHost::perspective_edit(
     throw_js_error(tr("The document is no longer open."));
     return std::nullopt;
   }
-  const auto rect = edits->second;
-  const auto written = window_.apply_perspective_edits(layer_id, std::move(*edits), onto_layer,
-                                                       tr("Perspective Planes"), /*record_history=*/false);
+  const auto written = window_.apply_perspective_edits(layer_id, std::move(edits), lifted ? &canvas.original() : nullptr,
+                                                       onto_layer, tr("Perspective Planes"), /*record_history=*/false);
   if (written.has_value()) {
     if (*written != layer_id) {
       note_structure_changed(session_id);
     }
-    note_pixels_changed(session_id, QRect(rect.x, rect.y, rect.width, rect.height));
+    // A lift changes the layer anywhere on the canvas, so refresh all of it.
+    note_pixels_changed(session_id, QRect());
   }
   return written;
 }
