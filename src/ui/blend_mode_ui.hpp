@@ -27,17 +27,23 @@ enum class BlendModeMenu : std::uint8_t { Layer, Filter, Folder, Effect };
 // opens below the box and is cut to the screen's available area, scrolling, on a small one
 // (use_scrolling_list_popup, GitHub issue 414).
 inline constexpr int kBlendModeListPopupRows = 40;
-// Fills `combo` with the modes in Photoshop's menu order and makes Left/Right
-// step it like Up/Down (Qt handles only Up/Down on a combo box), both closed
-// and with the list open. The list is the scrolling list form (kBlendModeListPopupRows).
+// Fills `combo` with the modes in Photoshop's menu order, a separator between the groups
+// (Normal/Dissolve, darken, lighten, contrast, comparative, component; GitHub issue 456),
+// and makes Left/Right step it like Up/Down (Qt handles only Up/Down on a combo box),
+// both closed and with the list open; stepping never lands on a separator. The list is
+// the scrolling list form (kBlendModeListPopupRows). Separator rows carry no item data:
+// read a row's mode through findData or skip is_blend_mode_separator rows.
 void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu = BlendModeMenu::Layer);
+[[nodiscard]] bool is_blend_mode_separator(const QComboBox* combo, int index);
+// Renames a blend mode list's rows in the current language, separators left alone.
+void retranslate_blend_mode_items(QComboBox* combo);
 // For a combo that serves layers and folders in turn (the Layers panel's): adds Pass
 // Through as the first item when `offered` and it is missing, and removes it otherwise.
 void set_blend_mode_pass_through_offered(QComboBox* combo, bool offered);
 // Paint.NET's Reflect, Glow, Negation and Xor (GitHub issue 379) and GIMP's Grain Extract
 // and Grain Merge (docs/xcf.md) appear in a layer or folder combo only while a layer it
 // edits uses one: shows exactly the modes in `in_use` that Photoshop lacks, after
-// Photoshop's list, and removes the rest. Stepping the closed combo (arrows, wheel) never
+// Photoshop's list and a separator, and removes the rest (the separator too). Stepping the closed combo (arrows, wheel) never
 // lands on them.
 void set_non_photoshop_blend_modes_offered(QComboBox* combo, const std::vector<BlendMode>& in_use);
 // The Brush tool's Mode menu (core/paint_mode.hpp): Normal, Dissolve, Behind, Clear, then
