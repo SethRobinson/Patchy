@@ -127,6 +127,8 @@ const char* const kPrelude = R"JS(
       bridge.listen(name);
     },
     playSound: function (path) { return bridge.playSound(String(path)); },
+    startLoop: function (loop, intro) { return bridge.startLoop(String(loop), intro ? String(intro) : ''); },
+    stopLoop: function (outro) { return bridge.stopLoop(outro ? String(outro) : ''); },
     playEffect: function (effect, options) {
       var spec = (typeof effect === 'object' && effect !== null) ? plain(effect) : plain(options);
       if (typeof effect === 'string') spec.name = effect;
@@ -239,6 +241,44 @@ bool ThemeScriptBridge::playSound(const QString& path) {
     return false;
   }
   auto bytes = host_.assets_->files.value(path);
+  if (!is_well_formed_wav(bytes) || !theme_sounds_enabled()) {
+    return false;
+  }
+  play_wav_bytes(std::move(bytes));
+  return true;
+}
+
+bool ThemeScriptBridge::startLoop(const QString& loop, const QString& intro) {
+  if (host_.assets_ == nullptr || !is_safe_theme_package_path(loop) ||
+      (!intro.isEmpty() && !is_safe_theme_package_path(intro)) || !host_.allow(host_.loop_limit_)) {
+    return false;
+  }
+  auto loop_bytes = host_.assets_->files.value(loop);
+  auto intro_bytes = intro.isEmpty() ? QByteArray() : host_.assets_->files.value(intro);
+  if (wav_duration_ms(loop_bytes) < kMinWavLoopMs || (!intro.isEmpty() && !is_well_formed_wav(intro_bytes)) ||
+      !theme_sounds_enabled()) {
+    return false;
+  }
+  play_wav_loop(std::move(intro_bytes), std::move(loop_bytes));
+  host_.loop_playing_ = true;
+  if (host_.loop_cap_timer_ == nullptr) {
+    host_.loop_cap_timer_ = new QTimer(&host_);
+    host_.loop_cap_timer_->setSingleShot(true);
+    QObject::connect(host_.loop_cap_timer_, &QTimer::timeout, &host_, [host = &host_] { host->stop_loop(); });
+  }
+  host_.loop_cap_timer_->start(ThemeScriptHost::kMaxLoopMs);
+  return true;
+}
+
+bool ThemeScriptBridge::stopLoop(const QString& outro) {
+  host_.stop_loop();
+  if (outro.isEmpty()) {
+    return true;
+  }
+  if (host_.assets_ == nullptr || !is_safe_theme_package_path(outro) || !host_.allow(host_.loop_limit_)) {
+    return false;
+  }
+  auto bytes = host_.assets_->files.value(outro);
   if (!is_well_formed_wav(bytes) || !theme_sounds_enabled()) {
     return false;
   }
@@ -652,7 +692,18 @@ void ThemeScriptHost::start() {
   guarded_evaluate(source, QStringLiteral("scripts/main.js"));
 }
 
+void ThemeScriptHost::stop_loop() {
+  if (loop_cap_timer_ != nullptr) {
+    loop_cap_timer_->stop();
+  }
+  if (loop_playing_) {
+    loop_playing_ = false;
+    stop_wav_loop();
+  }
+}
+
 void ThemeScriptHost::stop(const QString& reason) {
+  stop_loop();
   for (auto* timer : std::as_const(timers_)) {
     timer->stop();
     timer->deleteLater();

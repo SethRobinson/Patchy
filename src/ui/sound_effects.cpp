@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <memory>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -26,6 +27,8 @@
 // branch below needs none of these).
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QPointer>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QStringList>
@@ -110,6 +113,64 @@ bool is_well_formed_wav(const QByteArray& wav) {
   return false;
 }
 
+WavPcm parse_wav(const QByteArray& wav) {
+  WavPcm pcm;
+  if (!is_well_formed_wav(wav)) {
+    return pcm;
+  }
+  const auto riff_end = static_cast<qint64>(read_u32(wav, 4)) + 8;
+  qint64 offset = 12;
+  while (offset + 8 <= riff_end) {
+    const auto id = wav.mid(offset, 4);
+    const auto size = static_cast<qint64>(read_u32(wav, offset + 4));
+    const auto body = offset + 8;
+    if (id == "fmt ") {
+      pcm.format_tag = read_u16(wav, body);
+      pcm.channels = read_u16(wav, body + 2);
+      pcm.sample_rate = read_u32(wav, body + 4);
+      pcm.block_align = read_u16(wav, body + 12);
+      pcm.format_chunk = wav.mid(body, size);
+    } else if (id == "data") {
+      // Whole sample frames only: a player handed a partial frame may click or refuse it.
+      pcm.data = wav.mid(body, size - size % pcm.block_align);
+      return pcm;
+    }
+    offset = body + size + (size & 1);
+  }
+  return pcm;
+}
+
+QByteArray make_wav(const QByteArray& format_chunk, const QByteArray& data) {
+  const auto padded_format = format_chunk.size() + (format_chunk.size() & 1);
+  QByteArray wav;
+  wav.reserve(20 + padded_format + 8 + data.size() + 1);
+  wav.append("RIFF");
+  append_u32(wav, static_cast<std::uint32_t>(4 + 8 + padded_format + 8 + data.size() + (data.size() & 1)));
+  wav.append("WAVE");
+  wav.append("fmt ");
+  append_u32(wav, static_cast<std::uint32_t>(format_chunk.size()));
+  wav.append(format_chunk);
+  if ((format_chunk.size() & 1) != 0) {
+    wav.append('\0');
+  }
+  wav.append("data");
+  append_u32(wav, static_cast<std::uint32_t>(data.size()));
+  wav.append(data);
+  if ((data.size() & 1) != 0) {
+    wav.append('\0');
+  }
+  return wav;
+}
+
+int wav_duration_ms(const QByteArray& wav) {
+  const auto pcm = parse_wav(wav);
+  if (pcm.data.isEmpty()) {
+    return 0;
+  }
+  const auto frames = pcm.data.size() / pcm.block_align;
+  return static_cast<int>(frames * 1000 / pcm.sample_rate);
+}
+
 QByteArray build_tone_wav(double frequency_hz, int duration_ms, double volume, ToneWave wave) {
   frequency_hz = std::clamp(frequency_hz, 20.0, 20000.0);
   duration_ms = std::clamp(duration_ms, 1, 4000);
@@ -162,7 +223,108 @@ QByteArray build_tone_wav(double frequency_hz, int duration_ms, double volume, T
   return wav;
 }
 
+#if !defined(Q_OS_MACOS) && !defined(Q_OS_WASM)
+
+namespace {
+
+// play_wav_loop's checks: the loop's samples (empty when refused) and the intro's,
+// which stay only when they share the loop's format.
+struct LoopParts {
+  WavPcm loop;
+  QByteArray intro_data;
+};
+
+LoopParts loop_parts(const QByteArray& intro, const QByteArray& loop) {
+  LoopParts parts;
+  if (sound_disabled() || wav_duration_ms(loop) < kMinWavLoopMs) {
+    return parts;
+  }
+  parts.loop = parse_wav(loop);
+  if (const auto intro_pcm = parse_wav(intro);
+      !intro_pcm.data.isEmpty() && intro_pcm.format_chunk == parts.loop.format_chunk) {
+    parts.intro_data = intro_pcm.data;
+  }
+  return parts;
+}
+
+}  // namespace
+
+#endif
+
 #ifdef Q_OS_WIN
+
+namespace {
+
+// The loop channel: its own waveOut device, the intro buffer queued ahead of a loop
+// buffer marked to repeat (WHDR_BEGINLOOP | WHDR_ENDLOOP), so the hand-over and every
+// repeat are sample-exact. The buffers stay alive until the device is reset.
+struct WaveLoop {
+  HWAVEOUT device = nullptr;
+  QByteArray format;
+  QByteArray intro;
+  QByteArray loop;
+  WAVEHDR intro_header{};
+  WAVEHDR loop_header{};
+};
+
+WaveLoop& wave_loop() {
+  static WaveLoop state;
+  return state;
+}
+
+}  // namespace
+
+void play_wav_loop(QByteArray intro, QByteArray loop) {
+  stop_wav_loop();
+  auto parts = loop_parts(intro, loop);
+  if (parts.loop.data.isEmpty()) {
+    return;
+  }
+  auto& state = wave_loop();
+  // waveOut takes the "fmt " body as a WAVEFORMATEX (or WAVEFORMATEXTENSIBLE); a plain
+  // 16-byte PCM body lacks the cbSize field.
+  state.format = parts.loop.format_chunk;
+  if (state.format.size() < 18) {
+    state.format.append(18 - state.format.size(), '\0');
+  }
+  if (waveOutOpen(&state.device, WAVE_MAPPER, reinterpret_cast<const WAVEFORMATEX*>(state.format.constData()), 0, 0,
+                  CALLBACK_NULL) != MMSYSERR_NOERROR) {
+    state = WaveLoop{};
+    return;
+  }
+  state.intro = std::move(parts.intro_data);
+  state.loop = std::move(parts.loop.data);
+  if (!state.intro.isEmpty()) {
+    state.intro_header.lpData = state.intro.data();
+    state.intro_header.dwBufferLength = static_cast<DWORD>(state.intro.size());
+    waveOutPrepareHeader(state.device, &state.intro_header, sizeof(WAVEHDR));
+    waveOutWrite(state.device, &state.intro_header, sizeof(WAVEHDR));
+  }
+  state.loop_header.lpData = state.loop.data();
+  state.loop_header.dwBufferLength = static_cast<DWORD>(state.loop.size());
+  // Prepare wants dwFlags zero; the loop flags go on between prepare and write.
+  waveOutPrepareHeader(state.device, &state.loop_header, sizeof(WAVEHDR));
+  state.loop_header.dwFlags |= WHDR_BEGINLOOP | WHDR_ENDLOOP;
+  state.loop_header.dwLoops = 0xFFFFFFFF;  // stop_wav_loop ends it, never the count
+  waveOutWrite(state.device, &state.loop_header, sizeof(WAVEHDR));
+}
+
+void stop_wav_loop() {
+  auto& state = wave_loop();
+  if (state.device == nullptr) {
+    return;
+  }
+  // Reset returns every queued buffer before they are unprepared and freed.
+  waveOutReset(state.device);
+  if (!state.intro.isEmpty()) {
+    waveOutUnprepareHeader(state.device, &state.intro_header, sizeof(WAVEHDR));
+  }
+  waveOutUnprepareHeader(state.device, &state.loop_header, sizeof(WAVEHDR));
+  waveOutClose(state.device);
+  state = WaveLoop{};
+}
+
+bool wav_loop_active() { return wave_loop().device != nullptr; }
 
 void play_wav_bytes(QByteArray wav) {
   if (!is_well_formed_wav(wav) || sound_disabled()) {
@@ -205,6 +367,12 @@ void play_wav_bytes(QByteArray wav) {
 }
 
 void play_wav_file(const QString& /*path*/) {}
+
+void play_wav_loop(QByteArray /*intro*/, QByteArray /*loop*/) {}
+
+void stop_wav_loop() {}
+
+bool wav_loop_active() { return false; }
 
 #elif !defined(Q_OS_MACOS)
 
@@ -265,6 +433,126 @@ void play_wav_file(const QString& path) {
     QProcess::startDetached(command.first(), command.mid(1));
   }
 }
+
+namespace {
+
+// The loop channel: an owned player process per file. The loop is written repeated
+// to about kLoopFileSeconds (the intro ahead of the first copy), so the gap of a
+// process restart falls only every few seconds.
+constexpr int kLoopFileSeconds = 6;
+constexpr qsizetype kMaxLoopFileBytes = 8 * 1024 * 1024;
+// A player that exits sooner than this failed (no device, say): the loop stops
+// instead of respawning it in a tight cycle.
+constexpr qint64 kMinLoopProcessMs = 100;
+
+struct ProcessLoop {
+  QPointer<QProcess> process;
+  QString first_path;
+  QString loop_path;
+  bool active = false;
+  int generation = 0;
+};
+
+ProcessLoop& process_loop() {
+  static ProcessLoop state;
+  return state;
+}
+
+QString write_loop_file(const QString& tag, const QByteArray& wav) {
+  const auto path = QDir::temp().absoluteFilePath(QStringLiteral("patchy-sfx-loop-%1-%2-%3.wav")
+                                                      .arg(QCoreApplication::applicationPid())
+                                                      .arg(process_loop().generation)
+                                                      .arg(tag));
+  QFile file(path);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) || file.write(wav) != wav.size()) {
+    return {};
+  }
+  return path;
+}
+
+void start_loop_process(const QString& path, int generation) {
+  auto& state = process_loop();
+  const auto command = player_command(path);
+  if (command.isEmpty() || QCoreApplication::instance() == nullptr) {
+    stop_wav_loop();
+    return;
+  }
+  auto* process = new QProcess(QCoreApplication::instance());
+  state.process = process;
+  auto started = std::make_shared<QElapsedTimer>();
+  started->start();
+  QObject::connect(process, &QProcess::finished, process, [process, generation, started] {
+    process->deleteLater();
+    auto& current = process_loop();
+    if (!current.active || current.generation != generation || current.process != process) {
+      return;
+    }
+    if (started->elapsed() < kMinLoopProcessMs) {
+      stop_wav_loop();
+      return;
+    }
+    start_loop_process(current.loop_path, generation);
+  });
+  QObject::connect(process, &QProcess::errorOccurred, process, [process, generation](QProcess::ProcessError error) {
+    if (error == QProcess::FailedToStart) {
+      process->deleteLater();
+      if (process_loop().generation == generation) {
+        stop_wav_loop();
+      }
+    }
+  });
+  process->start(command.first(), command.mid(1));
+}
+
+}  // namespace
+
+void play_wav_loop(QByteArray intro, QByteArray loop) {
+  stop_wav_loop();
+  const auto parts = loop_parts(intro, loop);
+  if (parts.loop.data.isEmpty()) {
+    return;
+  }
+  const qsizetype seconds_bytes = static_cast<qsizetype>(parts.loop.sample_rate) * parts.loop.block_align *
+                                  kLoopFileSeconds;
+  QByteArray repeated = parts.loop.data;
+  while (repeated.size() < seconds_bytes && repeated.size() + parts.loop.data.size() <= kMaxLoopFileBytes) {
+    repeated.append(parts.loop.data);
+  }
+  auto& state = process_loop();
+  state.loop_path = write_loop_file(QStringLiteral("loop"), make_wav(parts.loop.format_chunk, repeated));
+  state.first_path = parts.intro_data.isEmpty()
+                         ? state.loop_path
+                         : write_loop_file(QStringLiteral("first"),
+                                           make_wav(parts.loop.format_chunk, parts.intro_data + repeated));
+  if (state.loop_path.isEmpty() || state.first_path.isEmpty()) {
+    stop_wav_loop();
+    return;
+  }
+  state.active = true;
+  start_loop_process(state.first_path, state.generation);
+}
+
+void stop_wav_loop() {
+  auto& state = process_loop();
+  const bool had_files = !state.loop_path.isEmpty() || !state.first_path.isEmpty();
+  state.active = false;
+  ++state.generation;  // a finishing player sees a stale generation and stays stopped
+  if (state.process != nullptr) {
+    state.process->kill();
+  }
+  state.process = nullptr;
+  if (had_files) {
+    // The killed player may still hold its file for a moment.
+    QTimer::singleShot(2000, [first = state.first_path, loop = state.loop_path] {
+      QFile::remove(first);
+      QFile::remove(loop);
+    });
+  }
+  state.first_path.clear();
+  state.loop_path.clear();
+}
+
+bool wav_loop_active() { return process_loop().active; }
 
 #endif  // platform playback (macOS lives in sound_effects_mac.mm)
 

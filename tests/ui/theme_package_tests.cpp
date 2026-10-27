@@ -800,6 +800,42 @@ void ui_theme_svg_icons_reaching_outside_are_refused() {
   CHECK(result.theme && !result.theme->assets->icons.contains(QStringLiteral("apply")));
 }
 
+// parse_wav / make_wav round-trip, and the loop channel starts and stops on the real
+// backend (silent samples, so the run makes no sound) and refuses a too-short loop.
+void ui_theme_wav_loop_helpers_and_player() {
+  const auto tone = patchy::ui::build_tone_wav(440.0, 200, 0.5, patchy::ui::ToneWave::Sine);
+  const auto pcm = patchy::ui::parse_wav(tone);
+  CHECK(pcm.format_tag == 1 && pcm.channels == 1 && pcm.sample_rate == 44100 && pcm.block_align == 2);
+  CHECK(pcm.format_chunk.size() == 16);
+  CHECK(pcm.data.size() == 44100 / 5 * 2);
+  CHECK(patchy::ui::wav_duration_ms(tone) == 200);
+  CHECK(patchy::ui::make_wav(pcm.format_chunk, pcm.data) == tone);
+  CHECK(patchy::ui::parse_wav(QByteArrayLiteral("RIFF")).data.isEmpty());
+  CHECK(patchy::ui::wav_duration_ms(QByteArrayLiteral("not a wav")) == 0);
+
+  const auto silent = [&pcm](int ms) {
+    return patchy::ui::make_wav(pcm.format_chunk, QByteArray(44100 * ms / 1000 * 2, '\0'));
+  };
+  const EnvironmentVariableRestorer restore_no_sound("PATCHY_NO_SOUND");
+  qputenv("PATCHY_NO_SOUND", "1");
+  patchy::ui::play_wav_loop(silent(100), silent(200));
+  CHECK(!patchy::ui::wav_loop_active());  // muted: the player is never touched
+  qunsetenv("PATCHY_NO_SOUND");
+  patchy::ui::play_wav_loop({}, silent(patchy::ui::kMinWavLoopMs / 2));
+  CHECK(!patchy::ui::wav_loop_active());
+  // A machine without an audio device refuses the loop; one with a device plays it.
+  patchy::ui::play_wav_loop(silent(100), silent(200));
+  if (patchy::ui::wav_loop_active()) {
+    process_events_for(150);
+    patchy::ui::play_wav_loop({}, silent(120));  // replaces the playing loop
+    CHECK(patchy::ui::wav_loop_active());
+  }
+  patchy::ui::stop_wav_loop();
+  CHECK(!patchy::ui::wav_loop_active());
+  patchy::ui::stop_wav_loop();  // a second stop is a no-op
+  CHECK(!patchy::ui::wav_loop_active());
+}
+
 // Players trust a WAV's own sizes (winmm reads the RIFF size's worth of bytes), so only
 // well-formed WAVs play, and a package's malformed one is a load warning.
 void ui_theme_sounds_refuse_malformed_wav() {
@@ -1006,6 +1042,7 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
       {"ui_theme_info_shows_version_author_and_minimum_patchy", ui_theme_info_shows_version_author_and_minimum_patchy},
       {"ui_theme_svg_icons_reaching_outside_are_refused", ui_theme_svg_icons_reaching_outside_are_refused},
       {"ui_theme_sounds_refuse_malformed_wav", ui_theme_sounds_refuse_malformed_wav},
+      {"ui_theme_wav_loop_helpers_and_player", ui_theme_wav_loop_helpers_and_player},
       {"ui_theme_cache_prunes_old_files_and_caps_writes", ui_theme_cache_prunes_old_files_and_caps_writes},
   };
 }

@@ -143,7 +143,12 @@ QByteArray theme_sound_for_event(const ThemeAssets* assets, ThemeSoundEvent even
 
 bool theme_sounds_enabled() { return app_settings().value(play_theme_sounds_key(), true).toBool(); }
 
-void set_theme_sounds_enabled(bool enabled) { app_settings().setValue(play_theme_sounds_key(), enabled); }
+void set_theme_sounds_enabled(bool enabled) {
+  app_settings().setValue(play_theme_sounds_key(), enabled);
+  if (!enabled) {
+    stop_wav_loop();  // a theme's loop must not outlive the switch
+  }
+}
 
 bool play_theme_sound(ThemeSoundEvent event) {
   auto wav = theme_sound_for_event(active_theme_assets(), event);

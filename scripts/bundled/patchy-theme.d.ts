@@ -87,6 +87,15 @@ interface PatchyThemeApi {
   on(event: PatchyThemeEvent, fn: (payload: PatchyThemeEventPayload) => void): void;
   /** Plays a WAV file from the package (4 a second at most). False when refused. */
   playSound(path: string): boolean;
+  /**
+   * Plays `intro` (optional) once, then repeats `loop` until stopLoop, the next
+   * startLoop, a theme change or two minutes. One loop at a time; playSound keeps
+   * playing over it. Both are package WAVs in the same format, the loop at least 50 ms
+   * long. With stopLoop's outro, 8 a second at most. False when refused.
+   */
+  startLoop(loop: string, intro?: string): boolean;
+  /** Stops the loop at once, then plays `outro` (optional) like playSound. */
+  stopLoop(outro?: string): boolean;
   /** Plays an effect by name with options, or a full spec (4 a second at most). */
   playEffect(name: string, options?: PatchyThemeEffect): boolean;
   playEffect(spec: PatchyThemeEffect): boolean;

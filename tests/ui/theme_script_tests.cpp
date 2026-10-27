@@ -20,6 +20,7 @@
 #include "ui/theme_package.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_script_host.hpp"
+#include "ui/theme_sounds.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 #include "unicode_path_names.hpp"
@@ -571,6 +572,52 @@ void ui_theme_script_hears_brush_strokes() {
   CHECK(log_contains(QStringLiteral("end eraser 2")));
 }
 
+// startLoop plays an intro then a loop until stopLoop, the theme changes or the sounds
+// preference goes off; bad paths, short loops and malformed intros are refused.
+void ui_theme_script_loops_a_sound() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  SettingsValueRestorer restore_sounds(QStringLiteral("preferences/playThemeSounds"));
+  patchy::ui::set_theme_sounds_enabled(true);
+  ScriptThemesDir themes;
+  const auto root = themes.file(QStringLiteral("Loops"));
+  write_package(root, {}, QByteArrayLiteral("patchy.theme.log('ready');\n"));
+  write_bytes(QDir(root).filePath(QStringLiteral("sounds/fx/loop.wav")),
+              patchy::ui::build_tone_wav(300.0, 200, 0.3, patchy::ui::ToneWave::Sine));
+  write_bytes(QDir(root).filePath(QStringLiteral("sounds/fx/tiny.wav")),
+              patchy::ui::build_tone_wav(300.0, 20, 0.3, patchy::ui::ToneWave::Sine));
+  write_bytes(QDir(root).filePath(QStringLiteral("sounds/fx/bad.wav")), QByteArrayLiteral("RIFFnope"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  apply(QStringLiteral("Loops"), true);
+  auto& host = ThemeScriptHost::instance();
+  CHECK(host.running());
+  const auto run = [&host](const char* source) { return host.evaluate_for_testing(QString::fromUtf8(source)); };
+
+  CHECK(run("patchy.theme.startLoop('sounds/fx/loop.wav', 'sounds/fx/hurt.wav')") == QStringLiteral("true"));
+  CHECK(host.loop_playing());
+  CHECK(run("patchy.theme.stopLoop('sounds/fx/hurt.wav')") == QStringLiteral("true"));
+  CHECK(!host.loop_playing());
+  CHECK(run("patchy.theme.stopLoop()") == QStringLiteral("true"));  // nothing playing: fine
+
+  process_events_for(1100);  // a fresh rate window
+  CHECK(run("patchy.theme.startLoop('sounds/fx/tiny.wav')") == QStringLiteral("false"));  // under 50 ms
+  CHECK(run("patchy.theme.startLoop('sounds/fx/loop.wav', 'sounds/fx/bad.wav')") == QStringLiteral("false"));
+  CHECK(run("patchy.theme.startLoop('../loop.wav')") == QStringLiteral("false"));
+  CHECK(!host.loop_playing());
+
+  process_events_for(1100);
+  patchy::ui::set_theme_sounds_enabled(false);
+  CHECK(run("patchy.theme.startLoop('sounds/fx/loop.wav')") == QStringLiteral("false"));
+  patchy::ui::set_theme_sounds_enabled(true);
+  CHECK(run("patchy.theme.startLoop('sounds/fx/loop.wav')") == QStringLiteral("true"));
+  CHECK(host.loop_playing());
+  // Switching themes ends the loop with the scripts.
+  ThemeManager::instance().clear_custom_theme(/*persist=*/false);
+  QApplication::processEvents();
+  CHECK(!host.loop_playing());
+}
+
 void ui_theme_effects_and_scripts_preferences() {
   ColorSchemeRestorer restore_active;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
@@ -690,6 +737,7 @@ std::vector<patchy::test::TestCase> theme_script_tests() {
       {"ui_theme_cursors_backgrounds_and_splash", ui_theme_cursors_backgrounds_and_splash},
       {"ui_theme_script_events_reach_the_script", ui_theme_script_events_reach_the_script},
       {"ui_theme_script_hears_brush_strokes", ui_theme_script_hears_brush_strokes},
+      {"ui_theme_script_loops_a_sound", ui_theme_script_loops_a_sound},
       {"ui_theme_effects_and_scripts_preferences", ui_theme_effects_and_scripts_preferences},
       {"ui_theme_scripts_on_unicode_paths", ui_theme_scripts_on_unicode_paths},
   };

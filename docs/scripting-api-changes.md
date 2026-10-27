@@ -14,6 +14,9 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-27 (additive): theme scripts' `patchy.theme.startLoop(loop, intro)` and `stopLoop(outro)`: one
+looping package WAV after an optional intro, stopped at once with an optional outro. Permanent
+identifiers. Pinned by `ui_theme_script_loops_a_sound` and `ui_theme_wav_loop_helpers_and_player`.
 2026-10-27 (additive): theme events `stroke-start` and `stroke-end` (payload `{tool}`) for a painting
 stroke on the canvas, also usable as theme.json `"events"` keys and `sounds/<id>.wav` names. Permanent
 identifiers. Pinned by `ui_theme_script_hears_brush_strokes` and

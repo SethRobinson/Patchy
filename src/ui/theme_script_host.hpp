@@ -74,6 +74,8 @@ class ThemeScriptBridge final : public QObject {
   Q_INVOKABLE bool isEvent(const QString& name) const;
   Q_INVOKABLE void listen(const QString& name);
   Q_INVOKABLE bool playSound(const QString& path);
+  Q_INVOKABLE bool startLoop(const QString& loop, const QString& intro);
+  Q_INVOKABLE bool stopLoop(const QString& outro);
   Q_INVOKABLE bool playEffect(const QVariantMap& spec);
   Q_INVOKABLE void showStatus(const QString& text, int ms);
   Q_INVOKABLE bool addCommand(const QString& id, const QString& title, const QString& hotkey);
@@ -127,6 +129,9 @@ class ThemeScriptHost final : public QObject {
   [[nodiscard]] QString dialog_background_stylesheet() const { return dialog_stylesheet_; }
   // Script output and errors, newest last (capped).
   [[nodiscard]] QStringList log() const { return log_; }
+  // True while a startLoop of this host's scripts plays (whether or not
+  // PATCHY_NO_SOUND keeps the player quiet).
+  [[nodiscard]] bool loop_playing() const { return loop_playing_; }
 
   // Tests: runs source in the theme engine under the budget and returns the result
   // (or "Error: ...") as text; the budget for every call.
@@ -142,6 +147,8 @@ class ThemeScriptHost final : public QObject {
   static constexpr int kMaxBusyMs = 1000;
   static constexpr int kMaxTimers = 16;
   static constexpr int kMaxCommands = 32;
+  // A loop a script never stops (a missed stroke-end, a bug) ends after this.
+  static constexpr int kMaxLoopMs = 120000;
 
  signals:
   void trust_needed(const QString& theme_id, const QString& theme_name);
@@ -170,6 +177,7 @@ class ThemeScriptHost final : public QObject {
 
   void start();
   void stop(const QString& reason = {});
+  void stop_loop();
   // Runs `function` (or evaluates `source` when it is not a function) under the budget.
   QJSValue guarded_call(QJSValue function, const QJSValueList& arguments);
   QJSValue guarded_evaluate(const QString& source, const QString& file_name);
@@ -214,6 +222,8 @@ class ThemeScriptHost final : public QObject {
   std::deque<std::pair<qint64, qint64>> busy_calls_;  // (end ms, run ms) inside the busy window
   qint64 busy_ms_ = 0;
   RateLimit sound_limit_{4, 1000, {}};
+  // startLoop and stopLoop's outro: a stroke spends one of each, so quick dabs need more.
+  RateLimit loop_limit_{8, 1000, {}};
   RateLimit effect_limit_{4, 1000, {}};
   RateLimit status_limit_{4, 1000, {}};
   RateLimit cursor_limit_{8, 1000, {}};
@@ -221,6 +231,8 @@ class ThemeScriptHost final : public QObject {
   bool commands_signal_pending_ = false;
   bool cursors_signal_pending_ = false;
   bool panels_signal_pending_ = false;
+  bool loop_playing_ = false;
+  QTimer* loop_cap_timer_ = nullptr;
   std::mutex interrupt_mutex_;
   std::atomic<bool> timed_out_{false};
 };

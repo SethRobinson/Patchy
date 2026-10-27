@@ -14,6 +14,10 @@
 @interface PatchySoundReaper : NSObject <NSSoundDelegate>
 @end
 
+// The loop channel's intro delegate: starts the looping sound when the intro ends.
+@interface PatchyLoopChain : NSObject <NSSoundDelegate>
+@end
+
 namespace {
 
 NSMutableArray<NSSound*>* live_sounds() {
@@ -28,12 +32,33 @@ PatchySoundReaper* sound_reaper() {
 
 bool sound_disabled() { return qEnvironmentVariableIsSet("PATCHY_NO_SOUND"); }
 
+// play_wav_loop's two sounds; both nil while no loop plays.
+NSSound* g_loop_intro = nil;
+NSSound* g_loop_sound = nil;
+
+PatchyLoopChain* loop_chain() {
+  static PatchyLoopChain* chain = [PatchyLoopChain new];
+  return chain;
+}
+
 }  // namespace
 
 @implementation PatchySoundReaper
 - (void)sound:(NSSound*)sound didFinishPlaying:(BOOL)finished {
   Q_UNUSED(finished);
   [live_sounds() removeObjectIdenticalTo:sound];
+}
+@end
+
+@implementation PatchyLoopChain
+- (void)sound:(NSSound*)sound didFinishPlaying:(BOOL)finished {
+  if (sound != g_loop_intro) {
+    return;
+  }
+  g_loop_intro = nil;
+  if (finished && g_loop_sound != nil) {
+    [g_loop_sound play];
+  }
 }
 @end
 
@@ -58,6 +83,46 @@ void play_wav_bytes(QByteArray wav) {
   [live_sounds() addObject:sound];
   [sound play];
 }
+
+void play_wav_loop(QByteArray intro, QByteArray loop) {
+  stop_wav_loop();
+  if (sound_disabled() || wav_duration_ms(loop) < kMinWavLoopMs) {
+    return;
+  }
+  NSSound* looping = [[NSSound alloc] initWithData:[NSData dataWithBytes:loop.constData()
+                                                                 length:static_cast<NSUInteger>(loop.size())]];
+  if (looping == nil) {
+    return;
+  }
+  looping.loops = YES;
+  g_loop_sound = looping;
+  const auto intro_pcm = parse_wav(intro);
+  if (!intro_pcm.data.isEmpty() && intro_pcm.format_chunk == parse_wav(loop).format_chunk) {
+    NSSound* first = [[NSSound alloc] initWithData:[NSData dataWithBytes:intro.constData()
+                                                                 length:static_cast<NSUInteger>(intro.size())]];
+    if (first != nil) {
+      first.delegate = loop_chain();
+      g_loop_intro = first;
+      [first play];
+      return;
+    }
+  }
+  [looping play];
+}
+
+void stop_wav_loop() {
+  if (g_loop_intro != nil) {
+    g_loop_intro.delegate = nil;  // so stopping it does not start the loop
+    [g_loop_intro stop];
+    g_loop_intro = nil;
+  }
+  if (g_loop_sound != nil) {
+    [g_loop_sound stop];
+    g_loop_sound = nil;
+  }
+}
+
+bool wav_loop_active() { return g_loop_sound != nil; }
 
 void play_wav_file(const QString& path) {
   if (sound_disabled()) {

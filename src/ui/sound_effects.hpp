@@ -3,6 +3,8 @@
 #include <QByteArray>
 #include <QString>
 
+#include <cstdint>
+
 namespace patchy::ui {
 
 enum class ToneWave { Sine, Square };
@@ -31,5 +33,35 @@ enum class ToneWave { Sine, Square };
 // headless runs).
 void play_wav_bytes(QByteArray wav);
 void play_wav_file(const QString& path);
+
+// The format and samples of a well-formed WAV; `data` is empty for anything else.
+struct WavPcm {
+  std::uint16_t format_tag = 0;  // 1 PCM, 3 IEEE float, 0xFFFE extensible
+  std::uint16_t channels = 0;
+  std::uint32_t sample_rate = 0;
+  std::uint16_t block_align = 0;
+  QByteArray format_chunk;  // the "fmt " chunk body as written
+  QByteArray data;
+};
+[[nodiscard]] WavPcm parse_wav(const QByteArray& wav);
+// RIFF/WAVE bytes holding `format_chunk` and `data` (the inverse of parse_wav).
+[[nodiscard]] QByteArray make_wav(const QByteArray& format_chunk, const QByteArray& data);
+// Length of a well-formed WAV's samples in milliseconds, 0 for anything else.
+[[nodiscard]] int wav_duration_ms(const QByteArray& wav);
+
+// One looping sound at a time (docs/theme-files.md, "Sounds"), beside play_wav_bytes,
+// which keeps playing over it: `intro` (may be empty) plays once, then `loop` repeats
+// until stop_wav_loop or the next play_wav_loop. An intro in another format than the
+// loop is dropped, and a loop shorter than kMinWavLoopMs is refused (a tiny buffer
+// would spin the audio thread). Windows queues both on one waveOut device, so the
+// loop follows the intro and repeats without a gap; macOS chains two NSSounds; Linux
+// plays the loop repeated to a few seconds per player process, so a gap falls only
+// between those. PATCHY_NO_SOUND and wasm make it a no-op.
+inline constexpr int kMinWavLoopMs = 50;
+void play_wav_loop(QByteArray intro, QByteArray loop);
+// Stops the loop and its intro at once; a no-op when none plays.
+void stop_wav_loop();
+// True between a play_wav_loop the backend accepted and stop_wav_loop.
+[[nodiscard]] bool wav_loop_active();
 
 }  // namespace patchy::ui
