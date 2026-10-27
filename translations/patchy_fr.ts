@@ -13188,6 +13188,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Suggested: %1 (similar design)</source>
         <translation>Suggestion : %1 (dessin similaire)</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Suggestion : %1 (aussi une police à empattements)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Suggestion : %1 (aussi une police sans empattements)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Suggestion : %1 (aussi une police à chasse fixe)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

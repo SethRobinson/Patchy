@@ -139,10 +139,65 @@ void font_substitutes_table_is_well_formed() {
   }
 }
 
+void font_substitutes_classify_font_types_from_name_words() {
+  using patchy::classify_font_name_words;
+  CHECK(classify_font_name_words("PT Serif") == FontClass::serif);
+  CHECK(classify_font_name_words("NotoSerifJP-Regular") == FontClass::serif);
+  CHECK(classify_font_name_words("Kozuka Mincho") == FontClass::serif);
+  CHECK(classify_font_name_words("Roboto Slab") == FontClass::serif);
+  CHECK(classify_font_name_words("Open Sans") == FontClass::sans);
+  CHECK(classify_font_name_words("Microsoft Sans Serif") == FontClass::sans);  // "sans" wins over "serif"
+  CHECK(classify_font_name_words("MS UI Gothic") == FontClass::sans);
+  CHECK(classify_font_name_words("Noto Sans Mono") == FontClass::mono);       // "mono" wins over "sans"
+  CHECK(classify_font_name_words("Fira Code") == FontClass::mono);
+  CHECK(classify_font_name_words("SourceCodePro-Bold") == FontClass::mono);
+  CHECK(classify_font_name_words("Lucida Console") == FontClass::mono);
+  CHECK(classify_font_name_words("Patchy Missing Serif") == FontClass::serif);
+  // Whole words only: "Sansation" and "Monaco" say nothing, nor does a lone style word.
+  CHECK(classify_font_name_words("Sansation") == FontClass::unknown);
+  CHECK(classify_font_name_words("Monaco") == FontClass::unknown);
+  CHECK(classify_font_name_words("Bold") == FontClass::unknown);
+  CHECK(classify_font_name_words("") == FontClass::unknown);
+
+  // The table's column wins over the name: "Courier New" is mono, Cambria serif, Impact display.
+  CHECK(patchy::font_class_for_name("Cambria") == FontClass::serif);
+  CHECK(patchy::font_class_for_name("Impact") == FontClass::display);
+  CHECK(patchy::font_class_for_name("Myriad Pro Semibold") == FontClass::sans);
+  CHECK(patchy::font_class_for_name("Some Unlisted Mono") == FontClass::mono);
+  CHECK(patchy::font_class_for_name("PatchyDefinitelyMissingFont123456") == FontClass::unknown);
+}
+
+void font_substitutes_same_class_defaults_cover_each_platform() {
+  const auto serif = patchy::same_class_default_families(FontClass::serif);
+  const auto sans = patchy::same_class_default_families(FontClass::sans);
+  const auto mono = patchy::same_class_default_families(FontClass::mono);
+  CHECK(!serif.empty() && serif.front() == "Times New Roman");
+  CHECK(!sans.empty() && sans.front() == "Arial");
+  CHECK(!mono.empty() && mono.front() == "Consolas");
+  // A Windows, a macOS and a Linux default in each list, and every name of its own type.
+  for (const auto list : {serif, sans, mono}) {
+    CHECK(std::ranges::find(list, std::string_view("Liberation Serif")) != list.end() ||
+          std::ranges::find(list, std::string_view("Liberation Sans")) != list.end() ||
+          std::ranges::find(list, std::string_view("Liberation Mono")) != list.end());
+  }
+  for (const auto family : serif) {
+    CHECK(patchy::font_class_for_name(family) == FontClass::serif || patchy::font_class_for_name(family) == FontClass::unknown);
+  }
+  for (const auto family : mono) {
+    CHECK(patchy::font_class_for_name(family) == FontClass::mono || patchy::font_class_for_name(family) == FontClass::unknown);
+  }
+  CHECK(patchy::same_class_default_families(FontClass::unknown).empty());
+  CHECK(patchy::same_class_default_families(FontClass::script).empty());
+  CHECK(patchy::same_class_default_families(FontClass::display).empty());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_substitutes_tests() {
   return {
+      {"font_substitutes_classify_font_types_from_name_words", font_substitutes_classify_font_types_from_name_words},
+      {"font_substitutes_same_class_defaults_cover_each_platform",
+       font_substitutes_same_class_defaults_cover_each_platform},
       {"font_substitutes_lookup_matches_family_and_postscript_names",
        font_substitutes_lookup_matches_family_and_postscript_names},
       {"font_substitutes_face_names_fall_back_to_the_base_family",

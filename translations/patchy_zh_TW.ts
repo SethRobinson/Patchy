@@ -13151,6 +13151,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Suggested: %1 (similar design)</source>
         <translation>建議：%1 (設計相似)</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>建議：%1 (同為襯線字型)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>建議：%1 (同為無襯線字型)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>建議：%1 (同為等寬字型)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

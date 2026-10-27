@@ -13151,6 +13151,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Suggested: %1 (similar design)</source>
         <translation>추천: %1(비슷한 디자인)</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>추천: %1(같은 세리프 글꼴)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>추천: %1(같은 산세리프 글꼴)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>추천: %1(같은 고정폭 글꼴)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

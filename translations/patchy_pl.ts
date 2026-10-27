@@ -13225,6 +13225,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Suggested: %1 (similar design)</source>
         <translation>Sugerowana: %1 (podobny krój)</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Sugerowana: %1 (również krój szeryfowy)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Sugerowana: %1 (również krój bezszeryfowy)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Sugerowana: %1 (również krój o stałej szerokości)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -13188,6 +13188,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Suggested: %1 (similar design)</source>
         <translation>Sugestão: %1 (design semelhante)</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Sugestão: %1 (também uma fonte serifada)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Sugestão: %1 (também uma fonte sem serifa)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Sugestão: %1 (também uma fonte monoespaçada)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

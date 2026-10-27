@@ -185,12 +185,15 @@ void MainWindow::show_resolve_missing_fonts_dialog(bool on_open) {
   entries.reserve(fonts.size());
   for (const auto& font : fonts) {
     MissingFontEntry entry{font.family, font.no_glyphs, static_cast<int>(font.layers.size()), {}};
-    // The built-in substitute table first (issue 463): metric matches, then look-alikes, then the
-    // face Qt draws the text in now.
+    // The built-in substitute table first (issue 463): metric matches, then look-alikes, then an
+    // installed default of the same font type, then the face Qt draws the text in now.
     if (const auto substitutes = installed_text_font_substitutes(font.family, font.first_text); !substitutes.empty()) {
-      entry.suggested = substitutes.front().family;
-      entry.suggestion =
-          substitutes.front().metric ? MissingFontSuggestion::metric : MissingFontSuggestion::lookalike;
+      const auto& best = substitutes.front();
+      entry.suggested = best.family;
+      entry.font_type = best.same_type;
+      entry.suggestion = best.same_type != FontClass::unknown ? MissingFontSuggestion::same_type
+                         : best.metric                         ? MissingFontSuggestion::metric
+                                                               : MissingFontSuggestion::lookalike;
     } else {
       entry.suggested = substituted_text_family(font.family, font.first_text);
       if (entry.suggested.compare(font.family, Qt::CaseInsensitive) == 0) {

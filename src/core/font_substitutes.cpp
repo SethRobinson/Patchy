@@ -318,6 +318,95 @@ std::optional<FontSubstituteLookup> find_font_substitutes(std::string_view famil
   return std::nullopt;
 }
 
+namespace {
+
+// Words of a family name: split at spaces, hyphens, underscores and lower-to-upper case changes,
+// lower-cased (ASCII only; other bytes stay as they are).
+std::vector<std::string> family_name_words(std::string_view family) {
+  std::vector<std::string> words;
+  std::string word;
+  const auto flush = [&words, &word] {
+    if (!word.empty()) {
+      words.push_back(word);
+      word.clear();
+    }
+  };
+  for (std::size_t i = 0; i < family.size(); ++i) {
+    const auto byte = static_cast<unsigned char>(family[i]);
+    if (byte == ' ' || byte == '-' || byte == '_') {
+      flush();
+      continue;
+    }
+    const bool upper = byte >= 'A' && byte <= 'Z';
+    if (upper && i > 0) {
+      const auto previous = static_cast<unsigned char>(family[i - 1]);
+      if (previous >= 'a' && previous <= 'z') {
+        flush();
+      }
+    }
+    word.push_back(upper ? static_cast<char>(byte - 'A' + 'a') : family[i]);
+  }
+  flush();
+  return words;
+}
+
+constexpr std::string_view kMonoWords[] = {"mono", "monospace", "monospaced", "code", "console", "typewriter",
+                                           "courier", "terminal"};
+constexpr std::string_view kSansWords[] = {"sans", "gothic", "grotesk", "grotesque", "hei"};
+constexpr std::string_view kSerifWords[] = {"serif", "mincho", "ming", "song", "antiqua", "slab"};
+
+bool has_any_word(const std::vector<std::string>& words, std::span<const std::string_view> wanted) {
+  return std::ranges::any_of(words, [wanted](const std::string& word) {
+    return std::ranges::find(wanted, std::string_view(word)) != wanted.end();
+  });
+}
+
+constexpr std::string_view kSerifDefaults[] = {"Times New Roman", "Georgia", "Cambria", "Liberation Serif",
+                                               "Noto Serif", "DejaVu Serif", "Tinos", "Times"};
+constexpr std::string_view kSansDefaults[] = {"Arial", "Segoe UI", "Helvetica", "Liberation Sans",
+                                              "Noto Sans", "DejaVu Sans", "Arimo"};
+constexpr std::string_view kMonoDefaults[] = {"Consolas", "Courier New", "Menlo", "Liberation Mono",
+                                              "DejaVu Sans Mono", "Noto Sans Mono", "Cousine", "Courier"};
+
+}  // namespace
+
+FontClass classify_font_name_words(std::string_view family) {
+  const auto words = family_name_words(family);
+  if (has_any_word(words, kMonoWords)) {
+    return FontClass::mono;
+  }
+  if (has_any_word(words, kSansWords)) {
+    return FontClass::sans;
+  }
+  if (has_any_word(words, kSerifWords)) {
+    return FontClass::serif;
+  }
+  return FontClass::unknown;
+}
+
+FontClass font_class_for_name(std::string_view family) {
+  if (const auto found = find_font_substitutes(family); found.has_value() && found->entry != nullptr) {
+    return found->entry->font_class;
+  }
+  return classify_font_name_words(family);
+}
+
+std::span<const std::string_view> same_class_default_families(FontClass font_class) noexcept {
+  switch (font_class) {
+    case FontClass::serif:
+      return kSerifDefaults;
+    case FontClass::sans:
+      return kSansDefaults;
+    case FontClass::mono:
+      return kMonoDefaults;
+    case FontClass::unknown:
+    case FontClass::script:
+    case FontClass::display:
+      break;
+  }
+  return {};
+}
+
 std::vector<FontSubstituteSuggestion> rank_font_substitutes(const FontSubstituteEntry& entry,
                                                             const std::function<bool(std::string_view)>& usable) {
   std::vector<FontSubstituteSuggestion> ranked;

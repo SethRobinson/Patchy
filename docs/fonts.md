@@ -52,6 +52,8 @@ Licensing rules for bundled fonts (binding):
   document asks for (referential use); UI text says "suggested" and "same character widths", never
   that two fonts are the same. Each pair is written from the substitute's own documentation, not
   copied from fontconfig, LibreOffice, Photoshop or any other program's list.
+  The same-type defaults for unlisted fonts are names of widely installed families; on Linux the
+  user's own fontconfig rules are read at run time, never copied into Patchy.
 
 ## Application fonts cannot be embedded in a PDF
 

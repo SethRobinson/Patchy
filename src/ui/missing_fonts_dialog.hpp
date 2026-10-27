@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/font_substitutes.hpp"
+
 #include <QHash>
 #include <QString>
 
@@ -15,9 +17,10 @@ namespace patchy::ui {
 // MainWindow collects the rows and applies the answer (resolve_missing_fonts); this file owns
 // only the dialog.
 
-// Where `suggested` comes from: the built-in substitute table (issue 463, a "Suggested:" line under
-// the name) or the face Qt falls back to (no line).
-enum class MissingFontSuggestion { fallback, metric, lookalike };
+// Where `suggested` comes from (issue 463): a pair from the built-in substitute table or an
+// installed default of the same font type (each with a "Suggested:" line under the name), or the
+// face Qt falls back to (no line).
+enum class MissingFontSuggestion { fallback, metric, lookalike, same_type };
 
 struct MissingFontEntry {
   QString family;          // as the text layers name it
@@ -25,6 +28,7 @@ struct MissingFontEntry {
   int layer_count{0};      // text layers that use it
   QString suggested;       // the installed family the picker starts on
   MissingFontSuggestion suggestion{MissingFontSuggestion::fallback};
+  FontClass font_type{FontClass::unknown};  // the missing font's type, for same_type
 };
 
 struct MissingFontsDialogResult {
