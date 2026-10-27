@@ -4325,7 +4325,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(start_panel_, &StartPanel::recent_file_remove_requested, this,
           [this](const QString& path) { remove_recent_path(path, /*is_folder=*/false); });
   connect(QApplication::clipboard(), &QClipboard::dataChanged, this,
-          [this] { clear_internal_clipboard_on_external_change(); });
+          [this] {
+            clear_internal_clipboard_on_external_change();
+            refresh_paste_without_document_state();
+          });
   layer_opacity_apply_timer_ = new QTimer(this);
   layer_opacity_apply_timer_->setSingleShot(true);
   layer_opacity_apply_timer_->setInterval(kLayerOpacityApplyDelayMs);
@@ -12118,6 +12121,7 @@ void MainWindow::update_document_action_state() {
   // rebuilds its menu after startup and lands here with a one-layer document open.
   refresh_layer_alignment_action_states();
   refresh_merge_visible_action_state();  // two visible layers, the same way
+  refresh_paste_without_document_state();  // a file path copied as text opens with no document
 }
 
 void MainWindow::refresh_convert_for_smart_filters_action_state() {

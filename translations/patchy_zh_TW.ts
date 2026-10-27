@@ -27575,6 +27575,18 @@ The open document keeps its blend modes either way.</source>
         <source>Exported %1; %2 layers without that mask were skipped</source>
         <translation>已輸出 %1; 已略過 %2 個沒有該遮色片的圖層</translation>
     </message>
+    <message>
+        <source>File not found: %1</source>
+        <translation>找不到檔案：%1</translation>
+    </message>
+    <message>
+        <source>Not a file: %1</source>
+        <translation>不是檔案：%1</translation>
+    </message>
+    <message>
+        <source>Not a supported image or document: %1</source>
+        <translation>不支援的影像或文件：%1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

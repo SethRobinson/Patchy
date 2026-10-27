@@ -1166,6 +1166,14 @@ void MainWindow::paste_clipboard(bool in_place) {
     paste_clipboard_color_to_palette();
     return;
   }
+  // With no document only file paths copied as text paste: they open
+  // (refresh_paste_without_document_state enables the action for them).
+  if (!has_active_document()) {
+    if (!paste_clipboard_text_paths(false)) {
+      show_status_error(tr("Clipboard does not contain an image"));
+    }
+    return;
+  }
   if (canvas_ != nullptr) {
     canvas_->finish_free_transform();
   }
@@ -1246,6 +1254,11 @@ void MainWindow::paste_clipboard(bool in_place) {
       // supported image files as layers (Files as Layers, docs/import.md).
       if (const auto paths = supported_layer_drop_paths(QApplication::clipboard()->mimeData()); !paths.isEmpty()) {
         add_files_as_layers_interactive(paths, std::nullopt, tr("Paste"));
+        return;
+      }
+      // File paths copied as text: Paste opens them, Paste in Place adds them as
+      // layers (docs/clipboard.md, "File paths copied as text").
+      if (paste_clipboard_text_paths(in_place)) {
         return;
       }
       show_status_error(tr("Clipboard does not contain an image"));

@@ -27651,6 +27651,18 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Exported %1; %2 layers without that mask were skipped</source>
         <translation>%1 exporté ; %2 calques sans ce masque ont été ignorés</translation>
     </message>
+    <message>
+        <source>File not found: %1</source>
+        <translation>Fichier introuvable : %1</translation>
+    </message>
+    <message>
+        <source>Not a file: %1</source>
+        <translation>Ce n&apos;est pas un fichier : %1</translation>
+    </message>
+    <message>
+        <source>Not a supported image or document: %1</source>
+        <translation>Image ou document non pris en charge : %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

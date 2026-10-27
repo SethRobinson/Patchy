@@ -1222,6 +1222,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget.cpp
       src/ui/canvas_widget_shared.hpp
       src/ui/canvas_widget_shared.cpp
+      src/ui/clipboard_text_paths.hpp
+      src/ui/clipboard_text_paths.cpp
       src/ui/canvas_alt_space_filter.hpp
       src/ui/canvas_alt_space_filter.cpp
       src/ui/coalesced_pointer_input.hpp

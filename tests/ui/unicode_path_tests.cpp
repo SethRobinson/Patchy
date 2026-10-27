@@ -53,6 +53,7 @@
 #include "unicode_path_names.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QColor>
 #include <QComboBox>
 #include <QDir>
@@ -633,6 +634,39 @@ void ui_unicode_open_folder_reads_unicode_names() {
 
 // Files as Layers reads files by path (the Import command and doc.importFilesAsLayers
 // share the core), so Unicode names must come back as layer names, not mojibake.
+// A Unicode path copied as text (Explorer's Copy as path quotes it) opens on Edit > Paste
+// and joins the open document as a layer on Paste in Place.
+void ui_unicode_paste_text_path_opens_unicode_name() {
+  const auto dir = unicode_dir(QStringLiteral("paste-text-path"));
+  const auto stem = q(kUnicodeCombinedStem);
+  const auto path = QDir::toNativeSeparators(dir + QLatin1Char('/') + stem + QStringLiteral(".png"));
+  QImage image(7, 5, QImage::Format_RGBA8888);
+  image.fill(QColor(90, 60, 30, 255));
+  CHECK(image.save(path));
+
+  QApplication::clipboard()->clear();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+  QApplication::clipboard()->setText(QStringLiteral("\"%1\"").arg(path));
+  QApplication::processEvents();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+  CHECK(nfc(QDir::fromNativeSeparators(patchy::ui::MainWindowTestAccess::active_session_path(window))) ==
+        nfc(QDir::fromNativeSeparators(path)));
+  CHECK(std::as_const(patchy::ui::MainWindowTestAccess::document(window)).width() == 7);
+
+  const auto layers_before = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().size();
+  require_action(window, "editPasteInPlaceAction")->trigger();
+  QApplication::processEvents();
+  const auto& layers = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers();
+  CHECK(layers.size() == layers_before + 1);
+  // The opened file's own layer already carries the stem, so the added one may take a copy suffix.
+  CHECK(!layers.empty() && nfc(QString::fromStdString(layers.back().name())).startsWith(nfc(stem)));
+  QApplication::clipboard()->clear();
+}
+
 void ui_unicode_files_as_layers_reads_unicode_names() {
   const auto dir = unicode_dir(QStringLiteral("files-as-layers"));
   QStringList paths;
@@ -861,6 +895,7 @@ std::vector<patchy::test::TestCase> unicode_path_tests() {
       {"ui_unicode_divide_photos_folder_save", ui_unicode_divide_photos_folder_save},
       {"ui_unicode_open_folder_reads_unicode_names", ui_unicode_open_folder_reads_unicode_names},
       {"ui_unicode_files_as_layers_reads_unicode_names", ui_unicode_files_as_layers_reads_unicode_names},
+      {"ui_unicode_paste_text_path_opens_unicode_name", ui_unicode_paste_text_path_opens_unicode_name},
       {"ui_unicode_place_linked_smart_object_resolves", ui_unicode_place_linked_smart_object_resolves},
       {"ui_unicode_export_documents_to_folder", ui_unicode_export_documents_to_folder},
       {"ui_save_as_aborts_when_the_owning_document_changes", ui_save_as_aborts_when_the_owning_document_changes},

@@ -19,6 +19,27 @@ Image data that still fails to read reports "Clipboard does not contain an image
 without creating a tab. Copy an image itself to use this command; Edit > Paste retains its separate Files as
 Layers behavior for copied file URLs.
 
+## File paths copied as text
+
+When the clipboard holds no Patchy layer payload, SVG, image or file URLs, Edit > Paste
+reads its text as file paths (`file_paths_from_clipboard_text`, src/ui/clipboard_text_paths.cpp;
+`MainWindow::paste_clipboard_text_paths`, main_window_files.cpp). Every non-empty line must
+be an absolute path: one pair of surrounding double or single quotes is stripped (Windows
+Copy as path), `file:` URLs decode, `~/` expands on macOS and Linux, and Windows takes drive
+and UNC paths only. Any other line, a control character, more than 32 lines or more than
+32 KB of text means the text is not a path list and the paste keeps "Clipboard does not
+contain an image". Paste opens each path through `open_document_path` (File > Open's path);
+Paste in Place with a document adds them through `add_files_as_layers_interactive`, as a
+file-manager paste does, and with no document opens them. Missing paths ("File not found:"),
+folders ("Not a file:") and unsupported files go to the status line while the good ones
+open. With no document both actions are document actions turned on only while the
+clipboard text parses as paths (`refresh_paste_without_document_state`, on
+`QClipboard::dataChanged`). A focused line edit, spin box or the canvas text editor accepts
+the Ctrl+V ShortcutOverride, so the text pastes there and nothing opens. Compiled out on
+WebAssembly (no host paths). Tests: `ui_clipboard_text_paths_parse_quotes_urls_and_lines`,
+`ui_paste_text_path_*`, `ui_paste_in_place_text_path_adds_a_layer`,
+`ui_unicode_paste_text_path_opens_unicode_name`.
+
 ## Edit > Copy and the system clipboard
 
 `copy_selection` (main_window_layer_ops.cpp) has two payloads. With a pixel selection on

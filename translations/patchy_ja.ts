@@ -27575,6 +27575,18 @@ The open document keeps its blend modes either way.</source>
         <source>Exported %1; %2 layers without that mask were skipped</source>
         <translation>%1 を書き出しました。そのマスクのない %2 個のレイヤーはスキップしました</translation>
     </message>
+    <message>
+        <source>File not found: %1</source>
+        <translation>ファイルが見つかりません: %1</translation>
+    </message>
+    <message>
+        <source>Not a file: %1</source>
+        <translation>ファイルではありません: %1</translation>
+    </message>
+    <message>
+        <source>Not a supported image or document: %1</source>
+        <translation>対応していない画像またはドキュメントです: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

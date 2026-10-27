@@ -1007,6 +1007,14 @@ private:
   // The local files in a drag or clipboard payload that could become layers;
   // empty while a preview dialog holds the edit lock.
   [[nodiscard]] QStringList supported_layer_drop_paths(const QMimeData* mime_data) const;
+  // File paths copied as text (docs/clipboard.md, "File paths copied as text"): opens
+  // each one, or with `as_layers` and a document adds them as layers; missing, folder
+  // and unsupported paths go to the status line. False when the clipboard text names
+  // no path (always on wasm).
+  bool paste_clipboard_text_paths(bool as_layers);
+  // With no document, Paste and Paste in Place are enabled only while the clipboard
+  // text names file paths; a no-op with a document (update_document_action_state).
+  void refresh_paste_without_document_state();
   // SVG post-open pass: renders text layers the Qt-free reader marked
   // kLayerMetadataSvgPendingText through the internal text pipeline and
   // positions them from their baseline point + text-anchor. Defined in

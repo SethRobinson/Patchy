@@ -27727,6 +27727,18 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Exported %1; %2 layers without that mask were skipped</source>
         <translation>Wyeksportowano %1; pominięto warstwy bez tej maski (%2)</translation>
     </message>
+    <message>
+        <source>File not found: %1</source>
+        <translation>Nie znaleziono pliku: %1</translation>
+    </message>
+    <message>
+        <source>Not a file: %1</source>
+        <translation>To nie jest plik: %1</translation>
+    </message>
+    <message>
+        <source>Not a supported image or document: %1</source>
+        <translation>Nieobsługiwany obraz lub dokument: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

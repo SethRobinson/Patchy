@@ -27651,6 +27651,18 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>Exported %1; %2 layers without that mask were skipped</source>
         <translation>%1 esportato; %2 livelli senza quella maschera sono stati saltati</translation>
     </message>
+    <message>
+        <source>File not found: %1</source>
+        <translation>File non trovato: %1</translation>
+    </message>
+    <message>
+        <source>Not a file: %1</source>
+        <translation>Non è un file: %1</translation>
+    </message>
+    <message>
+        <source>Not a supported image or document: %1</source>
+        <translation>Immagine o documento non supportato: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -42,6 +42,7 @@
 #include "ui/model_download_dialog.hpp"
 #include "ui/object_selection_model_download.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/clipboard_text_paths.hpp"
 
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
@@ -2440,6 +2441,69 @@ QStringList MainWindow::supported_layer_drop_paths(const QMimeData* mime_data) c
     return {};
   }
   return supported_local_open_paths(mime_data);
+}
+
+bool MainWindow::paste_clipboard_text_paths(bool as_layers) {
+#ifdef Q_OS_WASM
+  Q_UNUSED(as_layers);
+  return false;
+#else
+  const auto* mime_data = QApplication::clipboard()->mimeData();
+  if (mime_data == nullptr || !mime_data->hasText()) {
+    return false;
+  }
+  const auto paths = file_paths_from_clipboard_text(mime_data->text());
+  if (paths.isEmpty()) {
+    return false;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return true;
+  }
+  QStringList openable;
+  QStringList problems;
+  for (const auto& path : paths) {
+    const QFileInfo info(path);
+    if (!info.exists()) {
+      problems.push_back(tr("File not found: %1").arg(path));
+    } else if (info.isDir()) {
+      problems.push_back(tr("Not a file: %1").arg(path));
+    } else if (!is_supported_open_path(path)) {
+      problems.push_back(tr("Not a supported image or document: %1").arg(path));
+    } else {
+      openable.push_back(path);
+    }
+  }
+  if (as_layers && has_active_document()) {
+    if (!openable.isEmpty()) {
+      add_files_as_layers_interactive(openable, std::nullopt, tr("Paste in Place"));
+    }
+  } else {
+    for (const auto& path : openable) {
+      open_document_path(path);
+    }
+  }
+  if (!problems.isEmpty()) {
+    show_status_error(problems.join(QStringLiteral("; ")));
+  }
+  return true;
+#endif
+}
+
+void MainWindow::refresh_paste_without_document_state() {
+#ifndef Q_OS_WASM
+  if (has_active_document()) {
+    return;
+  }
+  const auto* mime_data = QApplication::clipboard()->mimeData();
+  const bool offers_paths = !preview_dialog_edit_locked() && mime_data != nullptr && mime_data->hasText() &&
+                            !file_paths_from_clipboard_text(mime_data->text()).isEmpty();
+  for (const auto& id : {QStringLiteral("edit.paste"), QStringLiteral("edit.paste_in_place")}) {
+    if (const auto* command = hotkey_registry_.find_command(id); command != nullptr && command->action != nullptr) {
+      command->action->setEnabled(offers_paths);
+    }
+  }
+#endif
 }
 
 MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(

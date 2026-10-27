@@ -27651,6 +27651,18 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Exported %1; %2 layers without that mask were skipped</source>
         <translation>Se exportó %1; se omitieron %2 capas sin esa máscara</translation>
     </message>
+    <message>
+        <source>File not found: %1</source>
+        <translation>No se encontró el archivo: %1</translation>
+    </message>
+    <message>
+        <source>Not a file: %1</source>
+        <translation>No es un archivo: %1</translation>
+    </message>
+    <message>
+        <source>Not a supported image or document: %1</source>
+        <translation>No es una imagen ni un documento compatible: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

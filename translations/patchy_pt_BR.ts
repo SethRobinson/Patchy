@@ -27651,6 +27651,18 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Exported %1; %2 layers without that mask were skipped</source>
         <translation>Exportado %1; %2 camadas sem essa máscara foram ignoradas</translation>
     </message>
+    <message>
+        <source>File not found: %1</source>
+        <translation>Arquivo não encontrado: %1</translation>
+    </message>
+    <message>
+        <source>Not a file: %1</source>
+        <translation>Não é um arquivo: %1</translation>
+    </message>
+    <message>
+        <source>Not a supported image or document: %1</source>
+        <translation>Imagem ou documento não compatível: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -13,6 +13,7 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/clipboard_text_paths.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
@@ -38,6 +39,7 @@
 #include <QPushButton>
 #include <QRegion>
 #include <QTextEdit>
+#include <QTest>
 #include <QTimer>
 #include <QToolBar>
 #include <QUrl>
@@ -718,6 +720,218 @@ void ui_paste_file_urls_adds_layers() {
   QApplication::clipboard()->clear();
 }
 
+// File paths copied as text (docs/clipboard.md, "File paths copied as text").
+void ui_clipboard_text_paths_parse_quotes_urls_and_lines() {
+  using patchy::ui::ClipboardPathStyle;
+  using patchy::ui::file_paths_from_clipboard_text;
+  const auto win = [](const QString& text) { return file_paths_from_clipboard_text(text, ClipboardPathStyle::Windows); };
+  const auto posix = [](const QString& text) { return file_paths_from_clipboard_text(text, ClipboardPathStyle::Posix); };
+
+  // Explorer's Copy as path: quoted, one per line, CRLF line ends.
+  CHECK(win(QStringLiteral("\"C:\\Art\\one.png\"")) == QStringList{QStringLiteral("C:\\Art\\one.png")});
+  CHECK(win(QStringLiteral("  \"C:\\Art\\one.png\"\r\n\"D:\\two.psd\"\r\n\r\n")) ==
+        (QStringList{QStringLiteral("C:\\Art\\one.png"), QStringLiteral("D:\\two.psd")}));
+  CHECK(win(QStringLiteral("'C:/Art/one.png'")) == QStringList{QStringLiteral("C:\\Art\\one.png")});
+  CHECK(win(QStringLiteral("C:\\a.png\nC:/a.png")) == QStringList{QStringLiteral("C:\\a.png")});
+  CHECK(win(QStringLiteral("\\\\server\\share\\a.png")) == QStringList{QStringLiteral("\\\\server\\share\\a.png")});
+  CHECK(win(QStringLiteral("file:///C:/Art/caf%C3%A9%20one.png")) ==
+        QStringList{QString::fromUtf16(u"C:\\Art\\caf\u00E9 one.png")});
+  CHECK(win(QStringLiteral("file://server/share/a.png")) == QStringList{QStringLiteral("\\\\server\\share\\a.png")});
+  // Unicode names pass through untouched (a %20 in a plain path is a literal name).
+  const auto unicode = QString::fromUtf16(u"C:\\\u30C6\u30B9\u30C8\\\U0001F3A8 50% %20.png");
+  CHECK(win(QStringLiteral("\"") + unicode + QStringLiteral("\"")) == QStringList{unicode});
+
+  CHECK(posix(QStringLiteral("/home/me/a.png\n'/tmp/b c.png'")) ==
+        (QStringList{QStringLiteral("/home/me/a.png"), QStringLiteral("/tmp/b c.png")}));
+  CHECK(posix(QStringLiteral("~/a.png")) == QStringList{QDir::homePath() + QStringLiteral("/a.png")});
+  CHECK(posix(QStringLiteral("file:///tmp/a%20b.png")) == QStringList{QStringLiteral("/tmp/a b.png")});
+
+  // Not a path list: relative, drive-relative, other platforms' forms, other URLs,
+  // ordinary text, a tab, one bad line among good ones, too many lines, too much text.
+  for (const auto& text : {QString(), QStringLiteral("   \n "), QStringLiteral("a.png"), QStringLiteral("Art\\a.png"),
+                           QStringLiteral("C:a.png"), QStringLiteral("/home/me/a.png"), QStringLiteral("~/a.png"),
+                           QStringLiteral("https://example.invalid/a.png"), QStringLiteral("hello world"),
+                           QStringLiteral("C:\\a\tb.png"), QStringLiteral("C:\\a.png\nnotes"),
+                           QStringLiteral("\"C:\\a.png"), QStringLiteral("file://")}) {
+    CHECK(win(text).isEmpty());
+  }
+  for (const auto& text : {QStringLiteral("a.png"), QStringLiteral("C:\\a.png"), QStringLiteral("~"),
+                           QStringLiteral("~me/a.png"), QStringLiteral("http://example.invalid/a.png")}) {
+    CHECK(posix(text).isEmpty());
+  }
+  QStringList many;
+  for (qsizetype i = 0; i <= patchy::ui::kClipboardPathTextMaxLines; ++i) {
+    many.push_back(QStringLiteral("C:\\a%1.png").arg(i));
+  }
+  CHECK(win(many.join(QLatin1Char('\n'))).isEmpty());
+  many.removeLast();
+  CHECK(win(many.join(QLatin1Char('\n'))).size() == patchy::ui::kClipboardPathTextMaxLines);
+  CHECK(win(QStringLiteral("C:\\") + QString(patchy::ui::kClipboardPathTextMaxChars, QLatin1Char('a'))).isEmpty());
+}
+
+QString write_paste_path_png(const QString& name, QColor color, QSize size = QSize(9, 7)) {
+  ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts/paste-text-paths")).absoluteFilePath();
+  CHECK(QDir().mkpath(dir));
+  QImage image(size, QImage::Format_RGBA8888);
+  image.fill(color);
+  const auto path = QDir::toNativeSeparators(dir + QLatin1Char('/') + name);
+  QFile::remove(path);
+  CHECK(image.save(path));
+  return path;
+}
+
+QString same_path_key(const QString& path) { return QDir::cleanPath(QDir::fromNativeSeparators(path)); }
+
+void ui_paste_text_path_opens_the_file() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  QApplication::clipboard()->clear();
+  const auto first = write_paste_path_png(QStringLiteral("first.png"), QColor(200, 30, 30, 255));
+  const auto second = write_paste_path_png(QStringLiteral("second.png"), QColor(30, 200, 30, 255), QSize(5, 4));
+  const auto missing = QDir::toNativeSeparators(QFileInfo(first).absolutePath() + QStringLiteral("/missing.png"));
+  QFile::remove(missing);
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* paste = require_action(window, "editPasteAction");
+  auto* paste_in_place = require_action(window, "editPasteInPlaceAction");
+  CHECK(!paste->isEnabled());
+  // Ordinary text keeps Paste off with no document; a path turns it on.
+  QApplication::clipboard()->setText(QStringLiteral("hello"));
+  QApplication::processEvents();
+  CHECK(!paste->isEnabled());
+  QApplication::clipboard()->setText(QStringLiteral("\"%1\"").arg(first));
+  QApplication::processEvents();
+  CHECK(paste->isEnabled());
+  CHECK(paste_in_place->isEnabled());
+  paste->trigger();
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 1U);
+  CHECK(same_path_key(Access::active_session_path(window)) == same_path_key(first));
+  CHECK(std::as_const(Access::document(window)).width() == 9);
+
+  // With a document open, Paste still opens: a new tab, the open document untouched.
+  const auto layers_before = std::as_const(Access::document(window)).layers().size();
+  QApplication::clipboard()->setText(second);
+  QApplication::processEvents();
+  paste->trigger();
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 2U);
+  CHECK(same_path_key(Access::active_session_path(window)) == same_path_key(second));
+  CHECK(std::as_const(Access::session_document(window, 0)).layers().size() == layers_before);
+
+  // A missing path reports itself and opens nothing.
+  QApplication::clipboard()->setText(missing);
+  QApplication::processEvents();
+  paste->trigger();
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 2U);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("File not found: %1").arg(missing));
+
+  // Several paths: the good one opens, the missing one is reported.
+  const auto third = write_paste_path_png(QStringLiteral("third.png"), QColor(30, 30, 200, 255));
+  QApplication::clipboard()->setText(QStringLiteral("\"%1\"\r\n\"%2\"").arg(missing, third));
+  QApplication::processEvents();
+  paste->trigger();
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 3U);
+  CHECK(same_path_key(Access::active_session_path(window)) == same_path_key(third));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("File not found: %1").arg(missing)));
+
+  // Ordinary text with a document keeps the image message.
+  QApplication::clipboard()->setText(QStringLiteral("just some words"));
+  QApplication::processEvents();
+  paste->trigger();
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 3U);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Clipboard does not contain an image"));
+  QApplication::clipboard()->clear();
+}
+
+void ui_paste_in_place_text_path_adds_a_layer() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  QApplication::clipboard()->clear();
+  const auto path = write_paste_path_png(QStringLiteral("placed.png"), QColor(40, 120, 220, 255));
+  const auto folder = QDir::toNativeSeparators(QFileInfo(path).absolutePath());
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto layers_before = std::as_const(Access::document(window)).layers().size();
+  const auto undo_before = Access::undo_depth_for_canvas(window, canvas);
+  QApplication::clipboard()->setText(QStringLiteral("\"%1\"").arg(path));
+  QApplication::processEvents();
+  require_action(window, "editPasteInPlaceAction")->trigger();
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 1U);
+  const auto& layers = std::as_const(Access::document(window)).layers();
+  CHECK(layers.size() == layers_before + 1);
+  CHECK(!layers.empty() && layers.back().name() == "placed");
+  CHECK(Access::undo_depth_for_canvas(window, canvas) == undo_before + 1);
+
+  // A folder is not a file: nothing is added and the status says so.
+  QApplication::clipboard()->setText(folder);
+  QApplication::processEvents();
+  require_action(window, "editPasteInPlaceAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(Access::document(window)).layers().size() == layers_before + 1);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Not a file: %1").arg(folder));
+  QApplication::clipboard()->clear();
+}
+
+// Ctrl+V in a text field or the canvas text editor pastes the path as text: the
+// fields accept the ShortcutOverride, so Edit > Paste never runs.
+void ui_paste_text_path_leaves_focused_text_fields_alone() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  QApplication::clipboard()->clear();
+  const auto path = write_paste_path_png(QStringLiteral("typed.png"), QColor(220, 200, 40, 255));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  QApplication::clipboard()->setText(path);
+  QApplication::processEvents();
+
+  // Control: the shortcut reaches Edit > Paste from the canvas.
+  canvas->setFocus();
+  QApplication::processEvents();
+  QTest::keyClick(canvas, Qt::Key_V, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 2U);
+  Access::activate_session(window, 0);
+  QApplication::processEvents();
+
+  auto* field = new QLineEdit(window.statusBar());
+  field->setObjectName(QStringLiteral("pasteTextPathProbeField"));
+  window.statusBar()->addWidget(field);
+  field->show();
+  field->setFocus();
+  QApplication::processEvents();
+  QTest::keyClick(field, Qt::Key_V, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(field->text() == path);
+  CHECK(Access::session_count(window) == 2U);
+  delete field;
+
+  canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto text_point = canvas->widget_position_for_document_point(QPoint(80, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor != nullptr) {
+    editor->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    QTest::keyClick(editor, Qt::Key_V, Qt::ControlModifier);
+    QApplication::processEvents();
+    CHECK(editor->toPlainText().contains(path));
+    CHECK(Access::session_count(window) == 2U);
+  }
+  QApplication::clipboard()->clear();
+}
+
 void ui_external_clipboard_image_paste_overrides_internal_payload() {
   QApplication::clipboard()->clear();
 
@@ -1031,6 +1245,7 @@ void ui_external_clipboard_paste_in_place_falls_back_to_view_center() {
 }
 
 void ui_paste_in_place_obeys_document_and_channel_guards() {
+  QApplication::clipboard()->clear();
   patchy::ui::MainWindow window;
   show_window_empty(window);
   auto* action = require_action(window, "editPasteInPlaceAction");
@@ -3664,6 +3879,10 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
       {"ui_paste_clears_selection_and_undo_restores_it", ui_paste_clears_selection_and_undo_restores_it},
       {"ui_paste_returns_copied_pixels_to_their_place", ui_paste_returns_copied_pixels_to_their_place},
       {"ui_paste_file_urls_adds_layers", ui_paste_file_urls_adds_layers},
+      {"ui_clipboard_text_paths_parse_quotes_urls_and_lines", ui_clipboard_text_paths_parse_quotes_urls_and_lines},
+      {"ui_paste_text_path_opens_the_file", ui_paste_text_path_opens_the_file},
+      {"ui_paste_in_place_text_path_adds_a_layer", ui_paste_in_place_text_path_adds_a_layer},
+      {"ui_paste_text_path_leaves_focused_text_fields_alone", ui_paste_text_path_leaves_focused_text_fields_alone},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},
       {"ui_external_clipboard_image_paste_overrides_internal_payload",
