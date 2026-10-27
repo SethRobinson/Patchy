@@ -27070,10 +27070,6 @@ The open document keeps its blend modes either way.</source>
         <translation>복제 소스 설정: 소스, 오프셋, 비율, 회전, 뒤집기, 오버레이</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>복제 소스</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>PNG로 빠른 내보내기</translation>
     </message>

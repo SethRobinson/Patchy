@@ -27146,10 +27146,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation, symétrie et superposition</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Source de duplication</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Exportation rapide au format PNG</translation>
     </message>

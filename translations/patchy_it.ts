@@ -27146,10 +27146,6 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <translation>Impostazioni della sorgente di clonazione: sorgenti, spostamento, scala, rotazione, riflesso e sovrapposizione</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Sorgente di clonazione</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Esportazione rapida come PNG</translation>
     </message>

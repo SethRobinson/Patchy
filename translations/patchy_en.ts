@@ -27064,10 +27064,6 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation type="unfinished"></translation>
     </message>

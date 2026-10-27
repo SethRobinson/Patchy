@@ -27222,10 +27222,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Ustawienia źródła klonowania: źródła, przesunięcie, skala, obrót, odbicie i nakładka</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Źródło klonowania</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Szybki eksport do PNG</translation>
     </message>

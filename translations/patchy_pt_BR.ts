@@ -27146,10 +27146,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>Configurações da origem do clone: origens, deslocamento, escala, rotação, inversão e sobreposição</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Origem do clone</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Exportação rápida como PNG</translation>
     </message>

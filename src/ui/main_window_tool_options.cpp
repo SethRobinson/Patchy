@@ -2683,26 +2683,6 @@ void MainWindow::refresh_clone_source_panel() {
   clone_source_panel_->set_state(state);
 }
 
-void MainWindow::show_clone_source_popup() {
-  if (clone_source_menu_ == nullptr || canvas_ == nullptr) {
-    return;
-  }
-  // The settings belong to the Clone Stamp and the Healing Brush: from any other tool the
-  // entry picks the Clone Stamp, so the gear the popup hangs from is on the bar.
-  if (canvas_->tool() != CanvasTool::Clone && canvas_->tool() != CanvasTool::Healing) {
-    activate_tool(CanvasTool::Clone);
-  }
-  refresh_clone_source_panel();
-  QPoint anchor;
-  if (clone_source_options_button_ != nullptr && clone_source_options_button_->isVisible()) {
-    anchor = clone_source_options_button_->mapToGlobal(QPoint(0, clone_source_options_button_->height()));
-  } else {
-    // A hidden options bar: under the canvas's top-left corner.
-    anchor = canvas_->mapToGlobal(QPoint(12, 12));
-  }
-  clone_source_menu_->popup(anchor);
-}
-
 QString MainWindow::retouch_sample_info_text() const {
   if (canvas_ == nullptr) {
     return {};
