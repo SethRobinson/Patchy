@@ -25,6 +25,8 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kOffsetLimit = 1000000;
+// The flip toggles match the 24 px dialog spin boxes (configure_dialog_spinbox).
+constexpr int kFlipButtonSize = 24;
 
 }  // namespace
 
@@ -119,9 +121,10 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   connect(rotation_spin_, &QDoubleSpinBox::valueChanged, this, [this] { emit_transform(); });
   // The flips mirror the source about the source point (one eye onto the other).
   flip_label_ = new QLabel(this);
-  layout->addWidget(flip_label_, 5, 0);
+  layout->addWidget(flip_label_, 5, 0, Qt::AlignVCenter);
   auto* flip_row = new QHBoxLayout();
   flip_row->setSpacing(4);
+  flip_row->setContentsMargins(0, 0, 0, 0);
   flip_horizontal_button_ = new QToolButton(this);
   flip_horizontal_button_->setObjectName(QStringLiteral("cloneSourceFlipHorizontalButton"));
   flip_horizontal_button_->setIcon(simple_icon(QStringLiteral("FH")));
@@ -131,10 +134,13 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   for (auto* button : {flip_horizontal_button_, flip_vertical_button_}) {
     button->setCheckable(true);
     button->setAutoRaise(false);
-    button->setFixedSize(28, 22);
-    button->setIconSize(QSize(16, 16));
+    // As tall as the spin boxes above; the theme's 1 px padding for these two buttons
+    // leaves the 20 px glyph filling them (main_window_theme.cpp).
+    button->setFixedSize(kFlipButtonSize, kFlipButtonSize);
+    button->setIconSize(QSize(kFlipButtonSize - 4, kFlipButtonSize - 4));
     button->setFocusPolicy(Qt::NoFocus);
-    flip_row->addWidget(button);
+    // Centered on the row, so the buttons line up with "Flip:" and Reset.
+    flip_row->addWidget(button, 0, Qt::AlignVCenter);
     connect(button, &QToolButton::toggled, this, [this] { emit_transform(); });
   }
   flip_row->addStretch(1);

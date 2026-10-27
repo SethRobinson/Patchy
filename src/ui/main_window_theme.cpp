@@ -168,6 +168,13 @@ QString photoshop_style_template() {
       min-height: 18px;
       max-height: 18px;
     }
+    /* The clone source flip toggles (GitHub issue 424): 24 px squares whose 20 px
+       glyph fills them, so no generic 3 px padding or 26 px content minimum. */
+    QToolButton#cloneSourceFlipHorizontalButton, QToolButton#cloneSourceFlipVerticalButton {
+      padding: 1px;
+      min-width: 0;
+      min-height: 0;
+    }
     QToolButton#colorPanelSettingsButton::menu-indicator {
       width: 0;
       image: none;
