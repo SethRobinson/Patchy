@@ -27229,6 +27229,14 @@ The open document keeps its blend modes either way.</source>
         <source>Clone Source</source>
         <translation>Источник клонирования</translation>
     </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Введите любое целое значение в процентах от %1 до %2, воспользуйтесь кнопками - и + или выберите готовое значение из списка.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Готовые значения масштаба интерфейса</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

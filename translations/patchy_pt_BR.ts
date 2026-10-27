@@ -27153,6 +27153,14 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Clone Source</source>
         <translation>Origem do clone</translation>
     </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Digite qualquer porcentagem inteira de %1 a %2, use os botões - e + ou escolha uma predefinição da lista.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Predefinições de escala de interface</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

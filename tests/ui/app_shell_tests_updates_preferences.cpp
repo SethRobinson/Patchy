@@ -55,6 +55,7 @@
 #include <QPixmap>
 #include <QLineEdit>
 #include <QList>
+#include <QAction>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -73,6 +74,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QSizePolicy>
+#include <QSpinBox>
 #include <QValidator>
 #include <QStyle>
 #include <QTest>
@@ -166,26 +168,37 @@ GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
     if (dialog == nullptr) {
       return;
     }
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
-    CHECK(combo != nullptr);
-    if (combo == nullptr || combo->lineEdit() == nullptr) {
-      CHECK(combo == nullptr || combo->lineEdit() != nullptr);
+    auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("preferencesGuiScaleSpin"));
+    auto* presets = dialog->findChild<QToolButton*>(QStringLiteral("preferencesGuiScalePresetsButton"));
+    auto* edit = spin != nullptr ? spin->findChild<QLineEdit*>() : nullptr;
+    CHECK(spin != nullptr);
+    CHECK(presets != nullptr && presets->menu() != nullptr);
+    CHECK(edit != nullptr);
+    if (spin == nullptr || presets == nullptr || presets->menu() == nullptr || edit == nullptr) {
       dialog->reject();
       return;
     }
-    run.entry_text = combo->currentText();
-    run.entry_percent = QString(run.entry_text).remove(QLatin1Char('%')).trimmed().toInt();
+    run.entry_text = spin->text();
+    run.entry_percent = spin->value();
     run.saw_dialog = true;
     if (percent.has_value()) {
       if (input == GuiScaleInput::pick) {
-        const int index = combo->findData(*percent);
-        CHECK(index >= 0);
-        combo->setCurrentIndex(index);
+        QAction* preset = nullptr;
+        for (auto* action : presets->menu()->actions()) {
+          if (action->data().toInt() == *percent) {
+            preset = action;
+          }
+        }
+        CHECK(preset != nullptr);
+        if (preset != nullptr) {
+          preset->trigger();
+        }
+        CHECK(spin->value() == *percent);
       } else {
         // Typed the way a user enters an odd value, without the percent sign.
-        combo->lineEdit()->selectAll();
-        QTest::keyClicks(combo->lineEdit(), QString::number(*percent));
-        CHECK(combo->currentText() == QString::number(*percent));
+        edit->selectAll();
+        QTest::keyClicks(edit, QString::number(*percent));
+        CHECK(QString(edit->text()).remove(QLatin1Char('%')).trimmed() == QString::number(*percent));
       }
       QTimer::singleShot(0, [&] {
         auto* message = qobject_cast<QMessageBox*>(
@@ -2037,15 +2050,15 @@ void ui_preferences_wheel_over_unfocused_control_scrolls_the_page() {
     }
     combo->clearFocus();
 
-    // The interface-scale spin box (GitHub issue 333) and spin boxes on the other tabs are
+    // The interface-scale field (GitHub issue 333) and spin boxes on the other tabs are
     // covered by the same guard.
-    auto* scale_combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
-    CHECK(scale_combo != nullptr);
-    if (scale_combo != nullptr) {
-      CHECK(scale_combo->focusPolicy() != Qt::WheelFocus && (scale_combo->focusPolicy() & Qt::TabFocus) != 0);
-      const auto before = scale_combo->currentText();
-      send_wheel_notch_down(*scale_combo);
-      CHECK(scale_combo->currentText() == before);
+    auto* scale_spin = dialog.findChild<QAbstractSpinBox*>(QStringLiteral("preferencesGuiScaleSpin"));
+    CHECK(scale_spin != nullptr);
+    if (scale_spin != nullptr) {
+      CHECK(scale_spin->focusPolicy() != Qt::WheelFocus && (scale_spin->focusPolicy() & Qt::TabFocus) != 0);
+      const auto before = scale_spin->text();
+      send_wheel_notch_down(*scale_spin);
+      CHECK(scale_spin->text() == before);
     }
     auto* spin = dialog.findChild<QAbstractSpinBox*>(QStringLiteral("preferencesGridSpacingSpin"));
     CHECK(spin != nullptr);
@@ -2217,17 +2230,20 @@ void ui_preferences_interface_scale_and_icon_size_share_a_row() {
     QApplication::processEvents();
     run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
       auto* row = dialog.findChild<QWidget*>(QStringLiteral("preferencesInterfaceScaleRow"));
-      auto* scale = dialog.findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
+      auto* scale = dialog.findChild<QSpinBox*>(QStringLiteral("preferencesGuiScaleSpin"));
+      auto* presets = dialog.findChild<QToolButton*>(QStringLiteral("preferencesGuiScalePresetsButton"));
       auto* icons = dialog.findChild<QComboBox*>(QStringLiteral("preferencesToolbarIconSizeCombo"));
       auto* icons_label = dialog.findChild<QLabel*>(QStringLiteral("preferencesToolbarIconSizeLabel"));
       CHECK(row != nullptr);
       CHECK(scale != nullptr);
+      CHECK(presets != nullptr);
       CHECK(icons != nullptr);
       CHECK(icons_label != nullptr);
-      if (row == nullptr || scale == nullptr || icons == nullptr || icons_label == nullptr) {
+      if (row == nullptr || scale == nullptr || presets == nullptr || icons == nullptr || icons_label == nullptr) {
         return;
       }
       CHECK(scale->parentWidget() == row);
+      CHECK(presets->parentWidget() == row);
       CHECK(icons->parentWidget() == row);
       CHECK(icons_label->parentWidget() == row);
       CHECK(icons_label->buddy() == icons);
@@ -2238,12 +2254,23 @@ void ui_preferences_interface_scale_and_icon_size_share_a_row() {
         CHECK(row_label != nullptr);
         CHECK(row_label != nullptr && row_label->buddy() == scale);
       }
-      // One line, left to right, nothing squeezed.
-      CHECK(scale->geometry().right() < icons_label->geometry().left());
+      // One line, left to right, nothing squeezed: the field shows its widest value whole.
+      CHECK(scale->geometry().right() < presets->geometry().left());
+      CHECK(presets->geometry().right() < icons_label->geometry().left());
+      CHECK(scale->width() >= scale->sizeHint().width());
+      // The typing area shows the widest value whole, clear of the - and + buttons.
+      if (auto* scale_edit = scale->findChild<QLineEdit*>(); scale_edit != nullptr) {
+        const QString widest = scale->prefix() + QString::number(scale->maximum()) + scale->suffix();
+        CHECK(scale_edit->width() >= scale_edit->fontMetrics().horizontalAdvance(widest));
+      }
+      CHECK(std::abs(scale->geometry().center().y() - presets->geometry().center().y()) <= 1);
       CHECK(icons_label->geometry().right() < icons->geometry().left());
       CHECK(std::abs(scale->geometry().center().y() - icons->geometry().center().y()) <= 1);
       CHECK(icons_label->width() >= icons_label->sizeHint().width());
       CHECK(icons->width() >= icons->sizeHint().width());
+      std::printf("  %s: row %d (hint %d), scale %d, presets %d, label %d, icons %d, dialog %d\n",
+                  qPrintable(language.code), row->width(), row->sizeHint().width(), scale->width(), presets->width(),
+                  icons_label->width(), icons->width(), dialog.width());
       CHECK(row->width() > row->sizeHint().width());
       if (language.code == QStringLiteral("en") || language.code == QStringLiteral("de") ||
           language.code == QStringLiteral("es") || language.code == QStringLiteral("fr") ||
@@ -2782,86 +2809,139 @@ void ui_gui_scale_preference_clamps_typed_value_below_range() {
   CHECK(patchy::ui::stored_gui_scale_percent() == patchy::ui::kMinGuiScalePercent);
 }
 
-// GitHub issue 333: the control is a modest-width list of presets that also takes any whole
-// percent in the range, with or without the percent sign. Also records the open list for
-// review (test-artifacts/preferences-gui-scale-list.png).
+// GitHub issue 333: the control is a number field (- and + buttons in 5% steps, a percent
+// suffix) that takes any whole percent in the range, with or without the percent sign, and
+// a drop-down of presets beside it, 80 to 120% in 5% steps among them. Also records the
+// dialog (test-artifacts/preferences-gui-scale-field.png) and the open preset list
+// (test-artifacts/preferences-gui-scale-list.png) for review.
 void ui_gui_scale_preference_lists_presets_and_takes_typed_values() {
+  SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/guiScalePercent"), 100);
+    settings.sync();
+  }
   patchy::ui::MainWindow window;
   show_window(window);
   run_preferences_dialog(window, /*accept=*/false, [](QDialog& dialog) {
-    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
-    CHECK(combo != nullptr);
-    if (combo == nullptr) {
+    auto* spin = dialog.findChild<QSpinBox*>(QStringLiteral("preferencesGuiScaleSpin"));
+    auto* presets = dialog.findChild<QToolButton*>(QStringLiteral("preferencesGuiScalePresetsButton"));
+    CHECK(spin != nullptr);
+    CHECK(presets != nullptr);
+    if (spin == nullptr || presets == nullptr) {
       return;
     }
-    CHECK(combo->isEditable());
-    CHECK(combo->insertPolicy() == QComboBox::NoInsert);
-    CHECK(combo->sizePolicy().horizontalPolicy() == QSizePolicy::Fixed);
-    CHECK(combo->count() == static_cast<int>(patchy::ui::kGuiScalePresetPercents.size()));
-    for (int i = 0; i < combo->count(); ++i) {
-      const int preset = patchy::ui::kGuiScalePresetPercents[static_cast<std::size_t>(i)];
-      CHECK(combo->itemData(i).toInt() == preset);
-      CHECK(combo->itemText(i) == QString::number(preset) + QStringLiteral("%"));
-    }
-    CHECK(combo->findData(67) >= 0 && combo->findData(300) >= 0);
+    CHECK(spin->minimum() == patchy::ui::kMinGuiScalePercent);
+    CHECK(spin->maximum() == patchy::ui::kMaxGuiScalePercent);
+    CHECK(spin->singleStep() == 5);
+    CHECK(spin->suffix() == QStringLiteral("%"));
+    CHECK(spin->buttonSymbols() != QAbstractSpinBox::NoButtons);
+    CHECK(spin->sizePolicy().horizontalPolicy() == QSizePolicy::Fixed);
+    CHECK(spin->toolTip().contains(QStringLiteral("Type any whole percent")));
+    CHECK(spin->text() == QStringLiteral("100%"));
 
-    const auto* validator = combo->validator();
-    CHECK(validator != nullptr);
-    if (validator == nullptr) {
+    // The presets, in order, as "N%" entries carrying their percent.
+    auto* menu = presets->menu();
+    CHECK(menu != nullptr);
+    CHECK(presets->popupMode() == QToolButton::InstantPopup);
+    CHECK(!presets->toolTip().isEmpty());
+    if (menu == nullptr) {
       return;
     }
-    const auto state_of = [validator](QString text) {
+    const auto actions = menu->actions();
+    CHECK(actions.size() == static_cast<qsizetype>(patchy::ui::kGuiScalePresetPercents.size()));
+    QList<int> listed;
+    for (qsizetype i = 0; i < actions.size(); ++i) {
+      const int preset = actions[i]->data().toInt();
+      listed << preset;
+      CHECK(actions[i]->text() == QString::number(preset) + QStringLiteral("%"));
+      if (i > 0) {
+        CHECK(preset > listed[i - 1]);
+      }
+    }
+    for (const int preset : {67, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 150, 175, 200, 250, 300}) {
+      CHECK(listed.contains(preset));
+    }
+    // Picking one sets the field; opening the list ticks the value the field holds.
+    for (auto* action : actions) {
+      if (action->data().toInt() == 85) {
+        action->trigger();
+      }
+    }
+    CHECK(spin->value() == 85);
+    CHECK(spin->text() == QStringLiteral("85%"));
+    spin->stepBy(1);
+    CHECK(spin->value() == 90);
+    spin->stepBy(-2);
+    CHECK(spin->value() == 80);
+
+    auto* abstract_spin = static_cast<QAbstractSpinBox*>(spin);
+    const auto state_of = [abstract_spin](QString text) {
       int pos = 0;
-      return validator->validate(text, pos);
+      return abstract_spin->validate(text, pos);
     };
     CHECK(state_of(QStringLiteral("113")) == QValidator::Acceptable);
     CHECK(state_of(QStringLiteral("113%")) == QValidator::Acceptable);
-    CHECK(state_of(QStringLiteral(" 113 % ")) == QValidator::Acceptable);
     CHECK(state_of(QStringLiteral("50")) == QValidator::Acceptable);
     CHECK(state_of(QStringLiteral("300%")) == QValidator::Acceptable);
-    CHECK(state_of(QString()) == QValidator::Intermediate);
-    CHECK(state_of(QStringLiteral("%")) == QValidator::Intermediate);
     CHECK(state_of(QStringLiteral("49")) == QValidator::Intermediate);
     CHECK(state_of(QStringLiteral("301")) == QValidator::Invalid);
     CHECK(state_of(QStringLiteral("abc")) == QValidator::Invalid);
     CHECK(state_of(QStringLiteral("11.5")) == QValidator::Invalid);
     QString short_value = QStringLiteral("49");
-    validator->fixup(short_value);
+    abstract_spin->fixup(short_value);
     CHECK(short_value == QStringLiteral("50%"));
 
-    // 301 cannot be typed: the last digit is refused.
-    auto* edit = combo->lineEdit();
+    auto* edit = spin->findChild<QLineEdit*>();
     CHECK(edit != nullptr);
     if (edit == nullptr) {
       return;
     }
+    // A typed odd value round trips into the field's value.
+    edit->selectAll();
+    QTest::keyClicks(edit, QStringLiteral("113"));
+    spin->interpretText();
+    CHECK(spin->value() == 113);
+    CHECK(spin->text() == QStringLiteral("113%"));
+    // 301 cannot be typed: the last digit is refused.
     edit->selectAll();
     QTest::keyClicks(edit, QStringLiteral("301"));
-    CHECK(combo->currentText() == QStringLiteral("30"));
+    CHECK(QString(edit->text()).remove(QLatin1Char('%')).trimmed() == QStringLiteral("30"));
+    // Under the range clamps up when committed.
+    spin->interpretText();
+    CHECK(spin->value() == patchy::ui::kMinGuiScalePercent);
 
-    // Visual record: the dialog with the list open over it.
-    combo->setCurrentIndex(combo->findData(125));
-    for (auto* parent = combo->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+    // Visual record: the field, then the dialog with the preset list open over it.
+    spin->setValue(110);
+    for (auto* parent = spin->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
       if (auto* scroll = qobject_cast<QScrollArea*>(parent)) {
-        scroll->ensureWidgetVisible(combo);
+        scroll->ensureWidgetVisible(spin);
         break;
       }
     }
     QApplication::processEvents();
-    combo->showPopup();
+    ensure_artifact_dir();
+    dialog.grab().save(QStringLiteral("test-artifacts/preferences-gui-scale-field.png"));
+    menu->popup(presets->mapToGlobal(QPoint(0, presets->height())));
     QApplication::processEvents();
-    auto* popup = combo->view()->window();
-    CHECK(popup != nullptr && popup->isVisible());
-    if (popup != nullptr && popup->isVisible()) {
+    CHECK(menu->isVisible());
+    QAction* ticked = nullptr;
+    for (auto* action : actions) {
+      if (action->isChecked()) {
+        CHECK(ticked == nullptr);
+        ticked = action;
+      }
+    }
+    CHECK(ticked != nullptr && ticked->data().toInt() == 110);
+    if (menu->isVisible()) {
       QPixmap shot = dialog.grab();
       {
         QPainter painter(&shot);
-        painter.drawPixmap(dialog.mapFromGlobal(popup->mapToGlobal(QPoint(0, 0))), popup->grab());
+        painter.drawPixmap(dialog.mapFromGlobal(menu->mapToGlobal(QPoint(0, 0))), menu->grab());
       }
-      ensure_artifact_dir();
       shot.save(QStringLiteral("test-artifacts/preferences-gui-scale-list.png"));
     }
-    combo->hidePopup();
+    menu->hide();
     QApplication::processEvents();
   });
 }

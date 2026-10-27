@@ -27153,6 +27153,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Clone Source</source>
         <translation>Kopierquelle</translation>
     </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Geben Sie einen ganzen Prozentwert von %1 bis %2 ein, verwenden Sie die Schaltflächen - und + oder wählen Sie eine Vorgabe aus der Liste.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Vorgaben für die Oberflächenskalierung</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

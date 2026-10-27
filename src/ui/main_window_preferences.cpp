@@ -33,6 +33,7 @@
 #include "ui/document_float_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/hotkey_editor.hpp"
+#include "ui/icon_theme.hpp"
 #include "ui/object_selection_model_download.hpp"
 #include "ui/watermark_model_download.hpp"
 #include "ui/save_metadata_settings.hpp"
@@ -93,6 +94,7 @@
 #include <QLatin1String>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QOverload>
 #include <QPainter>
@@ -113,7 +115,6 @@
 #include <QSizePolicy>
 #include <QSpinBox>
 #include <QStackedWidget>
-#include <QValidator>
 #include <QString>
 #include <QStringList>
 #include <QStringLiteral>
@@ -345,29 +346,19 @@ QString preferences_page_list_text(const QString& title) {
   return text;
 }
 
-// Lets the editable interface-scale combo take any whole percent in the range. Over the
-// maximum cannot be typed; under the minimum is held as intermediate and clamped up when
-// the edit is committed, as normalize_gui_scale_percent clamps a stored value.
-class GuiScaleValidator final : public QValidator {
+// The interface-scale field (GitHub issue 333). QSpinBox already refuses a number over the
+// maximum; one typed under the minimum clamps up to it when the edit is committed, as
+// normalize_gui_scale_percent clamps a stored value, instead of reverting to the old value.
+class GuiScaleSpinBox final : public QSpinBox {
  public:
-  using QValidator::QValidator;
-
-  State validate(QString& input, int& /*pos*/) const override {
-    // Empty, or only the percent sign left while the digits are retyped.
-    if (strip_gui_scale_suffix(input).isEmpty()) {
-      return Intermediate;
-    }
-    const auto value = parse_gui_scale_text(input);
-    if (!value || *value > kMaxGuiScalePercent) {
-      return Invalid;
-    }
-    return *value < kMinGuiScalePercent ? Intermediate : Acceptable;
-  }
+  using QSpinBox::QSpinBox;
 
   void fixup(QString& input) const override {
     if (const auto value = parse_gui_scale_text(input)) {
-      input = gui_scale_text(std::clamp(*value, kMinGuiScalePercent, kMaxGuiScalePercent));
+      input = prefix() + textFromValue(std::clamp(*value, minimum(), maximum())) + suffix();
+      return;
     }
+    QSpinBox::fixup(input);
   }
 };
 
@@ -460,37 +451,56 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   language_combo->setCurrentIndex(current_index >= 0 ? current_index : 0);
   application_form->addRow(tr("Language:"), language_combo);
 
-  // A list of presets that also takes any whole percent in the range (GitHub issue 333).
-  // stored_gui_scale_percent() is already clamped to it, so the combo shows exactly what
-  // startup applies, as typed text when it is not a preset.
-  // It shares one row with the toolbar icon size below: both are short combos about how
-  // big the chrome is. The form label's buddy is the scale combo; the icon size label
+  // A number field that takes any whole percent in the range, with - and + buttons in 5%
+  // steps and a drop-down of presets beside it (GitHub issue 333: an editable combo did not
+  // read as one that takes typed values). stored_gui_scale_percent() is already clamped to
+  // the range, so the field shows exactly what startup applies.
+  // It shares one row with the toolbar icon size below: both are short controls about how
+  // big the chrome is. The form label's buddy is the scale field; the icon size label
   // beside it is its own combo's buddy.
   auto* scale_row = new QWidget(application_group);
   scale_row->setObjectName(QStringLiteral("preferencesInterfaceScaleRow"));
   auto* scale_layout = new QHBoxLayout(scale_row);
   scale_layout->setContentsMargins(0, 0, 0, 0);
-  auto* gui_scale_combo = new QComboBox(scale_row);
-  gui_scale_combo->setObjectName(QStringLiteral("preferencesGuiScaleCombo"));
-  gui_scale_combo->setEditable(true);
-  gui_scale_combo->setInsertPolicy(QComboBox::NoInsert);
-  // Inline completion would turn a typed "15" into "150%".
-  gui_scale_combo->setCompleter(nullptr);
-  gui_scale_combo->setValidator(new GuiScaleValidator(gui_scale_combo));
-  for (const int percent : kGuiScalePresetPercents) {
-    gui_scale_combo->addItem(gui_scale_text(percent), percent);
-  }
-  // A modest fixed width with room for "300%" and the caret, not the whole row.
-  gui_scale_combo->setMinimumContentsLength(7);
-  gui_scale_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  auto* gui_scale_spin = new GuiScaleSpinBox(scale_row);
+  gui_scale_spin->setObjectName(QStringLiteral("preferencesGuiScaleSpin"));
+  gui_scale_spin->setRange(kMinGuiScalePercent, kMaxGuiScalePercent);
+  gui_scale_spin->setSingleStep(kGuiScaleStepPercent);
+  gui_scale_spin->setSuffix(percent_suffix());
+  gui_scale_spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  gui_scale_spin->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   const int entry_gui_scale = stored_gui_scale_percent();
-  const int entry_gui_scale_index = gui_scale_combo->findData(entry_gui_scale);
-  if (entry_gui_scale_index >= 0) {
-    gui_scale_combo->setCurrentIndex(entry_gui_scale_index);
-  } else {
-    gui_scale_combo->setCurrentIndex(-1);
-    gui_scale_combo->setEditText(gui_scale_text(entry_gui_scale));
+  gui_scale_spin->setValue(entry_gui_scale);
+  gui_scale_spin->setToolTip(
+      tr("Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.")
+          .arg(kMinGuiScalePercent)
+          .arg(kMaxGuiScalePercent));
+  auto* gui_scale_presets_button = new QToolButton(scale_row);
+  gui_scale_presets_button->setObjectName(QStringLiteral("preferencesGuiScalePresetsButton"));
+  gui_scale_presets_button->setPopupMode(QToolButton::InstantPopup);
+  gui_scale_presets_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  gui_scale_presets_button->setIcon(themed_svg_icon(QStringLiteral("chevron-down")));
+  gui_scale_presets_button->setToolTip(tr("Interface scale presets"));
+  gui_scale_presets_button->setAccessibleName(tr("Interface scale presets"));
+  auto* gui_scale_presets_menu = new QMenu(gui_scale_presets_button);
+  gui_scale_presets_menu->setObjectName(QStringLiteral("preferencesGuiScalePresetsMenu"));
+  for (const int percent : kGuiScalePresetPercents) {
+    auto* action = gui_scale_presets_menu->addAction(gui_scale_text(percent));
+    action->setData(percent);
+    action->setCheckable(true);
+    connect(action, &QAction::triggered, gui_scale_spin, [gui_scale_spin, percent] {
+      gui_scale_spin->setValue(percent);
+    });
   }
+  // The preset the field holds is ticked; a typed value off the list ticks none.
+  connect(gui_scale_presets_menu, &QMenu::aboutToShow, gui_scale_spin,
+          [gui_scale_spin, gui_scale_presets_menu] {
+            gui_scale_spin->interpretText();
+            for (auto* action : gui_scale_presets_menu->actions()) {
+              action->setChecked(action->data().toInt() == gui_scale_spin->value());
+            }
+          });
+  gui_scale_presets_button->setMenu(gui_scale_presets_menu);
 
   // The tool palette's icons and buttons on top of the interface scale, as named steps
   // (a second percentage beside the first would read as the same setting). Applied live
@@ -509,13 +519,19 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* toolbar_icon_size_label = new QLabel(tr("Toolbar icon size:"), scale_row);
   toolbar_icon_size_label->setObjectName(QStringLiteral("preferencesToolbarIconSizeLabel"));
   toolbar_icon_size_label->setBuddy(toolbar_icon_size_combo);
-  scale_layout->addWidget(gui_scale_combo);
-  scale_layout->addSpacing(12);
+  // The presets button sits against the field, as its drop-down.
+  auto* gui_scale_field = new QHBoxLayout();
+  gui_scale_field->setContentsMargins(0, 0, 0, 0);
+  gui_scale_field->setSpacing(1);
+  gui_scale_field->addWidget(gui_scale_spin);
+  gui_scale_field->addWidget(gui_scale_presets_button);
+  scale_layout->addLayout(gui_scale_field);
+  scale_layout->addSpacing(8);
   scale_layout->addWidget(toolbar_icon_size_label);
   scale_layout->addWidget(toolbar_icon_size_combo);
   scale_layout->addStretch(1);
   auto* gui_scale_label = new QLabel(tr("Interface scale:"), application_group);
-  gui_scale_label->setBuddy(gui_scale_combo);
+  gui_scale_label->setBuddy(gui_scale_spin);
   application_form->addRow(gui_scale_label, scale_row);
   // When a tool group's flyout opens (GitHub issue 459): press and hold (the default), a
   // click, or the pointer resting on the button. The customize dialog shows it too.
@@ -1861,6 +1877,31 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       background: @accent_pressed_bg;
       border-color: @dlg_focus_border;
     }
+    /* The interface-scale field is only as wide as its widest value (the row is tight in the
+       longer languages): its edit area already stops at the + button, so the right padding
+       only has to clear the - button. */
+    QDialog#patchyPreferencesDialog QSpinBox#preferencesGuiScaleSpin {
+      padding-right: 30px;
+    }
+    /* The interface-scale presets drop-down: a field-faced chevron button as tall as the
+       scale field beside it. */
+    QDialog#patchyPreferencesDialog QToolButton#preferencesGuiScalePresetsButton {
+      background: @field_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
+      border-radius: 0;
+      padding: 0;
+      min-width: 18px;
+      max-width: 18px;
+      min-height: 24px;
+    }
+    QDialog#patchyPreferencesDialog QToolButton#preferencesGuiScalePresetsButton:hover {
+      border-color: @button_hover_border;
+    }
+    QDialog#patchyPreferencesDialog QToolButton#preferencesGuiScalePresetsButton::menu-indicator {
+      image: none;
+      width: 0;
+    }
   )"));
   // Appended last, after the block above: the spin sub-control rules must be the
   // final word (see docs/ui-conventions.md).
@@ -2005,11 +2046,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
                                QStringLiteral("preferencesSystemTitleBarMessageBox"));
     }
 #endif
-    // Text the validator left short of the range clamps up, as its fixup would on Enter.
-    const auto typed_gui_scale = parse_gui_scale_text(gui_scale_combo->currentText());
-    const int selected_gui_scale =
-        typed_gui_scale ? std::clamp(*typed_gui_scale, kMinGuiScalePercent, kMaxGuiScalePercent)
-                        : entry_gui_scale;
+    // Commits text still being typed: a number under the range clamps up, as on Enter, and
+    // an emptied field keeps its last value.
+    gui_scale_spin->interpretText();
+    const int selected_gui_scale = gui_scale_spin->value();
     if (selected_gui_scale != entry_gui_scale) {
       set_stored_gui_scale_percent(selected_gui_scale);
       show_information_message(this, tr("Interface Scale"),

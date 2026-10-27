@@ -27229,6 +27229,14 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Clone Source</source>
         <translation>Źródło klonowania</translation>
     </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Wpisz dowolną całkowitą wartość procentową od %1 do %2, użyj przycisków - i + albo wybierz ustawienie z listy.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Ustawienia skali interfejsu</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

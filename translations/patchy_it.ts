@@ -27153,6 +27153,14 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>Clone Source</source>
         <translation>Sorgente di clonazione</translation>
     </message>
+    <message>
+        <source>Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.</source>
+        <translation>Digita una percentuale intera da %1 a %2, usa i pulsanti - e + oppure scegli un valore predefinito dall&apos;elenco.</translation>
+    </message>
+    <message>
+        <source>Interface scale presets</source>
+        <translation>Valori predefiniti della scala dell&apos;interfaccia</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
