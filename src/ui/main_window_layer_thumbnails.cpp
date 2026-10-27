@@ -188,17 +188,21 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
               [this, id, part = *target, operation] { load_layer_part_selection(id, part, operation); });
     }
   };
+  // The row menu's export actions (#462), for the layer under the pointer, which the
+  // selection includes (a right-click on an unselected row selects it first). A mask
+  // thumbnail exports the layer as composited, mask applied, not the mask itself.
+  const auto add_export_menu = [this, &menu] {
+    menu.addSeparator();
+    auto* export_menu = menu.addMenu(tr("Export"));
+    export_menu->setObjectName(QStringLiteral("layerThumbnailExportMenu"));
+    add_layer_export_actions(export_menu);
+  };
   if (content) {
     menu.setObjectName(QStringLiteral("layerThumbnailMenu"));
     add_selection_entries({QT_TR_NOOP("Select Pixels"), QT_TR_NOOP("Add Pixels to Selection"),
                            QT_TR_NOOP("Subtract Pixels from Selection"), QT_TR_NOOP("Intersect Pixels with Selection")},
                           QStringLiteral("layerThumbnailPixels"));
-    // The row menu's export actions (#462), for the layer under the pointer, which the
-    // selection includes (a right-click on an unselected row selects it first).
-    menu.addSeparator();
-    auto* export_menu = menu.addMenu(tr("Export"));
-    export_menu->setObjectName(QStringLiteral("layerThumbnailExportMenu"));
-    add_layer_export_actions(export_menu);
+    add_export_menu();
     add_layer_thumbnail_size_menu(&menu);  // after its own separator
   } else {
     menu.setObjectName(raster_mask ? QStringLiteral("layerMaskThumbnailMenu")
@@ -253,6 +257,7 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
     add_selection_entries({QT_TR_NOOP("Select Mask Pixels"), QT_TR_NOOP("Add Mask to Selection"),
                            QT_TR_NOOP("Subtract Mask from Selection"), QT_TR_NOOP("Intersect Mask with Selection")},
                           QStringLiteral("layerMaskThumbnail"));
+    add_export_menu();
   }
   hide_menu_action_icons(&menu);
   menu.exec(layer_list_->viewport()->mapToGlobal(viewport_position));
