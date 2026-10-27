@@ -27205,6 +27205,38 @@ The open document keeps its blend modes either way.</source>
         <source>Move layer out of folder</source>
         <translation>레이어를 폴더 밖으로 이동</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 벡터 마스크</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 마스크</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>선택한 레이어에 벡터 마스크가 없습니다</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>선택한 레이어에 레이어 마스크가 없습니다</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>마스크 내보내기</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>마스크 %1개를 %2에 내보냈습니다</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>마스크 %1개를 %2에 내보냈습니다. 해당 마스크가 없는 레이어 %3개는 건너뛰었습니다</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>%1을(를) 내보냈습니다. 해당 마스크가 없는 레이어 %2개는 건너뛰었습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

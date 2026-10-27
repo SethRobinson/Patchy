@@ -27357,6 +27357,38 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Move layer out of folder</source>
         <translation>Wyjmij warstwę z folderu</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 maska wektorowa</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 maska</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>Zaznaczone warstwy nie mają maski wektorowej</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>Zaznaczone warstwy nie mają maski warstwy</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>Eksportuj maskę jako</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>Wyeksportowano maski (%1) do %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>Wyeksportowano maski (%1) do %2; pominięto warstwy bez tej maski (%3)</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>Wyeksportowano %1; pominięto warstwy bez tej maski (%2)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -7,6 +7,7 @@
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/rect_utils.hpp"
 #include "core/vector_shape.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/smart_filter.hpp"
@@ -488,6 +489,24 @@ std::optional<Rect> layer_thumbnail_content_crop(const Layer& layer) {
   if (layer.mask().has_value() && !layer.mask()->bounds.empty()) {
     return layer.mask()->bounds;
   }
+  return std::nullopt;
+}
+
+// With the zoom preference on, a mask preview frames the mask itself, not the layer's
+// pixels (#462 follow-up): a raster mask its stored rect inside the canvas. A vector mask
+// keeps the document mapping (vector_mask_thumbnail_crop), since its coverage alone would
+// be a plain white tile. `content_crop` is the row's crop (empty: the preference is off,
+// so the document mapping stays).
+std::optional<Rect> raster_mask_thumbnail_crop(const Layer& layer, const std::optional<Rect>& content_crop,
+                                               int document_width, int document_height) {
+  if (!content_crop.has_value() || !layer.mask().has_value()) {
+    return std::nullopt;
+  }
+  const auto bounds = intersect_rect(layer.mask()->bounds, Rect{0, 0, document_width, document_height});
+  return bounds.empty() ? std::nullopt : std::optional<Rect>(bounds);
+}
+
+std::optional<Rect> vector_mask_thumbnail_crop() {
   return std::nullopt;
 }
 
@@ -1633,8 +1652,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                LayerThumbnailSize thumbnail_size = kDefaultLayerThumbnailSize,
                                bool arrow_column = false,
                                std::function<void(LayerId, bool)> set_vector_mask_linked = {}) {
-  // One crop per row: the content, mask, vector-mask, and Smart Filter mask
-  // previews share it so the row keeps a single tile shape.
+  // One crop per row for the content and Smart Filter mask previews; the layer
+  // and vector mask previews frame the mask itself (raster_mask_thumbnail_crop).
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
@@ -1840,7 +1859,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     mask_preview->setPixmap(mask_thumbnail
                                 ? mask_thumbnail(layer)
                                 : layer_mask_thumbnail(layer, document_size.width(), document_size.height(),
-                                                       thumbnail_crop, mask_tile));
+                                                       raster_mask_thumbnail_crop(layer, thumbnail_crop,
+                                                                                  document_size.width(),
+                                                                                  document_size.height()),
+                                                       mask_tile));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
     mask_preview->setToolTip(resolve_modifier_names(
@@ -1861,7 +1883,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     vector_mask_preview->setFixedSize(mask_tile + 2, mask_tile + 2);
     vector_mask_preview->setAlignment(Qt::AlignCenter);
     vector_mask_preview->setPixmap(layer_vector_mask_thumbnail(
-        *layer.vector_mask(), document_size.width(), document_size.height(), thumbnail_crop, mask_tile));
+        *layer.vector_mask(), document_size.width(), document_size.height(),
+        vector_mask_thumbnail_crop(),
+        mask_tile));
     vector_mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                                      QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
     vector_mask_preview->setToolTip(resolve_modifier_names(
@@ -4414,9 +4438,10 @@ QPixmap MainWindow::cached_layer_mask_thumbnail(const Layer& layer, int document
   // and a linked mask translates without a content bump.
   const auto revision = layer.render_revision();
   if (entry.mask.isNull() || entry.mask_render_revision != revision) {
-    entry.mask = layer_mask_thumbnail(layer, document_width, document_height,
-                                      layer_thumbnail_crop(layer),
-                                      layer_mask_thumbnail_tile_size(layer_thumbnail_size_));
+    entry.mask = layer_mask_thumbnail(
+        layer, document_width, document_height,
+        raster_mask_thumbnail_crop(layer, layer_thumbnail_crop(layer), document_width, document_height),
+        layer_mask_thumbnail_tile_size(layer_thumbnail_size_));
     entry.mask_render_revision = revision;
   }
   return entry.mask;
@@ -4491,9 +4516,10 @@ void MainWindow::refresh_layer_thumbnails() {
         vector_mask_thumbnail != nullptr && layer->vector_mask() != nullptr) {
       if (extent_changed ||
           vector_mask_thumbnail->property(kLayerMaskThumbnailRevisionProperty).toULongLong() != revision) {
-        vector_mask_thumbnail->setPixmap(layer_vector_mask_thumbnail(*layer->vector_mask(), doc.width(),
-                                                                     doc.height(), layer_thumbnail_crop(*layer),
-                                                                     vector_mask_thumbnail->width() - 2));
+        vector_mask_thumbnail->setPixmap(layer_vector_mask_thumbnail(
+            *layer->vector_mask(), doc.width(), doc.height(),
+            vector_mask_thumbnail_crop(),
+            vector_mask_thumbnail->width() - 2));
         vector_mask_thumbnail->setProperty(kLayerMaskThumbnailRevisionProperty,
                                            QVariant::fromValue<qulonglong>(revision));
         ++mask_refreshed;

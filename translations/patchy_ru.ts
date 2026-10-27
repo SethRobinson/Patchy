@@ -27357,6 +27357,38 @@ The open document keeps its blend modes either way.</source>
         <source>Move layer out of folder</source>
         <translation>Вынести слой из папки</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 векторная маска</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 маска</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>У выбранных слоёв нет векторной маски</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>У выбранных слоёв нет слоя-маски</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>Экспорт маски как</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>Экспортировано масок: %1, папка %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>Экспортировано масок: %1, папка %2; пропущено слоёв без этой маски: %3</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>Экспортировано %1; пропущено слоёв без этой маски: %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

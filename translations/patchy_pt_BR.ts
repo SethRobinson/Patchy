@@ -27281,6 +27281,38 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Move layer out of folder</source>
         <translation>Tirar camada da pasta</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 máscara vetorial</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 máscara</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>As camadas selecionadas não têm máscara vetorial</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>As camadas selecionadas não têm máscara de camada</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>Exportar máscara como</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>%1 máscaras exportadas para %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>%1 máscaras exportadas para %2; %3 camadas sem essa máscara foram ignoradas</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>Exportado %1; %2 camadas sem essa máscara foram ignoradas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

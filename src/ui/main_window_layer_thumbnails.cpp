@@ -190,12 +190,23 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
   };
   // The row menu's export actions (#462), for the layer under the pointer, which the
   // selection includes (a right-click on an unselected row selects it first). A mask
-  // thumbnail exports the layer as composited, mask applied, not the mask itself.
-  const auto add_export_menu = [this, &menu] {
+  // thumbnail's entries export that mask itself as a grayscale image, so they are this
+  // menu's own actions on the same labels, not the shared layer-export ones.
+  const auto add_export_menu = [this, &menu, raster_mask, vector_mask] {
     menu.addSeparator();
     auto* export_menu = menu.addMenu(tr("Export"));
     export_menu->setObjectName(QStringLiteral("layerThumbnailExportMenu"));
-    add_layer_export_actions(export_menu);
+    if (!raster_mask && !vector_mask) {
+      add_layer_export_actions(export_menu);
+      return;
+    }
+    const auto source = vector_mask ? LayerExportSource::VectorMask : LayerExportSource::LayerMask;
+    auto* quick = export_menu->addAction(tr("Quick Export as PNG"));
+    quick->setObjectName(QStringLiteral("layerMaskQuickExportPngAction"));
+    connect(quick, &QAction::triggered, this, [this, source] { export_selected_layers(false, source); });
+    auto* export_as = export_menu->addAction(tr("Export As..."));
+    export_as->setObjectName(QStringLiteral("layerMaskExportAsAction"));
+    connect(export_as, &QAction::triggered, this, [this, source] { export_selected_layers(true, source); });
   };
   if (content) {
     menu.setObjectName(QStringLiteral("layerThumbnailMenu"));

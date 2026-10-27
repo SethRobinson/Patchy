@@ -27281,6 +27281,38 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Move layer out of folder</source>
         <translation>Sortir le calque du dossier</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 masque vectoriel</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 masque</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>Les calques sélectionnés n&apos;ont pas de masque vectoriel</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>Les calques sélectionnés n&apos;ont pas de masque de fusion</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>Exporter le masque sous</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>%1 masques exportés vers %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>%1 masques exportés vers %2 ; %3 calques sans ce masque ont été ignorés</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>%1 exporté ; %2 calques sans ce masque ont été ignorés</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

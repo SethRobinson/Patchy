@@ -27205,6 +27205,38 @@ The open document keeps its blend modes either way.</source>
         <source>Move layer out of folder</source>
         <translation>將圖層移出群組</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 遮色片</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>所選圖層沒有向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>所選圖層沒有圖層遮色片</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>將遮色片匯出為</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>已將 %1 個遮色片匯出至 %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>已將 %1 個遮色片匯出至 %2; 已略過 %3 個沒有該遮色片的圖層</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>已輸出 %1; 已略過 %2 個沒有該遮色片的圖層</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

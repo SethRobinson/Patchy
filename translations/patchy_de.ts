@@ -27281,6 +27281,38 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Move layer out of folder</source>
         <translation>Ebene aus Ordner verschieben</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 Vektormaske</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 Maske</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>Die ausgewählten Ebenen haben keine Vektormaske</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>Die ausgewählten Ebenen haben keine Ebenenmaske</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>Maske exportieren als</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>%1 Masken nach %2 exportiert</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>%1 Masken nach %2 exportiert; %3 Ebenen ohne diese Maske wurden übersprungen</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>%1 exportiert; %2 Ebenen ohne diese Maske wurden übersprungen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

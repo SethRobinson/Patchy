@@ -27281,6 +27281,38 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Move layer out of folder</source>
         <translation>Sacar capa de la carpeta</translation>
     </message>
+    <message>
+        <source>%1 vector mask</source>
+        <translation>%1 máscara vectorial</translation>
+    </message>
+    <message>
+        <source>%1 mask</source>
+        <translation>%1 máscara</translation>
+    </message>
+    <message>
+        <source>The selected layers have no vector mask</source>
+        <translation>Las capas seleccionadas no tienen máscara vectorial</translation>
+    </message>
+    <message>
+        <source>The selected layers have no layer mask</source>
+        <translation>Las capas seleccionadas no tienen máscara de capa</translation>
+    </message>
+    <message>
+        <source>Export Mask As</source>
+        <translation>Exportar máscara como</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2</source>
+        <translation>Se exportaron %1 máscaras a %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 masks to %2; %3 layers without that mask were skipped</source>
+        <translation>Se exportaron %1 máscaras a %2; se omitieron %3 capas sin esa máscara</translation>
+    </message>
+    <message>
+        <source>Exported %1; %2 layers without that mask were skipped</source>
+        <translation>Se exportó %1; se omitieron %2 capas sin esa máscara</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
