@@ -27265,6 +27265,78 @@ The open document keeps its blend modes either way.</source>
         <source>Merge</source>
         <translation>Объединить</translation>
     </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>На &amp;передний план</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Перемещает выбранные слои в верх их папки</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>На &amp;задний план</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Перемещает выбранные слои в низ их папки, над фоновым слоем</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>Щелкните с %ALT%, чтобы открыть диалог «Новый слой»</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>Щелкните с %CTRL%, чтобы добавить слой под текущим</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Переместить слой вверх</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Щелкните с Shift, чтобы перенести на передний план</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>Щелкните с %ALT%, чтобы вынести из папки над ней</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Переместить слой вниз</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Щелкните с Shift, чтобы перенести на задний план</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>Щелкните с %ALT%, чтобы вынести из папки под ней</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Щелкните с Shift, чтобы объединить видимые слои</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>Щелкните с %ALT%, чтобы объединить видимые слои в новый слой</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>На передний план</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>На задний план</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>Выбранные слои не находятся в папке</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Вынести слой из папки</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

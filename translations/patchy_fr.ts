@@ -27189,6 +27189,78 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Merge</source>
         <translation>Fusionner</translation>
     </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>Mettre au &amp;premier plan</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Place les calques sélectionnés en haut de leur dossier</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>Mettre à l&apos;a&amp;rrière-plan</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Place les calques sélectionnés en bas de leur dossier, au-dessus d&apos;un arrière-plan</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%+clic pour ouvrir la boîte de dialogue Nouveau calque</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%+clic pour ajouter le calque sous le calque actuel</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Monter le calque</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Maj-clic pour le mettre au premier plan</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%+clic pour le sortir de son dossier, au-dessus</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Descendre le calque</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Maj-clic pour le mettre à l&apos;arrière-plan</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%+clic pour le sortir de son dossier, en dessous</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Maj-clic pour fusionner les calques visibles</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%+clic pour fusionner les calques visibles dans un nouveau calque</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>Mettre au premier plan</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>Mettre à l&apos;arrière-plan</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>Les calques sélectionnés ne sont dans aucun dossier</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Sortir le calque du dossier</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

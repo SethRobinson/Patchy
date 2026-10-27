@@ -1508,8 +1508,10 @@ private:
   // Opens the dialog of an adjustment Smart Filter entry (main_window_smart_filter_adjustments.cpp).
   void edit_adjustment_smart_filter(LayerId layer_id, std::size_t execution_index);
   // A new empty pixel layer above the selection. The settings come from the New Layer
-  // dialog (GitHub issue 275); without them the layer gets the next default name.
-  void add_layer(const NewLayerSettings* settings = nullptr);
+  // dialog (GitHub issue 275); without them the layer gets the next default name. `below`
+  // (the footer's Ctrl-click, GitHub issue 467) puts it under the active layer instead, except
+  // under a Background.
+  void add_layer(const NewLayerSettings* settings = nullptr, bool below = false);
   void add_layer_with_dialog();
   void create_layer_folder();
   void create_layer_folder_from_layers(std::vector<LayerId> ids);
@@ -1968,6 +1970,12 @@ private:
   // (a path Delete that emptied shape layers, GitHub issue 315).
   void remove_layers_in_open_undo_step(std::vector<LayerId> ids);
   void move_active_layer(int direction);
+  // Layer > Arrange > Bring to Front / Send to Back (GitHub issue 468): the selected layers to
+  // the top or bottom of their own folder, above a Background; one undo step.
+  void arrange_selected_layers_to_end(bool front);
+  // The footer's Alt-click Move Up / Move Down (GitHub issue 470): the selected layers leave
+  // their folder, just above or below it; one undo step.
+  void move_selected_layers_out_of_folder(bool above);
   void handle_layer_drop();
   // The Alt-drop branch of handle_layer_drop: clones the dragged roots and
   // moves the clones to the drop position, leaving the originals in place.
@@ -2856,6 +2864,10 @@ private:
     const char* name_source;
   };
   std::vector<LayerFooterButton> layer_footer_buttons_;
+  // Layer > Arrange > Bring to Front / Send to Back (GitHub issue 468); the footer's Shift-click
+  // Move Up / Move Down run them too.
+  QAction* layer_bring_to_front_action_{nullptr};
+  QAction* layer_send_to_back_action_{nullptr};
   // The toolbar icon size's factor (Preferences; app_settings.hpp), 1 at Normal.
   double tool_palette_factor_{1.0};
   QDialog* color_dialog_{nullptr};

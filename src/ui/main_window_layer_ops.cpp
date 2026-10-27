@@ -1457,13 +1457,18 @@ PixelBuffer neutral_fill_pixels(std::int32_t width, std::int32_t height, BitDept
 
 }  // namespace
 
-void MainWindow::add_layer(const NewLayerSettings* settings) {
+void MainWindow::add_layer(const NewLayerSettings* settings, bool below) {
   auto& doc = document();
   const auto name = settings != nullptr ? settings->name : default_new_layer_name(doc);
   auto anchor_id = doc.active_layer_id();
   const auto selected_ids = selected_layer_ids();
-  if (!selected_ids.empty()) {
-    anchor_id = selected_ids.front();
+  if (!selected_ids.empty() && !(below && anchor_id.has_value())) {
+    // Above the top selected layer; below goes under the active one, else the lowest selected.
+    anchor_id = below ? selected_ids.back() : selected_ids.front();
+  }
+  // Nothing goes under the Background: a new layer there goes above it, as usual.
+  if (below && (!anchor_id.has_value() || layer_is_document_background(*anchor_id))) {
+    below = false;
   }
 
   push_undo_snapshot(tr("New layer"));
@@ -1480,7 +1485,20 @@ void MainWindow::add_layer(const NewLayerSettings* settings) {
   if (settings != nullptr) {
     layer.set_color_label(settings->color_label);
   }
-  insert_layer_after_anchor(doc, std::move(layer), anchor_id);
+  // Under a clipped layer the new one joins its clipping group, so the group stays whole.
+  const auto* anchor = below ? std::as_const(doc).find_layer(*anchor_id) : nullptr;
+  const bool join_clip = anchor != nullptr && anchor->clipped();
+  if (below) {
+    insert_layer_below_anchor(doc, std::move(layer), anchor_id);
+  } else {
+    insert_layer_after_anchor(doc, std::move(layer), anchor_id);
+  }
+  if (join_clip) {
+    if (const auto location = find_layer_location(doc.layers(), layer_id);
+        location.has_value() && effective_clip_base(*location->siblings, location->index) != nullptr) {
+      (*location->siblings)[location->index].set_clipped(true);
+    }
+  }
   if (settings != nullptr && settings->clip_to_previous) {
     if (const auto location = find_layer_location(doc.layers(), layer_id);
         location.has_value() && effective_clip_base(*location->siblings, location->index) != nullptr) {
@@ -3516,6 +3534,62 @@ void MainWindow::move_active_layer(int direction) {
   }
   push_undo_snapshot(tr("Move layer"));
   document() = std::move(moved_document);
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+}
+
+void MainWindow::arrange_selected_layers_to_end(bool front) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  std::set<LayerId> listed(ids.begin(), ids.end());
+  std::optional<LayerId> background_id;
+  if (const auto* background = document_background_layer(); background != nullptr) {
+    // The Background stays at the bottom; the rest of the selection still moves.
+    background_id = background->id();
+    listed.erase(*background_id);
+  }
+  if (listed.empty()) {
+    return;
+  }
+  auto& doc = document();
+  auto trial_layers = std::as_const(doc).layers();
+  if (!arrange_layers_to_end(trial_layers, listed, front, background_id) ||
+      refuse_background_stack_change(trial_layers)) {
+    return;
+  }
+  push_undo_snapshot(front ? tr("Bring to front") : tr("Send to back"));
+  doc.layers() = std::move(trial_layers);
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+}
+
+void MainWindow::move_selected_layers_out_of_folder(bool above) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    return;
+  }
+  auto& doc = document();
+  auto trial_layers = std::as_const(doc).layers();
+  if (!move_layers_out_of_folder(trial_layers, std::set<LayerId>(ids.begin(), ids.end()), above)) {
+    show_status_error(tr("The selected layers are not in a folder"));
+    return;
+  }
+  if (refuse_background_stack_change(trial_layers)) {
+    return;
+  }
+  push_undo_snapshot(tr("Move layer out of folder"));
+  doc.layers() = std::move(trial_layers);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();

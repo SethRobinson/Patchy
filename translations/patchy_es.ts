@@ -27189,6 +27189,78 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Merge</source>
         <translation>Combinar</translation>
     </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>Traer al &amp;frente</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Mueve las capas seleccionadas a la parte superior de su carpeta</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>Enviar al &amp;fondo</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Mueve las capas seleccionadas a la parte inferior de su carpeta, por encima de un fondo</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%+clic para abrir el cuadro de diálogo Nueva capa</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%+clic para añadir la capa debajo de la actual</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Mover capa hacia arriba</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Mayús+clic para traerla al frente</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%+clic para sacarla de su carpeta, por encima</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Mover capa hacia abajo</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Mayús+clic para enviarla al fondo</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%+clic para sacarla de su carpeta, por debajo</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Mayús+clic para combinar las capas visibles</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%+clic para combinar las capas visibles en una capa nueva</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>Traer al frente</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>Enviar al fondo</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>Las capas seleccionadas no están en una carpeta</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Sacar capa de la carpeta</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

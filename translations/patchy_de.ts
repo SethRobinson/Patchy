@@ -27189,6 +27189,78 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Merge</source>
         <translation>Zusammenfügen</translation>
     </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>In den &amp;Vordergrund</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Verschiebt die ausgewählten Ebenen ganz nach oben in ihrem Ordner</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>In den &amp;Hintergrund</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Verschiebt die ausgewählten Ebenen ganz nach unten in ihrem Ordner, oberhalb einer Hintergrundebene</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%+Klicken öffnet den Dialog „Neue Ebene“</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%+Klicken fügt die Ebene unter der aktuellen ein</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Ebene nach oben verschieben</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Umschalt+Klicken bringt sie in den Vordergrund</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%+Klicken verschiebt sie aus ihrem Ordner, darüber</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Ebene nach unten verschieben</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Umschalt+Klicken bringt sie in den Hintergrund</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%+Klicken verschiebt sie aus ihrem Ordner, darunter</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Umschalt+Klicken reduziert die sichtbaren Ebenen</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%+Klicken reduziert die sichtbaren Ebenen auf eine neue Ebene</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>In den Vordergrund</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>In den Hintergrund</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>Die ausgewählten Ebenen liegen in keinem Ordner</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Ebene aus Ordner verschieben</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

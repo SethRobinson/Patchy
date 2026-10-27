@@ -34,6 +34,7 @@
 #include <QtMath>
 
 #include <algorithm>
+#include <iterator>
 #include <utility>
 
 namespace patchy::ui {
@@ -45,6 +46,8 @@ QString layout_key() { return QStringLiteral("toolPalette/layout"); }
 QString wheel_scroll_key() { return QStringLiteral("toolPalette/wheelScroll"); }
 // toolPalette/showCustomizeButton belonged to the palette's gear, since removed: never reuse it.
 QString hidden_layer_buttons_key() { return QStringLiteral("layersPanel/hiddenFooterButtons"); }
+// The optional footer buttons the user showed (kLayerFooterButtonIdsHiddenByDefault).
+QString shown_layer_buttons_key() { return QStringLiteral("layersPanel/shownFooterButtons"); }
 QString hidden_footer_items_key() { return QStringLiteral("toolPalette/hiddenFooterItems"); }
 // The layout token; anything else (or nothing) is one column.
 constexpr auto kTwoColumnsToken = "two_columns";
@@ -283,6 +286,12 @@ ToolPaletteCustomization stored_tool_palette_customization() {
   value.two_columns = settings.value(layout_key()).toString() == QLatin1String(kTwoColumnsToken);
   value.wheel_scroll = settings.value(wheel_scroll_key(), true).toBool();
   value.hidden_layer_buttons = settings.value(hidden_layer_buttons_key()).toStringList();
+  const auto shown_layer_buttons = settings.value(shown_layer_buttons_key()).toStringList();
+  for (const auto* id : kLayerFooterButtonIdsHiddenByDefault) {
+    if (!shown_layer_buttons.contains(QLatin1String(id))) {
+      value.hidden_layer_buttons.push_back(QString::fromLatin1(id));
+    }
+  }
   value.hidden_footer_items = settings.value(hidden_footer_items_key()).toStringList();
   return normalized_tool_palette_customization(std::move(value));
 }
@@ -299,7 +308,22 @@ void set_stored_tool_palette_customization(const ToolPaletteCustomization& value
     }
   };
   store_list(hidden_tools_key(), normalized.hidden_tools);
-  store_list(hidden_layer_buttons_key(), normalized.hidden_layer_buttons);
+  // An optional button is stored when shown, every other one when hidden.
+  QStringList hidden_layer_buttons;
+  QStringList shown_layer_buttons;
+  for (const auto* id : kLayerFooterButtonIdsHiddenByDefault) {
+    if (!normalized.hidden_layer_buttons.contains(QLatin1String(id))) {
+      shown_layer_buttons.push_back(QString::fromLatin1(id));
+    }
+  }
+  for (const auto& id : normalized.hidden_layer_buttons) {
+    if (std::none_of(std::begin(kLayerFooterButtonIdsHiddenByDefault), std::end(kLayerFooterButtonIdsHiddenByDefault),
+                     [&id](const char* optional) { return id == QLatin1String(optional); })) {
+      hidden_layer_buttons.push_back(id);
+    }
+  }
+  store_list(hidden_layer_buttons_key(), hidden_layer_buttons);
+  store_list(shown_layer_buttons_key(), normalized_ids(std::move(shown_layer_buttons)));
   store_list(hidden_footer_items_key(), normalized.hidden_footer_items);
   if (normalized.two_columns) {
     settings.setValue(layout_key(), QString::fromLatin1(kTwoColumnsToken));
