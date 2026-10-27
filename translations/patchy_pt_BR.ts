@@ -27153,6 +27153,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Clone Source</source>
         <translation>Origem do clone</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Configurações do pincel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

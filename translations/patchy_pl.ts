@@ -27229,6 +27229,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Clone Source</source>
         <translation>Źródło klonowania</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Ustawienia pędzla</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

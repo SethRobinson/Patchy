@@ -27153,6 +27153,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Clone Source</source>
         <translation>Kopierquelle</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Pinseleinstellungen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

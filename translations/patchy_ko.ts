@@ -27077,6 +27077,10 @@ The open document keeps its blend modes either way.</source>
         <source>Clone Source</source>
         <translation>복제 소스</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>브러시 설정</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

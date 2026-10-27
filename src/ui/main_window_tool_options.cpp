@@ -2731,6 +2731,19 @@ void MainWindow::show_clone_source_popup() {
   clone_source_menu_->popup(anchor);
 }
 
+void MainWindow::show_brush_settings_popup() {
+  if (brush_dynamics_button_ == nullptr || canvas_ == nullptr) {
+    return;
+  }
+  // The Dynamics button sits on the Brush tool's bar only.
+  if (canvas_->tool() != CanvasTool::Brush) {
+    activate_tool(CanvasTool::Brush);
+  }
+  if (brush_dynamics_button_->isEnabled()) {
+    brush_dynamics_button_->open_popup();
+  }
+}
+
 QString MainWindow::retouch_sample_info_text() const {
   if (canvas_ == nullptr) {
     return {};

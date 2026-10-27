@@ -2660,6 +2660,8 @@ private:
   void refresh_clone_source_panel();
   // Window > Clone Source: picks the Clone Stamp from any other tool and opens the popup.
   void show_clone_source_popup();
+  // Window > Brush Settings: picks the Brush tool from any other tool and opens its Dynamics popup.
+  void show_brush_settings_popup();
   // Applies the shared overlay settings to every canvas and both checkboxes, and saves them.
   void apply_clone_overlay_settings(bool shown, int opacity);
   // The Sample choice for the document info lines ("active layer", ...).
@@ -2959,6 +2961,7 @@ private:
   QMenu* clone_source_menu_{nullptr};
   CloneSourcePanel* clone_source_panel_{nullptr};
   QAction* window_clone_source_action_{nullptr};
+  QAction* window_brush_settings_action_{nullptr};
   // The overlay settings every canvas shares (tools/cloneOverlay, tools/cloneOverlayOpacity).
   bool current_clone_overlay_shown_{true};
   int current_clone_overlay_opacity_{100};

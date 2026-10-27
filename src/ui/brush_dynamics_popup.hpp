@@ -118,6 +118,9 @@ public:
   // True while a bitmap tip is active; MainWindow::refresh_options_bar combines this with the
   // document-editability flag instead of blanket-enabling the button.
   [[nodiscard]] bool has_active_tip() const noexcept { return !tip_id_.isEmpty(); }
+  // Opens the popup as a click would (Window > Brush Settings); does nothing while it is open.
+  void open_popup();
+  [[nodiscard]] bool popup_open() const noexcept { return popup_ != nullptr; }
   void retranslate();
 
 signals:

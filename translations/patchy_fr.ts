@@ -27153,6 +27153,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Clone Source</source>
         <translation>Source de duplication</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Paramètres du pinceau</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

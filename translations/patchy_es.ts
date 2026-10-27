@@ -27153,6 +27153,10 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Clone Source</source>
         <translation>Origen de clonación</translation>
     </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Ajustes de pincel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
