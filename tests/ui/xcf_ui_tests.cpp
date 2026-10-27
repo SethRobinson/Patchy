@@ -220,7 +220,7 @@ void ui_script_opens_xcf_files() {
 }
 
 // File Info shows what the XCF reader read from the parasites: the open path used to rescan
-// the file for metadata and replace it (GitHub issue 450). With philipzae's samples present
+// the file for metadata and replace it (GitHub issue 450). Application is "GIMP" without XMP. With philipzae's samples present
 // (local-test-fixtures/xcf-metadata) File Info's Description and IPTC pages are saved for
 // the card.
 void ui_xcf_metadata_reaches_file_info() {
@@ -260,6 +260,7 @@ void ui_xcf_metadata_reaches_file_info() {
     CHECK(info.text.size() == 1 && info.text[0].value == "Made in GIMP");
     CHECK(md::read_fields(info).title == "GIMP title");
     CHECK(md::read_fields(info).authors == std::vector<std::string>({"Ann"}));
+    CHECK(md::read_fields(info).creator_tool == "GIMP");
   }
 
   const auto samples = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-metadata";
@@ -273,7 +274,8 @@ void ui_xcf_metadata_reaches_file_info() {
     QApplication::processEvents();
     bool captured = false;
     QString created;
-    QTimer::singleShot(0, [&captured, &created, name, page] {
+    QString application;
+    QTimer::singleShot(0, [&captured, &created, &application, name, page] {
       auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -291,6 +293,9 @@ void ui_xcf_metadata_reaches_file_info() {
       if (const auto* label = dialog->findChild<QLabel*>(QStringLiteral("fileInfoCreatedLabel"))) {
         created = label->text();
       }
+      if (const auto* label = dialog->findChild<QLabel*>(QStringLiteral("fileInfoApplicationLabel"))) {
+        application = label->text();
+      }
       std::error_code ignored;
       std::filesystem::create_directories(std::filesystem::path("test-artifacts") / "xcf-metadata", ignored);
       patchy::test::ui::save_widget_artifact(std::string("xcf-metadata/file-info-") + name, *dialog);
@@ -302,6 +307,8 @@ void ui_xcf_metadata_reaches_file_info() {
     CHECK(captured);
     // Created carries OffsetTimeOriginal, as Modified carries its zone (issue 450).
     CHECK(created == QStringLiteral("2026-10-26T12:56:05+03:00"));
+    // Application names GIMP from the XMP history's softwareAgent (issue 450).
+    CHECK(application == QStringLiteral("GIMP 3.2.6 (Linux)"));
   }
 }
 

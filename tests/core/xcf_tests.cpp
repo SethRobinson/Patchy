@@ -1491,6 +1491,42 @@ void xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage() {
   }
 }
 
+// File Info's Application (#450): a file that names no creator gets the first XMP history
+// softwareAgent, else "GIMP"; an xmp:CreatorTool or EXIF Software the file has is kept, and
+// the value survives a PSD save as xmp:CreatorTool.
+void xcf_metadata_application_names_gimp() {
+  const std::string history = R"(<metadata>
+  <tag name="Xmp.xmpMM.History">type=&quot;Seq&quot;</tag>
+  <tag name="Xmp.xmpMM.History[1]/stEvt:action">saved</tag>
+  <tag name="Xmp.xmpMM.History[1]/stEvt:softwareAgent">GIMP 3.2.6 (Linux)</tag>
+  <tag name="Xmp.xmpMM.History[2]/stEvt:action">saved</tag>
+  <tag name="Xmp.xmpMM.History[2]/stEvt:softwareAgent">GIMP 3.4.0 (Windows)</tag>
+</metadata>)";
+  const auto from_history = read_with_parasites({{"gimp-image-metadata", text_bytes(history)}});
+  CHECK(document_xmp(from_history).text(md::xmp_ns::kXmp, "CreatorTool") == "GIMP 3.2.6 (Linux)");
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(from_history));
+  CHECK(document_xmp(reread).text(md::xmp_ns::kXmp, "CreatorTool") == "GIMP 3.2.6 (Linux)");
+
+  const auto bare = read_with_parasites({{"gimp-comment", text_bytes(std::string("Created with GIMP\0", 17))}});
+  CHECK(md::read_fields(bare.file_info()).creator_tool == "GIMP");
+  CHECK(md::read_fields(read_with_parasites({}).file_info()).creator_tool == "GIMP");
+
+  md::XmpPacket packet;
+  packet.set_simple(md::xmp_ns::kXmp, "CreatorTool", "Other Editor 2.0");
+  const auto own = read_with_parasites({{"gimp-metadata", text_bytes("GIMP_XMP_1" + md::serialize_xmp(packet, 0))},
+                                        {"gimp-image-metadata", text_bytes(history)}});
+  CHECK(document_xmp(own).text(md::xmp_ns::kXmp, "CreatorTool") == "Other Editor 2.0");
+
+  md::TiffStream stream;
+  stream.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kSoftware, "GIMP 2.10.38");
+  auto exif_parasite = text_bytes(std::string("Exif\0\0", 6));
+  const auto tiff = md::write_tiff(stream);
+  exif_parasite.insert(exif_parasite.end(), tiff.begin(), tiff.end());
+  const auto exif = read_with_parasites({{"exif-data", exif_parasite}});
+  CHECK(md::read_fields(exif.file_info()).creator_tool == "GIMP 2.10.38");
+  CHECK(!exif.file_info().xmp);
+}
+
 // philipzae's GIMP 3.2 samples from issue 450 (local-test-fixtures/xcf-metadata, README.txt
 // there). Each also goes through a PSD save and read: File Info must show the same fields,
 // and the PSD lands in test-artifacts/xcf-metadata for scripts/dev/photoshop-open-check.ps1.
@@ -1520,6 +1556,7 @@ void xcf_metadata_sample_comment() {
   const auto fields = md::read_fields(info);
   CHECK(fields.created.starts_with("2026-10-26T13:12:12"));  // EXIF DateTimeOriginal wins (MWG)
   CHECK(fields.date_created == "2026-10-26T13:12:12+03:00");
+  CHECK(fields.creator_tool == "GIMP");  // no XMP, no EXIF Software
   CHECK(info.exif && info.iptc);
 }
 
@@ -1528,6 +1565,7 @@ void xcf_metadata_sample_description() {
   const auto fields = md::read_fields(document.file_info());
   CHECK(fields.title == "Meta data test");
   CHECK(fields.description == "Description of what this document is");
+  CHECK(fields.creator_tool == "GIMP 3.2.6 (Linux)");  // the XMP history's softwareAgent
   CHECK(fields.authors.size() == 1 && fields.authors[0].starts_with("Author's name"));
   CHECK(fields.author_title == "Author's title");
   CHECK(fields.description_writer == "Description writer, Yousuf");
@@ -1649,6 +1687,7 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_gimp_image_metadata_tag_list_fills_file_info", xcf_gimp_image_metadata_tag_list_fills_file_info},
       {"xcf_gimp_image_metadata_created_date_keeps_time_offset", xcf_gimp_image_metadata_created_date_keeps_time_offset},
       {"xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage", xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage},
+      {"xcf_metadata_application_names_gimp", xcf_metadata_application_names_gimp},
       {"xcf_metadata_sample_comment", xcf_metadata_sample_comment},
       {"xcf_metadata_sample_description", xcf_metadata_sample_description},
       {"xcf_metadata_sample_iptc", xcf_metadata_sample_iptc},
