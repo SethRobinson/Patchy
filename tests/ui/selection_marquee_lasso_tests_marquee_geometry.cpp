@@ -2578,6 +2578,20 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
     }
     // The 2 x 2 default matches its preset.
     CHECK(preset->currentData().toString() == QStringLiteral("guideLayout.2x2"));
+    // Dividers above and below the Rows row set it apart from Columns and the margins.
+    const auto dividers = dialog->findChildren<QFrame*>(QStringLiteral("newGuideLayoutDivider"));
+    auto* top_margin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuideLayoutMarginTopSpin"));
+    CHECK(dividers.size() == 2);
+    CHECK(top_margin != nullptr);
+    if (dividers.size() == 2 && top_margin != nullptr) {
+      const auto y = [dialog](const QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).y(); };
+      const auto first = std::min(y(dividers[0]), y(dividers[1]));
+      const auto second = std::max(y(dividers[0]), y(dividers[1]));
+      CHECK(y(columns) < first);
+      CHECK(first < y(rows));
+      CHECK(y(rows) < second);
+      CHECK(second < y(top_margin));
+    }
     const auto three = preset->findData(QStringLiteral("guideLayout.3x3"));
     CHECK(three > 0);
     CHECK(preset->findData(QStringLiteral("guideLayout.12columnsGutter")) > 0);

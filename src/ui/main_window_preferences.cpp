@@ -2402,9 +2402,19 @@ void MainWindow::new_guide_layout_dialog() {
     row->addWidget(second, 1);
     return row;
   };
+  // Dividers above and below the Rows row tell its Gutter from the Columns one (GitHub issue 403).
+  const auto add_divider = [&dialog, form] {
+    auto* divider = new QFrame(&dialog);
+    divider->setObjectName(QStringLiteral("newGuideLayoutDivider"));
+    divider->setFrameShape(QFrame::HLine);
+    divider->setFrameShadow(QFrame::Plain);
+    form->addRow(divider);
+  };
   form->addRow(tr("Preset:"), preset_row);
   form->addRow(tr("Columns:"), pair_row(columns_spin, tr("Gutter:"), column_gutter_spin));
+  add_divider();
   form->addRow(tr("Rows:"), pair_row(rows_spin, tr("Gutter:"), row_gutter_spin));
+  add_divider();
   form->addRow(tr("Top margin:"), pair_row(top_spin, tr("Bottom:"), bottom_spin));
   form->addRow(tr("Left margin:"), pair_row(left_spin, tr("Right:"), right_spin));
   form->addRow(QString(), clear_existing);
@@ -2582,6 +2592,8 @@ void MainWindow::new_guide_layout_dialog() {
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   content->addWidget(buttons);
+  append_themed_style(dialog, QStringLiteral("QFrame#newGuideLayoutDivider { background: @dlg_divider; color: "
+                                             "@dlg_divider; min-height: 1px; max-height: 1px; border: 0; }"));
   // Last, once every field exists: the fields' -/+ buttons (docs/ui-conventions.md).
   append_themed_style(dialog, dialog_spinbox_button_style());
 
