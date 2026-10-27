@@ -13,6 +13,7 @@ std::vector<patchy::test::TestCase> app_shell_tests();
 std::vector<patchy::test::TestCase> localization_tests();
 std::vector<patchy::test::TestCase> font_coverage_tests();
 std::vector<patchy::test::TestCase> missing_fonts_tests();
+std::vector<patchy::test::TestCase> missing_font_type_tests();
 std::vector<patchy::test::TestCase> filter_catalog_dialog_tests();
 std::vector<patchy::test::TestCase> layer_style_gradient_tests();
 std::vector<patchy::test::TestCase> destructive_filters_gallery_tests();

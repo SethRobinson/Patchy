@@ -81,13 +81,30 @@ std::optional<MissingFontsDialogResult> run_missing_fonts_dialog(QWidget* parent
     name_column->setSpacing(1);
     name_column->addWidget(name);
     name_column->addWidget(detail);
-    // A substitute from the built-in table (issue 463) says how close it is; the row stays
-    // unticked, so the file keeps the original name until the user picks.
-    if (entry.suggestion != MissingFontSuggestion::fallback && !entry.suggested.isEmpty()) {
-      auto* suggestion = new QLabel(entry.suggestion == MissingFontSuggestion::metric
-                                        ? QObject::tr("Suggested: %1 (same character widths)").arg(entry.suggested)
-                                        : QObject::tr("Suggested: %1 (similar design)").arg(entry.suggested),
-                                    rows_widget);
+    // A substitute from the built-in table or a same-type default (issue 463) says how close it
+    // is; the row stays unticked, so the file keeps the original name until the user picks.
+    QString suggestion_text;
+    switch (entry.suggestion) {
+      case MissingFontSuggestion::metric:
+        suggestion_text = QObject::tr("Suggested: %1 (same character widths)");
+        break;
+      case MissingFontSuggestion::lookalike:
+        suggestion_text = QObject::tr("Suggested: %1 (similar design)");
+        break;
+      case MissingFontSuggestion::same_type:
+        if (entry.font_type == FontClass::serif) {
+          suggestion_text = QObject::tr("Suggested: %1 (also a serif font)");
+        } else if (entry.font_type == FontClass::sans) {
+          suggestion_text = QObject::tr("Suggested: %1 (also a sans-serif font)");
+        } else if (entry.font_type == FontClass::mono) {
+          suggestion_text = QObject::tr("Suggested: %1 (also a monospaced font)");
+        }
+        break;
+      case MissingFontSuggestion::fallback:
+        break;
+    }
+    if (!suggestion_text.isEmpty() && !entry.suggested.isEmpty()) {
+      auto* suggestion = new QLabel(suggestion_text.arg(entry.suggested), rows_widget);
       suggestion->setObjectName(QStringLiteral("missingFontSuggestion%1").arg(index));
       suggestion->setProperty("patchyMissingFontSuggestion", true);
       suggestion->setTextFormat(Qt::PlainText);

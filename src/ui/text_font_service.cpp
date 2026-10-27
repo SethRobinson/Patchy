@@ -1,5 +1,8 @@
 #include "ui/text_font_service.hpp"
 #include "ui/font_face_name_index.hpp"
+#ifdef PATCHY_HAVE_FONTCONFIG_QUERY
+#include "ui/fontconfig_font_class.hpp"
+#endif
 #include "ui/psd_font_resolver.hpp"
 #include "ui/user_fonts.hpp"
 #include "ui/localization.hpp"
@@ -806,7 +809,9 @@ QString text_font_replacement_key(const QString& family) {
   return compact.isEmpty() ? family.trimmed().toCaseFolded() : compact;
 }
 
-std::vector<TextFontSubstitute> installed_text_font_substitutes(const QString& family, const QString& demanded) {
+// The table's installed pairs for `family` (metric, then look-alike); see
+// installed_text_font_substitutes.
+static std::vector<TextFontSubstitute> table_text_font_substitutes(const QString& family, const QString& demanded) {
   std::vector<TextFontSubstitute> substitutes;
   const auto utf8 = family.trimmed().toUtf8();
   const auto lookup = find_font_substitutes(std::string_view(utf8.constData(), static_cast<std::size_t>(utf8.size())));
@@ -820,7 +825,7 @@ std::vector<TextFontSubstitute> installed_text_font_substitutes(const QString& f
   // The face a face-baked request names beyond what bold + italic express ("Semibold" in "Myriad
   // Pro Semibold"). PostScript suffixes ("BoldMT") and flag faces leave it to the run's flags.
   auto face = QString::fromStdString(lookup->style).trimmed();
-  for (const auto suffix : {QStringLiteral("PSMT"), QStringLiteral("MT")}) {
+  for (const auto& suffix : {QStringLiteral("PSMT"), QStringLiteral("MT")}) {
     if (face.endsWith(suffix, Qt::CaseInsensitive)) {
       face.chop(suffix.size());
       break;
@@ -856,6 +861,66 @@ std::vector<TextFontSubstitute> installed_text_font_substitutes(const QString& f
   // A face fallback can demote a metric match below a look-alike that kept its face.
   std::stable_sort(substitutes.begin(), substitutes.end(),
                    [](const TextFontSubstitute& a, const TextFontSubstitute& b) { return a.metric && !b.metric; });
+  return substitutes;
+}
+
+FontClass text_font_class(const QString& family) {
+  const auto utf8 = family.trimmed().toUtf8();
+  const std::string_view name(utf8.constData(), static_cast<std::size_t>(utf8.size()));
+  if (name.empty()) {
+    return FontClass::unknown;
+  }
+  if (const auto found = find_font_substitutes(name); found.has_value() && found->entry != nullptr) {
+    return found->entry->font_class;
+  }
+#ifdef PATCHY_HAVE_FONTCONFIG_QUERY
+  // fontconfig's own rules (45-latin.conf) first; its catch-all sans-serif says nothing.
+  if (const auto answer = fontconfig_font_class(name); answer.has_value() && answer->definite) {
+    return answer->font_class;
+  }
+#endif
+  return classify_font_name_words(name);
+}
+
+// An installed family of `family`'s font type that draws `demanded`: on Linux fontconfig's order
+// for the type first, then the built-in defaults (Times New Roman, Liberation Serif, ...).
+static std::optional<TextFontSubstitute> same_type_text_font_substitute(const QString& family,
+                                                                        const QString& demanded) {
+  const auto font_class = text_font_class(family);
+  QStringList candidates;
+#ifdef PATCHY_HAVE_FONTCONFIG_QUERY
+  for (const auto& name : fontconfig_families_for_class(font_class)) {
+    candidates.push_back(QString::fromStdString(name));
+  }
+#endif
+  for (const auto name : same_class_default_families(font_class)) {
+    candidates.push_back(QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+  }
+  const auto requested_key = text_font_replacement_key(family);
+  for (const auto& candidate : candidates) {
+    const auto installed = available_text_family_match(candidate);
+    if (!installed.has_value() || text_font_replacement_key(*installed) == requested_key) {
+      continue;
+    }
+    QStringList missing;
+    append_missing_text_family(missing, *installed, demanded);
+    if (missing.isEmpty()) {
+      return TextFontSubstitute{*installed, *installed, false, font_class};
+    }
+  }
+  return std::nullopt;
+}
+
+std::vector<TextFontSubstitute> installed_text_font_substitutes(const QString& family, const QString& demanded) {
+  auto substitutes = table_text_font_substitutes(family, demanded);
+  if (auto same_type = same_type_text_font_substitute(family, demanded); same_type.has_value()) {
+    const auto key = text_font_replacement_key(same_type->family);
+    if (std::ranges::none_of(substitutes, [&key](const TextFontSubstitute& substitute) {
+          return text_font_replacement_key(substitute.family) == key;
+        })) {
+      substitutes.push_back(*same_type);
+    }
+  }
   return substitutes;
 }
 

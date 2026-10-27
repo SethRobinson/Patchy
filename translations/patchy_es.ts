@@ -13188,6 +13188,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Suggested: %1 (similar design)</source>
         <translation>Sugerencia: %1 (diseño similar)</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Sugerencia: %1 (también una fuente con serifa)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Sugerencia: %1 (también una fuente sin serifa)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Sugerencia: %1 (también una fuente monoespaciada)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

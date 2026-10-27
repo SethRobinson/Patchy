@@ -13188,6 +13188,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Suggested: %1 (similar design)</source>
         <translation>Vorschlag: %1 (ähnliches Design)</translation>
     </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Vorschlag: %1 (ebenfalls eine Serifenschrift)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Vorschlag: %1 (ebenfalls eine serifenlose Schrift)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Vorschlag: %1 (ebenfalls eine dicktengleiche Schrift)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
