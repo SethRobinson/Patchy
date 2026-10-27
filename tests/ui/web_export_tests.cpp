@@ -9,6 +9,9 @@
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/apng_reader.hpp"
+#include "formats/jxl_document_io.hpp"
+#include "formats/webp_animation_io.hpp"
+#include "ui/image_save_options_dialog.hpp"
 #include "ui/web_export.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui_test_access.hpp"
@@ -19,6 +22,10 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDoubleSpinBox>
+#include <QFormLayout>
+#include <QRadioButton>
+#include <QScrollArea>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
@@ -28,17 +35,20 @@
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTimer>
 #include <QTreeWidget>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -57,11 +67,18 @@ struct WebExportSettingsGuard {
                             "trim", "convertToSrgb", "compare", "revealWhenDone", "pngColors", "pngPaletteColors",
                             "pngDither", "pngDitherAmount", "gifColors", "gifDither", "gifDitherAmount", "gifAnimate",
                             "gifFrameDelayMs", "avifQuality", "avifSpeed", "avifLossless", "jxlQuality",
-                            "jxlEffort", "jxlLossless", "jxlAnimate", "jxlFrameDelayMs"}) {
+                            "jxlEffort", "jxlLossless", "jxlAnimate", "jxlFrameDelayMs", "pngAnimate",
+                            "pngFrameDelayMs", "fillTransparent"}) {
       const auto full = QStringLiteral("exportForWeb/") + QLatin1String(key);
       restorers.push_back(std::make_unique<SettingsValueRestorer>(full));
       auto settings = patchy::ui::app_settings();
       settings.remove(full);
+    }
+    // The default frame delay shared with the Layers as Animated exports.
+    for (const auto* key : {"saveOptions/animationFrameDelayMs", "saveOptions/gifFrameDelayCs"}) {
+      restorers.push_back(std::make_unique<SettingsValueRestorer>(QLatin1String(key)));
+      auto settings = patchy::ui::app_settings();
+      settings.remove(QLatin1String(key));
     }
   }
   std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
@@ -486,9 +503,9 @@ void ui_web_export_animation_stale_frames_are_discarded() {
   });
   WebExportSettings first;
   first.gif_animate = true;
-  first.gif_frame_delay_ms = 300;
+  first.animation_frame_delay_ms = 300;
   WebExportSettings second = first;
-  second.gif_frame_delay_ms = 700;
+  second.animation_frame_delay_ms = 700;
   const auto old_job = patchy::ui::web_export_job(first, WebExportFormat::Gif, size);
   const auto new_job = patchy::ui::web_export_job(second, WebExportFormat::Gif, size);
   engine.request({old_job});
@@ -503,6 +520,148 @@ void ui_web_export_animation_stale_frames_are_discarded() {
     CHECK(current->frame_delays_ms == (std::vector<int>{700, 500, 700, 1000}));
   }
   engine.close();
+}
+
+// A one-layer document, opaque on the left half and fully transparent on the right.
+patchy::Document half_transparent_document(int width, int height) {
+  QImage image(width, height, QImage::Format_RGBA8888);
+  image.fill(Qt::transparent);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width / 2; ++x) {
+      image.setPixelColor(x, y, QColor(20, 90, 200, 255));
+    }
+  }
+  return patchy::ui::document_from_qimage(image, "Half");
+}
+
+bool has_transparency(const QImage& image) {
+  const auto rgba = image.convertToFormat(QImage::Format_RGBA8888);
+  for (int y = 0; y < rgba.height(); ++y) {
+    for (int x = 0; x < rgba.width(); ++x) {
+      if (rgba.pixelColor(x, y).alpha() < 255) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// The Animation group's play count reaches WebP, JPEG XL and APNG files; the shared default
+// delay persists in the Layers as Animated exports' keys; Fill with removes alpha from a
+// still PNG and WebP and from every animated GIF frame, in the fill color.
+void ui_web_export_play_count_and_fill_read_back() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto document = animation_fixture_document(window);
+  const QSize size(document.width(), document.height());
+  WebExportSettings settings;
+  settings.webp_animate = true;
+  settings.jxl_animate = true;
+  settings.png_animate = true;
+  settings.webp_lossless = true;
+  settings.jxl_lossless = true;
+  settings.webp_loop_count = 3;
+  settings.jxl_loop_count = 4;
+  settings.apng_loop_count = 5;
+  {
+    const auto job = patchy::ui::web_export_job(settings, WebExportFormat::Webp, size);
+    CHECK(job.options.webp_loop_count == 3);
+    const auto result = WebExportPreviewEngine::encode(document, job, nullptr);
+    CHECK(result.bytes != nullptr && result.frame_delays_ms == kAnimationFixtureDelaysMs);
+    int loops = -1;
+    if (result.bytes != nullptr) {
+      (void)patchy::webp::decode_animation(
+          *result.bytes, std::uint64_t{1} << 30, [&loops](const patchy::webp::AnimationInfo& info) { loops = info.loop_count; },
+          [](patchy::PixelBuffer, std::uint32_t) {});
+    }
+    CHECK(loops == 3);
+  }
+  {
+    const auto job = patchy::ui::web_export_job(settings, WebExportFormat::Jxl, size);
+    const auto result = WebExportPreviewEngine::encode(document, job, nullptr);
+    CHECK(result.bytes != nullptr && result.frame_delays_ms == kAnimationFixtureDelaysMs);
+    if (result.bytes != nullptr) {
+      const auto read = patchy::jxl::read_jxl(*result.bytes);
+      const auto& values = read.document.metadata().values;
+      const auto found = values.find(patchy::jxl::kLoopCountMetadata);
+      CHECK(found != values.end() && found->second == "4");
+    }
+  }
+  {
+    const auto job = patchy::ui::web_export_job(settings, WebExportFormat::Png, size);
+    const auto result = WebExportPreviewEngine::encode(document, job, nullptr);
+    CHECK(result.bytes != nullptr && result.frame_delays_ms == kAnimationFixtureDelaysMs);
+    if (result.bytes != nullptr) {
+      CHECK(patchy::apng::read_animated_png(*result.bytes).play_count == 5);
+    }
+  }
+  // A play count is part of the job: a change encodes again.
+  auto other_count = settings;
+  other_count.apng_loop_count = 0;
+  CHECK(patchy::ui::web_export_job(other_count, WebExportFormat::Png, size).signature !=
+        patchy::ui::web_export_job(settings, WebExportFormat::Png, size).signature);
+
+  // The default delay is the animated exports' shared one, GIF in centiseconds.
+  settings.animation_frame_delay_ms = 250;
+  patchy::ui::save_web_export_settings(settings);
+  {
+    auto stored = patchy::ui::app_settings();
+    CHECK(stored.value(QStringLiteral("saveOptions/animationFrameDelayMs")).toInt() == 250);
+    CHECK(stored.value(QStringLiteral("saveOptions/gifFrameDelayCs")).toInt() == 25);
+  }
+  CHECK(patchy::ui::load_web_export_settings().animation_frame_delay_ms == 250);
+  CHECK(patchy::ui::load_image_save_option_defaults().animation_frame_delay_ms == 250);
+
+  // Fill with: still PNG and WebP lose their alpha and take the color.
+  const auto half = half_transparent_document(64, 32);
+  const QSize half_size(64, 32);
+  WebExportSettings fill;
+  fill.fill_transparent = true;
+  fill.jpeg_background = QColor(255, 0, 0);
+  fill.webp_lossless = true;
+  WebExportSettings keep = fill;
+  keep.fill_transparent = false;
+  for (const auto format : {WebExportFormat::Png, WebExportFormat::Webp}) {
+    const auto filled_job = patchy::ui::web_export_job(fill, format, half_size);
+    const auto kept_job = patchy::ui::web_export_job(keep, format, half_size);
+    CHECK(filled_job.options.export_fill_transparent && !kept_job.options.export_fill_transparent);
+    CHECK(filled_job.signature != kept_job.signature);
+    const auto filled_prepared =
+        WebExportPreviewEngine::prepare(half, filled_job.geometry, filled_job.convert_to_srgb, nullptr);
+    const auto filled = WebExportPreviewEngine::encode(half, filled_job, filled_prepared);
+    const auto kept_prepared =
+        WebExportPreviewEngine::prepare(half, kept_job.geometry, kept_job.convert_to_srgb, nullptr);
+    const auto kept = WebExportPreviewEngine::encode(half, kept_job, kept_prepared);
+    CHECK(!filled.decoded.isNull() && !kept.decoded.isNull());
+    CHECK(has_transparency(kept.decoded));
+    CHECK(!has_transparency(filled.decoded));
+    CHECK(filled.decoded.pixelColor(60, 10) == QColor(255, 0, 0));
+    CHECK(filled.decoded.pixelColor(4, 10) == QColor(20, 90, 200));
+  }
+  // An animated GIF fills every frame; the Original pane keeps the unfilled frames. Two
+  // half-transparent frame layers (the fixture's frames are opaque).
+  auto two_frames = half_transparent_document(64, 32);
+  {
+    const auto& first_layer = std::as_const(two_frames).layers().front();
+    patchy::Layer second(two_frames.allocate_layer_id(), "Frame 2 0.3s", first_layer.pixels());
+    two_frames.add_layer(std::move(second));
+  }
+  WebExportSettings gif_keep;
+  gif_keep.gif_animate = true;
+  auto gif_fill = gif_keep;
+  gif_fill.fill_transparent = true;
+  gif_fill.jpeg_background = QColor(255, 0, 0);
+  const auto gif_kept = WebExportPreviewEngine::encode(
+      two_frames, patchy::ui::web_export_job(gif_keep, WebExportFormat::Gif, half_size), nullptr);
+  const auto gif_filled = WebExportPreviewEngine::encode(
+      two_frames, patchy::ui::web_export_job(gif_fill, WebExportFormat::Gif, half_size), nullptr);
+  CHECK(gif_kept.frames.size() == 2 && gif_filled.frames.size() == 2);
+  CHECK(std::all_of(gif_kept.frames.begin(), gif_kept.frames.end(), has_transparency));
+  CHECK(std::none_of(gif_filled.frames.begin(), gif_filled.frames.end(), has_transparency));
+  CHECK(std::all_of(gif_filled.original_frames.begin(), gif_filled.original_frames.end(), has_transparency));
+  CHECK(gif_filled.frames.size() == 2 && gif_filled.frames[1].pixelColor(60, 10) == QColor(255, 0, 0));
+  CHECK(gif_filled.frame_delays_ms == (std::vector<int>{300, 100}));
 }
 
 void ui_web_export_engine_drops_stale_requests() {
@@ -603,6 +762,10 @@ void ui_web_export_animation_plays_in_the_preview() {
       list->setCurrentItem(row);
       CHECK(animate->isVisible());
       animate->setChecked(true);
+      // One Animation group with the format's own timing rows.
+      auto* animation_group = dialog->findChild<QWidget*>(QStringLiteral("webExportAnimationGroup"));
+      CHECK(animation_group != nullptr && animation_group->isVisible());
+      CHECK(animation_group != nullptr && animation_group->isAncestorOf(animate));
       if (QLatin1String(item.row) == QLatin1String("PNG")) {
         // An animated PNG is full color: Type and the palette controls rest, with a note.
         auto* type = dialog->findChild<QComboBox*>(QStringLiteral("webExportPngColorsCombo"));
@@ -643,12 +806,58 @@ void ui_web_export_animation_plays_in_the_preview() {
         CHECK(timer->isActive());
         capture_widget_artifact("web_export_gif_animation", *dialog);
       } else if (QLatin1String(item.row) == QLatin1String("PNG")) {
+        // "Default frame delay:" (layer-name times win) and Forever / Play count, as in the
+        // Layers as Animated PNG dialog; the delay is one value across the formats.
+        auto* delay = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("webExportPngFrameDelaySpin"));
+        auto* gif_delay = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("webExportGifFrameDelaySpin"));
+        auto* forever_check = dialog->findChild<QCheckBox*>(QStringLiteral("webExportPngForeverCheck"));
+        auto* plays = dialog->findChild<QSpinBox*>(QStringLiteral("webExportPngPlayCountSpin"));
+        auto* explanation = dialog->findChild<QLabel*>(QStringLiteral("webExportPngAnimationExplanationLabel"));
+        CHECK(delay != nullptr && gif_delay != nullptr && forever_check != nullptr && plays != nullptr &&
+              explanation != nullptr);
+        if (delay != nullptr && gif_delay != nullptr && forever_check != nullptr && plays != nullptr &&
+            explanation != nullptr) {
+          CHECK(delay->isVisible() && forever_check->isVisible() && explanation->isVisible());
+          CHECK(!gif_delay->isVisible());
+          auto* form = qobject_cast<QFormLayout*>(delay->parentWidget()->layout());
+          auto* label = form != nullptr ? qobject_cast<QLabel*>(form->labelForField(delay)) : nullptr;
+          CHECK(label != nullptr && label->text() == QStringLiteral("Default frame delay:"));
+          CHECK(forever_check->isChecked() && !plays->isEnabled());
+          delay->setValue(0.2);
+          CHECK(std::abs(gif_delay->value() - 0.2) < 1e-6);
+          forever_check->setChecked(false);
+          plays->setValue(3);
+          CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool() && frames() == 4; },
+                           120000));
+          // The named frames keep their times; the others take the new default.
+          next->click();
+          while (frame() != 0) {
+            next->click();
+          }
+          CHECK(frame_label->text().contains(QStringLiteral("0.20")));
+        }
         while (frame() != 1) {
           next->click();
         }
         play->click();
         CHECK(timer->isActive());
         capture_widget_artifact("web_export_png_animation", *dialog);
+        // Transparency: Fill with the background color, every frame.
+        auto* fill = dialog->findChild<QRadioButton*>(QStringLiteral("webExportFillTransparencyRadio"));
+        auto* keep = dialog->findChild<QRadioButton*>(QStringLiteral("webExportKeepTransparencyRadio"));
+        auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("webExportBackgroundColorSwatch"));
+        auto* transparency = dialog->findChild<QWidget*>(QStringLiteral("webExportTransparencyGroup"));
+        auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("webExportControlsScroll"));
+        CHECK(fill != nullptr && keep != nullptr && swatch != nullptr && transparency != nullptr && scroll != nullptr);
+        if (fill != nullptr && keep != nullptr && swatch != nullptr && transparency != nullptr && scroll != nullptr) {
+          CHECK(transparency->isVisible() && keep->isChecked() && keep->isEnabled() && !swatch->isEnabled());
+          fill->setChecked(true);
+          CHECK(swatch->isEnabled());
+          CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool() && frames() == 4; },
+                           120000));
+          keep->setChecked(true);
+          scroll->ensureWidgetVisible(animation_group);
+        }
       } else {
         play->click();
         CHECK(timer->isActive());
@@ -658,12 +867,93 @@ void ui_web_export_animation_plays_in_the_preview() {
     list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
     QApplication::processEvents();
     CHECK(!controls->isVisible() && !timer->isActive());
+    // JPEG has no alpha: no Animation group, and the Transparency group shows only the color.
+    {
+      auto* animation_group = dialog->findChild<QWidget*>(QStringLiteral("webExportAnimationGroup"));
+      auto* keep = dialog->findChild<QRadioButton*>(QStringLiteral("webExportKeepTransparencyRadio"));
+      auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("webExportBackgroundColorSwatch"));
+      auto* hint = dialog->findChild<QLabel*>(QStringLiteral("webExportJpegBackgroundHint"));
+      CHECK(animation_group != nullptr && keep != nullptr && swatch != nullptr && hint != nullptr);
+      if (animation_group != nullptr && keep != nullptr && swatch != nullptr && hint != nullptr) {
+        CHECK(!animation_group->isVisible());
+        CHECK(!keep->isVisible() && swatch->isVisible() && swatch->isEnabled() && hint->isVisible());
+      }
+    }
     // Closing stops the timer.
     list->setCurrentItem(row_named(list, QStringLiteral("GIF")));
     CHECK(wait_until([&] { return timer->isActive(); }));
     inspected = true;
     dialog->reject();
     CHECK(!timer->isActive());
+  });
+  patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+}
+
+// Transparency on a transparent one-layer image: no Animation group, Fill with enables the
+// color (the pixels are checked in ui_web_export_play_count_and_fill_read_back).
+void ui_web_export_transparency_fill_in_the_dialog() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QImage image(320, 200, QImage::Format_ARGB32);
+  image.fill(Qt::transparent);
+  {
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(230, 140, 20));
+    painter.drawEllipse(QRectF(60, 30, 140, 140));
+    painter.setBrush(QColor(40, 110, 210));
+    painter.drawRoundedRect(QRectF(170, 70, 110, 90), 18, 18);
+  }
+  const auto path = QDir(artifact_dir()).filePath(QStringLiteral("transparent_logo_source.png"));
+  CHECK(image.save(path));
+  MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(1280, 820);
+    auto* list = dialog->findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    auto* keep = dialog->findChild<QRadioButton*>(QStringLiteral("webExportKeepTransparencyRadio"));
+    auto* fill = dialog->findChild<QRadioButton*>(QStringLiteral("webExportFillTransparencyRadio"));
+    auto* label = dialog->findChild<QLabel*>(QStringLiteral("webExportBackgroundLabel"));
+    auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("webExportBackgroundColorSwatch"));
+    auto* group = dialog->findChild<QWidget*>(QStringLiteral("webExportTransparencyGroup"));
+    auto* animation_group = dialog->findChild<QWidget*>(QStringLiteral("webExportAnimationGroup"));
+    auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("webExportControlsScroll"));
+    CHECK(list != nullptr && preview != nullptr && keep != nullptr && fill != nullptr && label != nullptr &&
+          swatch != nullptr && group != nullptr && animation_group != nullptr && scroll != nullptr);
+    if (list == nullptr || preview == nullptr || keep == nullptr || fill == nullptr || label == nullptr ||
+        swatch == nullptr || group == nullptr || animation_group == nullptr || scroll == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // One layer: no Animation group.
+    list->setCurrentItem(row_named(list, QStringLiteral("PNG")));
+    QApplication::processEvents();
+    CHECK(!animation_group->isVisible() && group->isVisible());
+    CHECK(keep->isChecked() && !swatch->isEnabled());
+    const patchy::ui::TransparencyChoiceWidgets widgets{keep, fill, label, swatch, nullptr};
+    patchy::ui::set_transparency_choice_color(widgets, QColor(32, 160, 140));
+    fill->setChecked(true);
+    CHECK(swatch->isEnabled());
+    CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+    scroll->ensureWidgetVisible(group);
+    QApplication::processEvents();
+    capture_widget_artifact("web_export_transparency_fill", *dialog);
+    // Keep transparent rests the color again.
+    keep->setChecked(true);
+    CHECK(!swatch->isEnabled());
+    inspected = true;
+    dialog->reject();
   });
   patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
   QApplication::processEvents();
@@ -896,6 +1186,7 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_jpeg_progressive_and_optimize_read_back", ui_web_export_jpeg_progressive_and_optimize_read_back},
       {"ui_web_export_engine_drops_stale_requests", ui_web_export_engine_drops_stale_requests},
       {"ui_web_export_animation_frames_read_back", ui_web_export_animation_frames_read_back},
+      {"ui_web_export_play_count_and_fill_read_back", ui_web_export_play_count_and_fill_read_back},
       {"ui_web_export_animation_stale_frames_are_discarded", ui_web_export_animation_stale_frames_are_discarded},
       {"ui_web_export_still_png_is_unchanged_by_animation", ui_web_export_still_png_is_unchanged_by_animation},
       {"ui_web_export_animation_plays_in_the_preview", ui_web_export_animation_plays_in_the_preview},
@@ -903,6 +1194,7 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_slow_encode_never_blocks_the_selected_format",
        ui_web_export_slow_encode_never_blocks_the_selected_format},
       {"ui_web_export_palette_png_and_gif_read_back", ui_web_export_palette_png_and_gif_read_back},
+      {"ui_web_export_transparency_fill_in_the_dialog", ui_web_export_transparency_fill_in_the_dialog},
       {"ui_web_export_dialog_previews_and_saves", ui_web_export_dialog_previews_and_saves},
   };
 }

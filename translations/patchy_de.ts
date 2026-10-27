@@ -13013,14 +13013,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>GIF-Einstellungen</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>Ein Ebenenname, der mit einer Zeit wie 0.25s endet, legt die Dauer dieses Frames fest.</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>Frame-Dauer:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>Werkzeugpalette anpassen</translation>
     </message>
@@ -13147,6 +13139,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>Ein animiertes PNG wird in Vollfarbe geschrieben; die Palette gilt für Einzelbilder.</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>Animation</translation>
     </message>
 </context>
 <context>

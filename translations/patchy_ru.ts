@@ -13050,14 +13050,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Параметры GIF</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>Имя слоя, оканчивающееся временем, например 0.25s, задаёт задержку этого кадра.</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>Задержка кадра:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>Настройка палитры инструментов</translation>
     </message>
@@ -13184,6 +13176,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>Анимированный PNG записывается в полном цвете; палитра применяется к неподвижным изображениям.</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>Анимация</translation>
     </message>
 </context>
 <context>

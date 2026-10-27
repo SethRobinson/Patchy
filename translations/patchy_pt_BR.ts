@@ -13013,14 +13013,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Configurações de GIF</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>Um nome de camada que termina com um tempo como 0.25s define o atraso desse quadro.</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>Atraso do quadro:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>Personalizar paleta de ferramentas</translation>
     </message>
@@ -13147,6 +13139,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>Um PNG animado é gravado em cores completas; a paleta vale para imagens estáticas.</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>Animação</translation>
     </message>
 </context>
 <context>

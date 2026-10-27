@@ -13013,14 +13013,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Ajustes de GIF</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>Un nombre de capa que termina en un tiempo como 0.25s fija el retardo de ese fotograma.</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>Retardo de fotograma:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>Personalizar paleta de herramientas</translation>
     </message>
@@ -13147,6 +13139,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>Un PNG animado se escribe a color completo; la paleta se aplica a imágenes fijas.</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>Animación</translation>
     </message>
 </context>
 <context>

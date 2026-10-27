@@ -303,19 +303,20 @@ struct ExportSectionWidgets {
   bool transparency_choice_offered{true};  // false for JPEG: the fill is forced, never persisted
 };
 
-ThemedQss export_background_swatch_style(QColor color) {
+ThemedQss export_background_swatch_style(const QString& object_name, QColor color) {
   // The swatch shows the user's chosen color (user data, like the Canvas Size swatch); its
   // chrome stays on theme roles.
-  return ThemedQss(QStringLiteral("QPushButton#exportBackgroundColorSwatch { background: rgb(%1, %2, %3); "
+  return ThemedQss(QStringLiteral("QPushButton#%4 { background: rgb(%1, %2, %3); "
                                   "border: 1px solid @dlg_neutral_border; border-radius: 3px; padding: 0; "
                                   "min-width: 49px; max-width: 49px; min-height: 24px; max-height: 24px; } "
-                                  "QPushButton#exportBackgroundColorSwatch:hover { border-color: "
+                                  "QPushButton#%4:hover { border-color: "
                                   "@dlg_neutral_border_bright; } "
-                                  "QPushButton#exportBackgroundColorSwatch:disabled { background: "
+                                  "QPushButton#%4:disabled { background: "
                                   "@field_bg_disabled; border-color: @field_border_disabled; }")
                        .arg(color.red())
                        .arg(color.green())
-                       .arg(color.blue()));
+                       .arg(color.blue())
+                       .arg(object_name));
 }
 
 QColor export_background_color(const QPushButton& swatch) {
@@ -325,7 +326,7 @@ QColor export_background_color(const QPushButton& swatch) {
 
 void set_export_background_color(QPushButton& swatch, QColor color) {
   swatch.setProperty(kExportBackgroundColorProperty, color);
-  set_themed_style(swatch, export_background_swatch_style(color));
+  set_themed_style(swatch, export_background_swatch_style(swatch.objectName(), color));
 }
 
 QLabel* add_export_hint(QVBoxLayout* layout, QWidget* parent, const QString& text, const QString& object_name) {
@@ -489,65 +490,20 @@ ExportSectionWidgets add_export_options_section(QVBoxLayout* content, QDialog& d
   auto* transparency_layout = new QVBoxLayout(transparency_group);
   transparency_layout->setContentsMargins(10, 8, 10, 8);
   transparency_layout->setSpacing(4);
-  auto* keep_transparency = new QRadioButton(QObject::tr("Keep transparent"), transparency_group);
-  keep_transparency->setObjectName(QStringLiteral("exportKeepTransparencyRadio"));
-  auto* fill_row = new QWidget(transparency_group);
-  auto* fill_layout = new QHBoxLayout(fill_row);
-  fill_layout->setContentsMargins(0, 0, 0, 0);
-  fill_layout->setSpacing(8);
-  auto* fill_transparency = new QRadioButton(QObject::tr("Fill with:"), fill_row);
-  fill_transparency->setObjectName(QStringLiteral("exportFillTransparencyRadio"));
-  auto* background_label = new QLabel(QObject::tr("Background:"), fill_row);
-  background_label->setObjectName(QStringLiteral("exportBackgroundLabel"));
-  auto* background_swatch = new QPushButton(fill_row);
-  background_swatch->setObjectName(QStringLiteral("exportBackgroundColorSwatch"));
-  background_swatch->setAccessibleName(QObject::tr("Background color"));
-  background_swatch->setToolTip(QObject::tr("Choose background color"));
-  background_swatch->setCursor(Qt::PointingHandCursor);
-  background_swatch->setFocusPolicy(Qt::StrongFocus);
-  background_swatch->setFixedSize(49, 24);
-  fill_layout->addWidget(fill_transparency);
-  fill_layout->addWidget(background_label);
-  fill_layout->addWidget(background_swatch);
-  fill_layout->addStretch(1);
-  auto* transparency_buttons = new QButtonGroup(transparency_group);
-  transparency_buttons->addButton(keep_transparency);
-  transparency_buttons->addButton(fill_transparency);
   const QColor stored_background(settings.value(QStringLiteral("saveOptions/exportBackgroundColor")).toString());
-  set_export_background_color(*background_swatch,
-                              stored_background.isValid() ? stored_background : QColor(Qt::white));
   widgets.transparency_choice_offered = !is_jpeg_extension(extension);
-  if (widgets.transparency_choice_offered) {
-    background_label->hide();
-    const bool fill = settings.value(QStringLiteral("saveOptions/exportFillTransparent"), false).toBool();
-    fill_transparency->setChecked(fill);
-    keep_transparency->setChecked(!fill);
-  } else {
-    // JPEG has no alpha: transparent areas always take the background color.
-    keep_transparency->hide();
-    fill_transparency->hide();
-    fill_transparency->setChecked(true);
-  }
-  const auto sync_swatch_enabled = [fill_transparency, background_swatch] {
-    background_swatch->setEnabled(fill_transparency->isChecked());
-  };
-  QObject::connect(fill_transparency, &QRadioButton::toggled, &dialog,
-                   [sync_swatch_enabled](bool) { sync_swatch_enabled(); });
-  sync_swatch_enabled();
-  QObject::connect(background_swatch, &QPushButton::clicked, &dialog, [&dialog, background_swatch] {
-    // Patchy's own picker (palettes, names, hex), previewed live on the swatch; a cancel
-    // puts the previous color back.
-    const auto original = export_background_color(*background_swatch);
-    const auto chosen = request_patchy_color(
-        &dialog, original, QObject::tr("Export Background Color"),
-        [background_swatch](QColor color) { set_export_background_color(*background_swatch, color); });
-    set_export_background_color(*background_swatch, chosen.value_or(original));
-  });
+  // JPEG has no alpha: transparent areas always take the background color.
+  const auto transparency = add_transparency_choice(
+      transparency_layout, transparency_group, dialog, QStringLiteral("export"),
+      stored_background.isValid() ? stored_background : QColor(Qt::white),
+      settings.value(QStringLiteral("saveOptions/exportFillTransparent"), false).toBool(),
+      /*forced_fill*/ !widgets.transparency_choice_offered);
+  auto* keep_transparency = transparency.keep;
+  auto* fill_transparency = transparency.fill;
+  auto* background_swatch = transparency.swatch;
   auto* trim_check = new QCheckBox(QObject::tr("Trim transparent edges"), transparency_group);
   trim_check->setObjectName(QStringLiteral("exportTrimCheck"));
   trim_check->setChecked(settings.value(QStringLiteral("saveOptions/exportTrim"), false).toBool());
-  transparency_layout->addWidget(keep_transparency);
-  transparency_layout->addWidget(fill_row);
   transparency_layout->addWidget(trim_check);
   section_layout->addWidget(transparency_group);
   content->addWidget(section);
@@ -759,6 +715,159 @@ std::optional<ExportSectionWidgets> finish_options_dialog(QVBoxLayout* content, 
 }  // namespace
 
 QString export_reveal_check_label() { return reveal_check_label(); }
+
+AnimationTimingControls create_animation_timing_controls(QWidget* parent, AnimationTimingKind kind,
+                                                         const QString& object_prefix, int delay_ms,
+                                                         int loop_count) {
+  AnimationTimingControls controls;
+  controls.kind = kind;
+  controls.controls = new QWidget(parent);
+  controls.form = new QFormLayout(controls.controls);
+  controls.form->setContentsMargins(0, 0, 0, 0);
+  controls.frame_delay = new QDoubleSpinBox(controls.controls);
+  controls.frame_delay->setObjectName(object_prefix + QStringLiteral("FrameDelaySpin"));
+  controls.frame_delay->setSuffix(QObject::tr(" s"));
+  if (kind == AnimationTimingKind::Gif) {
+    controls.frame_delay->setRange(0.0, 655.35);  // the u16 centisecond wire range
+    controls.frame_delay->setDecimals(2);
+    controls.frame_delay->setSingleStep(0.05);
+    configure_dialog_spinbox(controls.frame_delay, 96);
+  } else {
+    controls.frame_delay->setDecimals(3);
+    controls.frame_delay->setRange(0, animation::kMaxFrameDelayMs / 1000.0);
+    configure_dialog_spinbox(controls.frame_delay, 110);
+  }
+  set_animation_timing_delay_ms(controls, delay_ms);
+  controls.form->addRow(QObject::tr("Default frame delay:"), controls.frame_delay);
+  if (kind == AnimationTimingKind::Gif) {
+    controls.explanation = new QLabel(
+        QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. Hidden layers "
+                    "are skipped. A layer name ending in a time, like \"blink 0.25s\", overrides the default "
+                    "delay for that frame. The animation loops forever."),
+        parent);
+  } else {
+    controls.forever_check = new QCheckBox(QObject::tr("Forever"), controls.controls);
+    controls.forever_check->setObjectName(object_prefix + QStringLiteral("ForeverCheck"));
+    controls.form->addRow(controls.forever_check);
+    controls.plays = new QSpinBox(controls.controls);
+    controls.plays->setObjectName(object_prefix + QStringLiteral("PlayCountSpin"));
+    controls.plays->setRange(1, 65535);
+    configure_dialog_spinbox(controls.plays, 96);
+    controls.form->addRow(QObject::tr("Play count:"), controls.plays);
+    auto* plays = controls.plays;
+    QObject::connect(controls.forever_check, &QCheckBox::toggled, plays, [plays](bool checked) { plays->setEnabled(!checked); });
+    set_animation_timing_loop_count(controls, loop_count);
+    controls.explanation = new QLabel(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. "
+        "A name ending in a time, like \"blink 0.033s\", sets that frame's delay. Play count includes the first play."),
+        parent);
+  }
+  controls.explanation->setObjectName(object_prefix + QStringLiteral("AnimationExplanationLabel"));
+  controls.explanation->setWordWrap(true);
+  return controls;
+}
+
+int animation_timing_delay_ms(const AnimationTimingControls& controls) {
+  if (controls.kind == AnimationTimingKind::Gif) {
+    return static_cast<int>(std::clamp<long long>(std::llround(controls.frame_delay->value() * 100.0), 0, 0xffff)) * 10;
+  }
+  return static_cast<int>(std::llround(controls.frame_delay->value() * 1000));
+}
+
+void set_animation_timing_delay_ms(const AnimationTimingControls& controls, int delay_ms) {
+  if (controls.kind == AnimationTimingKind::Gif) {
+    controls.frame_delay->setValue(std::clamp((delay_ms + 5) / 10, 0, 0xffff) / 100.0);
+  } else {
+    controls.frame_delay->setValue(delay_ms / 1000.0);
+  }
+}
+
+int animation_timing_loop_count(const AnimationTimingControls& controls) {
+  if (controls.forever_check == nullptr || controls.forever_check->isChecked()) {
+    return 0;
+  }
+  return controls.plays->value();
+}
+
+void set_animation_timing_loop_count(const AnimationTimingControls& controls, int loop_count) {
+  if (controls.forever_check == nullptr) {
+    return;
+  }
+  controls.forever_check->setChecked(loop_count == 0);
+  controls.plays->setValue(std::max(1, loop_count));
+  controls.plays->setEnabled(!controls.forever_check->isChecked());
+}
+
+TransparencyChoiceWidgets add_transparency_choice(QVBoxLayout* layout, QWidget* parent, QWidget& picker_parent,
+                                                  const QString& object_prefix, QColor color, bool fill,
+                                                  bool forced_fill, std::function<void()> changed) {
+  TransparencyChoiceWidgets widgets;
+  widgets.keep = new QRadioButton(QObject::tr("Keep transparent"), parent);
+  widgets.keep->setObjectName(object_prefix + QStringLiteral("KeepTransparencyRadio"));
+  widgets.fill_row = new QWidget(parent);
+  auto* fill_layout = new QHBoxLayout(widgets.fill_row);
+  fill_layout->setContentsMargins(0, 0, 0, 0);
+  fill_layout->setSpacing(8);
+  widgets.fill = new QRadioButton(QObject::tr("Fill with:"), widgets.fill_row);
+  widgets.fill->setObjectName(object_prefix + QStringLiteral("FillTransparencyRadio"));
+  widgets.background_label = new QLabel(QObject::tr("Background:"), widgets.fill_row);
+  widgets.background_label->setObjectName(object_prefix + QStringLiteral("BackgroundLabel"));
+  widgets.swatch = new QPushButton(widgets.fill_row);
+  widgets.swatch->setObjectName(object_prefix + QStringLiteral("BackgroundColorSwatch"));
+  widgets.swatch->setAccessibleName(QObject::tr("Background color"));
+  widgets.swatch->setToolTip(QObject::tr("Choose background color"));
+  widgets.swatch->setCursor(Qt::PointingHandCursor);
+  widgets.swatch->setFocusPolicy(Qt::StrongFocus);
+  widgets.swatch->setFixedSize(49, 24);
+  fill_layout->addWidget(widgets.fill);
+  fill_layout->addWidget(widgets.background_label);
+  fill_layout->addWidget(widgets.swatch);
+  fill_layout->addStretch(1);
+  auto* buttons = new QButtonGroup(parent);
+  buttons->addButton(widgets.keep);
+  buttons->addButton(widgets.fill);
+  set_export_background_color(*widgets.swatch, color.isValid() ? color : QColor(Qt::white));
+  widgets.fill->setChecked(fill || forced_fill);
+  widgets.keep->setChecked(!(fill || forced_fill));
+  layout->addWidget(widgets.keep);
+  layout->addWidget(widgets.fill_row);
+  set_transparency_choice_forced_fill(widgets, forced_fill);
+  auto* swatch = widgets.swatch;
+  auto* fill_radio = widgets.fill;
+  auto* keep_radio = widgets.keep;
+  QObject::connect(fill_radio, &QRadioButton::toggled, swatch, [swatch, fill_radio, keep_radio, changed](bool) {
+    swatch->setEnabled(fill_radio->isChecked() || keep_radio->isHidden());
+    if (changed) {
+      changed();
+    }
+  });
+  QObject::connect(swatch, &QPushButton::clicked, &picker_parent, [&picker_parent, swatch, changed] {
+    // Patchy's own picker (palettes, names, hex), previewed live on the swatch; a cancel
+    // puts the previous color back.
+    const auto original = export_background_color(*swatch);
+    const auto chosen = request_patchy_color(&picker_parent, original, QObject::tr("Export Background Color"),
+                                             [swatch](QColor picked) { set_export_background_color(*swatch, picked); });
+    set_export_background_color(*swatch, chosen.value_or(original));
+    if (changed && chosen.has_value() && *chosen != original) {
+      changed();
+    }
+  });
+  return widgets;
+}
+
+void set_transparency_choice_forced_fill(const TransparencyChoiceWidgets& widgets, bool forced) {
+  widgets.keep->setVisible(!forced);
+  widgets.fill->setVisible(!forced);
+  widgets.background_label->setVisible(forced);
+  widgets.swatch->setEnabled(forced || widgets.fill->isChecked());
+}
+
+QColor transparency_choice_color(const TransparencyChoiceWidgets& widgets) {
+  return export_background_color(*widgets.swatch);
+}
+
+void set_transparency_choice_color(const TransparencyChoiceWidgets& widgets, QColor color) {
+  set_export_background_color(*widgets.swatch, color);
+}
 
 bool image_save_options_apply_to_extension(const QString& extension) {
   return is_jpeg_extension(extension) || is_webp_extension(extension) || is_bmp_extension(extension) ||
@@ -1004,33 +1113,13 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     QCheckBox* forever_check = nullptr;
     QSpinBox* plays = nullptr;
     if (options.offer_animation || options.webp_animate) {
-      auto* animation_controls = new QWidget(&dialog);
-      auto* animation_form = new QFormLayout(animation_controls);
-      animation_form->setContentsMargins(0, 0, 0, 0);
-      frame_delay = new QDoubleSpinBox(animation_controls);
-      frame_delay->setObjectName(QStringLiteral("webpFrameDelaySpin"));
-      frame_delay->setDecimals(3);
-      frame_delay->setRange(0, animation::kMaxFrameDelayMs / 1000.0);
-      frame_delay->setSuffix(QObject::tr(" s"));
-      frame_delay->setValue(options.animation_frame_delay_ms / 1000.0);
-      configure_dialog_spinbox(frame_delay, 110);
-      animation_form->addRow(QObject::tr("Default frame delay:"), frame_delay);
-      forever_check = new QCheckBox(QObject::tr("Forever"), animation_controls);
-      forever_check->setObjectName(QStringLiteral("webpForeverCheck"));
-      forever_check->setChecked(options.webp_loop_count == 0);
-      animation_form->addRow(forever_check);
-      plays = new QSpinBox(animation_controls);
-      plays->setObjectName(QStringLiteral("webpPlayCountSpin"));
-      plays->setRange(1, 65535);
-      plays->setValue(std::max(1, options.webp_loop_count));
-      plays->setEnabled(!forever_check->isChecked());
-      configure_dialog_spinbox(plays, 96);
-      animation_form->addRow(QObject::tr("Play count:"), plays);
-      QObject::connect(forever_check, &QCheckBox::toggled, plays, [plays](bool checked) { plays->setEnabled(!checked); });
-      auto* hint = new QLabel(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. "
-          "A name ending in a time, like \"blink 0.033s\", sets that frame's delay. Play count includes the first play."), animation_controls);
-      hint->setWordWrap(true);
-      hint->setObjectName(QStringLiteral("webpAnimationExplanationLabel"));
+      const auto timing = create_animation_timing_controls(&dialog, AnimationTimingKind::Webp, QStringLiteral("webp"),
+                                                           options.animation_frame_delay_ms, options.webp_loop_count);
+      auto* animation_controls = timing.controls;
+      frame_delay = timing.frame_delay;
+      forever_check = timing.forever_check;
+      plays = timing.plays;
+      auto* hint = timing.explanation;
       content->addWidget(animation_controls);
       content->addWidget(hint);
       if (animation_radio != nullptr) {
@@ -1114,33 +1203,13 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     QCheckBox* forever_check = nullptr;
     QSpinBox* plays = nullptr;
     if (options.offer_animation || options.jxl_animate) {
-      auto* animation_controls = new QWidget(&dialog);
-      auto* animation_form = new QFormLayout(animation_controls);
-      animation_form->setContentsMargins(0, 0, 0, 0);
-      frame_delay = new QDoubleSpinBox(animation_controls);
-      frame_delay->setObjectName(QStringLiteral("jxlFrameDelaySpin"));
-      frame_delay->setDecimals(3);
-      frame_delay->setRange(0, animation::kMaxFrameDelayMs / 1000.0);
-      frame_delay->setSuffix(QObject::tr(" s"));
-      frame_delay->setValue(options.animation_frame_delay_ms / 1000.0);
-      configure_dialog_spinbox(frame_delay, 110);
-      animation_form->addRow(QObject::tr("Default frame delay:"), frame_delay);
-      forever_check = new QCheckBox(QObject::tr("Forever"), animation_controls);
-      forever_check->setObjectName(QStringLiteral("jxlForeverCheck"));
-      forever_check->setChecked(options.jxl_loop_count == 0);
-      animation_form->addRow(forever_check);
-      plays = new QSpinBox(animation_controls);
-      plays->setObjectName(QStringLiteral("jxlPlayCountSpin"));
-      plays->setRange(1, 65535);
-      plays->setValue(std::max(1, options.jxl_loop_count));
-      plays->setEnabled(!forever_check->isChecked());
-      configure_dialog_spinbox(plays, 96);
-      animation_form->addRow(QObject::tr("Play count:"), plays);
-      QObject::connect(forever_check, &QCheckBox::toggled, plays, [plays](bool checked) { plays->setEnabled(!checked); });
-      auto* hint = new QLabel(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. "
-          "A name ending in a time, like \"blink 0.033s\", sets that frame's delay. Play count includes the first play."), animation_controls);
-      hint->setWordWrap(true);
-      hint->setObjectName(QStringLiteral("jxlAnimationExplanationLabel"));
+      const auto timing = create_animation_timing_controls(&dialog, AnimationTimingKind::Jxl, QStringLiteral("jxl"),
+                                                           options.animation_frame_delay_ms, options.jxl_loop_count);
+      auto* animation_controls = timing.controls;
+      frame_delay = timing.frame_delay;
+      forever_check = timing.forever_check;
+      plays = timing.plays;
+      auto* hint = timing.explanation;
       content->addWidget(animation_controls);
       content->addWidget(hint);
       if (animation_radio != nullptr) {
@@ -1909,35 +1978,11 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     dialog.setObjectName(QStringLiteral("apngSaveOptionsDialog"));
     auto* content = create_options_dialog_chrome(dialog, QObject::tr("Animated PNG Options"));
     dialog.resize(380, 200);
-    auto* animation_form = new QFormLayout();
-    animation_form->setContentsMargins(0, 0, 0, 0);
-    auto* frame_delay = new QDoubleSpinBox(&dialog);
-    frame_delay->setObjectName(QStringLiteral("apngFrameDelaySpin"));
-    frame_delay->setDecimals(3);
-    frame_delay->setRange(0, animation::kMaxFrameDelayMs / 1000.0);
-    frame_delay->setSuffix(QObject::tr(" s"));
-    frame_delay->setValue(options.animation_frame_delay_ms / 1000.0);
-    configure_dialog_spinbox(frame_delay, 110);
-    animation_form->addRow(QObject::tr("Default frame delay:"), frame_delay);
-    auto* forever_check = new QCheckBox(QObject::tr("Forever"), &dialog);
-    forever_check->setObjectName(QStringLiteral("apngForeverCheck"));
-    forever_check->setChecked(options.apng_loop_count == 0);
-    animation_form->addRow(forever_check);
-    auto* plays = new QSpinBox(&dialog);
-    plays->setObjectName(QStringLiteral("apngPlayCountSpin"));
-    plays->setRange(1, 65535);
-    plays->setValue(std::max(1, options.apng_loop_count));
-    plays->setEnabled(!forever_check->isChecked());
-    configure_dialog_spinbox(plays, 96);
-    animation_form->addRow(QObject::tr("Play count:"), plays);
-    QObject::connect(forever_check, &QCheckBox::toggled, plays, [plays](bool checked) { plays->setEnabled(!checked); });
-    content->addLayout(animation_form);
-    auto* hint = new QLabel(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. "
-        "A name ending in a time, like \"blink 0.033s\", sets that frame's delay. Play count includes the first play."),
-        &dialog);
-    hint->setWordWrap(true);
-    hint->setObjectName(QStringLiteral("apngAnimationExplanationLabel"));
-    content->addWidget(hint);
+    const auto timing = create_animation_timing_controls(&dialog, AnimationTimingKind::Apng, QStringLiteral("apng"),
+                                                         options.animation_frame_delay_ms, options.apng_loop_count);
+    auto* frame_delay = timing.frame_delay;
+    content->addWidget(timing.controls);
+    content->addWidget(timing.explanation);
     const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
     if (!for_export) finish_export_dialog_size(dialog);
 
@@ -1946,7 +1991,7 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     }
     options.animation_frame_delay_ms = static_cast<int>(std::llround(frame_delay->value() * 1000));
     options.gif_frame_delay_cs = std::min(65535, (options.animation_frame_delay_ms + 5) / 10);
-    options.apng_loop_count = forever_check->isChecked() ? 0 : plays->value();
+    options.apng_loop_count = animation_timing_loop_count(timing);
     if (section.has_value()) {
       apply_export_section(options, *section);
     }
@@ -2023,31 +2068,12 @@ std::optional<ImageSaveOptions> prompt_gif_save_options(QWidget* parent, ImageSa
     content->addWidget(flatten_radio);
   }
 
-  auto* delay_row = new QWidget(&dialog);
-  auto* delay_layout = new QHBoxLayout(delay_row);
-  delay_layout->setContentsMargins(0, 0, 0, 0);
-  delay_layout->setSpacing(10);
-  auto* delay_label = new QLabel(QObject::tr("Default frame delay:"), delay_row);
-  auto* delay_spin = new QDoubleSpinBox(delay_row);
-  delay_spin->setObjectName(QStringLiteral("gifFrameDelaySpin"));
-  delay_spin->setSuffix(QObject::tr(" s"));
-  delay_spin->setRange(0.0, 655.35);  // the u16 centisecond wire range
-  delay_spin->setDecimals(2);
-  delay_spin->setSingleStep(0.05);
-  delay_spin->setValue(std::clamp(options.gif_frame_delay_cs, 0, 0xffff) / 100.0);
-  configure_dialog_spinbox(delay_spin, 96);
-  delay_layout->addWidget(delay_label);
-  delay_layout->addWidget(delay_spin);
-  delay_layout->addStretch(1);
+  const auto timing = create_animation_timing_controls(&dialog, AnimationTimingKind::Gif, QStringLiteral("gif"),
+                                                       std::clamp(options.gif_frame_delay_cs, 0, 0xffff) * 10, 0);
+  auto* delay_row = timing.controls;
+  auto* delay_spin = timing.frame_delay;
   content->addWidget(delay_row);
-
-  auto* explanation = new QLabel(
-      QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. Hidden layers "
-                  "are skipped. A layer name ending in a time, like \"blink 0.25s\", overrides the default "
-                  "delay for that frame. The animation loops forever."),
-      &dialog);
-  explanation->setObjectName(QStringLiteral("gifAnimationExplanationLabel"));
-  explanation->setWordWrap(true);
+  auto* explanation = timing.explanation;
   content->addWidget(explanation);
   const auto section =
       finish_options_dialog(content, dialog, for_export, QStringLiteral("gif"), document_size);

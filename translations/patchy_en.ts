@@ -12996,14 +12996,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13129,6 +13121,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animation</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -18,26 +18,39 @@ The list is JPEG, WebP, AVIF, JPEG XL, PNG and GIF (`WebExportFormat`, append-on
 where `avif::is_available()`, so not in the browser build). Each format keeps its own settings.
 
 - JPEG: Quality 1-100 (default 80), Progressive (default on), Optimize coding (optimized Huffman
-  tables, default on), Background color for transparent areas (default white; JPEG has no alpha).
-- WebP: Quality 0-100 (75), Lossless, and "Animation from visible layers" when the document has
-  two or more layers and a visible one (the animated WebP writer, as Flat Image).
+  tables, default on). JPEG has no alpha: the Transparency group (below) always fills.
+- WebP: Quality 0-100 (75), Lossless; animated through the Animation group (below).
 - AVIF: Quality 0-100 (80), Speed 0-10 (6, lower is smaller and slower), Lossless: Flat Image's
   `avif_*` options through the vendored libaom writer ([avif.md](avif.md); its codec rules apply).
-- JPEG XL: Quality 1-100 (90), Effort 1-9 (7), Lossless, and "Animation from visible layers" with a
-  Frame delay for two or more layers ([jxl.md](jxl.md); animated frames are 8-bit).
+- JPEG XL: Quality 1-100 (90), Effort 1-9 (7), Lossless ([jxl.md](jxl.md); animated frames are 8-bit).
 - PNG: Colors Full color (lossless, transparency kept) or Palette: the GIF quantizer's Colors,
   Dither and Amount below, written as an indexed PNG with one fully transparent entry (tRNS) for
-  pixels under 50% alpha (`ImageSaveOptions::png_palette`, `quantized_png8_image`). With two or
-  more layers PNG also offers "Animation from visible layers" and a Frame delay (Seth, October 27,
-  2026): an animated PNG (APNG, `apng_animate`, the File > Export > Layers as Animated PNG writer,
-  [animation.md](animation.md)) that keeps the .png extension, loops forever like the other
-  animated rows, and is always full color (8-bit RGBA): while it is ticked, Type and the palette
-  controls are disabled with a note and `png_palette` is ignored. A still PNG is unchanged.
+  pixels under 50% alpha (`ImageSaveOptions::png_palette`, `quantized_png8_image`). Animated, PNG
+  is an APNG (`apng_animate`, the File > Export > Layers as Animated PNG writer,
+  [animation.md](animation.md)) that keeps the .png extension and is always full color (8-bit
+  RGBA): while it is ticked, Type and the palette controls are disabled with a note and
+  `png_palette` is ignored. A still PNG is unchanged.
 - GIF: Colors 2-256 (default 256), Dither None or Diffusion with Amount 0-100% (default None,
-  100%), pixels under 50% alpha transparent (`gif::kQuantizeAlphaThreshold`), and "Animation from
-  visible layers" with a Frame delay (seconds; a layer name's `0.25s` token wins) when the
-  document has two or more layers, as Flat Image. GIF and palette PNG show the colors the file
-  uses as swatches (`WebExportResult::palette`, the decoded result's distinct colors).
+  100%), pixels under 50% alpha transparent (`gif::kQuantizeAlphaThreshold`). GIF and palette PNG
+  show the colors the file uses as swatches (`WebExportResult::palette`, the decoded result's
+  distinct colors).
+- Animation (Seth, October 27, 2026: like the Layers as Animated dialogs): one group, shown for GIF,
+  WebP, JPEG XL and PNG when the document has two or more layers and a visible one. It holds the
+  format's own "Animation from visible layers" check and the old dialogs' timing rows from the
+  shared helper `create_animation_timing_controls` (image_save_options_dialog): "Default frame
+  delay:" (GIF in centiseconds, 2 decimals; the others 3 decimals up to `kMaxFrameDelayMs`; a layer
+  name's `0.25s` token wins), Forever / Play count for WebP, JPEG XL and APNG (GIF loops forever,
+  its explanation says so) and the dialogs' explanation. The delay is one value
+  (`animation_frame_delay_ms`): editing it in one format's row updates the others. Play counts
+  (`webp_loop_count`, `jxl_loop_count`, `apng_loop_count`) start from the document's metadata
+  (`webp.loop_count`, `jxl.loop_count`, `apng.loop_count`) and are written back after an animated
+  export, as the old exports do; they are never persisted in settings.
+- Transparency (formats with alpha): Keep transparent or Fill with a color, the Export section's
+  group through the shared helper `add_transparency_choice` (`webExportKeepTransparencyRadio`,
+  `webExportFillTransparencyRadio`, `webExportBackgroundColorSwatch`). The color is one value
+  (`jpeg_background`, kept under its old key); JPEG shows only the color, with its hint. Fill
+  (`export_fill_transparent`) applies to the still result, every animated frame
+  (`for_each_animation_export_frame`) and so the preview; the Original pane stays unfilled.
 - Image size: Width, Height and Scale with a proportion link; Resample Smooth (the export resize,
   `export_width`/`export_height`) or Pixel art (whole-pixel `export_scale` 1x-16x, the size fields
   then follow the scale); Trim transparent edges. The size is per document, never persisted.
@@ -141,8 +154,12 @@ in the preview (Seth, October 27, 2026):
 `convertToSrgb`, `compare` (`split`, `sideBySide`, `result`), `revealWhenDone`, `pngColors`
 (`full`, `palette`), `pngPaletteColors`, `pngDither` and `gifDither` (`none`, `diffusion`),
 `pngDitherAmount`, `pngAnimate`, `pngFrameDelayMs`, `gifColors`, `gifDitherAmount`, `gifAnimate`, `gifFrameDelayMs`, `avifQuality`, `avifSpeed`, `avifLossless`,
-`jxlQuality`, `jxlEffort`, `jxlLossless`, `jxlAnimate`, `jxlFrameDelayMs`, all under
-`exportForWeb/`. Saved when the dialog is accepted. Reset returns every option to its first-use
+`jxlQuality`, `jxlEffort`, `jxlLossless`, `jxlAnimate`, `jxlFrameDelayMs`, `fillTransparent`, all
+under `exportForWeb/`. The default frame delay is the animated exports' `saveOptions/animationFrameDelayMs`
+(GIF's `saveOptions/gifFrameDelayCs` written beside it); the three `*FrameDelayMs` keys are still
+written with it and read only when the shared key was never set. Fill has its own key, not
+`saveOptions/exportFillTransparent`, so Export for Web's choice never changes Save As exports.
+Saved when the dialog is accepted. Reset returns every option to its first-use
 default and keeps the compare mode and reveal choice.
 
 ## Scripting
@@ -171,8 +188,9 @@ Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defau
 `ui_web_export_still_png_is_unchanged_by_animation`,
 `ui_web_export_jpeg_progressive_and_optimize_read_back`,
 `ui_web_export_engine_drops_stale_requests`, `ui_web_export_animation_frames_read_back`,
+`ui_web_export_play_count_and_fill_read_back`,
 `ui_web_export_animation_stale_frames_are_discarded`, `ui_web_export_animation_plays_in_the_preview`
-(captures `web_export_gif_animation` from `test-fixtures/psd/web-export-animation.psd`, the #198
+(captures `web_export_gif_animation`, `web_export_png_animation` and `web_export_transparency_fill` from `test-fixtures/psd/web-export-animation.psd`, the #198
 Animation Preview document made by Patchy), `ui_web_export_dialog_previews_and_saves` (captures
 `web_export_jpeg_split`, `web_export_png_palette`, `web_export_gif_side_by_side`,
 `web_export_avif` and `web_export_jxl`), `ui_web_export_metadata_and_thumbnail_choices`,

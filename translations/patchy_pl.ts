@@ -13050,14 +13050,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Ustawienia GIF</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>Nazwa warstwy kończąca się czasem, np. 0.25s, ustawia opóźnienie tej klatki.</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>Opóźnienie klatki:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>Dostosuj paletę narzędzi</translation>
     </message>
@@ -13184,6 +13176,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>Animowany PNG jest zapisywany w pełnym kolorze; paleta dotyczy obrazów nieruchomych.</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>Animacja</translation>
     </message>
 </context>
 <context>

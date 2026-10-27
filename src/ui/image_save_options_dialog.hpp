@@ -2,12 +2,22 @@
 
 #include "ui/image_document_io.hpp"
 
+#include <QColor>
 #include <QSize>
 #include <QString>
 
+#include <functional>
 #include <optional>
 
+class QCheckBox;
 class QComboBox;
+class QDoubleSpinBox;
+class QFormLayout;
+class QLabel;
+class QPushButton;
+class QRadioButton;
+class QSpinBox;
+class QVBoxLayout;
 class QWidget;
 
 namespace patchy::ui {
@@ -19,6 +29,57 @@ void populate_pdf_image_quality_combo(QComboBox& combo, const QString& current_i
 // The "keep original image data" checkbox text, shared by the same two dialogs.
 [[nodiscard]] QString pdf_keep_original_images_label();
 [[nodiscard]] QString pdf_keep_original_images_tooltip();
+
+// The animation timing controls every animated export shows (the WebP, JPEG XL, Animated
+// PNG and GIF options dialogs and File > Export for Web, docs/web-export.md): "Default frame
+// delay:" in seconds, Forever / Play count where the format stores a play count, and the
+// explanation of layer-name delays. GIF keeps its centisecond wire range (2 decimals, up to
+// 655.35 s) and loops forever, so it has no play count; the others take 3 decimals up to
+// animation::kMaxFrameDelayMs. Object names are `<prefix>FrameDelaySpin`, `<prefix>ForeverCheck`,
+// `<prefix>PlayCountSpin` and `<prefix>AnimationExplanationLabel`. `controls` holds the rows
+// in a form; the explanation is a separate label the caller places.
+enum class AnimationTimingKind { Gif, Webp, Jxl, Apng };
+struct AnimationTimingControls {
+  AnimationTimingKind kind{AnimationTimingKind::Webp};
+  QWidget* controls{nullptr};
+  QFormLayout* form{nullptr};
+  QDoubleSpinBox* frame_delay{nullptr};
+  QCheckBox* forever_check{nullptr};  // null for GIF
+  QSpinBox* plays{nullptr};           // null for GIF
+  QLabel* explanation{nullptr};
+};
+[[nodiscard]] AnimationTimingControls create_animation_timing_controls(QWidget* parent, AnimationTimingKind kind,
+                                                                       const QString& object_prefix, int delay_ms,
+                                                                       int loop_count);
+// The default delay the controls show, in milliseconds (GIF: whole centiseconds times 10).
+[[nodiscard]] int animation_timing_delay_ms(const AnimationTimingControls& controls);
+void set_animation_timing_delay_ms(const AnimationTimingControls& controls, int delay_ms);
+// 0 for Forever (and always for GIF), else the play count.
+[[nodiscard]] int animation_timing_loop_count(const AnimationTimingControls& controls);
+void set_animation_timing_loop_count(const AnimationTimingControls& controls, int loop_count);
+
+// The Transparency choice of the Export section and File > Export for Web: "Keep transparent"
+// or "Fill with:" and a background color swatch that opens Patchy's color picker. Object
+// names `<prefix>KeepTransparencyRadio`, `<prefix>FillTransparencyRadio`,
+// `<prefix>BackgroundLabel`, `<prefix>BackgroundColorSwatch`. With forced fill (JPEG, no alpha)
+// the radios hide and "Background:" labels the swatch. `changed` runs when the choice or the
+// picked color changes.
+struct TransparencyChoiceWidgets {
+  QRadioButton* keep{nullptr};
+  QRadioButton* fill{nullptr};
+  QLabel* background_label{nullptr};
+  QPushButton* swatch{nullptr};
+  QWidget* fill_row{nullptr};
+};
+[[nodiscard]] TransparencyChoiceWidgets add_transparency_choice(QVBoxLayout* layout, QWidget* parent,
+                                                                QWidget& picker_parent, const QString& object_prefix,
+                                                                QColor color, bool fill, bool forced_fill,
+                                                                std::function<void()> changed = {});
+// Switches a choice between forced fill (JPEG) and the free choice without changing which
+// radio is checked, so a format switch keeps the user's choice for the formats with alpha.
+void set_transparency_choice_forced_fill(const TransparencyChoiceWidgets& widgets, bool forced);
+[[nodiscard]] QColor transparency_choice_color(const TransparencyChoiceWidgets& widgets);
+void set_transparency_choice_color(const TransparencyChoiceWidgets& widgets, QColor color);
 
 // "Show in Explorer when done" (Finder, file manager), the export dialogs' reveal checkbox.
 [[nodiscard]] QString export_reveal_check_label();

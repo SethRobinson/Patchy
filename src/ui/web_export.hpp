@@ -51,7 +51,19 @@ struct WebExportSettings {
   int jpeg_quality{80};
   bool jpeg_progressive{true};
   bool jpeg_optimize{true};
+  // The one background color: JPEG's forced fill and every format's "Fill with" (the
+  // persisted key stays exportForWeb/jpegBackground).
   QColor jpeg_background{Qt::white};
+  // Transparency: Keep transparent, or fill with jpeg_background (formats with alpha).
+  bool fill_transparent{false};
+  // Animation, shared with the Export > Layers as Animated ... dialogs: the default frame
+  // delay (saveOptions/animationFrameDelayMs, GIF in centiseconds through
+  // saveOptions/gifFrameDelayCs) and each format's play count (0 forever), seeded from the
+  // document's metadata (webp.loop_count, jxl.loop_count, apng.loop_count), never persisted.
+  int animation_frame_delay_ms{100};
+  int webp_loop_count{0};
+  int jxl_loop_count{0};
+  int apng_loop_count{0};
   int webp_quality{75};
   bool webp_lossless{false};
   bool webp_animate{false};
@@ -64,7 +76,6 @@ struct WebExportSettings {
   int jxl_effort{7};
   bool jxl_lossless{false};
   bool jxl_animate{false};
-  int jxl_frame_delay_ms{100};
   // PNG: full color, or a palette of png_colors with optional error diffusion.
   bool png_palette{false};
   int png_colors{256};
@@ -73,13 +84,11 @@ struct WebExportSettings {
   // PNG: animated PNG (APNG) from visible layers; always full color (the APNG writer is
   // 8-bit RGBA), so it overrides png_palette.
   bool png_animate{false};
-  int png_frame_delay_ms{100};
   // GIF: colors, error diffusion, and animation from visible layers with a frame delay.
   int gif_colors{256};
   bool gif_dither{false};
   int gif_dither_amount{100};
   bool gif_animate{false};
-  int gif_frame_delay_ms{100};
   metadata::MetadataPolicy metadata{metadata::MetadataPolicy::None};
   bool thumbnail{false};
   WebExportResample resample{WebExportResample::Smooth};

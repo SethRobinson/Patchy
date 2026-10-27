@@ -5421,6 +5421,17 @@ void MainWindow::export_for_web() {
                        write_encoded_image_file(path, *result.bytes);
                      });
     }
+    // The play count stays with the document, as the Layers as Animated exports keep it.
+    if (job.animate && has_active_document()) {
+      auto& values = document().metadata().values;
+      if (job.options.webp_animate) {
+        values[webp::kLoopCountMetadata] = std::to_string(job.options.webp_loop_count);
+      } else if (job.options.jxl_animate) {
+        values[jxl::kLoopCountMetadata] = std::to_string(job.options.jxl_loop_count);
+      } else if (job.options.apng_animate) {
+        values[apng::kLoopCountMetadata] = std::to_string(job.options.apng_loop_count);
+      }
+    }
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(notices));

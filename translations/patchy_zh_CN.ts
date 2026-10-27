@@ -12976,14 +12976,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>GIF 设置</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>图层名称以 0.25s 这样的时间结尾时，即为该帧的延迟。</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>帧延迟:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>自定义工具面板</translation>
     </message>
@@ -13110,6 +13102,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>动画 PNG 以全彩色写出；调色板仅用于静态图像。</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>动画</translation>
     </message>
 </context>
 <context>

@@ -13013,14 +13013,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Réglages GIF</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>Un nom de calque qui se termine par une durée comme 0.25s fixe le délai de cette image.</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>Délai d&apos;image :</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>Personnaliser la palette d&apos;outils</translation>
     </message>
@@ -13147,6 +13139,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>Un PNG animé est écrit en couleurs complètes ; la palette s&apos;applique aux images fixes.</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>Animation</translation>
     </message>
 </context>
 <context>

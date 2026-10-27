@@ -12976,14 +12976,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>GIF 設定</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>レイヤー名が 0.25s のような時間で終わると、そのフレームの表示時間になります。</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>フレームの表示時間:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>ツールパレットのカスタマイズ</translation>
     </message>
@@ -13110,6 +13102,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>アニメーション PNG はフルカラーで書き出されます。パレットは静止画に適用されます。</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>アニメーション</translation>
     </message>
 </context>
 <context>

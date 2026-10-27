@@ -13013,14 +13013,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Impostazioni GIF</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>Un nome di livello che termina con un tempo come 0.25s imposta il ritardo di quel fotogramma.</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>Ritardo fotogramma:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>Personalizza palette strumenti</translation>
     </message>
@@ -13147,6 +13139,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>Un PNG animato viene scritto a colori pieni; la tavolozza vale per le immagini fisse.</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>Animazione</translation>
     </message>
 </context>
 <context>

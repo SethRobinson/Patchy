@@ -12976,14 +12976,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>GIF 설정</translation>
     </message>
     <message>
-        <source>A layer name ending in a time such as 0.25s sets that frame&apos;s delay.</source>
-        <translation>레이어 이름이 0.25s 같은 시간으로 끝나면 그 프레임의 지연 시간이 됩니다.</translation>
-    </message>
-    <message>
-        <source>Frame delay:</source>
-        <translation>프레임 지연:</translation>
-    </message>
-    <message>
         <source>Customize Tool Palette</source>
         <translation>도구 팔레트 사용자 지정</translation>
     </message>
@@ -13110,6 +13102,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>An animated PNG is written in full color; the palette applies to still images.</source>
         <translation>애니메이션 PNG는 풀 컬러로 저장됩니다. 팔레트는 정지 이미지에 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>Animation</source>
+        <translation>애니메이션</translation>
     </message>
 </context>
 <context>
