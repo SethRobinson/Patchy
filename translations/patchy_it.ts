@@ -13144,6 +13144,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>The preview plays the first %1 frames to save memory.</source>
         <translation>L&apos;anteprima riproduce i primi %1 fotogrammi per risparmiare memoria.</translation>
     </message>
+    <message>
+        <source>An animated PNG is written in full color; the palette applies to still images.</source>
+        <translation>Un PNG animato viene scritto a colori pieni; la tavolozza vale per le immagini fisse.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29089,6 +29093,10 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
         <translation>%1: colors, dither e ditherAmount richiedono pngColors: &quot;palette&quot; per PNG.</translation>
+    </message>
+    <message>
+        <source>%1: an animated PNG is full color, so animate cannot be combined with pngColors: &quot;palette&quot;.</source>
+        <translation>%1: un PNG animato è a colori pieni, quindi animate non si può combinare con pngColors: &quot;palette&quot;.</translation>
     </message>
 </context>
 <context>
