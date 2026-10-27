@@ -72,7 +72,7 @@ The canvas scroll-bar gutter follows a custom theme (`themed_scroll_gutter_url`,
 
 ## Sounds
 
-`theme_sounds.hpp`. Patchy has no sounds of its own; a package's `sounds/<event>.wav` (the shorthand) or an `"events"` entry's `"sound"` (which wins) plays for an event. Any other WAV the `"events"` entries or scripts name goes in a subfolder (`sounds/fx/hurt.wav`): a top-level `sounds/` file that names no event is a load warning, which catches typos. Playback is through `play_wav_bytes` (sound_effects.hpp: winmm, NSSound or a Linux player process, no Qt Multimedia). Preferences' "Play theme sounds" (`preferences/playThemeSounds`, default on) turns every theme sound off; `PATCHY_NO_SOUND` silences the player itself (tests, headless runs).
+`theme_sounds.hpp`. Patchy has no sounds of its own; a package's `sounds/<event>.wav` (the shorthand; `sounds/startup.wav` plays as the window comes up) or an `"events"` entry's `"sound"` (which wins) plays for an event. Any other WAV the `"events"` entries or scripts name goes in a subfolder (`sounds/fx/hurt.wav`): a top-level `sounds/` file that names no event is a load warning, which catches typos. Playback is through `play_wav_bytes` (sound_effects.hpp: winmm, NSSound or a Linux player process, no Qt Multimedia). Preferences' "Play theme sounds" (`preferences/playThemeSounds`, default on) turns every theme sound off; `PATCHY_NO_SOUND` silences the player itself (tests, headless runs).
 
 ## Events and effects
 
@@ -92,6 +92,7 @@ Every event goes through `fire_theme_event` (theme_script_host.hpp): the sound, 
 | `startup` | the main window is up (main.cpp; not for stress or unattended runs) |
 | `tool-changed` | the active tool changes (payload `{tool}`, the tool id below) |
 | `idle` | every 12 s while the empty start screen shows |
+| `stroke-start`, `stroke-end` | a painting stroke (Brush, Pencil, Mixer, Eraser, Clone, Healing, Pattern Stamp, Smudge, Blur/Sharpen, Dodge/Burn/Sponge) presses and ends (`CanvasWidget::arm_paint_stroke_history`/`finish_paint_stroke_history`; payload `{tool}`, the tool id below; once each per stroke, a focus loss or document switch ends it too) |
 
 The long-operation watcher is an application event filter timing `QProgressDialog` Show to Hide, installed only while the active theme has a sound, effect or scripts.
 
@@ -111,6 +112,7 @@ API (types: `scripts/bundled/patchy-theme.d.ts`; changes go in [scripting-api-ch
 - `showSplash(image, ms)` (500..6000 ms, at most every 5 s): a frameless window centered over the main window, never focused, closed by a click.
 - `setPanelBackground(panel, image, mode, opacity)`: `panel` is `layers`, `channels`, `paths`, `history`, `properties`, `info`, `palette`, `color`, `tools` or `dialogs`; `mode` tile, stretch or center. The image is drawn at `opacity` (0.05..0.6, default 0.3) into a cached PNG (`theme_cache_png_url`) over the panel's own color, so text stays readable, and appended to `photoshop_style()` (keyed on `theme_panel_background_revision()`); `dialogs` also goes into each dialog's own sheet as it shows (`DialogBackgroundFilter`, an application event filter installed the first time a theme sets it), since every dialog's own `QDialog#name { background }` beats a window rule. A cache path holding `@` is refused: the token pass would read it as a role.
 - The idle sprite: `on('idle', ...)` with `playEffect({name: 'sprite', where: 'start-screen', ...})`.
+- A sound for as long as a stroke lasts: `on('stroke-start', ...)` plays it and starts a `setInterval` that replays it, `on('stroke-end', ...)` clears the interval (a new sound cuts the one playing; the 4 sounds per second limit applies).
 
 Declarative equivalents in theme.json, applied with or without scripts: `"cursors": {"crop": {"image", "hotX", "hotY"}}`, `"panelBackgrounds": {"layers": {"image", "mode", "opacity"}}`, `"splash": {"image", "ms"}` (on startup).
 

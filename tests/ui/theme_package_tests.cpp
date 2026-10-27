@@ -544,7 +544,8 @@ void ui_theme_sound_events_resolve_from_the_package() {
                              QStringLiteral("layer-deleted"), QStringLiteral("document-opened"),
                              QStringLiteral("document-new"), QStringLiteral("document-closed"),
                              QStringLiteral("undo"), QStringLiteral("redo"), QStringLiteral("startup"),
-                             QStringLiteral("tool-changed"), QStringLiteral("idle")};
+                             QStringLiteral("tool-changed"), QStringLiteral("idle"),
+                             QStringLiteral("stroke-start"), QStringLiteral("stroke-end")};
   QStringList ids;
   for (const auto event : patchy::ui::theme_sound_events()) {
     ids.push_back(QString(patchy::ui::theme_sound_event_id(event)));

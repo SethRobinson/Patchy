@@ -1996,9 +1996,11 @@ private:
   [[nodiscard]] QRect widget_repaint_rect_for_document_rect(QRect document_rect) const;
   bool begin_edit(QString label);
   // Called right after a successful begin_edit by the painting_ gestures: emits the
-  // Begin history event and starts collecting the stroke's dirty rectangles.
+  // Begin history event and starts collecting the stroke's dirty rectangles. Also fires
+  // the theme's "stroke-start" event (docs/theme-files.md).
   void arm_paint_stroke_history();
-  // Emits the Finish event with the collected bounds (no-op when not armed).
+  // Emits the Finish event with the collected bounds (no-op when not armed), and
+  // "stroke-end" for a stroke that fired "stroke-start".
   void finish_paint_stroke_history();
   // The stroke's LayerGrowthReserve (docs/performance.md): opened by arm_paint_stroke_history
   // for a pixel layer smaller than the canvas, closed (the layer trimmed to its exact
@@ -4074,6 +4076,8 @@ private:
   // active_edit_target_changed_impl unions every reported region into the rect.
   bool paint_stroke_history_armed_{false};
   PaintStrokeHistoryEvent paint_stroke_history_event_{};
+  // The painting tool's theme id while a stroke's "stroke-start" awaits its "stroke-end".
+  QString theme_stroke_tool_;
   std::optional<patchy::LayerGrowthReserve> stroke_growth_reserve_{};
   std::function<void(QString, SelectionSnapshot, bool)> selection_history_callback_;
   std::function<void()> quick_mask_changed_callback_;

@@ -35,12 +35,15 @@ enum class ThemeSoundEvent {
   Startup,
   ToolChanged,
   Idle,
+  StrokeStart,
+  StrokeEnd,
 };
 
 // Persisted identifiers (the sounds/<id>.wav file names and theme.json "events" keys
 // themes ship): "save-done", "export-done", "long-operation-done", "error", "warning",
 // "script-alert", "layer-deleted", "document-opened", "document-new", "document-closed",
-// "undo", "redo", "startup", "tool-changed", "idle". Never rename one; a new event appends.
+// "undo", "redo", "startup", "tool-changed", "idle", "stroke-start", "stroke-end". Never rename
+// one; a new event appends.
 [[nodiscard]] QLatin1StringView theme_sound_event_id(ThemeSoundEvent event);
 [[nodiscard]] std::optional<ThemeSoundEvent> theme_sound_event_from_id(const QString& id);
 [[nodiscard]] std::span<const ThemeSoundEvent> theme_sound_events();

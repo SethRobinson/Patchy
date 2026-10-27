@@ -24,6 +24,8 @@
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/text_area_layout.hpp"
+#include "ui/theme_script_host.hpp"
+#include "ui/theme_sounds.hpp"
 
 #include <QApplication>
 #include <QColor>
@@ -1433,6 +1435,10 @@ void CanvasWidget::close_stroke_growth_reserve() {
 void CanvasWidget::arm_paint_stroke_history() {
   open_stroke_growth_reserve();
   paint_stroke_history_armed_ = false;
+  if (theme_stroke_tool_.isEmpty()) {
+    theme_stroke_tool_ = theme_tool_id(effective_tool_for_input());
+    fire_theme_event(ThemeSoundEvent::StrokeStart, {{QStringLiteral("tool"), theme_stroke_tool_}});
+  }
   if (!paint_stroke_history_callback_ || document_ == nullptr || quick_mask_active_) {
     return;
   }
@@ -1450,6 +1456,10 @@ void CanvasWidget::arm_paint_stroke_history() {
 
 void CanvasWidget::finish_paint_stroke_history() {
   close_stroke_growth_reserve();
+  if (!theme_stroke_tool_.isEmpty()) {
+    const auto tool = std::exchange(theme_stroke_tool_, QString());
+    fire_theme_event(ThemeSoundEvent::StrokeEnd, {{QStringLiteral("tool"), tool}});
+  }
   if (!paint_stroke_history_armed_) {
     return;
   }

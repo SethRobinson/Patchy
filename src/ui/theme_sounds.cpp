@@ -25,12 +25,13 @@ const QString& play_theme_sounds_key() {
   return key;
 }
 
-constexpr std::array<ThemeSoundEvent, 15> kEvents{
+constexpr std::array<ThemeSoundEvent, 17> kEvents{
     ThemeSoundEvent::SaveDone,       ThemeSoundEvent::ExportDone,     ThemeSoundEvent::LongOperationDone,
     ThemeSoundEvent::Error,          ThemeSoundEvent::Warning,        ThemeSoundEvent::ScriptAlert,
     ThemeSoundEvent::LayerDeleted,   ThemeSoundEvent::DocumentOpened, ThemeSoundEvent::DocumentNew,
     ThemeSoundEvent::DocumentClosed, ThemeSoundEvent::Undo,           ThemeSoundEvent::Redo,
     ThemeSoundEvent::Startup,        ThemeSoundEvent::ToolChanged,    ThemeSoundEvent::Idle,
+    ThemeSoundEvent::StrokeStart,    ThemeSoundEvent::StrokeEnd,
 };
 
 // Times every QProgressDialog from Show to Hide; one that stayed up past the
@@ -109,6 +110,10 @@ QLatin1StringView theme_sound_event_id(ThemeSoundEvent event) {
       return QLatin1StringView("tool-changed");
     case ThemeSoundEvent::Idle:
       return QLatin1StringView("idle");
+    case ThemeSoundEvent::StrokeStart:
+      return QLatin1StringView("stroke-start");
+    case ThemeSoundEvent::StrokeEnd:
+      return QLatin1StringView("stroke-end");
   }
   return QLatin1StringView("error");
 }

@@ -532,6 +532,45 @@ void ui_theme_script_events_reach_the_script() {
       QStringLiteral("Error")));
 }
 
+// A real brush drag on the canvas fires stroke-start on press and stroke-end on release,
+// once each, with the painting tool's id.
+void ui_theme_script_hears_brush_strokes() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  ScriptThemesDir themes;
+  write_package(themes.file(QStringLiteral("Strokes")), {},
+                QByteArrayLiteral("var starts = 0, ends = 0;\n"
+                                  "patchy.theme.on('stroke-start', function (d) {\n"
+                                  "  starts += 1; patchy.theme.log('start ' + d.tool + ' ' + starts);\n"
+                                  "});\n"
+                                  "patchy.theme.on('stroke-end', function (d) {\n"
+                                  "  ends += 1; patchy.theme.log('end ' + d.tool + ' ' + ends);\n"
+                                  "});\n"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  apply(QStringLiteral("Strokes"), true);
+  CHECK(ThemeScriptHost::instance().running());
+  accept_new_document_dialog(120, 80);
+  require_hotkey_action(window, QStringLiteral("file.new"))->trigger();
+  QApplication::processEvents();
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  drag_document_path(*canvas, {QPoint(20, 40), QPoint(90, 40)}, 12);
+  process_events_for(50);
+  CHECK(log_contains(QStringLiteral("start brush 1")));
+  CHECK(log_contains(QStringLiteral("end brush 1")));
+  CHECK(!log_contains(QStringLiteral("start brush 2")));
+  CHECK(!log_contains(QStringLiteral("end brush 2")));
+
+  require_action(window, "toolEraserAction")->trigger();
+  QApplication::processEvents();
+  drag_document_path(*canvas, {QPoint(20, 50), QPoint(90, 50)}, 12);
+  process_events_for(50);
+  CHECK(log_contains(QStringLiteral("start eraser 2")));
+  CHECK(log_contains(QStringLiteral("end eraser 2")));
+}
+
 void ui_theme_effects_and_scripts_preferences() {
   ColorSchemeRestorer restore_active;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
@@ -650,6 +689,7 @@ std::vector<patchy::test::TestCase> theme_script_tests() {
       {"ui_theme_menu_sits_right_of_help_with_hotkeys", ui_theme_menu_sits_right_of_help_with_hotkeys},
       {"ui_theme_cursors_backgrounds_and_splash", ui_theme_cursors_backgrounds_and_splash},
       {"ui_theme_script_events_reach_the_script", ui_theme_script_events_reach_the_script},
+      {"ui_theme_script_hears_brush_strokes", ui_theme_script_hears_brush_strokes},
       {"ui_theme_effects_and_scripts_preferences", ui_theme_effects_and_scripts_preferences},
       {"ui_theme_scripts_on_unicode_paths", ui_theme_scripts_on_unicode_paths},
   };

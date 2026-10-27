@@ -24,7 +24,9 @@ type PatchyThemeEvent =
   | "redo"
   | "startup"
   | "tool-changed"
-  | "idle";
+  | "idle"
+  | "stroke-start"
+  | "stroke-end";
 
 /** What an event handler receives. Only these events carry fields. */
 interface PatchyThemeEventPayload {
@@ -33,7 +35,8 @@ interface PatchyThemeEventPayload {
   /** document-opened: the document size in pixels. */
   width?: number;
   height?: number;
-  /** tool-changed: the new tool's id ("crop", "brush", "type", ...). */
+  /** tool-changed: the new tool's id ("crop", "brush", "type", ...); stroke-start and
+   * stroke-end: the painting tool's id ("brush", "eraser", "clone", ...). */
   tool?: string;
 }
 

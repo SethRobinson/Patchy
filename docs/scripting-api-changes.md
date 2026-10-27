@@ -14,6 +14,10 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-27 (additive): theme events `stroke-start` and `stroke-end` (payload `{tool}`) for a painting
+stroke on the canvas, also usable as theme.json `"events"` keys and `sounds/<id>.wav` names. Permanent
+identifiers. Pinned by `ui_theme_script_hears_brush_strokes` and
+`ui_theme_sound_events_resolve_from_the_package`.
 2026-10-26 (additive): the theme script API, a separate engine for theme packages' `scripts/main.js`
 (`scripts/bundled/patchy-theme.d.ts`; [theme-files.md](theme-files.md#theme-scripts)): `patchy.theme`
 `id`, `name`, `on`, `playSound`, `playEffect`, `showStatus`, `addCommand`, `setToolCursor`,
