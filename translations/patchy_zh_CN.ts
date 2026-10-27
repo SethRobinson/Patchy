@@ -26473,14 +26473,6 @@ The open document keeps its blend modes either way.</source>
         <translation>应用</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>显示叠加</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>绘画前在画笔下预览源</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>移动：拖动以移动，Shift+拖动保持水平或垂直，%ALT%+拖动以复制。%CTRL%+单击选择图层，Shift+单击切换选择。%CTRL%+拖动框选；开启自动选择时，在空白处拖动也可框选。</translation>
     </message>

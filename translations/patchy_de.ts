@@ -26548,14 +26548,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Anwenden</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>Überlagerung anzeigen</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Zeigt die Quelle unter dem Pinsel, bevor Sie malen</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Verschieben: Ziehen verschiebt, Umschalt+Ziehen hält es waagerecht oder senkrecht, %ALT%+Ziehen dupliziert. %CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt ein Rechteck aus, mit „Autom. auswählen“ auch Ziehen auf leerer Fläche.</translation>
     </message>

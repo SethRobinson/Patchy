@@ -2946,8 +2946,6 @@ private:
   QPushButton* ruler_straighten_image_button_{nullptr};
   QPushButton* ruler_clear_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
-  // Show Overlay on the bar (GitHub issue 426), the same setting as the popup's checkbox.
-  QCheckBox* clone_overlay_check_{nullptr};
   QToolButton* clone_source_options_button_{nullptr};
   QMenu* clone_source_menu_{nullptr};
   CloneSourcePanel* clone_source_panel_{nullptr};

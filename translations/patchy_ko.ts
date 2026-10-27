@@ -26473,14 +26473,6 @@ The open document keeps its blend modes either way.</source>
         <translation>적용</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>오버레이 표시</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>칠하기 전에 브러시 아래에 소스를 미리 봅니다</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>이동: 드래그하여 이동하고, Shift+드래그로 수평 또는 수직으로 이동하며, %ALT%+드래그로 복제합니다. %CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 전환합니다. %CTRL%+드래그로 사각형을 선택하며, 자동 선택이 켜져 있으면 빈 곳을 드래그해도 됩니다.</translation>
     </message>

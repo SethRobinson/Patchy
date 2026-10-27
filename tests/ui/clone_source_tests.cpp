@@ -27,8 +27,11 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <functional>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include "test_harness.hpp"
@@ -393,10 +396,12 @@ void ui_clone_source_gear_popup_drives_canvas() {
   QApplication::processEvents();
 }
 
-// Show Overlay on the Clone Stamp and Healing Brush bars (GitHub issue 426): after Aligned,
-// on at 100% with no saved setting, and the same setting as the popup's checkbox both ways.
-// The artifact is the issue shot: the Clone Stamp bar at 1366 px.
-void ui_clone_source_bar_overlay_check_follows_popup() {
+// Show Overlay lives only in the clone source popup (GitHub issue 458; issue 426 had put a
+// copy on the bar, which wrapped the Healing Brush row at 1366 px). Neither bar has the
+// checkbox, the gear follows Aligned on the same row, and the popup's checkbox is on at 100%
+// with no saved setting, drives every canvas and persists. The artifact is the issue shot:
+// the Healing Brush bar at 1366 px.
+void ui_clone_source_overlay_check_lives_in_the_popup() {
   SettingsValueRestorer saved_overlay(QStringLiteral("tools/cloneOverlay"));
   SettingsValueRestorer saved_opacity(QStringLiteral("tools/cloneOverlayOpacity"));
   {
@@ -407,67 +412,87 @@ void ui_clone_source_bar_overlay_check_follows_popup() {
   }
   auto&& [window, canvas] = ShownWindowFixture{};
   window.resize(1366, 738);
-  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
-  QApplication::processEvents();
   auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
-  auto* bar_check = window.findChild<QCheckBox*>(QStringLiteral("cloneOverlayCheck"));
   auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
   auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
   auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
-  CHECK(aligned != nullptr && bar_check != nullptr && gear != nullptr && menu != nullptr && panel != nullptr);
-  if (aligned == nullptr || bar_check == nullptr || gear == nullptr || menu == nullptr || panel == nullptr) {
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(aligned != nullptr && gear != nullptr && menu != nullptr && panel != nullptr && options != nullptr &&
+        options_bar != nullptr);
+  if (aligned == nullptr || gear == nullptr || menu == nullptr || panel == nullptr || options == nullptr ||
+      options_bar == nullptr) {
     return;
   }
-  CHECK(bar_check->isVisible());
-  CHECK(bar_check->text() == QStringLiteral("Show Overlay"));
-  // After Aligned, before the gear, on the same row.
-  CHECK(bar_check->x() > aligned->x() && gear->x() > bar_check->x());
-  CHECK(bar_check->geometry().center().y() == aligned->geometry().center().y());
-  CHECK(bar_check->isChecked());
+  for (const auto* tool_name : {"Healing Brush", "Clone"}) {
+    require_action_by_text(window, QString::fromLatin1(tool_name))->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    if (std::string_view(tool_name) == "Healing Brush") {
+      save_widget_artifact("issue458_healing_bar_1366", *options_bar);
+    }
+    CHECK(window.findChild<QCheckBox*>(QStringLiteral("cloneOverlayCheck")) == nullptr);
+    int visible_overlay_checks = 0;
+    int lines_top = -1;
+    bool one_line = true;
+    for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      if (!child->isVisible()) {
+        continue;
+      }
+      if (const auto* check = qobject_cast<QCheckBox*>(child);
+          check != nullptr && check->text().contains(QStringLiteral("Overlay"), Qt::CaseInsensitive)) {
+        ++visible_overlay_checks;
+      }
+      if (lines_top < 0) {
+        lines_top = child->geometry().top();
+      } else if (std::abs(child->geometry().top() - lines_top) >= 8) {
+        one_line = false;
+      }
+    }
+    CHECK(visible_overlay_checks == 0);
+    // The row fits one line at 1366 px, the gear right after Aligned.
+    CHECK(one_line);
+    CHECK(aligned->isVisible() && gear->isVisible());
+    CHECK(gear->x() > aligned->x());
+    CHECK(gear->geometry().center().y() == aligned->geometry().center().y());
+    int shown_sliders = 0;
+    for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      if (child->isVisible() && child->property("optionsBarCollapsible").toBool()) {
+        ++shown_sliders;
+      }
+    }
+    std::printf("  %s bar at 1366 px: %d duplicate slider(s) shown\n", tool_name, shown_sliders);
+  }
+
+  // The popup's checkbox: on at 100% by default, drives the canvas, and persists.
   CHECK(canvas->clone_overlay_shown());
   CHECK(canvas->clone_overlay_opacity() == 100);
   open_gear_popup(*gear, *menu);
   CHECK(panel->overlay_check()->isChecked());
   CHECK(panel->overlay_opacity_spin()->value() == 100);
-
-  // Popup to bar.
   panel->overlay_check()->setChecked(false);
-  CHECK(!bar_check->isChecked());
   CHECK(!canvas->clone_overlay_shown());
   panel->overlay_opacity_spin()->setValue(70);
+  CHECK(canvas->clone_overlay_opacity() == 70);
   menu->close();
   QApplication::processEvents();
-
-  // Bar to popup; the opacity stays.
-  bar_check->click();
-  CHECK(bar_check->isChecked());
+  patchy::ui::MainWindowTestAccess::save_tool_settings(window);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(!settings.value(QStringLiteral("tools/cloneOverlay")).toBool());
+    CHECK(settings.value(QStringLiteral("tools/cloneOverlayOpacity")).toInt() == 70);
+  }
+  open_gear_popup(*gear, *menu);
+  CHECK(!panel->overlay_check()->isChecked());
+  panel->overlay_check()->setChecked(true);
   CHECK(canvas->clone_overlay_shown());
   CHECK(canvas->clone_overlay_opacity() == 70);
-  open_gear_popup(*gear, *menu);
-  CHECK(panel->overlay_check()->isChecked());
-  CHECK(panel->overlay_opacity_spin()->value() == 70);
   menu->close();
   QApplication::processEvents();
   patchy::ui::MainWindowTestAccess::save_tool_settings(window);
   {
     auto settings = patchy::ui::app_settings();
     CHECK(settings.value(QStringLiteral("tools/cloneOverlay")).toBool());
-    CHECK(settings.value(QStringLiteral("tools/cloneOverlayOpacity")).toInt() == 70);
-  }
-
-  // The Healing Brush bar has it too, with the same state.
-  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
-  QApplication::processEvents();
-  CHECK(bar_check->isVisible());
-  CHECK(bar_check->isChecked());
-  bar_check->click();
-  CHECK(!canvas->clone_overlay_shown());
-  bar_check->click();
-
-  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
-  QApplication::processEvents();
-  if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
-    save_widget_artifact("issue426_clone_bar_show_overlay", *options_bar);
   }
 }
 
@@ -555,7 +580,7 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_healing_brush_ignores_transform", ui_clone_source_healing_brush_ignores_transform},
       {"ui_clone_source_overlay_previews_source_under_brush", ui_clone_source_overlay_previews_source_under_brush},
       {"ui_clone_source_gear_popup_drives_canvas", ui_clone_source_gear_popup_drives_canvas},
-      {"ui_clone_source_bar_overlay_check_follows_popup", ui_clone_source_bar_overlay_check_follows_popup},
+      {"ui_clone_source_overlay_check_lives_in_the_popup", ui_clone_source_overlay_check_lives_in_the_popup},
       {"ui_clone_source_overlay_screenshot", ui_clone_source_overlay_screenshot},
   };
 }
