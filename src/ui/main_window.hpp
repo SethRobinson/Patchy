@@ -2028,9 +2028,11 @@ private:
   // Layers panel thumbnail gestures (main_window_layer_thumbnails.cpp): a thumbnail part loaded as
   // a selection (operation 0 replace, 1 add, 2 subtract, 3 intersect; #433), the short menus on a
   // layer or mask thumbnail (false when the point is on neither; #431, #432), and the footer
-  // Delete button, which removes a targeted mask instead of the layer (#441).
+  // Delete button, which removes a targeted mask instead of the layer (#441). The fx and smart
+  // object badges' short menus (false when the point is on neither; #473, #474).
   void load_layer_part_selection(LayerId id, LayerCtrlClickTarget target, int operation);
   bool show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint viewport_position);
+  bool show_layer_badge_context_menu(QListWidgetItem* item, QPoint viewport_position);
   void delete_from_layers_panel();
   // The Background's shorter row menu (GitHub issue 274) and the eye column's menu: visibility
   // entries for `id` (#407), then the color labels (issue 276).

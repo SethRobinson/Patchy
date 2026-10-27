@@ -47,6 +47,7 @@
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QMenu>
+#include <QPointer>
 #include <QMimeData>
 #include <QMessageBox>
 #include <QIODevice>
@@ -859,6 +860,73 @@ QListWidgetItem* recent_menu_list_item(QMenu& menu, const QString& path) {
     }
   }
   return nullptr;
+}
+
+LayerRowPartMenu right_click_layer_row_widget(QListWidget& layers, const QString& row_name,
+                                              const QString& widget_name, const QString& pick,
+                                              const std::string& artifact) {
+  LayerRowPartMenu seen;
+  auto* row = layers.itemWidget(require_layer_item(layers, row_name));
+  CHECK(row != nullptr);
+  QPointer<QWidget> part = row != nullptr ? row->findChild<QWidget*>(widget_name) : nullptr;
+  CHECK(part != nullptr);
+  if (part == nullptr) {
+    return seen;
+  }
+  // Polled, not a single zero timer: the right press can pump events (the selection handler)
+  // before the menu opens, and a timer spent by then leaves the menu's loop running forever.
+  QTimer poll;
+  int polls_left = 500;
+  poll.setInterval(10);
+  QObject::connect(&poll, &QTimer::timeout, [&seen, &layers, &poll, &polls_left, part, pick, artifact] {
+    if (--polls_left <= 0) {
+      poll.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || !menu->isVisible()) {
+        continue;
+      }
+      seen.name = menu->objectName();
+      QAction* chosen = nullptr;
+      for (auto* action : menu->actions()) {
+        seen.actions.push_back(action->isSeparator() ? QStringLiteral("-") : action->objectName());
+        seen.texts.push_back(action->text());
+        seen.enabled.push_back(action->isEnabled());
+        seen.checked.push_back(action->isCheckable() && action->isChecked());
+        if (!pick.isEmpty() && action->objectName() == pick) {
+          chosen = action;
+        }
+      }
+      if (!artifact.empty() && part != nullptr) {
+        save_window_popup_artifact(artifact, *layers.window(), *part, *menu);
+      }
+      poll.stop();
+      // QMenu closes before it triggers a picked entry.
+      menu->close();
+      if (chosen != nullptr) {
+        chosen->trigger();
+      }
+      return;
+    }
+  });
+  poll.start();
+  const auto local = part->rect().center();
+  send_mouse(*part, QEvent::MouseButtonPress, local, Qt::RightButton, Qt::RightButton);
+  if (part != nullptr) {
+    send_mouse(*part, QEvent::MouseButtonRelease, local, Qt::RightButton, Qt::NoButton);
+  }
+  if (part != nullptr) {
+    QContextMenuEvent event(QContextMenuEvent::Mouse, local, part->mapToGlobal(local));
+    QApplication::sendEvent(part, &event);
+  }
+  poll.stop();
+  for (int pass = 0; pass < 4; ++pass) {
+    QApplication::processEvents();  // deferred menu commands run past the menu's loop
+  }
+  CHECK(!seen.name.isEmpty());  // a menu opened
+  return seen;
 }
 
 QAction* find_menu_action_by_text(QMenu& menu, const QString& text) {

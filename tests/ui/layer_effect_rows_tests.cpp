@@ -886,10 +886,78 @@ void ui_layer_effect_row_context_menu_edits_hides_and_deletes() {
   CHECK(*seen == 4);
 }
 
+// A right-click on the fx badge (#473) opens Copy, Paste and Delete Layer Style and the Layer Styles
+// master switch for that row; it does not open Layer Style (the left click) or the row's menu.
+void ui_layer_fx_badge_right_click_opens_style_menu() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(styled_document(true), QStringLiteral("Fx Badge Menu"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto badge_id = *doc.active_layer_id();
+  const auto badge_layer = [&] { return std::as_const(doc).find_layer(badge_id); };
+  // The Background row is the selected, active one first.
+  auto* background_item = require_layer_item(*list, QStringLiteral("Background"));
+  list->clearSelection();
+  list->setCurrentItem(background_item);
+  background_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(doc.active_layer_id() != badge_id);
+
+  const auto fx_menu = [&](const char* pick, const std::string& artifact = {}) {
+    return right_click_layer_row_widget(*list, QStringLiteral("Badge"), QStringLiteral("layerFxBadgeButton"),
+                                        QString::fromLatin1(pick), artifact);
+  };
+  // Any dialog opening during the right click (Layer Style is the left click's) is closed and noted.
+  bool dialog_opened = false;
+  QTimer dialog_guard;
+  QObject::connect(&dialog_guard, &QTimer::timeout, [&dialog_opened] {
+    if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget()); dialog != nullptr) {
+      dialog_opened = true;
+      dialog->reject();
+    }
+  });
+  dialog_guard.start(20);
+  auto seen = fx_menu("", "issue473_fx_badge_menu");
+  process_events_for(100);
+  dialog_guard.stop();
+  CHECK(!dialog_opened);
+  CHECK(seen.name == QStringLiteral("layerFxBadgeMenu"));
+  CHECK(seen.actions == (QStringList{QStringLiteral("layerCopyStyleAction"), QStringLiteral("layerPasteStyleAction"),
+                                     QStringLiteral("layerDeleteStyleAction"), QStringLiteral("-"),
+                                     QStringLiteral("layerFxBadgeShowStylesAction")}));
+  CHECK(seen.texts.value(0) == QStringLiteral("Copy Layer Style"));
+  CHECK(seen.texts.value(4) == QStringLiteral("Show Layer Styles"));
+  CHECK(seen.enabled.value(0) && !seen.enabled.value(1) && seen.enabled.value(2));  // nothing copied yet
+  CHECK(seen.enabled.value(4) && seen.checked.value(4));
+  CHECK(doc.active_layer_id() == badge_id);
+  CHECK(require_layer_item(*list, QStringLiteral("Badge"))->isSelected());
+
+  // The switch hides and shows the styles: one undo step each.
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  fx_menu("layerFxBadgeShowStylesAction");
+  CHECK(!badge_layer()->layer_style().effects_visible);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  seen = fx_menu("layerFxBadgeShowStylesAction");
+  CHECK(!seen.checked.value(4));
+  CHECK(badge_layer()->layer_style().effects_visible);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 2);
+
+  // Copy fills the clipboard (Paste turns on); Delete clears the clicked row's styles.
+  fx_menu("layerCopyStyleAction");
+  seen = fx_menu("layerDeleteStyleAction");
+  CHECK(seen.enabled.value(1));
+  CHECK(badge_layer()->layer_style().empty());
+  CHECK(badge_row(*list)->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton")) == nullptr);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
   return {
+      {"ui_layer_fx_badge_right_click_opens_style_menu", ui_layer_fx_badge_right_click_opens_style_menu},
       {"ui_layer_effect_rows_start_collapsed_and_remember_state", ui_layer_effect_rows_start_collapsed_and_remember_state},
       {"ui_layer_effect_rows_grey_eyes_under_master_off", ui_layer_effect_rows_grey_eyes_under_master_off},
       {"ui_layer_effect_rows_align_under_the_layer_styles_eye", ui_layer_effect_rows_align_under_the_layer_styles_eye},

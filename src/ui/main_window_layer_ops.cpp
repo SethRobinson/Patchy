@@ -3641,6 +3641,10 @@ void MainWindow::show_layer_context_menu(QPoint position) {
       if (show_layer_thumbnail_context_menu(item, position)) {
         return;
       }
+      // So does an fx or smart object badge (#473, #474).
+      if (show_layer_badge_context_menu(item, position)) {
+        return;
+      }
       for (auto* entry_row : row_widget->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"))) {
         if (!entry_row->isVisible() || !entry_row->rect().contains(entry_row->mapFromGlobal(global))) {
           continue;
