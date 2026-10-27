@@ -16,6 +16,7 @@
 #include "ui/brush_tip_library.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/font_face_name_index.hpp"
+#include "ui/apng_reader.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include <QFileInfo>
@@ -1952,6 +1953,66 @@ void ui_script_encode_for_web() {
   CHECK(!host.last_run_had_error());
 }
 
+// Animated PNG through exportAs and encodeForWeb (docs/web-export.md): animate,
+// frameDelayMs and loopCount, the keys JPEG XL takes; full color only.
+void ui_script_export_as_png_animation() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto base = directory.path() + QStringLiteral("/apng");
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("png-animation");
+  options.args = QStringList{QStringLiteral("base=") + base};
+  const auto source = QStringLiteral(R"JS(
+    var d = app.newDocument(40, 30);
+    d.activeLayer.fill('#336699');
+    d.addLayer('second 0.25s').fill('#cc4422');
+    var p = patchy.args.base;
+    if (!d.exportAs(p + '-anim.png', {animate: true, frameDelayMs: 200, loopCount: 3})) throw Error('anim');
+    if (!d.exportAs(p + '-still.png')) throw Error('still');
+    var r = new Uint8Array(d.encodeForWeb('png', {animate: true}).bytes);
+    var found = false;
+    for (var i = 0; i + 4 <= r.length; ++i) {
+      if (r[i] === 0x61 && r[i + 1] === 0x63 && r[i + 2] === 0x54 && r[i + 3] === 0x4c) { found = true; break; }
+    }
+    if (!found) throw Error('encodeForWeb png animate wrote no acTL');
+    var threw = 0;
+    try { d.exportAs(p + '-bad1.png', {animate: true, pngColors: 'palette'}); } catch (e) { threw++; }
+    try { d.exportAs(p + '-bad2.png', {animate: 'yes'}); } catch (e) { threw++; }
+    try { d.exportAs(p + '-bad3.png', {loopCount: 70000}); } catch (e) { threw++; }
+    if (threw !== 3) throw Error('not strict: ' + threw);
+    console.log('done');
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host, 60000);
+  CHECK(!host.run_active());
+  if (host.last_run_had_error()) {
+    for (const auto& line : host.message_backlog()) std::cerr << line.toStdString() << std::endl;
+  }
+  CHECK(!host.last_run_had_error());
+  const auto read_bytes = [](const QString& path) {
+    QFile file(path);
+    const auto data = file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    return std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(data.constData()),
+                                     reinterpret_cast<const std::uint8_t*>(data.constData()) + data.size());
+  };
+  const auto animated = read_bytes(base + QStringLiteral("-anim.png"));
+  CHECK(patchy::apng::is_animated_png(animated));
+  if (patchy::apng::is_animated_png(animated)) {
+    const auto animation = patchy::apng::read_animated_png(animated);
+    CHECK(animation.frames.size() == 2 && animation.play_count == 3);
+    if (animation.frames.size() == 2) {
+      CHECK(animation.frames[0].delay_ms == 250 && animation.frames[1].delay_ms == 200);
+    }
+  }
+  CHECK(!patchy::apng::is_animated_png(read_bytes(base + QStringLiteral("-still.png"))));
+  for (const auto* bad : {"-bad1.png", "-bad2.png", "-bad3.png"}) {
+    CHECK(!QFileInfo::exists(base + QLatin1String(bad)));
+  }
+}
+
 void ui_script_save_as_options_write_jxl() {
   patchy::set_deep_editing_override(true);
   patchy::ui::MainWindow window;
@@ -2637,6 +2698,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_script_export_as_jpeg_coding_options", ui_script_export_as_jpeg_coding_options},
       {"ui_script_export_as_palette_keys", ui_script_export_as_palette_keys},
       {"ui_script_encode_for_web", ui_script_encode_for_web},
+      {"ui_script_export_as_png_animation", ui_script_export_as_png_animation},
       {"ui_script_hotkey_runs_user_script", ui_script_hotkey_runs_user_script},
       {"ui_script_hotkey_ids_follow_relative_path", ui_script_hotkey_ids_follow_relative_path},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},

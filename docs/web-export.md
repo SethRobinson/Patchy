@@ -27,7 +27,12 @@ where `avif::is_available()`, so not in the browser build). Each format keeps it
   Frame delay for two or more layers ([jxl.md](jxl.md); animated frames are 8-bit).
 - PNG: Colors Full color (lossless, transparency kept) or Palette: the GIF quantizer's Colors,
   Dither and Amount below, written as an indexed PNG with one fully transparent entry (tRNS) for
-  pixels under 50% alpha (`ImageSaveOptions::png_palette`, `quantized_png8_image`).
+  pixels under 50% alpha (`ImageSaveOptions::png_palette`, `quantized_png8_image`). With two or
+  more layers PNG also offers "Animation from visible layers" and a Frame delay (Seth, October 27,
+  2026): an animated PNG (APNG, `apng_animate`, the File > Export > Layers as Animated PNG writer,
+  [animation.md](animation.md)) that keeps the .png extension, loops forever like the other
+  animated rows, and is always full color (8-bit RGBA): while it is ticked, Type and the palette
+  controls are disabled with a note and `png_palette` is ignored. A still PNG is unchanged.
 - GIF: Colors 2-256 (default 256), Dither None or Diffusion with Amount 0-100% (default None,
   100%), pixels under 50% alpha transparent (`gif::kQuantizeAlphaThreshold`), and "Animation from
   visible layers" with a Frame delay (seconds; a layer name's `0.25s` token wins) when the
@@ -101,11 +106,12 @@ so an animation's frames are reduced once each and then reused as it loops.
 
 ### Animation playback
 
-An animated result (GIF, WebP or JPEG XL with "Animation from visible layers" and 2+ frames) plays
+An animated result (GIF, WebP, JPEG XL or PNG with "Animation from visible layers" and 2+ frames) plays
 in the preview (Seth, October 27, 2026):
 
 - The worker decodes every frame of the encoded bytes (`decode_web_export_animation`): Qt's GIF
-  reader with `nextImageDelay`, `webp::decode_animation`, and `jxl::read_jxl` (frame layers, delays
+  reader with `nextImageDelay`, `webp::decode_animation`, `apng::read_animated_png` (composited
+  frames, millisecond delays), and `jxl::read_jxl` (frame layers, delays
   from their names), so palette, dither, lossy artifacts and the written delays (layer-name times
   included) are what plays. The source frames come from `for_each_animation_export_frame`, the
   same frame list and per-frame transforms the animated writers encode (visible top-level layers,
@@ -134,7 +140,7 @@ in the preview (Seth, October 27, 2026):
 `metadata` (`none`, `copyright`, `all`), `thumbnail`, `resample` (`smooth`, `pixelArt`), `trim`,
 `convertToSrgb`, `compare` (`split`, `sideBySide`, `result`), `revealWhenDone`, `pngColors`
 (`full`, `palette`), `pngPaletteColors`, `pngDither` and `gifDither` (`none`, `diffusion`),
-`pngDitherAmount`, `gifColors`, `gifDitherAmount`, `gifAnimate`, `gifFrameDelayMs`, `avifQuality`, `avifSpeed`, `avifLossless`,
+`pngDitherAmount`, `pngAnimate`, `pngFrameDelayMs`, `gifColors`, `gifDitherAmount`, `gifAnimate`, `gifFrameDelayMs`, `avifQuality`, `avifSpeed`, `avifLossless`,
 `jxlQuality`, `jxlEffort`, `jxlLossless`, `jxlAnimate`, `jxlFrameDelayMs`, all under
 `exportForWeb/`. Saved when the dialog is accepted. Reset returns every option to its first-use
 default and keeps the compare mode and reveal choice.
@@ -144,7 +150,9 @@ default and keeps the compare mode and reveal choice.
 `doc.exportAs(path, options)` and `doc.saveAs` take `progressive`, `optimizeCoding` and
 `thumbnail` for `.jpg`/`.jpeg`, and `colors` (2..256), `dither` (`"none"`, `"diffusion"`) and
 `ditherAmount` (0..100) for `.gif` and for `.png` with `pngColors: "palette"` (`"full"` is the
-default; the palette keys without it throw). Strict, like every save option
+default; the palette keys without it throw). `.png` also takes `animate`, `frameDelayMs` and
+`loopCount`, the animation keys `.jxl` takes (an APNG; `animate` with `pngColors: "palette"`
+throws). Strict, like every save option
 ([scripting-api-changes.md](scripting-api-changes.md)). `metadata` was already there.
 
 `doc.encodeForWeb(format, options)` encodes without a file and returns `{bytes, width, height}`
@@ -159,7 +167,8 @@ bytes are what `exportAs` would write for an RGB document (a CMYK Proof document
 Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defaults_and_options`,
 `ui_web_export_palette_png_and_gif_read_back`, `ui_script_export_as_palette_keys`,
 `ui_web_export_avif_and_jxl_read_back`, `ui_web_export_slow_encode_never_blocks_the_selected_format`,
-`ui_script_encode_for_web`,
+`ui_script_encode_for_web`, `ui_script_export_as_png_animation`,
+`ui_web_export_still_png_is_unchanged_by_animation`,
 `ui_web_export_jpeg_progressive_and_optimize_read_back`,
 `ui_web_export_engine_drops_stale_requests`, `ui_web_export_animation_frames_read_back`,
 `ui_web_export_animation_stale_frames_are_discarded`, `ui_web_export_animation_plays_in_the_preview`

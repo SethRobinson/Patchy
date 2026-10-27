@@ -790,11 +790,12 @@ interface PatchySaveOptions {
   pages?: "artboards" | "groups" | "canvas";
   /** Older spelling: true is pages "artboards", false is "canvas". */
   artboardPages?: boolean;
-  /** .gif, .jxl: write the visible top-level layers as an animation (top layer = frame 1)
-   *  instead of one flattened image; frameDelayMs is the default per-frame delay. */
+  /** .gif, .jxl, .png: write the visible top-level layers as an animation (top layer = frame 1)
+   *  instead of one flattened image; frameDelayMs is the default per-frame delay. A .png
+   *  animation is an APNG in full color, so it cannot be combined with pngColors "palette". */
   animate?: boolean;
   frameDelayMs?: number;
-  /** .jxl animation: total plays, 0 (the default) loops forever, up to 65535. */
+  /** .jxl and .png animation: total plays, 0 (the default) loops forever, up to 65535. */
   loopCount?: number;
   /** .jpg/.jpeg, .png, .tif/.tiff, .webp, .gif, .jxl, .avif: the File Info metadata to embed. "all"
    *  (the default for saveAs and exportAs) writes everything; "copyright" keeps the author,

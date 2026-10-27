@@ -8,6 +8,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/apng_reader.hpp"
 #include "ui/web_export.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui_test_access.hpp"
@@ -422,7 +423,10 @@ void ui_web_export_animation_frames_read_back() {
   settings.jxl_animate = true;
   settings.webp_lossless = true;
   settings.jxl_lossless = true;
-  for (const auto format : {WebExportFormat::Gif, WebExportFormat::Webp, WebExportFormat::Jxl}) {
+  settings.png_animate = true;
+  // The palette choice yields to the animation: an APNG is full color.
+  settings.png_palette = true;
+  for (const auto format : {WebExportFormat::Gif, WebExportFormat::Webp, WebExportFormat::Jxl, WebExportFormat::Png}) {
     const auto job = patchy::ui::web_export_job(settings, format, size);
     CHECK(job.animate);
     const auto result = WebExportPreviewEngine::encode(document, job, nullptr);
@@ -447,6 +451,29 @@ void ui_web_export_animation_frames_read_back() {
 
 // A newer animated request replaces an older one: the older job is dropped before it encodes
 // or, when it already ran, its frames are never the current ones.
+// A still PNG from Export for Web is the plain PNG writer's output, never an APNG.
+void ui_web_export_still_png_is_unchanged_by_animation() {
+  const auto document = textured_document(64, 48);
+  const QSize size(64, 48);
+  WebExportSettings settings;
+  const auto job = patchy::ui::web_export_job(settings, WebExportFormat::Png, size);
+  CHECK(!job.animate && !job.options.apng_animate);
+  const auto prepared = WebExportPreviewEngine::prepare(document, job.geometry, job.convert_to_srgb, nullptr);
+  const auto result = WebExportPreviewEngine::encode(document, job, prepared);
+  CHECK(result.bytes != nullptr && result.frames.empty());
+  if (result.bytes == nullptr) {
+    return;
+  }
+  CHECK(!patchy::apng::is_animated_png(*result.bytes));
+  patchy::ui::ImageSaveOptions plain;
+  plain.metadata_policy = patchy::metadata::MetadataPolicy::None;
+  CHECK(*result.bytes == patchy::ui::encode_flat_image_bytes(document, QStringLiteral("png"), plain));
+  // Ticking animation on a one-layer document offers nothing: the dialog hides the box and
+  // a script's animate on a single layer still writes one frame.
+  settings.png_animate = true;
+  CHECK(patchy::ui::web_export_job(settings, WebExportFormat::Png, size).signature != job.signature);
+}
+
 void ui_web_export_animation_stale_frames_are_discarded() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -566,7 +593,7 @@ void ui_web_export_animation_plays_in_the_preview() {
       const char* animate;
     };
     for (const auto& item : {Case{"GIF", "webExportGifAnimateCheck"}, Case{"WebP", "webExportWebpAnimateCheck"},
-                              Case{"JPEG XL", "webExportJxlAnimateCheck"}}) {
+                              Case{"JPEG XL", "webExportJxlAnimateCheck"}, Case{"PNG", "webExportPngAnimateCheck"}}) {
       auto* row = row_named(list, QString::fromLatin1(item.row));
       auto* animate = dialog->findChild<QCheckBox*>(QLatin1String(item.animate));
       CHECK(row != nullptr && animate != nullptr);
@@ -576,6 +603,16 @@ void ui_web_export_animation_plays_in_the_preview() {
       list->setCurrentItem(row);
       CHECK(animate->isVisible());
       animate->setChecked(true);
+      if (QLatin1String(item.row) == QLatin1String("PNG")) {
+        // An animated PNG is full color: Type and the palette controls rest, with a note.
+        auto* type = dialog->findChild<QComboBox*>(QStringLiteral("webExportPngColorsCombo"));
+        auto* palette_box = dialog->findChild<QWidget*>(QStringLiteral("webExportPngPaletteBox"));
+        auto* note = dialog->findChild<QLabel*>(QStringLiteral("webExportPngAnimationNote"));
+        CHECK(type != nullptr && palette_box != nullptr && note != nullptr);
+        if (type != nullptr && palette_box != nullptr && note != nullptr) {
+          CHECK(!type->isEnabled() && !palette_box->isEnabled() && note->isVisible());
+        }
+      }
       CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool() && frames() == 4; }, 120000));
       CHECK(controls->isVisible());
       CHECK(timer->isActive() && preview->property("webExportPlaying").toBool());
@@ -605,13 +642,20 @@ void ui_web_export_animation_plays_in_the_preview() {
         play->click();
         CHECK(timer->isActive());
         capture_widget_artifact("web_export_gif_animation", *dialog);
+      } else if (QLatin1String(item.row) == QLatin1String("PNG")) {
+        while (frame() != 1) {
+          next->click();
+        }
+        play->click();
+        CHECK(timer->isActive());
+        capture_widget_artifact("web_export_png_animation", *dialog);
       } else {
         play->click();
         CHECK(timer->isActive());
       }
     }
     // Back to a still format: the controls hide and playback stops.
-    list->setCurrentItem(row_named(list, QStringLiteral("PNG")));
+    list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
     QApplication::processEvents();
     CHECK(!controls->isVisible() && !timer->isActive());
     // Closing stops the timer.
@@ -853,6 +897,7 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_engine_drops_stale_requests", ui_web_export_engine_drops_stale_requests},
       {"ui_web_export_animation_frames_read_back", ui_web_export_animation_frames_read_back},
       {"ui_web_export_animation_stale_frames_are_discarded", ui_web_export_animation_stale_frames_are_discarded},
+      {"ui_web_export_still_png_is_unchanged_by_animation", ui_web_export_still_png_is_unchanged_by_animation},
       {"ui_web_export_animation_plays_in_the_preview", ui_web_export_animation_plays_in_the_preview},
       {"ui_web_export_avif_and_jxl_read_back", ui_web_export_avif_and_jxl_read_back},
       {"ui_web_export_slow_encode_never_blocks_the_selected_format",

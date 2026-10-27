@@ -13107,6 +13107,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>The preview plays the first %1 frames to save memory.</source>
         <translation>为节省内存，预览只播放前 %1 帧。</translation>
     </message>
+    <message>
+        <source>An animated PNG is written in full color; the palette applies to still images.</source>
+        <translation>动画 PNG 以全彩色写出；调色板仅用于静态图像。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29012,6 +29016,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
         <translation>%1：PNG 的 colors、dither 和 ditherAmount 需要 pngColors: &quot;palette&quot;。</translation>
+    </message>
+    <message>
+        <source>%1: an animated PNG is full color, so animate cannot be combined with pngColors: &quot;palette&quot;.</source>
+        <translation>%1：动画 PNG 为全彩色，因此 animate 不能与 pngColors: &quot;palette&quot; 同时使用。</translation>
     </message>
 </context>
 <context>

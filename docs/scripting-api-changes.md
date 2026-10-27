@@ -14,6 +14,11 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-27 (additive): `.png` in `doc.saveAs`/`doc.exportAs`/`doc.encodeForWeb` options takes
+`animate`, `frameDelayMs` and `loopCount`, the keys `.jxl` takes: an animated PNG (APNG) from the
+visible top-level layers, full color only, so `animate` with `pngColors: "palette"` throws
+([web-export.md](web-export.md)). Permanent identifiers: the three keys for `.png`. Pinned by
+`ui_script_export_as_png_animation`.
 2026-10-27 (additive): theme scripts' `patchy.theme.startLoop(loop, intro)` and `stopLoop(outro)`: one
 looping package WAV after an optional intro, stopped at once with an optional outro. Permanent
 identifiers. Pinned by `ui_theme_script_loops_a_sound` and `ui_theme_wav_loop_helpers_and_player`.

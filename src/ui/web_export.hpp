@@ -70,6 +70,10 @@ struct WebExportSettings {
   int png_colors{256};
   bool png_dither{false};
   int png_dither_amount{100};
+  // PNG: animated PNG (APNG) from visible layers; always full color (the APNG writer is
+  // 8-bit RGBA), so it overrides png_palette.
+  bool png_animate{false};
+  int png_frame_delay_ms{100};
   // GIF: colors, error diffusion, and animation from visible layers with a frame delay.
   int gif_colors{256};
   bool gif_dither{false};

@@ -471,6 +471,21 @@ bool apply_key(KeyReader& reader, const QString& extension, const QString& key, 
       return true;
     }
   }
+  // Animated PNG (APNG) from visible layers, the keys JPEG XL takes (docs/web-export.md).
+  if (extension == QStringLiteral("png")) {
+    if (key == QStringLiteral("animate")) {
+      reader.read_bool(key, value, options.apng_animate);
+      return true;
+    }
+    if (key == QStringLiteral("frameDelayMs")) {
+      reader.read_int(key, value, 0, static_cast<int>(animation::kMaxFrameDelayMs), options.animation_frame_delay_ms);
+      return true;
+    }
+    if (key == QStringLiteral("loopCount")) {
+      reader.read_int(key, value, 0, 65535, options.apng_loop_count);
+      return true;
+    }
+  }
   if (extension == QStringLiteral("png") && key == QStringLiteral("pngColors")) {
     reader.read_token(key, value, {QStringLiteral("full"), QStringLiteral("palette")},
                       [&options](const QString& token) { options.png_palette = token == QStringLiteral("palette"); });
@@ -532,6 +547,12 @@ QString apply_script_image_save_options(const QString& method, const QString& ex
   if (options.tiff_layers.value_or(false) && options.export_cmyk) {
     return QCoreApplication::translate("patchy::ui::ScriptSaveOptions",
                                        "%1: layers needs colorMode: \"rgb\"; a TIFF with layers is saved in RGB.")
+        .arg(method);
+  }
+  if (normalized == QStringLiteral("png") && options.apng_animate && options.png_palette) {
+    return QCoreApplication::translate("patchy::ui::ScriptSaveOptions",
+                                       "%1: an animated PNG is full color, so animate cannot be combined with "
+                                       "pngColors: \"palette\".")
         .arg(method);
   }
   if (normalized == QStringLiteral("png") && palette_keys && !options.png_palette) {

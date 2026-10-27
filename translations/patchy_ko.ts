@@ -13107,6 +13107,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>The preview plays the first %1 frames to save memory.</source>
         <translation>메모리를 아끼기 위해 미리 보기는 처음 %1개 프레임을 재생합니다.</translation>
     </message>
+    <message>
+        <source>An animated PNG is written in full color; the palette applies to still images.</source>
+        <translation>애니메이션 PNG는 풀 컬러로 저장됩니다. 팔레트는 정지 이미지에 적용됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29012,6 +29016,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>%1: colors, dither and ditherAmount need pngColors: &quot;palette&quot; for PNG.</source>
         <translation>%1: PNG에서 colors, dither, ditherAmount에는 pngColors: &quot;palette&quot;가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1: an animated PNG is full color, so animate cannot be combined with pngColors: &quot;palette&quot;.</source>
+        <translation>%1: 애니메이션 PNG는 풀 컬러이므로 animate를 pngColors: &quot;palette&quot;와 함께 쓸 수 없습니다.</translation>
     </message>
 </context>
 <context>
