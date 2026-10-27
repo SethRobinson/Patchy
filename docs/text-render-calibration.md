@@ -51,16 +51,16 @@ It rides `PsdTextStyleRun::faux_italic` and runs v6 column 13, the Character pan
 
 Rendering it cannot go through QFont: measured on Arial, `QFont::setStyle(QFont::StyleOblique)`
 resolves to the family's REAL Italic face (`QFontInfo::styleName()` returns "Italic", identical
-ink). The renderer shears the drawn line about its own baseline instead (`faux_italic_shear`,
+ink). The renderer shears the glyphs about the line's baseline instead (`faux_italic_shear`,
 `kFauxItalicSlant` = tan 12 degrees), leaving advances alone as Photoshop does and growing only
 the raster's right bleed.
 
-- **The shear is per LINE, not per run.** `QTextLine::draw` draws a whole line, so
-  `line_is_entirely_faux_italic` gates it and a line whose runs disagree stays upright (known
-  gap; per-run would mean drawing through `QTextLine::glyphRuns()` with colour, faux bold and
-  selection reapplied per run). Faux italic is layer-level across the corpus.
+- **The shear is per RUN** (issue 466): `format_needs_glyph_run_draw` sends a faux italic line
+  through `draw_line_glyphs_pixel_aligned`, which shears only that fragment; `QTextLine::draw`
+  and `drawContents` never see faux italic. Decoration bars stay upright.
 - `ui_faux_italic_shears_the_rendered_glyphs` pins it on "HH" (vertical stems only): upright ink
   starts at the same column top and bottom, sheared ink ~8px further right at the top of a 64px cap.
+  `ui_faux_italic_on_a_selection_slants_only_the_selected_characters` pins the per-run case.
 
 ## Glyph sizes fold only to whole pixels
 
