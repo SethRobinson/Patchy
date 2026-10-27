@@ -694,6 +694,9 @@ private:
   // when Alt was held at the press.
   void create_color_dock(std::vector<PanelSpec>& specs);
   void apply_color_panel_pick(QColor color, bool background);
+  // The release of a Color panel drag: writes the pair and refreshes the gradient preview
+  // that the drag's moves left for it (GitHub issue 464).
+  void finish_color_panel_drag();
   // The foreground change every color control shares (GitHub issue 371): the canvas
   // foreground, an open text session's selection, and the live shape paint, exactly what the
   // Foreground Color window has always done.
@@ -3491,6 +3494,11 @@ private:
   // not count as a change of the pair.
   QColor canvas_applied_foreground_;
   QColor canvas_applied_background_;
+  // A Color panel drag defers the settings write (a whole Patchy.ini rewrite) and the
+  // gradient preview's restyle to its release; per move they made the drag lag (GitHub
+  // issue 464).
+  bool color_settings_save_pending_{false};
+  bool gradient_controls_refresh_pending_{false};
   // Full paint mirrors (None/Solid/Gradient/Pattern) for the options-bar
   // fill/stroke pickers; VectorFill's defaults are solid black, matching the
   // historical QColor mirrors. Sticky like Photoshop: selecting a shape layer

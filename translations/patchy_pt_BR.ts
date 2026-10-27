@@ -15380,6 +15380,46 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Color panel settings</source>
         <translation>Configurações do painel Cor</translation>
     </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>Controles deslizantes CMYK</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Ciano</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Amarelo</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Preto</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

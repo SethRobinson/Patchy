@@ -15343,6 +15343,46 @@ Each item&apos;s own View setting still applies.</source>
         <source>Color panel settings</source>
         <translation>顏色面板設定</translation>
     </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>CMYK 滑桿</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>青色</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>洋紅</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>黃色</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>黑色</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

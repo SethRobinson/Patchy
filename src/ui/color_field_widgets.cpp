@@ -70,6 +70,7 @@ void ColorPlaneWidget::paintEvent(QPaintEvent* event) {
   if (plane_hue_ != source_.hue() || plane_.size() != paint_size) {
     plane_ = render_saturation_value_image(source_.hue(), paint_size);
     plane_hue_ = source_.hue();
+    ++plane_render_count_;
   }
   QPainter painter(this);
   painter.drawImage(QPoint(0, 0), plane_);

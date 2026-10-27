@@ -2173,6 +2173,7 @@ void MainWindow::create_color_dock(std::vector<PanelSpec>& specs) {
                                          findChild<QAction*>(QStringLiteral("colorDefaultAction")), this);
   connect(color_dock_panel_, &ColorDockPanel::color_picked, this,
           [this](QColor color, bool background) { apply_color_panel_pick(color, background); });
+  connect(color_dock_panel_, &ColorDockPanel::pick_finished, this, [this] { finish_color_panel_drag(); });
   connect(color_dock_panel_->foreground_chip(), &QPushButton::clicked, this, [this] { choose_primary_color(); });
   connect(color_dock_panel_->background_chip(), &QPushButton::clicked, this, [this] { choose_secondary_color(); });
   register_document_widget(color_dock_panel_);
@@ -2224,6 +2225,16 @@ void MainWindow::apply_color_panel_pick(QColor color, bool background) {
   // The click put the keyboard in the panel; an open text session takes it back so typing
   // goes on in the recolored text.
   return_keyboard_to_text_editor();
+}
+
+void MainWindow::finish_color_panel_drag() {
+  if (color_settings_save_pending_) {
+    color_settings_save_pending_ = false;
+    save_color_settings();
+  }
+  if (gradient_controls_refresh_pending_) {
+    refresh_gradient_controls_from_canvas();
+  }
 }
 
 void MainWindow::create_palette_dock(std::vector<PanelSpec>& specs) {

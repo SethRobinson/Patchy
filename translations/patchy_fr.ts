@@ -15380,6 +15380,46 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Color panel settings</source>
         <translation>Paramètres du panneau Couleur</translation>
     </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>Curseurs CMJN</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>J</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>N</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cyan</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Jaune</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Noir</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::FontPickerCombo</name>

@@ -39,6 +39,7 @@
 #include "ai/watermark_engine.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "ui/script_folders.hpp"
+#include "ui/color_dock_panel.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
@@ -1971,6 +1972,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       set_stored_cmyk_working_settings(chosen_cmyk);
       set_working_cmyk_space(cmyk_working_space_for(chosen_cmyk));
       refresh_color_picker_cmyk_fields();
+      if (color_dock_panel_ != nullptr) {
+        color_dock_panel_->working_cmyk_space_changed();
+      }
       refresh_proof_display();
     }
     set_stored_watermark_text(watermark_text_edit->text().trimmed());

@@ -1,5 +1,6 @@
 #include "ui/color_dock_panel.hpp"
 
+#include "color/color_management.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/background_pick_cursor.hpp"
 #include "ui/modifier_names.hpp"
@@ -40,12 +41,19 @@ constexpr int kWellHeight = 44;
 constexpr int kFieldMinimum = 72;
 constexpr int kTrackHeight = 14;
 
-constexpr std::array<ColorDockPanel::View, 3> kViews = {ColorDockPanel::View::HueCube,
-                                                        ColorDockPanel::View::RgbSliders,
-                                                        ColorDockPanel::View::HsbSliders};
+constexpr std::array<ColorDockPanel::View, 4> kViews = {
+    ColorDockPanel::View::HueCube, ColorDockPanel::View::RgbSliders, ColorDockPanel::View::HsbSliders,
+    ColorDockPanel::View::CmykSliders};
 
 int view_index(ColorDockPanel::View view) { return static_cast<int>(view); }
 int channel_index(ColorDockPanel::Channel channel) { return static_cast<int>(channel); }
+// Cyan..Black as 0..3.
+std::size_t ink_index(ColorDockPanel::Channel channel) {
+  return static_cast<std::size_t>(channel_index(channel) - channel_index(ColorDockPanel::Channel::Cyan));
+}
+bool is_ink(ColorDockPanel::Channel channel) {
+  return channel_index(channel) >= channel_index(ColorDockPanel::Channel::Cyan);
+}
 
 // 0..100 percent from 0..255 and back; every percent survives the round trip.
 int percent_from_byte(int value) { return static_cast<int>(std::lround(value * 100.0 / 255.0)); }
@@ -175,8 +183,9 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   view_menu_->setObjectName(QStringLiteral("colorPanelViewMenu"));
   view_group_ = new QActionGroup(this);
   view_group_->setExclusive(true);
-  const std::array<const char*, 3> action_names = {"colorPanelViewHueCubeAction", "colorPanelViewRgbSlidersAction",
-                                                   "colorPanelViewHsbSlidersAction"};
+  const std::array<const char*, kViewCount> action_names = {
+      "colorPanelViewHueCubeAction", "colorPanelViewRgbSlidersAction", "colorPanelViewHsbSlidersAction",
+      "colorPanelViewCmykSlidersAction"};
   for (const auto view : kViews) {
     auto* action = new QAction(this);
     action->setObjectName(QString::fromLatin1(action_names[static_cast<std::size_t>(view_index(view))]));
@@ -216,16 +225,20 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   views_ = new QStackedWidget(this);
   views_->setObjectName(QStringLiteral("colorPanelViews"));
   views_->addWidget(cube);
-  auto* rgb = build_slider_page(Channel::Red);
+  auto* rgb = build_slider_page(Channel::Red, 3);
   rgb->setObjectName(QStringLiteral("colorPanelRgbSlidersView"));
   views_->addWidget(rgb);
-  auto* hsb = build_slider_page(Channel::Hue);
+  auto* hsb = build_slider_page(Channel::Hue, 3);
   hsb->setObjectName(QStringLiteral("colorPanelHsbSlidersView"));
   views_->addWidget(hsb);
+  auto* cmyk = build_slider_page(Channel::Cyan, 4);
+  cmyk->setObjectName(QStringLiteral("colorPanelCmykSlidersView"));
+  views_->addWidget(cmyk);
   // The stack's size hints take every page but an Ignored one; each view asks only for
   // its own (set_view moves this).
-  rgb->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-  hsb->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+  for (auto* page : {rgb, hsb, cmyk}) {
+    page->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+  }
 
   well_column_ = new QVBoxLayout;
   well_column_->setContentsMargins(0, 0, 0, 0);
@@ -237,20 +250,22 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   layout->setSpacing(8);
   layout->addLayout(well_column_);
   layout->addWidget(views_, 1);
+  update_cmyk();
   refresh_channel_views();
   retranslate();
 }
 
-QWidget* ColorDockPanel::build_slider_page(Channel first) {
+QWidget* ColorDockPanel::build_slider_page(Channel first, int rows) {
   auto* page = new QWidget(this);
   auto* grid = new QGridLayout(page);
   grid->setContentsMargins(0, 0, 0, 0);
   grid->setHorizontalSpacing(6);
   grid->setVerticalSpacing(4);
   grid->setColumnStretch(1, 1);
-  static constexpr std::array<const char*, kChannelCount> names = {"Red",  "Green",      "Blue",
-                                                                   "Hue", "Saturation", "Brightness"};
-  for (int row = 0; row < 3; ++row) {
+  // Object names (colorPanelRedTrack, colorPanelCyanSpin...), never translated.
+  static constexpr std::array<const char*, kChannelCount> names = {
+      "Red", "Green", "Blue", "Hue", "Saturation", "Brightness", "Cyan", "Magenta", "Yellow", "Black"};
+  for (int row = 0; row < rows; ++row) {
     const auto channel = static_cast<Channel>(channel_index(first) + row);
     const auto index = static_cast<std::size_t>(channel_index(channel));
     const auto name = QString::fromLatin1(names[index]);
@@ -261,7 +276,7 @@ QWidget* ColorDockPanel::build_slider_page(Channel first) {
     QSpinBox* spin = nullptr;
     if (channel == Channel::Hue) {
       spin = new UnitIntSpinBox(SpinUnit::Degrees, page);
-    } else if (channel == Channel::Saturation || channel == Channel::Brightness) {
+    } else if (channel == Channel::Saturation || channel == Channel::Brightness || is_ink(channel)) {
       spin = new UnitIntSpinBox(SpinUnit::Percent, page);
     } else {
       spin = new QSpinBox(page);
@@ -279,7 +294,7 @@ QWidget* ColorDockPanel::build_slider_page(Channel first) {
     grid->addWidget(spin, row, 2);
   }
   // Spare height goes below the rows.
-  grid->setRowStretch(3, 1);
+  grid->setRowStretch(rows, 1);
   return page;
 }
 
@@ -306,6 +321,8 @@ QString ColorDockPanel::view_token(View view) {
       return QStringLiteral("rgbSliders");
     case View::HsbSliders:
       return QStringLiteral("hsbSliders");
+    case View::CmykSliders:
+      return QStringLiteral("cmykSliders");
   }
   return QStringLiteral("hueCube");
 }
@@ -355,6 +372,11 @@ int ColorDockPanel::channel_value(Channel channel) const {
       return percent_from_byte(saturation_);
     case Channel::Brightness:
       return percent_from_byte(value_);
+    case Channel::Cyan:
+    case Channel::Magenta:
+    case Channel::Yellow:
+    case Channel::Black:
+      return cmyk_[ink_index(channel)];
   }
   return 0;
 }
@@ -365,6 +387,10 @@ int ColorDockPanel::channel_maximum(Channel channel) {
       return 359;
     case Channel::Saturation:
     case Channel::Brightness:
+    case Channel::Cyan:
+    case Channel::Magenta:
+    case Channel::Yellow:
+    case Channel::Black:
       return 100;
     default:
       return 255;
@@ -385,8 +411,44 @@ QColor ColorDockPanel::channel_color(Channel channel, int level) const {
       return QColor::fromHsv(hue_, byte_from_percent(level), value_);
     case Channel::Brightness:
       return QColor::fromHsv(hue_, saturation_, byte_from_percent(level));
+    case Channel::Cyan:
+    case Channel::Magenta:
+    case Channel::Yellow:
+    case Channel::Black: {
+      auto cmyk = cmyk_;
+      cmyk[ink_index(channel)] = std::clamp(level, 0, 100);
+      return color_from_cmyk(cmyk);
+    }
   }
   return rgb_;
+}
+
+QColor ColorDockPanel::color_from_cmyk(const std::array<int, 4>& cmyk) const {
+  const auto space = cmyk_space_ != nullptr ? cmyk_space_ : working_cmyk_space();
+  const auto rgb = space->rgb_from_cmyk({static_cast<double>(cmyk[0]), static_cast<double>(cmyk[1]),
+                                         static_cast<double>(cmyk[2]), static_cast<double>(cmyk[3])});
+  return QColor(rgb.red, rgb.green, rgb.blue);
+}
+
+void ColorDockPanel::update_cmyk() {
+  auto space = working_cmyk_space();
+  if (space == cmyk_space_ && cmyk_color_.isValid() && cmyk_color_.rgb() == rgb_.rgb()) {
+    return;
+  }
+  // The Color Picker window's conversion and rounding, so both show the same numbers.
+  const auto ink = space->cmyk_from_rgb({static_cast<std::uint8_t>(rgb_.red()),
+                                         static_cast<std::uint8_t>(rgb_.green()),
+                                         static_cast<std::uint8_t>(rgb_.blue())});
+  cmyk_ = {static_cast<int>(std::lround(ink.cyan)), static_cast<int>(std::lround(ink.magenta)),
+           static_cast<int>(std::lround(ink.yellow)), static_cast<int>(std::lround(ink.black))};
+  cmyk_color_ = rgb_;
+  cmyk_space_ = std::move(space);
+}
+
+void ColorDockPanel::working_cmyk_space_changed() {
+  cmyk_color_ = QColor();
+  update_cmyk();
+  refresh_channel_views();
 }
 
 void ColorDockPanel::set_channel(Channel channel, int level) {
@@ -398,22 +460,20 @@ void ColorDockPanel::set_channel(Channel channel, int level) {
   switch (channel) {
     case Channel::Red:
     case Channel::Green:
-    case Channel::Blue: {
+    case Channel::Blue:
       color = channel_color(channel, level);
-      int color_hue = 0;
-      int color_saturation = 0;
-      int color_value = 0;
-      color.getHsv(&color_hue, &color_saturation, &color_value);
-      // A gray has no hue: keep the one shown. Black has no saturation either.
-      if (color_hue >= 0) {
-        hue_ = std::clamp(color_hue, 0, 359);
-      }
-      if (color_value > 0) {
-        saturation_ = std::clamp(color_saturation, 0, 255);
-      }
-      value_ = std::clamp(color_value, 0, 255);
+      take_slider_color(color);
       break;
-    }
+    case Channel::Cyan:
+    case Channel::Magenta:
+    case Channel::Yellow:
+    case Channel::Black:
+      // The inks stay as set: they are the source of this color.
+      cmyk_[ink_index(channel)] = level;
+      color = color_from_cmyk(cmyk_);
+      cmyk_color_ = color;
+      take_slider_color(color);
+      break;
     case Channel::Hue:
       hue_ = level;
       color = QColor::fromHsv(hue_, saturation_, value_);
@@ -433,14 +493,28 @@ void ColorDockPanel::set_channel(Channel channel, int level) {
   emit_pick(color);
 }
 
+void ColorDockPanel::take_slider_color(QColor color) {
+  int color_hue = 0;
+  int color_saturation = 0;
+  int color_value = 0;
+  color.getHsv(&color_hue, &color_saturation, &color_value);
+  // A gray has no hue: keep the one shown. Black has no saturation either.
+  if (color_hue >= 0) {
+    hue_ = std::clamp(color_hue, 0, 359);
+  }
+  if (color_value > 0) {
+    saturation_ = std::clamp(color_saturation, 0, 255);
+  }
+  value_ = std::clamp(color_value, 0, 255);
+}
+
 void ColorDockPanel::begin_channel_drag() {
   picking_ = true;
   pick_background_ = false;
 }
 
 void ColorDockPanel::end_channel_drag() {
-  picking_ = false;
-  pick_background_ = false;
+  end_field_pick();
 }
 
 void ColorDockPanel::set_colors(QColor foreground, QColor background) {
@@ -486,6 +560,7 @@ void ColorDockPanel::adopt_foreground(QColor color) {
 void ColorDockPanel::produce_foreground(QColor color) {
   produced_foreground_ = color;
   rgb_ = QColor(color.rgb());
+  update_cmyk();
   refresh_channel_views();
 }
 
@@ -510,8 +585,12 @@ void ColorDockPanel::begin_field_pick(Qt::KeyboardModifiers modifiers) {
 }
 
 void ColorDockPanel::end_field_pick() {
+  const bool was_picking = picking_;
   picking_ = false;
   pick_background_ = false;
+  if (was_picking) {
+    emit pick_finished();
+  }
 }
 
 void ColorDockPanel::emit_pick(QColor color) {
@@ -570,17 +649,20 @@ void ColorDockPanel::retranslate() {
   hue_strip_->setToolTip(hint);
   settings_button_->setToolTip(tr("Color panel settings"));
   settings_button_->setAccessibleName(tr("Color panel settings"));
-  const std::array<QString, 3> view_names = {tr("Hue Cube"), tr("RGB Sliders"), tr("HSB Sliders")};
+  const std::array<QString, kViewCount> view_names = {tr("Hue Cube"), tr("RGB Sliders"), tr("HSB Sliders"),
+                                                       tr("CMYK Sliders")};
   for (std::size_t index = 0; index < view_names.size(); ++index) {
     view_actions_[index]->setText(view_names[index]);
     view_actions_[index]->setToolTip(view_names[index]);
   }
   // One-letter row labels, the channel's name in the tooltip.
   const std::array<QString, kChannelCount> letters = {
-      tr("R", "Red channel"), tr("G", "Green channel"),      tr("B", "Blue channel"),
-      tr("H", "Hue"),         tr("S", "Saturation"), tr("B", "Brightness")};
-  const std::array<QString, kChannelCount> names = {tr("Red"), tr("Green"),      tr("Blue"),
-                                                    tr("Hue"), tr("Saturation"), tr("Brightness")};
+      tr("R", "Red channel"), tr("G", "Green channel"), tr("B", "Blue channel"), tr("H", "Hue"),
+      tr("S", "Saturation"),  tr("B", "Brightness"),    tr("C", "Cyan ink"),     tr("M", "Magenta ink"),
+      tr("Y", "Yellow ink"),  tr("K", "Black ink")};
+  const std::array<QString, kChannelCount> names = {
+      tr("Red"),        tr("Green"), tr("Blue"),    tr("Hue"),    tr("Saturation"),
+      tr("Brightness"), tr("Cyan"),  tr("Magenta"), tr("Yellow"), tr("Black")};
   for (std::size_t index = 0; index < channel_labels_.size(); ++index) {
     if (channel_labels_[index] == nullptr) {
       continue;
