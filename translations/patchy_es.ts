@@ -26863,16 +26863,8 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>Reproducir las animaciones breves que un tema muestra en los eventos, como fuegos artificiales al abrir un documento.</translation>
     </message>
     <message>
-        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
-        <translation>Ejecutar los scripts que incluye un paquete de tema. Pueden reproducir sonidos y efectos y añadir comandos de menú, pero no pueden leer archivos ni cambiar documentos.</translation>
-    </message>
-    <message>
         <source>Theme Scripts</source>
         <translation>Scripts del tema</translation>
-    </message>
-    <message>
-        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
-        <translation>El tema &quot;%1&quot; contiene scripts. Pueden reproducir sonidos y efectos y añadir comandos de menú, pero no pueden leer archivos ni cambiar documentos. ¿Permitirlos?</translation>
     </message>
     <message>
         <source>Allow</source>
@@ -26993,6 +26985,22 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Import Anyway</source>
         <translation>Importar de todos modos</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
+        <translation>Los scripts de temas no pueden abrir sus archivos o documentos ni usar Internet. Permítalos solo en temas de personas de su confianza.</translation>
+    </message>
+    <message>
+        <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
+        <translation>Los scripts de temas se ejecutan en un entorno aislado: pueden reproducir sonidos y efectos, mostrar imágenes y añadir comandos de menú, pero no pueden abrir ni cambiar sus archivos o documentos, ni usar Internet.</translation>
+    </message>
+    <message>
+        <source>Even so, only allow scripts in themes from people you trust.</source>
+        <translation>Aun así, permita scripts solo en temas de personas de su confianza.</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
+        <translation>El tema &quot;%1&quot; incluye scripts. ¿Permitir que se ejecuten?</translation>
     </message>
 </context>
 <context>

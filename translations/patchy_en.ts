@@ -26781,15 +26781,7 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Theme Scripts</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -26910,6 +26902,22 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Import Anyway</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Even so, only allow scripts in themes from people you trust.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

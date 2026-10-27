@@ -290,6 +290,7 @@ class ThemesPage final {
   QLabel* meta_ = nullptr;
   QLabel* compatibility_ = nullptr;
   QCheckBox* scripts_check_ = nullptr;
+  QLabel* scripts_note_ = nullptr;
   QCheckBox* sounds_check_ = nullptr;
   QCheckBox* effects_check_ = nullptr;
   QPushButton* delete_button_ = nullptr;
@@ -356,6 +357,16 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   scripts_check_->setObjectName(QStringLiteral("preferencesRunThemeScriptsCheck"));
   scripts_check_->setEnabled(false);
   details_layout->addWidget(scripts_check_);
+  // Shown while the selected theme has scripts: what they cannot do, and whom to trust.
+  scripts_note_ = new QLabel(MainWindow::tr("Theme scripts cannot open your files or documents or use the "
+                                            "internet. Only allow them in themes from people you trust."),
+                             details);
+  scripts_note_->setObjectName(QStringLiteral("preferencesThemeScriptsNote"));
+  scripts_note_->setTextFormat(Qt::PlainText);
+  scripts_note_->setWordWrap(true);
+  set_themed_style(*scripts_note_, QStringLiteral("color: @text_secondary;"));
+  scripts_note_->hide();
+  details_layout->addWidget(scripts_note_);
   details_layout->addStretch(1);
   columns->addWidget(details, 4);
   group_layout->addLayout(columns, 1);
@@ -711,14 +722,18 @@ void ThemesPage::refresh_scripts_check() {
   const bool scripted = custom != nullptr && custom->assets != nullptr && custom->assets->has_scripts();
   const QSignalBlocker blocker(scripts_check_);
   scripts_check_->setEnabled(scripted);
+  scripts_note_->setVisible(scripted);
   if (!scripted) {
     scripts_check_->setChecked(false);
     scripts_check_->setToolTip(MainWindow::tr("The selected theme has no scripts."));
     return;
   }
+  // The trust prompt's two sentences (MainWindow::confirm_theme_scripts).
   scripts_check_->setToolTip(
-      MainWindow::tr("Run the scripts a theme package includes. They can play sounds and effects and add menu "
-                     "commands, but cannot read files or change documents."));
+      MainWindow::tr("Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu "
+                     "commands, but they cannot open or change your files or documents, and they cannot use the "
+                     "internet.") +
+      QLatin1Char(' ') + MainWindow::tr("Even so, only allow scripts in themes from people you trust."));
   const auto id = current_custom_id();
   const auto choice = script_choices_.constFind(id);
   scripts_check_->setChecked(choice != script_choices_.constEnd()

@@ -26863,16 +26863,8 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Die kurzen Animationen eines Themas zu Ereignissen abspielen, etwa ein Feuerwerk beim Öffnen eines Dokuments.</translation>
     </message>
     <message>
-        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
-        <translation>Die Skripte eines Themenpakets ausführen. Sie können Klänge und Effekte abspielen und Menübefehle hinzufügen, aber keine Dateien lesen und keine Dokumente ändern.</translation>
-    </message>
-    <message>
         <source>Theme Scripts</source>
         <translation>Themenskripte</translation>
-    </message>
-    <message>
-        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
-        <translation>Das Thema &quot;%1&quot; enthält Skripte. Sie können Klänge und Effekte abspielen und Menübefehle hinzufügen, aber keine Dateien lesen und keine Dokumente ändern. Zulassen?</translation>
     </message>
     <message>
         <source>Allow</source>
@@ -26993,6 +26985,22 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Import Anyway</source>
         <translation>Trotzdem importieren</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
+        <translation>Themenskripte können Ihre Dateien und Dokumente nicht öffnen und nicht auf das Internet zugreifen. Lassen Sie sie nur in Themen von Personen zu, denen Sie vertrauen.</translation>
+    </message>
+    <message>
+        <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
+        <translation>Themenskripte laufen in einer Sandbox: Sie können Klänge und Effekte abspielen, Bilder zeigen und Menübefehle hinzufügen, aber sie können Ihre Dateien und Dokumente weder öffnen noch ändern und haben keinen Zugriff auf das Internet.</translation>
+    </message>
+    <message>
+        <source>Even so, only allow scripts in themes from people you trust.</source>
+        <translation>Lassen Sie Skripte trotzdem nur in Themen von Personen zu, denen Sie vertrauen.</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
+        <translation>Das Thema &quot;%1&quot; enthält Skripte. Sollen sie ausgeführt werden?</translation>
     </message>
 </context>
 <context>

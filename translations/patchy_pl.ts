@@ -26939,16 +26939,8 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Odtwarzaj krótkie animacje, które motyw pokazuje przy zdarzeniach, na przykład fajerwerki po otwarciu dokumentu.</translation>
     </message>
     <message>
-        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
-        <translation>Uruchamiaj skrypty dołączone do pakietu motywu. Mogą odtwarzać dźwięki i efekty oraz dodawać polecenia menu, ale nie mogą czytać plików ani zmieniać dokumentów.</translation>
-    </message>
-    <message>
         <source>Theme Scripts</source>
         <translation>Skrypty motywu</translation>
-    </message>
-    <message>
-        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
-        <translation>Motyw &quot;%1&quot; zawiera skrypty. Mogą odtwarzać dźwięki i efekty oraz dodawać polecenia menu, ale nie mogą czytać plików ani zmieniać dokumentów. Zezwolić?</translation>
     </message>
     <message>
         <source>Allow</source>
@@ -27069,6 +27061,22 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Import Anyway</source>
         <translation>Importuj mimo to</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
+        <translation>Skrypty motywów nie mogą otwierać Twoich plików i dokumentów ani korzystać z internetu. Zezwalaj na nie tylko w motywach od osób, którym ufasz.</translation>
+    </message>
+    <message>
+        <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
+        <translation>Skrypty motywów działają w piaskownicy: mogą odtwarzać dźwięki i efekty, wyświetlać obrazy i dodawać polecenia menu, ale nie mogą otwierać ani zmieniać Twoich plików i dokumentów ani korzystać z internetu.</translation>
+    </message>
+    <message>
+        <source>Even so, only allow scripts in themes from people you trust.</source>
+        <translation>Mimo to zezwalaj na skrypty tylko w motywach od osób, którym ufasz.</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
+        <translation>Motyw &quot;%1&quot; zawiera skrypty. Zezwolić na ich uruchomienie?</translation>
     </message>
 </context>
 <context>

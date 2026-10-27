@@ -37,6 +37,7 @@
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -345,6 +346,15 @@ void ui_theme_script_trust_prompt_and_stored_answer() {
   QTimer::singleShot(50, [&saw_allow] {
     auto* prompt = find_top_level_dialog(QStringLiteral("themeScriptTrustPrompt"));
     CHECK(prompt != nullptr);
+    if (auto* box = qobject_cast<QMessageBox*>(prompt); box != nullptr) {
+      // Asks, says what the sandbox keeps out, says to trust the author, and defaults to no.
+      CHECK(box->text().contains(QStringLiteral("Allow them to run?")));
+      CHECK(box->informativeText().contains(QStringLiteral("cannot use the internet")));
+      CHECK(box->informativeText().contains(QStringLiteral("people you trust")));
+      CHECK(box->defaultButton() != nullptr &&
+            box->defaultButton()->objectName() == QStringLiteral("themeScriptTrustDenyButton"));
+      save_widget_artifact("theme_script_trust_prompt", *box);
+    }
     if (auto* allow = prompt != nullptr ? prompt->findChild<QPushButton*>(QStringLiteral("themeScriptTrustAllowButton"))
                                         : nullptr;
         allow != nullptr) {
@@ -570,12 +580,15 @@ void ui_theme_effects_and_scripts_preferences() {
   with_preferences(
       [](QDialog& dialog, QCheckBox& effects, QCheckBox& scripts) {
         CHECK(effects.isChecked() && scripts.isEnabled() && scripts.isChecked());
+        auto* note = dialog.findChild<QLabel*>(QStringLiteral("preferencesThemeScriptsNote"));
+        CHECK(note != nullptr && note->isVisible() && note->text().contains(QStringLiteral("internet")));
         effects.setChecked(false);
         scripts.setChecked(false);
         CHECK(select_preferences_theme(dialog, QStringLiteral("custom:Other")));
         CHECK(scripts.isEnabled() && scripts.isChecked());
         CHECK(select_preferences_theme(dialog, QStringLiteral("dark")));
         CHECK(!scripts.isEnabled() && !scripts.isChecked());
+        CHECK(note != nullptr && !note->isVisible());
         CHECK(select_preferences_theme(dialog, QStringLiteral("custom:Prefs")));
         CHECK(scripts.isEnabled() && !scripts.isChecked());
       },

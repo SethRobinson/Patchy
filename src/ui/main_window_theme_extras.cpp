@@ -63,13 +63,18 @@ bool g_trust_prompt_open = false;
 
 bool MainWindow::confirm_theme_scripts(QWidget* parent, const QString& theme_name) {
   QMessageBox box(QMessageBox::Question, tr("Theme Scripts"),
-                  tr("The theme \"%1\" contains scripts. They can play sounds and effects and add menu commands, "
-                     "but cannot read files or change documents. Allow?")
-                      .arg(theme_name),
+                  tr("The theme \"%1\" includes scripts. Allow them to run?").arg(theme_name),
                   QMessageBox::NoButton, parent);
   box.setObjectName(QStringLiteral("themeScriptTrustPrompt"));
   // The name comes from a downloaded theme.json: as rich text it could rewrite this prompt.
   box.setTextFormat(Qt::PlainText);
+  // What the sandbox allows, and that it is still no reason to run a stranger's theme
+  // (the same two sentences as the Run this theme's scripts tooltip).
+  box.setInformativeText(tr("Theme scripts run in a sandbox: they can play sounds and effects, show pictures and "
+                            "add menu commands, but they cannot open or change your files or documents, and they "
+                            "cannot use the internet.") +
+                         QStringLiteral("\n\n") +
+                         tr("Even so, only allow scripts in themes from people you trust."));
   auto* allow = box.addButton(tr("Allow"), QMessageBox::AcceptRole);
   allow->setObjectName(QStringLiteral("themeScriptTrustAllowButton"));
   auto* deny = box.addButton(tr("Don't Allow"), QMessageBox::RejectRole);

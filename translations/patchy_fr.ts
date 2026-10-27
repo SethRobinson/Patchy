@@ -26863,16 +26863,8 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Jouer les courtes animations qu&apos;un thème montre lors des événements, comme un feu d&apos;artifice à l&apos;ouverture d&apos;un document.</translation>
     </message>
     <message>
-        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
-        <translation>Exécuter les scripts inclus dans un paquet de thème. Ils peuvent jouer des sons et des effets et ajouter des commandes de menu, mais ne peuvent ni lire de fichiers ni modifier de documents.</translation>
-    </message>
-    <message>
         <source>Theme Scripts</source>
         <translation>Scripts du thème</translation>
-    </message>
-    <message>
-        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
-        <translation>Le thème &quot;%1&quot; contient des scripts. Ils peuvent jouer des sons et des effets et ajouter des commandes de menu, mais ne peuvent ni lire de fichiers ni modifier de documents. Autoriser ?</translation>
     </message>
     <message>
         <source>Allow</source>
@@ -26993,6 +26985,22 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Import Anyway</source>
         <translation>Importer quand même</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
+        <translation>Les scripts de thème ne peuvent ni ouvrir vos fichiers ou documents, ni utiliser Internet. Ne les autorisez que dans les thèmes de personnes en qui vous avez confiance.</translation>
+    </message>
+    <message>
+        <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
+        <translation>Les scripts de thème s&apos;exécutent dans un bac à sable : ils peuvent jouer des sons et des effets, afficher des images et ajouter des commandes de menu, mais ils ne peuvent ni ouvrir ni modifier vos fichiers ou documents, ni utiliser Internet.</translation>
+    </message>
+    <message>
+        <source>Even so, only allow scripts in themes from people you trust.</source>
+        <translation>N&apos;autorisez tout de même les scripts que dans les thèmes de personnes en qui vous avez confiance.</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
+        <translation>Le thème &quot;%1&quot; contient des scripts. Les autoriser à s&apos;exécuter ?</translation>
     </message>
 </context>
 <context>

@@ -26787,16 +26787,8 @@ The open document keeps its blend modes either way.</source>
         <translation>テーマがイベントで表示する短いアニメーションを再生します (ドキュメントを開いたときの花火など)。</translation>
     </message>
     <message>
-        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
-        <translation>テーマパッケージに含まれるスクリプトを実行します。サウンドやエフェクトの再生とメニューコマンドの追加はできますが、ファイルの読み込みやドキュメントの変更はできません。</translation>
-    </message>
-    <message>
         <source>Theme Scripts</source>
         <translation>テーマのスクリプト</translation>
-    </message>
-    <message>
-        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
-        <translation>テーマ &quot;%1&quot; にはスクリプトが含まれています。サウンドやエフェクトの再生とメニューコマンドの追加はできますが、ファイルの読み込みやドキュメントの変更はできません。許可しますか?</translation>
     </message>
     <message>
         <source>Allow</source>
@@ -26917,6 +26909,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Import Anyway</source>
         <translation>それでも読み込む</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
+        <translation>テーマのスクリプトは、ファイルやドキュメントを開いたりインターネットを使用したりできません。信頼できる人のテーマでのみ許可してください。</translation>
+    </message>
+    <message>
+        <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
+        <translation>テーマのスクリプトはサンドボックス内で実行されます。サウンドやエフェクトの再生、画像の表示、メニューコマンドの追加はできますが、ファイルやドキュメントを開いたり変更したりすることはできず、インターネットも使用できません。</translation>
+    </message>
+    <message>
+        <source>Even so, only allow scripts in themes from people you trust.</source>
+        <translation>それでも、スクリプトは信頼できる人のテーマでのみ許可してください。</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
+        <translation>テーマ &quot;%1&quot; にはスクリプトが含まれています。実行を許可しますか?</translation>
     </message>
 </context>
 <context>

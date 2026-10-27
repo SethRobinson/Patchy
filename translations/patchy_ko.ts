@@ -26787,16 +26787,8 @@ The open document keeps its blend modes either way.</source>
         <translation>테마가 이벤트에 표시하는 짧은 애니메이션을 재생합니다(예: 문서를 열 때의 불꽃놀이).</translation>
     </message>
     <message>
-        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
-        <translation>테마 패키지에 포함된 스크립트를 실행합니다. 사운드와 효과를 재생하고 메뉴 명령을 추가할 수 있지만 파일을 읽거나 문서를 바꿀 수는 없습니다.</translation>
-    </message>
-    <message>
         <source>Theme Scripts</source>
         <translation>테마 스크립트</translation>
-    </message>
-    <message>
-        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
-        <translation>테마 &quot;%1&quot;에 스크립트가 있습니다. 사운드와 효과를 재생하고 메뉴 명령을 추가할 수 있지만 파일을 읽거나 문서를 바꿀 수는 없습니다. 허용할까요?</translation>
     </message>
     <message>
         <source>Allow</source>
@@ -26917,6 +26909,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Import Anyway</source>
         <translation>그래도 가져오기</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
+        <translation>테마 스크립트는 파일이나 문서를 열거나 인터넷을 사용할 수 없습니다. 신뢰하는 사람이 만든 테마에서만 허용하세요.</translation>
+    </message>
+    <message>
+        <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
+        <translation>테마 스크립트는 샌드박스에서 실행됩니다. 소리와 효과를 재생하고 그림을 표시하고 메뉴 명령을 추가할 수 있지만, 파일이나 문서를 열거나 변경할 수 없고 인터넷도 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Even so, only allow scripts in themes from people you trust.</source>
+        <translation>그래도 신뢰하는 사람이 만든 테마에서만 스크립트를 허용하세요.</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
+        <translation>테마 &quot;%1&quot;에 스크립트가 포함되어 있습니다. 실행을 허용할까요?</translation>
     </message>
 </context>
 <context>

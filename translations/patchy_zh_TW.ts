@@ -26787,16 +26787,8 @@ The open document keeps its blend modes either way.</source>
         <translation>播放佈景主題在事件發生時顯示的簡短動畫,例如開啟文件時的煙火。</translation>
     </message>
     <message>
-        <source>Run the scripts a theme package includes. They can play sounds and effects and add menu commands, but cannot read files or change documents.</source>
-        <translation>執行佈景主題套件內含的指令碼。它們可以播放音效與效果並新增選單命令,但無法讀取檔案或變更文件。</translation>
-    </message>
-    <message>
         <source>Theme Scripts</source>
         <translation>佈景主題指令碼</translation>
-    </message>
-    <message>
-        <source>The theme &quot;%1&quot; contains scripts. They can play sounds and effects and add menu commands, but cannot read files or change documents. Allow?</source>
-        <translation>佈景主題 &quot;%1&quot; 含有指令碼。它們可以播放音效與效果並新增選單命令,但無法讀取檔案或變更文件。要允許嗎?</translation>
     </message>
     <message>
         <source>Allow</source>
@@ -26917,6 +26909,22 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Import Anyway</source>
         <translation>仍要匯入</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
+        <translation>佈景主題指令碼無法開啟您的檔案或文件，也無法使用網際網路。只應在您信任的人所製作的佈景主題中允許它們。</translation>
+    </message>
+    <message>
+        <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
+        <translation>佈景主題指令碼在沙箱中執行：它們可以播放聲音和效果、顯示圖片並新增選單命令，但無法開啟或變更您的檔案或文件，也無法使用網際網路。</translation>
+    </message>
+    <message>
+        <source>Even so, only allow scripts in themes from people you trust.</source>
+        <translation>即使如此，仍只應允許您信任的人所製作佈景主題中的指令碼。</translation>
+    </message>
+    <message>
+        <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
+        <translation>佈景主題 &quot;%1&quot; 包含指令碼。要允許執行嗎？</translation>
     </message>
 </context>
 <context>
