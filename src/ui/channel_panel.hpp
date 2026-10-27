@@ -9,6 +9,7 @@
 #include <QWidget>
 
 #include <functional>
+#include <map>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -80,6 +81,9 @@ public:
   void set_load_selection_callback(LoadSelectionCallback callback);
   void set_reorder_callback(ReorderCallback callback);
   void set_eye_callback(EyeCallback callback);
+  // The key each row's channel shortcut shows on its right (docs/channels.md), by row
+  // kind; a kind left out shows none. Kept across list rebuilds.
+  void set_row_shortcuts(std::map<RowKind, QString> shortcuts);
   // Replaces the thumbnail of a derived row (Composite, a component, an ink plate) in
   // place, without rebuilding the list.
   void set_row_thumbnail(RowKind kind, const QPixmap& thumbnail);
@@ -88,6 +92,7 @@ public:
   // A row's eye state (none for Quick Mask) and thumbnail, as shown.
   [[nodiscard]] std::optional<bool> row_eye(int row) const;
   [[nodiscard]] QPixmap row_thumbnail(int row) const;
+  [[nodiscard]] QString row_shortcut(int row) const;
 
   [[nodiscard]] std::optional<Row> selected_row() const;
   [[nodiscard]] std::vector<ChannelId> saved_channel_order() const;
@@ -102,6 +107,8 @@ private:
   static constexpr int kThumbnailRole = Qt::UserRole + 3;
   // -1: no eye, 0: off, 1: on.
   static constexpr int kEyeRole = Qt::UserRole + 4;
+  // The shortcut text drawn right-aligned on the row (empty: none).
+  static constexpr int kShortcutRole = Qt::UserRole + 5;
 
   [[nodiscard]] QIcon row_icon(const QPixmap& thumbnail, int eye) const;
   void refresh_row_icons();
@@ -136,6 +143,7 @@ private:
   bool document_available_{false};
   bool channel_creation_available_{false};
   std::vector<Row> committed_rows_;
+  std::map<RowKind, QString> row_shortcuts_;
   std::vector<std::pair<std::size_t, ChannelId>> fixed_spot_positions_;
 };
 

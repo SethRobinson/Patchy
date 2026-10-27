@@ -21,9 +21,11 @@
 #include "ui/localization.hpp"
 #include "ui/tile_preview_window.hpp"
 
+#include <QAction>
 #include <QColor>
 #include <QImage>
 #include <QInputDialog>
+#include <QKeySequence>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPainter>
@@ -42,6 +44,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -390,16 +393,40 @@ void MainWindow::show_channel_by_shortcut(int slot) {
     set_channel_edit_target(ChannelPanel::RowKind::Composite, 0, false, true);
     return;
   }
-  // Inks in a CMYK Proof document whose plates are listed (docs/cmyk.md); otherwise colors.
-  const auto* session = active_session();
-  const auto& proof = canvas_->proof_display_transform();
-  const bool inks = session != nullptr && session->cmyk_proof && proof != nullptr && proof->simulates_colors();
+  const bool inks = channel_shortcuts_pick_inks();
   const auto index = slot - 1;
   if (index >= channel_view_group_size(inks ? ChannelViewGroup::Ink : ChannelViewGroup::Color)) {
     return;
   }
   set_channel_edit_target(channel_view_row_kind(inks ? ChannelViewGroup::Ink : ChannelViewGroup::Color, index), 0,
                           false, true);
+}
+
+bool MainWindow::channel_shortcuts_pick_inks() const {
+  // Inks in a CMYK Proof document whose plates are listed (docs/cmyk.md); otherwise colors.
+  if (canvas_ == nullptr) {
+    return false;
+  }
+  const auto* session = active_session();
+  const auto& proof = canvas_->proof_display_transform();
+  return session != nullptr && session->cmyk_proof && proof != nullptr && proof->simulates_colors();
+}
+
+void MainWindow::refresh_channel_row_shortcuts() {
+  if (channel_panel_ == nullptr) {
+    return;
+  }
+  const auto key = [this](std::size_t slot) {
+    const auto* action = channel_view_actions_[slot];
+    return action != nullptr ? action->shortcut().toString(QKeySequence::NativeText) : QString();
+  };
+  std::map<ChannelPanel::RowKind, QString> shortcuts{{ChannelPanel::RowKind::Composite, key(0)}};
+  const bool inks = channel_shortcuts_pick_inks();
+  const auto group = inks ? ChannelViewGroup::Ink : ChannelViewGroup::Color;
+  for (int index = 0; index < channel_view_group_size(group); ++index) {
+    shortcuts[channel_view_row_kind(group, index)] = key(static_cast<std::size_t>(index) + 1U);
+  }
+  channel_panel_->set_row_shortcuts(std::move(shortcuts));
 }
 
 void MainWindow::apply_channel_view_change(ChannelViewChange change) {
@@ -567,6 +594,7 @@ void MainWindow::refresh_channel_panel() {
         break;
     }
   }
+  refresh_channel_row_shortcuts();
   channel_panel_->set_rows(std::move(rows), selected);
   const bool editing_available = !preview_dialog_edit_locked();
   channel_panel_->set_document_available(editing_available);

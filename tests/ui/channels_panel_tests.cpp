@@ -1320,6 +1320,7 @@ void ui_channel_view_issue_412_shots() {
     return;
   }
   (void)wait_for_channel_thumbnail(*panel, 1);
+  CHECK(!panel->row_shortcut(0).isEmpty());
   save_widget_artifact("issue_412_after_panel", *panel);
   const QPoint sample(1500, 1000);
   require_hotkey_action(window, QStringLiteral("channel.view_first"))->trigger();
@@ -1332,6 +1333,90 @@ void ui_channel_view_issue_412_shots() {
   CHECK(red_green.blue() == 0);
   save_widget_artifact("issue_412_after_canvas_red_green", *canvas);
   save_widget_artifact("issue_412_after_panel_red_green", *panel);
+}
+
+// Each Composite, color and ink plate row shows the key of the channel view action that
+// picks it, in native text, and follows a rebinding (the #412 follow-up). Under Proof
+// Colors in an RGB document Ctrl+3 to Ctrl+5 still pick Red, Green and Blue, so the
+// plates show none.
+void ui_channel_rows_show_their_shortcuts() {
+  const auto previous = patchy::working_cmyk_space();
+  const auto restore = qScopeGuard([&previous] { patchy::set_working_cmyk_space(previous); });
+  patchy::Document document(48, 32, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Artwork", solid_pixels(48, 32, patchy::PixelFormat::rgb8(), QColor(200, 120, 40)));
+  patchy::ui::MainWindow window;
+  patchy::set_working_cmyk_space(patchy::CmykWorkingSpace::from_icc_profile(
+      patchy::ui::bundled_cmyk_profile(), patchy::RenderingIntent::RelativeColorimetric, true));
+  window.add_document_session(std::move(document), QStringLiteral("Shortcuts"));
+  show_window(window);
+  show_channels_tab(window);
+  auto* panel = window.findChild<patchy::ui::ChannelPanel*>(QStringLiteral("channelPanel"));
+  auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  CHECK(panel != nullptr && channels != nullptr);
+  if (panel == nullptr || channels == nullptr) {
+    return;
+  }
+  const auto native = [](int key) {
+    return QKeySequence(QKeyCombination(Qt::ControlModifier, static_cast<Qt::Key>(key)))
+        .toString(QKeySequence::NativeText);
+  };
+  CHECK(channels->count() == 4);
+  CHECK(panel->row_shortcut(0) == native(Qt::Key_2));
+  CHECK(panel->row_shortcut(1) == native(Qt::Key_3));
+  CHECK(panel->row_shortcut(2) == native(Qt::Key_4));
+  CHECK(panel->row_shortcut(3) == native(Qt::Key_5));
+
+  // A rebound key shows at once; a channel without a key shows nothing.
+  auto* first = require_hotkey_action(window, QStringLiteral("channel.view_first"));
+  auto* second = require_hotkey_action(window, QStringLiteral("channel.view_second"));
+  const auto first_keys = first->shortcuts();
+  const auto second_keys = second->shortcuts();
+  first->setShortcut(QKeySequence(QKeyCombination(Qt::ControlModifier | Qt::AltModifier, Qt::Key_9)));
+  second->setShortcuts({});
+  QApplication::processEvents();
+  CHECK(panel->row_shortcut(1) ==
+        QKeySequence(QKeyCombination(Qt::ControlModifier | Qt::AltModifier, Qt::Key_9))
+            .toString(QKeySequence::NativeText));
+  CHECK(panel->row_shortcut(2).isEmpty());
+  first->setShortcuts(first_keys);
+  second->setShortcuts(second_keys);
+  QApplication::processEvents();
+  CHECK(panel->row_shortcut(1) == native(Qt::Key_3));
+  CHECK(panel->row_shortcut(2) == native(Qt::Key_4));
+
+  auto* proof = window.findChild<QAction*>(QStringLiteral("viewProofColorsAction"));
+  CHECK(proof != nullptr);
+  if (proof == nullptr) {
+    return;
+  }
+  proof->trigger();
+  QApplication::processEvents();
+  CHECK(channels->count() == 8);
+  CHECK(panel->row_shortcut(1) == native(Qt::Key_3));
+  for (int row = 4; row < 8; ++row) {
+    CHECK(panel->row_shortcut(row).isEmpty());
+  }
+  proof->trigger();
+  QApplication::processEvents();
+
+  // The key is drawn at the right end of the Composite row.
+  const auto composite_rect = channels->visualItemRect(channels->item(0));
+  const auto row_image = channels->viewport()->grab(composite_rect).toImage();
+  const auto background = row_image.pixelColor(row_image.width() - 2, 2);
+  bool key_drawn = false;
+  for (int x = row_image.width() * 3 / 4; x < row_image.width() && !key_drawn; ++x) {
+    for (int y = 0; y < row_image.height() && !key_drawn; ++y) {
+      key_drawn = row_image.pixelColor(x, y) != background;
+    }
+  }
+  CHECK(key_drawn);
+  save_widget_artifact("ui_channel_rows_show_their_shortcuts", *panel);
+
+  // A narrow panel elides the name and keeps the key (the artifact shows both).
+  panel->resize(150, panel->height());
+  QApplication::processEvents();
+  CHECK(panel->row_shortcut(0) == native(Qt::Key_2));
+  save_widget_artifact("ui_channel_rows_show_their_shortcuts_narrow", *panel);
 }
 
 // The channel context menu's New Layer from Channel copies a row's values into a
@@ -1432,6 +1517,7 @@ std::vector<patchy::test::TestCase> channels_panel_tests() {
       {"ui_channel_rows_become_new_layers", ui_channel_rows_become_new_layers},
       {"ui_channel_eyes_view_mask_shortcuts_and_thumbnails", ui_channel_eyes_view_mask_shortcuts_and_thumbnails},
       {"ui_channel_view_issue_412_shots", ui_channel_view_issue_412_shots},
+      {"ui_channel_rows_show_their_shortcuts", ui_channel_rows_show_their_shortcuts},
       {"ui_channel_eye_clicks_never_select_hidden", ui_channel_eye_clicks_never_select_hidden},
       {"ui_non_psd_save_warns_before_discarding_channels",
        ui_non_psd_save_warns_before_discarding_channels},

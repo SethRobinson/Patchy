@@ -2241,6 +2241,10 @@ private:
   // Channel visibility (docs/channels.md): the Channels panel's eyes and Ctrl+2 to Ctrl+6.
   void toggle_channel_eye(ChannelPanel::RowKind kind);
   void show_channel_by_shortcut(int slot);
+  // True when Ctrl+3 to Ctrl+6 pick ink plates (a CMYK Proof document with plates listed).
+  [[nodiscard]] bool channel_shortcuts_pick_inks() const;
+  // Puts the channel view actions' current keys on the Channels rows they pick.
+  void refresh_channel_row_shortcuts();
   void apply_channel_view_change(ChannelViewChange change);
   [[nodiscard]] QString channel_view_names(ChannelView view) const;
   // The Composite, component and ink plate rows' thumbnails, sampled from the canvas's
