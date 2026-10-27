@@ -126,6 +126,8 @@ Blocking refusals and failed operations use `MainWindow::show_status_error` or `
 
 The Preferences dialog (page list, page order, which settings go on which page, the
 remembered page and size) is described in [preferences-dialog.md](preferences-dialog.md).
+Settings pages keep fields compact (a combo as wide as its longest entry, capped; never stretched
+to the window edge) and let option text wrap rather than set the window's minimum width.
 `install_wheel_scroll_guard` (`dialog_utils.hpp`) makes combo boxes, spin boxes and sliders
 in scrolling pages take the wheel only with keyboard focus (issue 92); use it for any dialog
 whose pages scroll.

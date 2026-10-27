@@ -6,6 +6,7 @@
 #include "ui/theme_palette.hpp"
 
 #include <QAbstractItemView>
+#include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
@@ -23,6 +24,9 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSettings>
+#include <QStyle>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
 #include <QTabWidget>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -216,6 +220,36 @@ private:
 // The slot list. A cluster heading is bottom-aligned in a row taller than a tool's, and Qt
 // centers the expand/collapse sign in the row, above the name: the heading's sign is drawn in
 // the band of its text instead, so the sign and the name line up (GitHub issue 213 follow-up).
+// The shortcut column: its right-aligned keys end kGap px before the list's right edge, where
+// the scrollbar sits (GitHub issue 213 follow-up). An item-view QSS padding-right only widens
+// the column's size hint; the style still draws right-aligned text flush with the cell edge.
+// The row's background is drawn across the whole cell, the text in the inset rect.
+class ShortcutColumnDelegate final : public QStyledItemDelegate {
+public:
+  static constexpr int kGap = 12;
+  using QStyledItemDelegate::QStyledItemDelegate;
+
+  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    QStyleOptionViewItem cell(option);
+    initStyleOption(&cell, index);
+    auto* style = cell.widget != nullptr ? cell.widget->style() : QApplication::style();
+    QStyleOptionViewItem background(cell);
+    background.text.clear();
+    style->drawControl(QStyle::CE_ItemViewItem, &background, painter, cell.widget);
+    QStyleOptionViewItem text(cell);
+    text.rect.adjust(0, 0, -kGap, 0);
+    text.backgroundBrush = Qt::NoBrush;
+    text.state &= ~(QStyle::State_MouseOver | QStyle::State_Selected | QStyle::State_HasFocus);
+    style->drawControl(QStyle::CE_ItemViewItem, &text, painter, cell.widget);
+  }
+
+  [[nodiscard]] QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    auto size = QStyledItemDelegate::sizeHint(option, index);
+    size.rwidth() += kGap;
+    return size;
+  }
+};
+
 class ToolPaletteCustomizeTree final : public QTreeWidget {
 public:
   using QTreeWidget::QTreeWidget;
@@ -343,6 +377,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   tree->header()->setStretchLastSection(false);
   tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
   tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+  tree->setItemDelegateForColumn(1, new ShortcutColumnDelegate(tree));
   tree->setMinimumSize(340, 420);
   list_column->addWidget(tree, 1);
   tools_layout->addLayout(list_column, 1);

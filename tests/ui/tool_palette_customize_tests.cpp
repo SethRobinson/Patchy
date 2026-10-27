@@ -28,8 +28,11 @@
 #include <QLayout>
 #include <QListWidget>
 #include <QMenu>
+#include <QHeaderView>
+#include <QImage>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollBar>
 #include <QTabWidget>
 #include <QTest>
 #include <QTimer>
@@ -39,7 +42,9 @@
 #include <QTreeWidgetItemIterator>
 #include <QWheelEvent>
 
+#include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -128,6 +133,34 @@ QTreeWidgetItem* tree_row(QTreeWidget& tree, const QString& text) {
   const auto found = tree.findItems(text, Qt::MatchExactly | Qt::MatchRecursive, 0);
   CHECK(found.size() == 1);
   return found.isEmpty() ? nullptr : found.front();
+}
+
+// Logical pixels between the rightmost inked pixel of a row's shortcut column and the right
+// edge of the list's viewport; -1 when the row draws nothing there.
+int shortcut_gap_before_right_edge(QTreeWidget& tree, QTreeWidgetItem& row) {
+  auto* viewport = tree.viewport();
+  const QRect band = tree.visualItemRect(&row);
+  const QImage image = viewport->grab().toImage();
+  const double scale = static_cast<double>(image.width()) / viewport->width();
+  const int left = qRound(tree.header()->sectionViewportPosition(1) * scale);
+  const int top = qRound(band.top() * scale);
+  const int bottom = qRound((band.bottom() + 1) * scale) - 1;
+  const QColor background = image.pixelColor(image.width() - 1, (top + bottom) / 2);
+  int rightmost = -1;
+  for (int y = std::max(0, top); y <= std::min(bottom, image.height() - 1); ++y) {
+    for (int x = std::max(0, left); x < image.width(); ++x) {
+      const QColor color = image.pixelColor(x, y);
+      if (std::abs(color.red() - background.red()) + std::abs(color.green() - background.green()) +
+              std::abs(color.blue() - background.blue()) >
+          90) {
+        rightmost = std::max(rightmost, x);
+      }
+    }
+  }
+  if (rightmost < 0) {
+    return -1;
+  }
+  return static_cast<int>((image.width() - 1 - rightmost) / scale);
 }
 
 void press_dialog_button(QDialog& dialog, QDialogButtonBox::StandardButton which) {
@@ -810,11 +843,20 @@ void ui_tool_palette_footer_items_hide_and_preview() {
     }
     CHECK(colors->isChecked() && quick_mask->isChecked() && screen_mode->isChecked());
     CHECK(flyout_open->currentData().toString() == QStringLiteral("hold"));
-    // The shortcut keys keep a gap before the list's right edge.
-    if (auto* hand = tree_row(*tree, QStringLiteral("Hand")); hand != nullptr) {
-      CHECK(tree->columnWidth(1) - tree->fontMetrics().horizontalAdvance(hand->text(1)) >= 12);
-    }
     settle();
+    // The shortcut letters keep a clear gap before the list's right edge, where the scrollbar
+    // sits (GitHub issue 213 follow-up): measured on the drawn pixels, since a padding that
+    // only widens the column leaves right-aligned text flush with the edge.
+    CHECK(tree->verticalScrollBar()->isVisible());
+    for (const auto* name : {"Move Tools", "Brush"}) {
+      if (auto* row = tree_row(*tree, QLatin1String(name)); row != nullptr) {
+        const int gap = shortcut_gap_before_right_edge(*tree, *row);
+        if (gap < 12) {
+          std::printf("[INFO] %s: shortcut ends %d px before the list's right edge\n", name, gap);
+        }
+        CHECK(gap >= 12);
+      }
+    }
     // The whole preview fits in the dialog, footer rows included.
     CHECK(preview->mapTo(&dialog, QPoint(0, preview->height())).y() <= dialog.height());
     (void)capture_widget_artifact("ui_tool_palette_customize_dialog_options", dialog);

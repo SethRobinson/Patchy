@@ -24,6 +24,14 @@ namespace patchy::ui {
 
 namespace {
 
+// Only the long command names wrap (GitHub issue 451: they set the Preferences dialog's
+// minimum width): a wrapping label measures its height for every width, and the panel has
+// ~150 rows, so the short ones stay single-line.
+constexpr int kHotkeyLabelWrapWidth = 200;
+void wrap_if_long(QLabel& label, const QString& plain_text) {
+  label.setWordWrap(label.fontMetrics().horizontalAdvance(plain_text) > kHotkeyLabelWrapWidth);
+}
+
 bool is_modifier_only_key(int key) {
   return key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta ||
          key == Qt::Key_AltGr || key == Qt::Key_CapsLock || key == Qt::Key_NumLock || key == Qt::Key_ScrollLock;
@@ -379,6 +387,7 @@ void HotkeyEditorPanel::add_built_in_row(QFrame* panel, const QString& keys, con
   row_layout->setSpacing(8);
   auto* description_label = new QLabel(description, container);
   description_label->setProperty("hotkeyDim", true);
+  wrap_if_long(*description_label, description);
   row_layout->addWidget(description_label, 1);
   auto* keys_label = new QLabel(keys, container);
   keys_label->setProperty("hotkeyFixedChip", true);
@@ -492,6 +501,7 @@ void HotkeyEditorPanel::refresh_rows() {
     set_themed_label_text(*row.name_label, modified
                                 ? QStringLiteral("<span style=\"color:@accent_border_bright;\">&#9679;</span> ") + escaped_label
                                 : escaped_label);
+    wrap_if_long(*row.name_label, row.label);
     row.reset_button->setVisible(modified);
     const auto default_text = hotkey_shortcuts_to_storage(row.command->default_shortcuts)
                                   .replace(QLatin1Char('\n'), QStringLiteral(", "));

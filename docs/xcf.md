@@ -195,6 +195,8 @@ a few pixels of GIMP's (`ui_xcf_text_layers_stay_editable`); its glyphs are Patc
   image's metadata there) fills what those left out: Exif only without `exif-data`, XMP
   properties the packet lacks, IPTC-IIM always. The open path keeps this File Info (it does
   not rescan the file, as it does flat formats).
+- GIMP writes no thumbnail into the XCF (none of the issue 450 samples has one); it keeps
+  thumbnails in the freedesktop cache (`~/.cache/thumbnails`).
 
 ### gimp-image-metadata
 

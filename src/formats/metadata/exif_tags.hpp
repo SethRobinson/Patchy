@@ -63,6 +63,7 @@ constexpr std::uint16_t kIsoSpeed = 34855;
 constexpr std::uint16_t kExifVersion = 36864;
 constexpr std::uint16_t kDateTimeOriginal = 36867;
 constexpr std::uint16_t kDateTimeDigitized = 36868;
+constexpr std::uint16_t kOffsetTime = 36880;
 constexpr std::uint16_t kOffsetTimeOriginal = 36881;
 constexpr std::uint16_t kExposureBias = 37380;
 constexpr std::uint16_t kMeteringMode = 37383;

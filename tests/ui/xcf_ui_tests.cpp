@@ -25,6 +25,7 @@
 #include <QDialog>
 #include <QDir>
 #include <QFile>
+#include <QLabel>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
@@ -37,6 +38,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -270,7 +272,8 @@ void ui_xcf_metadata_reaches_file_info() {
     patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(sample.wstring()));
     QApplication::processEvents();
     bool captured = false;
-    QTimer::singleShot(0, [&captured, name, page] {
+    QString created;
+    QTimer::singleShot(0, [&captured, &created, name, page] {
       auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -285,6 +288,11 @@ void ui_xcf_metadata_reaches_file_info() {
         }
       }
       QApplication::processEvents();
+      if (const auto* label = dialog->findChild<QLabel*>(QStringLiteral("fileInfoCreatedLabel"))) {
+        created = label->text();
+      }
+      std::error_code ignored;
+      std::filesystem::create_directories(std::filesystem::path("test-artifacts") / "xcf-metadata", ignored);
       patchy::test::ui::save_widget_artifact(std::string("xcf-metadata/file-info-") + name, *dialog);
       captured = true;
       dialog->reject();
@@ -292,6 +300,8 @@ void ui_xcf_metadata_reaches_file_info() {
     patchy::test::ui::require_action(window, "fileInfoAction")->trigger();
     QApplication::processEvents();
     CHECK(captured);
+    // Created carries OffsetTimeOriginal, as Modified carries its zone (issue 450).
+    CHECK(created == QStringLiteral("2026-10-26T12:56:05+03:00"));
   }
 }
 
