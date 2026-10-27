@@ -72,6 +72,11 @@ QStringList file_paths_from_clipboard_text(const QString& text, ClipboardPathSty
         return {};
       }
       path = url.toLocalFile();
+      // Qt keeps the slash before a drive letter ("/C:/...") outside Windows.
+      if (style == ClipboardPathStyle::Windows && path.size() >= 4 && path[0] == QLatin1Char('/') &&
+          path[2] == QLatin1Char(':') && is_separator(path[3])) {
+        path.remove(0, 1);
+      }
     } else {
       path = line.toString();
       if (style == ClipboardPathStyle::Posix && path.startsWith(QStringLiteral("~/"))) {
