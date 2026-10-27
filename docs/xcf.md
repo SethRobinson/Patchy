@@ -195,6 +195,10 @@ a few pixels of GIMP's (`ui_xcf_text_layers_stay_editable`); its glyphs are Patc
   image's metadata there) fills what those left out: Exif only without `exif-data`, XMP
   properties the packet lacks, IPTC-IIM always. The open path keeps this File Info (it does
   not rescan the file, as it does flat formats).
+- Application (#450): a file with no xmp:CreatorTool and no EXIF Software gets xmp:CreatorTool
+  from the first xmpMM:History entry's stEvt:softwareAgent (GIMP 3 writes "GIMP 3.2.6
+  (Linux)"), else "GIMP" (a packet is created if needed; the header names only the XCF
+  version). A PSD save keeps it as xmp:CreatorTool; an unparseable packet is left alone.
 - GIMP writes no thumbnail into the XCF (none of the issue 450 samples has one); it keeps
   thumbnails in the freedesktop cache (`~/.cache/thumbnails`).
 

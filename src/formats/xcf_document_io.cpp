@@ -7,6 +7,7 @@
 #include "core/worker_budget.hpp"
 #include "formats/format_file_io.hpp"
 #include "formats/metadata/gimp_image_metadata.hpp"
+#include "formats/metadata/metadata_edit.hpp"
 #include "formats/metadata/xmp.hpp"
 #include "formats/miniz/miniz.h"
 #include "formats/xcf_internal.hpp"
@@ -404,6 +405,39 @@ struct Parasite {
     }
   }
   return nullptr;
+}
+
+// File Info's Application for a file that names no creator (no xmp:CreatorTool, no EXIF
+// Software): the first xmpMM:History entry's stEvt:softwareAgent ("GIMP 3.2.6 (Linux)"), else
+// "GIMP". The XCF header gives only the file version. An unparseable packet is left alone.
+void fill_gimp_creator_tool(DocumentFileInfo& info) {
+  if (!metadata::read_fields(info).creator_tool.empty()) {
+    return;
+  }
+  metadata::XmpPacket packet;
+  if (info.xmp) {
+    auto parsed = metadata::parse_xmp(*info.xmp);
+    if (!parsed) {
+      return;
+    }
+    packet = std::move(*parsed);
+  }
+  std::string agent;
+  if (const auto* history = packet.find(metadata::xmp_ns::kXmpMM, "History"); history != nullptr) {
+    for (const auto& entry : history->value.items) {
+      for (const auto& field : entry.fields) {
+        if (field.ns == metadata::xmp_ns::kStEvt && field.name == "softwareAgent") {
+          agent = field.value.text;
+        }
+      }
+      if (!agent.empty()) {
+        break;
+      }
+    }
+  }
+  packet.set_simple(metadata::xmp_ns::kXmp, "CreatorTool", agent.empty() ? std::string("GIMP") : agent);
+  const auto bytes = metadata::serialize_xmp(packet);
+  info.xmp = make_metadata_bytes(std::vector<std::uint8_t>(bytes.begin(), bytes.end()));
 }
 
 [[nodiscard]] std::uint32_t payload_u32(const Reader& reader, const Property& property, std::uint32_t fallback) {
@@ -3354,6 +3388,7 @@ private:
       }
     }
   }
+  fill_gimp_creator_tool(info);
 
   if (document.layers().empty()) {
     // An image with no layers (GIMP can save one): a transparent layer keeps it openable.
