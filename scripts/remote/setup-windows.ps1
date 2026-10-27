@@ -10,13 +10,16 @@ are elevated). -Root picks where the work tree and tools go; it must match the
 
 Installs, skipping anything already present:
   - VS 2026 Build Tools (MSVC x64, Windows SDK 10.0.26100, VS-bundled CMake + Ninja),
-    the same toolset and SDK the dev box's release preset uses
+    the same toolset and SDK the dev box's release preset uses; an ARM64 host also gets
+    the native ARM64 MSVC tools
   - Git for Windows (winget, machine scope; an older Git than 2.35 is upgraded), so pushes
     over ssh reach git receive-pack; a broken winget source (0x8a15000f) is repaired first
   - Python 3.13 (winget, machine scope), which the release configure requires
   - the bare repo ~\patchy.git and the work tree <Root>\src (build output goes there)
-Qt is not downloaded here: copying the dev box's .deps\Qt\6.8.3\msvc2022_64 guarantees
-identical bits. The script prints the copy command when Qt is missing.
+Qt is not downloaded on an x64 host: copying the dev box's .deps\Qt\6.8.3\msvc2022_64
+guarantees identical bits, and the script prints the copy command when Qt is missing.
+An ARM64 host gets the native msvc2022_arm64 kit through aqtinstall instead (the dev box
+has none to copy). Qt 6.8.3 ships no qtpdf add-on for it, so PDF import builds as the stub.
 #>
 param([string]$Root = 'C:\patchy')
 
@@ -28,7 +31,11 @@ $tools = Join-Path $Root 'tools'
 $src = Join-Path $Root 'src'
 $bare = Join-Path $env:USERPROFILE 'patchy.git'
 $qtVer = '6.8.3'
-$qtDir = Join-Path $src ".deps\Qt\$qtVer\msvc2022_64"
+# The ssh session runs 64-bit Windows PowerShell, which reports the native architecture.
+$arm64 = $env:PROCESSOR_ARCHITECTURE -eq 'ARM64'
+$qtArch = if ($arm64) { 'msvc2022_arm64' } else { 'msvc2022_64' }
+$vcTools = if ($arm64) { 'Microsoft.VisualStudio.Component.VC.Tools.ARM64' } else { 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64' }
+$qtDir = Join-Path $src ".deps\Qt\$qtVer\$qtArch"
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 
 Write-Host '== Patchy windows setup =='
@@ -64,7 +71,7 @@ function Find-VcInstall {
   if (-not (Test-Path $vswhere)) { return $null }
   # -version 18.0 (a minimum): an older VS with VC tools (2019, 2022) must not count as
   # installed, or the VS 2026 Build Tools install is skipped and the build uses the old toolset.
-  $p = & $vswhere -latest -products * -version 18.0 -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+  $p = & $vswhere -latest -products * -version 18.0 -requires $vcTools -property installationPath
   if ($p) { return $p.Trim() } else { return $null }
 }
 
@@ -79,6 +86,7 @@ if (-not $vs) {
   $vsArgs = @('--quiet', '--wait', '--norestart', '--nocache',
     '--add', 'Microsoft.VisualStudio.Workload.VCTools',
     '--add', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+    '--add', $vcTools,
     '--add', 'Microsoft.VisualStudio.Component.VC.CMake.Project',
     '--add', 'Microsoft.VisualStudio.Component.Windows11SDK.26100',
     '--includeRecommended')
@@ -155,18 +163,31 @@ git -C $src config core.longpaths true
 
 # --- 4. Qt -----------------------------------------------------------------------------
 $qtOk = Test-Path (Join-Path $qtDir 'bin\Qt6Core.dll')
+if (-not $qtOk -and $arm64) {
+  Write-Host "== Installing Qt $qtVer $qtArch (aqtinstall) =="
+  $aqtVenv = Join-Path $tools 'aqt-venv'
+  $aqt = Join-Path $aqtVenv 'Scripts\aqt.exe'
+  if (-not (Test-Path $aqt)) {
+    & (Find-Python) -m venv $aqtVenv
+    & (Join-Path $aqtVenv 'Scripts\python.exe') -m pip install --quiet aqtinstall
+  }
+  & $aqt install-qt windows_arm64 desktop $qtVer "win64_$qtArch" -m qtimageformats -O (Join-Path $src '.deps\Qt')
+  $qtOk = Test-Path (Join-Path $qtDir 'bin\Qt6Core.dll')
+  if (-not $qtOk) { Write-Error "aqt install-qt did not produce $qtDir"; exit 1 }
+}
 if (-not $qtOk) {
   New-Item -ItemType Directory -Force (Split-Path $qtDir) | Out-Null
-  Write-Host "Qt $qtVer msvc2022_64 is missing. From the dev box (Git Bash), copy it over:"
-  Write-Host "  tar -cf - -C <main-checkout>/.deps/Qt/$qtVer msvc2022_64 | ssh <windows-build-host> `"tar -xf - -C $((Split-Path $qtDir).Replace('\', '/'))`""
+  Write-Host "Qt $qtVer $qtArch is missing. From the dev box (Git Bash), copy it over:"
+  Write-Host "  tar -cf - -C <main-checkout>/.deps/Qt/$qtVer $qtArch | ssh <windows-build-host> `"tar -xf - -C $((Split-Path $qtDir).Replace('\', '/'))`""
 }
 
 # --- 5. Versions -----------------------------------------------------------------------
 Write-Host '== Versions =='
 $probe = Join-Path $tools 'versions.cmd'
+$vsArch = if ($arm64) { 'arm64' } else { 'x64' }
 @"
 @echo off
-call "$vs\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul
+call "$vs\Common7\Tools\VsDevCmd.bat" -arch=$vsArch -host_arch=$vsArch >nul
 cl 2>&1 | findstr /C:"Version"
 cmake --version | findstr /B cmake
 for /f %%v in ('ninja --version') do echo ninja %%v
