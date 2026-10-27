@@ -211,6 +211,8 @@ QString metadata_policy_key(metadata::MetadataPolicy policy) {
       return QStringLiteral("copyright");
     case metadata::MetadataPolicy::None:
       return QStringLiteral("none");
+    case metadata::MetadataPolicy::Basic:
+      return QStringLiteral("basic");
   }
   return QStringLiteral("all");
 }
@@ -224,6 +226,9 @@ std::optional<metadata::MetadataPolicy> metadata_policy_from_key(const QString& 
   }
   if (key == QStringLiteral("none")) {
     return metadata::MetadataPolicy::None;
+  }
+  if (key == QStringLiteral("basic")) {
+    return metadata::MetadataPolicy::Basic;
   }
   return std::nullopt;
 }

@@ -12879,10 +12879,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Miniatur einschließen (etwa 5 bis 10 KB)</translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation>Fügt den EXIF-Daten ein kleines Vorschaubild hinzu. Wird nur geschrieben, wenn die Datei EXIF-Metadaten behält.</translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation>In sRGB konvertieren (von %1)</translation>
     </message>
@@ -13143,6 +13139,30 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Animation</source>
         <translation>Animation</translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation>Keine Dateiinformationen. Farbprofil und Auflösung bleiben erhalten.</translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation>Einfach</translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation>Autor, Copyright-Vermerk und Kontaktdaten aus den Dateiinformationen.</translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation>Alles aus den Dateiinformationen.</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation>Fügt ein kleines Vorschaubild hinzu (etwa 5 bis 10 KB), das manche Betrachter und Dateibrowser anzeigen. Funktioniert mit jeder Metadaten-Auswahl: Bei Keine enthält die Datei nur das Vorschaubild.</translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <translation>Patchy als erstellende Anwendung, die Exportdaten und ein Verlaufseintrag, wie Einfach in den Einstellungen sie schreibt. Nichts aus den Dateiinformationen des Dokuments.</translation>
     </message>
 </context>
 <context>

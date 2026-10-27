@@ -21,6 +21,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
+#include <QAbstractItemView>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -37,7 +38,10 @@
 #include <QLineEdit>
 #include <QPainter>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSpinBox>
+#include <QSpontaneKeyEvent>
+#include <QWheelEvent>
 #include <QTimer>
 #include <QTreeWidget>
 
@@ -960,6 +964,169 @@ void ui_web_export_transparency_fill_in_the_dialog() {
   CHECK(inspected);
 }
 
+void send_wheel_notch_down(QWidget& target) {
+  const QPointF center(target.width() / 2.0, target.height() / 2.0);
+  QWheelEvent wheel(center, target.mapToGlobal(center), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier,
+                    Qt::NoScrollPhase, false);
+  QSpontaneKeyEvent::setSpontaneous(&wheel);
+  qApp->notify(&target, &wheel);
+}
+
+// The settings column scrolls with the wheel: an unfocused combo box (Metadata) or spin box
+// (JPEG Quality) passes the wheel to the column instead of changing its value; a focused one
+// still takes it (install_wheel_scroll_guard, GitHub issue 92).
+void ui_web_export_wheel_over_unfocused_control_scrolls_the_settings() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(photo));
+  QApplication::processEvents();
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(1280, 560);
+    QApplication::processEvents();
+    auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("webExportControlsScroll"));
+    auto* metadata = dialog->findChild<QComboBox*>(QStringLiteral("webExportMetadataCombo"));
+    auto* quality = dialog->findChild<QSpinBox*>(QStringLiteral("webExportJpegQualitySpin"));
+    auto* list = dialog->findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    CHECK(scroll != nullptr && metadata != nullptr && quality != nullptr && list != nullptr);
+    if (scroll == nullptr || metadata == nullptr || quality == nullptr || list == nullptr) {
+      dialog->reject();
+      return;
+    }
+    auto* bar = scroll->verticalScrollBar();
+    CHECK(bar->maximum() > 0);
+
+    // A real wheel focuses a WheelFocus widget before delivery, so the policy matters too.
+    for (QWidget* control : {static_cast<QWidget*>(metadata), static_cast<QWidget*>(quality)}) {
+      CHECK(control->focusPolicy() != Qt::WheelFocus && (control->focusPolicy() & Qt::TabFocus) != 0);
+    }
+    list->setFocus();
+    bar->setValue(0);
+    const auto quality_before = quality->value();
+    send_wheel_notch_down(*quality);
+    CHECK(quality->value() == quality_before);
+    CHECK(bar->value() > 0);
+
+    scroll->ensureWidgetVisible(metadata);
+    bar->setValue(std::max(0, bar->value() - 40));
+    const int scrolled = bar->value();
+    CHECK(metadata->currentIndex() == 0);
+    send_wheel_notch_down(*metadata);
+    CHECK(metadata->currentIndex() == 0);
+    CHECK(bar->value() > scrolled);
+
+    // Controls the dialog shows later (the WebP group) are covered too.
+    list->setCurrentItem(row_named(list, QStringLiteral("WebP")));
+    QApplication::processEvents();
+    auto* webp_quality = dialog->findChild<QSpinBox*>(QStringLiteral("webExportWebpQualitySpin"));
+    CHECK(webp_quality != nullptr);
+    if (webp_quality != nullptr) {
+      list->setFocus();
+      scroll->ensureWidgetVisible(webp_quality);
+      const auto before = webp_quality->value();
+      send_wheel_notch_down(*webp_quality);
+      CHECK(webp_quality->value() == before);
+    }
+
+    // With keyboard focus the wheel is the control's again.
+    list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
+    QApplication::processEvents();
+    scroll->ensureWidgetVisible(quality);
+    quality->setFocus();
+    QApplication::processEvents();
+    CHECK(quality->hasFocus());
+    const auto focused_before = quality->value();
+    send_wheel_notch_down(*quality);
+    CHECK(quality->value() != focused_before);
+    inspected = true;
+    dialog->reject();
+  });
+  patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+}
+
+// Metadata offers None, Basic, Copyright and Contact Info and All, in that order, each with
+// a tooltip; Include thumbnail is enabled with every choice, None included. Saves
+// web_export_metadata_choices.png with the open list composited over the dialog.
+void ui_web_export_metadata_choices_and_thumbnail_with_none() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(photo));
+  QApplication::processEvents();
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(1280, 820);
+    QApplication::processEvents();
+    auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("webExportControlsScroll"));
+    auto* metadata = dialog->findChild<QComboBox*>(QStringLiteral("webExportMetadataCombo"));
+    auto* thumbnail = dialog->findChild<QCheckBox*>(QStringLiteral("webExportThumbnailCheck"));
+    auto* group = dialog->findChild<QWidget*>(QStringLiteral("webExportMetadataGroup"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    CHECK(scroll != nullptr && metadata != nullptr && thumbnail != nullptr && group != nullptr && preview != nullptr);
+    if (scroll == nullptr || metadata == nullptr || thumbnail == nullptr || group == nullptr || preview == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const QStringList labels{QStringLiteral("None"), QStringLiteral("Basic"), QStringLiteral("Copyright and Contact Info"),
+                             QStringLiteral("All")};
+    const QStringList tokens{QStringLiteral("none"), QStringLiteral("basic"), QStringLiteral("copyright"),
+                             QStringLiteral("all")};
+    CHECK(metadata->count() == 4);
+    for (int index = 0; index < std::min(4, metadata->count()); ++index) {
+      CHECK(metadata->itemText(index) == labels[index]);
+      CHECK(metadata->itemData(index).toString() == tokens[index]);
+      CHECK(!metadata->itemData(index, Qt::ToolTipRole).toString().isEmpty());
+    }
+    CHECK(metadata->currentIndex() == 0);
+    CHECK(thumbnail->isVisible() && thumbnail->isEnabled() && !thumbnail->isChecked());
+    CHECK(thumbnail->toolTip().contains(QStringLiteral("5 to 10 KB")));
+    thumbnail->setChecked(true);
+    for (int index = 0; index < metadata->count(); ++index) {
+      metadata->setCurrentIndex(index);
+      CHECK(thumbnail->isEnabled());
+    }
+    metadata->setCurrentIndex(0);
+    CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+    scroll->ensureWidgetVisible(group);
+    QApplication::processEvents();
+    (void)capture_widget_artifact("web_export_metadata_group", *dialog);
+    // The open list, composited over the dialog (offscreen, the popup is its own window).
+    metadata->showPopup();
+    QApplication::processEvents();
+    auto* popup = metadata->view() != nullptr ? metadata->view()->window() : nullptr;
+    CHECK(popup != nullptr && popup->isVisible());
+    if (popup != nullptr && popup->isVisible()) {
+      auto composite = dialog->grab().toImage();
+      {
+        QPainter painter(&composite);
+        painter.drawPixmap(popup->mapToGlobal(QPoint(0, 0)) - dialog->mapToGlobal(QPoint(0, 0)), popup->grab());
+      }
+      CHECK(composite.save(QStringLiteral("test-artifacts/web_export_metadata_choices.png")));
+    }
+    metadata->hidePopup();
+    inspected = true;
+    dialog->reject();
+  });
+  patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+}
+
 void ui_web_export_dialog_previews_and_saves() {
   WebExportSettingsGuard guard;
   SettingsValueRestorer last_save_directory_restorer(QStringLiteral("lastSaveDirectory"));
@@ -1000,7 +1167,7 @@ void ui_web_export_dialog_previews_and_saves() {
       dialog->reject();
       return;
     }
-    // Defaults: JPEG selected, quality 80, the thumbnail off and disabled (metadata None).
+    // Defaults: JPEG selected, quality 80, the thumbnail off (enabled with every Metadata choice).
     CHECK(list->topLevelItemCount() == static_cast<int>(patchy::ui::web_export_formats().size()));
     CHECK(list->topLevelItemCount() == 6);
     auto* jpeg_row = row_named(list, QStringLiteral("JPEG"));
@@ -1015,7 +1182,7 @@ void ui_web_export_dialog_previews_and_saves() {
     }
     CHECK(list->currentItem() != nullptr && list->currentItem()->text(0) == QStringLiteral("JPEG"));
     CHECK(quality->value() == 80);
-    CHECK(!thumbnail->isChecked() && !thumbnail->isEnabled());
+    CHECK(!thumbnail->isChecked() && thumbnail->isEnabled());
     CHECK(!original->isVisible());
     // Every fast row gets its real size; AVIF and JPEG XL wait until their row is selected.
     CHECK(avif_row->text(2) == QStringLiteral("select to encode"));
@@ -1195,6 +1362,9 @@ std::vector<patchy::test::TestCase> web_export_tests() {
        ui_web_export_slow_encode_never_blocks_the_selected_format},
       {"ui_web_export_palette_png_and_gif_read_back", ui_web_export_palette_png_and_gif_read_back},
       {"ui_web_export_transparency_fill_in_the_dialog", ui_web_export_transparency_fill_in_the_dialog},
+      {"ui_web_export_wheel_over_unfocused_control_scrolls_the_settings",
+       ui_web_export_wheel_over_unfocused_control_scrolls_the_settings},
+      {"ui_web_export_metadata_choices_and_thumbnail_with_none", ui_web_export_metadata_choices_and_thumbnail_with_none},
       {"ui_web_export_dialog_previews_and_saves", ui_web_export_dialog_previews_and_saves},
   };
 }

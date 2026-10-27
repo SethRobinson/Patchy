@@ -12844,10 +12844,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>サムネールを含める (約 5〜10 KB)</translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation>EXIF データに小さなプレビュー画像を追加します。ファイルが EXIF メタデータを保持する場合にのみ書き込まれます。</translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation>sRGB に変換 (元: %1)</translation>
     </message>
@@ -13106,6 +13102,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Animation</source>
         <translation>アニメーション</translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation>ファイル情報のメタデータなし。カラープロファイルと解像度は保持されます。</translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation>基本</translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation>ファイル情報の作成者、著作権表示、連絡先。</translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation>ファイル情報のすべて。</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation>一部のビューアーやファイルブラウザーが表示する小さなプレビュー画像 (約 5 から 10 KB) を追加します。どのメタデータの選択でも使えます。「なし」ではファイルにサムネールだけが入ります。</translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <translation>作成アプリとしての Patchy、書き出し日時、履歴の項目 (環境設定の「基本」と同じ内容)。ドキュメントのファイル情報からは何も含めません。</translation>
     </message>
 </context>
 <context>

@@ -1,4 +1,6 @@
 #include "ui/image_document_io.hpp"
+#include "color/rgb_profiles.hpp"
+#include "ui/document_save_coordinator.hpp"
 #include "formats/metadata/metadata_inject.hpp"
 #include "formats/metadata/exif_tags.hpp"
 #include "formats/metadata/tiff_ifd.hpp"
@@ -2328,11 +2330,46 @@ std::optional<metadata::SaveMetadata> save_metadata_for(const Document& document
   if (!kCarriers.contains(format)) {
     return std::nullopt;
   }
-  auto metadata = metadata::prepare_save_metadata(document, options.metadata_policy, width, height);
+  std::optional<metadata::SaveStamp> stamp;
+  metadata::SaveStampDocument file;
+  if (options.metadata_policy == metadata::MetadataPolicy::Basic) {
+    // Basic: the save stamp alone, describing this file (docs/file-info.md, "Writing").
+    stamp = save_stamp_now();
+    const bool jpeg = format == "jpg" || format == "jpeg" || format == "jpe" || format == "jfif";
+    file.format = jpeg               ? "image/jpeg"
+                  : format == "png"  ? "image/png"
+                  : format == "webp" ? "image/webp"
+                  : format == "gif"  ? "image/gif"
+                  : format == "jxl"  ? "image/jxl"
+                  : format == "avif" ? "image/avif"
+                                     : "image/tiff";
+    file.color_mode = jpeg && options.export_cmyk ? 4 : 3;
+    const auto& profile = document.color_state().embedded_icc_profile;
+    file.srgb = file.color_mode == 3 && !profile.empty() && is_srgb_profile(profile);
+  }
+  auto metadata = metadata::prepare_save_metadata(document, options.metadata_policy, width, height,
+                                                  stamp.has_value() ? &*stamp : nullptr, &file);
   if (metadata.empty()) {
     return std::nullopt;
   }
   return metadata;
+}
+
+// The smallest EXIF that carries a thumbnail, for a JPEG whose metadata choice writes no
+// EXIF but whose thumbnail was asked for (ImageSaveOptions::jpeg_exif_thumbnail_without_metadata):
+// IFD0 with the resolution only (no software, dates or other tags), then IFD1.
+std::vector<std::uint8_t> thumbnail_only_exif(const Document& document) {
+  metadata::TiffStream stream;
+  stream.big_endian = true;
+  const auto ppi = [](double value) {
+    return static_cast<std::uint32_t>(std::clamp(std::lround(value * 100.0), 1L, 100000000L));
+  };
+  stream.set_rational(metadata::IfdKind::Ifd0, metadata::exif_tag::kXResolution,
+                      ppi(document.print_settings().horizontal_ppi), 100);
+  stream.set_rational(metadata::IfdKind::Ifd0, metadata::exif_tag::kYResolution,
+                      ppi(document.print_settings().vertical_ppi), 100);
+  stream.set_short(metadata::IfdKind::Ifd0, metadata::exif_tag::kResolutionUnit, 2);
+  return metadata::write_tiff(stream);
 }
 
 // A JPEG whose EXIF is written gets a thumbnail of the saved image in IFD1, as
@@ -2366,10 +2403,12 @@ struct JpegCoding {
   bool progressive{false};
   bool optimize{false};
   bool exif_thumbnail{true};
+  bool thumbnail_without_metadata{false};
 };
 
 [[nodiscard]] JpegCoding jpeg_coding_for(const ImageSaveOptions& options) noexcept {
-  return JpegCoding{options.jpeg_progressive, options.jpeg_optimize, options.jpeg_exif_thumbnail};
+  return JpegCoding{options.jpeg_progressive, options.jpeg_optimize, options.jpeg_exif_thumbnail,
+                    options.jpeg_exif_thumbnail && options.jpeg_exif_thumbnail_without_metadata};
 }
 
 void configure_image_writer(QImageWriter& writer, bool jpeg, int quality, const JpegCoding& coding) {
@@ -2464,9 +2503,29 @@ QImage cmyk_export_qimage(const Document& document, const CmykWorkingSpace& spac
 // Encodes `image`, then embeds the document's metadata when the format carries any.
 void write_flat_qimage(const Document& document, const ImageSaveOptions& options, const QImage& image,
                        const QString& path, const std::string& format, int quality) {
-  write_qimage_atomically(image, path, format, quality,
-                          save_metadata_for(document, options, format, image.width(), image.height()),
-                          jpeg_coding_for(options));
+  auto metadata = save_metadata_for(document, options, format, image.width(), image.height());
+  const auto coding = jpeg_coding_for(options);
+  const bool jpeg = format == "jpg" || format == "jpeg" || format == "jpe" || format == "jfif";
+  if (jpeg && coding.thumbnail_without_metadata && image.format() != QImage::Format_CMYK8888 &&
+      (!metadata.has_value() || metadata->exif.empty())) {
+    // Only the thumbnail: a minimal EXIF, completed with IFD1 here.
+    if (!metadata.has_value()) {
+      metadata.emplace();
+    }
+    metadata->exif = thumbnail_only_exif(document);
+    add_jpeg_exif_thumbnail(*metadata, image);
+    if (const auto stream = metadata::parse_tiff(metadata->exif); !stream.has_value() || stream->thumbnail.empty()) {
+      metadata->exif.clear();  // no thumbnail after all: write no EXIF
+    }
+    if (metadata->empty()) {
+      metadata.reset();
+    }
+    auto added = coding;
+    added.exif_thumbnail = false;  // already in
+    write_qimage_atomically(image, path, format, quality, std::move(metadata), added);
+    return;
+  }
+  write_qimage_atomically(image, path, format, quality, std::move(metadata), coding);
 }
 
 // The native flat writers, the animated GIF/WebP/JPEG XL writers and the export-transform

@@ -12914,10 +12914,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Включить миниатюру (около 5–10 КБ)</translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation>Добавляет небольшое изображение предпросмотра в данные EXIF. Записывается, только если файл сохраняет метаданные EXIF.</translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation>Преобразовать в sRGB (из %1)</translation>
     </message>
@@ -13180,6 +13176,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Animation</source>
         <translation>Анимация</translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation>Без метаданных сведений о файле. Цветовой профиль и разрешение сохраняются.</translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation>Базовые</translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation>Автор, уведомление об авторских правах и контактные данные из сведений о файле.</translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation>Все сведения о файле.</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation>Добавляет небольшое изображение предпросмотра (около 5–10 КБ), которое показывают некоторые просмотрщики и файловые менеджеры. Работает с любым выбором метаданных: при «Нет» файл содержит только миниатюру.</translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <translation>Patchy как программа-создатель, даты экспорта и запись в истории, как их записывает вариант «Базовые» в настройках. Ничего из сведений о файле документа.</translation>
     </message>
 </context>
 <context>

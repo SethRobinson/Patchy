@@ -38,6 +38,10 @@ void populate_pdf_image_quality_combo(QComboBox& combo, const QString& current_i
 // animation::kMaxFrameDelayMs. Object names are `<prefix>FrameDelaySpin`, `<prefix>ForeverCheck`,
 // `<prefix>PlayCountSpin` and `<prefix>AnimationExplanationLabel`. `controls` holds the rows
 // in a form; the explanation is a separate label the caller places.
+// The export Metadata choices in order: None, Basic, Copyright and Contact Info, All
+// (metadata_policy_key data, a tooltip each). Export for Web and the Export section share it.
+void add_export_metadata_choices(QComboBox& combo);
+
 enum class AnimationTimingKind { Gif, Webp, Jxl, Apng };
 struct AnimationTimingControls {
   AnimationTimingKind kind{AnimationTimingKind::Webp};

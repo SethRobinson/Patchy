@@ -95,11 +95,21 @@ copyright flag.
 ## Writing
 
 - Save and Save As write everything (`MetadataPolicy::All`). Export's shared section has a
-  Metadata combo (`exportMetadataCombo`; None, Copyright and Contact Info, All), persisted
-  as `saveOptions/exportMetadata` with tokens `none`/`copyright`/`all` (default `none`) and
+  Metadata combo (`exportMetadataCombo`; None, Basic, Copyright and Contact Info, All), persisted
+  as `saveOptions/exportMetadata` with tokens `none`/`basic`/`copyright`/`all` (default `none`) and
   shown only for JPEG, PNG, TIFF, WebP, GIF and JPEG XL. `reset_export_options` puts every prompt
-  back to All. Scripts pass `metadata: "all" | "copyright" | "none"` to `saveAs`/`exportAs`.
+  back to All. Scripts pass `metadata: "all" | "copyright" | "basic" | "none"` to `saveAs`/`exportAs`.
   File > Export for Web has its own Metadata combo (`exportForWeb/metadata`, default `none`).
+  `MetadataPolicy` is append-only (Basic was added last).
+- Basic (October 27, 2026) means what Preferences "Saved metadata: Basic" means: the save stamp
+  below and nothing else. `prepare_save_metadata` stamps an empty File Info for the file being
+  written (`save_stamp_now`, a `SaveStampDocument` with its MIME type as dc:format, mode 3, or 4
+  for a CMYK JPEG, the output size and the document's resolution): EXIF IFD0 Orientation,
+  resolution, Software and DateTime, Exif IFD version, color space and pixel size; XMP
+  CreatorTool, Create/Modify/MetadataDate (the export time), dc:format, photoshop:ColorMode,
+  fresh xmpMM ids and one "created" history entry. Nothing from the document's File Info
+  (no author, copyright, description, keywords, camera data or GPS). Without a stamp (the core
+  writers) Basic writes what None writes.
 - `prepare_save_metadata` always writes EXIF Orientation and XMP `tiff:Orientation` as 1,
   sets PixelX/YDimension and XMP pixel sizes where present to the output size, rewrites
   existing X/YResolution from print settings, and drops the EXIF IFD1 thumbnail and
@@ -181,7 +191,11 @@ are not stamped; the core writers never stamp, so the canaries hold.
   Save As has EXIF, so it gets one too; a save without EXIF (Saved metadata None, after
   Strip All Metadata, Export As with Metadata None) gets none. `ImageSaveOptions::jpeg_exif_thumbnail`
   (default true; scripts' `thumbnail`) turns it off: File > Export for Web writes it only when
-  "Include thumbnail" is on ([web-export.md](web-export.md)).
+  "Include thumbnail" is on ([web-export.md](web-export.md)). That checkbox and a script's explicit
+  `thumbnail: true` also set `jpeg_exif_thumbnail_without_metadata`: a JPEG whose metadata choice
+  writes no EXIF (None) then gets one APP1 Exif holding only IFD0 X/YResolution and
+  ResolutionUnit and the IFD1 thumbnail (`thumbnail_only_exif`), no XMP, IPTC or other tags.
+  Without it None writes no APP1, as before; Save, Save As and Export never set it.
 ### Saved metadata preference
 
 Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_settings.*`,

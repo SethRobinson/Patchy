@@ -12879,10 +12879,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Incluir miniatura (cerca de 5 a 10 KB)</translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation>Adiciona uma pequena imagem de visualização aos dados EXIF. Só é gravada quando o arquivo mantém metadados EXIF.</translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation>Converter para sRGB (de %1)</translation>
     </message>
@@ -13143,6 +13139,30 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Animation</source>
         <translation>Animação</translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation>Sem metadados de informações do arquivo. O perfil de cor e a resolução são mantidos.</translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation>Básico</translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation>O autor, o aviso de copyright e os dados de contato das informações do arquivo.</translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation>Tudo das informações do arquivo.</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation>Adiciona uma pequena imagem de visualização (cerca de 5 a 10 KB) que alguns visualizadores e navegadores de arquivos mostram. Funciona com qualquer escolha de metadados: com Nenhum o arquivo contém só a miniatura.</translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <translation>O Patchy como aplicativo de criação, as datas de exportação e uma entrada de histórico, como Básico em Preferências os grava. Nada das informações do arquivo do documento.</translation>
     </message>
 </context>
 <context>

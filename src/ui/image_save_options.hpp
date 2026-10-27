@@ -34,6 +34,10 @@ struct ImageSaveOptions {
   // (docs/file-info.md, "Thumbnails"). Export for Web clears it unless "Include thumbnail"
   // is on; scripts pass `thumbnail`.
   bool jpeg_exif_thumbnail{true};
+  // With jpeg_exif_thumbnail, a JPEG that would carry no EXIF (Metadata None) gets a minimal
+  // one for the thumbnail alone: IFD0 resolution and IFD1. Set by Export for Web's "Include
+  // thumbnail" and a script's explicit `thumbnail: true`; off for Save, Save As and Export.
+  bool jpeg_exif_thumbnail_without_metadata{false};
   bmp::BmpEncoding bmp_encoding{bmp::BmpEncoding::Rgba32};
   bmp::BmpPaletteMode bmp_palette_mode{bmp::BmpPaletteMode::Exact};
   QString bmp_palette_path;

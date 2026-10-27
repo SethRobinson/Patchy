@@ -12862,10 +12862,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13125,6 +13121,30 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Animation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

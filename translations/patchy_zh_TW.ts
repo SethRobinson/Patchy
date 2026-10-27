@@ -12844,10 +12844,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>包含縮圖（約 5 到 10 KB）</translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation>在 EXIF 資料中加入小型預覽影像。僅在檔案保留 EXIF 中繼資料時寫入。</translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation>轉換為 sRGB（從 %1）</translation>
     </message>
@@ -13106,6 +13102,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Animation</source>
         <translation>動畫</translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation>不含檔案資訊中繼資料。保留色彩描述檔和解析度。</translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation>基本</translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation>檔案資訊中的作者、版權聲明和聯絡資訊。</translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation>檔案資訊中的全部內容。</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation>加入一張小預覽圖（約 5 到 10 KB），部分檢視器和檔案瀏覽器會顯示它。適用於任何中繼資料選項：選擇「無」時，檔案只包含縮圖。</translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <translation>Patchy 作為建立程式、匯出日期和一筆記錄項目，與偏好設定中的「基本」寫入的相同。不包含文件檔案資訊中的任何內容。</translation>
     </message>
 </context>
 <context>

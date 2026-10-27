@@ -521,10 +521,7 @@ ExportSectionWidgets add_export_options_section(QVBoxLayout* content, QDialog& d
     metadata_layout->addWidget(new QLabel(QObject::tr("Metadata:"), metadata_row));
     auto* metadata_combo = new QComboBox(metadata_row);
     metadata_combo->setObjectName(QStringLiteral("exportMetadataCombo"));
-    metadata_combo->addItem(QObject::tr("None"), metadata_policy_key(metadata::MetadataPolicy::None));
-    metadata_combo->addItem(QObject::tr("Copyright and Contact Info"),
-                            metadata_policy_key(metadata::MetadataPolicy::CopyrightAndContact));
-    metadata_combo->addItem(QObject::tr("All"), metadata_policy_key(metadata::MetadataPolicy::All));
+    add_export_metadata_choices(*metadata_combo);
     metadata_combo->setToolTip(
         QObject::tr("File Info metadata to include. The color profile and resolution are always kept."));
     const auto stored = settings.value(QStringLiteral("saveOptions/exportMetadata"),
@@ -713,6 +710,21 @@ std::optional<ExportSectionWidgets> finish_options_dialog(QVBoxLayout* content, 
 }
 
 }  // namespace
+
+void add_export_metadata_choices(QComboBox& combo) {
+  const auto add = [&combo](const QString& label, metadata::MetadataPolicy policy, const QString& tip) {
+    combo.addItem(label, metadata_policy_key(policy));
+    combo.setItemData(combo.count() - 1, tip, Qt::ToolTipRole);
+  };
+  add(QObject::tr("None"), metadata::MetadataPolicy::None,
+      QObject::tr("No File Info metadata. The color profile and resolution are kept."));
+  add(QObject::tr("Basic"), metadata::MetadataPolicy::Basic,
+      QObject::tr("Patchy as the creating application, the export dates and a history entry, as Basic in "
+                  "Preferences writes them. Nothing from the document's File Info."));
+  add(QObject::tr("Copyright and Contact Info"), metadata::MetadataPolicy::CopyrightAndContact,
+      QObject::tr("The author, copyright notice and contact details from File Info."));
+  add(QObject::tr("All"), metadata::MetadataPolicy::All, QObject::tr("Everything in File Info."));
+}
 
 QString export_reveal_check_label() { return reveal_check_label(); }
 

@@ -54,10 +54,15 @@ where `avif::is_available()`, so not in the browser build). Each format keeps it
 - Image size: Width, Height and Scale with a proportion link; Resample Smooth (the export resize,
   `export_width`/`export_height`) or Pixel art (whole-pixel `export_scale` 1x-16x, the size fields
   then follow the scale); Trim transparent edges. The size is per document, never persisted.
-- Metadata (None by default, Copyright and Contact Info, All) and "Include thumbnail" (JPEG only,
-  off, enabled only when Metadata is not None; it adds the EXIF IFD1 thumbnail, which is written
-  only when the file keeps EXIF). Save and Save As still always write that thumbnail
-  (`ImageSaveOptions::jpeg_exif_thumbnail` defaults to true; [file-info.md](file-info.md)).
+- Metadata (Seth, October 27, 2026): None (default), Basic, Copyright and Contact Info, All, each
+  with a tooltip (`add_export_metadata_choices`, shared with the Export section). Basic is the
+  Preferences "Saved metadata: Basic" save stamp alone, for the exported file ([file-info.md](file-info.md),
+  "Writing"). "Include thumbnail" (JPEG only, off) works with every choice: with None the JPEG
+  gets one APP1 holding only IFD0's resolution and the IFD1 thumbnail
+  (`jpeg_exif_thumbnail_without_metadata`). Save and Save As are unchanged.
+- The settings column is a `QScrollArea` (`webExportControlsScroll`) under
+  `install_wheel_scroll_guard`: a wheel over an unfocused combo box, spin box or slider scrolls
+  the column; a focused one takes the wheel. The preview keeps its wheel zoom.
 - Color: an sRGB document (every RGB document after open, [rgb-profiles.md](rgb-profiles.md))
   writes no profile and the row says so. A document that still carries another RGB profile gets
   "Convert to sRGB (from <profile>)", on by default; unchecked, the file keeps that profile.
@@ -150,7 +155,7 @@ in the preview (Seth, October 27, 2026):
 
 `exportForWeb/format` (`jpeg`, `webp`, `png`), `exportForWeb/jpegQuality`, `jpegProgressive`,
 `jpegOptimize`, `jpegBackground` (`#rrggbb`), `webpQuality`, `webpLossless`, `webpAnimate`,
-`metadata` (`none`, `copyright`, `all`), `thumbnail`, `resample` (`smooth`, `pixelArt`), `trim`,
+`metadata` (`none`, `basic`, `copyright`, `all`), `thumbnail`, `resample` (`smooth`, `pixelArt`), `trim`,
 `convertToSrgb`, `compare` (`split`, `sideBySide`, `result`), `revealWhenDone`, `pngColors`
 (`full`, `palette`), `pngPaletteColors`, `pngDither` and `gifDither` (`none`, `diffusion`),
 `pngDitherAmount`, `pngAnimate`, `pngFrameDelayMs`, `gifColors`, `gifDitherAmount`, `gifAnimate`, `gifFrameDelayMs`, `avifQuality`, `avifSpeed`, `avifLossless`,
@@ -189,6 +194,8 @@ Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defau
 `ui_web_export_jpeg_progressive_and_optimize_read_back`,
 `ui_web_export_engine_drops_stale_requests`, `ui_web_export_animation_frames_read_back`,
 `ui_web_export_play_count_and_fill_read_back`,
+`ui_web_export_wheel_over_unfocused_control_scrolls_the_settings`,
+`ui_web_export_metadata_choices_and_thumbnail_with_none` (captures `web_export_metadata_choices`),
 `ui_web_export_animation_stale_frames_are_discarded`, `ui_web_export_animation_plays_in_the_preview`
 (captures `web_export_gif_animation`, `web_export_png_animation` and `web_export_transparency_fill` from `test-fixtures/psd/web-export-animation.psd`, the #198
 Animation Preview document made by Patchy), `ui_web_export_dialog_previews_and_saves` (captures

@@ -1825,10 +1825,14 @@ void ui_script_export_as_jpeg_coding_options() {
     var p = patchy.args.base;
     if (!d.exportAs(p + '-plain.jpg', {quality: 70})) throw Error('plain');
     if (!d.exportAs(p + '-web.jpg', {quality: 70, progressive: true, optimizeCoding: true, thumbnail: false})) throw Error('web');
+    if (!d.exportAs(p + '-none.jpg', {metadata: 'none'})) throw Error('none');
+    if (!d.exportAs(p + '-thumb.jpg', {metadata: 'none', thumbnail: true})) throw Error('thumb');
+    if (!d.exportAs(p + '-basic.jpg', {metadata: 'basic'})) throw Error('basic');
     var threw = 0;
     try { d.exportAs(p + '-bad.png', {progressive: true}); } catch (e) { threw++; }
     try { d.exportAs(p + '-bad.jpg', {thumbnail: 'no'}); } catch (e) { threw++; }
-    if (threw !== 2) throw Error('not strict: ' + threw);
+    try { d.exportAs(p + '-bad2.jpg', {metadata: 'basics'}); } catch (e) { threw++; }
+    if (threw !== 3) throw Error('not strict: ' + threw);
     console.log('done');
   )JS");
   (void)host.run_source(source, std::move(options));
@@ -1857,6 +1861,31 @@ void ui_script_export_as_jpeg_coding_options() {
   };
   CHECK(frame_marker(base + QStringLiteral("-plain.jpg")) == 0xC0);
   CHECK(frame_marker(base + QStringLiteral("-web.jpg")) == 0xC2);
+  // APP1 segments before the scan: metadata "none" writes none; an explicit thumbnail adds
+  // the thumbnail-only EXIF; "basic" writes the stamp (EXIF and XMP).
+  const auto app1_count = [](const QString& path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+      return -1;
+    }
+    const auto bytes = file.readAll();
+    int count = 0;
+    qsizetype at = 2;
+    while (at + 4 <= bytes.size() && static_cast<unsigned char>(bytes[at]) == 0xFF) {
+      const auto marker = static_cast<unsigned char>(bytes[at + 1]);
+      if (marker == 0xDA) {
+        break;
+      }
+      count += marker == 0xE1 ? 1 : 0;
+      at += 2 + ((static_cast<unsigned char>(bytes[at + 2]) << 8) | static_cast<unsigned char>(bytes[at + 3]));
+    }
+    return count;
+  };
+  CHECK(app1_count(base + QStringLiteral("-none.jpg")) == 0);
+  CHECK(app1_count(base + QStringLiteral("-thumb.jpg")) == 1);
+  CHECK(app1_count(base + QStringLiteral("-basic.jpg")) == 2);
+  CHECK(!QImage(base + QStringLiteral("-thumb.jpg")).isNull());
+  CHECK(!QFileInfo::exists(base + QStringLiteral("-bad2.jpg")));
   CHECK(!QFileInfo::exists(base + QStringLiteral("-bad.png")));
   CHECK(!QFileInfo::exists(base + QStringLiteral("-bad.jpg")));
 }

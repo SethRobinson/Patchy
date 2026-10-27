@@ -14,6 +14,12 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-27 (additive): `metadata` in `doc.saveAs`/`doc.exportAs`/`doc.encodeForWeb` options takes
+`"basic"`: the save stamp alone (program, creation and modification dates, the file's format,
+size and resolution), nothing from File Info ([file-info.md](file-info.md)). An explicit
+`thumbnail: true` for `.jpg` now writes the EXIF thumbnail with every `metadata` choice: with
+`"none"` the file holds a minimal EXIF with only the thumbnail; without the key nothing changes.
+Permanent identifiers: the `"basic"` token. Pinned by `ui_script_export_as_jpeg_coding_options`.
 2026-10-27 (additive): `.png` in `doc.saveAs`/`doc.exportAs`/`doc.encodeForWeb` options takes
 `animate`, `frameDelayMs` and `loopCount`, the keys `.jxl` takes: an animated PNG (APNG) from the
 visible top-level layers, full color only, so `animate` with `pngColors: "palette"` throws

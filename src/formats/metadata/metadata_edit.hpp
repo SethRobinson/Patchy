@@ -81,10 +81,12 @@ bool remove_edit_history(DocumentFileInfo& info);
 // the image a second time. Returns the original orientation text, or empty.
 std::string bake_orientation(DocumentFileInfo& info);
 
+// Append-only: settings and scripts store tokens, never these values, but the order is fixed.
 enum class MetadataPolicy : std::uint8_t {
   All,                  // Save / Save As, Export "All"
   CopyrightAndContact,  // Export "Copyright and contact info"
   None,                 // Export "None" (the color profile and resolution stay)
+  Basic,                // Export "Basic": the save stamp alone, for the file written (docs/file-info.md)
 };
 
 // What a flat-format writer embeds.
@@ -141,7 +143,14 @@ void stamp_file_info_for_save(DocumentFileInfo& info, const SaveStamp& stamp,
 
 // Applies the save rules (EXIF orientation "normal", pixel dimensions and resolution
 // updated, the stale IFD1 thumbnail and xmp:Thumbnails dropped) and the export policy.
+// Basic writes none of the document's own metadata: only `basic_stamp` (the time, software
+// and a fresh id) stamped by stamp_file_info_for_save into an empty block that describes
+// the output (`basic_file`: its dc:format, mode and sRGB flag; the size is the output size
+// and the resolution the document's). Without a stamp Basic writes what None writes (the
+// core writers never stamp).
 [[nodiscard]] SaveMetadata prepare_save_metadata(const Document& document, MetadataPolicy policy,
-                                                 std::int32_t output_width, std::int32_t output_height);
+                                                 std::int32_t output_width, std::int32_t output_height,
+                                                 const SaveStamp* basic_stamp = nullptr,
+                                                 const SaveStampDocument* basic_file = nullptr);
 
 }  // namespace patchy::metadata

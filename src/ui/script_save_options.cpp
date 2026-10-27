@@ -200,7 +200,9 @@ bool apply_key(KeyReader& reader, const QString& extension, const QString& key, 
       (is_jpeg_extension(extension) || is_webp_extension(extension) || extension == QStringLiteral("png") ||
        extension == QStringLiteral("tif") || extension == QStringLiteral("tiff") ||
        extension == QStringLiteral("gif") || is_jxl_extension(extension) || is_avif_extension(extension))) {
-    reader.read_token(key, value, {QStringLiteral("all"), QStringLiteral("copyright"), QStringLiteral("none")},
+    reader.read_token(key, value,
+                      {QStringLiteral("all"), QStringLiteral("copyright"), QStringLiteral("basic"),
+                       QStringLiteral("none")},
                       [&](const QString& token) {
                         options.metadata_policy =
                             metadata_policy_from_key(token).value_or(metadata::MetadataPolicy::All);
@@ -256,7 +258,10 @@ bool apply_key(KeyReader& reader, const QString& extension, const QString& key, 
       return true;
     }
     if (key == QStringLiteral("thumbnail")) {
+      // Asked for explicitly, the thumbnail is written with every metadata choice, none
+      // included, as Export for Web's "Include thumbnail" is.
       reader.read_bool(key, value, options.jpeg_exif_thumbnail);
+      options.jpeg_exif_thumbnail_without_metadata = options.jpeg_exif_thumbnail;
       return true;
     }
     return false;

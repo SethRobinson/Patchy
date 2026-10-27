@@ -12914,10 +12914,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Dołącz miniaturę (około 5 do 10 KB)</translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation>Dodaje mały obraz podglądu do danych EXIF. Zapisywany tylko wtedy, gdy plik zachowuje metadane EXIF.</translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation>Konwertuj na sRGB (z %1)</translation>
     </message>
@@ -13180,6 +13176,30 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Animation</source>
         <translation>Animacja</translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation>Bez metadanych informacji o pliku. Profil kolorów i rozdzielczość są zachowywane.</translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation>Podstawowe</translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation>Autor, informacja o prawach autorskich i dane kontaktowe z informacji o pliku.</translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation>Wszystko z informacji o pliku.</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation>Dodaje mały obraz podglądu (około 5 do 10 KB), który pokazują niektóre przeglądarki obrazów i plików. Działa z każdym wyborem metadanych: przy Brak plik zawiera tylko miniaturę.</translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <translation>Patchy jako aplikacja tworząca, daty eksportu i wpis historii, tak jak zapisuje je opcja Podstawowe w Preferencjach. Nic z informacji o pliku dokumentu.</translation>
     </message>
 </context>
 <context>

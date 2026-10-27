@@ -472,6 +472,8 @@ ImageSaveOptions web_export_image_options(const WebExportSettings& settings, Web
       options.jpeg_progressive = settings.jpeg_progressive;
       options.jpeg_optimize = settings.jpeg_optimize;
       options.jpeg_exif_thumbnail = settings.thumbnail;
+      // The thumbnail is its own choice: with Metadata None it comes in a minimal EXIF.
+      options.jpeg_exif_thumbnail_without_metadata = settings.thumbnail;
       // JPEG has no alpha: transparent areas take the background color.
       options.export_fill_transparent = true;
       options.export_background_color = settings.jpeg_background;
@@ -1665,16 +1667,14 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* metadata_form = make_form(metadata_group);
   auto* metadata_combo = new QComboBox(metadata_group);
   metadata_combo->setObjectName(QStringLiteral("webExportMetadataCombo"));
-  metadata_combo->addItem(QObject::tr("None"), metadata_policy_key(metadata::MetadataPolicy::None));
-  metadata_combo->addItem(QObject::tr("Copyright and Contact Info"),
-                          metadata_policy_key(metadata::MetadataPolicy::CopyrightAndContact));
-  metadata_combo->addItem(QObject::tr("All"), metadata_policy_key(metadata::MetadataPolicy::All));
+  add_export_metadata_choices(*metadata_combo);
   metadata_combo->setToolTip(QObject::tr("File Info metadata to include. None writes the smallest file."));
   metadata_form->addRow(QObject::tr("Metadata:"), metadata_combo);
   auto* thumbnail_check = new QCheckBox(QObject::tr("Include thumbnail (about 5 to 10 KB)"), metadata_group);
   thumbnail_check->setObjectName(QStringLiteral("webExportThumbnailCheck"));
-  thumbnail_check->setToolTip(
-      QObject::tr("Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata."));
+  thumbnail_check->setToolTip(QObject::tr(
+      "Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every "
+      "Metadata choice: with None the file holds only the thumbnail."));
   metadata_form->addRow(thumbnail_check);
   QCheckBox* convert_check = nullptr;
   if (non_srgb) {
@@ -1987,8 +1987,6 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
       rows->amount->setEnabled(rows->dither->currentData().toString() == QStringLiteral("diffusion"));
     }
     thumbnail_check->setVisible(format == WebExportFormat::Jpeg);
-    thumbnail_check->setEnabled(metadata_combo->currentData().toString() !=
-                                metadata_policy_key(metadata::MetadataPolicy::None));
     webp_quality->parentWidget()->setEnabled(!webp_lossless->isChecked());
   };
   const auto refresh_compare = [&] {
@@ -2442,6 +2440,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
 
   write_settings(settings);
   append_themed_style(dialog, dialog_spinbox_button_style());
+  // A wheel over an unfocused combo box, spin box or slider in the settings column scrolls
+  // the column (GitHub issue 92's guard; it also covers controls shown later).
+  install_wheel_scroll_guard(dialog);
   const auto engine_cleanup = qScopeGuard([&engine] { engine.close(); });
   dialog.resize(1280, 820);
   request_encodes();

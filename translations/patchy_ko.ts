@@ -12844,10 +12844,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>미리 보기 이미지 포함(약 5~10KB)</translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation>EXIF 데이터에 작은 미리 보기 이미지를 추가합니다. 파일에 EXIF 메타데이터가 남을 때만 기록됩니다.</translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation>sRGB로 변환(원본: %1)</translation>
     </message>
@@ -13106,6 +13102,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Animation</source>
         <translation>애니메이션</translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation>파일 정보 메타데이터 없음. 색상 프로필과 해상도는 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation>기본</translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation>파일 정보의 작성자, 저작권 고지, 연락처.</translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation>파일 정보의 모든 항목.</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation>일부 뷰어와 파일 브라우저가 표시하는 작은 미리 보기 이미지(약 5~10KB)를 추가합니다. 모든 메타데이터 선택과 함께 사용할 수 있으며, 없음을 선택하면 파일에 썸네일만 들어갑니다.</translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <translation>만든 응용 프로그램으로 Patchy, 내보내기 날짜, 기록 항목 (환경 설정의 기본과 같음). 문서의 파일 정보는 포함하지 않습니다.</translation>
     </message>
 </context>
 <context>

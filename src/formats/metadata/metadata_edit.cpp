@@ -635,12 +635,35 @@ std::string bake_orientation(DocumentFileInfo& info) {
 }
 
 SaveMetadata prepare_save_metadata(const Document& document, MetadataPolicy policy, std::int32_t output_width,
-                                   std::int32_t output_height) {
+                                   std::int32_t output_height, const SaveStamp* basic_stamp,
+                                   const SaveStampDocument* basic_file) {
   SaveMetadata out;
   const auto& info = document.file_info();
   out.icc = document.color_state().embedded_icc_profile;
   out.png_color_chunks = info.png_color_chunks;
   if (policy == MetadataPolicy::None) {
+    return out;
+  }
+  if (policy == MetadataPolicy::Basic) {
+    if (basic_stamp == nullptr) {
+      return out;
+    }
+    // A new document's first save, described as the file being written: Photoshop's
+    // minimal EXIF (orientation, resolution, software, date, version, color space, pixel
+    // size) and the XMP stamp (creator tool, dates, format, mode, ids, one history entry).
+    DocumentFileInfo stamped;
+    auto described = basic_file != nullptr ? *basic_file : SaveStampDocument{};
+    described.width = output_width;
+    described.height = output_height;
+    described.horizontal_ppi = document.print_settings().horizontal_ppi;
+    described.vertical_ppi = document.print_settings().vertical_ppi;
+    stamp_file_info_for_save(stamped, *basic_stamp, &described);
+    if (stamped.exif) {
+      out.exif = *stamped.exif;
+    }
+    if (stamped.xmp) {
+      out.xmp.assign(stamped.xmp->begin(), stamped.xmp->end());
+    }
     return out;
   }
   const bool all = policy == MetadataPolicy::All;

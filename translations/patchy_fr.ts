@@ -12879,10 +12879,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Inclure la vignette (environ 5 à 10 Ko)</translation>
     </message>
     <message>
-        <source>Adds a small preview image to the EXIF data. Written only when the file keeps EXIF metadata.</source>
-        <translation>Ajoute une petite image d&apos;aperçu aux données EXIF. Écrite uniquement si le fichier conserve des métadonnées EXIF.</translation>
-    </message>
-    <message>
         <source>Convert to sRGB (from %1)</source>
         <translation>Convertir en sRVB (depuis %1)</translation>
     </message>
@@ -13143,6 +13139,30 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Animation</source>
         <translation>Animation</translation>
+    </message>
+    <message>
+        <source>No File Info metadata. The color profile and resolution are kept.</source>
+        <translation>Aucune métadonnée d'informations sur le fichier. Le profil colorimétrique et la résolution sont conservés.</translation>
+    </message>
+    <message>
+        <source>Basic</source>
+        <translation>De base</translation>
+    </message>
+    <message>
+        <source>The author, copyright notice and contact details from File Info.</source>
+        <translation>L'auteur, la mention de copyright et les coordonnées des informations sur le fichier.</translation>
+    </message>
+    <message>
+        <source>Everything in File Info.</source>
+        <translation>Tout le contenu des informations sur le fichier.</translation>
+    </message>
+    <message>
+        <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
+        <translation>Ajoute une petite image d'aperçu (environ 5 à 10 Ko) que certains visionneurs et explorateurs de fichiers affichent. Fonctionne avec chaque choix de métadonnées : avec Aucune, le fichier ne contient que la vignette.</translation>
+    </message>
+    <message>
+        <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
+        <translation>Patchy comme application de création, les dates d'exportation et une entrée d'historique, comme les écrit De base dans les Préférences. Rien des informations sur le fichier du document.</translation>
     </message>
 </context>
 <context>

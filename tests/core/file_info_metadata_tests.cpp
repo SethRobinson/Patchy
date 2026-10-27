@@ -1169,6 +1169,38 @@ void save_metadata_applies_rules_and_policies() {
 
   const auto none = md::prepare_save_metadata(document, md::MetadataPolicy::None, 40, 30);
   CHECK(none.exif.empty() && none.xmp.empty() && none.iptc.empty() && none.text.empty());
+
+  // Basic: the save stamp alone, describing the output; nothing from the document. Without
+  // a stamp (the core writers) it writes what None writes.
+  const auto unstamped = md::prepare_save_metadata(document, md::MetadataPolicy::Basic, 40, 30);
+  CHECK(unstamped.exif.empty() && unstamped.xmp.empty() && unstamped.iptc.empty() && unstamped.text.empty());
+  const md::SaveStamp stamp{"2026-10-27T12:00:00+09:00", "Patchy 9.9", "0b9d2c1e-1111-4222-8333-944455556666"};
+  md::SaveStampDocument file;
+  file.format = "image/png";
+  file.srgb = true;
+  const auto basic = md::prepare_save_metadata(document, md::MetadataPolicy::Basic, 40, 30, &stamp, &file);
+  CHECK(basic.iptc.empty() && basic.text.empty());
+  const auto basic_exif = md::parse_tiff(basic.exif);
+  CHECK(basic_exif.has_value());
+  if (basic_exif.has_value()) {
+    const auto* ifd0 = basic_exif->find(md::IfdKind::Ifd0);
+    CHECK(ifd0 != nullptr && ifd0->find(md::exif_tag::kSoftware) != nullptr &&
+          ifd0->find(md::exif_tag::kDateTime) != nullptr);
+    CHECK(ifd0 != nullptr && ifd0->find(md::exif_tag::kArtist) == nullptr && ifd0->find(md::exif_tag::kMake) == nullptr &&
+          ifd0->find(md::exif_tag::kCopyright) == nullptr);
+    CHECK(basic_exif->find(md::IfdKind::Gps) == nullptr && basic_exif->thumbnail.empty());
+    CHECK(basic_exif->unsigned_value(*basic_exif->find(md::IfdKind::Exif)->find(md::exif_tag::kPixelXDimension)) == 40U);
+    CHECK(basic_exif->real_value(*ifd0->find(md::exif_tag::kXResolution)) == 150.0);
+  }
+  const auto basic_xmp = md::parse_xmp(bytes_of(basic.xmp));
+  CHECK(basic_xmp.has_value());
+  if (basic_xmp.has_value()) {
+    CHECK(basic_xmp->text(md::xmp_ns::kXmp, "CreatorTool") == "Patchy 9.9");
+    CHECK(basic_xmp->text(md::xmp_ns::kXmp, "ModifyDate") == "2026-10-27T12:00:00+09:00");
+    CHECK(basic_xmp->text(md::xmp_ns::kDc, "format") == "image/png");
+    CHECK(basic_xmp->find(md::xmp_ns::kDc, "creator") == nullptr && basic_xmp->find(md::xmp_ns::kDc, "title") == nullptr &&
+          basic_xmp->find(md::xmp_ns::kDc, "rights") == nullptr);
+  }
 }
 
 md::SaveMetadata full_save_metadata(std::size_t xmp_padding = 0) {

@@ -395,7 +395,7 @@ doc.exportAs("page.pdf", {imageQuality: "high", editableLayers: true});
 
 | Extension | Keys |
 | --- | --- |
-| `.jpg`, `.jpeg` | `quality` (0 to 100), `progressive` and `optimizeCoding` (smaller web files, both off by default), `thumbnail` (the EXIF preview thumbnail, on by default; written only when EXIF is kept) |
+| `.jpg`, `.jpeg` | `quality` (0 to 100), `progressive` and `optimizeCoding` (smaller web files, both off by default), `thumbnail` (the EXIF preview thumbnail, on by default; written when EXIF is kept, and with every `metadata` choice when set to `true` explicitly) |
 | `.webp` | `quality` (0 to 100), `lossless` |
 | `.jxr` | `quality` (1 to 100), `lossless` |
 | `.jxl` | `quality` (1 to 100), `lossless`, `effort` (1 to 9), `animate` (visible top-level layers become frames, top first), `frameDelayMs`, `loopCount` (0 loops forever) |
@@ -409,7 +409,7 @@ doc.exportAs("page.pdf", {imageQuality: "high", editableLayers: true});
 | `.png` | `pngColors` (`"full"`, the default, or `"palette"` for an indexed PNG up to 256 colors), and with `"palette"` also `colors`, `dither`, `ditherAmount`; `animate` (an animated PNG from the visible top-level layers, top first, full color), `frameDelayMs`, `loopCount` (0 loops forever) |
 | `.tif`, `.tiff` | `layers`: keep the layers the way Photoshop does (the flattened image plus Photoshop's layer data; Photoshop and Patchy open the layers, other apps show the flattened image). `saveAs` defaults to `true` when the document has layers a flat file would lose; `exportAs` defaults to `false`. A TIFF with layers is RGB, so `layers: true` with `colorMode: "cmyk"` throws. |
 
-`.jpg`, `.png`, `.tif`, `.webp`, `.gif`, `.jxl` and `.avif` also take `metadata` (`"all"`, the default; `"copyright"`; `"none"`): the File Info metadata written with the image. The color profile and resolution are always written.
+`.jpg`, `.png`, `.tif`, `.webp`, `.gif`, `.jxl` and `.avif` also take `metadata` (`"all"`, the default; `"copyright"`; `"basic"`, only the program, dates and the file's format, size and resolution; `"none"`): the File Info metadata written with the image. The color profile and resolution are always written.
 
 `.jpg`, `.tif` and flattened `.pdf` also take `colorMode` (`"rgb"`, the default, or `"cmyk"`): CMYK for print, separated through the working CMYK profile from Preferences, which the file then embeds. Transparent areas become paper white. Add `blackInkOnly: true` to print black text and grays with black ink alone instead of four-ink rich black. Without `colorMode`, a document in CMYK Proof mode (`doc.cmykProof = true`, Image > Mode > CMYK Proof) saves those formats in CMYK and every other document saves RGB. Patchy opens a CMYK file as RGB again.
 

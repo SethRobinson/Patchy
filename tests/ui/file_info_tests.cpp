@@ -44,6 +44,7 @@
 #include "ui/file_info_dialog.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/save_metadata_settings.hpp"
+#include "ui/image_save_option_keys.hpp"
 #include "ui/web_export.hpp"
 #include <QPushButton>
 #include "ui/main_window.hpp"
@@ -926,6 +927,89 @@ void ui_web_export_metadata_and_thumbnail_choices() {
   const auto with_thumbnail = export_with(kept);
   const auto thumbnail_stream = with_thumbnail.exif ? md::parse_tiff(*with_thumbnail.exif) : std::nullopt;
   CHECK(thumbnail_stream.has_value() && !thumbnail_stream->thumbnail.empty());
+
+  // None without the thumbnail writes no APP1 at all; with it, one APP1 Exif holding IFD0's
+  // resolution and IFD1 with the thumbnail, and nothing else (no XMP, IPTC or other tags).
+  const auto app1_count = [](const QString& path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+      return -1;
+    }
+    const auto bytes = file.readAll();
+    int count = 0;
+    qsizetype at = 2;
+    while (at + 4 <= bytes.size() && static_cast<unsigned char>(bytes[at]) == 0xFF) {
+      const auto marker = static_cast<unsigned char>(bytes[at + 1]);
+      if (marker == 0xDA) {
+        break;
+      }
+      count += marker == 0xE1 ? 1 : 0;
+      at += 2 + ((static_cast<unsigned char>(bytes[at + 2]) << 8) | static_cast<unsigned char>(bytes[at + 3]));
+    }
+    return count;
+  };
+  CHECK(app1_count(artifact_dir() + QStringLiteral("/web-export-0.jpg")) == 0);
+  auto none_with_thumbnail = defaults;
+  none_with_thumbnail.thumbnail = true;
+  const auto thumbnail_only = export_with(none_with_thumbnail);
+  CHECK(app1_count(artifact_dir() + QStringLiteral("/web-export-%1.jpg").arg(index - 1)) == 1);
+  CHECK(thumbnail_only.xmp == nullptr && thumbnail_only.iptc == nullptr && thumbnail_only.text.empty());
+  const auto only = thumbnail_only.exif ? md::parse_tiff(*thumbnail_only.exif) : std::nullopt;
+  CHECK(only.has_value() && !only->thumbnail.empty());
+  if (only.has_value()) {
+    CHECK(only->find(md::IfdKind::Ifd1) != nullptr);
+    CHECK(only->find(md::IfdKind::Exif) == nullptr && only->find(md::IfdKind::Gps) == nullptr);
+    const auto* ifd0 = only->find(md::IfdKind::Ifd0);
+    CHECK(ifd0 != nullptr);
+    if (ifd0 != nullptr) {
+      for (const auto& entry : ifd0->entries) {
+        CHECK(entry.tag == md::exif_tag::kXResolution || entry.tag == md::exif_tag::kYResolution ||
+              entry.tag == md::exif_tag::kResolutionUnit);
+      }
+    }
+    const auto image = QImage::fromData(QByteArray(reinterpret_cast<const char*>(only->thumbnail.data()),
+                                                   static_cast<qsizetype>(only->thumbnail.size())),
+                                        "JPG");
+    CHECK(!image.isNull() && image.width() <= 160 && image.height() <= 160);
+  }
+  CHECK(!md::summarize_camera(thumbnail_only).has_location());
+
+  // Basic: the save stamp alone, for this file; nothing from the document's File Info.
+  auto basic = defaults;
+  basic.metadata = md::MetadataPolicy::Basic;
+  const auto stamped = export_with(basic);
+  const auto basic_exif = stamped.exif ? md::parse_tiff(*stamped.exif) : std::nullopt;
+  CHECK(basic_exif.has_value() && basic_exif->thumbnail.empty());
+  if (basic_exif.has_value()) {
+    const auto* ifd0 = basic_exif->find(md::IfdKind::Ifd0);
+    CHECK(ifd0 != nullptr && ifd0->find(md::exif_tag::kSoftware) != nullptr &&
+          ifd0->find(md::exif_tag::kDateTime) != nullptr);
+    CHECK(ifd0 != nullptr && ifd0->find(md::exif_tag::kArtist) == nullptr &&
+          ifd0->find(md::exif_tag::kCopyright) == nullptr);
+    CHECK(basic_exif->find(md::IfdKind::Gps) == nullptr);
+  }
+  CHECK(!md::summarize_camera(stamped).has_location());
+  CHECK(stamped.iptc == nullptr);
+  const auto packet = stamped.xmp ? md::parse_xmp(*stamped.xmp) : std::nullopt;
+  CHECK(packet.has_value());
+  if (packet.has_value()) {
+    CHECK(packet->text(md::xmp_ns::kXmp, "CreatorTool").starts_with("Patchy "));
+    CHECK(!packet->text(md::xmp_ns::kXmp, "CreateDate").empty() && !packet->text(md::xmp_ns::kXmp, "ModifyDate").empty());
+    CHECK(packet->text(md::xmp_ns::kDc, "format") == "image/jpeg");
+    CHECK(packet->find(md::xmp_ns::kDc, "creator") == nullptr && packet->find(md::xmp_ns::kDc, "rights") == nullptr &&
+          packet->find(md::xmp_ns::kDc, "description") == nullptr);
+  }
+  // Basic with the thumbnail: the stamp's EXIF carries it.
+  basic.thumbnail = true;
+  const auto stamped_thumbnail = export_with(basic);
+  const auto basic_thumbnail = stamped_thumbnail.exif ? md::parse_tiff(*stamped_thumbnail.exif) : std::nullopt;
+  CHECK(basic_thumbnail.has_value() && !basic_thumbnail->thumbnail.empty());
+
+  // The token round trips.
+  CHECK(patchy::ui::metadata_policy_key(md::MetadataPolicy::Basic) == QStringLiteral("basic"));
+  CHECK(patchy::ui::metadata_policy_from_key(QStringLiteral("basic")) == md::MetadataPolicy::Basic);
+  // Save As keeps its bytes: no thumbnail-only EXIF unless asked for.
+  CHECK(!patchy::ui::ImageSaveOptions{}.jpeg_exif_thumbnail_without_metadata);
 }
 
 // Issue 417: File Info's privacy notice has Don't Show Again, which turns it off for every

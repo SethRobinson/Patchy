@@ -746,8 +746,9 @@ interface PatchySaveOptions {
   /** .jpg/.jpeg: optimized Huffman tables, a smaller file with the same image. Default false;
    *  File > Export for Web turns it on. */
   optimizeCoding?: boolean;
-  /** .jpg/.jpeg: write a small preview thumbnail into the EXIF data when the file keeps EXIF
-   *  (metadata "all" or "copyright" with EXIF to keep). Default true. */
+  /** .jpg/.jpeg: write a small preview thumbnail into the EXIF data. Without the key it is
+   *  written when the file keeps EXIF; an explicit true writes it with every metadata choice
+   *  (with "none", a minimal EXIF holding only the thumbnail). Default true. */
   thumbnail?: boolean;
   /** .jxl: encoder effort, 1..9 (higher is smaller and slower). */
   effort?: number;
@@ -799,9 +800,10 @@ interface PatchySaveOptions {
   loopCount?: number;
   /** .jpg/.jpeg, .png, .tif/.tiff, .webp, .gif, .jxl, .avif: the File Info metadata to embed. "all"
    *  (the default for saveAs and exportAs) writes everything; "copyright" keeps the author,
-   *  copyright and creator contact fields; "none" writes no metadata. The color profile
-   *  and resolution are always written. */
-  metadata?: "all" | "copyright" | "none";
+   *  copyright and creator contact fields; "basic" writes only the program, the creation and
+   *  modification dates and the file's format, size and resolution; "none" writes no
+   *  metadata. The color profile and resolution are always written. */
+  metadata?: "all" | "copyright" | "basic" | "none";
   /** .jpg/.jpeg, .tif/.tiff, .pdf (flattened pages only): "cmyk" writes the image in CMYK
    *  for print, separated through the working CMYK profile (app.cmykProfile) and with that
    *  profile embedded; transparent areas become paper white and 16/32-bit documents are
