@@ -120,6 +120,9 @@ The committed manifest is never rewritten by packaging.
 - `--share=network` exists only for the update check. A `-DPATCHY_STORE_BUILD=ON` build
   has no update check and no preference for it (`update_checks_available()` in
   `src/ui/update_checker.cpp`); `PATCHY_NO_UPDATE_CHECK=1` does the same at run time.
+- `--socket=pulseaudio` carries theme and script sounds (PipeWire serves the same
+  socket). Without it every sound is silent. The KDE runtime ships `paplay`, `pacat` and
+  `pw-cat`, not `aplay`; sounds play through `paplay` (`sound_effects.cpp`).
 - HEIC needs nothing in the manifest: the runtime ships kimageformats' HEIF plugin and
   libheif, and its freedesktop 25.08 base declares `codecs-extra` (the HEVC decoder),
   which flatpak installs with the runtime for repository and bundle installs alike

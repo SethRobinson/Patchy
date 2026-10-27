@@ -806,6 +806,7 @@ void ui_theme_wav_loop_helpers_and_player() {
   const auto tone = patchy::ui::build_tone_wav(440.0, 200, 0.5, patchy::ui::ToneWave::Sine);
   const auto pcm = patchy::ui::parse_wav(tone);
   CHECK(pcm.format_tag == 1 && pcm.channels == 1 && pcm.sample_rate == 44100 && pcm.block_align == 2);
+  CHECK(pcm.bits == 16 && !pcm.is_float);
   CHECK(pcm.format_chunk.size() == 16);
   CHECK(pcm.data.size() == 44100 / 5 * 2);
   CHECK(patchy::ui::wav_duration_ms(tone) == 200);
@@ -823,9 +824,11 @@ void ui_theme_wav_loop_helpers_and_player() {
   qunsetenv("PATCHY_NO_SOUND");
   patchy::ui::play_wav_loop({}, silent(patchy::ui::kMinWavLoopMs / 2));
   CHECK(!patchy::ui::wav_loop_active());
-  // A machine without an audio device refuses the loop; one with a device plays it.
+  // A machine without an audio device refuses the loop; one with a device plays it
+  // (Linux never loops: it plays the intro once).
   patchy::ui::play_wav_loop(silent(100), silent(200));
   if (patchy::ui::wav_loop_active()) {
+    std::fprintf(stderr, "  loop channel: playing on this machine's audio device\n");
     process_events_for(150);
     patchy::ui::play_wav_loop({}, silent(120));  // replaces the playing loop
     CHECK(patchy::ui::wav_loop_active());

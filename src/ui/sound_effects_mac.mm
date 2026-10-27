@@ -1,21 +1,22 @@
-// macOS playback half of sound_effects.hpp: NSSound, which plays WAV data
-// directly with no extra frameworks (AppKit is already linked). NSSound stops
-// if its object deallocates mid-play, so live sounds are retained in a static
-// set and released by the finished-playing delegate (with a size cap in case
-// a delegate callback never arrives). Compiled with ARC (see CMakeLists).
+// macOS playback half of sound_effects.hpp. One-shot sounds use NSSound, which plays
+// WAV data directly (AppKit is already linked). NSSound stops if its object deallocates
+// mid-play, so live sounds are retained in a static set and released by the
+// finished-playing delegate (with a size cap in case a delegate callback never
+// arrives). The loop channel uses an AVAudioEngine player node: the intro and a
+// looping buffer are scheduled back to back, so the hand-over and the repeats are
+// sample-exact. Compiled with ARC (see CMakeLists).
 
 #include "ui/sound_effects.hpp"
 
 #include <QFile>
 #include <QtGlobal>
 
+#include <cstring>
+
 #import <AppKit/AppKit.h>
+#import <AVFoundation/AVFoundation.h>
 
 @interface PatchySoundReaper : NSObject <NSSoundDelegate>
-@end
-
-// The loop channel's intro delegate: starts the looping sound when the intro ends.
-@interface PatchyLoopChain : NSObject <NSSoundDelegate>
 @end
 
 namespace {
@@ -32,13 +33,67 @@ PatchySoundReaper* sound_reaper() {
 
 bool sound_disabled() { return qEnvironmentVariableIsSet("PATCHY_NO_SOUND"); }
 
-// play_wav_loop's two sounds; both nil while no loop plays.
-NSSound* g_loop_intro = nil;
-NSSound* g_loop_sound = nil;
+// The loop channel. The engine is made on first use and paused between loops; the
+// player node is reconnected only when a loop's format differs from the last one.
+AVAudioEngine* g_engine = nil;
+AVAudioPlayerNode* g_player = nil;
+AVAudioFormat* g_connected_format = nil;
+bool g_loop_playing = false;
 
-PatchyLoopChain* loop_chain() {
-  static PatchyLoopChain* chain = [PatchyLoopChain new];
-  return chain;
+void drop_engine() {
+  g_engine = nil;
+  g_player = nil;
+  g_connected_format = nil;
+  g_loop_playing = false;
+}
+
+float sample_at(const unsigned char* bytes, const patchy::ui::WavPcm& pcm) {
+  switch (pcm.bits) {
+    case 8:
+      return (static_cast<float>(bytes[0]) - 128.0f) / 128.0f;
+    case 16: {
+      const auto value = static_cast<std::int16_t>(bytes[0] | bytes[1] << 8);
+      return static_cast<float>(value) / 32768.0f;
+    }
+    case 24: {
+      auto value = static_cast<std::int32_t>(bytes[0] | bytes[1] << 8 | bytes[2] << 16);
+      if ((value & 0x800000) != 0) {
+        value -= 0x1000000;
+      }
+      return static_cast<float>(value) / 8388608.0f;
+    }
+    case 32: {
+      std::uint32_t raw = static_cast<std::uint32_t>(bytes[0]) | static_cast<std::uint32_t>(bytes[1]) << 8 |
+                          static_cast<std::uint32_t>(bytes[2]) << 16 | static_cast<std::uint32_t>(bytes[3]) << 24;
+      if (pcm.is_float) {
+        float value = 0.0f;
+        std::memcpy(&value, &raw, sizeof(value));
+        return value;
+      }
+      return static_cast<float>(static_cast<std::int32_t>(raw)) / 2147483648.0f;
+    }
+    default:
+      return 0.0f;
+  }
+}
+
+// The samples as the engine's standard format (float, one plane per channel).
+AVAudioPCMBuffer* make_buffer(const patchy::ui::WavPcm& pcm, AVAudioFormat* format) {
+  const auto frames = static_cast<AVAudioFrameCount>(pcm.data.size() / pcm.block_align);
+  AVAudioPCMBuffer* buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:frames];
+  if (buffer == nil || buffer.floatChannelData == nullptr) {
+    return nil;
+  }
+  buffer.frameLength = frames;
+  const auto* data = reinterpret_cast<const unsigned char*>(pcm.data.constData());
+  const int sample_bytes = pcm.bits / 8;
+  for (AVAudioFrameCount frame = 0; frame < frames; ++frame) {
+    for (int channel = 0; channel < pcm.channels; ++channel) {
+      buffer.floatChannelData[channel][frame] =
+          sample_at(data + frame * pcm.block_align + channel * sample_bytes, pcm);
+    }
+  }
+  return buffer;
 }
 
 }  // namespace
@@ -47,18 +102,6 @@ PatchyLoopChain* loop_chain() {
 - (void)sound:(NSSound*)sound didFinishPlaying:(BOOL)finished {
   Q_UNUSED(finished);
   [live_sounds() removeObjectIdenticalTo:sound];
-}
-@end
-
-@implementation PatchyLoopChain
-- (void)sound:(NSSound*)sound didFinishPlaying:(BOOL)finished {
-  if (sound != g_loop_intro) {
-    return;
-  }
-  g_loop_intro = nil;
-  if (finished && g_loop_sound != nil) {
-    [g_loop_sound play];
-  }
 }
 @end
 
@@ -89,40 +132,66 @@ void play_wav_loop(QByteArray intro, QByteArray loop) {
   if (sound_disabled() || wav_duration_ms(loop) < kMinWavLoopMs) {
     return;
   }
-  NSSound* looping = [[NSSound alloc] initWithData:[NSData dataWithBytes:loop.constData()
-                                                                 length:static_cast<NSUInteger>(loop.size())]];
-  if (looping == nil) {
-    return;
-  }
-  looping.loops = YES;
-  g_loop_sound = looping;
-  const auto intro_pcm = parse_wav(intro);
-  if (!intro_pcm.data.isEmpty() && intro_pcm.format_chunk == parse_wav(loop).format_chunk) {
-    NSSound* first = [[NSSound alloc] initWithData:[NSData dataWithBytes:intro.constData()
-                                                                 length:static_cast<NSUInteger>(intro.size())]];
-    if (first != nil) {
-      first.delegate = loop_chain();
-      g_loop_intro = first;
-      [first play];
+  const auto loop_pcm = parse_wav(loop);
+  // AVAudioEngine reports misuse (no output device, a format it cannot connect) by
+  // raising, and a sound must never take the app down.
+  @try {
+    AVAudioFormat* format =
+        [[AVAudioFormat alloc] initStandardFormatWithSampleRate:static_cast<double>(loop_pcm.sample_rate)
+                                                       channels:static_cast<AVAudioChannelCount>(loop_pcm.channels)];
+    AVAudioPCMBuffer* loop_buffer = format != nil ? make_buffer(loop_pcm, format) : nil;
+    if (loop_buffer == nil) {
       return;
     }
+    AVAudioPCMBuffer* intro_buffer = nil;
+    if (const auto intro_pcm = parse_wav(intro);
+        !intro_pcm.data.isEmpty() && intro_pcm.format_chunk == loop_pcm.format_chunk) {
+      intro_buffer = make_buffer(intro_pcm, format);
+    }
+    if (g_engine == nil) {
+      g_engine = [AVAudioEngine new];
+      g_player = [AVAudioPlayerNode new];
+      [g_engine attachNode:g_player];
+    }
+    if (g_connected_format == nil || ![g_connected_format isEqual:format]) {
+      if (g_engine.isRunning) {
+        [g_engine stop];
+      }
+      [g_engine connect:g_player to:g_engine.mainMixerNode format:format];
+      g_connected_format = format;
+    }
+    if (!g_engine.isRunning) {
+      NSError* error = nil;
+      if (![g_engine startAndReturnError:&error]) {
+        drop_engine();  // a fresh engine next time (the output device may have changed)
+        return;
+      }
+    }
+    if (intro_buffer != nil) {
+      [g_player scheduleBuffer:intro_buffer completionHandler:nil];
+    }
+    [g_player scheduleBuffer:loop_buffer atTime:nil options:AVAudioPlayerNodeBufferLoops completionHandler:nil];
+    [g_player play];
+    g_loop_playing = true;
+  } @catch (NSException*) {
+    drop_engine();
   }
-  [looping play];
 }
 
 void stop_wav_loop() {
-  if (g_loop_intro != nil) {
-    g_loop_intro.delegate = nil;  // so stopping it does not start the loop
-    [g_loop_intro stop];
-    g_loop_intro = nil;
+  if (!g_loop_playing) {
+    return;
   }
-  if (g_loop_sound != nil) {
-    [g_loop_sound stop];
-    g_loop_sound = nil;
+  g_loop_playing = false;
+  @try {
+    [g_player stop];   // drops the scheduled buffers at once
+    [g_engine pause];  // keeps the graph; the next loop starts it again
+  } @catch (NSException*) {
+    drop_engine();
   }
 }
 
-bool wav_loop_active() { return g_loop_sound != nil; }
+bool wav_loop_active() { return g_loop_playing; }
 
 void play_wav_file(const QString& path) {
   if (sound_disabled()) {

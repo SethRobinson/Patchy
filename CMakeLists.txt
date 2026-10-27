@@ -1700,8 +1700,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       set_source_files_properties(src/ui/scanner_import_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
       set_source_files_properties(src/ui/sound_effects_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
       set_source_files_properties(src/ui/display_hdr_info_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+      # AVFoundation: AVAudioEngine plays the gapless looping theme sounds.
       target_link_libraries(patchy_ui PUBLIC
         "-framework AppKit"
+        "-framework AVFoundation"
         "-framework Quartz"
         "-framework ImageCaptureCore"
       )

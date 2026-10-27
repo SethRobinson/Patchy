@@ -88,7 +88,8 @@ interface PatchyThemeApi {
   /** Plays a WAV file from the package (4 a second at most). False when refused. */
   playSound(path: string): boolean;
   /**
-   * Plays `intro` (optional) once, then repeats `loop` until stopLoop, the next
+   * Plays `intro` (optional) once, then repeats `loop` (Windows and macOS; Linux plays
+   * only the intro) until stopLoop, the next
    * startLoop, a theme change or two minutes. One loop at a time; playSound keeps
    * playing over it. Both are package WAVs in the same format, the loop at least 50 ms
    * long. With stopLoop's outro, 8 a second at most. False when refused.

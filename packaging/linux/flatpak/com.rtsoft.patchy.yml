@@ -9,6 +9,8 @@ finish-args:
   - --socket=fallback-x11
   - --share=ipc
   - --device=dri
+  # Theme and script sounds through paplay (PipeWire serves this socket too).
+  - --socket=pulseaudio
   # Update check and Object Selection's High Quality model download (it lands in the
   # app's data folder, which `flatpak uninstall --delete-data` removes).
   - --share=network

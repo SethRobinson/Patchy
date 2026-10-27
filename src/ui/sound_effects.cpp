@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <memory>
+#include <utility>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -27,8 +27,6 @@
 // branch below needs none of these).
 #include <QCoreApplication>
 #include <QDir>
-#include <QElapsedTimer>
-#include <QPointer>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QStringList>
@@ -129,6 +127,10 @@ WavPcm parse_wav(const QByteArray& wav) {
       pcm.channels = read_u16(wav, body + 2);
       pcm.sample_rate = read_u32(wav, body + 4);
       pcm.block_align = read_u16(wav, body + 12);
+      pcm.bits = read_u16(wav, body + 14);
+      // WAVE_FORMAT_EXTENSIBLE names the real format in its subformat GUID's first word.
+      const auto real_tag = pcm.format_tag == 0xFFFE && size >= 26 ? read_u16(wav, body + 24) : pcm.format_tag;
+      pcm.is_float = real_tag == 3;
       pcm.format_chunk = wav.mid(body, size);
     } else if (id == "data") {
       // Whole sample frames only: a player handed a partial frame may click or refuse it.
@@ -223,7 +225,7 @@ QByteArray build_tone_wav(double frequency_hz, int duration_ms, double volume, T
   return wav;
 }
 
-#if !defined(Q_OS_MACOS) && !defined(Q_OS_WASM)
+#ifdef Q_OS_WIN
 
 namespace {
 
@@ -248,10 +250,6 @@ LoopParts loop_parts(const QByteArray& intro, const QByteArray& loop) {
 }
 
 }  // namespace
-
-#endif
-
-#ifdef Q_OS_WIN
 
 namespace {
 
@@ -434,125 +432,18 @@ void play_wav_file(const QString& path) {
   }
 }
 
-namespace {
-
-// The loop channel: an owned player process per file. The loop is written repeated
-// to about kLoopFileSeconds (the intro ahead of the first copy), so the gap of a
-// process restart falls only every few seconds.
-constexpr int kLoopFileSeconds = 6;
-constexpr qsizetype kMaxLoopFileBytes = 8 * 1024 * 1024;
-// A player that exits sooner than this failed (no device, say): the loop stops
-// instead of respawning it in a tight cycle.
-constexpr qint64 kMinLoopProcessMs = 100;
-
-struct ProcessLoop {
-  QPointer<QProcess> process;
-  QString first_path;
-  QString loop_path;
-  bool active = false;
-  int generation = 0;
-};
-
-ProcessLoop& process_loop() {
-  static ProcessLoop state;
-  return state;
+// No loop channel on Linux: looping would mean keeping an external player process fed
+// for every stroke, and a sound is not worth that risk on every install. The intro
+// plays once through play_wav_bytes; the loop is skipped.
+void play_wav_loop(QByteArray intro, QByteArray /*loop*/) {
+  if (!intro.isEmpty()) {
+    play_wav_bytes(std::move(intro));
+  }
 }
 
-QString write_loop_file(const QString& tag, const QByteArray& wav) {
-  const auto path = QDir::temp().absoluteFilePath(QStringLiteral("patchy-sfx-loop-%1-%2-%3.wav")
-                                                      .arg(QCoreApplication::applicationPid())
-                                                      .arg(process_loop().generation)
-                                                      .arg(tag));
-  QFile file(path);
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) || file.write(wav) != wav.size()) {
-    return {};
-  }
-  return path;
-}
+void stop_wav_loop() {}
 
-void start_loop_process(const QString& path, int generation) {
-  auto& state = process_loop();
-  const auto command = player_command(path);
-  if (command.isEmpty() || QCoreApplication::instance() == nullptr) {
-    stop_wav_loop();
-    return;
-  }
-  auto* process = new QProcess(QCoreApplication::instance());
-  state.process = process;
-  auto started = std::make_shared<QElapsedTimer>();
-  started->start();
-  QObject::connect(process, &QProcess::finished, process, [process, generation, started] {
-    process->deleteLater();
-    auto& current = process_loop();
-    if (!current.active || current.generation != generation || current.process != process) {
-      return;
-    }
-    if (started->elapsed() < kMinLoopProcessMs) {
-      stop_wav_loop();
-      return;
-    }
-    start_loop_process(current.loop_path, generation);
-  });
-  QObject::connect(process, &QProcess::errorOccurred, process, [process, generation](QProcess::ProcessError error) {
-    if (error == QProcess::FailedToStart) {
-      process->deleteLater();
-      if (process_loop().generation == generation) {
-        stop_wav_loop();
-      }
-    }
-  });
-  process->start(command.first(), command.mid(1));
-}
-
-}  // namespace
-
-void play_wav_loop(QByteArray intro, QByteArray loop) {
-  stop_wav_loop();
-  const auto parts = loop_parts(intro, loop);
-  if (parts.loop.data.isEmpty()) {
-    return;
-  }
-  const qsizetype seconds_bytes = static_cast<qsizetype>(parts.loop.sample_rate) * parts.loop.block_align *
-                                  kLoopFileSeconds;
-  QByteArray repeated = parts.loop.data;
-  while (repeated.size() < seconds_bytes && repeated.size() + parts.loop.data.size() <= kMaxLoopFileBytes) {
-    repeated.append(parts.loop.data);
-  }
-  auto& state = process_loop();
-  state.loop_path = write_loop_file(QStringLiteral("loop"), make_wav(parts.loop.format_chunk, repeated));
-  state.first_path = parts.intro_data.isEmpty()
-                         ? state.loop_path
-                         : write_loop_file(QStringLiteral("first"),
-                                           make_wav(parts.loop.format_chunk, parts.intro_data + repeated));
-  if (state.loop_path.isEmpty() || state.first_path.isEmpty()) {
-    stop_wav_loop();
-    return;
-  }
-  state.active = true;
-  start_loop_process(state.first_path, state.generation);
-}
-
-void stop_wav_loop() {
-  auto& state = process_loop();
-  const bool had_files = !state.loop_path.isEmpty() || !state.first_path.isEmpty();
-  state.active = false;
-  ++state.generation;  // a finishing player sees a stale generation and stays stopped
-  if (state.process != nullptr) {
-    state.process->kill();
-  }
-  state.process = nullptr;
-  if (had_files) {
-    // The killed player may still hold its file for a moment.
-    QTimer::singleShot(2000, [first = state.first_path, loop = state.loop_path] {
-      QFile::remove(first);
-      QFile::remove(loop);
-    });
-  }
-  state.first_path.clear();
-  state.loop_path.clear();
-}
-
-bool wav_loop_active() { return process_loop().active; }
+bool wav_loop_active() { return false; }
 
 #endif  // platform playback (macOS lives in sound_effects_mac.mm)
 

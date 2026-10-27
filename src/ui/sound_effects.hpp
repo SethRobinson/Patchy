@@ -40,6 +40,8 @@ struct WavPcm {
   std::uint16_t channels = 0;
   std::uint32_t sample_rate = 0;
   std::uint16_t block_align = 0;
+  std::uint16_t bits = 0;  // per sample: 8, 16, 24 or 32
+  bool is_float = false;   // IEEE float samples (tag 3, or an extensible float subformat)
   QByteArray format_chunk;  // the "fmt " chunk body as written
   QByteArray data;
 };
@@ -53,15 +55,16 @@ struct WavPcm {
 // which keeps playing over it: `intro` (may be empty) plays once, then `loop` repeats
 // until stop_wav_loop or the next play_wav_loop. An intro in another format than the
 // loop is dropped, and a loop shorter than kMinWavLoopMs is refused (a tiny buffer
-// would spin the audio thread). Windows queues both on one waveOut device, so the
-// loop follows the intro and repeats without a gap; macOS chains two NSSounds; Linux
-// plays the loop repeated to a few seconds per player process, so a gap falls only
-// between those. PATCHY_NO_SOUND and wasm make it a no-op.
+// would spin the audio thread). Windows queues both on one waveOut device and macOS
+// schedules both on an AVAudioEngine player node, so the intro runs into the loop and
+// the repeats without a gap. Linux plays only the intro, once (looping would need an
+// external player process kept fed per stroke). PATCHY_NO_SOUND and wasm make it a
+// no-op.
 inline constexpr int kMinWavLoopMs = 50;
 void play_wav_loop(QByteArray intro, QByteArray loop);
 // Stops the loop and its intro at once; a no-op when none plays.
 void stop_wav_loop();
-// True between a play_wav_loop the backend accepted and stop_wav_loop.
+// True between a play_wav_loop the backend accepted and stop_wav_loop (never on Linux).
 [[nodiscard]] bool wav_loop_active();
 
 }  // namespace patchy::ui
