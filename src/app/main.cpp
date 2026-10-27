@@ -17,6 +17,7 @@
 #include "ui/stress_test.hpp"
 #include "ui/app_style.hpp"
 #include "ui/theme_manager.hpp"
+#include "ui/theme_sounds.hpp"
 #include "ui/user_fonts.hpp"
 #include "ui/wayland_pointer_cursor.hpp"
 #include "ui/wayland_popup_anchor.hpp"
@@ -785,6 +786,11 @@ int main(int argc, char* argv[]) {
   }
   forward_phase.end();
 
+  // Wakes the audio output while the window builds, so the theme's startup sound
+  // (fired below for the same runs) keeps its start.
+  if (!stress_mode && !export_mode && !screenshot_mode && !run_script_mode && !startup_benchmark_mode) {
+    patchy::ui::prepare_theme_startup_sound();
+  }
   patchy::startup_trace::Scope window_phase("main_window.construct");
   patchy::ui::MainWindow window;
   window_phase.end();

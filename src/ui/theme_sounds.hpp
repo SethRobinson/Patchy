@@ -60,6 +60,14 @@ void set_theme_sounds_enabled(bool enabled);
 // PATCHY_NO_SOUND then keeps it quiet.
 bool play_theme_sound(ThemeSoundEvent event);
 
+// Called once at launch, before the main window is built, when the startup event will
+// fire: if the active theme has a startup sound, wakes the audio output now
+// (wake_audio_output), and play_theme_sound then holds that sound until the output has
+// had kStartupSoundWakeMs to wake. A receiver on HDMI otherwise drops the first part of
+// the first sound after silence. Window construction usually covers the wait.
+inline constexpr int kStartupSoundWakeMs = 800;
+void prepare_theme_startup_sound();
+
 // The "long operation finished" event: plays when a progress dialog that stayed up
 // for at least kLongOperationSoundMs closes. The watcher is an application event
 // filter installed only while the active theme has that sound, so other themes pay

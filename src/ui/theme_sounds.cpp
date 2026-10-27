@@ -12,6 +12,7 @@
 #include <QPointer>
 #include <QProgressDialog>
 #include <QSettings>
+#include <QTimer>
 
 #include <array>
 
@@ -150,10 +151,36 @@ void set_theme_sounds_enabled(bool enabled) {
   }
 }
 
+namespace {
+
+// Started by prepare_theme_startup_sound; invalid when the output was not woken.
+QElapsedTimer& startup_wake_clock() {
+  static QElapsedTimer clock;
+  return clock;
+}
+
+}  // namespace
+
+void prepare_theme_startup_sound() {
+  if (theme_sound_for_event(active_theme_assets(), ThemeSoundEvent::Startup).isEmpty() || !theme_sounds_enabled()) {
+    return;
+  }
+  wake_audio_output();
+  startup_wake_clock().start();
+}
+
 bool play_theme_sound(ThemeSoundEvent event) {
   auto wav = theme_sound_for_event(active_theme_assets(), event);
   if (wav.isEmpty() || !theme_sounds_enabled()) {
     return false;
+  }
+  if (auto& clock = startup_wake_clock(); event == ThemeSoundEvent::Startup && clock.isValid()) {
+    const auto wait = kStartupSoundWakeMs - clock.elapsed();
+    clock.invalidate();  // only the launch's own startup sound waits
+    if (wait > 0) {
+      QTimer::singleShot(static_cast<int>(wait), [wav = std::move(wav)]() mutable { play_wav_bytes(std::move(wav)); });
+      return true;
+    }
   }
   play_wav_bytes(std::move(wav));
   return true;

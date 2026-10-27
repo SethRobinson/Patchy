@@ -67,4 +67,12 @@ void stop_wav_loop();
 // True between a play_wav_loop the backend accepted and stop_wav_loop (never on Linux).
 [[nodiscard]] bool wav_loop_active();
 
+// Wakes the audio output ahead of a sound that must not lose its start. Outputs that
+// power down when idle (HDMI to a receiver, USB interfaces, Bluetooth) drop the first
+// part of a sound while they wake, so a stream of silence plays for
+// kAudioWakeStreamMs: on Windows its own waveOut device (PlaySound sounds mix over it),
+// on macOS a silent NSSound. Linux and wasm do nothing. A no-op under PATCHY_NO_SOUND.
+inline constexpr int kAudioWakeStreamMs = 2500;
+void wake_audio_output();
+
 }  // namespace patchy::ui

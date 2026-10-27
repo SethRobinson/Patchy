@@ -16,6 +16,8 @@
 #include <utility>
 
 #ifdef Q_OS_WIN
+#include <QTimer>
+
 #ifndef NOMINMAX
 #define NOMINMAX  // windows.h min/max macros break std::clamp/min/max
 #endif
@@ -324,6 +326,50 @@ void stop_wav_loop() {
 
 bool wav_loop_active() { return wave_loop().device != nullptr; }
 
+void wake_audio_output() {
+  if (sound_disabled()) {
+    return;
+  }
+  // One silent buffer on its own device, closed once it has played out.
+  struct WakeStream {
+    HWAVEOUT device = nullptr;
+    QByteArray silence;
+    WAVEHDR header{};
+  };
+  static WakeStream wake;
+  if (wake.device != nullptr) {
+    return;  // already awake
+  }
+  constexpr std::uint32_t kRate = 22050;
+  WAVEFORMATEX format{};
+  format.wFormatTag = WAVE_FORMAT_PCM;
+  format.nChannels = 1;
+  format.nSamplesPerSec = kRate;
+  format.wBitsPerSample = 16;
+  format.nBlockAlign = 2;
+  format.nAvgBytesPerSec = kRate * 2;
+  if (waveOutOpen(&wake.device, WAVE_MAPPER, &format, 0, 0, CALLBACK_NULL) != MMSYSERR_NOERROR) {
+    wake.device = nullptr;
+    return;
+  }
+  wake.silence = QByteArray(static_cast<qsizetype>(kRate) * 2 * kAudioWakeStreamMs / 1000, '\0');
+  wake.header = WAVEHDR{};
+  wake.header.lpData = wake.silence.data();
+  wake.header.dwBufferLength = static_cast<DWORD>(wake.silence.size());
+  waveOutPrepareHeader(wake.device, &wake.header, sizeof(WAVEHDR));
+  waveOutWrite(wake.device, &wake.header, sizeof(WAVEHDR));
+  QTimer::singleShot(kAudioWakeStreamMs + 200, [] {
+    if (wake.device == nullptr) {
+      return;
+    }
+    waveOutReset(wake.device);
+    waveOutUnprepareHeader(wake.device, &wake.header, sizeof(WAVEHDR));
+    waveOutClose(wake.device);
+    wake.device = nullptr;
+    wake.silence.clear();
+  });
+}
+
 void play_wav_bytes(QByteArray wav) {
   if (!is_well_formed_wav(wav) || sound_disabled()) {
     return;
@@ -371,6 +417,8 @@ void play_wav_loop(QByteArray /*intro*/, QByteArray /*loop*/) {}
 void stop_wav_loop() {}
 
 bool wav_loop_active() { return false; }
+
+void wake_audio_output() {}
 
 #elif !defined(Q_OS_MACOS)
 
@@ -444,6 +492,9 @@ void play_wav_loop(QByteArray intro, QByteArray /*loop*/) {
 void stop_wav_loop() {}
 
 bool wav_loop_active() { return false; }
+
+// Like the loop, a silent stream would mean another player process; Linux skips it.
+void wake_audio_output() {}
 
 #endif  // platform playback (macOS lives in sound_effects_mac.mm)
 

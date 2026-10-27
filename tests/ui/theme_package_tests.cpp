@@ -560,6 +560,8 @@ void ui_theme_sound_events_resolve_from_the_package() {
   write_bytes(themes.file(QStringLiteral("Sounds/sounds/launch.wav")),
               patchy::ui::build_tone_wav(440.0, 20, 0.5, patchy::ui::ToneWave::Sine));
   write_bytes(themes.file(QStringLiteral("Sounds/sounds/error.wav")), QByteArrayLiteral("not a wav"));
+  write_bytes(themes.file(QStringLiteral("Sounds/sounds/startup.wav")),
+              patchy::ui::build_tone_wav(440.0, 20, 0.5, patchy::ui::ToneWave::Sine));
   const auto loaded = patchy::ui::load_theme_by_id(QStringLiteral("Sounds"));
   CHECK(loaded.warnings.size() == 2);  // the unknown event and the bad file
   apply_package(QStringLiteral("Sounds"));
@@ -568,6 +570,11 @@ void ui_theme_sound_events_resolve_from_the_package() {
   CHECK(patchy::ui::theme_sounds_enabled());
   CHECK(patchy::ui::play_theme_sound(patchy::ui::ThemeSoundEvent::SaveDone));
   CHECK(!patchy::ui::play_theme_sound(patchy::ui::ThemeSoundEvent::Error));
+  // The launch's startup sound waits for the woken output; later ones play at once.
+  patchy::ui::prepare_theme_startup_sound();
+  CHECK(patchy::ui::play_theme_sound(patchy::ui::ThemeSoundEvent::Startup));
+  CHECK(patchy::ui::play_theme_sound(patchy::ui::ThemeSoundEvent::Startup));
+  process_events_for(patchy::ui::kStartupSoundWakeMs + 100);  // the held sound plays (muted)
   patchy::ui::set_theme_sounds_enabled(false);
   CHECK(!patchy::ui::play_theme_sound(patchy::ui::ThemeSoundEvent::SaveDone));
   ThemeManager::instance().clear_custom_theme(/*persist=*/false);
@@ -837,6 +844,10 @@ void ui_theme_wav_loop_helpers_and_player() {
   CHECK(!patchy::ui::wav_loop_active());
   patchy::ui::stop_wav_loop();  // a second stop is a no-op
   CHECK(!patchy::ui::wav_loop_active());
+  // The silent wake-up stream opens once; a second call while it plays is a no-op.
+  patchy::ui::wake_audio_output();
+  patchy::ui::wake_audio_output();
+  process_events_for(patchy::ui::kAudioWakeStreamMs + 300);  // its device closes again
 }
 
 // Players trust a WAV's own sizes (winmm reads the RIFF size's worth of bytes), so only

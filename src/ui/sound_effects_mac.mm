@@ -193,6 +193,11 @@ void stop_wav_loop() {
 
 bool wav_loop_active() { return g_loop_playing; }
 
+void wake_audio_output() {
+  // A silent one-shot: NSSounds mix, so the sound it wakes the output for plays over it.
+  play_wav_bytes(build_tone_wav(440.0, kAudioWakeStreamMs, 0.0, ToneWave::Sine));
+}
+
 void play_wav_file(const QString& path) {
   if (sound_disabled()) {
     return;
