@@ -2927,10 +2927,6 @@
         <translation>預設</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>色版:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>

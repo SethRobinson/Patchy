@@ -194,6 +194,10 @@ double histogram_display_ceiling(std::uint64_t total_samples, std::uint64_t non_
          static_cast<double>(non_empty_bins);
 }
 
+QColor channel_histogram_color(CurvesChannel channel) {
+  return histogram_color(channel);
+}
+
 double histogram_display_fraction(std::uint64_t count, double ceiling) {
   if (!(ceiling > 0.0) || count == 0) {
     return 0.0;

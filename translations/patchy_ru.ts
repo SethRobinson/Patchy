@@ -2991,10 +2991,6 @@
         <translation>По умолчанию</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Канал:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>

@@ -49,6 +49,7 @@
 #include <QSlider>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QTabBar>
 #include <QTimer>
 #include <QValidator>
 #include <QVBoxLayout>
@@ -79,7 +80,7 @@ struct SliderRowSpec {
   QString suffix;
 };
 
-int levels_channel_combo_index(LevelsChannel channel) {
+int levels_channel_tab_index(LevelsChannel channel) {
   switch (channel) {
     case LevelsChannel::Red:
       return 1;
@@ -93,7 +94,7 @@ int levels_channel_combo_index(LevelsChannel channel) {
   return 0;
 }
 
-LevelsChannel levels_channel_from_combo_index(int index) {
+LevelsChannel levels_channel_from_tab_index(int index) {
   switch (index) {
     case 1:
       return LevelsChannel::Red;
@@ -104,6 +105,20 @@ LevelsChannel levels_channel_from_combo_index(int index) {
     default:
       return LevelsChannel::Rgb;
   }
+}
+
+CurvesChannel curves_channel_for_levels(LevelsChannel channel) {
+  switch (channel) {
+    case LevelsChannel::Red:
+      return CurvesChannel::Red;
+    case LevelsChannel::Green:
+      return CurvesChannel::Green;
+    case LevelsChannel::Blue:
+      return CurvesChannel::Blue;
+    case LevelsChannel::Rgb:
+      break;
+  }
+  return CurvesChannel::Rgb;
 }
 
 std::array<int, 256> default_levels_histogram() {
@@ -195,6 +210,15 @@ public:
     update();
   }
 
+  // A color channel's bars take that channel's hue, as in Curves; the
+  // composite keeps the neutral bars.
+  void set_channel(LevelsChannel channel) {
+    if (channel_ != channel) {
+      channel_ = channel;
+      update();
+    }
+  }
+
   void set_levels(int black_input, int white_input, int gamma_percent) {
     auto settings = clamp_levels_settings(LevelsSettings{black_input, white_input, gamma_percent});
     black_input_ = settings.black_input;
@@ -230,8 +254,10 @@ protected:
       non_empty += count > 0 ? 1 : 0;
     }
     const auto ceiling = histogram_display_ceiling(total, non_empty);
+    const auto bar_color = channel_ == LevelsChannel::Rgb
+                               ? QColor(218, 218, 218)
+                               : channel_histogram_color(curves_channel_for_levels(channel_));
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(218, 218, 218));
     for (int x = 0; x < graph.width(); ++x) {
       const auto first_bin = std::clamp((x * 256) / std::max(1, graph.width()), 0, 255);
       const auto last_bin = std::clamp(((x + 1) * 256) / std::max(1, graph.width()), first_bin + 1, 256);
@@ -244,7 +270,7 @@ protected:
       const auto scaled = histogram_display_fraction(static_cast<std::uint64_t>(std::max(0, count)), ceiling);
       const auto bar_height = std::clamp(static_cast<int>(std::round(scaled * (graph.height() - 8))), 1,
                                          std::max(1, graph.height() - 4));
-      painter.fillRect(QRect(graph.left() + x, graph.bottom() - bar_height, 1, bar_height), QColor(218, 218, 218));
+      painter.fillRect(QRect(graph.left() + x, graph.bottom() - bar_height, 1, bar_height), bar_color);
     }
 
     painter.setPen(QPen(QColor(192, 192, 192, 160), 1));
@@ -354,6 +380,7 @@ private:
   }
 
   std::array<int, 256> histogram_{};
+  LevelsChannel channel_{LevelsChannel::Rgb};
   int black_input_{0};
   int white_input_{255};
   int gamma_percent_{100};
@@ -585,23 +612,23 @@ std::optional<LevelsSettings> request_levels_settings(
   preset_row->addWidget(preset, 1);
   controls->addLayout(preset_row);
 
-  auto* channel_row = new QHBoxLayout();
-  channel_row->addSpacing(20);
-  channel_row->addWidget(new QLabel(QObject::tr("Channel:"), &dialog));
-  auto* channel = new QComboBox(&dialog);
-  channel->setObjectName(QStringLiteral("levelsChannelCombo"));
-  channel->addItem(QObject::tr("RGB"));
-  channel->addItem(QObject::tr("Red"));
-  channel->addItem(QObject::tr("Green"));
-  channel->addItem(QObject::tr("Blue"));
-  channel_row->addWidget(channel, 1);
-  controls->addLayout(channel_row);
+  // One click per channel, the same tab bar the Curves editor uses (issue 453).
+  auto* channel = new QTabBar(&dialog);
+  channel->setObjectName(QStringLiteral("levelsChannelTabs"));
+  channel->setDrawBase(false);
+  channel->setExpanding(true);
+  channel->addTab(QObject::tr("RGB"));
+  channel->addTab(QObject::tr("Red"));
+  channel->addTab(QObject::tr("Green"));
+  channel->addTab(QObject::tr("Blue"));
+  controls->addWidget(channel);
 
   auto* input_label = new QLabel(QObject::tr("Input Levels:"), &dialog);
   controls->addWidget(input_label);
 
   auto* input_graph = new LevelsInputGraph(&dialog);
   input_graph->set_histogram(histogram_for_channel(initial.channel));
+  input_graph->set_channel(initial.channel);
   controls->addWidget(input_graph);
 
   auto* black_input = new QSpinBox(&dialog);
@@ -687,7 +714,7 @@ std::optional<LevelsSettings> request_levels_settings(
     white_input->setRange(1, 255);
     black_output->setRange(0, 255);
     white_output->setRange(0, 255);
-    channel->setCurrentIndex(levels_channel_combo_index(visible_channel));
+    channel->setCurrentIndex(levels_channel_tab_index(visible_channel));
     black_input->setValue(record.black_input);
     white_input->setValue(record.white_input);
     gamma->setValue(record.gamma_percent);
@@ -698,6 +725,7 @@ std::optional<LevelsSettings> request_levels_settings(
     black_output->setMaximum(record.white_output);
     white_output->setMinimum(record.black_output);
     input_graph->set_histogram(histogram_for_channel(visible_channel));
+    input_graph->set_channel(visible_channel);
     input_graph->set_levels(record.black_input, record.white_input, record.gamma_percent);
     output_range->set_levels(record.black_output, record.white_output);
     updating = false;
@@ -738,12 +766,12 @@ std::optional<LevelsSettings> request_levels_settings(
   QObject::connect(white_output, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&sync_from_widgets](int) {
     sync_from_widgets();
   });
-  QObject::connect(channel, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, [&](int index) {
+  QObject::connect(channel, &QTabBar::currentChanged, &dialog, [&](int index) {
     if (updating) {
       return;
     }
     dialog_settings = committed_settings();
-    visible_channel = levels_channel_from_combo_index(index);
+    visible_channel = levels_channel_from_tab_index(index);
     dialog_settings.channel = visible_channel;
     apply_settings_to_widgets(dialog_settings);
     schedule_preview();

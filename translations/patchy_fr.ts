@@ -2927,10 +2927,6 @@
         <translation>Par défaut</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Couche :</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RVB</translation>
     </message>
@@ -13142,7 +13138,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>No File Info metadata. The color profile and resolution are kept.</source>
-        <translation>Aucune métadonnée d'informations sur le fichier. Le profil colorimétrique et la résolution sont conservés.</translation>
+        <translation>Aucune métadonnée d&apos;informations sur le fichier. Le profil colorimétrique et la résolution sont conservés.</translation>
     </message>
     <message>
         <source>Basic</source>
@@ -13150,7 +13146,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>The author, copyright notice and contact details from File Info.</source>
-        <translation>L'auteur, la mention de copyright et les coordonnées des informations sur le fichier.</translation>
+        <translation>L&apos;auteur, la mention de copyright et les coordonnées des informations sur le fichier.</translation>
     </message>
     <message>
         <source>Everything in File Info.</source>
@@ -13158,11 +13154,11 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
-        <translation>Ajoute une petite image d'aperçu (environ 5 à 10 Ko) que certains visionneurs et explorateurs de fichiers affichent. Fonctionne avec chaque choix de métadonnées : avec Aucune, le fichier ne contient que la vignette.</translation>
+        <translation>Ajoute une petite image d&apos;aperçu (environ 5 à 10 Ko) que certains visionneurs et explorateurs de fichiers affichent. Fonctionne avec chaque choix de métadonnées : avec Aucune, le fichier ne contient que la vignette.</translation>
     </message>
     <message>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
-        <translation>Patchy comme application de création, les dates d'exportation et une entrée d'historique, comme les écrit De base dans les Préférences. Rien des informations sur le fichier du document.</translation>
+        <translation>Patchy comme application de création, les dates d&apos;exportation et une entrée d&apos;historique, comme les écrit De base dans les Préférences. Rien des informations sur le fichier du document.</translation>
     </message>
 </context>
 <context>

@@ -2927,10 +2927,6 @@
         <translation>Predefinito</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Canale:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -13150,7 +13146,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>The author, copyright notice and contact details from File Info.</source>
-        <translation>L'autore, la nota di copyright e i dati di contatto dalle informazioni file.</translation>
+        <translation>L&apos;autore, la nota di copyright e i dati di contatto dalle informazioni file.</translation>
     </message>
     <message>
         <source>Everything in File Info.</source>

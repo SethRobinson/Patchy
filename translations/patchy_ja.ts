@@ -2185,10 +2185,6 @@ RGB: %2, %3, %4</translation>
         <translation>ピクセルにフィルターを適用しています</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>チャンネル:</translation>
-    </message>
-    <message>
         <source>Input Levels:</source>
         <translation>入力レベル:</translation>
     </message>
