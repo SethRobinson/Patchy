@@ -13127,6 +13127,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy 作为创建程序、导出日期和一条历史记录，与首选项中的“基本”写入的相同。不包含文档文件信息中的任何内容。</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>按钮</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>面板底部</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>色板</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>快速蒙版按钮</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>屏幕模式按钮</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26981,6 +27001,29 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>主题脚本不能打开您的文件或文档，也不能使用互联网。但为了安全起见，只应在您信任的人所制作的主题中允许它们。</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>工具组菜单的打开方式：按住按钮、单击按钮，或将指针停在按钮上。</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>打开工具组的方式：</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>单击</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>悬停</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>按住</translation>
     </message>
 </context>
 <context>

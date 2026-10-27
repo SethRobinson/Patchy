@@ -3,6 +3,7 @@
 #include "ui/theme_palette.hpp"
 
 #include <QAction>
+#include <QCoreApplication>
 #include <QEvent>
 #include <QResizeEvent>
 #include <QPaintEvent>
@@ -183,9 +184,7 @@ void ToolPaletteFooter::set_scale(double palette_factor) {
   const auto length = [this](int normal_px) { return tool_palette_length(normal_px, scale_); };
   cell_width_ = tool_palette_collapsed_width(palette_factor);
   well_height_ = length(kWellHeight);
-  height_ = length(kHeight);
   glyph_size_ = length(kGlyphSize);
-  setFixedHeight(height_);
   setMinimumWidth(cell_width_);
   foreground_->set_side(length(kSwatchSize));
   background_->set_side(length(kSwatchSize));
@@ -200,8 +199,39 @@ void ToolPaletteFooter::set_scale(double palette_factor) {
   if (screen_mode_ != nullptr) {
     screen_mode_->setIconSize(QSize(length(17), length(17)));
   }
+  apply_rows();
+}
+
+void ToolPaletteFooter::set_shown_rows(bool colors, bool quick_mask, bool screen_mode) {
+  if (colors == shows_colors_ && quick_mask == shows_quick_mask_ && screen_mode == shows_screen_mode_) {
+    return;
+  }
+  shows_colors_ = colors;
+  shows_quick_mask_ = quick_mask;
+  shows_screen_mode_ = screen_mode;
+  apply_rows();
+}
+
+void ToolPaletteFooter::apply_rows() {
+  const auto length = [this](int normal_px) { return tool_palette_length(normal_px, scale_); };
+  for (QWidget* part : {static_cast<QWidget*>(foreground_), static_cast<QWidget*>(background_),
+                        static_cast<QWidget*>(swap_), static_cast<QWidget*>(default_)}) {
+    part->setVisible(shows_colors_);
+  }
+  quick_mask_->setVisible(shows_quick_mask_);
+  const bool screen_mode_shown = shows_screen_mode_ && screen_mode_ != nullptr;
+  if (screen_mode_ != nullptr) {
+    screen_mode_->setVisible(screen_mode_shown);
+  }
+  height_ = (shows_colors_ ? well_height_ : 0) + (shows_quick_mask_ ? length(kQuickMaskRowHeight) : 0) +
+            (screen_mode_shown ? length(kScreenModeRowHeight) : 0);
+  setFixedHeight(height_);
   place_controls();
   updateGeometry();
+  // The palette's placer reserves the footer's height in its layout's bottom margin.
+  if (parentWidget() != nullptr) {
+    QCoreApplication::postEvent(parentWidget(), new QEvent(QEvent::LayoutRequest));
+  }
 }
 
 void ToolPaletteFooter::place_controls() {
@@ -217,14 +247,16 @@ void ToolPaletteFooter::place_controls() {
   // ended in the column next to it and read as touching it), and sits as far
   // above the background swatch as it sits right of the foreground swatch.
   swap_->move(cell - glyph_size_ - 2, tool_palette_length(5, scale_));
+  // Rows a customization hides take no height: the rows under them move up.
   const auto size = quick_mask_->size();
-  const int quick_mask_row = tool_palette_length(kQuickMaskRowHeight, scale_);
+  const int quick_mask_top = shows_colors_ ? well_height_ : 0;
+  const int quick_mask_row = shows_quick_mask_ ? tool_palette_length(kQuickMaskRowHeight, scale_) : 0;
   quick_mask_->move(std::max(0, (cell - size.width()) / 2),
-                    well_height_ + std::max(0, (quick_mask_row - size.height()) / 2));
+                    quick_mask_top + std::max(0, (quick_mask_row - size.height()) / 2));
   if (screen_mode_ != nullptr) {
     // The screen mode button's own row under Quick Mask, centered the same way.
     const auto mode_size = screen_mode_->size();
-    const int row_top = well_height_ + quick_mask_row;
+    const int row_top = quick_mask_top + quick_mask_row;
     screen_mode_->move(std::max(0, (cell - mode_size.width()) / 2),
                        row_top + std::max(0, (height_ - row_top - mode_size.height()) / 2));
   }
@@ -242,7 +274,7 @@ void ToolPaletteFooter::set_screen_mode_button(QToolButton* button) {
     screen_mode_->installEventFilter(this);
     screen_mode_->show();
   }
-  place_controls();
+  apply_rows();
 }
 
 void ToolPaletteFooter::resizeEvent(QResizeEvent* event) {

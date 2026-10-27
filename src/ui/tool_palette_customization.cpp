@@ -2,11 +2,15 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QFormLayout>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFont>
@@ -23,6 +27,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QtMath>
 
 #include <algorithm>
 #include <utility>
@@ -36,6 +41,7 @@ QString layout_key() { return QStringLiteral("toolPalette/layout"); }
 QString wheel_scroll_key() { return QStringLiteral("toolPalette/wheelScroll"); }
 // toolPalette/showCustomizeButton belonged to the palette's gear, since removed: never reuse it.
 QString hidden_layer_buttons_key() { return QStringLiteral("layersPanel/hiddenFooterButtons"); }
+QString hidden_footer_items_key() { return QStringLiteral("toolPalette/hiddenFooterItems"); }
 // The layout token; anything else (or nothing) is one column.
 constexpr auto kTwoColumnsToken = "two_columns";
 
@@ -50,8 +56,9 @@ QStringList normalized_ids(QStringList ids) {
 constexpr int kIdRole = Qt::UserRole;
 
 // A painted miniature of the palette (mockup 1's preview): the slots in one or two columns
-// with the cluster separators, and the color well. It repaints from the choice the
-// dialog's controls hold, so it follows every tick.
+// with the cluster separators and the flyout corner arrows, then the bottom items the choice
+// keeps (color well, Quick Mask, screen mode), drawn at the chosen toolbar icon size. It
+// repaints from the choice the dialog's controls hold, so it follows every tick.
 class ToolPalettePreview final : public QWidget {
 public:
   explicit ToolPalettePreview(const ToolPaletteCatalog& catalog, QWidget* parent)
@@ -59,9 +66,11 @@ public:
     setObjectName(QStringLiteral("toolPaletteCustomizePreview"));
   }
 
-  void set_customization(const ToolPaletteCustomization& value) {
-    customization_ = value;
-    setFixedSize(content_size());
+  void set_choice(const ToolPaletteDialogChoice& value) {
+    choice_ = value;
+    const QSize size = content_size();
+    const double factor = toolbar_icon_size_factor(choice_.icon_size);
+    setFixedSize(qCeil(size.width() * factor), qCeil(size.height() * factor));
     update();
   }
 
@@ -70,43 +79,65 @@ protected:
     QWidget::paintEvent(event);
     const auto& colors = theme();
     QPainter painter(this);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     painter.fillRect(rect(), colors.tool_palette_bg);
     painter.setPen(colors.tool_palette_border);
     painter.drawLine(width() - 1, 0, width() - 1, height() - 1);
-    const int columns = customization_.two_columns ? 2 : 1;
+    // Laid out at the Normal size, drawn at the chosen one.
+    const double factor = toolbar_icon_size_factor(choice_.icon_size);
+    painter.scale(factor, factor);
+    const QSize size = content_size();
+    const int columns = choice_.customization.two_columns ? 2 : 1;
+    const QIcon corner = themed_svg_icon(QStringLiteral("tool-flyout-corner"));
     int y = kMargin;
     bool first = true;
     for (const auto& cluster : catalog_.clusters) {
-      const auto icons = visible_icons(cluster);
-      if (icons.empty()) {
+      const auto shown = visible_slots(cluster);
+      if (shown.empty()) {
         continue;
       }
       if (!first) {
-        painter.fillRect(QRect(kMargin, y + kSeparatorMargin, width() - 1 - 2 * kMargin, 1),
+        painter.fillRect(QRect(kMargin, y + kSeparatorMargin, size.width() - 1 - 2 * kMargin, 1),
                          colors.tool_palette_separator);
         y += kSeparatorExtent + kSpacing;
       }
       first = false;
-      for (std::size_t index = 0; index < icons.size(); ++index) {
+      for (std::size_t index = 0; index < shown.size(); ++index) {
         const int column = static_cast<int>(index) % columns;
         if (index > 0 && column == 0) {
           y += kCellHeight + kSpacing;
         }
         const QRect cell(kMargin + column * (kCellWidth + kSpacing), y, kCellWidth, kCellHeight);
-        icons[index].paint(&painter, cell.adjusted((kCellWidth - kIcon) / 2, (kCellHeight - kIcon) / 2,
-                                                   -(kCellWidth - kIcon) / 2, -(kCellHeight - kIcon) / 2));
+        shown[index].icon.paint(&painter, cell.adjusted((kCellWidth - kIcon) / 2, (kCellHeight - kIcon) / 2,
+                                                        -(kCellWidth - kIcon) / 2, -(kCellHeight - kIcon) / 2));
+        // A tool group shows the palette's corner arrow (GitHub issue 213 follow-up).
+        if (shown[index].flyout) {
+          corner.paint(&painter, QRect(cell.right() - kCorner, cell.bottom() - kCorner, kCorner, kCorner));
+        }
       }
       y += kCellHeight + kSpacing;
     }
-    // The color well under the tools: background swatch lower right, foreground over it.
     y += kFooterGap;
-    painter.setPen(colors.tool_palette_border);
-    const QRect background(kMargin + 9, y + 7, kSwatch, kSwatch);
-    const QRect foreground(kMargin + 2, y, kSwatch, kSwatch);
-    painter.fillRect(background, catalog_.background);
-    painter.drawRect(background.adjusted(0, 0, -1, -1));
-    painter.fillRect(foreground, catalog_.foreground);
-    painter.drawRect(foreground.adjusted(0, 0, -1, -1));
+    if (shows(kToolPaletteColorsId)) {
+      // The color well: background swatch lower right, foreground over it.
+      painter.setPen(colors.tool_palette_border);
+      const QRect background(kMargin + 9, y + 7, kSwatch, kSwatch);
+      const QRect foreground(kMargin + 2, y, kSwatch, kSwatch);
+      painter.fillRect(background, catalog_.background);
+      painter.drawRect(background.adjusted(0, 0, -1, -1));
+      painter.fillRect(foreground, catalog_.foreground);
+      painter.drawRect(foreground.adjusted(0, 0, -1, -1));
+      y += kWellHeight;
+    }
+    if (shows(kToolPaletteQuickMaskId)) {
+      catalog_.quick_mask_icon.paint(&painter, QRect(kMargin + (kCellWidth - kFooterIcon) / 2,
+                                                     y + (kFooterRow - kFooterIcon) / 2, kFooterIcon, kFooterIcon));
+      y += kFooterRow;
+    }
+    if (shows(kToolPaletteScreenModeId)) {
+      catalog_.screen_mode_icon.paint(&painter, QRect(kMargin + (kCellWidth - kFooterIcon) / 2,
+                                                      y + (kFooterRow - kFooterIcon) / 2, kFooterIcon, kFooterIcon));
+    }
   }
 
 private:
@@ -114,32 +145,45 @@ private:
   static constexpr int kCellWidth = 24;
   static constexpr int kCellHeight = 19;
   static constexpr int kIcon = 15;
+  static constexpr int kCorner = 5;
   static constexpr int kSpacing = 1;
   static constexpr int kSeparatorMargin = 2;
   static constexpr int kSeparatorExtent = 2 * kSeparatorMargin + 1;
   static constexpr int kSwatch = 14;
+  static constexpr int kWellHeight = kSwatch + 7 + 4;
+  static constexpr int kFooterIcon = 13;
+  static constexpr int kFooterRow = 17;
   static constexpr int kFooterGap = 6;
-  static constexpr int kFooterHeight = kSwatch + 7 + 4;
 
-  [[nodiscard]] std::vector<QIcon> visible_icons(const ToolPaletteCatalogCluster& cluster) const {
-    std::vector<QIcon> icons;
+  struct PreviewSlot {
+    QIcon icon;
+    bool flyout{false};
+  };
+
+  [[nodiscard]] bool shows(const char* footer_item) const {
+    return !choice_.customization.hidden_footer_items.contains(QLatin1String(footer_item));
+  }
+
+  [[nodiscard]] std::vector<PreviewSlot> visible_slots(const ToolPaletteCatalogCluster& cluster) const {
+    std::vector<PreviewSlot> shown;
     for (const auto& entry : cluster.entries) {
       for (const auto& member : entry.members) {
-        if (!customization_.hidden_tools.contains(member.id)) {
-          icons.push_back(member.icon);
+        if (!choice_.customization.hidden_tools.contains(member.id)) {
+          shown.push_back({member.icon, entry.flyout});
           break;
         }
       }
     }
-    return icons;
+    return shown;
   }
 
+  // The miniature's size at the Normal toolbar icon size.
   [[nodiscard]] QSize content_size() const {
-    const int columns = customization_.two_columns ? 2 : 1;
+    const int columns = choice_.customization.two_columns ? 2 : 1;
     int height = kMargin;
     bool first = true;
     for (const auto& cluster : catalog_.clusters) {
-      const auto count = static_cast<int>(visible_icons(cluster).size());
+      const auto count = static_cast<int>(visible_slots(cluster).size());
       if (count == 0) {
         continue;
       }
@@ -150,13 +194,43 @@ private:
       const int rows = (count + columns - 1) / columns;
       height += rows * (kCellHeight + kSpacing);
     }
-    height += kFooterGap + kFooterHeight + kMargin;
+    height += kFooterGap;
+    if (shows(kToolPaletteColorsId)) {
+      height += kWellHeight;
+    }
+    if (shows(kToolPaletteQuickMaskId)) {
+      height += kFooterRow;
+    }
+    if (shows(kToolPaletteScreenModeId)) {
+      height += kFooterRow;
+    }
+    height += kMargin;
     const int width = 2 * kMargin + columns * kCellWidth + (columns - 1) * kSpacing + 1;
     return {width, height};
   }
 
   const ToolPaletteCatalog& catalog_;
-  ToolPaletteCustomization customization_;
+  ToolPaletteDialogChoice choice_;
+};
+
+// The slot list. A cluster heading is bottom-aligned in a row taller than a tool's, and Qt
+// centers the expand/collapse sign in the row, above the name: the heading's sign is drawn in
+// the band of its text instead, so the sign and the name line up (GitHub issue 213 follow-up).
+class ToolPaletteCustomizeTree final : public QTreeWidget {
+public:
+  using QTreeWidget::QTreeWidget;
+
+protected:
+  void drawBranches(QPainter* painter, const QRect& rect, const QModelIndex& index) const override {
+    const auto* item = itemFromIndex(index);
+    if (item == nullptr || item->parent() != nullptr) {
+      QTreeWidget::drawBranches(painter, rect, index);
+      return;
+    }
+    const int text_height = QFontMetrics(item->font(0)).height();
+    const QRect band(rect.left(), rect.bottom() + 1 - text_height, rect.width(), text_height);
+    QTreeWidget::drawBranches(painter, band.intersected(rect), index);
+  }
 };
 
 }  // namespace
@@ -164,6 +238,7 @@ private:
 ToolPaletteCustomization normalized_tool_palette_customization(ToolPaletteCustomization value) {
   value.hidden_tools = normalized_ids(std::move(value.hidden_tools));
   value.hidden_layer_buttons = normalized_ids(std::move(value.hidden_layer_buttons));
+  value.hidden_footer_items = normalized_ids(std::move(value.hidden_footer_items));
   return value;
 }
 
@@ -174,6 +249,7 @@ ToolPaletteCustomization stored_tool_palette_customization() {
   value.two_columns = settings.value(layout_key()).toString() == QLatin1String(kTwoColumnsToken);
   value.wheel_scroll = settings.value(wheel_scroll_key(), true).toBool();
   value.hidden_layer_buttons = settings.value(hidden_layer_buttons_key()).toStringList();
+  value.hidden_footer_items = settings.value(hidden_footer_items_key()).toStringList();
   return normalized_tool_palette_customization(std::move(value));
 }
 
@@ -190,6 +266,7 @@ void set_stored_tool_palette_customization(const ToolPaletteCustomization& value
   };
   store_list(hidden_tools_key(), normalized.hidden_tools);
   store_list(hidden_layer_buttons_key(), normalized.hidden_layer_buttons);
+  store_list(hidden_footer_items_key(), normalized.hidden_footer_items);
   if (normalized.two_columns) {
     settings.setValue(layout_key(), QString::fromLatin1(kTwoColumnsToken));
   } else {
@@ -202,10 +279,40 @@ void set_stored_tool_palette_customization(const ToolPaletteCustomization& value
   }
 }
 
-std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidget* parent,
-                                                                            const ToolPaletteCatalog& catalog,
-                                                                            const ToolPaletteCustomization& current,
-                                                                            ToolPaletteCustomizeTab tab) {
+// The Preferences labels live in MainWindow's translation context, where Preferences
+// has always had them.
+QString toolbar_icon_size_label(ToolbarIconSize size) {
+  switch (size) {
+    case ToolbarIconSize::Smallest:
+      return QCoreApplication::translate("patchy::ui::MainWindow", "Smallest", "toolbar icon size");
+    case ToolbarIconSize::Small:
+      return QCoreApplication::translate("patchy::ui::MainWindow", "Small", "toolbar icon size");
+    case ToolbarIconSize::Normal:
+      break;
+    case ToolbarIconSize::Bigger:
+      return QCoreApplication::translate("patchy::ui::MainWindow", "Bigger", "toolbar icon size");
+    case ToolbarIconSize::Biggest:
+      return QCoreApplication::translate("patchy::ui::MainWindow", "Biggest", "toolbar icon size");
+  }
+  return QCoreApplication::translate("patchy::ui::MainWindow", "Normal", "toolbar icon size");
+}
+
+QString tool_flyout_open_mode_label(ToolFlyoutOpenMode mode) {
+  switch (mode) {
+    case ToolFlyoutOpenMode::Hold:
+      break;
+    case ToolFlyoutOpenMode::Click:
+      return QCoreApplication::translate("patchy::ui::MainWindow", "Click", "when a tool group opens");
+    case ToolFlyoutOpenMode::Hover:
+      return QCoreApplication::translate("patchy::ui::MainWindow", "Hover", "when a tool group opens");
+  }
+  return QCoreApplication::translate("patchy::ui::MainWindow", "Click and hold", "when a tool group opens");
+}
+
+std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidget* parent,
+                                                                           const ToolPaletteCatalog& catalog,
+                                                                           const ToolPaletteDialogChoice& current,
+                                                                           ToolPaletteCustomizeTab tab) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("toolPaletteCustomizeDialog"));
   auto* root = new QVBoxLayout(&dialog);
@@ -215,7 +322,7 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
   tabs->setObjectName(QStringLiteral("toolPaletteCustomizeTabs"));
   content->addWidget(tabs, 1);
 
-  // Tools tab: the slot list on the left, layout options and the preview on the right.
+  // Tools tab: the slot list on the left, the options in the middle, the preview on the right.
   auto* tools_page = new QWidget(tabs);
   auto* tools_layout = new QHBoxLayout(tools_page);
   auto* list_column = new QVBoxLayout();
@@ -223,7 +330,7 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
   tools_hint->setObjectName(QStringLiteral("toolPaletteCustomizeHint"));
   tools_hint->setWordWrap(true);
   list_column->addWidget(tools_hint);
-  auto* tree = new QTreeWidget(tools_page);
+  auto* tree = new ToolPaletteCustomizeTree(tools_page);
   tree->setObjectName(QStringLiteral("toolPaletteCustomizeTree"));
   tree->setColumnCount(2);
   tree->setHeaderHidden(true);
@@ -264,13 +371,66 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
   wheel_hint->setIndent(22);
   side->addWidget(wheel_hint);
   side->addSpacing(10);
+
+  // The two Preferences settings that shape the palette, kept in step with Preferences
+  // (GitHub issues 213 and 459): the same keys, and an open Preferences follows OK here.
+  auto* buttons_label = new QLabel(QObject::tr("Buttons"), tools_page);
+  buttons_label->setFont(heading_font);
+  side->addWidget(buttons_label);
+  auto* buttons_form = new QFormLayout();
+  buttons_form->setContentsMargins(0, 0, 0, 0);
+  auto* icon_size = new QComboBox(tools_page);
+  icon_size->setObjectName(QStringLiteral("toolPaletteIconSizeCombo"));
+  icon_size->setToolTip(QCoreApplication::translate(
+      "patchy::ui::MainWindow", "Size of the tool palette's icons and buttons, relative to the interface scale."));
+  for (const auto size : kToolbarIconSizes) {
+    icon_size->addItem(toolbar_icon_size_label(size), toolbar_icon_size_token(size));
+  }
+  icon_size->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  buttons_form->addRow(QCoreApplication::translate("patchy::ui::MainWindow", "Toolbar icon size:"), icon_size);
+  auto* flyout_open = new QComboBox(tools_page);
+  flyout_open->setObjectName(QStringLiteral("toolPaletteFlyoutOpenCombo"));
+  flyout_open->setToolTip(QCoreApplication::translate(
+      "patchy::ui::MainWindow", "How a tool group's menu opens: press and hold its button, click it, or rest the pointer on it."));
+  for (const auto mode : kToolFlyoutOpenModes) {
+    flyout_open->addItem(tool_flyout_open_mode_label(mode), tool_flyout_open_mode_token(mode));
+  }
+  flyout_open->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  buttons_form->addRow(QCoreApplication::translate("patchy::ui::MainWindow", "Open tool groups on:"), flyout_open);
+  side->addLayout(buttons_form);
+  side->addSpacing(10);
+
+  // The bottom of the palette (GitHub issues 212 and 213): each item can leave it.
+  auto* footer_label = new QLabel(QObject::tr("Bottom of the palette"), tools_page);
+  footer_label->setFont(heading_font);
+  side->addWidget(footer_label);
+  struct FooterCheck {
+    const char* id;
+    QCheckBox* box;
+  };
+  const std::vector<FooterCheck> footer_checks{
+      {kToolPaletteColorsId, new QCheckBox(QObject::tr("Color swatches"), tools_page)},
+      {kToolPaletteQuickMaskId, new QCheckBox(QObject::tr("Quick Mask button"), tools_page)},
+      {kToolPaletteScreenModeId, new QCheckBox(QObject::tr("Screen mode button"), tools_page)}};
+  footer_checks[0].box->setObjectName(QStringLiteral("toolPaletteShowColorsCheck"));
+  footer_checks[1].box->setObjectName(QStringLiteral("toolPaletteShowQuickMaskCheck"));
+  footer_checks[2].box->setObjectName(QStringLiteral("toolPaletteShowScreenModeCheck"));
+  for (const auto& check : footer_checks) {
+    side->addWidget(check.box);
+  }
+  side->addStretch(1);
+  tools_layout->addSpacing(8);
+  tools_layout->addLayout(side);
+
+  auto* preview_column = new QVBoxLayout();
   auto* preview_label = new QLabel(QObject::tr("Preview"), tools_page);
   preview_label->setFont(heading_font);
-  side->addWidget(preview_label);
+  preview_column->addWidget(preview_label);
   auto* preview = new ToolPalettePreview(catalog, tools_page);
-  side->addWidget(preview, 0, Qt::AlignLeft);
-  side->addStretch(1);
-  tools_layout->addLayout(side);
+  preview_column->addWidget(preview, 0, Qt::AlignLeft);
+  preview_column->addStretch(1);
+  tools_layout->addSpacing(8);
+  tools_layout->addLayout(preview_column);
   tabs->addTab(tools_page, QObject::tr("Tools"));
 
   // Layers buttons tab: one tickable row per footer button.
@@ -340,9 +500,33 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
     header->setExpanded(true);
   }
 
+  // Ids this build does not list stay as they were (a newer version's settings survive).
+  const auto keep_unlisted = [](const QStringList& previous, const QStringList& listed, QStringList& out) {
+    for (const auto& id : previous) {
+      if (!listed.contains(id)) {
+        out.push_back(id);
+      }
+    }
+  };
+  QStringList listed_tools;
+  for (const auto& row : slot_rows) {
+    for (const auto& member : row.entry->members) {
+      listed_tools.push_back(member.id);
+    }
+  }
+  QStringList listed_layer_buttons;
+  for (const auto& button : catalog.layer_buttons) {
+    listed_layer_buttons.push_back(button.id);
+  }
+  QStringList listed_footer_items;
+  for (const auto& check : footer_checks) {
+    listed_footer_items.push_back(QString::fromLatin1(check.id));
+  }
+
   bool populating = false;
   const auto read_widgets = [&] {
-    ToolPaletteCustomization value;
+    ToolPaletteDialogChoice choice;
+    auto& value = choice.customization;
     for (const auto& row : slot_rows) {
       if (row.entry->flyout) {
         for (int index = 0; index < row.item->childCount(); ++index) {
@@ -355,18 +539,7 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
         value.hidden_tools.push_back(row.item->data(0, kIdRole).toString());
       }
     }
-    // Ids the catalog does not list (a tool this build leaves out) stay as they were.
-    for (const auto& id : current.hidden_tools) {
-      bool listed = false;
-      for (const auto& row : slot_rows) {
-        for (const auto& member : row.entry->members) {
-          listed = listed || member.id == id;
-        }
-      }
-      if (!listed) {
-        value.hidden_tools.push_back(id);
-      }
-    }
+    keep_unlisted(current.customization.hidden_tools, listed_tools, value.hidden_tools);
     value.two_columns = two_columns->isChecked();
     value.wheel_scroll = wheel_scroll->isChecked();
     for (int index = 0; index < layer_list->count(); ++index) {
@@ -375,24 +548,25 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
         value.hidden_layer_buttons.push_back(item->data(kIdRole).toString());
       }
     }
-    // As with tools, a button id this build does not know stays as it was.
-    for (const auto& id : current.hidden_layer_buttons) {
-      bool listed = false;
-      for (const auto& button : catalog.layer_buttons) {
-        listed = listed || button.id == id;
-      }
-      if (!listed) {
-        value.hidden_layer_buttons.push_back(id);
+    keep_unlisted(current.customization.hidden_layer_buttons, listed_layer_buttons, value.hidden_layer_buttons);
+    for (const auto& check : footer_checks) {
+      if (!check.box->isChecked()) {
+        value.hidden_footer_items.push_back(QString::fromLatin1(check.id));
       }
     }
-    return normalized_tool_palette_customization(std::move(value));
+    keep_unlisted(current.customization.hidden_footer_items, listed_footer_items, value.hidden_footer_items);
+    value = normalized_tool_palette_customization(std::move(value));
+    choice.icon_size = toolbar_icon_size_from_token(icon_size->currentData().toString());
+    choice.flyout_open_mode = tool_flyout_open_mode_from_token(flyout_open->currentData().toString());
+    return choice;
   };
   const auto refresh_preview = [&] {
     if (!populating) {
-      preview->set_customization(read_widgets());
+      preview->set_choice(read_widgets());
     }
   };
-  const auto populate = [&](const ToolPaletteCustomization& value) {
+  const auto populate = [&](const ToolPaletteDialogChoice& choice) {
+    const auto& value = choice.customization;
     populating = true;
     for (const auto& row : slot_rows) {
       if (row.entry->flyout) {
@@ -418,6 +592,12 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
       item->setCheckState(value.hidden_layer_buttons.contains(item->data(kIdRole).toString()) ? Qt::Unchecked
                                                                                             : Qt::Checked);
     }
+    for (const auto& check : footer_checks) {
+      check.box->setChecked(!value.hidden_footer_items.contains(QString::fromLatin1(check.id)));
+    }
+    icon_size->setCurrentIndex(std::max(0, icon_size->findData(toolbar_icon_size_token(choice.icon_size))));
+    flyout_open->setCurrentIndex(
+        std::max(0, flyout_open->findData(tool_flyout_open_mode_token(choice.flyout_open_mode))));
     populating = false;
     refresh_preview();
   };
@@ -426,8 +606,15 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
 
   QObject::connect(tree, &QTreeWidget::itemChanged, &dialog, [&](QTreeWidgetItem*, int) { refresh_preview(); });
   QObject::connect(layer_list, &QListWidget::itemChanged, &dialog, [&](QListWidgetItem*) { refresh_preview(); });
-  for (auto* box : {static_cast<QAbstractButton*>(two_columns), static_cast<QAbstractButton*>(wheel_scroll)}) {
+  std::vector<QAbstractButton*> toggles{two_columns, wheel_scroll};
+  for (const auto& check : footer_checks) {
+    toggles.push_back(check.box);
+  }
+  for (auto* box : toggles) {
     QObject::connect(box, &QAbstractButton::toggled, &dialog, [&](bool) { refresh_preview(); });
+  }
+  for (auto* combo : {icon_size, flyout_open}) {
+    QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { refresh_preview(); });
   }
 
   // Reset to Default on the left, OK and Cancel on the right.
@@ -435,7 +622,7 @@ std::optional<ToolPaletteCustomization> request_tool_palette_customization(QWidg
   auto* reset = new QPushButton(QObject::tr("Reset to Default"), &dialog);
   reset->setObjectName(QStringLiteral("toolPaletteCustomizeResetButton"));
   reset->setAutoDefault(false);
-  QObject::connect(reset, &QPushButton::clicked, &dialog, [&] { populate(ToolPaletteCustomization{}); });
+  QObject::connect(reset, &QPushButton::clicked, &dialog, [&] { populate(ToolPaletteDialogChoice{}); });
   footer->addWidget(reset);
   footer->addStretch(1);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);

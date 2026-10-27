@@ -97,6 +97,13 @@ public:
 
   // Lays the footer out for a toolbar icon size factor (1 is Normal, the k* sizes).
   void set_scale(double palette_factor);
+  // Which rows show (Customize Tool Palette, GitHub issues 212 and 213): the color well,
+  // Quick Mask and the screen mode button. A hidden row takes no height, so the rows below
+  // move up and the footer shrinks; with none shown it is 0 px tall.
+  void set_shown_rows(bool colors, bool quick_mask, bool screen_mode);
+  [[nodiscard]] bool shows_colors() const noexcept { return shows_colors_; }
+  [[nodiscard]] bool shows_quick_mask() const noexcept { return shows_quick_mask_; }
+  [[nodiscard]] bool shows_screen_mode() const noexcept { return shows_screen_mode_; }
   [[nodiscard]] int cell_width() const noexcept { return cell_width_; }
   [[nodiscard]] int well_height() const noexcept { return well_height_; }
   [[nodiscard]] int footer_height() const noexcept { return height_; }
@@ -110,6 +117,8 @@ private:
   // 2 px clear of it (GitHub issue 251) and the Quick Mask button centered under
   // the well (224).
   void place_controls();
+  // The footer's height and the rows' visibility for the shown rows at the current scale.
+  void apply_rows();
 
   ColorWellSwatch* foreground_{nullptr};
   ColorWellSwatch* background_{nullptr};
@@ -122,6 +131,9 @@ private:
   int well_height_{kWellHeight};
   int height_{kHeight};
   int glyph_size_{0};
+  bool shows_colors_{true};
+  bool shows_quick_mask_{true};
+  bool shows_screen_mode_{true};
 };
 
 }  // namespace patchy::ui

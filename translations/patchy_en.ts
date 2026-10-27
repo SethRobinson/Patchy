@@ -13147,6 +13147,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26974,6 +26994,29 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

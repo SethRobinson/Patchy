@@ -13127,6 +13127,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>만든 응용 프로그램으로 Patchy, 내보내기 날짜, 기록 항목 (환경 설정의 기본과 같음). 문서의 파일 정보는 포함하지 않습니다.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>버튼</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>팔레트 아래쪽</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>색상 견본</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>빠른 마스크 버튼</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>화면 모드 버튼</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -26981,6 +27001,29 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>테마 스크립트는 파일이나 문서를 열거나 인터넷을 사용할 수 없습니다. 하지만 안전을 위해 신뢰하는 사람이 만든 테마에서만 허용하세요.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>도구 그룹 메뉴를 여는 방법: 버튼을 길게 누르기, 클릭하기 또는 포인터를 올려 두기.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>도구 그룹 열기:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>클릭</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>마우스 올리기</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>길게 누르기</translation>
     </message>
 </context>
 <context>

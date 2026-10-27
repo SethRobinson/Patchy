@@ -13150,7 +13150,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>The author, copyright notice and contact details from File Info.</source>
-        <translation>L'autore, la nota di copyright e i dati di contatto dalle informazioni file.</translation>
+        <translation>L&apos;autore, la nota di copyright e i dati di contatto dalle informazioni file.</translation>
     </message>
     <message>
         <source>Everything in File Info.</source>
@@ -13163,6 +13163,26 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy come applicazione di creazione, le date di esportazione e una voce di cronologia, come le scrive Base nelle Preferenze. Nulla dalle informazioni file del documento.</translation>
+    </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Pulsanti</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Parte inferiore della tavolozza</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Campioni di colore</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Pulsante Maschera veloce</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Pulsante Modalità schermo</translation>
     </message>
 </context>
 <context>
@@ -27057,6 +27077,29 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Gli script dei temi non possono aprire i tuoi file o documenti né usare Internet. Ma per sicurezza, consentili solo nei temi di persone di cui ti fidi.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Come si apre il menu di un gruppo di strumenti: tenere premuto il pulsante, fare clic o lasciarvi sopra il puntatore.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Apri i gruppi di strumenti con:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Clic</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Passaggio del puntatore</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Clic prolungato</translation>
     </message>
 </context>
 <context>

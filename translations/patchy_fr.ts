@@ -13142,7 +13142,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>No File Info metadata. The color profile and resolution are kept.</source>
-        <translation>Aucune métadonnée d'informations sur le fichier. Le profil colorimétrique et la résolution sont conservés.</translation>
+        <translation>Aucune métadonnée d&apos;informations sur le fichier. Le profil colorimétrique et la résolution sont conservés.</translation>
     </message>
     <message>
         <source>Basic</source>
@@ -13150,7 +13150,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>The author, copyright notice and contact details from File Info.</source>
-        <translation>L'auteur, la mention de copyright et les coordonnées des informations sur le fichier.</translation>
+        <translation>L&apos;auteur, la mention de copyright et les coordonnées des informations sur le fichier.</translation>
     </message>
     <message>
         <source>Everything in File Info.</source>
@@ -13158,11 +13158,31 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every Metadata choice: with None the file holds only the thumbnail.</source>
-        <translation>Ajoute une petite image d'aperçu (environ 5 à 10 Ko) que certains visionneurs et explorateurs de fichiers affichent. Fonctionne avec chaque choix de métadonnées : avec Aucune, le fichier ne contient que la vignette.</translation>
+        <translation>Ajoute une petite image d&apos;aperçu (environ 5 à 10 Ko) que certains visionneurs et explorateurs de fichiers affichent. Fonctionne avec chaque choix de métadonnées : avec Aucune, le fichier ne contient que la vignette.</translation>
     </message>
     <message>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
-        <translation>Patchy comme application de création, les dates d'exportation et une entrée d'historique, comme les écrit De base dans les Préférences. Rien des informations sur le fichier du document.</translation>
+        <translation>Patchy comme application de création, les dates d&apos;exportation et une entrée d&apos;historique, comme les écrit De base dans les Préférences. Rien des informations sur le fichier du document.</translation>
+    </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Boutons</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Bas de la palette</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Pastilles de couleur</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Bouton Masque rapide</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Bouton Mode d&apos;affichage</translation>
     </message>
 </context>
 <context>
@@ -27057,6 +27077,29 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Les scripts de thème ne peuvent ni ouvrir vos fichiers ou documents, ni utiliser Internet. Mais par précaution, ne les autorisez que dans les thèmes de personnes en qui vous avez confiance.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Comment s&apos;ouvre le menu d&apos;un groupe d&apos;outils : maintenir son bouton enfoncé, cliquer dessus ou laisser le pointeur dessus.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Ouvrir les groupes d&apos;outils :</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Clic</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Survol</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Clic maintenu</translation>
     </message>
 </context>
 <context>

@@ -13164,6 +13164,26 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy como aplicación de creación, las fechas de exportación y una entrada de historial, como los escribe Básico en Preferencias. Nada de la información de archivo del documento.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Botones</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Parte inferior de la paleta</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Muestras de color</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Botón de máscara rápida</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Botón de modo de pantalla</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27057,6 +27077,29 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Los scripts de temas no pueden abrir sus archivos o documentos ni usar Internet. Pero, por seguridad, permítalos solo en temas de personas de su confianza.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Cómo se abre el menú de un grupo de herramientas: mantener pulsado su botón, hacer clic en él o dejar el puntero encima.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Abrir grupos de herramientas al:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Hacer clic</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Pasar el puntero</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Mantener pulsado</translation>
     </message>
 </context>
 <context>

@@ -77,6 +77,19 @@ inline constexpr std::array<ToolbarIconSize, 5> kToolbarIconSizes{
 [[nodiscard]] ToolbarIconSize stored_toolbar_icon_size();
 void set_stored_toolbar_icon_size(ToolbarIconSize size);
 
+// When a tool palette flyout (a tool group) opens (GitHub issue 459; docs/tool-palette.md):
+// press and hold the button (the default), a click on it, or the pointer resting on it.
+// Stored under `preferences/toolFlyoutOpenMode` as the token (`hold`, `click`, `hover`); the
+// key and the tokens are compatibility contracts. An unknown or missing token reads as Hold,
+// and Hold is stored as no key.
+enum class ToolFlyoutOpenMode { Hold, Click, Hover };
+inline constexpr std::array<ToolFlyoutOpenMode, 3> kToolFlyoutOpenModes{
+    ToolFlyoutOpenMode::Hold, ToolFlyoutOpenMode::Click, ToolFlyoutOpenMode::Hover};
+[[nodiscard]] QString tool_flyout_open_mode_token(ToolFlyoutOpenMode mode);
+[[nodiscard]] ToolFlyoutOpenMode tool_flyout_open_mode_from_token(const QString& token);
+[[nodiscard]] ToolFlyoutOpenMode stored_tool_flyout_open_mode();
+void set_stored_tool_flyout_open_mode(ToolFlyoutOpenMode mode);
+
 // Automatic document recovery (docs/document-recovery.md): the timer interval steps
 // offered in Preferences, in minutes. Photoshop's own list.
 inline constexpr std::array<int, 5> kRecoveryIntervalMinutes{5, 10, 15, 30, 60};

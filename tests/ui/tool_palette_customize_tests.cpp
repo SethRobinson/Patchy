@@ -1,11 +1,14 @@
 // Customize Tool Palette (GitHub issues 213, 316 and 199; docs/tool-palette.md, "Customizing
 // the palette"): hidden tools keep their keys, flyout members leave their menu and Shift+letter
 // cycle, the two-column layout, wheel scrolling in a short window, the Layers footer's
-// show/hide menu, the dialog's OK, Cancel and Reset to Default, and the stored settings.
+// show/hide menu, the dialog's OK, Cancel and Reset to Default, and the stored settings. Also
+// the palette's bottom items, the toolbar icon size and tool group opening shown in the dialog
+// (213 follow-up), and when tool groups open: click and hold, click or hover (459).
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/tool_palette_customization.hpp"
+#include "ui/tool_palette_footer.hpp"
 #include "ui/tool_palette_layout.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -17,7 +20,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QContextMenuEvent>
+#include <QCursor>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLayout>
@@ -52,7 +57,9 @@ struct CustomizationSettingsGuard {
   std::vector<std::unique_ptr<SettingsValueRestorer>> restorers;
   CustomizationSettingsGuard() {
     for (const auto* key : {"toolPalette/hiddenTools", "toolPalette/layout", "toolPalette/wheelScroll",
-                            "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons"}) {
+                            "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons",
+                            "toolPalette/hiddenFooterItems", "preferences/toolbarIconSize",
+                            "preferences/toolFlyoutOpenMode"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
     }
@@ -713,11 +720,30 @@ void ui_preferences_opens_customize_tool_palette() {
       QApplication::processEvents();
     }
     (void)capture_widget_artifact("ui_preferences_customize_tool_palette_button", *preferences);
-    when_customize_dialog_opens([&, preferences](QDialog& dialog) {
+    // When tool groups open (GitHub issue 459): its own row, Click and hold by default.
+    auto* open_combo = preferences->findChild<QComboBox*>(QStringLiteral("preferencesToolFlyoutOpenCombo"));
+    CHECK(open_combo != nullptr && open_combo->currentData().toString() == QStringLiteral("hold"));
+    CHECK(open_combo == nullptr || open_combo->count() == 3);
+    when_customize_dialog_opens([&, preferences, open_combo](QDialog& dialog) {
       saw_customize = true;
       CHECK(dialog.parentWidget() == preferences);
-      press_dialog_button(dialog, QDialogButtonBox::Cancel);
-      QTimer::singleShot(0, preferences, [preferences] { preferences->reject(); });
+      // The dialog shows the same two settings; OK there moves Preferences' combos too.
+      auto* dialog_open = dialog.findChild<QComboBox*>(QStringLiteral("toolPaletteFlyoutOpenCombo"));
+      auto* dialog_size = dialog.findChild<QComboBox*>(QStringLiteral("toolPaletteIconSizeCombo"));
+      CHECK(dialog_open != nullptr && dialog_size != nullptr);
+      if (dialog_open != nullptr && dialog_size != nullptr) {
+        CHECK(dialog_size->currentData().toString() == QStringLiteral("normal"));
+        dialog_open->setCurrentIndex(dialog_open->findData(QStringLiteral("click")));
+        dialog_size->setCurrentIndex(dialog_size->findData(QStringLiteral("bigger")));
+      }
+      press_dialog_button(dialog, QDialogButtonBox::Ok);
+      QTimer::singleShot(0, preferences, [preferences, open_combo] {
+        auto* size = preferences->findChild<QComboBox*>(QStringLiteral("preferencesToolbarIconSizeCombo"));
+        CHECK(open_combo == nullptr || open_combo->currentData().toString() == QStringLiteral("click"));
+        CHECK(size != nullptr && size->currentData().toString() == QStringLiteral("bigger"));
+        // Preferences' OK keeps what the dialog chose.
+        preferences->accept();
+      });
     });
     button->click();
   });
@@ -725,6 +751,244 @@ void ui_preferences_opens_customize_tool_palette() {
   settle();
   CHECK(saw_preferences);
   CHECK(saw_customize);
+  CHECK(window.tool_flyout_open_mode() == patchy::ui::ToolFlyoutOpenMode::Click);
+  CHECK(patchy::ui::stored_toolbar_icon_size() == patchy::ui::ToolbarIconSize::Bigger);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("preferences/toolFlyoutOpenMode")).toString() ==
+        QStringLiteral("click"));
+
+  // The other way: Preferences' OK moves an open customize dialog's combos.
+  bool synced = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Hover);
+    auto* dialog_open = dialog.findChild<QComboBox*>(QStringLiteral("toolPaletteFlyoutOpenCombo"));
+    auto* dialog_size = dialog.findChild<QComboBox*>(QStringLiteral("toolPaletteIconSizeCombo"));
+    synced = dialog_open != nullptr && dialog_open->currentData().toString() == QStringLiteral("hover") &&
+             dialog_size != nullptr && dialog_size->currentData().toString() == QStringLiteral("normal");
+    press_dialog_button(dialog, QDialogButtonBox::Cancel);
+  });
+  window.show_tool_palette_customization();
+  settle();
+  CHECK(synced);
+  window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Hold);
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("preferences/toolFlyoutOpenMode")));
+}
+
+// GitHub issue 213 follow-up (and 212): the dialog's bottom-of-palette boxes, toolbar icon size
+// and tool group opening change the preview; OK hides the footer rows (the rows under a hidden
+// one move up, the tools get the room), stores them, and a new window reads them; the shortcut
+// column keeps clear of the list's right edge.
+void ui_tool_palette_footer_items_hide_and_preview() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* palette = tool_palette(window);
+  auto* footer = window.findChild<patchy::ui::ToolPaletteFooter*>(QStringLiteral("toolPaletteFooter"));
+  CHECK(footer != nullptr);
+  if (palette == nullptr || footer == nullptr) {
+    return;
+  }
+  window.resize(window.width(), 1400);
+  settle();
+  CHECK(footer->footer_height() == patchy::ui::ToolPaletteFooter::kHeight);
+  const int full_bottom_margin = palette->layout()->contentsMargins().bottom();
+
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("toolPaletteCustomizePreview"));
+    auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("toolPaletteCustomizeTree"));
+    auto* colors = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowColorsCheck"));
+    auto* quick_mask = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowQuickMaskCheck"));
+    auto* screen_mode = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowScreenModeCheck"));
+    auto* icon_size = dialog.findChild<QComboBox*>(QStringLiteral("toolPaletteIconSizeCombo"));
+    auto* flyout_open = dialog.findChild<QComboBox*>(QStringLiteral("toolPaletteFlyoutOpenCombo"));
+    CHECK(preview != nullptr && tree != nullptr && colors != nullptr && quick_mask != nullptr &&
+          screen_mode != nullptr && icon_size != nullptr && flyout_open != nullptr);
+    if (preview == nullptr || tree == nullptr || colors == nullptr || quick_mask == nullptr ||
+        screen_mode == nullptr || icon_size == nullptr || flyout_open == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(colors->isChecked() && quick_mask->isChecked() && screen_mode->isChecked());
+    CHECK(flyout_open->currentData().toString() == QStringLiteral("hold"));
+    // The shortcut keys keep a gap before the list's right edge.
+    if (auto* hand = tree_row(*tree, QStringLiteral("Hand")); hand != nullptr) {
+      CHECK(tree->columnWidth(1) - tree->fontMetrics().horizontalAdvance(hand->text(1)) >= 12);
+    }
+    settle();
+    // The whole preview fits in the dialog, footer rows included.
+    CHECK(preview->mapTo(&dialog, QPoint(0, preview->height())).y() <= dialog.height());
+    (void)capture_widget_artifact("ui_tool_palette_customize_dialog_options", dialog);
+    int height = preview->height();
+    for (auto* box : {colors, quick_mask, screen_mode}) {
+      box->setChecked(false);
+      QApplication::processEvents();
+      CHECK(preview->height() < height);
+      height = preview->height();
+    }
+    const int normal_width = preview->width();
+    icon_size->setCurrentIndex(icon_size->findData(QStringLiteral("bigger")));
+    QApplication::processEvents();
+    CHECK(preview->width() > normal_width);
+    flyout_open->setCurrentIndex(flyout_open->findData(QStringLiteral("hover")));
+    settle();
+    CHECK(preview->mapTo(&dialog, QPoint(0, preview->height())).y() <= dialog.height());
+    (void)capture_widget_artifact("ui_tool_palette_customize_dialog_options_changed", dialog);
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization();
+  CHECK(ran);
+  settle();
+  const QStringList all_hidden{QStringLiteral("colors"), QStringLiteral("quick_mask"),
+                               QStringLiteral("screen_mode")};
+  CHECK(window.tool_palette_customization().hidden_footer_items == all_hidden);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/hiddenFooterItems")).toStringList() ==
+        all_hidden);
+  CHECK(patchy::ui::stored_toolbar_icon_size() == patchy::ui::ToolbarIconSize::Bigger);
+  CHECK(window.tool_flyout_open_mode() == patchy::ui::ToolFlyoutOpenMode::Hover);
+  CHECK(footer->footer_height() == 0);
+  CHECK(!button_named(window, "quickMaskButton")->isVisible());
+  CHECK(!button_named(window, "screenModeButton")->isVisible());
+  CHECK(!window.findChild<QWidget*>(QStringLiteral("foregroundColorButton"))->isVisible());
+  // The tools get the footer's room: the layout's bottom margin no longer reserves it.
+  window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Hold);
+  settle();
+  CHECK(palette->layout()->contentsMargins().bottom() == full_bottom_margin - patchy::ui::ToolPaletteFooter::kHeight);
+
+  // Only the swatches hidden: Quick Mask moves to the top of the footer, screen mode under it.
+  auto customization = window.tool_palette_customization();
+  customization.hidden_footer_items = {QStringLiteral("colors")};
+  window.apply_tool_palette_customization(customization);
+  settle();
+  constexpr int kRows =
+      patchy::ui::ToolPaletteFooter::kQuickMaskRowHeight + patchy::ui::ToolPaletteFooter::kScreenModeRowHeight;
+  CHECK(footer->footer_height() == kRows);
+  auto* quick_mask_button = button_named(window, "quickMaskButton");
+  auto* screen_mode_button = button_named(window, "screenModeButton");
+  CHECK(quick_mask_button->isVisible() && screen_mode_button->isVisible());
+  CHECK(quick_mask_button->geometry().top() < patchy::ui::ToolPaletteFooter::kQuickMaskRowHeight);
+  CHECK(screen_mode_button->geometry().top() >= quick_mask_button->geometry().bottom());
+  CHECK(palette->layout()->contentsMargins().bottom() ==
+        full_bottom_margin - patchy::ui::ToolPaletteFooter::kHeight + kRows);
+  (void)capture_widget_artifact("ui_tool_palette_without_color_swatches", *palette);
+
+  // A new window reads the stored choice.
+  {
+    patchy::ui::MainWindow second;
+    CHECK(second.tool_palette_customization().hidden_footer_items == QStringList{QStringLiteral("colors")});
+    auto* second_footer = second.findChild<patchy::ui::ToolPaletteFooter*>(QStringLiteral("toolPaletteFooter"));
+    CHECK(second_footer != nullptr && second_footer->footer_height() == kRows);
+  }
+
+  // Back to the default: every row, no key.
+  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  settle();
+  CHECK(footer->footer_height() == patchy::ui::ToolPaletteFooter::kHeight);
+  CHECK(palette->layout()->contentsMargins().bottom() == full_bottom_margin);
+  CHECK(window.findChild<QWidget*>(QStringLiteral("foregroundColorButton"))->isVisible());
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("toolPalette/hiddenFooterItems")));
+}
+
+// GitHub issue 459: when a tool group opens. Click opens it on the press and selects the tool
+// the button shows; Hover opens it after the pointer rests on the button, selects nothing, and
+// closes it once the pointer leaves the button and the menu; Click and hold stays the default.
+// The choice is stored under preferences/toolFlyoutOpenMode and a new window reads it.
+void ui_tool_flyout_open_modes_click_and_hover() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.activateWindow();
+  settle();
+  CHECK(window.isActiveWindow());
+  auto* marquee_button = button_named(window, "marqueeToolButton");
+  auto* lasso_button = button_named(window, "lassoToolButton");
+  auto* brush = require_action(window, "toolBrushAction");
+  auto* marquee = require_action(window, "toolMarqueeAction");
+  CHECK(window.tool_flyout_open_mode() == patchy::ui::ToolFlyoutOpenMode::Hold);
+  CHECK(marquee_button->popupMode() == QToolButton::DelayedPopup);
+
+  // Click: the press opens the flyout at once and selects the tool the button shows.
+  window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Click);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("preferences/toolFlyoutOpenMode")).toString() ==
+        QStringLiteral("click"));
+  CHECK(marquee_button->popupMode() == QToolButton::InstantPopup);
+  brush->trigger();
+  settle();
+  {
+    auto* menu = marquee_button->menu();
+    int shows = 0;
+    bool shown = false;
+    const auto connection = QObject::connect(menu, &QMenu::aboutToShow, menu, [&] {
+      ++shows;
+      QTimer::singleShot(0, menu, [&] {
+        shown = menu->isVisible();
+        menu->close();
+      });
+    });
+    const QPoint center = marquee_button->rect().center();
+    send_mouse(*marquee_button, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    process_events_until([&] { return shows > 0; }, 1000);
+    send_mouse(*marquee_button, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    settle();
+    CHECK(shows == 1);
+    CHECK(shown);
+    CHECK(marquee->isChecked());
+    QObject::disconnect(connection);
+  }
+
+  // Hover: resting on the Lasso group opens its flyout, the Brush stays active, and leaving
+  // the button and the menu closes it.
+  window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Hover);
+  CHECK(lasso_button->popupMode() == QToolButton::DelayedPopup);
+  brush->trigger();
+  settle();
+  {
+    auto* menu = lasso_button->menu();
+    int shows = 0;
+    bool shown_beside = false;
+    bool tool_kept = false;
+    bool closed_on_leave = false;
+    const auto connection = QObject::connect(menu, &QMenu::aboutToShow, menu, [&] {
+      ++shows;
+      QTimer::singleShot(0, menu, [&] {
+        process_events_until([&] { return menu->isVisible(); }, 1000);
+        shown_beside = menu->isVisible() &&
+                       menu->geometry().left() > lasso_button->mapToGlobal(QPoint(lasso_button->width(), 0)).x();
+        tool_kept = brush->isChecked();
+        // Across the gap onto the menu keeps it open.
+        QCursor::setPos(menu->geometry().center());
+        process_events_for(500);
+        const bool stayed = menu->isVisible();
+        // Off both: the menu closes by itself.
+        QCursor::setPos(window.mapToGlobal(QPoint(window.width() / 2, window.height() / 2)));
+        process_events_until([&] { return !menu->isVisible(); }, 2000);
+        closed_on_leave = stayed && !menu->isVisible();
+        if (menu->isVisible()) {
+          menu->close();
+        }
+      });
+    });
+    QCursor::setPos(lasso_button->mapToGlobal(lasso_button->rect().center()));
+    process_events_for(100);
+    CHECK(shows == 0);
+    process_events_until([&] { return shows > 0 && !menu->isVisible(); }, 4000);
+    settle();
+    CHECK(shows == 1);
+    CHECK(shown_beside);
+    CHECK(tool_kept);
+    CHECK(closed_on_leave);
+    CHECK(brush->isChecked());
+    QObject::disconnect(connection);
+  }
+  CHECK(patchy::ui::stored_tool_flyout_open_mode() == patchy::ui::ToolFlyoutOpenMode::Hover);
+  {
+    patchy::ui::MainWindow second;
+    CHECK(second.tool_flyout_open_mode() == patchy::ui::ToolFlyoutOpenMode::Hover);
+  }
+
+  // Back to Click and hold, stored as no key.
+  window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Hold);
+  CHECK(marquee_button->popupMode() == QToolButton::DelayedPopup);
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("preferences/toolFlyoutOpenMode")));
+  QCursor::setPos(window.mapToGlobal(QPoint(window.width() / 2, window.height() / 2)));
 }
 
 // patchy.ui.toolPalette reads and sets the choice (any subset of keys), applies it live and
@@ -790,5 +1054,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
        ui_tool_palette_settings_from_an_older_version_show_new_tools},
       {"ui_tool_palette_dialog_lists_every_palette_tool", ui_tool_palette_dialog_lists_every_palette_tool},
       {"ui_preferences_opens_customize_tool_palette", ui_preferences_opens_customize_tool_palette},
+      {"ui_tool_palette_footer_items_hide_and_preview", ui_tool_palette_footer_items_hide_and_preview},
+      {"ui_tool_flyout_open_modes_click_and_hover", ui_tool_flyout_open_modes_click_and_hover},
   };
 }

@@ -499,31 +499,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   toolbar_icon_size_combo->setToolTip(
       tr("Size of the tool palette's icons and buttons, relative to the interface scale."));
   for (const auto size : kToolbarIconSizes) {
-    QString label;
-    switch (size) {
-      case ToolbarIconSize::Smallest:
-        label = tr("Smallest", "toolbar icon size");
-        break;
-      case ToolbarIconSize::Small:
-        label = tr("Small", "toolbar icon size");
-        break;
-      case ToolbarIconSize::Normal:
-        label = tr("Normal", "toolbar icon size");
-        break;
-      case ToolbarIconSize::Bigger:
-        label = tr("Bigger", "toolbar icon size");
-        break;
-      case ToolbarIconSize::Biggest:
-        label = tr("Biggest", "toolbar icon size");
-        break;
-    }
-    toolbar_icon_size_combo->addItem(label, toolbar_icon_size_token(size));
+    toolbar_icon_size_combo->addItem(toolbar_icon_size_label(size), toolbar_icon_size_token(size));
   }
   toolbar_icon_size_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
   toolbar_icon_size_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  const auto entry_toolbar_icon_size = stored_toolbar_icon_size();
   toolbar_icon_size_combo->setCurrentIndex(
-      std::max(0, toolbar_icon_size_combo->findData(toolbar_icon_size_token(entry_toolbar_icon_size))));
+      std::max(0, toolbar_icon_size_combo->findData(toolbar_icon_size_token(stored_toolbar_icon_size()))));
   auto* toolbar_icon_size_label = new QLabel(tr("Toolbar icon size:"), scale_row);
   toolbar_icon_size_label->setObjectName(QStringLiteral("preferencesToolbarIconSizeLabel"));
   toolbar_icon_size_label->setBuddy(toolbar_icon_size_combo);
@@ -535,6 +516,22 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* gui_scale_label = new QLabel(tr("Interface scale:"), application_group);
   gui_scale_label->setBuddy(gui_scale_combo);
   application_form->addRow(gui_scale_label, scale_row);
+  // When a tool group's flyout opens (GitHub issue 459): press and hold (the default), a
+  // click, or the pointer resting on the button. The customize dialog shows it too.
+  auto* tool_flyout_open_combo = new QComboBox(application_group);
+  tool_flyout_open_combo->setObjectName(QStringLiteral("preferencesToolFlyoutOpenCombo"));
+  tool_flyout_open_combo->setToolTip(
+      tr("How a tool group's menu opens: press and hold its button, click it, or rest the pointer on it."));
+  for (const auto mode : kToolFlyoutOpenModes) {
+    tool_flyout_open_combo->addItem(tool_flyout_open_mode_label(mode), tool_flyout_open_mode_token(mode));
+  }
+  tool_flyout_open_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  tool_flyout_open_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  tool_flyout_open_combo->setCurrentIndex(
+      std::max(0, tool_flyout_open_combo->findData(tool_flyout_open_mode_token(tool_flyout_open_mode_))));
+  auto* tool_flyout_open_label = new QLabel(tr("Open tool groups on:"), application_group);
+  tool_flyout_open_label->setBuddy(tool_flyout_open_combo);
+  application_form->addRow(tool_flyout_open_label, tool_flyout_open_combo);
   // Customize Tool Palette right under the toolbar icon size (GitHub issue 213), on a line of
   // its own: the scale row is already full in the longer languages. It opens as a child of
   // Preferences and applies its own choice on its own OK.
@@ -2019,12 +2016,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
 #endif
                                QStringLiteral("preferencesInterfaceScaleMessageBox"));
     }
-    if (const auto chosen_toolbar_icon_size =
-            toolbar_icon_size_from_token(toolbar_icon_size_combo->currentData().toString());
-        chosen_toolbar_icon_size != entry_toolbar_icon_size) {
-      set_stored_toolbar_icon_size(chosen_toolbar_icon_size);
-    }
-    apply_tool_palette_factor(toolbar_icon_size_factor(stored_toolbar_icon_size()));
+    // Compared with what is stored now, not at entry: the customize dialog, opened from here,
+    // may have changed both meanwhile (and moved these combos to match).
+    apply_tool_palette_preferences(toolbar_icon_size_from_token(toolbar_icon_size_combo->currentData().toString()),
+                                   tool_flyout_open_mode_from_token(tool_flyout_open_combo->currentData().toString()));
     set_ruler_unit_preference(measurement_unit_from_settings_token(
         ruler_units_combo->currentData().toString(), MeasurementUnit::Pixels));
     settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());
