@@ -1,8 +1,10 @@
 // Layers panel thumbnail gestures: Ctrl-click selection loads with their combine modifiers
-// (#433), the short context menus on a row's layer and mask thumbnails (#431, #432), and the
-// footer Delete button acting on a targeted mask (#441).
+// (#433), the short context menus on a row's layer and mask thumbnails (#431, #432) and on its
+// fx and smart object badges (#473, #474), and the footer Delete button acting on a targeted
+// mask (#441).
 // See docs/layer-panel.md "Thumbnail menus and selection loads".
 #include "core/layer.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/main_window.hpp"
@@ -23,7 +25,9 @@
 #include <QString>
 #include <QStringLiteral>
 #include <QTimer>
+#include <QToolButton>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -272,6 +276,95 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
   }
   hide_menu_action_icons(&menu);
   menu.exec(layer_list_->viewport()->mapToGlobal(viewport_position));
+  return true;
+}
+
+bool MainWindow::show_layer_badge_context_menu(QListWidgetItem* item, QPoint viewport_position) {
+  auto* row_widget = item != nullptr && layer_list_ != nullptr ? layer_list_->itemWidget(item) : nullptr;
+  if (row_widget == nullptr || !has_active_document()) {
+    return false;
+  }
+  const auto global = layer_list_->viewport()->mapToGlobal(viewport_position);
+  const auto badge_at = [row_widget, global](const char* name) {
+    auto* badge = row_widget->findChild<QToolButton*>(QLatin1String(name));
+    return badge != nullptr && badge->isVisible() && badge->rect().contains(badge->mapFromGlobal(global));
+  };
+  const bool fx = badge_at("layerFxBadgeButton");
+  if (!fx && !badge_at("layerSmartObjectBadgeButton")) {
+    return false;
+  }
+  const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+  const auto* layer = std::as_const(document()).find_layer(id);
+  if (layer == nullptr) {
+    return false;
+  }
+  // The commands act on the row whose badge was clicked, picked the way a left click on that badge
+  // picks it: the fx badge keeps a selection that holds the row, the smart object badge selects the
+  // row alone.
+  const auto selected = selected_layer_ids();
+  if (fx && std::find(selected.begin(), selected.end(), id) != selected.end()) {
+    select_layers_in_layer_list(selected, id, true);
+  } else {
+    reveal_layer_in_layer_list(id, true);
+  }
+  if (document().active_layer_id() != id) {
+    document().set_active_layer(id);
+    restyle_layer_rows(layer_list_);
+    refresh_layer_controls();
+  }
+  layer = std::as_const(document()).find_layer(id);
+  if (layer == nullptr) {
+    return false;
+  }
+
+  QMenu menu(this);
+  // The Layer menu's own commands, so their names, shortcuts and enabled states are the menu's.
+  const auto add_shared = [&menu](QAction* action) {
+    if (action != nullptr) {
+      menu.addAction(action);
+    }
+  };
+  if (fx) {
+    menu.setObjectName(QStringLiteral("layerFxBadgeMenu"));
+    refresh_layer_style_action_states();
+    add_shared(layer_copy_style_action_);
+    add_shared(layer_paste_style_action_);
+    add_shared(layer_delete_style_action_);
+    menu.addSeparator();
+    // The Layer Styles row's master eye (LayerStyle::effects_visible).
+    const bool visible = layer->layer_style().effects_visible;
+    auto* toggle = menu.addAction(tr("Show Layer Styles"));
+    toggle->setObjectName(QStringLiteral("layerFxBadgeShowStylesAction"));
+    toggle->setCheckable(true);
+    toggle->setChecked(visible);
+    toggle->setEnabled(!layer_is_effectively_locked(document().layers(), id));
+    connect(toggle, &QAction::triggered, this, [this, id, visible] {
+      // Deferred like the row buttons: the change rebuilds the rows under the menu's caller.
+      const auto session_id = session().session_id;
+      QTimer::singleShot(0, this, [this, id, visible, session_id] {
+        if (has_active_document() && session().session_id == session_id) {
+          set_layer_effects_visible(id, !visible);
+        }
+      });
+    });
+  } else {
+    // The Layer > Smart Objects commands minus Convert to Smart Object, Edit (the left click) and
+    // New Smart Object via Copy.
+    menu.setObjectName(QStringLiteral("layerSmartObjectBadgeMenu"));
+    refresh_smart_object_action_states();
+    add_shared(layer_smart_object_replace_action_);
+    menu.addSeparator();
+    add_shared(layer_smart_object_update_action_);
+    add_shared(layer_smart_object_relink_action_);
+    add_shared(layer_smart_object_embed_action_);
+    menu.addSeparator();
+    add_shared(layer_smart_object_to_layers_action_);
+    add_shared(layer_smart_object_to_normal_action_);
+    menu.addSeparator();
+    add_shared(layer_smart_object_export_action_);
+  }
+  hide_menu_action_icons(&menu);
+  menu.exec(global);
   return true;
 }
 

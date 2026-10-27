@@ -377,6 +377,76 @@ void ui_smart_object_to_normal_layer_action_rasterizes() {
   }
 }
 
+// A right-click on the smart object badge (#474) opens the Layer > Smart Objects commands for that
+// row, with their own names and enabled states; it neither opens the contents (the left click) nor
+// the row's menu.
+void ui_layer_smart_object_badge_right_click_opens_smart_object_menu() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(tabs != nullptr && layer_list != nullptr);
+  const auto tab_count_before = tabs->count();
+  // Another row is the selected, active one first (rows rebuild, so items are looked up afresh).
+  const auto select_other_row = [&] {
+    auto* smart_item = require_layer_item(*layer_list, QStringLiteral("small"));
+    auto* other_item = layer_list->item(layer_list->row(smart_item) == 0 ? 1 : 0);
+    CHECK(other_item != nullptr);
+    layer_list->clearSelection();
+    layer_list->setCurrentItem(other_item);
+    other_item->setSelected(true);
+    QApplication::processEvents();
+    CHECK(std::as_const(document).active_layer_id() != layer_id);
+  };
+  select_other_row();
+
+  const auto badge_menu = [&](const char* pick, const std::string& artifact = {}) {
+    return right_click_layer_row_widget(*layer_list, QStringLiteral("small"),
+                                        QStringLiteral("layerSmartObjectBadgeButton"), QString::fromLatin1(pick),
+                                        artifact);
+  };
+  auto seen = badge_menu("", "issue474_smart_object_badge_menu");
+  CHECK(seen.name == QStringLiteral("layerSmartObjectBadgeMenu"));
+  CHECK(seen.actions ==
+        (QStringList{QStringLiteral("layerSmartObjectReplaceAction"), QStringLiteral("-"),
+                     QStringLiteral("layerSmartObjectUpdateAction"), QStringLiteral("layerSmartObjectRelinkAction"),
+                     QStringLiteral("layerSmartObjectEmbedAction"), QStringLiteral("-"),
+                     QStringLiteral("layerSmartObjectToLayersAction"), QStringLiteral("layerSmartObjectToNormalAction"),
+                     QStringLiteral("-"), QStringLiteral("layerSmartObjectExportAction")}));
+  CHECK(seen.texts.value(0) == QStringLiteral("Replace Smart Object Contents..."));
+  CHECK(seen.texts.value(7) == QStringLiteral("Convert to Normal Layer (Rasterize)"));
+  // Embedded: Replace, Convert to Normal Layer and Export are on; the linked-file entries are off.
+  CHECK(seen.enabled.value(0) && !seen.enabled.value(2) && !seen.enabled.value(3) && !seen.enabled.value(4));
+  CHECK(seen.enabled.value(7) && seen.enabled.value(9));
+  CHECK(std::as_const(document).active_layer_id() == layer_id);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("small"))->isSelected());
+  CHECK(layer_list->selectedItems().size() == 1);
+  CHECK(tabs->count() == tab_count_before);  // the right click did not open the contents
+
+  // Linked: Update, Relink and Embed turn on, and Embed Linked acts on the row.
+  ensure_artifact_dir();
+  const auto linked_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-badge-menu.png")))
+          .absoluteFilePath();
+  convert_fixture_source_to_external(window, layer_id, linked_path);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  CHECK(patchy::smart_object_lock_reason(*std::as_const(document).find_layer(layer_id)) == "external");
+  select_other_row();
+  seen = badge_menu("layerSmartObjectEmbedAction");
+  CHECK(seen.enabled.value(2) && seen.enabled.value(3) && seen.enabled.value(4));
+  CHECK(patchy::smart_object_lock_reason(*std::as_const(document).find_layer(layer_id)).empty());
+
+  // Convert to Normal Layer from the badge rasterizes that layer.
+  select_other_row();
+  badge_menu("layerSmartObjectToNormalAction");
+  const auto* rasterized = std::as_const(document).find_layer(layer_id);
+  CHECK(rasterized != nullptr && !patchy::layer_is_smart_object(*rasterized));
+  CHECK(tabs->count() == tab_count_before);
+}
+
 // Painting on a smart object pops the paint prompt (paintSmartObjectMessageBox)
 // instead of the old status-bar refusal. Rasterize demotes just the painted
 // layer in one undo step; the triggering press is consumed (the modal swallowed
@@ -3734,6 +3804,8 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel",
        ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel},
       {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},
+      {"ui_layer_smart_object_badge_right_click_opens_smart_object_menu",
+       ui_layer_smart_object_badge_right_click_opens_smart_object_menu},
       {"ui_layer_hidden_smart_object_badge_opens_contents", ui_layer_hidden_smart_object_badge_opens_contents},
       {"ui_layer_thumbnail_tooltip_names_smart_object_and_shape_layers",
        ui_layer_thumbnail_tooltip_names_smart_object_and_shape_layers},

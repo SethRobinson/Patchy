@@ -493,6 +493,22 @@ bool spatial_filter_spreads_clean_red_alpha(const patchy::PixelBuffer& before, c
 
 QAction* find_menu_action_by_text(QMenu& menu, const QString& text);
 
+// The menu a right-click on a Layers row part opened: its objectName and, per entry, the
+// action's objectName ("-" for a separator), text, and enabled and checked states.
+struct LayerRowPartMenu {
+  QString name;
+  QStringList actions;
+  QStringList texts;
+  QList<bool> enabled;
+  QList<bool> checked;
+};
+// Right-clicks `widget_name` in `row_name`'s row the way a user does (right press and release on
+// it, then its context-menu event) and picks `pick` (an action objectName; empty closes the
+// menu). `artifact` saves the window around the part with the open menu.
+LayerRowPartMenu right_click_layer_row_widget(QListWidget& layers, const QString& row_name,
+                                              const QString& widget_name, const QString& pick,
+                                              const std::string& artifact = {});
+
 // Paths an Open Recent menu lists, in order: the rows of its scrolling list
 // (fileOpenRecentList / fileOpenRecentFolderList), then data-carrying actions, submenus
 // included (the plain paged menu under a native menu bar).
