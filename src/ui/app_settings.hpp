@@ -31,13 +31,17 @@ void set_app_settings_root(const QString& root);
 
 // Interface-scale range offered in Preferences and honored at startup, in whole percent
 // (GitHub issue 333: any 1% step). Kept here because main.cpp reads the stored value
-// before QApplication exists and the Preferences combo takes its range from here.
+// before QApplication exists and the Preferences field takes its range from here.
 inline constexpr int kMinGuiScalePercent = 50;
 inline constexpr int kMaxGuiScalePercent = 300;
-// The presets in the Preferences combo's list; any other whole percent in the range can
-// be typed. The sub-100 entries are the reciprocals of the 150%/133%/111% display steps,
-// so a browser tab can be brought back to the size the desktop build renders at.
-inline constexpr std::array<int, 10> kGuiScalePresetPercents{67, 75, 90, 100, 125, 150, 175, 200, 250, 300};
+// The presets in the Preferences field's drop-down; any other whole percent in the range
+// can be typed. 67, 75 and 90 are the reciprocals of the 150%/133%/111% display steps, so
+// a browser tab can be brought back to the size the desktop build renders at; 80 to 120
+// run in 5% steps for fine tuning around full size (GitHub issue 333).
+inline constexpr std::array<int, 17> kGuiScalePresetPercents{67,  75,  80,  85,  90,  95,  100, 105, 110,
+                                                             115, 120, 125, 150, 175, 200, 250, 300};
+// The field's arrow step.
+inline constexpr int kGuiScaleStepPercent = 5;
 
 // The web build starts smaller than the desktop build: browser chrome already eats
 // vertical space and the panels read large in a tab. The web shell page
