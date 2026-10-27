@@ -19,18 +19,31 @@
 
 #include <utility>
 
-// The bundled theme resources (themes.qrc) live in the static patchy_ui
-// library; force registration before first use, as icon_theme.cpp does for
-// icons.qrc.
+// The bundled theme resources (themes.qrc and the generated theme_packages.qrc)
+// live in the static patchy_ui library; force registration before first use, as
+// icon_theme.cpp does for icons.qrc.
 int qInitResources_themes();
+int qInitResources_theme_packages();
 
 namespace patchy::ui {
 
 namespace {
 
 void ensure_theme_resources() {
-  static const int registered = ::qInitResources_themes();
+  static const int registered = ::qInitResources_themes() + ::qInitResources_theme_packages();
   (void)registered;
+}
+
+// A bundled package's folder in the source tree, when PATCHY_THEME_SOURCE_DIR names the
+// themes/bundled folder that holds it; empty otherwise.
+QString bundled_package_source_dir(const QString& name) {
+  const auto source = qEnvironmentVariable("PATCHY_THEME_SOURCE_DIR");
+  if (source.isEmpty() || name.isEmpty() || name.contains(QLatin1Char('/')) || name.contains(QLatin1Char('\\')) ||
+      name.startsWith(QLatin1Char('.'))) {
+    return {};
+  }
+  const QDir folder(QDir(source).filePath(name));
+  return QFileInfo(folder.filePath(QString(kThemePackageManifest))).isFile() ? folder.absolutePath() : QString();
 }
 
 [[nodiscard]] std::optional<ColorScheme> parse_base_token(const QString& token) {
@@ -305,33 +318,48 @@ bool is_bundled_theme_id(const QString& id) { return id.startsWith(kBundledTheme
 
 QStringList bundled_theme_file_names() {
   // Listed in an authored order rather than alphabetically: the two neutral
-  // brightness steps first, then the named palettes, then the accessibility one.
+  // brightness steps first, then the named palettes, then the accessibility one, then
+  // the packages (folders, theme_packages.qrc).
   static const QStringList names{
       QStringLiteral("darkest.patchytheme"),      QStringLiteral("medium-gray.patchytheme"),
       QStringLiteral("solarized-dark.patchytheme"), QStringLiteral("nord.patchytheme"),
       QStringLiteral("dracula.patchytheme"),      QStringLiteral("gruvbox-dark.patchytheme"),
-      QStringLiteral("high-contrast.patchytheme"),
+      QStringLiteral("high-contrast.patchytheme"), QStringLiteral("dink-smallwood"),
   };
   return names;
 }
 
 QString theme_file_path_for_id(const QString& id) {
   if (is_bundled_theme_id(id)) {
+    const auto name = id.mid(kBundledThemeIdPrefix.size());
+    if (const auto source = bundled_package_source_dir(name); !source.isEmpty()) {
+      return source;
+    }
     ensure_theme_resources();
-    return QStringLiteral(":/patchy/themes/") + id.mid(kBundledThemeIdPrefix.size());
+    return QStringLiteral(":/patchy/themes/") + name;
   }
   const auto directory = user_themes_directory();
   return directory.isEmpty() ? QString() : QDir(directory).filePath(id);
 }
 
-ThemeLoadResult load_theme_by_id(const QString& id) {
+namespace {
+
+ThemeLoadResult load_theme_for_id(const QString& id, bool summary) {
   const auto path = theme_file_path_for_id(id);
-  if (!path.isEmpty() && !is_bundled_theme_id(id)) {
-    const QFileInfo info(path);
-    if (info.isDir()) {
-      return load_theme_package_directory(path);
+  if (!path.isEmpty()) {
+    // A bundled package is a resource folder, or its source folder (PATCHY_THEME_SOURCE_DIR).
+    if (QFileInfo(path).isDir()) {
+      return summary ? load_theme_package_directory_summary(path) : load_theme_package_directory(path);
     }
-    if (is_theme_package_zip_name(id)) {
+    if (!is_bundled_theme_id(id) && is_theme_package_zip_name(id)) {
+      if (!summary) {
+        return load_theme_package_zip_file(path);
+      }
+      QFile zip(path);
+      if (zip.open(QIODevice::ReadOnly) && zip.size() <= ThemePackageLimits{}.max_package_bytes) {
+        return load_theme_package_zip_summary(zip.readAll());
+      }
+      // Too large or unreadable: the full loader says which.
       return load_theme_package_zip_file(path);
     }
   }
@@ -344,9 +372,18 @@ ThemeLoadResult load_theme_by_id(const QString& id) {
   return load_theme_from_json(file.readAll());
 }
 
+}  // namespace
+
+ThemeLoadResult load_theme_by_id(const QString& id) { return load_theme_for_id(id, /*summary=*/false); }
+
+ThemeLoadResult load_theme_summary_by_id(const QString& id) { return load_theme_for_id(id, /*summary=*/true); }
+
 bool is_theme_package_directory_id(const QString& id) {
-  if (id.isEmpty() || is_bundled_theme_id(id)) {
+  if (id.isEmpty()) {
     return false;
+  }
+  if (is_bundled_theme_id(id)) {
+    return !bundled_package_source_dir(id.mid(kBundledThemeIdPrefix.size())).isEmpty();
   }
   const auto path = theme_file_path_for_id(id);
   return !path.isEmpty() && QFileInfo(path).isDir();

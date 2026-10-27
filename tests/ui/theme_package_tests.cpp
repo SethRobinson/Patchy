@@ -33,6 +33,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QIcon>
@@ -660,6 +661,191 @@ void ui_preferences_lists_theme_packages_and_sound_preference() {
   ThemeManager::instance().clear_custom_theme(/*persist=*/true);
 }
 
+// A zip whose icons/apply.svg is stored with a byte flipped after its CRC was taken:
+// theme.json and the backdrop read, the full load fails on the icon.
+QByteArray zip_with_damaged_icon(const QColor& window_bg) {
+  const auto marker = QByteArrayLiteral("<!-- patchy-damaged-entry -->");
+  auto svg = red_svg();
+  svg.append(marker);
+  std::vector<patchy::ora::detail::ZipEntry> entries;
+  entries.push_back({"theme.json",
+                     to_vector(manifest_json(window_bg, QJsonObject{{QStringLiteral("backdrop"),
+                                                                     QJsonObject{{QStringLiteral("image"),
+                                                                                  QStringLiteral("images/tile.png")}}}})),
+                     true});
+  entries.push_back({"images/tile.png", to_vector(png_bytes(split_tile())), false});
+  entries.push_back({"icons/apply.svg", to_vector(svg), false});
+  const auto built = patchy::ora::detail::zip_archive(entries);
+  QByteArray zip(reinterpret_cast<const char*>(built.data()), static_cast<qsizetype>(built.size()));
+  const auto at = zip.indexOf(marker);
+  CHECK(at >= 0);
+  if (at >= 0) {
+    zip[at + 5] = 'X';
+  }
+  return zip;
+}
+
+void ui_theme_package_summary_reads_only_manifest_and_backdrop() {
+  PackageThemesDir themes;
+  write_sample_package(themes.file(QStringLiteral("Sample")), QColor(12, 34, 56));
+  const auto check_summary = [](const patchy::ui::ThemeLoadResult& result) {
+    CHECK(result.error.isEmpty());
+    CHECK(result.theme.has_value());
+    if (!result.theme || result.theme->assets == nullptr) {
+      CHECK(false);
+      return;
+    }
+    const auto& assets = *result.theme->assets;
+    CHECK(result.theme->palette.window_bg == QColor(12, 34, 56));
+    CHECK(assets.summary);
+    CHECK(assets.backdrop.size() == QSize(8, 8));
+    CHECK(assets.options.backdrop_image == QStringLiteral("images/tile.png"));
+    CHECK(assets.icons.isEmpty());
+    CHECK(assets.sounds.isEmpty());
+    CHECK(assets.files.isEmpty());
+  };
+  check_summary(patchy::ui::load_theme_summary_by_id(QStringLiteral("Sample")));
+  const auto full = patchy::ui::load_theme_by_id(QStringLiteral("Sample"));
+  CHECK(full.theme && full.theme->assets != nullptr && !full.theme->assets->summary);
+  if (!full.theme) {
+    return;
+  }
+  write_bytes(themes.file(QStringLiteral("Sample.zip")),
+              patchy::ui::serialize_theme_package_zip(full.theme->palette, full.theme->base, QStringLiteral("Z"),
+                                                      full.theme->assets.get()));
+  check_summary(patchy::ui::load_theme_summary_by_id(QStringLiteral("Sample.zip")));
+
+  // The summary skips the per-file checks a full load makes...
+  patchy::ui::ThemePackageLimits tight;
+  tight.max_total_bytes = 64;
+  CHECK(!patchy::ui::load_theme_package_directory(themes.file(QStringLiteral("Sample")), tight).theme.has_value());
+  CHECK(patchy::ui::load_theme_package_directory_summary(themes.file(QStringLiteral("Sample")), tight)
+            .theme.has_value());
+  const auto damaged = zip_with_damaged_icon(QColor(12, 34, 56));
+  CHECK(patchy::ui::load_theme_package_zip_summary(damaged).theme.has_value());
+  CHECK(!patchy::ui::load_theme_package_zip(damaged).theme.has_value());
+  // ...but a zip naming a path outside the package is still refused as a whole.
+  const auto climbing = zip_of({{"theme.json", manifest_json(QColor(1, 2, 3))}, {"../evil.txt", QByteArrayLiteral("x")}});
+  CHECK(!patchy::ui::load_theme_package_zip_summary(climbing).theme.has_value());
+  // A single-file theme loads in full either way.
+  write_bytes(themes.file(QStringLiteral("plain.patchytheme")), manifest_json(QColor(7, 8, 9)));
+  const auto plain = patchy::ui::load_theme_summary_by_id(QStringLiteral("plain.patchytheme"));
+  CHECK(plain.theme && plain.theme->assets == nullptr && plain.theme->palette.window_bg == QColor(7, 8, 9));
+}
+
+// The theme list shows package summaries and loads a package in full only once its
+// row is selected; a package that summarizes but fails its full load becomes a
+// disabled "Could not be loaded" row and leaves the previewed theme alone.
+void ui_preferences_theme_list_loads_packages_when_selected() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  PackageThemesDir themes;
+  write_sample_package(themes.file(QStringLiteral("Folder Theme")), QColor(21, 43, 65));
+  write_bytes(themes.file(QStringLiteral("damaged.zip")), zip_with_damaged_icon(QColor(99, 88, 77)));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* list = preferences_theme_list(*dialog);
+    CHECK(list != nullptr);
+    if (list == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const auto damaged_row = preferences_theme_row(*list, QStringLiteral("custom:damaged.zip"));
+    CHECK(damaged_row >= 0);
+    if (damaged_row < 0) {
+      dialog->reject();
+      return;
+    }
+    // Listed from its summary: named, with its swatch, and selectable.
+    CHECK(list->item(damaged_row)->text() == QStringLiteral("Pkg"));
+    CHECK((list->item(damaged_row)->flags() & Qt::ItemIsSelectable) != 0);
+
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Folder Theme")));
+    CHECK(patchy::ui::theme().window_bg == QColor(21, 43, 65));
+    const auto* assets = patchy::ui::active_theme_assets();
+    CHECK(assets != nullptr && !assets->summary && assets->icons.contains(QStringLiteral("apply")));
+    CHECK(assets != nullptr && !patchy::ui::theme_sound_for_event(assets, patchy::ui::ThemeSoundEvent::SaveDone).isEmpty());
+
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:damaged.zip")));
+    CHECK((list->item(damaged_row)->flags() & Qt::ItemIsSelectable) == 0);
+    CHECK(!list->item(damaged_row)->toolTip().isEmpty());
+    CHECK(patchy::ui::theme().window_bg == QColor(21, 43, 65));
+    auto* meta = dialog->findChild<QLabel*>(QStringLiteral("preferencesThemeMeta"));
+    CHECK(meta != nullptr && meta->text() == list->item(damaged_row)->toolTip());
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  // Cancel put the entry scheme back.
+  CHECK(!patchy::ui::has_active_custom_palette());
+}
+
+// Picking a theme row plays that theme's startup sound, under the dialog's own (not yet
+// stored) Play theme sounds box; a theme without one stays silent.
+void ui_preferences_theme_row_plays_its_startup_sound() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
+  SettingsValueRestorer restore_sounds(QStringLiteral("preferences/playThemeSounds"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  PackageThemesDir themes;
+  write_sample_package(themes.file(QStringLiteral("Loud")), QColor(30, 40, 50));
+  write_bytes(themes.file(QStringLiteral("Loud/sounds/startup.wav")),
+              patchy::ui::build_tone_wav(440.0, 40, 0.5, patchy::ui::ToneWave::Sine));
+  write_sample_package(themes.file(QStringLiteral("Quiet")), QColor(60, 70, 80));
+  patchy::ui::set_theme_sounds_enabled(true);
+
+  const auto loud = patchy::ui::load_theme_by_id(QStringLiteral("Loud"));
+  CHECK(loud.theme && patchy::ui::play_theme_startup_preview(loud.theme->assets.get(), true));
+  CHECK(loud.theme && !patchy::ui::play_theme_startup_preview(loud.theme->assets.get(), false));
+  CHECK(!patchy::ui::play_theme_startup_preview(nullptr, true));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* sounds = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPlayThemeSoundsCheck"));
+    CHECK(sounds != nullptr && preferences_theme_list(*dialog) != nullptr);
+    if (sounds == nullptr || preferences_theme_list(*dialog) == nullptr) {
+      dialog->reject();
+      return;
+    }
+    auto plays = patchy::ui::theme_sound_play_count_for_testing();
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Loud")));
+    CHECK(patchy::ui::theme_sound_play_count_for_testing() == plays + 1);
+    plays = patchy::ui::theme_sound_play_count_for_testing();
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Quiet")));
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("dark")));
+    CHECK(patchy::ui::theme_sound_play_count_for_testing() == plays);
+    sounds->setChecked(false);
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:Loud")));
+    CHECK(patchy::ui::theme_sound_play_count_for_testing() == plays);
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(patchy::ui::theme_sounds_enabled());  // the box was never stored
+}
+
 void ui_theme_package_icon_template_and_example_package() {
   const auto stems = patchy::ui::overridable_icon_stems();
   CHECK(stems.contains(QStringLiteral("tool-brush")));
@@ -682,6 +868,84 @@ void ui_theme_package_icon_template_and_example_package() {
     CHECK(!assets->backdrop.isNull());
     CHECK(!patchy::ui::theme_sound_for_event(assets, patchy::ui::ThemeSoundEvent::SaveDone).isEmpty());
   }
+}
+
+// A bundled package (docs/theme-files.md, "Bundled themes") loads from the generated
+// resource folder, which holds exactly its source files but the README; its scripts run
+// until the user turns them off; PATCHY_THEME_SOURCE_DIR reads and watches the source.
+void ui_bundled_theme_package_loads_from_resources_and_source() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  EnvironmentVariableRestorer restore_source("PATCHY_THEME_SOURCE_DIR");
+  qunsetenv("PATCHY_THEME_SOURCE_DIR");
+  const auto id = patchy::ui::kBundledThemeIdPrefix + QStringLiteral("dink-smallwood");
+  CHECK(patchy::ui::bundled_theme_file_names().contains(QStringLiteral("dink-smallwood")));
+  const auto resource = patchy::ui::theme_file_path_for_id(id);
+  CHECK(resource == QStringLiteral(":/patchy/themes/dink-smallwood"));
+  CHECK(!patchy::ui::is_theme_package_directory_id(id));  // nothing on disk to watch
+
+  const QDir source(QDir(QStringLiteral(PATCHY_SOURCE_DIR)).filePath(QStringLiteral("themes/bundled/dink-smallwood")));
+  int compared = 0;
+  QDirIterator files(source.path(), QDir::Files, QDirIterator::Subdirectories);
+  while (files.hasNext()) {
+    const auto relative = source.relativeFilePath(files.next());
+    QFile packaged(QDir(resource).filePath(relative));
+    if (relative == QStringLiteral("README.txt")) {
+      CHECK(!packaged.exists());
+      continue;
+    }
+    QFile original(files.filePath());
+    CHECK(packaged.open(QIODevice::ReadOnly) && original.open(QIODevice::ReadOnly));
+    if (packaged.readAll() != original.readAll()) {
+      std::printf("  resource differs from source: %s\n", qPrintable(relative));
+      CHECK(false);
+    }
+    ++compared;
+  }
+  CHECK(compared > 20);
+
+  const auto summary = patchy::ui::load_theme_summary_by_id(id);
+  CHECK(summary.theme.has_value() && summary.theme->assets != nullptr && summary.theme->assets->summary);
+  const auto result = patchy::ui::load_theme_by_id(id);
+  CHECK(result.error.isEmpty());
+  CHECK(result.warnings.isEmpty());
+  CHECK(result.theme.has_value());
+  if (!result.theme) {
+    return;
+  }
+  const auto* assets = result.theme->assets.get();
+  CHECK(assets != nullptr && !assets->summary && assets->has_scripts());
+  CHECK(assets != nullptr && !assets->backdrop.isNull() && !assets->icons.isEmpty());
+  CHECK(!patchy::ui::theme_sound_for_event(assets, patchy::ui::ThemeSoundEvent::Startup).isEmpty());
+
+  SettingsValueRestorer restore_trust(QStringLiteral("themeScripts/trust"));
+  patchy::ui::app_settings().remove(QStringLiteral("themeScripts/trust"));
+  const auto digest = patchy::ui::theme_scripts_digest(*assets);
+  CHECK(patchy::ui::stored_theme_script_trust(id, digest) == patchy::ui::ThemeScriptTrust::Allowed);
+  CHECK(patchy::ui::stored_theme_script_trust(QStringLiteral("dink-smallwood"), digest) ==
+        patchy::ui::ThemeScriptTrust::Unknown);  // a user copy still asks
+  patchy::ui::store_theme_script_trust(id, QStringLiteral("older-scripts"), false);
+  CHECK(patchy::ui::stored_theme_script_trust(id, digest) == patchy::ui::ThemeScriptTrust::Denied);
+  patchy::ui::store_theme_script_trust(id, digest, true);
+  CHECK(patchy::ui::stored_theme_script_trust(id, digest) == patchy::ui::ThemeScriptTrust::Allowed);
+
+  // The source override: a folder named like the package, read and watched from disk.
+  QTemporaryDir bundled_source;
+  write_sample_package(QDir(bundled_source.path()).filePath(QStringLiteral("dink-smallwood")), QColor(40, 50, 60));
+  qputenv("PATCHY_THEME_SOURCE_DIR", bundled_source.path().toUtf8());
+  CHECK(QDir(patchy::ui::theme_file_path_for_id(id)) ==
+        QDir(QDir(bundled_source.path()).filePath(QStringLiteral("dink-smallwood"))));
+  CHECK(patchy::ui::is_theme_package_directory_id(id));
+  CHECK(!patchy::ui::is_theme_package_directory_id(QStringLiteral("bundled:../dink-smallwood")));
+  CHECK(patchy::ui::theme_file_path_for_id(QStringLiteral("bundled:nord.patchytheme")).startsWith(QStringLiteral(":/")));
+  apply_package(id);
+  CHECK(patchy::ui::theme().window_bg == QColor(40, 50, 60));
+  CHECK(!ThemeManager::instance().watched_package_paths().isEmpty());
+  write_bytes(QDir(bundled_source.path()).filePath(QStringLiteral("dink-smallwood/theme.json")),
+              manifest_json(QColor(70, 80, 90)));
+  CHECK(process_events_until([] { return patchy::ui::theme().window_bg == QColor(70, 80, 90); }, 5000));
+  ThemeManager::instance().clear_custom_theme(/*persist=*/false);
+  CHECK(ThemeManager::instance().watched_package_paths().isEmpty());
 }
 
 // Card screenshots: the Preferences Application tab, then the example package's
@@ -1051,7 +1315,13 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
       {"ui_theme_package_unicode_paths", ui_theme_package_unicode_paths},
       {"ui_preferences_lists_theme_packages_and_sound_preference",
        ui_preferences_lists_theme_packages_and_sound_preference},
+      {"ui_theme_package_summary_reads_only_manifest_and_backdrop",
+       ui_theme_package_summary_reads_only_manifest_and_backdrop},
+      {"ui_preferences_theme_list_loads_packages_when_selected", ui_preferences_theme_list_loads_packages_when_selected},
+      {"ui_preferences_theme_row_plays_its_startup_sound", ui_preferences_theme_row_plays_its_startup_sound},
       {"ui_theme_package_icon_template_and_example_package", ui_theme_package_icon_template_and_example_package},
+      {"ui_bundled_theme_package_loads_from_resources_and_source",
+       ui_bundled_theme_package_loads_from_resources_and_source},
       {"ui_theme_package_capture_shots", ui_theme_package_capture_shots},
       {"ui_theme_info_shows_version_author_and_minimum_patchy", ui_theme_info_shows_version_author_and_minimum_patchy},
       {"ui_theme_svg_icons_reaching_outside_are_refused", ui_theme_svg_icons_reaching_outside_are_refused},

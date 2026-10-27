@@ -51,6 +51,9 @@ struct ThemeAssets {
   // The parsed theme.json, for the keys read where they are used (menuTitle, cursors,
   // splash, panelBackgrounds).
   QJsonObject manifest;
+  // Read by a *_summary loader: options, info, manifest and backdrop only, no icons,
+  // sounds, events or files. Never applied; load the package in full first.
+  bool summary = false;
 
   // True when the package holds scripts/main.js (docs/theme-files.md, "Theme scripts").
   [[nodiscard]] bool has_scripts() const;
@@ -88,6 +91,13 @@ struct ThemePackageLimits {
                                                            const ThemePackageLimits& limits = {});
 [[nodiscard]] ThemeLoadResult load_theme_package_zip(const QByteArray& zip, const ThemePackageLimits& limits = {});
 [[nodiscard]] ThemeLoadResult load_theme_package_zip_file(const QString& path, const ThemePackageLimits& limits = {});
+// What a theme list row shows, read cheaply: theme.json and the decoded backdrop, with
+// ThemeAssets::summary set. Nothing else is read or checked (a zip's entry names
+// still are), so a package that summarizes can still fail its full load.
+[[nodiscard]] ThemeLoadResult load_theme_package_directory_summary(const QString& directory,
+                                                                   const ThemePackageLimits& limits = {});
+[[nodiscard]] ThemeLoadResult load_theme_package_zip_summary(const QByteArray& zip,
+                                                             const ThemePackageLimits& limits = {});
 
 // A zip holding theme.json (`palette` under `name`, with `assets`' options) at its
 // root and every file in `assets`, in path order. `assets` may be null.

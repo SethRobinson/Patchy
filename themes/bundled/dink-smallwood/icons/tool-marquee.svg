@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- A rope square: the strands use the icon ink (#dce2eb), which recolorIcons turns into
+       the theme's parchment; the knots keep their authored brown. -->
+  <path d="M8 4H4v4M24 4h4v4M28 24v4h-4M8 28H4v-4" fill="none" stroke="#dce2eb" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M13 4h6M13 28h6M4 13v6M28 13v6" fill="none" stroke="#dce2eb" stroke-width="2.4"/>
+  <circle cx="4" cy="4" r="2.3" fill="#8a5a2b"/>
+  <circle cx="28" cy="4" r="2.3" fill="#8a5a2b"/>
+  <circle cx="28" cy="28" r="2.3" fill="#8a5a2b"/>
+  <circle cx="4" cy="28" r="2.3" fill="#8a5a2b"/>
+</svg>

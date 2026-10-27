@@ -258,6 +258,10 @@ class ThemesPage final {
   void add_theme_row(const QString& token, const QString& name, const QString& subtitle, const QPixmap& swatch,
                      const QString& tooltip, bool enabled);
   void add_custom_theme_row(const QString& id, const ThemeLoadResult& result);
+  // The list holds package summaries (theme.json and backdrop); this loads the package
+  // `id` in full before it is shown in detail or applied. A full load that fails turns
+  // its row into a "Could not be loaded" one and returns null.
+  const CustomTheme* ensure_full_theme(const QString& id);
   void select_token(const QString& token);
   // The combo-era "apply what is shown": a live preview, never persisted here.
   void apply_selection();
@@ -276,6 +280,7 @@ class ThemesPage final {
   ConfirmScripts confirm_scripts_;  // MainWindow::confirm_theme_scripts
   ColorSchemePreference entry_preference_ = ColorSchemePreference::FollowSystem;
   std::optional<QString> entry_custom_id_;
+  // Summaries until ensure_full_theme loads one in full.
   QHash<QString, CustomTheme> custom_themes_;
   // Run-scripts edits per theme id, stored on OK.
   QHash<QString, bool> script_choices_;
@@ -466,7 +471,14 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   extras_layout->addStretch(1);
   layout->addWidget(extras);
 
-  QObject::connect(list_, &QListWidget::currentRowChanged, &dialog_, [this] { apply_selection(); });
+  QObject::connect(list_, &QListWidget::currentRowChanged, &dialog_, [this] {
+    apply_selection();
+    // Picking a theme previews how it sounds too: its startup sound, under the dialog's
+    // own Play theme sounds box (not yet stored).
+    if (const auto* custom = current_custom_theme(); custom != nullptr) {
+      play_theme_startup_preview(custom->assets.get(), sounds_check_->isChecked());
+    }
+  });
   QObject::connect(scripts_check_, &QCheckBox::toggled, &dialog_, [this](bool checked) {
     if (const auto* custom = current_custom_theme(); custom != nullptr && custom->assets != nullptr &&
                                                      custom->assets->has_scripts()) {
@@ -578,16 +590,41 @@ void ThemesPage::rebuild_list(const QString& token) {
   add_header(MainWindow::tr("Included themes"));
   for (const auto& file_name : bundled_theme_file_names()) {
     const auto id = kBundledThemeIdPrefix + file_name;
-    add_custom_theme_row(id, load_theme_by_id(id));
+    add_custom_theme_row(id, load_theme_summary_by_id(id));
   }
   // .patchytheme files, .zip packages and package folders (theme_file.hpp).
   if (const auto ids = user_theme_ids(); !ids.isEmpty()) {
     add_header(MainWindow::tr("Your themes"));
     for (const auto& id : ids) {
-      add_custom_theme_row(id, load_theme_by_id(id));
+      add_custom_theme_row(id, load_theme_summary_by_id(id));
     }
   }
   select_token(token);
+}
+
+const CustomTheme* ThemesPage::ensure_full_theme(const QString& id) {
+  const auto found = custom_themes_.find(id);
+  if (found == custom_themes_.end()) {
+    return nullptr;
+  }
+  if (found.value().assets == nullptr || !found.value().assets->summary) {
+    return &found.value();
+  }
+  auto result = load_theme_by_id(id);
+  if (result.theme) {
+    found.value() = std::move(*result.theme);
+    return &found.value();
+  }
+  custom_themes_.erase(found);
+  for (int row = 0; row < list_->count(); ++row) {
+    auto* item = list_->item(row);
+    if (item->data(Qt::UserRole).toString() == kCustomPrefix + id) {
+      item->setData(kSubtitleRole, MainWindow::tr("Could not be loaded"));
+      item->setToolTip(result.error);
+      item->setFlags(Qt::NoItemFlags);
+    }
+  }
+  return nullptr;
 }
 
 void ThemesPage::select_token(const QString& token) {
@@ -626,7 +663,7 @@ void ThemesPage::apply_selection() {
     return;
   }
   if (token.startsWith(kCustomPrefix)) {
-    if (const auto* custom = current_custom_theme(); custom != nullptr) {
+    if (const auto* custom = ensure_full_theme(current_custom_id()); custom != nullptr) {
       ThemeManager::instance().set_custom_theme(current_custom_id(), *custom, /*persist=*/false);
     }
   } else {
@@ -651,7 +688,7 @@ void ThemesPage::warn_if_needs_newer_patchy() {
 
 void ThemesPage::refresh_details() {
   const auto token = current_token();
-  const auto* custom = current_custom_theme();
+  const auto* custom = ensure_full_theme(current_custom_id());
   const auto dpr = preview_->devicePixelRatioF();
   const auto preview_size = QSize(kPreviewWidth, kPreviewHeight);
   name_->setText(display_name(token));
@@ -698,6 +735,11 @@ void ThemesPage::refresh_details() {
           MainWindow::tr("Made for Patchy %1 or later. This is Patchy %2, so parts of it may not work.")
               .arg(custom->info.min_patchy_version, running_patchy_version()));
     }
+  } else if (token.startsWith(kCustomPrefix)) {
+    // A package whose full load failed: its error, as its row's tooltip has it.
+    preview_->clear();
+    lines << list_->currentItem()->toolTip();
+    compatibility_->hide();
   } else {
     const auto preference = color_scheme_preference_from_token(token);
     preview_->setPixmap(theme_preview_pixmap(
@@ -955,9 +997,8 @@ void ThemesPage::revert() {
     return;
   }
   if (entry_custom_id_) {
-    const auto found = custom_themes_.constFind(*entry_custom_id_);
-    if (found != custom_themes_.constEnd()) {
-      ThemeManager::instance().set_custom_theme(*entry_custom_id_, found.value(), /*persist=*/false);
+    if (const auto* entry = ensure_full_theme(*entry_custom_id_); entry != nullptr) {
+      ThemeManager::instance().set_custom_theme(*entry_custom_id_, *entry, /*persist=*/false);
       return;
     }
   }

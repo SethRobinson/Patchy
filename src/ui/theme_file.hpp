@@ -95,19 +95,26 @@ struct ThemeLoadResult {
 // A theme id, the value ThemeManager persists, is either a name within
 // user_themes_directory() (a .patchytheme file, a .zip theme package, or a folder
 // holding theme.json) or kBundledThemeIdPrefix followed by the name of a theme
-// compiled into the binary (themes.qrc, the files in themes/bundled/). Bundled
-// themes exist on every platform, wasm included.
+// compiled into the binary (a .patchytheme in themes.qrc, or a package folder in the
+// generated theme_packages.qrc; both from themes/bundled/). Bundled themes exist on
+// every platform, wasm included.
 inline constexpr QLatin1StringView kBundledThemeIdPrefix{"bundled:"};
 [[nodiscard]] bool is_bundled_theme_id(const QString& id);
-// The bundled theme file names, in the order the Preferences combo lists them.
+// The bundled theme names (files and package folders), in the order Preferences lists them.
 [[nodiscard]] QStringList bundled_theme_file_names();
-// The path (a resource path for a bundled id) the id reads from; empty when a
-// user id has no directory (wasm).
+// The path the id reads from: a resource path for a bundled id, or, for a bundled
+// package while PATCHY_THEME_SOURCE_DIR names the source themes/bundled folder, that
+// package's source folder (edits show without a rebuild). Empty when a user id has no
+// directory (wasm).
 [[nodiscard]] QString theme_file_path_for_id(const QString& id);
 // Reads and parses the file, zip or folder behind an id. A missing or unreadable
 // one is an error like any other, so callers have one branch.
 [[nodiscard]] ThemeLoadResult load_theme_by_id(const QString& id);
-// True when the id names a folder package in user_themes_directory().
+// load_theme_by_id for a list row: a package reads only its theme.json and backdrop
+// (ThemeAssets::summary, theme_package.hpp); single-file themes load in full.
+[[nodiscard]] ThemeLoadResult load_theme_summary_by_id(const QString& id);
+// True when the id names a folder package on disk: one in user_themes_directory(), or a
+// bundled package read from PATCHY_THEME_SOURCE_DIR. ThemeManager watches these.
 [[nodiscard]] bool is_theme_package_directory_id(const QString& id);
 // Every theme id in user_themes_directory(), sorted by name: *.patchytheme files,
 // *.zip packages and folders that hold theme.json. Empty without a directory.

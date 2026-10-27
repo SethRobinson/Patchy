@@ -253,6 +253,114 @@ ThemeLoadResult load_theme_package_files(QHash<QString, QByteArray> files, const
          relative.startsWith(QStringLiteral("scripts/"));
 }
 
+// The *_summary loaders' result from theme.json and `read` (a package file's bytes by
+// relative path, empty when missing): only the backdrop is read besides the manifest.
+template <typename Read>
+ThemeLoadResult load_theme_package_summary(const QByteArray& manifest, const Read& read,
+                                           const ThemePackageLimits& limits) {
+  if (manifest.isEmpty()) {
+    return package_error(tr_theme(QT_TRANSLATE_NOOP("ThemeFile", "The theme package has no theme.json.")));
+  }
+  auto result = load_theme_from_json(manifest);
+  if (!result.theme) {
+    return result;
+  }
+  auto assets = std::make_shared<ThemeAssets>();
+  assets->summary = true;
+  assets->options = result.theme->options;
+  assets->info = result.theme->info;
+  assets->manifest = QJsonDocument::fromJson(manifest).object();
+  const auto& backdrop_path = assets->options.backdrop_image;
+  if (is_safe_theme_package_path(backdrop_path) && is_package_folder_entry(backdrop_path) &&
+      backdrop_path != kThemePackageManifest) {
+    assets->backdrop = decode_package_image(read(backdrop_path), lower_suffix(backdrop_path), limits.max_backdrop_side);
+  }
+  result.theme->assets = std::move(assets);
+  return result;
+}
+
+[[nodiscard]] bool is_inside_canonical_root(const QString& root_canonical, const QString& absolute) {
+  const auto canonical = QFileInfo(absolute).canonicalFilePath();
+  return !canonical.isEmpty() && canonical.startsWith(root_canonical + QLatin1Char('/'));
+}
+
+ThemeLoadResult load_zip(const QByteArray& zip, const ThemePackageLimits& limits, bool summary) {
+  if (zip.size() > limits.max_package_bytes) {
+    return package_error(tr_theme(QT_TRANSLATE_NOOP("ThemeFile", "The theme package is larger than the theme package limits.")));
+  }
+  static constexpr formats::ZipReaderMessages kMessages{
+      QT_TRANSLATE_NOOP("ThemeFile", "The theme package is not a readable zip file."),
+      QT_TRANSLATE_NOOP("ThemeFile", "The theme package is larger than the theme package limits."),
+      QT_TRANSLATE_NOOP("ThemeFile", "The theme package uses encryption or a compression method Patchy cannot read."),
+      QT_TRANSLATE_NOOP("ThemeFile", "A file in the theme package is damaged."),
+  };
+  QHash<QString, QByteArray> files;
+  try {
+    formats::ZipEntryReader reader(
+        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(zip.constData()),
+                                      static_cast<std::size_t>(zip.size())),
+        kMessages,
+        formats::ZipReaderLimits{static_cast<std::uint64_t>(limits.max_entry_bytes),
+                                 static_cast<std::uint64_t>(limits.max_total_bytes),
+                                 static_cast<std::size_t>(limits.max_entries)});
+    const auto names = reader.entry_names();
+    // Every name is checked, not only the ones read: a package carrying a path that
+    // climbs out of it is refused as a whole.
+    for (const auto& name : names) {
+      if (!formats::safe_zip_entry_path(name) || !is_safe_theme_package_path(QString::fromUtf8(name))) {
+        return package_error(
+            QCoreApplication::translate("ThemeFile", "The theme package holds a path outside the package: %1")
+                .arg(QString::fromUtf8(name)));
+      }
+    }
+    // theme.json at the root, or inside the one top folder a zipped folder has.
+    QString prefix;
+    if (!reader.contains(std::string(kThemePackageManifest.data(), kThemePackageManifest.size()))) {
+      QStringList candidates;
+      for (const auto& name : names) {
+        const auto pieces = QString::fromUtf8(name).split(QLatin1Char('/'));
+        if (pieces.size() == 2 && pieces[1] == kThemePackageManifest) {
+          candidates.push_back(pieces[0] + QLatin1Char('/'));
+        }
+      }
+      if (candidates.size() != 1) {
+        return package_error(tr_theme(QT_TRANSLATE_NOOP("ThemeFile", "The theme package has no theme.json.")));
+      }
+      prefix = candidates.front();
+    }
+    if (summary) {
+      const auto read = [&reader, &prefix, &limits](const QString& relative) {
+        const auto name = (prefix + relative).toStdString();
+        if (!reader.contains(name)) {
+          return QByteArray();
+        }
+        const auto bytes = reader.extract(name, static_cast<std::uint64_t>(limits.max_entry_bytes));
+        return bytes ? QByteArray(reinterpret_cast<const char*>(bytes->data()), static_cast<qsizetype>(bytes->size()))
+                     : QByteArray();
+      };
+      return load_theme_package_summary(read(QString(kThemePackageManifest)), read, limits);
+    }
+    for (const auto& name : names) {
+      const auto path = QString::fromUtf8(name);
+      if (!path.startsWith(prefix)) {
+        continue;
+      }
+      const auto relative = path.mid(prefix.size());
+      if (!is_package_folder_entry(relative)) {
+        continue;
+      }
+      auto bytes = reader.extract(name, static_cast<std::uint64_t>(limits.max_entry_bytes));
+      if (bytes) {
+        files.insert(relative, QByteArray(reinterpret_cast<const char*>(bytes->data()),
+                                          static_cast<qsizetype>(bytes->size())));
+      }
+    }
+  } catch (const std::runtime_error& error) {
+    return package_error(tr_theme(error.what()));
+  }
+  return load_theme_package_files(std::move(files), limits);
+}
+
 }  // namespace
 
 bool ThemeAssets::has_scripts() const { return files.contains(QStringLiteral("scripts/main.js")); }
@@ -336,8 +444,7 @@ ThemeLoadResult load_theme_package_directory(const QString& directory, const The
         QCoreApplication::translate("ThemeFile", "Theme folder \"%1\" could not be read.").arg(directory));
   }
   const auto inside_root = [&root_canonical](const QString& absolute) {
-    const auto canonical = QFileInfo(absolute).canonicalFilePath();
-    return !canonical.isEmpty() && canonical.startsWith(root_canonical + QLatin1Char('/'));
+    return is_inside_canonical_root(root_canonical, absolute);
   };
   const auto escapes = [&directory](const QString& relative) {
     return package_error(
@@ -400,69 +507,36 @@ ThemeLoadResult load_theme_package_directory(const QString& directory, const The
   return load_theme_package_files(std::move(files), limits);
 }
 
-ThemeLoadResult load_theme_package_zip(const QByteArray& zip, const ThemePackageLimits& limits) {
-  if (zip.size() > limits.max_package_bytes) {
-    return package_error(tr_theme(QT_TRANSLATE_NOOP("ThemeFile", "The theme package is larger than the theme package limits.")));
+ThemeLoadResult load_theme_package_directory_summary(const QString& directory, const ThemePackageLimits& limits) {
+  const QDir root(QFileInfo(directory).absoluteFilePath());
+  const auto root_canonical = QFileInfo(directory).canonicalFilePath();
+  if (root_canonical.isEmpty()) {
+    return package_error(
+        QCoreApplication::translate("ThemeFile", "Theme folder \"%1\" could not be read.").arg(directory));
   }
-  static constexpr formats::ZipReaderMessages kMessages{
-      QT_TRANSLATE_NOOP("ThemeFile", "The theme package is not a readable zip file."),
-      QT_TRANSLATE_NOOP("ThemeFile", "The theme package is larger than the theme package limits."),
-      QT_TRANSLATE_NOOP("ThemeFile", "The theme package uses encryption or a compression method Patchy cannot read."),
-      QT_TRANSLATE_NOOP("ThemeFile", "A file in the theme package is damaged."),
+  const auto read = [&root, &root_canonical, &limits](const QString& relative) {
+    const auto absolute = root.filePath(relative);
+    QFile file(absolute);
+    if (!is_inside_canonical_root(root_canonical, absolute) || !file.open(QIODevice::ReadOnly) ||
+        file.size() > limits.max_entry_bytes) {
+      return QByteArray();
+    }
+    return file.read(limits.max_entry_bytes);
   };
-  QHash<QString, QByteArray> files;
-  try {
-    formats::ZipEntryReader reader(
-        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(zip.constData()),
-                                      static_cast<std::size_t>(zip.size())),
-        kMessages,
-        formats::ZipReaderLimits{static_cast<std::uint64_t>(limits.max_entry_bytes),
-                                 static_cast<std::uint64_t>(limits.max_total_bytes),
-                                 static_cast<std::size_t>(limits.max_entries)});
-    const auto names = reader.entry_names();
-    // Every name is checked, not only the ones read: a package carrying a path that
-    // climbs out of it is refused as a whole.
-    for (const auto& name : names) {
-      if (!formats::safe_zip_entry_path(name) || !is_safe_theme_package_path(QString::fromUtf8(name))) {
-        return package_error(
-            QCoreApplication::translate("ThemeFile", "The theme package holds a path outside the package: %1")
-                .arg(QString::fromUtf8(name)));
-      }
-    }
-    // theme.json at the root, or inside the one top folder a zipped folder has.
-    QString prefix;
-    if (!reader.contains(std::string(kThemePackageManifest.data(), kThemePackageManifest.size()))) {
-      QStringList candidates;
-      for (const auto& name : names) {
-        const auto pieces = QString::fromUtf8(name).split(QLatin1Char('/'));
-        if (pieces.size() == 2 && pieces[1] == kThemePackageManifest) {
-          candidates.push_back(pieces[0] + QLatin1Char('/'));
-        }
-      }
-      if (candidates.size() != 1) {
-        return package_error(tr_theme(QT_TRANSLATE_NOOP("ThemeFile", "The theme package has no theme.json.")));
-      }
-      prefix = candidates.front();
-    }
-    for (const auto& name : names) {
-      const auto path = QString::fromUtf8(name);
-      if (!path.startsWith(prefix)) {
-        continue;
-      }
-      const auto relative = path.mid(prefix.size());
-      if (!is_package_folder_entry(relative)) {
-        continue;
-      }
-      auto bytes = reader.extract(name, static_cast<std::uint64_t>(limits.max_entry_bytes));
-      if (bytes) {
-        files.insert(relative, QByteArray(reinterpret_cast<const char*>(bytes->data()),
-                                          static_cast<qsizetype>(bytes->size())));
-      }
-    }
-  } catch (const std::runtime_error& error) {
-    return package_error(tr_theme(error.what()));
+  const auto manifest = read(QString(kThemePackageManifest));
+  if (manifest.isEmpty()) {
+    return package_error(QCoreApplication::translate("ThemeFile", "Theme folder \"%1\" has no readable theme.json.")
+                             .arg(QFileInfo(directory).fileName()));
   }
-  return load_theme_package_files(std::move(files), limits);
+  return load_theme_package_summary(manifest, read, limits);
+}
+
+ThemeLoadResult load_theme_package_zip(const QByteArray& zip, const ThemePackageLimits& limits) {
+  return load_zip(zip, limits, /*summary=*/false);
+}
+
+ThemeLoadResult load_theme_package_zip_summary(const QByteArray& zip, const ThemePackageLimits& limits) {
+  return load_zip(zip, limits, /*summary=*/true);
 }
 
 ThemeLoadResult load_theme_package_zip_file(const QString& path, const ThemePackageLimits& limits) {

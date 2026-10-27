@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- A thorny vine curled into a loop, after the vine on Dink's inventory screen. -->
+  <path d="M27 12.5C27.8 17 22.6 21.2 16.4 21.8C10.2 22.4 5.2 19.5 5 15.2C4.8 10.9 9.7 7 15.9 6.4C22.1 5.8 26.2 8.2 27 12.5Z" fill="none" stroke="#2f4a1a" stroke-width="4" stroke-linecap="round"/>
+  <path d="M27 12.5C27.8 17 22.6 21.2 16.4 21.8C10.2 22.4 5.2 19.5 5 15.2C4.8 10.9 9.7 7 15.9 6.4C22.1 5.8 26.2 8.2 27 12.5Z" fill="none" stroke="#7fae45" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M8.6 20.2C7.2 23.4 8.8 26.6 12.8 27.4" fill="none" stroke="#2f4a1a" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M8.6 20.2C7.2 23.4 8.8 26.6 12.8 27.4" fill="none" stroke="#7fae45" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M11.4 6.9L10.2 4.2L13.3 6.3ZM21.6 6.6L23.6 4.4L23.2 7.5ZM26.4 16.8L29.2 17.8L26 18.6ZM18.5 21.6L19.6 24.4L16.9 22.3ZM6.4 11.2L3.7 10.4L6.2 9.4Z" fill="#d9c98a"/>
+  <circle cx="13" cy="27.4" r="1.9" fill="#a7d25d"/>
+</svg>

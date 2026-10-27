@@ -463,6 +463,15 @@ and Gruvbox by Pavel Pertsev. Only the color values are used; no files, code,
 or artwork from those projects are redistributed. Darkest, Medium Gray, and
 High Contrast are Patchy's own.
 
+The Dink Smallwood theme package (`themes/bundled/dink-smallwood/`) uses art from
+Dink Smallwood and Dink Smallwood HD (github.com/SethRobinson/RTDink): the original
+game data, released under a zlib-style license in 2008, and HD media under the
+Dink Smallwood HD License. Its sounds are Seth A. Robinson's own recordings or
+synthesized for the theme. Dink Smallwood is (C) Robinson Technologies Corporation;
+the name is used with Seth A. Robinson's permission. This product includes
+software developed by Seth A. Robinson ( www.rtsoft.com ). The package README
+lists the source of every file.
+
 ## libwebp 1.6.0 (including SharpYUV)
 
 Animated WebP import/export statically links the codec sources from

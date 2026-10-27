@@ -26,6 +26,16 @@ const QString& play_theme_sounds_key() {
   return key;
 }
 
+int& play_count() {
+  static int count = 0;
+  return count;
+}
+
+void hand_to_player(QByteArray wav) {
+  ++play_count();
+  play_wav_bytes(std::move(wav));
+}
+
 constexpr std::array<ThemeSoundEvent, 17> kEvents{
     ThemeSoundEvent::SaveDone,       ThemeSoundEvent::ExportDone,     ThemeSoundEvent::LongOperationDone,
     ThemeSoundEvent::Error,          ThemeSoundEvent::Warning,        ThemeSoundEvent::ScriptAlert,
@@ -178,13 +188,24 @@ bool play_theme_sound(ThemeSoundEvent event) {
     const auto wait = kStartupSoundWakeMs - clock.elapsed();
     clock.invalidate();  // only the launch's own startup sound waits
     if (wait > 0) {
-      QTimer::singleShot(static_cast<int>(wait), [wav = std::move(wav)]() mutable { play_wav_bytes(std::move(wav)); });
+      QTimer::singleShot(static_cast<int>(wait), [wav = std::move(wav)]() mutable { hand_to_player(std::move(wav)); });
       return true;
     }
   }
-  play_wav_bytes(std::move(wav));
+  hand_to_player(std::move(wav));
   return true;
 }
+
+bool play_theme_startup_preview(const ThemeAssets* assets, bool enabled) {
+  auto wav = theme_sound_for_event(assets, ThemeSoundEvent::Startup);
+  if (wav.isEmpty() || !enabled) {
+    return false;
+  }
+  hand_to_player(std::move(wav));
+  return true;
+}
+
+int theme_sound_play_count_for_testing() { return play_count(); }
 
 void refresh_long_operation_sound_watcher() {
   auto* app = qobject_cast<QApplication*>(QCoreApplication::instance());
