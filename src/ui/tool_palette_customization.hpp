@@ -7,7 +7,8 @@
 // the toolbar icon size and when tool groups open, stored under their own keys. The settings keys and the tool and button
 // ids stored under them are compatibility contracts. Only what the user hid is stored, never a
 // full list: a tool or button the settings do not name shows, so ones added in a later version
-// appear on a customized palette, and ids this build does not know are ignored (and kept).
+// appear on a customized palette, and ids this build does not know are ignored (and kept). The
+// optional Layers footer buttons are the one exception: their key stores what was shown.
 
 #include "ui/app_settings.hpp"
 
@@ -29,8 +30,10 @@ struct ToolPaletteCustomization {
   bool two_columns{false};
   // The wheel scrolls an overflowing column instead of the > arrow opening more columns.
   bool wheel_scroll{true};
-  // Layers panel footer button ids (kLayerFooterButtonIds) left out of the footer.
-  QStringList hidden_layer_buttons;
+  // Layers panel footer button ids (kLayerFooterButtonIds) left out of the footer. The
+  // buttons of kLayerFooterButtonIdsHiddenByDefault start in it (GitHub issue 470).
+  QStringList hidden_layer_buttons{QStringLiteral("merge_down"), QStringLiteral("move_down"),
+                                   QStringLiteral("move_up")};
   // The palette's bottom items (kToolPaletteFooterItemIds) left off it.
   QStringList hidden_footer_items;
 
@@ -38,9 +41,13 @@ struct ToolPaletteCustomization {
 };
 
 // The footer buttons' permanent ids, in footer order.
-inline constexpr const char* kLayerFooterButtonIds[] = {"new_layer",  "new_folder", "new_adjustment",
-                                                        "layer_styles", "add_mask", "duplicate",
-                                                        "animation",  "delete"};
+inline constexpr const char* kLayerFooterButtonIds[] = {"new_layer", "new_folder", "new_adjustment", "layer_styles",
+                                                        "add_mask",  "duplicate",  "move_up",        "move_down",
+                                                        "merge_down", "animation", "delete"};
+// The optional buttons (GitHub issue 470): hidden until the user shows them, so the footer
+// keeps its one row. Shown ones are stored under their own key (layersPanel/shownFooterButtons),
+// so settings from before them, which name only what was hidden, keep them hidden.
+inline constexpr const char* kLayerFooterButtonIdsHiddenByDefault[] = {"move_up", "move_down", "merge_down"};
 
 // The ids of the palette's bottom items, top to bottom: the color swatches (with the swap
 // and default glyphs), the Quick Mask button and the screen mode button.

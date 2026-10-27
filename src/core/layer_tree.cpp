@@ -509,6 +509,79 @@ bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& re
   return true;
 }
 
+bool arrange_layers_to_end(std::vector<Layer>& layers, const std::set<LayerId>& ids, bool front,
+                           std::optional<LayerId> pinned_bottom_id) {
+  bool changed = false;
+  const auto arrange = [&](const auto& self, std::vector<Layer>& siblings, bool root) -> void {
+    for (auto& layer : siblings) {
+      if (!ids.contains(layer.id()) && !std::as_const(layer).children().empty()) {
+        self(self, layer.children(), false);
+      }
+    }
+    auto first = siblings.begin();
+    if (root && pinned_bottom_id.has_value() && !siblings.empty() && siblings.front().id() == *pinned_bottom_id &&
+        !ids.contains(*pinned_bottom_id)) {
+      ++first;
+    }
+    std::vector<LayerId> before;
+    before.reserve(siblings.size());
+    for (const auto& layer : siblings) {
+      before.push_back(layer.id());
+    }
+    // Storage runs bottom to top, so the front is the end.
+    std::stable_partition(first, siblings.end(), [&](const Layer& layer) {
+      return ids.contains(layer.id()) != front;
+    });
+    for (std::size_t index = 0; index < siblings.size(); ++index) {
+      if (siblings[index].id() != before[index]) {
+        changed = true;
+        break;
+      }
+    }
+  };
+  arrange(arrange, layers, true);
+  return changed;
+}
+
+bool move_layers_out_of_folder(std::vector<Layer>& layers, const std::set<LayerId>& ids, bool above) {
+  bool changed = false;
+  // Top-down: a folder's listed children leave it before its remaining children are visited,
+  // so a layer moves out one level only.
+  const auto move_out = [&](const auto& self, std::vector<Layer>& siblings) -> void {
+    for (std::size_t index = 0; index < siblings.size(); ++index) {
+      if (ids.contains(siblings[index].id()) || siblings[index].kind() != LayerKind::Group) {
+        continue;
+      }
+      const auto& const_children = std::as_const(siblings[index]).children();
+      const bool any_listed = std::any_of(const_children.begin(), const_children.end(),
+                                          [&ids](const Layer& child) { return ids.contains(child.id()); });
+      if (!any_listed) {
+        if (!const_children.empty()) {
+          self(self, siblings[index].children());
+        }
+        continue;
+      }
+      auto& children = siblings[index].children();
+      std::vector<Layer> taken;
+      std::vector<Layer> kept;
+      for (auto& child : children) {
+        (ids.contains(child.id()) ? taken : kept).push_back(std::move(child));
+      }
+      children = std::move(kept);
+      self(self, children);
+      changed = true;
+      const auto count = taken.size();
+      const auto insert_at = static_cast<std::ptrdiff_t>(above ? index + 1U : index);
+      siblings.insert(siblings.begin() + insert_at, std::make_move_iterator(taken.begin()),
+                      std::make_move_iterator(taken.end()));
+      // Past the moved layers (and, below, the folder they left).
+      index += count;
+    }
+  };
+  move_out(move_out, layers);
+  return changed;
+}
+
 std::optional<std::vector<LayerId>> ungroup_layer(std::vector<Layer>& layers, LayerId group_id) {
   const auto location = find_layer_location(layers, group_id);
   if (!location.has_value() || location->siblings == nullptr) {

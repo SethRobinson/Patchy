@@ -27133,6 +27133,78 @@ The open document keeps its blend modes either way.</source>
         <source>Brush Settings</source>
         <translation>브러시 설정</translation>
     </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>맨 앞으로 가져오기(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>선택한 레이어를 폴더의 맨 위로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>맨 뒤로 보내기(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>선택한 레이어를 폴더의 맨 아래, 배경 레이어 위로 이동합니다</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%-클릭하면 새 레이어 대화 상자를 엽니다</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%-클릭하면 현재 레이어 아래에 레이어를 추가합니다</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>레이어를 위로 이동</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Shift-클릭하면 맨 앞으로 가져옵니다</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%-클릭하면 폴더 밖 위쪽으로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>레이어를 아래로 이동</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Shift-클릭하면 맨 뒤로 보냅니다</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%-클릭하면 폴더 밖 아래쪽으로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Shift-클릭하면 보이는 레이어를 병합합니다</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%-클릭하면 보이는 레이어를 새 레이어로 병합합니다</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>맨 앞으로 가져오기</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>맨 뒤로 보내기</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>선택한 레이어가 폴더 안에 없습니다</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>레이어를 폴더 밖으로 이동</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

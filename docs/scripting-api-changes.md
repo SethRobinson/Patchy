@@ -61,6 +61,7 @@ tests/ui/text_character_styles_tests.cpp.
 (`"full"`, the default, or `"palette"`: an indexed PNG). Defaults keep the old bytes; the palette
 keys on a full-color PNG, other extensions or bad values throw ([web-export.md](web-export.md)).
 Permanent identifiers: the four keys and their tokens. Pinned by `ui_script_export_as_palette_keys`.
+2026-10-27 (additive): `patchy.ui.toolPalette.hiddenLayerButtons` knows the optional footer buttons `move_up`, `move_down` and `merge_down` (GitHub issue 470), listed as hidden by default; an assigned list is the whole hidden set, so one without them shows them. Layer > Arrange > Bring to Front and Send to Back run through `app.runCommand("layer.bring_to_front")` and `"layer.send_to_back"` (468). Permanent identifiers: the three ids and both command ids. Pinned by `ui_layer_footer_optional_buttons_start_hidden`.
 2026-10-26 (additive): `patchy.ui.toolPalette` reads and sets Customize Tool Palette (GitHub issues
 213, 316 and 199; [tool-palette.md](tool-palette.md#customizing-the-palette)): `{hiddenTools, layout,
 wheelScroll, showGearButton, hiddenLayerButtons}`, any subset on assignment, applied live and saved;

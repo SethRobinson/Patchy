@@ -111,6 +111,18 @@ enum class SampleLayers {
                                                                              std::optional<LayerId> active_id,
                                                                              SampleLayers mode);
 bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& request);
+// Layer > Arrange > Bring to Front / Send to Back (GitHub issue 468): each listed layer moves
+// to the top (`front`) or the bottom of its own sibling list, never out of its folder
+// (Photoshop's rule). Listed siblings keep their order; a listed layer inside a listed folder
+// moves with the folder. `pinned_bottom_id` (the Background) stays under everything at the
+// root. Returns whether the tree changed.
+bool arrange_layers_to_end(std::vector<Layer>& layers, const std::set<LayerId>& ids, bool front,
+                           std::optional<LayerId> pinned_bottom_id = std::nullopt);
+// The Layers footer's Alt-click Move Up / Move Down (GitHub issue 470): each listed layer that
+// sits in a folder leaves it for the folder's parent, just above (`above`) or just below the
+// folder. Layers at the root stay; listed siblings keep their order; a listed layer inside a
+// listed folder moves with the folder. Returns whether the tree changed.
+bool move_layers_out_of_folder(std::vector<Layer>& layers, const std::set<LayerId>& ids, bool above);
 // Ungroup: replaces the group with its children at the group's position (storage
 // order kept, so composite order is unchanged). Returns the released ids top to
 // bottom; nullopt when `group_id` is missing or not a group. The group's own

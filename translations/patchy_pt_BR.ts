@@ -27209,6 +27209,78 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Brush Settings</source>
         <translation>Configurações do pincel</translation>
     </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>Trazer para a &amp;frente</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Move as camadas selecionadas para o topo da pasta</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>Enviar para &amp;trás</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Move as camadas selecionadas para a base da pasta, acima de um plano de fundo</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%-clique para abrir a caixa de diálogo Nova camada</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%-clique para adicionar a camada abaixo da atual</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Mover camada para cima</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Shift-clique para trazê-la para a frente</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%-clique para tirá-la da pasta, acima dela</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Mover camada para baixo</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Shift-clique para enviá-la para trás</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%-clique para tirá-la da pasta, abaixo dela</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Shift-clique para mesclar as camadas visíveis</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%-clique para mesclar as camadas visíveis em uma nova camada</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>Trazer para a frente</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>Enviar para trás</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>As camadas selecionadas não estão em uma pasta</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Tirar camada da pasta</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
