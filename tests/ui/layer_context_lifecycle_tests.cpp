@@ -4035,6 +4035,151 @@ void ui_new_layer_button_alt_click_opens_new_layer_dialog() {
   CHECK(doc.layers().size() == layers_before + 3U);
 }
 
+// GitHub issue 467: Ctrl-click (Command-click on macOS) on New Layer adds the layer below the
+// active one, one undo step; under a Background it goes above as usual, and under a clipped
+// layer it joins the clipping group.
+void ui_new_layer_button_ctrl_click_adds_below() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+  CHECK(new_button != nullptr);
+  if (new_button == nullptr) {
+    return;
+  }
+  CHECK(new_button->toolTip().contains(QStringLiteral("below the current one")));
+  auto& doc = Access::document(window);
+  const auto& layers = std::as_const(doc).layers();
+  CHECK(layers.size() == 2U);
+  const auto background_id = layers.front().id();
+  const auto paint_id = layers.back().id();
+  Access::select_layers(window, {paint_id}, paint_id);
+  QApplication::processEvents();
+  auto depth = Access::active_session_undo_depth(window);
+  QTest::mouseClick(new_button, Qt::LeftButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  CHECK(layers.size() == 3U);
+  const auto below_id = layers[1].id();
+  CHECK(below_id != paint_id && below_id != background_id);
+  CHECK(layers[2].id() == paint_id);
+  CHECK(std::as_const(doc).active_layer_id() == below_id);
+
+  // Under the Background is not possible: the new layer goes above it.
+  Access::select_layers(window, {background_id}, background_id);
+  QApplication::processEvents();
+  QTest::mouseClick(new_button, Qt::LeftButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(layers.size() == 4U);
+  CHECK(layers.front().id() == background_id);
+  const auto above_background_id = layers[1].id();
+  CHECK(above_background_id != below_id && layers[2].id() == below_id);
+
+  // Under a clipped layer the new one is clipped too, so the group keeps its base.
+  doc.find_layer(paint_id)->set_clipped(true);
+  Access::refresh_layer_ui(window);
+  Access::select_layers(window, {paint_id}, paint_id);
+  QApplication::processEvents();
+  QTest::mouseClick(new_button, Qt::LeftButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(layers.size() == 5U);
+  CHECK(layers[3].id() != paint_id && layers[3].clipped());
+  CHECK(layers[4].id() == paint_id);
+
+  // A plain click still adds above.
+  Access::select_layers(window, {below_id}, below_id);
+  QApplication::processEvents();
+  QTest::mouseClick(new_button, Qt::LeftButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(layers.size() == 6U);
+  CHECK(layers[2].id() == below_id && layers[3].id() == std::as_const(doc).active_layer_id());
+}
+
+// GitHub issue 468: Layer > Arrange > Bring to Front and Send to Back, on Shift+Ctrl+] and
+// Shift+Ctrl+[ (Ctrl+] and Ctrl+[ stay Image > Rotate), move the selected layers to the top or
+// bottom of their folder in one undo step, keeping their order and staying above a Background.
+void ui_layer_arrange_bring_to_front_and_send_to_back() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& registry = window.hotkey_registry();
+  const auto action_for = [&registry](const char* id) -> QAction* {
+    const auto* command = registry.find_command(QLatin1String(id));
+    CHECK(command != nullptr);
+    return command != nullptr ? command->action.data() : nullptr;
+  };
+  auto* front = action_for("layer.bring_to_front");
+  auto* back = action_for("layer.send_to_back");
+  auto* up = action_for("layer.move_up");
+  auto* rotate_cw = action_for("image.rotate_cw");
+  auto* rotate_ccw = action_for("image.rotate_ccw");
+  if (front == nullptr || back == nullptr || up == nullptr || rotate_cw == nullptr || rotate_ccw == nullptr) {
+    return;
+  }
+  CHECK(front->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_BracketRight));
+  CHECK(back->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_BracketLeft));
+  CHECK(rotate_cw->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_BracketRight));
+  CHECK(rotate_ccw->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_BracketLeft));
+  CHECK(up->shortcut().isEmpty());
+  // Arrange lists them around Move Layer Up and Down.
+  auto* arrange = window.findChild<QMenu*>(QStringLiteral("layerArrangeMenu"));
+  CHECK(arrange != nullptr);
+  if (arrange != nullptr) {
+    const auto actions = arrange->actions();
+    CHECK(actions.size() > 4 && actions[0] == front && actions[1] == up && actions[3] == back);
+  }
+
+  auto& doc = Access::document(window);
+  const auto& layers = std::as_const(doc).layers();
+  CHECK(layers.size() == 2U);
+  const auto background_id = layers.front().id();
+  const auto paint_id = layers.back().id();
+  const auto clear = [&doc] {
+    return solid_pixels(doc.width(), doc.height(), patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  };
+  const auto a_id = doc.add_pixel_layer("A", clear()).id();
+  const auto b_id = doc.add_pixel_layer("B", clear()).id();
+  Access::refresh_layer_ui(window);
+  using Ids = std::vector<patchy::LayerId>;
+  const auto order = [&layers] {
+    Ids ids;
+    for (const auto& layer : layers) {
+      ids.push_back(layer.id());
+    }
+    return ids;
+  };
+
+  // Layer 1 and A to the front, in their order, as one undo step.
+  Access::select_layers(window, {a_id, paint_id}, a_id);
+  QApplication::processEvents();
+  auto depth = Access::active_session_undo_depth(window);
+  front->trigger();
+  QApplication::processEvents();
+  CHECK(order() == (Ids{background_id, b_id, paint_id, a_id}));
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  // Already in front: nothing changes, no undo step.
+  front->trigger();
+  QApplication::processEvents();
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(order() == (Ids{background_id, paint_id, a_id, b_id}));
+
+  // B to the back with the Background selected too: B lands above it, the Background stays.
+  Access::select_layers(window, {b_id, background_id}, b_id);
+  QApplication::processEvents();
+  depth = Access::active_session_undo_depth(window);
+  back->trigger();
+  QApplication::processEvents();
+  CHECK(order() == (Ids{background_id, b_id, paint_id, a_id}));
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  CHECK(patchy::background_layer(layers, doc.width(), doc.height()) != nullptr);
+  if (arrange != nullptr) {
+    arrange->popup(QPoint(0, 0));
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_layer_arrange_menu", *arrange);
+    arrange->close();
+  }
+}
+
 // GitHub issue 410: "Clip to the layer below" sits under Name in the field column, and a
 // Fill row under Mode offers the mode's neutral color with a swatch and its name; a mode
 // without one says so in plain text instead of showing a dimmed checkbox.
@@ -4562,6 +4707,8 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing},
       {"ui_new_layer_dialog_and_merge_visible_retranslate", ui_new_layer_dialog_and_merge_visible_retranslate},
       {"ui_new_layer_button_alt_click_opens_new_layer_dialog", ui_new_layer_button_alt_click_opens_new_layer_dialog},
+      {"ui_new_layer_button_ctrl_click_adds_below", ui_new_layer_button_ctrl_click_adds_below},
+      {"ui_layer_arrange_bring_to_front_and_send_to_back", ui_layer_arrange_bring_to_front_and_send_to_back},
       {"ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode",
        ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode},
       {"ui_new_layer_dialog_neutral_fill_fills_layer_at_each_depth",

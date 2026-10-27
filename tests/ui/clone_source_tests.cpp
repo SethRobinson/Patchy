@@ -1,7 +1,7 @@
 // Clone source settings (GitHub issue 424; docs/healing.md "Clone source settings"): the
 // Clone Stamp's scale, rotation and flips (byte-identical output at the identity), the
 // editable offset, the four source slots, the Healing Brush keeping its untransformed
-// source, the overlay under the hovered brush, and the gear popup with Window > Clone Source.
+// source, the overlay under the hovered brush, and the gear popup.
 #include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
@@ -405,8 +405,8 @@ void ui_clone_source_overlay_shows_flipped_source() {
   CHECK(color_close(mirrored_right, QColor(220, 40, 30), 12));
 }
 
-// The gear on the Clone Stamp bar opens the settings; edits reach the canvas, the overlay
-// settings persist, and Window > Clone Source picks the Clone Stamp and opens the popup.
+// The gear on the Clone Stamp bar opens the settings and edits reach the canvas. The
+// gear is the only way in: no Window menu entry, no hotkey command.
 void ui_clone_source_gear_popup_drives_canvas() {
   SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
   SettingsValueRestorer saved_overlay(QStringLiteral("tools/cloneOverlay"));
@@ -423,23 +423,16 @@ void ui_clone_source_gear_popup_drives_canvas() {
   }
   CHECK(!gear->isVisible());
 
-  // Window > Clone Source from the Brush: the Clone Stamp, and the popup under the gear.
-  auto* entry = require_action(window, "windowCloneSourceAction");
-  CHECK(entry->menuRole() == QAction::NoRole);
-  if (auto* window_menu = qobject_cast<QMenu*>(entry->parent()); window_menu != nullptr) {
-    CHECK(window_menu->actions().contains(entry));
-    window_menu->popup(window.mapToGlobal(QPoint(40, 0)));
-    QApplication::processEvents();
-    save_widget_artifact("ui_clone_source_window_menu_entry", *window_menu);
-    window_menu->hide();
-    QApplication::processEvents();
-  } else {
-    CHECK(false);
+  CHECK(window.findChild<QAction*>(QStringLiteral("windowCloneSourceAction")) == nullptr);
+  for (auto* action : window.findChildren<QAction*>()) {
+    CHECK(action->text().remove(QLatin1Char('&')) != QStringLiteral("Clone Source"));
   }
-  entry->trigger();
+
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == CanvasTool::Clone);
   CHECK(gear->isVisible());
+  open_gear_popup(*gear, *menu);
   CHECK(menu->isVisible());
   // An earlier test may have saved Aligned off; the offset fields need it on.
   if (auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck")); aligned != nullptr) {
@@ -507,17 +500,80 @@ void ui_clone_source_gear_popup_drives_canvas() {
   CHECK(!panel->flip_horizontal_button()->isEnabled() && !panel->flip_vertical_button()->isEnabled());
   menu->close();
   QApplication::processEvents();
-
-  // From the Healing Brush the entry keeps the tool and opens the popup.
-  entry->trigger();
-  QApplication::processEvents();
-  CHECK(canvas->tool() == CanvasTool::Healing);
-  CHECK(menu->isVisible());
-  menu->close();
-  QApplication::processEvents();
 }
 
-// Show Overlay lives only in the clone source popup (GitHub issue 458; issue 426 had put a
+// The flip toggles (GitHub issue 424 follow-up) center on their "Flip:" label like the
+// Scale and Rotation fields do on theirs, and the glyph fills the button: a 24 px square
+// with a 20 px icon. The popup in both schemes and the Image > Rotate & Flip menu (which
+// shares the glyphs) are the issue shots.
+void ui_clone_source_flip_buttons_center_on_their_label() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+    QApplication::processEvents();
+    auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
+    auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
+    auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
+    CHECK(gear != nullptr && menu != nullptr && panel != nullptr);
+    if (gear == nullptr || menu == nullptr || panel == nullptr) {
+      return;
+    }
+    canvas->set_brush_size(30);
+    alt_click(*canvas, QPoint(60, 60));
+    open_gear_popup(*gear, *menu);
+    panel->flip_horizontal_button()->click();
+    QApplication::processEvents();
+    const auto label_named = [panel](const QString& text) -> QLabel* {
+      for (auto* label : panel->findChildren<QLabel*>()) {
+        if (label->text() == text) {
+          return label;
+        }
+      }
+      return nullptr;
+    };
+    const auto center_y = [panel](const QWidget* widget) {
+      return widget->mapTo(panel, QPoint(0, 0)).y() + widget->height() / 2;
+    };
+    auto* flip_label = label_named(QStringLiteral("Flip:"));
+    auto* scale_label = label_named(QStringLiteral("Scale:"));
+    CHECK(flip_label != nullptr && scale_label != nullptr);
+    if (flip_label == nullptr || scale_label == nullptr) {
+      return;
+    }
+    for (auto* button : {panel->flip_horizontal_button(), panel->flip_vertical_button()}) {
+      CHECK(std::abs(center_y(button) - center_y(flip_label)) <= 1);
+      CHECK(std::abs(center_y(button) - center_y(panel->reset_button())) <= 1);
+      CHECK(button->size() == QSize(24, 24));
+      CHECK(button->iconSize() == QSize(20, 20));
+    }
+    CHECK(std::abs(center_y(panel->scale_spin()) - center_y(scale_label)) <= 1);
+    CHECK(std::abs(center_y(panel->rotation_spin()) - center_y(scale_label)) <= 1);
+    save_window_popup_artifact("ui_clone_source_flip_popup" + suffix, window, *gear, *menu);
+    menu->close();
+    QApplication::processEvents();
+
+    // The Image > Rotate & Flip entries draw the same glyphs.
+    auto* flip_action = require_hotkey_action(window, QStringLiteral("image.flip_horizontal"));
+    QMenu* flip_menu = nullptr;
+    for (auto* candidate : window.findChildren<QMenu*>()) {
+      if (candidate->actions().contains(flip_action)) {
+        flip_menu = candidate;
+      }
+    }
+    CHECK(flip_menu != nullptr);
+    if (flip_menu != nullptr) {
+      flip_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+      QApplication::processEvents();
+      save_widget_artifact("ui_clone_source_flip_menu_icons" + suffix, *flip_menu);
+      flip_menu->hide();
+      QApplication::processEvents();
+    }
+  }
+}
+
+// Screenshot for the issue: lives only in the clone source popup (GitHub issue 458; issue 426 had put a
 // copy on the bar, which wrapped the Healing Brush row at 1366 px). Neither bar has the
 // checkbox, the gear follows Aligned on the same row, and the popup's checkbox is on at 100%
 // with no saved setting, drives every canvas and persists. The artifact is the issue shot:
@@ -705,5 +761,6 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_gear_popup_drives_canvas", ui_clone_source_gear_popup_drives_canvas},
       {"ui_clone_source_overlay_check_lives_in_the_popup", ui_clone_source_overlay_check_lives_in_the_popup},
       {"ui_clone_source_overlay_screenshot", ui_clone_source_overlay_screenshot},
+      {"ui_clone_source_flip_buttons_center_on_their_label", ui_clone_source_flip_buttons_center_on_their_label},
   };
 }

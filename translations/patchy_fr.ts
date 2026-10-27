@@ -13181,6 +13181,26 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Bouton Mode d&apos;affichage</translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Suggestion : %1 (mêmes largeurs de caractères)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Suggestion : %1 (dessin similaire)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Suggestion : %1 (aussi une police à empattements)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Suggestion : %1 (aussi une police sans empattements)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Suggestion : %1 (aussi une police à chasse fixe)</translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation>les coins sont trop proches.</translation>
     </message>
@@ -27358,10 +27378,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Réglages de la source de duplication : sources, décalage, échelle, rotation, symétrie et superposition</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Source de duplication</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Exportation rapide au format PNG</translation>
     </message>
@@ -27408,6 +27424,86 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Interface scale presets</source>
         <translation>Préréglages d&apos;échelle de l&apos;interface</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 sera remplacée par %2.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Paramètres du pinceau</translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>Mettre au &amp;premier plan</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Place les calques sélectionnés en haut de leur dossier</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>Mettre à l&apos;a&amp;rrière-plan</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Place les calques sélectionnés en bas de leur dossier, au-dessus d&apos;un arrière-plan</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%+clic pour ouvrir la boîte de dialogue Nouveau calque</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%+clic pour ajouter le calque sous le calque actuel</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Monter le calque</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Maj-clic pour le mettre au premier plan</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%+clic pour le sortir de son dossier, au-dessus</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Descendre le calque</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Maj-clic pour le mettre à l&apos;arrière-plan</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%+clic pour le sortir de son dossier, en dessous</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Maj-clic pour fusionner les calques visibles</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%+clic pour fusionner les calques visibles dans un nouveau calque</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>Mettre au premier plan</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>Mettre à l&apos;arrière-plan</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>Les calques sélectionnés ne sont dans aucun dossier</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Sortir le calque du dossier</translation>
     </message>
     <message>
         <source>&amp;Perspective Planes...</source>

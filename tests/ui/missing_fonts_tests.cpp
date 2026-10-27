@@ -7,6 +7,7 @@
 #include "test_harness.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/font_picker.hpp"
+#include "ui/fontconfig_font_class.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/qt_paths.hpp"
@@ -24,6 +25,7 @@
 #include <QFile>
 #include <QFontComboBox>
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <QFrame>
 #include <QLabel>
 #include <QListWidget>
@@ -149,9 +151,13 @@ int missing_font_row(QDialog& dialog, const QString& family) {
 // new "Source" document of `window` in the suite's Latin font, saved as PSD, then its family
 // renamed in the bytes to one no machine has: same length, so every length prefix still holds.
 // ASCII and UTF-16BE cover EngineData, descriptors and Txt2. Empty on failure.
-std::vector<std::uint8_t> psd_with_missing_font(MainWindow& window, const QString& text) {
+// `renamed_stem` replaces the family's first word (same length); empty picks a made-up name.
+// `source_family` types the text in another installed family than the suite's Latin font.
+std::vector<std::uint8_t> psd_with_missing_font(MainWindow& window, const QString& text,
+                                                const QString& renamed_stem = QString(),
+                                                const QString& source_family = QString()) {
   window.add_document_session(white_document(), QStringLiteral("Source"));
-  const auto family = patchy::test::visual_test_font().family();
+  const auto family = source_family.isEmpty() ? patchy::test::visual_test_font().family() : source_family;
   auto* combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
   CHECK(combo != nullptr);
   if (combo == nullptr) {
@@ -170,7 +176,12 @@ std::vector<std::uint8_t> psd_with_missing_font(MainWindow& window, const QStrin
   process_events_for(150);
   auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
   const auto stem = family.section(QLatin1Char(' '), 0, 0);
-  const auto renamed = QStringLiteral("Qzxqzxqzxqzxqzxqzx").left(stem.size());
+  const auto renamed =
+      renamed_stem.isEmpty() ? QStringLiteral("Qzxqzxqzxqzxqzxqzx").left(stem.size()) : renamed_stem;
+  CHECK(renamed.size() == stem.size());
+  if (renamed.size() != stem.size()) {
+    return {};
+  }
   std::size_t replaced = 0;
   const auto replace_all = [&bytes, &replaced](const std::vector<std::uint8_t>& from, const std::vector<std::uint8_t>& to) {
     for (auto it = std::search(bytes.begin(), bytes.end(), from.begin(), from.end()); it != bytes.end();
@@ -881,8 +892,475 @@ void ui_unattended_open_skips_the_missing_fonts_dialog() {
   CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
 }
 
+// The suite's Latin font as the substitute table's stand-in for Helvetica (Arial on Windows and
+// macOS, Liberation Sans on Linux; GitHub issue 463). Skips on a host that has Helvetica itself or
+// registered none of its substitutes.
+patchy::ui::TextFontSubstitute helvetica_substitute_or_skip() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  if (patchy::ui::available_text_family_match(QStringLiteral("Helvetica")).has_value()) {
+    patchy::test::skip("Helvetica is installed on this host");
+  }
+  const auto substitutes = patchy::ui::installed_text_font_substitutes(QStringLiteral("Helvetica"),
+                                                                       QStringLiteral("Headline"));
+  if (substitutes.empty()) {
+    patchy::test::skip("no Helvetica substitute is registered on this host");
+  }
+  return substitutes.front();
+}
+
+// GitHub issue 463: Resolve Missing Fonts starts a listed font's picker on the installed
+// substitute and says how close it is; the row stays unticked, and a font the table does not list
+// keeps today's fallback with no suggestion line.
+void ui_missing_fonts_dialog_offers_the_installed_substitute_first() {
+  const auto substitute = helvetica_substitute_or_skip();
+  // The shipped default, so the saved dialog image shows what a user sees.
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  CHECK(substitute.metric);
+  const auto helvetica = QStringLiteral("Helvetica");
+  auto document = white_document();
+  const auto id = document.add_layer(missing_font_text_layer(document, "Headline", helvetica, 20)).id();
+  document.add_layer(missing_font_text_layer(document, "Other", kMissing, 80));
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Substitutes"));
+  QApplication::processEvents();
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto row = missing_font_row(dialog, helvetica);
+        const auto other_row = missing_font_row(dialog, kMissing);
+        CHECK(row >= 0 && other_row >= 0);
+        auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck%1").arg(row));
+        auto* picker =
+            dialog.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("missingFontReplacementCombo%1").arg(row));
+        auto* suggestion = dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(row));
+        CHECK(check != nullptr && !check->isChecked());
+        CHECK(picker != nullptr && picker->currentFont().family() == substitute.family);
+        CHECK(suggestion != nullptr &&
+              suggestion->text() == QStringLiteral("Suggested: %1 (same character widths)").arg(substitute.family));
+        CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(other_row)) == nullptr);
+        save_widget_artifact("ui_missing_fonts_dialog_suggests_substitute", dialog);
+        dialog.reject();
+      },
+      seen);
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  action->trigger();
+  process_events_for(200);
+  CHECK(*seen == 1);
+  CHECK(layer_font(window, id) == helvetica);
+}
+
+// GitHub issue 463: editing imported type whose font is missing works in the table's substitute,
+// the prompt says so, and the layer keeps naming the original font until the edit is committed.
+void ui_missing_font_edit_session_uses_the_table_substitute() {
+  const auto substitute = helvetica_substitute_or_skip();
+  const auto helvetica = QStringLiteral("Helvetica");
+  auto document = white_document();
+  const auto id = document.add_layer(missing_font_text_layer(document, "Headline", helvetica, 40)).id();
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Substitute Edit"));
+  QApplication::processEvents();
+
+  auto informative = std::make_shared<QString>();
+  auto answered = std::make_shared<int>(0);
+  const std::function<void(int)> answer = [informative, answered, &answer](int attempts) {
+    QTimer::singleShot(20, [informative, answered, attempts, &answer] {
+      auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+      if (box == nullptr) {
+        if (attempts > 0) {
+          answer(attempts - 1);
+        }
+        return;
+      }
+      ++*answered;
+      *informative = box->informativeText();
+      for (auto* button : box->findChildren<QPushButton*>()) {
+        if (box->buttonRole(button) == QMessageBox::AcceptRole) {
+          button->click();
+          return;
+        }
+      }
+    });
+  };
+  answer(100);
+  MainWindowTestAccess::edit_text_layer(window, id);
+  process_events_for(300);
+  CHECK(*answered == 1);
+  CHECK(*informative == QStringLiteral("Helvetica will be replaced with %1.").arg(substitute.face_family));
+  auto* editor = require_canvas(window)->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.documentTextFamily").toString() == substitute.face_family);
+  CHECK(layer_font(window, id) == helvetica);  // nothing is stored until the commit
+  send_key(*editor, Qt::Key_End);
+  QTest::keyClicks(editor, QStringLiteral("s"));
+  send_key(*editor, Qt::Key_Enter, Qt::KeypadModifier);
+  process_events_for(200);
+  CHECK(require_canvas(window)->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_font(window, id) == substitute.face_family);
+}
+
+// GitHub issue 463: text whose font is missing renders in the table's substitute (every text
+// render builds its QFont here) while the font still names the family the layer asked for, so a
+// re-rendered Patchy-made layer keeps "Helvetica" for a machine that has it. A font the table does
+// not list keeps Qt's own fallback.
+void ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name() {
+  const auto substitute = helvetica_substitute_or_skip();
+  const auto helvetica = QStringLiteral("Helvetica");
+  CHECK(patchy::ui::render_text_families_for_display_family(helvetica) == (QStringList{helvetica, substitute.family}));
+  const auto font = patchy::ui::render_text_font_for_display_family(helvetica, 32, false, false, 1);
+  CHECK(QFontInfo(font).family() == substitute.family);
+  CHECK(patchy::ui::display_text_family_from_font(font) == helvetica);
+  const auto bold = patchy::ui::render_text_font_for_display_family(helvetica, 32, true, false, 1);
+  CHECK(QFontInfo(bold).family() == substitute.family && QFontInfo(bold).bold());
+  CHECK(patchy::ui::render_text_families_for_display_family(kMissing) == QStringList{kMissing});
+  CHECK(patchy::ui::render_text_families_for_display_family(substitute.family) == QStringList{substitute.family});
+}
+
+// GitHub issue 463: a real PSD whose type names Times (a PostScript core font Windows lacks) opens
+// with an installed substitute suggested when there is one, and saving it unedited still names
+// Times, so Photoshop opens it with the original font. The artifact missing_font_times.psd is the
+// test file for manual checks. Registers no Times face itself: Times New Roman registered this
+// early changes the faces later text tests see.
+void ui_missing_font_psd_keeps_its_font_name_until_resolved() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto times = QStringLiteral("Times");
+  if (patchy::ui::available_text_family_match(times).has_value()) {
+    patchy::test::skip("Times is installed on this host");
+  }
+  if (patchy::test::visual_test_font().family().section(QLatin1Char(' '), 0, 0).size() != times.size()) {
+    patchy::test::skip("the suite font's name is not five letters long (the byte rename keeps lengths)");
+  }
+  const auto substitutes = patchy::ui::installed_text_font_substitutes(times, QStringLiteral("Headline"));
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  ensure_artifact_dir();
+  const auto path = QDir::current().absoluteFilePath(QStringLiteral("test-artifacts/missing_font_times.psd"));
+
+  MainWindow window;
+  show_window(window);
+  {
+    const auto bytes = psd_with_missing_font(window, QStringLiteral("Headline"), times);
+    CHECK(!bytes.empty());
+    if (bytes.empty()) {
+      return;
+    }
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+    file.close();
+  }
+
+  auto seen = std::make_shared<int>(0);
+  QString suggestion_text;
+  QString picker_family;
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        auto* name = dialog.findChild<QLabel*>(QStringLiteral("missingFontName0"));
+        CHECK(name != nullptr && patchy::ui::text_font_replacement_key(name->text()).startsWith(QStringLiteral("times")));
+        auto* suggestion = dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion0"));
+        auto* picker = dialog.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("missingFontReplacementCombo0"));
+        auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck0"));
+        suggestion_text = suggestion == nullptr ? QString() : suggestion->text();
+        picker_family = picker == nullptr ? QString() : picker->currentFont().family();
+        CHECK(check != nullptr && !check->isChecked());
+        save_widget_artifact("ui_missing_fonts_dialog_times_suggestion", dialog);
+        dialog.reject();
+      },
+      seen);
+  MainWindowTestAccess::open_document_path(window, path);
+  process_events_for(200);
+  CHECK(*seen == 1);
+  if (!substitutes.empty()) {
+    CHECK(picker_family == substitutes.front().family);
+    // A table pair says "same character widths"; with none installed, a same-type default
+    // (issue 463, Times is serif) says so.
+    CHECK(suggestion_text ==
+          (substitutes.front().same_type == patchy::FontClass::serif
+               ? QStringLiteral("Suggested: %1 (also a serif font)")
+               : QStringLiteral("Suggested: %1 (same character widths)"))
+              .arg(substitutes.front().family));
+  } else {
+    CHECK(suggestion_text.isEmpty());
+  }
+
+  // Saved without an edit, the type still names Times and never the substitute.
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+  const auto reopened = patchy::psd::DocumentIo::read(bytes);
+  const auto id = first_text_layer_id(reopened.layers());
+  CHECK(id.has_value());
+  if (!id.has_value()) {
+    return;
+  }
+  const auto* layer = reopened.find_layer(*id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto font = layer->metadata().find(patchy::kLayerMetadataTextFont);
+  CHECK(font != layer->metadata().end() &&
+        patchy::ui::text_font_replacement_key(QString::fromStdString(font->second)).startsWith(QStringLiteral("times")));
+  const auto& blocks = layer->unknown_psd_blocks();
+  CHECK(std::ranges::any_of(blocks, [&](const auto& block) {
+    return block.key == "TySh" && payload_names(block, times) &&
+           !payload_names(block, QStringLiteral("Times New Roman"));
+  }));
+}
+
+namespace {
+
+// Font types (GitHub issue 463). This group is registered LAST in tests/ui/main.cpp: it registers
+// a serif and a monospaced face (Georgia, Courier New) that earlier text tests must not see, since
+// type in a missing serif or mono font now draws in them.
+void register_same_type_test_fonts() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::CourierNew);
+}
+
+const QString kMissingSerif = QStringLiteral("Patchy Missing Serif");
+const QString kMissingMono = QStringLiteral("Patchy Missing Mono");
+
+// The installed same-type default for an unlisted family; skips when the host has none of that
+// type registered.
+patchy::ui::TextFontSubstitute same_type_substitute_or_skip(const QString& family, patchy::FontClass type) {
+  CHECK(!patchy::ui::available_text_family_match(family).has_value());
+  CHECK(patchy::ui::text_font_class(family) == type);
+  const auto substitutes = patchy::ui::installed_text_font_substitutes(family, QStringLiteral("Headline"));
+  if (substitutes.empty()) {
+    patchy::test::skip("no installed font of that type on this host");
+  }
+  CHECK(substitutes.front().same_type == type && !substitutes.front().metric);
+  return substitutes.front();
+}
+
+// Accepts the missing-font prompt once it appears and keeps its informative text.
+void accept_missing_font_prompt_keeping_text(std::shared_ptr<QString> informative, std::shared_ptr<int> answered,
+                                            int attempts = 100) {
+  QTimer::singleShot(20, [informative, answered, attempts] {
+    auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    if (box == nullptr) {
+      if (attempts > 0) {
+        accept_missing_font_prompt_keeping_text(informative, answered, attempts - 1);
+      }
+      return;
+    }
+    ++*answered;
+    *informative = box->informativeText();
+    for (auto* button : box->findChildren<QPushButton*>()) {
+      if (box->buttonRole(button) == QMessageBox::AcceptRole) {
+        button->click();
+        return;
+      }
+    }
+  });
+}
+
+// GitHub issue 463: a missing font the table does not list gets an installed font of the same type
+// (serif, sans-serif, monospaced) in Resolve Missing Fonts, with a line saying so; rows stay
+// unticked, and a font whose type nothing states keeps Qt's fallback with no line.
+void ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts() {
+  register_same_type_test_fonts();
+  const auto serif = same_type_substitute_or_skip(kMissingSerif, patchy::FontClass::serif);
+  const auto mono = same_type_substitute_or_skip(kMissingMono, patchy::FontClass::mono);
+#if defined(Q_OS_WIN)
+  // Consolas is never registered in the suite, Times New Roman only by the SVG tests: the next
+  // defaults answer when it is absent.
+  CHECK(serif.family == QStringLiteral("Times New Roman") || serif.family == QStringLiteral("Georgia"));
+  CHECK(mono.family == QStringLiteral("Courier New"));
+#endif
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  auto document = white_document();
+  const auto serif_id = document.add_layer(missing_font_text_layer(document, "Serif", kMissingSerif, 20)).id();
+  document.add_layer(missing_font_text_layer(document, "Mono", kMissingMono, 70));
+  document.add_layer(missing_font_text_layer(document, "Other", kMissing, 120));
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Font Types"));
+  QApplication::processEvents();
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_fonts_dialog(
+      [&](QDialog& dialog) {
+        const auto check_row = [&dialog](const QString& family, const QString& expected_family,
+                                         const QString& expected_line) {
+          const auto row = missing_font_row(dialog, family);
+          CHECK(row >= 0);
+          auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("missingFontReplaceCheck%1").arg(row));
+          auto* picker = dialog.findChild<patchy::ui::FontPickerCombo*>(
+              QStringLiteral("missingFontReplacementCombo%1").arg(row));
+          auto* line = dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(row));
+          CHECK(check != nullptr && !check->isChecked());
+          CHECK(picker != nullptr && picker->currentFont().family() == expected_family);
+          CHECK(line != nullptr && line->text() == expected_line);
+        };
+        check_row(kMissingSerif, serif.family, QStringLiteral("Suggested: %1 (also a serif font)").arg(serif.family));
+        check_row(kMissingMono, mono.family,
+                  QStringLiteral("Suggested: %1 (also a monospaced font)").arg(mono.family));
+        const auto other_row = missing_font_row(dialog, kMissing);
+        CHECK(other_row >= 0);
+        CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion%1").arg(other_row)) == nullptr);
+        save_widget_artifact("ui_missing_fonts_dialog_same_type", dialog);
+        dialog.reject();
+      },
+      seen);
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeResolveMissingFontsAction"));
+  CHECK(action != nullptr);
+  if (action == nullptr) {
+    return;
+  }
+  action->trigger();
+  process_events_for(200);
+  CHECK(*seen == 1);
+  CHECK(layer_font(window, serif_id) == kMissingSerif);
+}
+
+// GitHub issue 463: the same-type default also draws Patchy's own type in a missing unlisted font
+// (keeping its name) and is what an edit session moves onto; the prompt names it, and Escape
+// leaves the font.
+void ui_missing_font_same_type_default_reaches_edit_and_render() {
+  register_same_type_test_fonts();
+  const auto serif = same_type_substitute_or_skip(kMissingSerif, patchy::FontClass::serif);
+  const auto mono = same_type_substitute_or_skip(kMissingMono, patchy::FontClass::mono);
+  CHECK(patchy::ui::render_text_families_for_display_family(kMissingSerif) ==
+        (QStringList{kMissingSerif, serif.family}));
+  const auto font = patchy::ui::render_text_font_for_display_family(kMissingSerif, 32, false, false, 1);
+  CHECK(QFontInfo(font).family() == serif.family);
+  CHECK(patchy::ui::display_text_family_from_font(font) == kMissingSerif);
+  CHECK(patchy::ui::render_text_families_for_display_family(kMissing) == QStringList{kMissing});
+
+  auto document = white_document();
+  const auto id = document.add_layer(missing_font_text_layer(document, "Headline", kMissingMono, 40)).id();
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Mono Edit"));
+  QApplication::processEvents();
+
+  auto informative = std::make_shared<QString>();
+  auto answered = std::make_shared<int>(0);
+  accept_missing_font_prompt_keeping_text(informative, answered);
+  MainWindowTestAccess::edit_text_layer(window, id);
+  process_events_for(300);
+  CHECK(*answered == 1);
+  CHECK(*informative == QStringLiteral("%1 will be replaced with %2.").arg(kMissingMono, mono.family));
+  auto* editor = require_canvas(window)->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor != nullptr) {
+    CHECK(editor->property("patchy.documentTextFamily").toString() == mono.family);
+    send_key(*editor, Qt::Key_Escape);
+  }
+  process_events_for(150);
+  CHECK(layer_font(window, id) == kMissingMono);
+}
+
+// GitHub issue 463: real PSDs whose type names an unlisted serif and an unlisted monospaced font
+// (Calibri renamed in the bytes to "MySerif" and "AnyMono") open with a same-type suggestion. The
+// artifacts missing_font_myserif.psd and missing_font_anymono.psd are the manual test files.
+void ui_missing_font_type_psds_suggest_a_same_type_font() {
+  register_same_type_test_fonts();
+  const auto source = QStringLiteral("Calibri");
+  if (!patchy::ui::available_text_family_match(source).has_value()) {
+    patchy::test::skip("Calibri (the source face the byte rename needs) is not registered on this host");
+  }
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingFontsDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingFontsDialog"), true);
+  ensure_artifact_dir();
+  MainWindow window;
+  show_window(window);
+  struct Case {
+    QString stem;
+    patchy::FontClass type;
+    QString line;
+  };
+  for (const auto& item : {Case{QStringLiteral("MySerif"), patchy::FontClass::serif, QStringLiteral("serif")},
+                           Case{QStringLiteral("AnyMono"), patchy::FontClass::mono, QStringLiteral("monospaced")}}) {
+    const auto substitute = same_type_substitute_or_skip(item.stem, item.type);
+    const auto path = QDir::current().absoluteFilePath(
+        QStringLiteral("test-artifacts/missing_font_%1.psd").arg(item.stem.toLower()));
+    {
+      const auto bytes = psd_with_missing_font(window, QStringLiteral("Headline"), item.stem, source);
+      CHECK(!bytes.empty());
+      if (bytes.empty()) {
+        return;
+      }
+      QFile file(path);
+      CHECK(file.open(QIODevice::WriteOnly));
+      file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+      file.close();
+    }
+    auto seen = std::make_shared<int>(0);
+    QString line_text;
+    const auto artifact = QStringLiteral("ui_missing_fonts_dialog_%1_psd").arg(item.stem.toLower()).toStdString();
+    handle_missing_fonts_dialog(
+        [&line_text, artifact](QDialog& dialog) {
+          auto* line = dialog.findChild<QLabel*>(QStringLiteral("missingFontSuggestion0"));
+          line_text = line == nullptr ? QString() : line->text();
+          save_widget_artifact(artifact, dialog);
+          dialog.reject();
+        },
+        seen);
+    MainWindowTestAccess::open_document_path(window, path);
+    process_events_for(200);
+    CHECK(*seen == 1);
+    CHECK(line_text == QStringLiteral("Suggested: %1 (also a %2 font)").arg(substitute.family, item.line));
+  }
+}
+
+// GitHub issue 463, Linux: the user's fontconfig names the type of fonts its rules know
+// (45-latin.conf) and orders the installed families of each type. A family no rule names gets
+// only fontconfig's catch-all sans-serif, which Patchy does not take as the font's type.
+void ui_fontconfig_font_types_follow_the_system_rules() {
+#if !defined(PATCHY_HAVE_FONTCONFIG_QUERY)
+  patchy::test::skip("fontconfig is asked on Linux only");
+#else
+  const auto unknown = patchy::ui::fontconfig_font_class("PatchyDefinitelyMissingFont123456");
+  if (!unknown.has_value()) {
+    patchy::test::skip("libfontconfig could not be loaded");
+  }
+  CHECK(!unknown->definite);
+  CHECK(patchy::ui::text_font_class(QStringLiteral("PatchyDefinitelyMissingFont123456")) ==
+        patchy::FontClass::unknown);
+  for (const auto type : {patchy::FontClass::serif, patchy::FontClass::sans, patchy::FontClass::mono}) {
+    const auto families = patchy::ui::fontconfig_families_for_class(type);
+    CHECK(!families.empty());
+    CHECK(families == patchy::ui::fontconfig_families_for_class(type));  // cached, same order
+  }
+  CHECK(patchy::ui::fontconfig_families_for_class(patchy::FontClass::unknown).empty());
+  // Constantia is serif in 45-latin.conf, and neither the table nor its name says so.
+  const auto constantia = patchy::ui::fontconfig_font_class("Constantia");
+  CHECK(constantia.has_value());
+  if (constantia.has_value() && constantia->definite) {
+    CHECK(constantia->font_class == patchy::FontClass::serif);
+    CHECK(patchy::ui::text_font_class(QStringLiteral("Constantia")) == patchy::FontClass::serif);
+  }
+  const auto consolas = patchy::ui::fontconfig_font_class("Consolas");
+  CHECK(consolas.has_value() && consolas->definite && consolas->font_class == patchy::FontClass::mono);
+#endif
+}
+
+}  // namespace
+
 std::vector<patchy::test::TestCase> missing_fonts_tests() {
   return {
+      {"ui_missing_font_psd_keeps_its_font_name_until_resolved", ui_missing_font_psd_keeps_its_font_name_until_resolved},
+      {"ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name",
+       ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name},
+      {"ui_missing_fonts_dialog_offers_the_installed_substitute_first",
+       ui_missing_fonts_dialog_offers_the_installed_substitute_first},
+      {"ui_missing_font_edit_session_uses_the_table_substitute", ui_missing_font_edit_session_uses_the_table_substitute},
       {"ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer",
        ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer},
       {"ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge",
@@ -899,5 +1377,16 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_unattended_open_skips_the_missing_fonts_dialog", ui_unattended_open_skips_the_missing_fonts_dialog},
       {"ui_transforming_missing_font_text_warns_and_keeps_its_pixels",
        ui_transforming_missing_font_text_warns_and_keeps_its_pixels},
+  };
+}
+
+std::vector<patchy::test::TestCase> missing_font_type_tests() {
+  return {
+      {"ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts",
+       ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts},
+      {"ui_missing_font_same_type_default_reaches_edit_and_render",
+       ui_missing_font_same_type_default_reaches_edit_and_render},
+      {"ui_missing_font_type_psds_suggest_a_same_type_font", ui_missing_font_type_psds_suggest_a_same_type_font},
+      {"ui_fontconfig_font_types_follow_the_system_rules", ui_fontconfig_font_types_follow_the_system_rules},
   };
 }

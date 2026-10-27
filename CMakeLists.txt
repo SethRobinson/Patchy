@@ -194,6 +194,7 @@ add_library(patchy_core
   src/core/mask_outline.cpp
   src/core/palette.cpp
   src/core/palette_presets.cpp
+  src/core/font_substitutes.cpp
   src/core/path_fit.cpp
   src/core/path_simplify.cpp
   src/core/shape_combine.cpp
@@ -1762,6 +1763,11 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       )
     endif()
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+      # Font types of missing fonts from the user's fontconfig (GitHub issue 463), loaded with
+      # dlopen at run time like libheif: nothing is linked, no fontconfig headers are needed.
+      target_sources(patchy_ui PRIVATE src/ui/fontconfig_font_class.cpp src/ui/fontconfig_font_class.hpp)
+      target_compile_definitions(patchy_ui PUBLIC PATCHY_HAVE_FONTCONFIG_QUERY=1)
+      target_link_libraries(patchy_ui PRIVATE ${CMAKE_DL_LIBS})
       # "Pick Screen Color" on Wayland goes through the XDG desktop portal
       # (src/ui/portal_color_pick.cpp, GitHub issue 128). Looked up as a separate
       # package for the same reason as Qt6Pdf above: a kit without QtDBus keeps
@@ -2287,6 +2293,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/unicode_path_tests.cpp
     tests/core/atomic_write_recovery_tests.cpp
     tests/core/font_zip_tests.cpp
+    tests/core/font_substitutes_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp

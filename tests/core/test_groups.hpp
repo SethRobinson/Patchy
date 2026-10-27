@@ -49,6 +49,7 @@ std::vector<patchy::test::TestCase> hdr_import_tests();
 std::vector<patchy::test::TestCase> flat_formats_misc_tests();
 std::vector<patchy::test::TestCase> unicode_path_tests();
 std::vector<patchy::test::TestCase> font_zip_tests();
+std::vector<patchy::test::TestCase> font_substitutes_tests();
 std::vector<patchy::test::TestCase> infra_selection_tests();
 std::vector<patchy::test::TestCase> pipl_tests();
 std::vector<patchy::test::TestCase> vector_shape_tests();

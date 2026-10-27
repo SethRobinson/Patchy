@@ -63,7 +63,8 @@ struct CustomizationSettingsGuard {
   CustomizationSettingsGuard() {
     for (const auto* key : {"toolPalette/hiddenTools", "toolPalette/layout", "toolPalette/wheelScroll",
                             "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons",
-                            "toolPalette/hiddenFooterItems", "preferences/toolbarIconSize",
+                            "layersPanel/shownFooterButtons", "toolPalette/hiddenFooterItems",
+                            "preferences/toolbarIconSize",
                             "preferences/toolFlyoutOpenMode"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
@@ -424,7 +425,7 @@ void ui_layer_footer_buttons_hide_from_their_menu() {
   CHECK(toggle != nullptr && toggle->isChecked());
   CHECK(menu->findChild<QAction*>(QStringLiteral("layerFooterShowAllAction")) != nullptr);
   CHECK(menu->findChild<QAction*>(QStringLiteral("layerFooterCustomizeAction")) != nullptr);
-  CHECK(menu->actions().size() == 8 + 3);
+  CHECK(menu->actions().size() == static_cast<qsizetype>(std::size(patchy::ui::kLayerFooterButtonIds)) + 3);
   (void)capture_widget_artifact("ui_layer_footer_buttons_menu", *menu);
   if (toggle != nullptr) {
     toggle->trigger();
@@ -432,8 +433,12 @@ void ui_layer_footer_buttons_hide_from_their_menu() {
   menu->close();
   settle();
   CHECK(!animation->isVisible());
-  CHECK(window.tool_palette_customization().hidden_layer_buttons == QStringList{QStringLiteral("animation")});
-  CHECK(patchy::ui::stored_tool_palette_customization().hidden_layer_buttons ==
+  // With the optional buttons (GitHub issue 470), still hidden by default.
+  const QStringList hidden_with_animation{QStringLiteral("animation"), QStringLiteral("merge_down"),
+                                          QStringLiteral("move_down"), QStringLiteral("move_up")};
+  CHECK(window.tool_palette_customization().hidden_layer_buttons == hidden_with_animation);
+  CHECK(patchy::ui::stored_tool_palette_customization().hidden_layer_buttons == hidden_with_animation);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("layersPanel/hiddenFooterButtons")).toStringList() ==
         QStringList{QStringLiteral("animation")});
   CHECK(duplicate->isVisible());
   auto* layers_panel = duplicate->parentWidget();
@@ -567,7 +572,8 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   when_customize_dialog_opens([&](QDialog& dialog) {
     ran = true;
     auto* layer_list = dialog.findChild<QListWidget*>(QStringLiteral("layerFooterButtonsList"));
-    CHECK(layer_list != nullptr && layer_list->count() == 8);
+    CHECK(layer_list != nullptr &&
+          layer_list->count() == static_cast<int>(std::size(patchy::ui::kLayerFooterButtonIds)));
     if (layer_list != nullptr && layer_list->count() > 0) {
       layer_list->item(0)->setCheckState(Qt::Unchecked);
     }
@@ -590,7 +596,8 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   {
     auto settings = patchy::ui::app_settings();
     for (const auto* key : {"toolPalette/hiddenTools", "toolPalette/layout", "toolPalette/wheelScroll",
-                            "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons"}) {
+                            "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons",
+                            "layersPanel/shownFooterButtons"}) {
       CHECK(!settings.contains(QString::fromLatin1(key)));
     }
   }
@@ -1080,6 +1087,198 @@ void ui_script_tool_palette_reads_and_sets() {
   window.apply_tool_palette_customization(ToolPaletteCustomization{});
 }
 
+// GitHub issue 470: Move Layer Up, Move Layer Down and Merge Down join the footer hidden, so it
+// keeps its one row; settings from before them (which name only hidden buttons) keep them
+// hidden, a shown one is stored under layersPanel/shownFooterButtons, and the default stores
+// no key at all.
+void ui_layer_footer_optional_buttons_start_hidden() {
+  CustomizationSettingsGuard settings_guard;
+  const char* const optional_names[] = {"layerMoveUpButton", "layerMoveDownButton", "layerMergeDownButton"};
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    settle();
+    CHECK(window.tool_palette_customization() == ToolPaletteCustomization{});
+    for (const auto* name : optional_names) {
+      auto* button = window.findChild<QPushButton*>(QLatin1String(name));
+      CHECK(button != nullptr && !button->isVisible());
+    }
+    // The eight default buttons share one row.
+    auto* delete_button = window.findChild<QPushButton*>(QStringLiteral("layerDeleteButton"));
+    auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+    CHECK(delete_button != nullptr && new_button != nullptr && delete_button->isVisible() &&
+          delete_button->y() == new_button->y());
+    auto settings = patchy::ui::app_settings();
+    CHECK(!settings.contains(QStringLiteral("layersPanel/hiddenFooterButtons")));
+    CHECK(!settings.contains(QStringLiteral("layersPanel/shownFooterButtons")));
+  }
+  // Settings from an earlier version: Animation hidden, the new buttons not named.
+  patchy::ui::app_settings().setValue(QStringLiteral("layersPanel/hiddenFooterButtons"),
+                                      QStringList{QStringLiteral("animation")});
+  auto&& [window, canvas] = ShownWindowFixture{};
+  settle();
+  auto* move_up = window.findChild<QPushButton*>(QStringLiteral("layerMoveUpButton"));
+  auto* move_down = window.findChild<QPushButton*>(QStringLiteral("layerMoveDownButton"));
+  auto* merge_down = window.findChild<QPushButton*>(QStringLiteral("layerMergeDownButton"));
+  auto* duplicate = window.findChild<QPushButton*>(QStringLiteral("layerDuplicateButton"));
+  auto* animation = window.findChild<QPushButton*>(QStringLiteral("layerAnimationButton"));
+  CHECK(move_up != nullptr && move_down != nullptr && merge_down != nullptr && duplicate != nullptr &&
+        animation != nullptr);
+  if (move_up == nullptr || move_down == nullptr || merge_down == nullptr || duplicate == nullptr ||
+      animation == nullptr) {
+    return;
+  }
+  CHECK(!move_up->isVisible() && !move_down->isVisible() && !merge_down->isVisible() && !animation->isVisible());
+  // The footer menu shows Move Layer Up; only that is stored, under its own key.
+  const QPoint position = duplicate->rect().center();
+  QContextMenuEvent event(QContextMenuEvent::Mouse, position, duplicate->mapToGlobal(position));
+  QApplication::sendEvent(duplicate, &event);
+  QApplication::processEvents();
+  auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+  CHECK(menu != nullptr && menu->objectName() == QStringLiteral("layerFooterButtonsMenu"));
+  if (menu != nullptr) {
+    auto* toggle = menu->findChild<QAction*>(QStringLiteral("layerFooterToggle_move_up"));
+    CHECK(toggle != nullptr && !toggle->isChecked());
+    if (toggle != nullptr) {
+      toggle->trigger();
+    }
+    menu->close();
+  }
+  settle();
+  CHECK(move_up->isVisible() && !move_down->isVisible() && !animation->isVisible());
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("layersPanel/shownFooterButtons")).toStringList() ==
+          QStringList{QStringLiteral("move_up")});
+    CHECK(settings.value(QStringLiteral("layersPanel/hiddenFooterButtons")).toStringList() ==
+          QStringList{QStringLiteral("animation")});
+  }
+  // A new window starts with it shown.
+  {
+    patchy::ui::MainWindow second;
+    CHECK(!second.tool_palette_customization().hidden_layer_buttons.contains(QStringLiteral("move_up")));
+    CHECK(second.tool_palette_customization().hidden_layer_buttons.contains(QStringLiteral("move_down")));
+  }
+  // All shown: the footer wraps rather than widening the column.
+  auto customization = window.tool_palette_customization();
+  customization.hidden_layer_buttons.clear();
+  window.apply_tool_palette_customization(customization);
+  settle();
+  CHECK(move_up->isVisible() && move_down->isVisible() && merge_down->isVisible() && animation->isVisible());
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/hiddenFooterButtons")));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("layersPanel/shownFooterButtons")).toStringList() ==
+        (QStringList{QStringLiteral("merge_down"), QStringLiteral("move_down"), QStringLiteral("move_up")}));
+  if (auto* layers_panel = duplicate->parentWidget(); layers_panel != nullptr) {
+    (void)capture_widget_artifact("ui_layer_footer_with_arrange_buttons", *layers_panel);
+  }
+  // Back to the default: hidden again, no keys.
+  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  settle();
+  CHECK(!move_up->isVisible() && !merge_down->isVisible() && animation->isVisible());
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/hiddenFooterButtons")));
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/shownFooterButtons")));
+}
+
+// GitHub issue 470: the footer's Move Layer Up / Down move one step, to the top or bottom of the
+// folder with Shift, and out of the folder with Alt; Merge Down merges down, Shift merges the
+// visible layers, Alt merges them into a new layer. Each click is one undo step.
+void ui_layer_footer_move_and_merge_buttons_follow_modifiers() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto customization = window.tool_palette_customization();
+  customization.hidden_layer_buttons.clear();
+  window.apply_tool_palette_customization(customization);
+  settle();
+  auto* move_up = window.findChild<QPushButton*>(QStringLiteral("layerMoveUpButton"));
+  auto* move_down = window.findChild<QPushButton*>(QStringLiteral("layerMoveDownButton"));
+  auto* merge_down = window.findChild<QPushButton*>(QStringLiteral("layerMergeDownButton"));
+  CHECK(move_up != nullptr && move_down != nullptr && merge_down != nullptr);
+  if (move_up == nullptr || move_down == nullptr || merge_down == nullptr) {
+    return;
+  }
+  CHECK(move_up->toolTip().contains(QStringLiteral("Shift-click")));
+  CHECK(merge_down->toolTip().contains(QStringLiteral("new layer")));
+  // Background, Layer 1, A, Folder (C, D), B.
+  auto& doc = Access::document(window);
+  const auto& layers = std::as_const(doc).layers();
+  CHECK(layers.size() == 2U);
+  const auto background_id = layers.front().id();
+  const auto paint_id = layers.back().id();
+  const auto red = [&doc] {
+    return solid_pixels(doc.width(), doc.height(), patchy::PixelFormat::rgba8(), QColor(200, 40, 40, 255));
+  };
+  const auto a_id = doc.add_pixel_layer("A", red()).id();
+  patchy::Layer folder(doc.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::Layer c(doc.allocate_layer_id(), "C", red());
+  const auto c_id = c.id();
+  patchy::Layer d(doc.allocate_layer_id(), "D", red());
+  const auto d_id = d.id();
+  folder.add_child(std::move(c));
+  folder.add_child(std::move(d));
+  doc.add_layer(std::move(folder));
+  const auto b_id = doc.add_pixel_layer("B", red()).id();
+  Access::refresh_layer_ui(window);
+  settle();
+  using Ids = std::vector<patchy::LayerId>;
+  const auto ids_of = [](const std::vector<patchy::Layer>& list) {
+    Ids ids;
+    for (const auto& layer : list) {
+      ids.push_back(layer.id());
+    }
+    return ids;
+  };
+  const auto folder_children = [&] {
+    const auto* found = std::as_const(doc).find_layer(folder_id);
+    return found != nullptr ? ids_of(found->children()) : Ids{};
+  };
+  const auto click = [&](QPushButton* button, Qt::KeyboardModifiers modifiers, const Ids& selection,
+                         patchy::LayerId active) {
+    Access::select_layers(window, selection, active);
+    QApplication::processEvents();
+    const auto depth = Access::active_session_undo_depth(window);
+    QTest::mouseClick(button, Qt::LeftButton, modifiers);
+    QApplication::processEvents();
+    CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  };
+
+  click(move_up, Qt::NoModifier, {c_id}, c_id);
+  CHECK(folder_children() == (Ids{d_id, c_id}));
+  click(move_down, Qt::ShiftModifier, {c_id}, c_id);
+  CHECK(folder_children() == (Ids{c_id, d_id}));
+  CHECK(ids_of(layers) == (Ids{background_id, paint_id, a_id, folder_id, b_id}));
+  click(move_up, Qt::AltModifier, {c_id}, c_id);
+  CHECK(ids_of(layers) == (Ids{background_id, paint_id, a_id, folder_id, c_id, b_id}));
+  click(move_down, Qt::AltModifier, {d_id}, d_id);
+  CHECK(ids_of(layers) == (Ids{background_id, paint_id, a_id, d_id, folder_id, c_id, b_id}));
+  CHECK(folder_children().empty());
+  // Shift: to the bottom, above the Background; then back to the top.
+  click(move_down, Qt::ShiftModifier, {b_id}, b_id);
+  CHECK(ids_of(layers) == (Ids{background_id, b_id, paint_id, a_id, d_id, folder_id, c_id}));
+  click(move_up, Qt::ShiftModifier, {b_id}, b_id);
+  CHECK(ids_of(layers) == (Ids{background_id, paint_id, a_id, d_id, folder_id, c_id, b_id}));
+  // Alt on a layer at the root changes nothing.
+  Access::select_layers(window, {b_id}, b_id);
+  const auto depth = Access::active_session_undo_depth(window);
+  QTest::mouseClick(move_up, Qt::LeftButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(Access::active_session_undo_depth(window) == depth);
+  CHECK(ids_of(layers) == (Ids{background_id, paint_id, a_id, d_id, folder_id, c_id, b_id}));
+
+  // Merge Down: B into C.
+  const auto count = layers.size();
+  click(merge_down, Qt::NoModifier, {b_id}, b_id);
+  CHECK(layers.size() == count - 1U);
+  CHECK(std::as_const(doc).find_layer(b_id) == nullptr);
+  // Alt: the visible layers merged into a new layer, the rest kept.
+  click(merge_down, Qt::AltModifier, {c_id}, c_id);
+  CHECK(layers.size() == count);
+  CHECK(std::as_const(doc).find_layer(a_id) != nullptr);
+  // Shift: Merge Visible in place.
+  click(merge_down, Qt::ShiftModifier, {a_id}, a_id);
+  CHECK(layers.size() < count - 1U);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
@@ -1098,5 +1297,8 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_preferences_opens_customize_tool_palette", ui_preferences_opens_customize_tool_palette},
       {"ui_tool_palette_footer_items_hide_and_preview", ui_tool_palette_footer_items_hide_and_preview},
       {"ui_tool_flyout_open_modes_click_and_hover", ui_tool_flyout_open_modes_click_and_hover},
+      {"ui_layer_footer_optional_buttons_start_hidden", ui_layer_footer_optional_buttons_start_hidden},
+      {"ui_layer_footer_move_and_merge_buttons_follow_modifiers",
+       ui_layer_footer_move_and_merge_buttons_follow_modifiers},
   };
 }

@@ -13144,6 +13144,26 @@ Each item&apos;s own View setting still applies.</source>
         <translation>화면 모드 버튼</translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>추천: %1(같은 문자 폭)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>추천: %1(비슷한 디자인)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>추천: %1(같은 세리프 글꼴)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>추천: %1(같은 산세리프 글꼴)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>추천: %1(같은 고정폭 글꼴)</translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation>모서리가 너무 가깝습니다.</translation>
     </message>
@@ -27282,10 +27302,6 @@ The open document keeps its blend modes either way.</source>
         <translation>복제 소스 설정: 소스, 오프셋, 비율, 회전, 뒤집기, 오버레이</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>복제 소스</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>PNG로 빠른 내보내기</translation>
     </message>
@@ -27332,6 +27348,86 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Interface scale presets</source>
         <translation>인터페이스 배율 사전 설정</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 글꼴이 %2(으)로 대체됩니다.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>브러시 설정</translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>맨 앞으로 가져오기(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>선택한 레이어를 폴더의 맨 위로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>맨 뒤로 보내기(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>선택한 레이어를 폴더의 맨 아래, 배경 레이어 위로 이동합니다</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%-클릭하면 새 레이어 대화 상자를 엽니다</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%-클릭하면 현재 레이어 아래에 레이어를 추가합니다</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>레이어를 위로 이동</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Shift-클릭하면 맨 앞으로 가져옵니다</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%-클릭하면 폴더 밖 위쪽으로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>레이어를 아래로 이동</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Shift-클릭하면 맨 뒤로 보냅니다</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%-클릭하면 폴더 밖 아래쪽으로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Shift-클릭하면 보이는 레이어를 병합합니다</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%-클릭하면 보이는 레이어를 새 레이어로 병합합니다</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>맨 앞으로 가져오기</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>맨 뒤로 보내기</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>선택한 레이어가 폴더 안에 없습니다</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>레이어를 폴더 밖으로 이동</translation>
     </message>
     <message>
         <source>&amp;Perspective Planes...</source>

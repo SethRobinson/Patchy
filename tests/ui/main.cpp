@@ -466,6 +466,8 @@ int main(int argc, char* argv[]) {
            theme_package_tests,
            theme_script_tests,
            readme_screenshot_tests,
+           // Last: registers serif and monospaced faces earlier text tests must not see.
+           missing_font_type_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

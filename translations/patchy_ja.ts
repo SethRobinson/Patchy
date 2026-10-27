@@ -13144,6 +13144,26 @@ Each item&apos;s own View setting still applies.</source>
         <translation>スクリーンモードボタン</translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>候補: %1 (文字幅が同じ)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>候補: %1 (似たデザイン)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>候補: %1 (同じセリフ体)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>候補: %1 (同じサンセリフ体)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>候補: %1 (同じ等幅フォント)</translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation>角が近すぎます。</translation>
     </message>
@@ -27282,10 +27302,6 @@ The open document keeps its blend modes either way.</source>
         <translation>クローン元の設定: ソース、オフセット、スケール、回転、反転、オーバーレイ</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>クローン元</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>PNG としてクイック書き出し</translation>
     </message>
@@ -27332,6 +27348,86 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Interface scale presets</source>
         <translation>インターフェースの拡大率のプリセット</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 は %2 に置き換えられます。</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>ブラシ設定</translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>最前面へ(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>選択したレイヤーをフォルダーの一番上へ移動します</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>最背面へ(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>選択したレイヤーをフォルダーの一番下（背景レイヤーの上）へ移動します</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%+クリックで新規レイヤーダイアログを開きます</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%+クリックで現在のレイヤーの下にレイヤーを追加します</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>レイヤーを上へ</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Shift+クリックで最前面へ移動します</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%+クリックでフォルダーの外の上へ移動します</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>レイヤーを下へ</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Shift+クリックで最背面へ移動します</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%+クリックでフォルダーの外の下へ移動します</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Shift+クリックで表示レイヤーを結合します</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%+クリックで表示レイヤーを新規レイヤーに結合します</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>最前面へ</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>最背面へ</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>選択したレイヤーはフォルダー内にありません</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>レイヤーをフォルダーの外へ移動</translation>
     </message>
     <message>
         <source>&amp;Perspective Planes...</source>

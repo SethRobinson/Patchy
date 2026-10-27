@@ -13144,6 +13144,26 @@ Each item&apos;s own View setting still applies.</source>
         <translation>屏幕模式按钮</translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>建议：%1 (字符宽度相同)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>建议：%1 (设计相似)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>建议：%1 (同为衬线字体)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>建议：%1 (同为无衬线字体)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>建议：%1 (同为等宽字体)</translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation>角点靠得太近。</translation>
     </message>
@@ -27282,10 +27302,6 @@ The open document keeps its blend modes either way.</source>
         <translation>仿制源设置: 源、位移、缩放、旋转、翻转和叠加</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>仿制源</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>快速导出为 PNG</translation>
     </message>
@@ -27332,6 +27348,86 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Interface scale presets</source>
         <translation>界面缩放预设</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 将替换为 %2。</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>画笔设置</translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>置为顶层(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>将所选图层移到其文件夹的顶部</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>置为底层(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>将所选图层移到其文件夹的底部，背景图层之上</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>按住 %ALT% 单击可打开“新建图层”对话框</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>按住 %CTRL% 单击可在当前图层下方添加图层</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>上移图层</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>按住 Shift 单击可置为顶层</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>按住 %ALT% 单击可移出文件夹，放在其上方</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>下移图层</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>按住 Shift 单击可置为底层</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>按住 %ALT% 单击可移出文件夹，放在其下方</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>按住 Shift 单击可合并可见图层</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>按住 %ALT% 单击可将可见图层合并到新图层</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>置为顶层</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>置为底层</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>所选图层不在文件夹中</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>将图层移出文件夹</translation>
     </message>
     <message>
         <source>&amp;Perspective Planes...</source>

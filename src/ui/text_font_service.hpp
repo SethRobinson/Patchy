@@ -2,12 +2,15 @@
 
 // Font lookup shared by text rendering, editing, the PSD resolver and font diagnostics.
 // Platform registration and caches live in the implementation; this interface owns no UI.
+#include "core/font_substitutes.hpp"
+
 #include <QFont>
 #include <QFontDatabase>
 #include <QHash>
 #include <QString>
 #include <QStringList>
 #include <optional>
+#include <vector>
 
 namespace patchy { class Layer; }
 namespace patchy::ui {
@@ -33,6 +36,26 @@ struct TextFontProblems {
 // unresolved.
 using TextFontReplacements = QHash<QString, QString>;
 QString text_font_replacement_key(const QString& family);
+
+// An installed stand-in for a missing font (GitHub issue 463): a pair from the built-in substitute
+// table (core/font_substitutes.hpp) or an installed default of the same font type.
+struct TextFontSubstitute {
+  QString family;       // the installed family, as the font database lists it
+  QString face_family;  // `family` plus the face a face-baked request named ("Source Sans 3 Semibold")
+                        // when the substitute has that face; `family` otherwise
+  bool metric{false};   // same character widths as the requested font (and face)
+  // The requested font's type when this is a same-type default rather than a table pair;
+  // unknown for table pairs.
+  FontClass same_type{FontClass::unknown};
+};
+// Installed stand-ins for `family` that draw `demanded` (empty: availability only), best first:
+// the table's metric pairs, its look-alikes, then one installed default of the same font type
+// (text_font_class). Empty when none applies.
+std::vector<TextFontSubstitute> installed_text_font_substitutes(const QString& family,
+                                                                const QString& demanded = QString());
+// A family's font type: the table's column, then (Linux) the type fontconfig's rules give it,
+// then the words of its name (classify_font_name_words). docs/font-resolution.md, "Font types".
+FontClass text_font_class(const QString& family);
 
 std::optional<QString> available_text_family_match(const QString& family);
 std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const QString& family,

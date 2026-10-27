@@ -249,6 +249,76 @@ not render nothing).
   set that key. The UI test main sets it false; tests that need
   the dialog turn it on. Tests: the `missing_font` filter (tests/ui/missing_fonts_tests.cpp).
 
+### Substitute table
+
+`src/core/font_substitutes.{hpp,cpp}` (issue 463, Qt-free) lists well-known fonts with the
+fonts that stand in for them: each candidate is `metric` (the substitute's own project states the
+same character widths: Arial to Liberation Sans or Arimo, Calibri to Carlito, Cambria to Caladea)
+or `lookalike` (similar design, text can reflow: Myriad Pro to Source Sans 3, which is NOT
+metric-compatible), plus a font-type column (serif, sans, mono, script, display; "Font types"
+below). Names and project links only: no font data, and every pair comes
+from the substitute's own documentation, never another program's substitution list
+([fonts.md](fonts.md), licensing rules).
+
+- **Keys** are `font_substitute_key`: ASCII case and punctuation ignored, non-ASCII kept (the
+  `photoshop_font_names_match` rule). An entry matches by family or alias (PostScript stems such as
+  `ArialMT`, `TimesNewRomanPSMT`). A miss is retried with trailing face words dropped
+  ("Myriad Pro Semibold", "Arial-BoldMT"); the dropped words come back as the lookup's style.
+- **Ranking** (`rank_font_substitutes`): metric before look-alike, table order within each, never
+  the requested font itself. `installed_text_font_substitutes` (text_font_service) keeps the
+  installed candidates that draw the text, then appends one installed default of the same font
+  type (`same_type` set; "Font types" below). A face the flags cannot express ("Semibold") is asked of
+  the substitute as `family + " " + face`; when the substitute lacks it the match is demoted to
+  look-alike.
+- **Uses.** `substituted_text_family` asks the table before Qt's fallback, so an edit session on a
+  missing font (both the base family and `substitute_missing_document_font_families`) moves onto
+  the table's substitute, and the raster-preview prompt's informative text names it ("Helvetica
+  will be replaced with Arial."). Resolve Missing Fonts starts each listed font's picker on the
+  first substitute with a "Suggested: X (same character widths)" or "(similar design)" line; rows
+  stay unticked. The stored name changes only on a commit or a resolved row, as before, so the PSD
+  still names the original font for Photoshop.
+- **Rendering.** `render_text_families_for_display_family` appends the first installed substitute
+  after a family that is not installed (cached per family, cleared on `fontDatabaseChanged`, locked
+  for the PDF worker), so Patchy-made type in a missing font draws in it with the same line breaks
+  while `QFont::family()` and the stored run still name the original.
+- The wasm alias table (`kWasmFamilyAliases`, [fonts.md](fonts.md)) stays separate: its targets
+  are the bundled fonts.
+- Tests: `font_substitutes_` (core), `ui_missing_fonts_dialog_offers_the_installed_substitute_first`,
+  `ui_missing_font_edit_session_uses_the_table_substitute`,
+  `ui_missing_font_render_uses_the_table_substitute_and_keeps_the_name` (skip where Helvetica is installed or
+  none of its substitutes is registered).
+
+### Font types
+
+A missing font the table does not list still gets a stand-in of its own type instead of Qt's
+fallback (Tahoma on Windows): Resolve Missing Fonts says "Suggested: X (also a serif font)" (or
+sans-serif, monospaced), and the edit and render paths use it like a table pair.
+
+- **The type** (`text_font_class`): the table's column; then, on Linux, the generic family the
+  user's fontconfig rules give the name (45-latin.conf and its kind; `fontconfig_font_class`, read
+  from the pattern after `FcConfigSubstitute`); then the name's own words
+  (`classify_font_name_words`: mono words before sans words before serif words, so "Microsoft Sans
+  Serif" is sans and "Noto Sans Mono" mono; whole words only, split at spaces, hyphens, underscores
+  and lower-to-upper changes). fontconfig's sans-serif alone is NOT a type: 49-sansserif.conf
+  appends it to every family no rule names. Script and display types get no default.
+- **The default** (`same_type_text_font_substitute`): on Linux fontconfig's own order of installed
+  families for the generic (`FcFontSort`, cached per type for the process), then the built-in list
+  (`same_class_default_families`: Times New Roman, Georgia, Cambria, Liberation Serif, ... /
+  Arial, Segoe UI, ... / Consolas, Courier New, Menlo, Liberation Mono, ...); the first installed
+  family that draws the text and is not the requested font.
+- **fontconfig is loaded with dlopen** (`src/ui/fontconfig_font_class.cpp`, Linux only,
+  `PATCHY_HAVE_FONTCONFIG_QUERY`), like libheif: Qt's Linux font database already loads the same
+  library, so the Flatpak, the AppImage and the native presets need no fontconfig headers and link
+  nothing new. Only the fontconfig 2.0 ABI subset is mirrored.
+- Tests: `font_substitutes_classify_font_types_from_name_words`,
+  `font_substitutes_same_class_defaults_cover_each_platform` (core); the `missing_font_type_tests`
+  group, registered LAST in tests/ui/main.cpp because it registers Georgia and Courier New, which
+  earlier text tests must not see (a missing serif font would draw in them):
+  `ui_missing_fonts_dialog_offers_a_same_type_default_for_unlisted_fonts`,
+  `ui_missing_font_same_type_default_reaches_edit_and_render`,
+  `ui_missing_font_type_psds_suggest_a_same_type_font`, and
+  `ui_fontconfig_font_types_follow_the_system_rules` (Linux; skips elsewhere).
+
 ## Photoshop 5.x `tySh` faces
 
 A PS 5 type record names each face three ways: PostScript name, GDI family and style string

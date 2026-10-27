@@ -13144,6 +13144,26 @@ Each item&apos;s own View setting still applies.</source>
         <translation>螢幕模式按鈕</translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>建議：%1 (字元寬度相同)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>建議：%1 (設計相似)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>建議：%1 (同為襯線字型)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>建議：%1 (同為無襯線字型)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>建議：%1 (同為等寬字型)</translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation>角點靠得太近。</translation>
     </message>
@@ -27282,10 +27302,6 @@ The open document keeps its blend modes either way.</source>
         <translation>仿製來源設定: 來源、偏移量、縮放、旋轉、翻轉和疊加</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>仿製來源</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>快速匯出為 PNG</translation>
     </message>
@@ -27332,6 +27348,86 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Interface scale presets</source>
         <translation>介面縮放預設值</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 將以 %2 取代。</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>筆刷設定</translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>移至最上層(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>將所選圖層移至其群組的最上方</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>移至最下層(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>將所選圖層移至其群組的最下方，背景圖層之上</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>按住 %ALT% 並按一下,可開啟「新增圖層」對話框</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>按住 %CTRL% 並按一下,可在目前圖層下方新增圖層</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>上移圖層</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>按住 Shift 並按一下,可移至最上層</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>按住 %ALT% 並按一下,可移出群組並置於其上方</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>下移圖層</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>按住 Shift 並按一下,可移至最下層</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>按住 %ALT% 並按一下,可移出群組並置於其下方</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>按住 Shift 並按一下,可合併可見圖層</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>按住 %ALT% 並按一下,可將可見圖層合併至新圖層</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>移至最上層</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>移至最下層</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>所選圖層不在群組中</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>將圖層移出群組</translation>
     </message>
     <message>
         <source>&amp;Perspective Planes...</source>

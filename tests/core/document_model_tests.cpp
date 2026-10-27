@@ -799,6 +799,117 @@ void layer_drop_request_moves_multiple_layers_into_folder() {
   CHECK(moved_folder.children()[1].id() == paint_id);
 }
 
+namespace {
+
+std::vector<patchy::LayerId> sibling_ids(const std::vector<patchy::Layer>& layers) {
+  std::vector<patchy::LayerId> ids;
+  for (const auto& layer : layers) {
+    ids.push_back(layer.id());
+  }
+  return ids;
+}
+
+}  // namespace
+
+// GitHub issue 468: Bring to Front and Send to Back move within the layer's own folder, keep
+// listed siblings in order, and never go under a pinned Background.
+void arrange_layers_to_end_moves_within_each_folder() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  const auto background_id = document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30)).id();
+  const auto a_id = document.add_pixel_layer("A", solid_rgb(2, 2, 1, 2, 3)).id();
+  const auto b_id = document.add_pixel_layer("B", solid_rgb(2, 2, 1, 2, 3)).id();
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::Layer c(document.allocate_layer_id(), "C", solid_rgb(2, 2, 1, 2, 3));
+  const auto c_id = c.id();
+  patchy::Layer d(document.allocate_layer_id(), "D", solid_rgb(2, 2, 1, 2, 3));
+  const auto d_id = d.id();
+  patchy::Layer e(document.allocate_layer_id(), "E", solid_rgb(2, 2, 1, 2, 3));
+  const auto e_id = e.id();
+  folder.add_child(std::move(c));
+  folder.add_child(std::move(d));
+  folder.add_child(std::move(e));
+  document.add_layer(std::move(folder));
+  const auto top_id = document.add_pixel_layer("Top", solid_rgb(2, 2, 1, 2, 3)).id();
+  auto& layers = document.layers();
+  using Ids = std::vector<patchy::LayerId>;
+
+  // A and B to the front: above Top, A still under B.
+  CHECK(patchy::arrange_layers_to_end(layers, {a_id, b_id}, true, background_id));
+  CHECK(sibling_ids(layers) == (Ids{background_id, folder_id, top_id, a_id, b_id}));
+  // Again: nothing changes.
+  CHECK(!patchy::arrange_layers_to_end(layers, {a_id, b_id}, true, background_id));
+  // To the back: just above the Background, which stays at the bottom.
+  CHECK(patchy::arrange_layers_to_end(layers, {a_id, b_id}, false, background_id));
+  CHECK(sibling_ids(layers) == (Ids{background_id, a_id, b_id, folder_id, top_id}));
+  // Without a pinned Background they go to the very bottom.
+  CHECK(patchy::arrange_layers_to_end(layers, {top_id}, false));
+  CHECK(sibling_ids(layers) == (Ids{top_id, background_id, a_id, b_id, folder_id}));
+  CHECK(patchy::arrange_layers_to_end(layers, {top_id}, true));
+  // Inside the folder: C to the front of the folder, never out of it.
+  CHECK(patchy::arrange_layers_to_end(layers, {c_id}, true, background_id));
+  const auto* moved_folder = patchy::find_layer_in_tree(std::as_const(layers), folder_id);
+  CHECK(moved_folder != nullptr && sibling_ids(moved_folder->children()) == (Ids{d_id, e_id, c_id}));
+  CHECK(sibling_ids(layers) == (Ids{background_id, a_id, b_id, folder_id, top_id}));
+  // E to the back of the folder.
+  CHECK(patchy::arrange_layers_to_end(layers, {e_id}, false, background_id));
+  moved_folder = patchy::find_layer_in_tree(std::as_const(layers), folder_id);
+  CHECK(moved_folder != nullptr && sibling_ids(moved_folder->children()) == (Ids{e_id, d_id, c_id}));
+  // A folder moves whole; a listed child inside it moves with it.
+  CHECK(patchy::arrange_layers_to_end(layers, {folder_id, d_id}, false, background_id));
+  CHECK(sibling_ids(layers) == (Ids{background_id, folder_id, a_id, b_id, top_id}));
+  moved_folder = patchy::find_layer_in_tree(std::as_const(layers), folder_id);
+  CHECK(moved_folder != nullptr && sibling_ids(moved_folder->children()) == (Ids{e_id, d_id, c_id}));
+}
+
+// GitHub issue 470: the footer's Alt-click Move Up / Move Down takes layers out of their folder,
+// one level, just above or just below it.
+void move_layers_out_of_folder_lands_beside_the_folder() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  const auto background_id = document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30)).id();
+  patchy::Layer outer(document.allocate_layer_id(), "Outer", patchy::LayerKind::Group);
+  const auto outer_id = outer.id();
+  patchy::Layer a(document.allocate_layer_id(), "A", solid_rgb(2, 2, 1, 2, 3));
+  const auto a_id = a.id();
+  patchy::Layer inner(document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+  const auto inner_id = inner.id();
+  patchy::Layer b(document.allocate_layer_id(), "B", solid_rgb(2, 2, 1, 2, 3));
+  const auto b_id = b.id();
+  patchy::Layer c(document.allocate_layer_id(), "C", solid_rgb(2, 2, 1, 2, 3));
+  const auto c_id = c.id();
+  inner.add_child(std::move(b));
+  inner.add_child(std::move(c));
+  patchy::Layer d(document.allocate_layer_id(), "D", solid_rgb(2, 2, 1, 2, 3));
+  const auto d_id = d.id();
+  outer.add_child(std::move(a));
+  outer.add_child(std::move(inner));
+  outer.add_child(std::move(d));
+  document.add_layer(std::move(outer));
+  const auto top_id = document.add_pixel_layer("Top", solid_rgb(2, 2, 1, 2, 3)).id();
+  auto& layers = document.layers();
+  using Ids = std::vector<patchy::LayerId>;
+
+  // A root layer has no folder to leave.
+  CHECK(!patchy::move_layers_out_of_folder(layers, {top_id}, true));
+  // A and D out of Outer, above it, in their order.
+  CHECK(patchy::move_layers_out_of_folder(layers, {a_id, d_id}, true));
+  CHECK(sibling_ids(layers) == (Ids{background_id, outer_id, a_id, d_id, top_id}));
+  // B and C out of Inner (one level only), below it, still inside Outer.
+  CHECK(patchy::move_layers_out_of_folder(layers, {b_id, c_id}, false));
+  const auto* moved_outer = patchy::find_layer_in_tree(std::as_const(layers), outer_id);
+  CHECK(moved_outer != nullptr && sibling_ids(moved_outer->children()) == (Ids{b_id, c_id, inner_id}));
+  // Below Outer: above the Background, which stays at the bottom.
+  CHECK(patchy::move_layers_out_of_folder(layers, {inner_id}, false));
+  CHECK(sibling_ids(layers) == (Ids{background_id, inner_id, outer_id, a_id, d_id, top_id}));
+  // B out of Outer, above it.
+  CHECK(patchy::move_layers_out_of_folder(layers, {b_id}, true));
+  CHECK(sibling_ids(layers) == (Ids{background_id, inner_id, outer_id, b_id, a_id, d_id, top_id}));
+  // A listed child of a listed folder stays with the folder (Outer is at the root: nothing moves).
+  CHECK(!patchy::move_layers_out_of_folder(layers, {outer_id, c_id}, true));
+  moved_outer = patchy::find_layer_in_tree(std::as_const(layers), outer_id);
+  CHECK(moved_outer != nullptr && sibling_ids(moved_outer->children()) == (Ids{c_id}));
+}
+
 // GitHub issue 389: the folders a merge stays inside.
 void layer_shared_ancestor_groups_find_the_enclosing_folders() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
@@ -1253,6 +1364,8 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"default_non_group_layer_id_allows_position_locked_pixels",
        default_non_group_layer_id_allows_position_locked_pixels},
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
+      {"arrange_layers_to_end_moves_within_each_folder", arrange_layers_to_end_moves_within_each_folder},
+      {"move_layers_out_of_folder_lands_beside_the_folder", move_layers_out_of_folder_lands_beside_the_folder},
       {"collect_layer_descendant_ids_walks_nested_groups_in_order",
        collect_layer_descendant_ids_walks_nested_groups_in_order},
       {"layer_drop_roots_ignore_selected_descendants", layer_drop_roots_ignore_selected_descendants},

@@ -706,18 +706,29 @@ void MainWindow::install_window_panel_entries() {
     const char* panel_id;
     const char* action_name;
     const char* title;
+    const char* hotkey_id;
+    Qt::Key default_key;
   };
-  // The panels' own title sources, so each entry shares its panel's translation.
+  // The panels' own title sources, so each entry shares its panel's translation. F6, F7 and
+  // F8 are Photoshop's panel keys (GitHub issue 469); F5, its Brush Settings key, stays View >
+  // Force Refresh, so Window > Brush Settings ships unbound.
   static constexpr PanelEntry kPanels[] = {
-      {"layersDock", "windowPanelLayersAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layers")},
-      {"channelsDock", "windowPanelChannelsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Channels")},
-      {"pathsDock", "windowPanelPathsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paths")},
-      {"historyDock", "windowPanelHistoryAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "History")},
-      {"propertiesDock", "windowPanelPropertiesAction",
-       QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Properties")},
-      {"infoDock", "windowPanelInfoAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Info")},
-      {"colorDock", "windowPanelColorAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color")},
-      {"paletteDock", "windowPanelPaletteAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Palette")},
+      {"layersDock", "windowPanelLayersAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layers"),
+       "window.panel_layers", Qt::Key_F7},
+      {"channelsDock", "windowPanelChannelsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Channels"),
+       "window.panel_channels", Qt::Key_unknown},
+      {"pathsDock", "windowPanelPathsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Paths"),
+       "window.panel_paths", Qt::Key_unknown},
+      {"historyDock", "windowPanelHistoryAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "History"),
+       "window.panel_history", Qt::Key_unknown},
+      {"propertiesDock", "windowPanelPropertiesAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Properties"),
+       "window.panel_properties", Qt::Key_unknown},
+      {"infoDock", "windowPanelInfoAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Info"),
+       "window.panel_info", Qt::Key_F8},
+      {"colorDock", "windowPanelColorAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color"),
+       "window.panel_color", Qt::Key_F6},
+      {"paletteDock", "windowPanelPaletteAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Palette"),
+       "window.panel_palette", Qt::Key_unknown},
   };
   for (const auto& panel : kPanels) {
     const auto id = QString::fromLatin1(panel.panel_id);
@@ -732,25 +743,24 @@ void MainWindow::install_window_panel_entries() {
     action->setProperty(kWorksWithoutDocumentProperty, true);
     action->setProperty(kWindowPanelIdProperty, id);
     bind_action_text(action, panel.title);
+    register_hotkey(action, QLatin1String(panel.hotkey_id),
+                    panel.default_key == Qt::Key_unknown ? QKeySequence() : QKeySequence(panel.default_key));
     connect(action, &QAction::triggered, this, [this, action, id] {
       toggle_window_panel(id);
       action->setChecked(panel_column_->panel_visible(id));
     });
     window_panel_actions_.push_back(action);
   }
-  // Clone Source (GitHub issue 424) is the Clone Stamp's gear popup, not a panel of the
-  // column: the entry opens it (docs/healing.md "Clone source settings").
-  window_clone_source_action_ = new QAction(window_menu);
-  window_clone_source_action_->setObjectName(QStringLiteral("windowCloneSourceAction"));
-  window_clone_source_action_->setMenuRole(QAction::NoRole);
-  bind_action_text(window_clone_source_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clone Source"));
-  register_hotkey(window_clone_source_action_, "window.clone_source", QKeySequence());
-  // The popup hangs from the canvas's options bar: nothing to show without a document.
-  register_document_action(window_clone_source_action_);
-  // Once the Window menu has closed, so its popup does not take the new one down with it.
-  connect(window_clone_source_action_, &QAction::triggered, this,
-          [this] { QTimer::singleShot(0, this, [this] { show_clone_source_popup(); }); });
-  window_panel_actions_.push_back(window_clone_source_action_);
+  // Brush Settings is the Brush tool's Dynamics popup on the options bar, opened the same way.
+  window_brush_settings_action_ = new QAction(window_menu);
+  window_brush_settings_action_->setObjectName(QStringLiteral("windowBrushSettingsAction"));
+  window_brush_settings_action_->setMenuRole(QAction::NoRole);
+  bind_action_text(window_brush_settings_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush Settings"));
+  register_hotkey(window_brush_settings_action_, "window.brush_settings", QKeySequence());
+  register_document_action(window_brush_settings_action_);
+  connect(window_brush_settings_action_, &QAction::triggered, this,
+          [this] { QTimer::singleShot(0, this, [this] { show_brush_settings_popup(); }); });
+  window_panel_actions_.push_back(window_brush_settings_action_);
   for (const auto* toolbar_name : {"toolPalette", "Options"}) {
     if (auto* toolbar = findChild<QToolBar*>(QLatin1String(toolbar_name)); toolbar != nullptr) {
       window_panel_actions_.push_back(toolbar->toggleViewAction());
@@ -1638,6 +1648,10 @@ void MainWindow::create_docks() {
   add_layer_mask_button_ = new QPushButton(layers_panel);
   auto* add_mask_button = add_layer_mask_button_;
   auto* duplicate_button = new QPushButton(layers_panel);
+  // Hidden until the footer menu or Customize Tool Palette shows them (GitHub issue 470).
+  auto* move_up_button = new QPushButton(layers_panel);
+  auto* move_down_button = new QPushButton(layers_panel);
+  auto* merge_down_button = new QPushButton(layers_panel);
   auto* animation_button = new QPushButton(layers_panel);
   auto* delete_button = new QPushButton(layers_panel);
   add_button->setObjectName(QStringLiteral("layerNewButton"));
@@ -1646,6 +1660,9 @@ void MainWindow::create_docks() {
   add_folder_button->setObjectName(QStringLiteral("layerNewFolderButton"));
   add_mask_button->setObjectName(QStringLiteral("layerAddMaskButton"));
   duplicate_button->setObjectName(QStringLiteral("layerDuplicateButton"));
+  move_up_button->setObjectName(QStringLiteral("layerMoveUpButton"));
+  move_down_button->setObjectName(QStringLiteral("layerMoveDownButton"));
+  merge_down_button->setObjectName(QStringLiteral("layerMergeDownButton"));
   animation_button->setObjectName(QStringLiteral("layerAnimationButton"));
   delete_button->setObjectName(QStringLiteral("layerDeleteButton"));
   add_button->setIcon(simple_icon(QStringLiteral("new")));
@@ -1655,9 +1672,19 @@ void MainWindow::create_docks() {
   styles_button->setIcon(simple_icon(QStringLiteral("badge-fx")));
   add_mask_button->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
+  move_up_button->setIcon(simple_icon(QStringLiteral("layer-up")));
+  move_down_button->setIcon(simple_icon(QStringLiteral("layer-down")));
+  merge_down_button->setIcon(simple_icon(QStringLiteral("merge")));
   animation_button->setIcon(simple_icon(QStringLiteral("film")));
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
-  bind_tooltip(add_button, QT_TR_NOOP("New Layer"));
+  const auto apply_new_layer_tooltip = [add_button] {
+    add_button->setToolTip(tr("New Layer") + QLatin1Char('\n') +
+                           resolve_modifier_names(tr("%ALT%-click to open the New Layer dialog")) +
+                           QLatin1Char('\n') +
+                           resolve_modifier_names(tr("%CTRL%-click to add the layer below the current one")));
+  };
+  apply_new_layer_tooltip();
+  register_retranslation(apply_new_layer_tooltip);
   bind_tooltip(add_folder_button, QT_TR_NOOP("New Folder"));
   bind_tooltip(adjustment_button, QT_TR_NOOP("New Fill or Adjustment Layer"));
   bind_tooltip(styles_button, QT_TR_NOOP("Layer Styles"));
@@ -1672,10 +1699,23 @@ void MainWindow::create_docks() {
   apply_add_mask_tooltip();
   register_retranslation(apply_add_mask_tooltip);
   bind_tooltip(duplicate_button, QT_TR_NOOP("Duplicate Layer"));
+  const auto apply_arrange_tooltips = [move_up_button, move_down_button, merge_down_button] {
+    const auto lines = [](const QString& name, const QString& shift, const QString& alt) {
+      return name + QLatin1Char('\n') + shift + QLatin1Char('\n') + resolve_modifier_names(alt);
+    };
+    move_up_button->setToolTip(lines(tr("Move Layer Up"), tr("Shift-click to bring it to the front"),
+                                     tr("%ALT%-click to move it out of its folder, above it")));
+    move_down_button->setToolTip(lines(tr("Move Layer Down"), tr("Shift-click to send it to the back"),
+                                       tr("%ALT%-click to move it out of its folder, below it")));
+    merge_down_button->setToolTip(lines(tr("Merge Down"), tr("Shift-click to merge the visible layers"),
+                                        tr("%ALT%-click to merge the visible layers into a new layer")));
+  };
+  apply_arrange_tooltips();
+  register_retranslation(apply_arrange_tooltips);
   bind_tooltip(animation_button, QT_TR_NOOP("Animation Preview"));
   bind_tooltip(delete_button, QT_TR_NOOP("Delete Layer"));
-  for (auto* button :
-       {add_button, add_folder_button, add_mask_button, duplicate_button, animation_button, delete_button}) {
+  for (auto* button : {add_button, add_folder_button, add_mask_button, duplicate_button, move_up_button,
+                       move_down_button, merge_down_button, animation_button, delete_button}) {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(38, 34);
@@ -1748,17 +1788,51 @@ void MainWindow::create_docks() {
   layer_buttons->addWidget(styles_button);
   layer_buttons->addWidget(add_mask_button);
   layer_buttons->addWidget(duplicate_button);
+  layer_buttons->addWidget(move_up_button);
+  layer_buttons->addWidget(move_down_button);
+  layer_buttons->addWidget(merge_down_button);
   layer_buttons->addWidget(animation_button);
   layer_buttons->addWidget(delete_button);
   layers_layout->addLayout(layer_buttons);
-  // Alt-click opens the New Layer dialog (#408) and adds a hiding mask (#400).
+  // Alt-click opens the New Layer dialog (#408) and adds a hiding mask (#400); Ctrl-click
+  // (Command-click on macOS) adds the new layer below the current one (#467).
   record_click_modifiers(add_button);
   record_click_modifiers(add_mask_button);
   connect(add_button, &QPushButton::clicked, this, [this, add_button] {
-    if ((take_click_modifiers(add_button) & Qt::AltModifier) != 0) {
+    const auto modifiers = take_click_modifiers(add_button);
+    if ((modifiers & Qt::AltModifier) != 0) {
       add_layer_with_dialog();
     } else {
-      add_layer();
+      add_layer(nullptr, (modifiers & Qt::ControlModifier) != 0);
+    }
+  });
+  // Shift-click moves to the top or bottom of the folder, Alt-click out of it (#470).
+  for (auto* button : {move_up_button, move_down_button, merge_down_button}) {
+    record_click_modifiers(button);
+  }
+  const auto connect_move_button = [this](QPushButton* button, bool up) {
+    connect(button, &QPushButton::clicked, this, [this, button, up] {
+      const auto modifiers = take_click_modifiers(button);
+      if ((modifiers & Qt::AltModifier) != 0) {
+        move_selected_layers_out_of_folder(up);
+      } else if ((modifiers & Qt::ShiftModifier) != 0) {
+        arrange_selected_layers_to_end(up);
+      } else {
+        move_active_layer(up ? 1 : -1);
+      }
+    });
+  };
+  connect_move_button(move_up_button, true);
+  connect_move_button(move_down_button, false);
+  // Shift-click is Merge Visible, Alt-click Merge Visible to New Layer (Photoshop's Ctrl+Alt+Shift+E).
+  connect(merge_down_button, &QPushButton::clicked, this, [this, merge_down_button] {
+    const auto modifiers = take_click_modifiers(merge_down_button);
+    if ((modifiers & Qt::AltModifier) != 0) {
+      merge_visible_to_new_layer();
+    } else if ((modifiers & Qt::ShiftModifier) != 0) {
+      merge_visible_layers();
+    } else {
+      merge_down();
     }
   });
   connect(add_folder_button, &QPushButton::clicked, this, [this] { create_layer_folder(); });
@@ -1777,6 +1851,8 @@ void MainWindow::create_docks() {
   connect(delete_button, &QPushButton::clicked, this, [this] { delete_from_layers_panel(); });
   for (auto* widget : {static_cast<QWidget*>(add_button), static_cast<QWidget*>(add_folder_button),
                        static_cast<QWidget*>(adjustment_button), static_cast<QWidget*>(duplicate_button),
+                       static_cast<QWidget*>(move_up_button), static_cast<QWidget*>(move_down_button),
+                       static_cast<QWidget*>(merge_down_button),
                        static_cast<QWidget*>(animation_button), static_cast<QWidget*>(delete_button)}) {
     register_document_widget(widget);
   }
@@ -1793,6 +1869,9 @@ void MainWindow::create_docks() {
                            {"layer_styles", styles_button, QT_TR_NOOP("Layer Styles")},
                            {"add_mask", add_mask_button, QT_TR_NOOP("Add Layer Mask")},
                            {"duplicate", duplicate_button, QT_TR_NOOP("Duplicate Layer")},
+                           {"move_up", move_up_button, QT_TR_NOOP("Move Layer Up")},
+                           {"move_down", move_down_button, QT_TR_NOOP("Move Layer Down")},
+                           {"merge_down", merge_down_button, QT_TR_NOOP("Merge Down")},
                            {"animation", animation_button, QT_TR_NOOP("Animation Preview")},
                            {"delete", delete_button, QT_TR_NOOP("Delete Layer")}};
   for (const auto& footer : layer_footer_buttons_) {

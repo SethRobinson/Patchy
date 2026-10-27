@@ -363,8 +363,10 @@ bool text_layer_uses_faux_bold(const Layer& layer) {
 
 // `glyphless_fonts` are installed but hold no glyph for the text they are asked for; the dialog
 // says so instead of claiming it cannot locate a font that is sitting in the font list.
+// `substitutions` name the face each one will be drawn in (issue 463), one line each.
 bool confirm_psd_raster_preview_font_substitution(QWidget* parent, const QStringList& missing_fonts,
-                                                  const QStringList& glyphless_fonts) {
+                                                  const QStringList& glyphless_fonts,
+                                                  const QStringList& substitutions) {
   if (missing_fonts.isEmpty() && glyphless_fonts.isEmpty()) {
     return true;
   }
@@ -391,6 +393,9 @@ bool confirm_psd_raster_preview_font_substitution(QWidget* parent, const QString
     dialog.setText(QObject::tr("Patchy can't locate these fonts: %1. Editing this PSD raster preview will substitute "
                                "other fonts. Continue?")
                        .arg(missing_fonts.join(QStringLiteral(", "))));
+  }
+  if (!substitutions.isEmpty()) {
+    dialog.setInformativeText(substitutions.join(QLatin1Char('\n')));
   }
   auto* continue_button = dialog.addButton(QObject::tr("Continue"), QMessageBox::AcceptRole);
   dialog.addButton(QMessageBox::Cancel);
@@ -6369,7 +6374,16 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
         QStringList glyphless_fonts;
         const auto missing_fonts = missing_text_families_for_psd_raster_preview(
             family, initial_rich_text_runs, initial_text, &glyphless_fonts);
-        if (!confirm_psd_raster_preview_font_substitution(this, missing_fonts, glyphless_fonts)) {
+        // Name the face each font will be drawn in: the substitute table's pick (issue 463) or
+        // Qt's fallback, the same substituted_text_family the session uses below.
+        QStringList substitutions;
+        for (const auto& name : missing_fonts + glyphless_fonts) {
+          const auto used = substituted_text_family(name, initial_text);
+          if (used.compare(name, Qt::CaseInsensitive) != 0) {
+            substitutions.push_back(tr("%1 will be replaced with %2.").arg(name, used));
+          }
+        }
+        if (!confirm_psd_raster_preview_font_substitution(this, missing_fonts, glyphless_fonts, substitutions)) {
           statusBar()->showMessage(tr("Canceled text edit"));
           return;
         }

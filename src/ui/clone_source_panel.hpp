@@ -5,7 +5,7 @@
 // rotation and Flip Horizontal/Vertical with a Reset, and the overlay preview with its
 // opacity. It shows what MainWindow hands it through set_state (signals blocked) and
 // reports each edit through its signals; MainWindow applies them to the active canvas.
-// The options bar's gear popup shows it; Window > Clone Source opens that popup.
+// The options bar's gear popup is the only place that shows it.
 
 #include "core/clone_source_transform.hpp"
 

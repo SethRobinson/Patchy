@@ -13218,6 +13218,26 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Кнопка режима экрана</translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Предлагается: %1 (та же ширина символов)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Предлагается: %1 (похожий рисунок)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Предлагается: %1 (тоже шрифт с засечками)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Предлагается: %1 (тоже шрифт без засечек)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Предлагается: %1 (тоже моноширинный шрифт)</translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation>углы слишком близко друг к другу.</translation>
     </message>
@@ -27434,10 +27454,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Параметры источника клонирования: источники, сдвиг, масштаб, поворот, отражение и наложение</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Источник клонирования</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Быстрый экспорт в PNG</translation>
     </message>
@@ -27484,6 +27500,86 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Interface scale presets</source>
         <translation>Готовые значения масштаба интерфейса</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 будет заменён на %2.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Настройки кисти</translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>На &amp;передний план</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Перемещает выбранные слои в верх их папки</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>На &amp;задний план</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Перемещает выбранные слои в низ их папки, над фоновым слоем</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>Щелкните с %ALT%, чтобы открыть диалог «Новый слой»</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>Щелкните с %CTRL%, чтобы добавить слой под текущим</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Переместить слой вверх</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Щелкните с Shift, чтобы перенести на передний план</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>Щелкните с %ALT%, чтобы вынести из папки над ней</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Переместить слой вниз</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Щелкните с Shift, чтобы перенести на задний план</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>Щелкните с %ALT%, чтобы вынести из папки под ней</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Щелкните с Shift, чтобы объединить видимые слои</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>Щелкните с %ALT%, чтобы объединить видимые слои в новый слой</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>На передний план</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>На задний план</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>Выбранные слои не находятся в папке</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Вынести слой из папки</translation>
     </message>
     <message>
         <source>&amp;Perspective Planes...</source>

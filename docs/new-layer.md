@@ -16,8 +16,19 @@ Tests: `ui_new_layer_dialog_*`.
 ## Footer modifier clicks
 
 - Alt-click on the footer's New Layer button (`layerNewButton`) opens the New Layer dialog (#408): `add_layer_with_dialog`.
+- Ctrl-click (Command-click on macOS) on New Layer adds the layer below the active one (#467): `add_layer(nullptr, true)`, through `insert_layer_below_anchor` (the lowest selected layer without an active one). Under a Background it goes above as usual; under a clipped layer it is clipped too, so the clipping group keeps its base. Alt wins over Ctrl. The tooltip names both modifier clicks through `resolve_modifier_names` (a retranslation callback).
 - Alt-click on Add Layer Mask (`layerAddMaskButton`) calls `add_layer_mask(true)` (#400): a hide-all mask (full-canvas 0, default color 0), or with a selection a mask that hides it (the selection coverage inverted, default color 255). One undo step, like the plain click's reveal-all and reveal-selection masks.
 - Ctrl-click (Command-click on macOS: `Qt::ControlModifier`) on Add Layer Mask runs Layer > Vector Mask > Reveal All instead (#447): `add_vector_mask(hide_all, false)`, where Alt also held makes it Hide All. The button's enabled state stays `can_add_layer_mask`'s. Its tooltip names both modifier clicks through `resolve_modifier_names`, so it is set by a retranslation callback rather than bound.
-- `clicked` carries no modifiers, so both buttons record them off their own mouse events (`record_click_modifiers`/`take_click_modifiers`, `src/ui/click_modifier_recorder.hpp`, shared with the folder disclosure arrow). A keyboard or programmatic `click()` is a plain click.
+- `clicked` carries no modifiers, so the buttons record them off their own mouse events (`record_click_modifiers`/`take_click_modifiers`, `src/ui/click_modifier_recorder.hpp`, shared with the folder disclosure arrow). A keyboard or programmatic `click()` is a plain click.
 
-Tests: `ui_new_layer_button_alt_click_opens_new_layer_dialog`, `ui_layer_add_mask_button_alt_click_hides_all_or_selection`, `ui_layer_add_mask_button_ctrl_click_adds_vector_mask`.
+Tests: `ui_new_layer_button_alt_click_opens_new_layer_dialog`, `ui_new_layer_button_ctrl_click_adds_below`, `ui_layer_add_mask_button_alt_click_hides_all_or_selection`, `ui_layer_add_mask_button_ctrl_click_adds_vector_mask`.
+
+## Optional arrange and merge buttons
+
+Three footer buttons start hidden (#470; `kLayerFooterButtonIdsHiddenByDefault`, stored when shown: [tool-palette.md](tool-palette.md#customizing-the-palette)), so the footer keeps its one row. Alt wins over Shift; they are document widgets, and each command reports its own refusals.
+
+- `layerMoveUpButton` / `layerMoveDownButton`: Move Layer Up / Down (`move_active_layer`); Shift-click Bring to Front / Send to Back (`arrange_selected_layers_to_end`, core `arrange_layers_to_end`: the top or bottom of the layer's own folder, never under a Background, which is left out of the selection); Alt-click `move_selected_layers_out_of_folder` (core `move_layers_out_of_folder`: one level out, just above or below the folder; a layer at the root stays, with a status message).
+- `layerMergeDownButton`: Merge Down; Shift-click Merge Visible; Alt-click Merge Visible to New Layer (Photoshop's Ctrl+Alt+Shift+E).
+- Layer > Arrange > Bring to Front (`layer.bring_to_front`, Shift+Ctrl+]) and Send to Back (`layer.send_to_back`, Shift+Ctrl+[) run the same command (#468). Ctrl+] and Ctrl+[ stay Image > Rotate, so Move Layer Up / Down keep no default key.
+
+Tests: `ui_layer_footer_move_and_merge_buttons_follow_modifiers`, `ui_layer_footer_optional_buttons_start_hidden`, `ui_layer_arrange_bring_to_front_and_send_to_back`, core `arrange_layers_to_end_moves_within_each_folder`, `move_layers_out_of_folder_lands_beside_the_folder`.

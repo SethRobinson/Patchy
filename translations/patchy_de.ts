@@ -13181,6 +13181,26 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Schaltfläche „Bildschirmmodus“</translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Vorschlag: %1 (gleiche Zeichenbreiten)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Vorschlag: %1 (ähnliches Design)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Vorschlag: %1 (ebenfalls eine Serifenschrift)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Vorschlag: %1 (ebenfalls eine serifenlose Schrift)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Vorschlag: %1 (ebenfalls eine dicktengleiche Schrift)</translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation>die Ecken liegen zu dicht beieinander.</translation>
     </message>
@@ -27358,10 +27378,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung, Spiegelung und Überlagerung</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Kopierquelle</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Schnellexport als PNG</translation>
     </message>
@@ -27408,6 +27424,86 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Interface scale presets</source>
         <translation>Vorgaben für die Oberflächenskalierung</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 wird durch %2 ersetzt.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Pinseleinstellungen</translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>In den &amp;Vordergrund</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Verschiebt die ausgewählten Ebenen ganz nach oben in ihrem Ordner</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>In den &amp;Hintergrund</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Verschiebt die ausgewählten Ebenen ganz nach unten in ihrem Ordner, oberhalb einer Hintergrundebene</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>%ALT%+Klicken öffnet den Dialog „Neue Ebene“</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>%CTRL%+Klicken fügt die Ebene unter der aktuellen ein</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Ebene nach oben verschieben</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Umschalt+Klicken bringt sie in den Vordergrund</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>%ALT%+Klicken verschiebt sie aus ihrem Ordner, darüber</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Ebene nach unten verschieben</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Umschalt+Klicken bringt sie in den Hintergrund</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>%ALT%+Klicken verschiebt sie aus ihrem Ordner, darunter</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Umschalt+Klicken reduziert die sichtbaren Ebenen</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>%ALT%+Klicken reduziert die sichtbaren Ebenen auf eine neue Ebene</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>In den Vordergrund</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>In den Hintergrund</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>Die ausgewählten Ebenen liegen in keinem Ordner</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Ebene aus Ordner verschieben</translation>
     </message>
     <message>
         <source>&amp;Perspective Planes...</source>

@@ -902,8 +902,9 @@ void ui_layer_mask_thumbnail_right_click_opens_mask_menu() {
                      QStringLiteral("layerDeleteMaskAction"), QStringLiteral("layerApplyMaskAction"),
                      QStringLiteral("-"), QStringLiteral("layerMaskThumbnailSelectAction"),
                      QStringLiteral("layerMaskThumbnailAddAction"), QStringLiteral("layerMaskThumbnailSubtractAction"),
-                     QStringLiteral("layerMaskThumbnailIntersectAction")}));
+                     QStringLiteral("layerMaskThumbnailIntersectAction"), QStringLiteral("-"), QString()}));
   CHECK(seen.texts.value(0) == QStringLiteral("Disable Layer Mask"));
+  CHECK(seen.texts.value(11) == QStringLiteral("Export"));  // the layer export submenu (#462)
   const auto* masked = find_named_layer(window, "Masked");
   CHECK(masked != nullptr && masked->mask().has_value() && masked->mask()->disabled);
   seen = mask_menu("layerMaskThumbnailToggleAction");

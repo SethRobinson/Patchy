@@ -1179,8 +1179,34 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // Color submenu with it.)
   auto* layer_arrange_menu = layer_menu->addMenu(tr("Arran&ge"));
   layer_arrange_menu->setObjectName(QStringLiteral("layerArrangeMenu"));
+  // Bring to Front / Send to Back (GitHub issue 468) on Photoshop's Shift+Ctrl+] and [; its
+  // Ctrl+] and [ stay Image > Rotate, so Move Layer Up / Down keep no default key.
+  layer_bring_to_front_action_ = layer_arrange_menu->addAction(tr("Bring to &Front"));
+  layer_bring_to_front_action_->setObjectName(QStringLiteral("layerBringToFrontAction"));
+  layer_bring_to_front_action_->setMenuRole(QAction::NoRole);
+  bind_action_text(layer_bring_to_front_action_, QT_TR_NOOP("Bring to &Front"));
+  bind_translated_status_tip(layer_bring_to_front_action_,
+                             QT_TR_NOOP("Move the selected layers to the top of their folder"));
+  apply_bound_translation(layer_bring_to_front_action_);
   auto* layer_up_action = layer_arrange_menu->addAction(tr("Move Layer &Up"));
   auto* layer_down_action = layer_arrange_menu->addAction(tr("Move Layer &Down"));
+  layer_up_action->setObjectName(QStringLiteral("layerMoveUpAction"));
+  layer_down_action->setObjectName(QStringLiteral("layerMoveDownAction"));
+  layer_send_to_back_action_ = layer_arrange_menu->addAction(tr("Send to &Back"));
+  layer_send_to_back_action_->setObjectName(QStringLiteral("layerSendToBackAction"));
+  layer_send_to_back_action_->setMenuRole(QAction::NoRole);
+  bind_action_text(layer_send_to_back_action_, QT_TR_NOOP("Send to &Back"));
+  bind_translated_status_tip(layer_send_to_back_action_,
+                             QT_TR_NOOP("Move the selected layers to the bottom of their folder, above a Background"));
+  apply_bound_translation(layer_send_to_back_action_);
+  register_hotkey(layer_bring_to_front_action_, "layer.bring_to_front",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_BracketRight));
+  register_hotkey(layer_send_to_back_action_, "layer.send_to_back",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_BracketLeft));
+  connect(layer_bring_to_front_action_, &QAction::triggered, this, [this] { arrange_selected_layers_to_end(true); });
+  connect(layer_send_to_back_action_, &QAction::triggered, this, [this] { arrange_selected_layers_to_end(false); });
+  register_document_action(layer_bring_to_front_action_);
+  register_document_action(layer_send_to_back_action_);
   // Quarter and half turns of the selected layers (GitHub issue 139) and the flips, in
   // their own submenu like Image > Rotate & Flip.
   auto* layer_rotate_flip_menu = layer_menu->addMenu(tr("Ro&tate && Flip"));

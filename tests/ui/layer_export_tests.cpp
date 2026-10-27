@@ -1,6 +1,7 @@
 // The layer row context menu's size and submenus (#461) and the layer export actions in its
 // Export submenu (#462): Quick Export as PNG and Export As....
 #include "core/layer_metadata.hpp"
+#include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
@@ -24,6 +25,8 @@
 #include <QStringList>
 #include <QTest>
 #include <QTimer>
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <functional>
@@ -223,44 +226,66 @@ void ui_layer_context_menu_fits_short_screens() {
   CHECK(folder.export_texts.value(3) == QStringLiteral("Duplicate Group to Document..."));
 }
 
-// The pixel thumbnail's own menu carries the same Export submenu before Thumbnail Size.
-void ui_layer_thumbnail_menu_offers_layer_export() {
-  patchy::ui::MainWindow window;
-  patchy::Document built(80, 60, patchy::PixelFormat::rgba8());
-  built.add_layer(solid_layer(built, "Paper", QRect(0, 0, 80, 60), QColor(Qt::white)));
-  built.add_layer(solid_layer(built, "Spot", QRect(10, 10, 20, 20), QColor(200, 40, 40)));
-  window.add_document_session(std::move(built), QStringLiteral("Thumbnail Export"));
-  show_window(window);
-  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
-  CHECK(layers != nullptr);
-  if (layers == nullptr) {
-    return;
-  }
-  QString menu_name;
-  QStringList entries;
+struct ThumbnailMenuSeen {
+  QString name;
+  QStringList entries;  // separators as "-", submenus by their object name
   QStringList export_entries;
+};
+
+// Right-clicks `part` of the named row and reads the short thumbnail menu. With `artifact`
+// it saves the menu with its Export submenu open over the window.
+ThumbnailMenuSeen read_thumbnail_menu(patchy::ui::MainWindow& window, QListWidget& layers, const QString& row_name,
+                                      const QString& part, const std::string& artifact = std::string()) {
+  ThumbnailMenuSeen seen;
   QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || !menu->isVisible()) {
         continue;
       }
-      menu_name = menu->objectName();
+      seen.name = menu->objectName();
+      QAction* export_entry = nullptr;
       for (auto* action : menu->actions()) {
-        entries.push_back(action->isSeparator() ? QStringLiteral("-")
-                                                : (action->menu() != nullptr ? action->menu()->objectName()
-                                                                             : action->objectName()));
+        seen.entries.push_back(action->isSeparator() ? QStringLiteral("-")
+                                                     : (action->menu() != nullptr ? action->menu()->objectName()
+                                                                                  : action->objectName()));
         if (action->menu() != nullptr && action->menu()->objectName() == QStringLiteral("layerThumbnailExportMenu")) {
-          export_entries = action_names(*action->menu());
+          seen.export_entries = action_names(*action->menu());
+          export_entry = action;
         }
       }
-      save_widget_artifact("issue462_thumbnail_menu", *menu);
+      if (!artifact.empty() && export_entry != nullptr) {
+        save_widget_artifact(artifact, *menu);
+        menu->setActiveAction(export_entry);
+        QTest::keyClick(menu, Qt::Key_Right);
+        QApplication::processEvents();
+        auto* submenu = export_entry->menu();
+        if (submenu->isVisible()) {
+          const auto origin = window.mapToGlobal(QPoint(0, 0));
+          QRect crop;
+          for (QWidget* popup : {static_cast<QWidget*>(menu), static_cast<QWidget*>(submenu)}) {
+            crop = crop.united(QRect(popup->mapToGlobal(QPoint(0, 0)) - origin, popup->size()));
+          }
+          crop = crop.adjusted(-12, -12, 12, 12);
+          QImage shot(crop.size(), QImage::Format_ARGB32_Premultiplied);
+          shot.fill(window.palette().color(QPalette::Window));
+          {
+            QPainter painter(&shot);
+            painter.drawPixmap(-crop.topLeft(), window.grab());
+            for (QWidget* popup : {static_cast<QWidget*>(menu), static_cast<QWidget*>(submenu)}) {
+              painter.drawPixmap(popup->mapToGlobal(QPoint(0, 0)) - origin - crop.topLeft(), popup->grab());
+            }
+          }
+          save_image_artifact(artifact + "_export_open", shot);
+          submenu->close();
+        }
+      }
       menu->close();
       return;
     }
   });
-  auto* row = layers->itemWidget(require_layer_item(*layers, QStringLiteral("Spot")));
-  auto* thumbnail = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerContentThumbnail")) : nullptr;
+  auto* row = layers.itemWidget(require_layer_item(layers, row_name));
+  auto* thumbnail = row != nullptr ? row->findChild<QWidget*>(part) : nullptr;
   CHECK(thumbnail != nullptr);
   if (thumbnail != nullptr) {
     const auto local = thumbnail->rect().center();
@@ -268,11 +293,56 @@ void ui_layer_thumbnail_menu_offers_layer_export() {
     QApplication::sendEvent(thumbnail, &event);
   }
   QApplication::processEvents();
-  CHECK(menu_name == QStringLiteral("layerThumbnailMenu"));
-  CHECK(entries.mid(4) == (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu"),
-                                       QStringLiteral("-"), QStringLiteral("layerThumbnailSizeMenu")}));
-  CHECK(export_entries ==
-        (QStringList{QStringLiteral("layerQuickExportPngAction"), QStringLiteral("layerExportAsAction")}));
+  return seen;
+}
+
+// The pixel, layer mask and vector mask thumbnails' own menus carry the same Export submenu
+// (#462): before Thumbnail Size on a pixel thumbnail, last on a mask thumbnail.
+void ui_layer_thumbnail_menu_offers_layer_export() {
+  patchy::ui::MainWindow window;
+  patchy::Document built(80, 60, patchy::PixelFormat::rgba8());
+  built.add_layer(solid_layer(built, "Paper", QRect(0, 0, 80, 60), QColor(Qt::white)));
+  built.add_layer(solid_layer(built, "Spot", QRect(10, 10, 20, 20), QColor(200, 40, 40)));
+  auto masked = solid_layer(built, "Masked", QRect(0, 0, 80, 60), QColor(40, 160, 60));
+  patchy::PixelBuffer mask(80, 60, patchy::PixelFormat::gray8());
+  for (int y = 0; y < mask.height(); ++y) {
+    auto row = mask.row(y);
+    std::fill(row.begin(), row.end(), y < 30 ? std::uint8_t{255} : std::uint8_t{0});
+  }
+  masked.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 80, 60}, std::move(mask), 0, false});
+  built.add_layer(std::move(masked));
+  auto vector_masked = solid_layer(built, "Vector Masked", QRect(40, 30, 30, 20), QColor(40, 60, 200));
+  vector_masked.set_vector_mask(patchy::LayerVectorMask{});
+  built.add_layer(std::move(vector_masked));
+  window.add_document_session(std::move(built), QStringLiteral("Thumbnail Export"));
+  show_window(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  if (layers == nullptr) {
+    return;
+  }
+  const QStringList both_actions{QStringLiteral("layerQuickExportPngAction"), QStringLiteral("layerExportAsAction")};
+
+  auto seen = read_thumbnail_menu(window, *layers, QStringLiteral("Spot"), QStringLiteral("layerContentThumbnail"),
+                                  "issue462_thumbnail_menu");
+  CHECK(seen.name == QStringLiteral("layerThumbnailMenu"));
+  CHECK(seen.entries.mid(4) == (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu"),
+                                            QStringLiteral("-"), QStringLiteral("layerThumbnailSizeMenu")}));
+  CHECK(seen.export_entries == both_actions);
+
+  seen = read_thumbnail_menu(window, *layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),
+                             "issue462_mask_thumbnail_menu");
+  CHECK(seen.name == QStringLiteral("layerMaskThumbnailMenu"));
+  CHECK(seen.entries.size() >= 2 && seen.entries.mid(seen.entries.size() - 2) ==
+                                        (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu")}));
+  CHECK(seen.export_entries == both_actions);
+
+  seen = read_thumbnail_menu(window, *layers, QStringLiteral("Vector Masked"),
+                             QStringLiteral("layerVectorMaskThumbnail"));
+  CHECK(seen.name == QStringLiteral("layerVectorMaskThumbnailMenu"));
+  CHECK(seen.entries.size() >= 2 && seen.entries.mid(seen.entries.size() - 2) ==
+                                        (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu")}));
+  CHECK(seen.export_entries == both_actions);
 }
 
 // A document for the export tests: a small red layer with a Unicode name, the same name

@@ -13164,6 +13164,26 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27276,10 +27296,6 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27325,6 +27341,86 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Interface scale presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

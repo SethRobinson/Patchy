@@ -13218,6 +13218,26 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Przycisk trybu ekranu</translation>
     </message>
     <message>
+        <source>Suggested: %1 (same character widths)</source>
+        <translation>Sugerowana: %1 (te same szerokości znaków)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (similar design)</source>
+        <translation>Sugerowana: %1 (podobny krój)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a serif font)</source>
+        <translation>Sugerowana: %1 (również krój szeryfowy)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a sans-serif font)</source>
+        <translation>Sugerowana: %1 (również krój bezszeryfowy)</translation>
+    </message>
+    <message>
+        <source>Suggested: %1 (also a monospaced font)</source>
+        <translation>Sugerowana: %1 (również krój o stałej szerokości)</translation>
+    </message>
+    <message>
         <source>the corners are too close together.</source>
         <translation>narożniki są zbyt blisko siebie.</translation>
     </message>
@@ -27434,10 +27454,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Ustawienia źródła klonowania: źródła, przesunięcie, skala, obrót, odbicie i nakładka</translation>
     </message>
     <message>
-        <source>Clone Source</source>
-        <translation>Źródło klonowania</translation>
-    </message>
-    <message>
         <source>Quick Export as PNG</source>
         <translation>Szybki eksport do PNG</translation>
     </message>
@@ -27484,6 +27500,86 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Interface scale presets</source>
         <translation>Ustawienia skali interfejsu</translation>
+    </message>
+    <message>
+        <source>%1 will be replaced with %2.</source>
+        <translation>%1 zostanie zastąpiona przez %2.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Ustawienia pędzla</translation>
+    </message>
+    <message>
+        <source>Bring to &amp;Front</source>
+        <translation>Przenieś na &amp;wierzch</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the top of their folder</source>
+        <translation>Przenosi zaznaczone warstwy na górę ich folderu</translation>
+    </message>
+    <message>
+        <source>Send to &amp;Back</source>
+        <translation>Przenieś na &amp;spód</translation>
+    </message>
+    <message>
+        <source>Move the selected layers to the bottom of their folder, above a Background</source>
+        <translation>Przenosi zaznaczone warstwy na dół ich folderu, nad warstwę tła</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to open the New Layer dialog</source>
+        <translation>Kliknij z %ALT%, aby otworzyć okno Nowa warstwa</translation>
+    </message>
+    <message>
+        <source>%CTRL%-click to add the layer below the current one</source>
+        <translation>Kliknij z %CTRL%, aby dodać warstwę pod bieżącą</translation>
+    </message>
+    <message>
+        <source>Move Layer Up</source>
+        <translation>Przesuń warstwę w górę</translation>
+    </message>
+    <message>
+        <source>Shift-click to bring it to the front</source>
+        <translation>Kliknij z Shift, aby przenieść ją na wierzch</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, above it</source>
+        <translation>Kliknij z %ALT%, aby wyjąć ją z folderu nad niego</translation>
+    </message>
+    <message>
+        <source>Move Layer Down</source>
+        <translation>Przesuń warstwę w dół</translation>
+    </message>
+    <message>
+        <source>Shift-click to send it to the back</source>
+        <translation>Kliknij z Shift, aby przenieść ją na spód</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to move it out of its folder, below it</source>
+        <translation>Kliknij z %ALT%, aby wyjąć ją z folderu pod niego</translation>
+    </message>
+    <message>
+        <source>Shift-click to merge the visible layers</source>
+        <translation>Kliknij z Shift, aby scalić widoczne warstwy</translation>
+    </message>
+    <message>
+        <source>%ALT%-click to merge the visible layers into a new layer</source>
+        <translation>Kliknij z %ALT%, aby scalić widoczne warstwy w nową warstwę</translation>
+    </message>
+    <message>
+        <source>Bring to front</source>
+        <translation>Przenieś na wierzch</translation>
+    </message>
+    <message>
+        <source>Send to back</source>
+        <translation>Przenieś na spód</translation>
+    </message>
+    <message>
+        <source>The selected layers are not in a folder</source>
+        <translation>Zaznaczone warstwy nie są w folderze</translation>
+    </message>
+    <message>
+        <source>Move layer out of folder</source>
+        <translation>Wyjmij warstwę z folderu</translation>
     </message>
     <message>
         <source>&amp;Perspective Planes...</source>
