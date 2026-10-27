@@ -26532,14 +26532,6 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>Aplicar</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>Mostrar superposición</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Muestra el origen bajo el pincel antes de pintar</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Mover: arrastrar mueve, Mayús+arrastrar lo mantiene horizontal o vertical, %ALT%+arrastrar duplica. %CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona un rectángulo, igual que arrastrar en un espacio vacío con Selección automática activada.</translation>
     </message>

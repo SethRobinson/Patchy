@@ -2682,10 +2682,6 @@ void MainWindow::apply_clone_overlay_settings(bool shown, int opacity) {
 }
 
 void MainWindow::refresh_clone_source_panel() {
-  if (clone_overlay_check_ != nullptr) {
-    const QSignalBlocker blocker(clone_overlay_check_);
-    clone_overlay_check_->setChecked(current_clone_overlay_shown_);
-  }
   if (clone_source_panel_ == nullptr) {
     return;
   }

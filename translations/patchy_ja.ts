@@ -26457,14 +26457,6 @@ The open document keeps its blend modes either way.</source>
         <translation>適用</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>オーバーレイを表示</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>ペイントする前にブラシの下にソースをプレビューします</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>移動: ドラッグで移動、Shift+ドラッグで水平または垂直に移動、%ALT%+ドラッグで複製します。%CTRL%+クリックでレイヤーを選択、Shift+クリックで切り替えます。%CTRL%+ドラッグで矩形選択します。自動選択がオンなら空いた場所のドラッグでも選択します。</translation>
     </message>
