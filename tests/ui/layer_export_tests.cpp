@@ -20,6 +20,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPixmap>
 #include <QListWidget>
 #include <QMenu>
@@ -640,6 +641,11 @@ struct FileDialogAcceptor {
         dialog->setDirectory(path);
       }
       dialog->selectFile(path);
+      // selectFile leaves the name box alone while it has focus (it does on macOS), and accept
+      // reads that box: put the path there directly.
+      if (auto* name_edit = dialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit")); name_edit != nullptr) {
+        name_edit->setText(path);
+      }
       static_cast<QDialog*>(dialog)->accept();  // QFileDialog::accept is protected
     });
     poll.start(10);

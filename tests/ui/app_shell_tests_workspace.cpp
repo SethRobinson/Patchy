@@ -718,8 +718,10 @@ void ui_open_recent_menu_remove_keeps_place() {
 // With no document open (the Home screen), every menu-bar command that needs a
 // document is disabled: Image > Crop to Selection (Advanced) and Layer > Edit
 // Adjustment crashed there, and Layer > Smart Objects stayed enabled (GitHub
-// issue 162). Only commands that work without a document stay live.
+// issue 162). Only commands that work without a document stay live. An earlier test can
+// leave a file path as clipboard text, which rightly enables Paste here, so start empty.
 void ui_empty_workspace_disables_document_commands() {
+  QApplication::clipboard()->clear();
   patchy::ui::MainWindow window;
   show_window_empty(window);
   const auto command_id = [&window](const QAction* action) {

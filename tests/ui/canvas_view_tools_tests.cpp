@@ -7921,7 +7921,8 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   const auto layer_action_buttons = window.findChildren<QAbstractButton*>();
   int visible_layer_action_buttons = 0;
   for (const auto* button : layer_action_buttons) {
-    if (button->property("layerActionButton").toBool()) {
+    // Move Up, Move Down and Merge Down are optional and hidden by default (GitHub issue 470).
+    if (button->property("layerActionButton").toBool() && !button->isHidden()) {
       ++visible_layer_action_buttons;
       // Full width in one footer row; a narrow column narrows them (GitHub issue 199).
       CHECK(button->maximumWidth() >= 40);

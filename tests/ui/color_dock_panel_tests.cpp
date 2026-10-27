@@ -1122,6 +1122,14 @@ void ui_color_panel_cmyk_sliders_set_foreground() {
 void ui_color_panel_field_drag_keeps_per_move_work_small() {
   const QString foreground_key = QStringLiteral("tools/foregroundColor");
   SettingsValueRestorer foreground_setting(foreground_key);
+  // The release check needs the default foreground-to-background gradient; an earlier test
+  // can leave custom stops chosen.
+  SettingsValueRestorer custom_stops_setting(QStringLiteral("tools/gradientUseCustomStops"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), false);
+    settings.sync();
+  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
