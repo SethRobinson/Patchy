@@ -467,6 +467,44 @@ void perspective_planes_lift_takes_the_layer_content_out_and_back() {
   CHECK(far.has_value() && near(far->x, geometry.width, 1.0e-9) && near(far->y, geometry.height, 1.0e-9));
 }
 
+// Clone's Sample choice: Current Layer reads the edited layer (empty here), Current & Below
+// adds the layers under it, All Layers the ones over it too; the read still stays inside the
+// source plane.
+void perspective_planes_clone_samples_the_chosen_layers() {
+  const PlaneQuad flat{{{10.0, 10.0}, {210.0, 10.0}, {210.0, 190.0}, {10.0, 190.0}}};
+  const auto plane = geometry_of(flat);
+  const auto run = [&](patchy::SampleLayers mode) {
+    PerspectiveCanvas canvas(solid(240, 200, {0, 0, 0, 0}), Rect{0, 0, 240, 200}, 240, 200);
+    PixelBuffer above(240, 200, PixelFormat::rgba8());
+    above.clear(0);
+    for (int y = 100; y < 130; ++y) {
+      for (int x = 80; x < 100; ++x) {
+        auto* p = above.pixel(x, y);
+        p[2] = 255;
+        p[3] = 255;
+      }
+    }
+    canvas.set_sample_context(solid(240, 200, {200, 30, 30, 255}), above);
+    canvas.set_sample_layers(mode);
+    PerspectiveStrokeSetup setup;
+    setup.kind = PerspectiveStrokeKind::Clone;
+    setup.plane = plane;
+    setup.brush.size = 30.0;
+    setup.brush.hardness = 100;
+    setup.source_plane = plane;
+    setup.source_offset = {-60.0, 20.0};
+    canvas.begin_stroke(setup);
+    canvas.stroke_to({140.0, 80.0});
+    canvas.end_stroke();
+    const auto* p = canvas.edits().pixel(150, 90);
+    return std::array<int, 4>{p[0], p[1], p[2], p[3]};
+  };
+  CHECK(run(patchy::SampleLayers::CurrentLayer)[3] == 0);
+  CHECK((run(patchy::SampleLayers::CurrentAndBelow) == std::array<int, 4>{200, 30, 30, 255}));
+  // The source point (90, 110) lies under the layer above: All Layers sees it.
+  CHECK((run(patchy::SampleLayers::AllLayers) == std::array<int, 4>{0, 0, 255, 255}));
+}
+
 void perspective_planes_results_are_deterministic() {
   const auto run = [] {
     const auto geometry = geometry_of(kTrapezoid);
@@ -516,6 +554,7 @@ std::vector<patchy::test::TestCase> perspective_planes_tests() {
       {"perspective_planes_sampler_filters_strong_foreshortening", perspective_planes_sampler_filters_strong_foreshortening},
       {"perspective_planes_lift_takes_the_layer_content_out_and_back",
        perspective_planes_lift_takes_the_layer_content_out_and_back},
+      {"perspective_planes_clone_samples_the_chosen_layers", perspective_planes_clone_samples_the_chosen_layers},
       {"perspective_planes_results_are_deterministic", perspective_planes_results_are_deterministic},
   };
 }

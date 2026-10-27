@@ -378,6 +378,24 @@ QJSValue ScriptPerspectiveObject::stroke(const QJSValue& layer, const QJSValue& 
              static_cast<std::uint8_t>(parsed.blue()), 255};
   }
   const bool onto_layer = options.property(QStringLiteral("target")).toString() == QLatin1String("layer");
+  // Clone's Sample choice, as the retouch tools' tokens; scripts default to the layer alone.
+  SampleLayers sample = SampleLayers::CurrentLayer;
+  if (clone && options.hasProperty(QStringLiteral("sample"))) {
+    const auto token = options.property(QStringLiteral("sample")).toString();
+    if (token == QLatin1String("currentAndBelow")) {
+      sample = SampleLayers::CurrentAndBelow;
+    } else if (token == QLatin1String("all")) {
+      sample = SampleLayers::AllLayers;
+    } else if (token != QLatin1String("current")) {
+      host_.throw_js_error(
+          ScriptEngineHost::tr("perspective.clone: sample is \"current\", \"currentAndBelow\" or \"all\"."));
+      return QJSValue();
+    }
+  }
+  std::pair<PixelBuffer, PixelBuffer> sample_layers;
+  if (sample != SampleLayers::CurrentLayer) {
+    sample_layers = host_.perspective_sample_layers(target->session_id(), target->layer_id());
+  }
   const auto written = host_.perspective_edit(
       target->session_id(), target->layer_id(), *quad, onto_layer,
       [&](PerspectiveCanvas& canvas, const PlaneGeometry& geometry, QString& error) {
@@ -402,6 +420,10 @@ QJSValue ScriptPerspectiveObject::stroke(const QJSValue& layer, const QJSValue& 
           }
           setup.source_plane = *source_geometry;
           setup.source_offset = {source_point->x - first->x, source_point->y - first->y};
+        }
+        if (sample != SampleLayers::CurrentLayer) {
+          canvas.set_sample_context(std::move(sample_layers.first), std::move(sample_layers.second));
+          canvas.set_sample_layers(sample);
         }
         canvas.begin_stroke(setup);
         for (const auto& point : points) {
@@ -434,6 +456,16 @@ bool ScriptEngineHost::set_perspective_planes(std::int64_t session_id, std::vect
   }
   session->perspective_planes = std::move(planes);
   return true;
+}
+
+std::pair<PixelBuffer, PixelBuffer> ScriptEngineHost::perspective_sample_layers(std::int64_t session_id,
+                                                                                LayerId layer_id) {
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || window_.active_session() != session) {
+    return {};
+  }
+  auto context = window_.perspective_sample_context(layer_id);
+  return {std::move(context.below), std::move(context.above)};
 }
 
 bool ScriptEngineHost::perspective_layer_can_place(std::int64_t session_id, LayerId layer_id) {

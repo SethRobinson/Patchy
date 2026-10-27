@@ -13,6 +13,7 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -126,7 +127,9 @@ public:
     }
     composite_image_ = QImage(canvas_.composite().data().data(), canvas_.width(), canvas_.height(),
                               static_cast<qsizetype>(canvas_.composite().stride_bytes()), QImage::Format_RGBA8888);
-    // The other layers, drawn behind: built once by the caller, never per repaint.
+    canvas_.set_sample_context(backdrop_, std::move(input.above));
+    canvas_.set_sample_layers(input.sample_layers);
+    // The layers below, drawn behind: built once by the caller, never per repaint.
     if (backdrop_.width() == canvas_.width() && backdrop_.height() == canvas_.height() &&
         backdrop_.format() == PixelFormat::rgba8()) {
       const auto& backdrop = std::as_const(backdrop_);
@@ -222,19 +225,31 @@ public:
     }
     switch (tool_) {
       case WorkspaceTool::CreatePlane:
-        if (points_.empty()) {
-          if (suggest_place_layer_ && planes_.empty()) {
-            return QObject::tr("Click the four corners of the surface where this layer should go, then press Place "
-                               "Layer.");
+        if (create_problem_ != PlaneQuadProblem::None && points_.size() >= 3) {
+          return QObject::tr("This shape cannot be a plane: %1").arg(quad_problem_text(create_problem_));
+        }
+        if (!has_usable_plane()) {
+          // Step 1: nothing can be edited until there is a target plane.
+          if (points_.empty()) {
+            return suggest_place_layer_
+                       ? QObject::tr("Step 1 of 2: set the target plane. Click the four corners of the surface where "
+                                     "this layer should go.")
+                       : QObject::tr("Step 1 of 2: set the target plane. Click the four corners of a flat surface, such "
+                                     "as a wall, a floor or the side of a box.");
           }
-          return QObject::tr("Click the first corner of a flat surface, such as a wall, a floor or the side of a box.");
+          if (points_.size() < 3) {
+            return QObject::tr("Step 1 of 2: click the next corner, going around the surface in order. Backspace "
+                               "removes the last corner.");
+          }
+          return QObject::tr("Step 1 of 2: click the last corner to finish the target plane.");
+        }
+        if (points_.empty()) {
+          return QObject::tr("Click the first corner of another flat surface, such as a wall, a floor or the side of a "
+                             "box.");
         }
         if (points_.size() < 3) {
           return QObject::tr("Click the next corner, going around the surface in order. Backspace removes the last "
                              "corner.");
-        }
-        if (create_problem_ != PlaneQuadProblem::None) {
-          return QObject::tr("This shape cannot be a plane: %1").arg(quad_problem_text(create_problem_));
         }
         return QObject::tr("Click the last corner to finish the plane.");
       case WorkspaceTool::EditPlane: {
@@ -251,11 +266,15 @@ public:
         }
         if (!has_content_edits()) {
           // A plane alone changes nothing: say so, and name the next step.
-          return can_place_layer()
-                     ? QObject::tr("The plane is a guide; nothing changes until you put something on it. Press Place "
-                                   "Layer to put this layer on it, or Paste onto Plane, Clone or Paint.")
-                     : QObject::tr("The plane is a guide; nothing changes until you put something on it. Press Paste "
-                                   "onto Plane, Clone or Paint.");
+          const auto step = can_place_layer()
+                                ? QObject::tr("Step 2 of 2: put something on the target plane. Press Place Layer to put "
+                                              "this layer on it, or Paste onto Plane, Clone or Paint.")
+                                : QObject::tr("Step 2 of 2: put something on the target plane. Press Paste onto Plane, "
+                                              "Clone or Paint.");
+          return planes_.size() > 1 ? step + QLatin1Char(' ') + choose_target_text() : step;
+        }
+        if (planes_.size() > 1 && !plane->link.has_value()) {
+          return QObject::tr("Drag a corner or an edge to fit the surface.") + QLatin1Char(' ') + choose_target_text();
         }
         if (plane->link.has_value()) {
           return QObject::tr("This plane is joined to an edge of another. Set its Angle, or drag the diamond on its far "
@@ -279,6 +298,32 @@ public:
     }
     return {};
   }
+  // Steps 1 and 2 show as a banner, so setting the target plane first cannot be missed.
+  [[nodiscard]] bool hint_is_step() const {
+    if (floating_.has_value() || hint_is_problem()) {
+      return false;
+    }
+    if (tool_ == WorkspaceTool::CreatePlane) {
+      return !has_usable_plane();
+    }
+    const auto* plane = selected_plane();
+    return tool_ == WorkspaceTool::EditPlane && plane != nullptr && geometry_for(plane->id).has_value() &&
+           !has_content_edits();
+  }
+  [[nodiscard]] static QString choose_target_text() {
+    return QObject::tr("Click inside another plane to make it the target.");
+  }
+  // 1-based position of the target plane among the planes, 0 for none.
+  [[nodiscard]] int target_number() const {
+    for (std::size_t i = 0; i < planes_.size(); ++i) {
+      if (planes_[i].id == selected_id_) {
+        return static_cast<int>(i) + 1;
+      }
+    }
+    return 0;
+  }
+  [[nodiscard]] SampleLayers sample_layers() const noexcept { return canvas_.sample_layers(); }
+  void set_sample_layers(SampleLayers mode) { canvas_.set_sample_layers(mode); }
   [[nodiscard]] bool hint_is_problem() const {
     if (tool_ == WorkspaceTool::CreatePlane && points_.size() >= 3 && create_problem_ != PlaneQuadProblem::None) {
       return true;
@@ -1286,6 +1331,10 @@ private:
       setup.source_offset = *clone_offset_;
     }
     stroke_plane_ = *hit;
+    if (selected_id_ != *hit) {
+      selected_id_ = *hit;
+      notify();
+    }
     canvas_.begin_stroke(setup);
     composite_changed(canvas_.stroke_to(*p));
     update();
@@ -1323,7 +1372,7 @@ private:
       outline << outline.front();
       if (geometry.has_value()) {
         QColor fill = accent;
-        fill.setAlpha(selected ? 42 : 20);
+        fill.setAlpha(selected ? 56 : 14);
         painter.setPen(Qt::NoPen);
         painter.setBrush(fill);
         painter.drawPolygon(outline);
@@ -1331,12 +1380,48 @@ private:
       }
       QPainterPath path;
       path.addPolygon(outline);
-      draw_pair(painter, path, !geometry.has_value() ? problem : (selected ? accent : QColor(255, 255, 255, 220)),
-                selected ? 2.0 : 1.5);
+      draw_pair(painter, path, !geometry.has_value() ? problem : (selected ? accent : QColor(255, 255, 255, 170)),
+                selected ? 3.0 : 1.0);
       if (selected && tool_ == WorkspaceTool::EditPlane && !floating_.has_value()) {
         paint_handles(painter, plane, geometry.has_value());
       }
     }
+    // The tag goes last so no other plane covers it.
+    for (const auto& plane : planes_) {
+      if (plane.id == selected_id_ && geometry_for(plane.id).has_value()) {
+        paint_target_tag(painter, plane);
+      }
+    }
+  }
+  void paint_target_tag(QPainter& painter, const PerspectivePlane& plane) const {
+    // Beside the corner nearest the top left of the screen, inside the plane.
+    QPointF anchor = document_to_screen(plane.corners[0]);
+    QPointF centroid;
+    for (const auto& corner : plane.corners) {
+      const auto point = document_to_screen(corner);
+      centroid += point / 4.0;
+      if (point.x() + point.y() < anchor.x() + anchor.y()) {
+        anchor = point;
+      }
+    }
+    const auto text = QObject::tr("Target");
+    QFont font = painter.font();
+    font.setBold(true);
+    painter.setFont(font);
+    const QFontMetricsF metrics(font);
+    const QSizeF size(metrics.horizontalAdvance(text) + 12.0, metrics.height() + 4.0);
+    auto inward = centroid - anchor;
+    const double length = std::sqrt(inward.x() * inward.x() + inward.y() * inward.y());
+    if (length > 0.0) {
+      inward /= length;
+    }
+    const QPointF place = anchor + inward * 18.0;
+    const QRectF box(place, size);
+    painter.setPen(QPen(QColor(0, 0, 0, 150), 1.0));
+    painter.setBrush(theme().accent_bright);
+    painter.drawRoundedRect(box, 4.0, 4.0);
+    painter.setPen(theme().text_on_accent_bright);
+    painter.drawText(box, Qt::AlignCenter, text);
   }
   void paint_grid(QPainter& painter, const PerspectivePlane& plane, const PlaneGeometry& geometry) const {
     double step = plane_grid_size(plane, geometry);
@@ -1689,7 +1774,13 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   // Options strip: what the current tool or the pasted image can change.
   auto* strip = new QStackedWidget(&dialog);
   strip->setObjectName(QStringLiteral("perspectiveOptionsStrip"));
-  root->addWidget(strip);
+  // Beside the strip: which plane edits go to, and which layer.
+  auto* strip_row = new QHBoxLayout();
+  strip_row->addWidget(strip, 1);
+  auto* target_label = new QLabel(&dialog);
+  target_label->setObjectName(QStringLiteral("perspectiveTargetLabel"));
+  strip_row->addWidget(target_label);
+  root->addLayout(strip_row);
 
   auto* plane_page = new QWidget(strip);
   auto* plane_row = new QHBoxLayout(plane_page);
@@ -1762,6 +1853,20 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   color_button->setObjectName(QStringLiteral("perspectivePaintColorButton"));
   color_button->setToolTip(QObject::tr("The color Paint uses (starts as the foreground color)"));
   brush_row->addWidget(color_button);
+  // Clone's Sample: the retouch tools' shared choice and texts.
+  auto* sample_label = new QLabel(QObject::tr("Sample:"), brush_page);
+  brush_row->addWidget(sample_label);
+  auto* sample = new QComboBox(brush_page);
+  sample->setObjectName(QStringLiteral("perspectiveCloneSampleCombo"));
+  sample->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "Current Layer"),
+                  static_cast<int>(SampleLayers::CurrentLayer));
+  sample->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "Current & Below"),
+                  static_cast<int>(SampleLayers::CurrentAndBelow));
+  sample->addItem(QCoreApplication::translate("patchy::ui::MainWindow", "All Layers"),
+                  static_cast<int>(SampleLayers::AllLayers));
+  sample->setToolTip(QObject::tr("Which layers Clone reads: this layer, it and the layers below, or everything you "
+                                 "see. A pasted image is read once it is placed. Shared with the Clone tool."));
+  brush_row->addWidget(sample);
   brush_row->addStretch(1);
   strip->addWidget(brush_page);
 
@@ -1810,6 +1915,8 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
     tool_width = std::max(tool_width, tools->fontMetrics().horizontalAdvance(QObject::tr(entry.name)) + 24);
   }
   tools->setFixedWidth(tool_width);
+  // Tools that need a plane first read as unavailable until there is one.
+  append_themed_style(*tools, QStringLiteral("QToolButton:disabled { color: @text_disabled; }"));
   auto* tool_group = new QButtonGroup(&dialog);
   tool_group->setExclusive(true);
   std::vector<QToolButton*> tool_buttons;
@@ -1865,12 +1972,22 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
                         ? QObject::tr("Copy an image, or make a selection, before opening Perspective Planes to paste it")
                         : with_key(QObject::tr("Paste an image onto a plane"), QKeySequence(QKeySequence::Paste)));
 
+  // What the plane-gated buttons say when they can be used.
+  const auto clone_tip = tool_buttons[static_cast<std::size_t>(WorkspaceTool::Clone)]->toolTip();
+  const auto paint_tip = tool_buttons[static_cast<std::size_t>(WorkspaceTool::Paint)]->toolTip();
+  const auto paste_tip = paste->toolTip();
+  tool_buttons[static_cast<std::size_t>(WorkspaceTool::Clone)]->setProperty("patchy.available", true);
+  tool_buttons[static_cast<std::size_t>(WorkspaceTool::Paint)]->setProperty("patchy.available", true);
+  paste->setProperty("patchy.available", !view->sources().empty());
+  const auto layer_name = input.layer_name.isEmpty() ? QObject::tr("this layer") : input.layer_name;
+
   // Bottom row: the hint for the current step, zoom, where the result goes, history, OK.
   auto* bottom = new QHBoxLayout();
   auto* hint = new QLabel(&dialog);
   hint->setObjectName(QStringLiteral("perspectivePlanesHint"));
   hint->setWordWrap(true);
   hint->setMinimumWidth(320);
+  hint->setMargin(4);
   bottom->addWidget(hint, 1);
   auto* fit = new QPushButton(QObject::tr("Fit"), &dialog);
   fit->setObjectName(QStringLiteral("perspectiveFitButton"));
@@ -1962,18 +2079,52 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
     } else if (tool == WorkspaceTool::Clone || tool == WorkspaceTool::Paint) {
       strip->setCurrentWidget(brush_page);
       color_button->setVisible(tool == WorkspaceTool::Paint);
+      sample_label->setVisible(tool == WorkspaceTool::Clone);
+      sample->setVisible(tool == WorkspaceTool::Clone);
+      sample->setCurrentIndex(std::max(0, sample->findData(static_cast<int>(view->sample_layers()))));
     } else {
       strip->setCurrentWidget(empty_page);
     }
     hint->setText(view->hint());
+    // Steps 1 and 2 read as a banner (info banner roles, bold); other hints as plain text.
+    const bool step = view->hint_is_step();
     QPalette palette = hint->palette();
-    palette.setColor(QPalette::WindowText, view->hint_is_problem() ? theme().status_error_text : theme().text_primary);
+    palette.setColor(QPalette::WindowText, view->hint_is_problem() ? theme().status_error_text
+                                           : step                   ? theme().info_banner_text
+                                                                    : theme().text_primary);
+    palette.setColor(QPalette::Window, theme().info_banner_bg);
     hint->setPalette(palette);
+    hint->setAutoFillBackground(step);
+    QFont hint_font = hint->font();
+    hint_font.setBold(step);
+    hint->setFont(hint_font);
+    hint->setProperty("patchy.step", step);
+    // Nothing can go anywhere before a target plane exists.
+    const bool has_plane = view->has_usable_plane();
+    const auto gate = [has_plane](QAbstractButton* button, const QString& tip) {
+      button->setEnabled(has_plane && button->property("patchy.available").toBool());
+      button->setToolTip(has_plane ? tip
+                                   : QObject::tr("Draw a plane first: click the four corners of a flat surface "
+                                                 "with Create Plane."));
+    };
+    gate(tool_buttons[static_cast<std::size_t>(WorkspaceTool::Clone)], clone_tip);
+    gate(tool_buttons[static_cast<std::size_t>(WorkspaceTool::Paint)], paint_tip);
+    gate(paste, paste_tip);
+    const auto* target = view->selected_plane();
+    const auto editing = QObject::tr("Editing: %1").arg(layer_name);
+    target_label->setText(target != nullptr && has_plane
+                              ? QObject::tr("Target: plane %1 of %2").arg(view->target_number()).arg(
+                                    static_cast<int>(view->planes().size())) +
+                                    QStringLiteral("    ") + editing
+                              : QObject::tr("Target: no plane yet") + QStringLiteral("    ") + editing);
     zoom_label->setText(QStringLiteral("%1%").arg(std::lround(view->zoom() * 100.0)));
     undo->setEnabled(view->can_undo());
     redo->setEnabled(view->can_redo());
     place_layer_tool->setVisible(view->can_place_layer());
-    place_layer_tool->setEnabled(view->has_usable_plane() && !view->has_floating());
+    place_layer_tool->setEnabled(has_plane && !view->has_floating());
+    place_layer_tool->setToolTip(has_plane ? place_layer->toolTip()
+                                           : QObject::tr("Draw a plane first: click the four corners of a flat "
+                                                         "surface with Create Plane."));
     syncing = false;
   };
   view->on_state_changed = refresh;
@@ -1995,6 +2146,11 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   });
   QObject::connect(delete_plane, &QPushButton::clicked, view, [view] { view->delete_selected_plane(); });
   QObject::connect(place_layer, &QPushButton::clicked, view, [view] { view->start_place_layer(); });
+  QObject::connect(sample, &QComboBox::currentIndexChanged, view, [view, sample, &syncing](int) {
+    if (!syncing) {
+      view->set_sample_layers(static_cast<SampleLayers>(sample->currentData().toInt()));
+    }
+  });
   QObject::connect(place_layer_tool, &QToolButton::clicked, view, [view] { view->start_place_layer(); });
   QObject::connect(next_clone, &QPushButton::clicked, view, [view] { view->set_tool(WorkspaceTool::Clone); });
   QObject::connect(next_paint, &QPushButton::clicked, view, [view] { view->set_tool(WorkspaceTool::Paint); });
@@ -2045,7 +2201,7 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
     add_shortcut(keys, [view] { view->redo(); });
   }
   add_shortcut(QKeySequence(QKeySequence::Paste), [view] {
-    if (!view->sources().empty()) {
+    if (!view->sources().empty() && view->has_usable_plane()) {
       view->start_paste(0);
     }
   });
@@ -2083,6 +2239,7 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   result.accepted = accepted;
   result.planes = view->planes();
   result.write_onto_layer = output->currentIndex() == 1 && input.can_write_onto_layer;
+  result.sample_layers = view->sample_layers();
   if (accepted) {
     result.edits = view->canvas().cropped_edits();
     if (view->canvas().original_changed()) {

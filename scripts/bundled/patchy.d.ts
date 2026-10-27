@@ -1826,11 +1826,16 @@ interface PatchyPerspective {
     placement?: "fill" | "fit" | { x: number; y: number; scale?: number; rotation?: number };
     target?: "layer" | "newLayer";
   }): PatchyLayer | null;
-  /** Clone stroke along `points`; `from` is the source point, read through `sourcePlane` (default `plane`). */
+  /**
+   * Clone stroke along `points`; `from` is the source point, read through `sourcePlane`
+   * (default `plane`). `sample` reads the layer alone ("current", default), it and the layers
+   * below ("currentAndBelow"), or everything visible ("all").
+   */
   clone(layer: PatchyLayer, options: {
     plane: PatchyPlaneCorners | number;
     sourcePlane?: PatchyPlaneCorners | number;
     from: [number, number];
+    sample?: "current" | "currentAndBelow" | "all";
     points: [number, number][];
     size?: number; hardness?: number; opacity?: number;
     target?: "newLayer" | "layer";

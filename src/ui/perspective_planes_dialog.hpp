@@ -26,9 +26,15 @@ struct PerspectiveWorkspaceInput {
   std::int32_t document_height{0};
   std::vector<PerspectivePlane> planes;
   std::vector<PerspectivePasteSource> paste_sources;
-  // The document's other visible layers composited (straight RGBA8, document-sized), drawn
-  // behind the layer so there is something to line planes up with; empty for none.
+  // The visible layers under the edited one composited (straight RGBA8, document-sized),
+  // drawn behind it so there is something to line planes up with; empty for none.
   PixelBuffer backdrop;
+  // The visible layers over it, the same way: Clone's All Layers reads them too.
+  PixelBuffer above;
+  // Clone's Sample choice (the retouch tools' shared setting).
+  SampleLayers sample_layers{SampleLayers::AllLayers};
+  // The edited layer's name, shown with the target plane.
+  QString layer_name;
   // The document selection's coverage (gray8, document-sized), empty for none: what Place
   // Layer takes out of the layer.
   PixelBuffer selection;
@@ -51,6 +57,8 @@ struct PerspectiveWorkspaceResult {
   // layer, the edits.
   std::optional<PixelBuffer> lifted_layer;
   bool write_onto_layer{false};
+  // Clone's Sample choice as the workspace left it.
+  SampleLayers sample_layers{SampleLayers::AllLayers};
 };
 
 // Runs the Perspective Planes workspace (docs/perspective-planes.md).

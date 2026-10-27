@@ -13254,10 +13254,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Przeciągnij obraz na płaszczyznę. Przyjmie jej perspektywę.</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>Kliknij pierwszy narożnik płaskiej powierzchni, np. ściany, podłogi lub boku pudełka.</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>Kliknij następny narożnik, po kolei wokół powierzchni. Backspace usuwa ostatni narożnik.</translation>
     </message>
@@ -13438,18 +13434,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Warstwa wypełnia teraz płaszczyznę. Przeciągnij ją, aby przesunąć, narożnik, aby zmienić rozmiar, albo okrągły uchwyt, aby obrócić. Enter umieszcza, Esc przywraca.</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>Kliknij cztery narożniki powierzchni, na której ma się znaleźć ta warstwa, a potem naciśnij Umieść warstwę.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>Płaszczyzna jest prowadnicą; nic się nie zmienia, dopóki czegoś na niej nie umieścisz. Naciśnij Umieść warstwę, aby umieścić na niej tę warstwę, albo Wklej na płaszczyznę, Klonuj lub Maluj.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>Płaszczyzna jest prowadnicą; nic się nie zmienia, dopóki czegoś na niej nie umieścisz. Naciśnij Wklej na płaszczyznę, Klonuj lub Maluj.</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>Potem:</translation>
     </message>
@@ -13514,6 +13498,70 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>Własny</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>Krok 1 z 2: ustaw płaszczyznę docelową. Kliknij cztery narożniki powierzchni, na której ma się znaleźć ta warstwa.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Krok 1 z 2: ustaw płaszczyznę docelową. Kliknij cztery narożniki płaskiej powierzchni, np. ściany, podłogi lub boku pudełka.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>Krok 1 z 2: kliknij następny narożnik, po kolei wokół powierzchni. Backspace usuwa ostatni narożnik.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>Krok 1 z 2: kliknij ostatni narożnik, aby zakończyć płaszczyznę docelową.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>Kliknij pierwszy narożnik innej płaskiej powierzchni, np. ściany, podłogi lub boku pudełka.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Krok 2 z 2: umieść coś na płaszczyźnie docelowej. Naciśnij Umieść warstwę, aby umieścić na niej tę warstwę, albo Wklej na płaszczyznę, Klonuj lub Maluj.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Krok 2 z 2: umieść coś na płaszczyźnie docelowej. Naciśnij Wklej na płaszczyznę, Klonuj lub Maluj.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>Przeciągnij narożnik lub krawędź, aby dopasować do powierzchni.</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>Kliknij wewnątrz innej płaszczyzny, aby była docelowa.</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>Próbkuj:</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>Które warstwy czyta Klonuj: tę warstwę, ją i warstwy poniżej albo wszystko, co widać. Wklejony obraz jest czytany po umieszczeniu. Wspólne z narzędziem Stempel.</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>ta warstwa</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>Najpierw narysuj płaszczyznę: kliknij cztery narożniki płaskiej powierzchni narzędziem Utwórz płaszczyznę.</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>Edytowana: %1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>Cel: płaszczyzna %1 z %2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>Cel: jeszcze brak płaszczyzny</translation>
     </message>
 </context>
 <context>
@@ -29864,6 +29912,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer: warstwa jest pusta.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone: sample to &quot;current&quot;, &quot;currentAndBelow&quot; lub &quot;all&quot;.</translation>
     </message>
 </context>
 <context>

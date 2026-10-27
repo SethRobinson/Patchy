@@ -13180,10 +13180,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>이미지를 평면으로 드래그하세요. 그 평면의 원근을 따릅니다.</translation>
     </message>
     <message>
-        <source>Click the first corner of a flat surface, such as a wall, a floor or the side of a box.</source>
-        <translation>벽, 바닥, 상자 옆면 같은 평평한 면의 첫 모서리를 클릭하세요.</translation>
-    </message>
-    <message>
         <source>Click the next corner, going around the surface in order. Backspace removes the last corner.</source>
         <translation>면을 따라 순서대로 다음 모서리를 클릭하세요. Backspace로 마지막 모서리를 지웁니다.</translation>
     </message>
@@ -13364,18 +13360,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>레이어가 평면을 채웠습니다. 드래그해 이동하고, 모서리를 드래그해 크기를 바꾸고, 둥근 핸들을 드래그해 회전합니다. Enter로 배치하고 Esc로 되돌립니다.</translation>
     </message>
     <message>
-        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
-        <translation>이 레이어를 놓을 면의 네 모서리를 클릭한 다음 레이어 배치를 누르세요.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
-        <translation>평면은 안내선입니다. 무언가를 올리기 전에는 아무것도 바뀌지 않습니다. 레이어 배치를 눌러 이 레이어를 올리거나, 평면에 붙여넣기, 복제, 칠하기를 사용하세요.</translation>
-    </message>
-    <message>
-        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
-        <translation>평면은 안내선입니다. 무언가를 올리기 전에는 아무것도 바뀌지 않습니다. 평면에 붙여넣기, 복제, 칠하기를 사용하세요.</translation>
-    </message>
-    <message>
         <source>Then:</source>
         <translation>다음:</translation>
     </message>
@@ -13440,6 +13424,70 @@ Each item&apos;s own View setting still applies.</source>
         <source>Custom</source>
         <comment>Layers buttons preset: the user&apos;s own arrangement</comment>
         <translation>사용자 지정</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of the surface where this layer should go.</source>
+        <translation>1/2단계: 대상 평면을 정하세요. 이 레이어를 놓을 면의 네 모서리를 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: set the target plane. Click the four corners of a flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>1/2단계: 대상 평면을 정하세요. 벽, 바닥, 상자 옆면 같은 평평한 면의 네 모서리를 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the next corner, going around the surface in order. Backspace removes the last corner.</source>
+        <translation>1/2단계: 면을 따라 순서대로 다음 모서리를 클릭하세요. Backspace로 마지막 모서리를 지웁니다.</translation>
+    </message>
+    <message>
+        <source>Step 1 of 2: click the last corner to finish the target plane.</source>
+        <translation>1/2단계: 마지막 모서리를 클릭해 대상 평면을 완성하세요.</translation>
+    </message>
+    <message>
+        <source>Click the first corner of another flat surface, such as a wall, a floor or the side of a box.</source>
+        <translation>벽, 바닥, 상자 옆면 같은 다른 평평한 면의 첫 모서리를 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>2/2단계: 대상 평면에 무언가를 올리세요. 레이어 배치를 눌러 이 레이어를 올리거나, 평면에 붙여넣기, 복제, 칠하기를 사용하세요.</translation>
+    </message>
+    <message>
+        <source>Step 2 of 2: put something on the target plane. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>2/2단계: 대상 평면에 무언가를 올리세요. 평면에 붙여넣기, 복제, 칠하기를 사용하세요.</translation>
+    </message>
+    <message>
+        <source>Drag a corner or an edge to fit the surface.</source>
+        <translation>모서리나 가장자리를 드래그해 면에 맞추세요.</translation>
+    </message>
+    <message>
+        <source>Click inside another plane to make it the target.</source>
+        <translation>다른 평면 안을 클릭하면 그 평면이 대상이 됩니다.</translation>
+    </message>
+    <message>
+        <source>Sample:</source>
+        <translation>샘플:</translation>
+    </message>
+    <message>
+        <source>Which layers Clone reads: this layer, it and the layers below, or everything you see. A pasted image is read once it is placed. Shared with the Clone tool.</source>
+        <translation>복제가 읽는 레이어: 이 레이어, 이 레이어와 아래 레이어, 또는 보이는 전체입니다. 붙여넣은 이미지는 배치한 뒤에 읽습니다. 복제 도장 도구와 공유됩니다.</translation>
+    </message>
+    <message>
+        <source>this layer</source>
+        <translation>이 레이어</translation>
+    </message>
+    <message>
+        <source>Draw a plane first: click the four corners of a flat surface with Create Plane.</source>
+        <translation>먼저 평면을 그리세요: 평면 만들기로 평평한 면의 네 모서리를 클릭합니다.</translation>
+    </message>
+    <message>
+        <source>Editing: %1</source>
+        <translation>편집 중: %1</translation>
+    </message>
+    <message>
+        <source>Target: plane %1 of %2</source>
+        <translation>대상: 평면 %1/%2</translation>
+    </message>
+    <message>
+        <source>Target: no plane yet</source>
+        <translation>대상: 아직 평면 없음</translation>
     </message>
 </context>
 <context>
@@ -29710,6 +29758,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>perspective.placeLayer: the layer is empty.</source>
         <translation>perspective.placeLayer: 레이어가 비어 있습니다.</translation>
+    </message>
+    <message>
+        <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation>perspective.clone: sample는 &quot;current&quot;, &quot;currentAndBelow&quot; 또는 &quot;all&quot;입니다.</translation>
     </message>
 </context>
 <context>

@@ -13,6 +13,7 @@
 // toolchain (the source is built with -ffp-contract=off). Pixel work is integer.
 
 #include "core/layer.hpp"
+#include "core/layer_tree.hpp"
 #include "core/pixel_buffer.hpp"
 
 #include <array>
@@ -280,6 +281,16 @@ public:
   // Whether the layer pixels differ from the ones the canvas started with.
   [[nodiscard]] bool original_changed() const;
 
+  // What Clone reads (the retouch tools' Sample choice). `below` and `above` are the
+  // document's layers under and over the edited one, composited (straight RGBA8,
+  // document-sized; empty for none). Current Layer reads the layer with the workspace's
+  // edits; Current & Below lays that over `below`; All Layers adds `above` on top. The
+  // snapshot refreshes when edits change (a stroke ends, a paste is placed, an undo),
+  // never while a stroke paints.
+  void set_sample_context(PixelBuffer below, PixelBuffer above);
+  void set_sample_layers(SampleLayers mode);
+  [[nodiscard]] SampleLayers sample_layers() const noexcept { return sample_layers_; }
+
   // The edits alone, cropped to what they cover (nullopt when there are none).
   [[nodiscard]] std::optional<std::pair<PixelBuffer, Rect>> cropped_edits() const;
 
@@ -298,6 +309,7 @@ private:
                      Rect bounds) const;
   void write_tiles(const Change& change, bool after);
   void refresh(Rect rect);
+  void refresh_sampler(Rect rect);
   Rect dab(PlanePoint center);
 
   PixelBuffer original_;
@@ -305,6 +317,10 @@ private:
   PixelBuffer edits_;
   PixelBuffer composite_;
   PerspectiveSampler composite_sampler_;
+  PixelBuffer below_;
+  PixelBuffer above_;
+  PixelBuffer sample_image_;
+  SampleLayers sample_layers_{SampleLayers::CurrentLayer};
   std::optional<Stroke> stroke_;
 };
 
