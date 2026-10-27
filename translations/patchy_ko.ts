@@ -26947,10 +26947,6 @@ The open document keeps its blend modes either way.</source>
         <translation>그래도 가져오기</translation>
     </message>
     <message>
-        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
-        <translation>테마 스크립트는 파일이나 문서를 열거나 인터넷을 사용할 수 없습니다. 신뢰하는 사람이 만든 테마에서만 허용하세요.</translation>
-    </message>
-    <message>
         <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
         <translation>테마 스크립트는 샌드박스에서 실행됩니다. 소리와 효과를 재생하고 그림을 표시하고 메뉴 명령을 추가할 수 있지만, 파일이나 문서를 열거나 변경할 수 없고 인터넷도 사용할 수 없습니다.</translation>
     </message>
@@ -26961,6 +26957,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation>테마 &quot;%1&quot;에 스크립트가 포함되어 있습니다. 실행을 허용할까요?</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation>테마 스크립트는 파일이나 문서를 열거나 인터넷을 사용할 수 없습니다. 하지만 안전을 위해 신뢰하는 사람이 만든 테마에서만 허용하세요.</translation>
     </message>
 </context>
 <context>

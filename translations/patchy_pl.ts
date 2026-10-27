@@ -27099,10 +27099,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Importuj mimo to</translation>
     </message>
     <message>
-        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
-        <translation>Skrypty motywów nie mogą otwierać Twoich plików i dokumentów ani korzystać z internetu. Zezwalaj na nie tylko w motywach od osób, którym ufasz.</translation>
-    </message>
-    <message>
         <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
         <translation>Skrypty motywów działają w piaskownicy: mogą odtwarzać dźwięki i efekty, wyświetlać obrazy i dodawać polecenia menu, ale nie mogą otwierać ani zmieniać Twoich plików i dokumentów ani korzystać z internetu.</translation>
     </message>
@@ -27113,6 +27109,10 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation>Motyw &quot;%1&quot; zawiera skrypty. Zezwolić na ich uruchomienie?</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation>Skrypty motywów nie mogą otwierać Twoich plików i dokumentów ani korzystać z internetu. Ale dla bezpieczeństwa zezwalaj na nie tylko w motywach od osób, którym ufasz.</translation>
     </message>
 </context>
 <context>

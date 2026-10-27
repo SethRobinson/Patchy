@@ -27023,10 +27023,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Importer quand même</translation>
     </message>
     <message>
-        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
-        <translation>Les scripts de thème ne peuvent ni ouvrir vos fichiers ou documents, ni utiliser Internet. Ne les autorisez que dans les thèmes de personnes en qui vous avez confiance.</translation>
-    </message>
-    <message>
         <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
         <translation>Les scripts de thème s&apos;exécutent dans un bac à sable : ils peuvent jouer des sons et des effets, afficher des images et ajouter des commandes de menu, mais ils ne peuvent ni ouvrir ni modifier vos fichiers ou documents, ni utiliser Internet.</translation>
     </message>
@@ -27037,6 +27033,10 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation>Le thème &quot;%1&quot; contient des scripts. Les autoriser à s&apos;exécuter ?</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation>Les scripts de thème ne peuvent ni ouvrir vos fichiers ou documents, ni utiliser Internet. Mais par précaution, ne les autorisez que dans les thèmes de personnes en qui vous avez confiance.</translation>
     </message>
 </context>
 <context>

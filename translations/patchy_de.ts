@@ -27023,10 +27023,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Trotzdem importieren</translation>
     </message>
     <message>
-        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
-        <translation>Themenskripte können Ihre Dateien und Dokumente nicht öffnen und nicht auf das Internet zugreifen. Lassen Sie sie nur in Themen von Personen zu, denen Sie vertrauen.</translation>
-    </message>
-    <message>
         <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
         <translation>Themenskripte laufen in einer Sandbox: Sie können Klänge und Effekte abspielen, Bilder zeigen und Menübefehle hinzufügen, aber sie können Ihre Dateien und Dokumente weder öffnen noch ändern und haben keinen Zugriff auf das Internet.</translation>
     </message>
@@ -27037,6 +27033,10 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation>Das Thema &quot;%1&quot; enthält Skripte. Sollen sie ausgeführt werden?</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation>Themenskripte können Ihre Dateien und Dokumente nicht öffnen und nicht auf das Internet zugreifen. Lassen Sie sie aber sicherheitshalber nur in Themen von Personen zu, denen Sie vertrauen.</translation>
     </message>
 </context>
 <context>

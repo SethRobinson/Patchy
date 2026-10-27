@@ -27023,10 +27023,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>Importar mesmo assim</translation>
     </message>
     <message>
-        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
-        <translation>Os scripts de temas não podem abrir seus arquivos ou documentos nem usar a internet. Só os permita em temas de pessoas em quem você confia.</translation>
-    </message>
-    <message>
         <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
         <translation>Os scripts de temas são executados em um ambiente isolado: podem tocar sons e efeitos, mostrar imagens e adicionar comandos de menu, mas não podem abrir nem alterar seus arquivos ou documentos, nem usar a internet.</translation>
     </message>
@@ -27037,6 +27033,10 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
     <message>
         <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation>O tema &quot;%1&quot; inclui scripts. Permitir que sejam executados?</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation>Os scripts de temas não podem abrir seus arquivos ou documentos nem usar a internet. Mas, por segurança, só os permita em temas de pessoas em quem você confia.</translation>
     </message>
 </context>
 <context>

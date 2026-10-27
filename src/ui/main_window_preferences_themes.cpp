@@ -359,7 +359,8 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   details_layout->addWidget(scripts_check_);
   // Shown while the selected theme has scripts: what they cannot do, and whom to trust.
   scripts_note_ = new QLabel(MainWindow::tr("Theme scripts cannot open your files or documents or use the "
-                                            "internet. Only allow them in themes from people you trust."),
+                                            "internet. But to be safe, only allow them in themes from people "
+                                            "you trust."),
                              details);
   scripts_note_->setObjectName(QStringLiteral("preferencesThemeScriptsNote"));
   scripts_note_->setTextFormat(Qt::PlainText);

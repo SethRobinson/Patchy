@@ -26947,10 +26947,6 @@ The open document keeps its blend modes either way.</source>
         <translation>仍要匯入</translation>
     </message>
     <message>
-        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
-        <translation>佈景主題指令碼無法開啟您的檔案或文件，也無法使用網際網路。只應在您信任的人所製作的佈景主題中允許它們。</translation>
-    </message>
-    <message>
         <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
         <translation>佈景主題指令碼在沙箱中執行：它們可以播放聲音和效果、顯示圖片並新增選單命令，但無法開啟或變更您的檔案或文件，也無法使用網際網路。</translation>
     </message>
@@ -26961,6 +26957,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation>佈景主題 &quot;%1&quot; 包含指令碼。要允許執行嗎？</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation>佈景主題指令碼無法開啟您的檔案或文件，也無法使用網際網路。但為了安全起見，只應在您信任的人所製作的佈景主題中允許它們。</translation>
     </message>
 </context>
 <context>

@@ -26947,10 +26947,6 @@ The open document keeps its blend modes either way.</source>
         <translation>それでも読み込む</translation>
     </message>
     <message>
-        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
-        <translation>テーマのスクリプトは、ファイルやドキュメントを開いたりインターネットを使用したりできません。信頼できる人のテーマでのみ許可してください。</translation>
-    </message>
-    <message>
         <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
         <translation>テーマのスクリプトはサンドボックス内で実行されます。サウンドやエフェクトの再生、画像の表示、メニューコマンドの追加はできますが、ファイルやドキュメントを開いたり変更したりすることはできず、インターネットも使用できません。</translation>
     </message>
@@ -26961,6 +26957,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation>テーマ &quot;%1&quot; にはスクリプトが含まれています。実行を許可しますか?</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation>テーマのスクリプトは、ファイルやドキュメントを開いたりインターネットを使用したりできません。ただし、念のため、信頼できる人のテーマでのみ許可してください。</translation>
     </message>
 </context>
 <context>

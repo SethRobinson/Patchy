@@ -26947,10 +26947,6 @@ The open document keeps its blend modes either way.</source>
         <translation>仍然导入</translation>
     </message>
     <message>
-        <source>Theme scripts cannot open your files or documents or use the internet. Only allow them in themes from people you trust.</source>
-        <translation>主题脚本不能打开您的文件或文档，也不能使用互联网。只应在您信任的人所制作的主题中允许它们。</translation>
-    </message>
-    <message>
         <source>Theme scripts run in a sandbox: they can play sounds and effects, show pictures and add menu commands, but they cannot open or change your files or documents, and they cannot use the internet.</source>
         <translation>主题脚本在沙盒中运行：它们可以播放声音和效果、显示图片并添加菜单命令，但不能打开或更改您的文件或文档，也不能使用互联网。</translation>
     </message>
@@ -26961,6 +26957,10 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>The theme &quot;%1&quot; includes scripts. Allow them to run?</source>
         <translation>主题 &quot;%1&quot; 包含脚本。允许运行它们吗？</translation>
+    </message>
+    <message>
+        <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
+        <translation>主题脚本不能打开您的文件或文档，也不能使用互联网。但为了安全起见，只应在您信任的人所制作的主题中允许它们。</translation>
     </message>
 </context>
 <context>
