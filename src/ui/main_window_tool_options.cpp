@@ -1912,7 +1912,11 @@ void MainWindow::refresh_color_buttons() {
         named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
   }
   refresh_text_color_button();
-  refresh_gradient_controls_from_canvas();
+  if (color_dock_panel_ != nullptr && color_dock_panel_->picking()) {
+    gradient_controls_refresh_pending_ = true;
+  } else {
+    refresh_gradient_controls_from_canvas();
+  }
 }
 
 void MainWindow::refresh_text_color_button() {
@@ -1968,6 +1972,7 @@ void MainWindow::choose_gradient_preset() {
 }
 
 void MainWindow::refresh_gradient_controls_from_canvas() {
+  gradient_controls_refresh_pending_ = false;
   if (canvas_ == nullptr) {
     return;
   }
@@ -2682,10 +2687,6 @@ void MainWindow::apply_clone_overlay_settings(bool shown, int opacity) {
 }
 
 void MainWindow::refresh_clone_source_panel() {
-  if (clone_overlay_check_ != nullptr) {
-    const QSignalBlocker blocker(clone_overlay_check_);
-    clone_overlay_check_->setChecked(current_clone_overlay_shown_);
-  }
   if (clone_source_panel_ == nullptr) {
     return;
   }
@@ -2993,7 +2994,13 @@ void MainWindow::stash_active_colors() {
     canvas_applied_background_ = background;
     changed = true;
   }
-  if (changed) {
+  if (!changed) {
+    return;
+  }
+  if (color_dock_panel_ != nullptr && color_dock_panel_->picking()) {
+    color_settings_save_pending_ = true;
+  } else {
+    color_settings_save_pending_ = false;
     save_color_settings();
   }
 }

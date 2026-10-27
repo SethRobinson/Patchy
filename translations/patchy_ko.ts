@@ -2991,10 +2991,6 @@
         <translation>기본값</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>채널:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -13127,6 +13123,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>만든 응용 프로그램으로 Patchy, 내보내기 날짜, 기록 항목 (환경 설정의 기본과 같음). 문서의 파일 정보는 포함하지 않습니다.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>버튼</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>팔레트 아래쪽</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>색상 견본</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>빠른 마스크 버튼</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>화면 모드 버튼</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15326,6 +15342,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color panel settings</source>
         <translation>색상 패널 설정</translation>
+    </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>CMYK 슬라이더</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>녹청</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>마젠타</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>노랑</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>검정</translation>
     </message>
 </context>
 <context>
@@ -26457,14 +26513,6 @@ The open document keeps its blend modes either way.</source>
         <translation>적용</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>오버레이 표시</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>칠하기 전에 브러시 아래에 소스를 미리 봅니다</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>이동: 드래그하여 이동하고, Shift+드래그로 수평 또는 수직으로 이동하며, %ALT%+드래그로 복제합니다. %CTRL%+클릭으로 레이어를 선택하고 Shift+클릭으로 전환합니다. %CTRL%+드래그로 사각형을 선택하며, 자동 선택이 켜져 있으면 빈 곳을 드래그해도 됩니다.</translation>
     </message>
@@ -26981,6 +27029,29 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>테마 스크립트는 파일이나 문서를 열거나 인터넷을 사용할 수 없습니다. 하지만 안전을 위해 신뢰하는 사람이 만든 테마에서만 허용하세요.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>도구 그룹 메뉴를 여는 방법: 버튼을 길게 누르기, 클릭하기 또는 포인터를 올려 두기.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>도구 그룹 열기:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>클릭</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>마우스 올리기</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>길게 누르기</translation>
     </message>
 </context>
 <context>

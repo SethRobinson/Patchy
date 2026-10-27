@@ -2927,10 +2927,6 @@
         <translation>Standard</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Kanal:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -13164,6 +13160,26 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy als erstellende Anwendung, die Exportdaten und ein Verlaufseintrag, wie Einfach in den Einstellungen sie schreibt. Nichts aus den Dateiinformationen des Dokuments.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Schaltflächen</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Unterer Bereich der Palette</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Farbfelder</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Schaltfläche „Maskierungsmodus“</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Schaltfläche „Bildschirmmodus“</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15363,6 +15379,46 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Color panel settings</source>
         <translation>Einstellungen des Farbbedienfelds</translation>
+    </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>CMYK-Regler</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cyan</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Gelb</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Schwarz</translation>
     </message>
 </context>
 <context>
@@ -26532,14 +26588,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Anwenden</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>Überlagerung anzeigen</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Zeigt die Quelle unter dem Pinsel, bevor Sie malen</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Verschieben: Ziehen verschiebt, Umschalt+Ziehen hält es waagerecht oder senkrecht, %ALT%+Ziehen dupliziert. %CTRL%+Klick wählt eine Ebene aus, Umschalt+Klick schaltet sie um. %CTRL%+Ziehen wählt ein Rechteck aus, mit „Autom. auswählen“ auch Ziehen auf leerer Fläche.</translation>
     </message>
@@ -27057,6 +27105,29 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Themenskripte können Ihre Dateien und Dokumente nicht öffnen und nicht auf das Internet zugreifen. Lassen Sie sie aber sicherheitshalber nur in Themen von Personen zu, denen Sie vertrauen.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Wie sich das Menü einer Werkzeuggruppe öffnet: Schaltfläche gedrückt halten, anklicken oder den Zeiger darauf ruhen lassen.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Werkzeuggruppen öffnen bei:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Klick</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Darüberfahren</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Klicken und halten</translation>
     </message>
 </context>
 <context>

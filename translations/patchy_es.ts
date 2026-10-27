@@ -2927,10 +2927,6 @@
         <translation>Por defecto</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Canal:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -13164,6 +13160,26 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy como aplicación de creación, las fechas de exportación y una entrada de historial, como los escribe Básico en Preferencias. Nada de la información de archivo del documento.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Botones</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Parte inferior de la paleta</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Muestras de color</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Botón de máscara rápida</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Botón de modo de pantalla</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15363,6 +15379,46 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Color panel settings</source>
         <translation>Ajustes del panel Color</translation>
+    </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>Reguladores CMYK</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cian</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Amarillo</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Negro</translation>
     </message>
 </context>
 <context>
@@ -26532,14 +26588,6 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>Aplicar</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>Mostrar superposición</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Muestra el origen bajo el pincel antes de pintar</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Mover: arrastrar mueve, Mayús+arrastrar lo mantiene horizontal o vertical, %ALT%+arrastrar duplica. %CTRL%+clic selecciona una capa, Mayús+clic la alterna. %CTRL%+arrastrar selecciona un rectángulo, igual que arrastrar en un espacio vacío con Selección automática activada.</translation>
     </message>
@@ -27057,6 +27105,29 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Los scripts de temas no pueden abrir sus archivos o documentos ni usar Internet. Pero, por seguridad, permítalos solo en temas de personas de su confianza.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Cómo se abre el menú de un grupo de herramientas: mantener pulsado su botón, hacer clic en él o dejar el puntero encima.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Abrir grupos de herramientas al:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Hacer clic</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Pasar el puntero</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Mantener pulsado</translation>
     </message>
 </context>
 <context>

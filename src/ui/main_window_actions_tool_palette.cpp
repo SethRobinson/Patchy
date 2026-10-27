@@ -40,6 +40,9 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
+#include <QComboBox>
+#include <QCursor>
 #include <QDialog>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -603,6 +606,194 @@ private:
   QPointer<QToolButton> button_;
 };
 
+// When a tool group's flyout opens (GitHub issue 459; Preferences > Open tool groups on, the
+// stored ToolFlyoutOpenMode). Hold keeps QToolButton's DelayedPopup. Click opens the flyout
+// on the press (InstantPopup); the aboutToShow handler in configure_tool_flyout still selects
+// the tool the button shows, as every other way in does. Hover opens it once the pointer has
+// rested on the button for kHoverDelayMs while Patchy is active, without selecting anything,
+// and closes it once the pointer has been outside the button and the menu (and the gap
+// between them) for kHoverCloseMs; moving onto another tool group's button switches to that
+// group's flyout at once. A click on the button while its hovered flyout is open selects the
+// tool it shows.
+// Press and hold, the double-click and the right-click open the flyout in every mode.
+class ToolFlyoutOpener final : public QObject {
+public:
+  static constexpr int kHoverDelayMs = 250;
+  static constexpr int kHoverCloseMs = 300;
+  static constexpr int kHoverPollMs = 50;
+
+  ToolFlyoutOpener(QToolButton* button, QMenu* menu) : QObject(button), button_(button), menu_(menu) {
+    setObjectName(QLatin1String(kObjectName));
+    hover_timer_.setSingleShot(true);
+    hover_timer_.setInterval(kHoverDelayMs);
+    QObject::connect(&hover_timer_, &QTimer::timeout, this, [this] { open_by_hover(); });
+    close_timer_.setInterval(kHoverPollMs);
+    QObject::connect(&close_timer_, &QTimer::timeout, this, [this] { poll_hover_close(); });
+    button->installEventFilter(this);
+    menu->installEventFilter(this);
+  }
+
+  static constexpr const char* kObjectName = "toolFlyoutOpener";
+  // Set on the button while a hover opens its flyout: the aboutToShow handler then leaves
+  // the active tool alone.
+  static constexpr const char* kHoverOpeningProperty = "toolFlyoutHoverOpening";
+
+  // The opener of a tool group button, or null.
+  [[nodiscard]] static ToolFlyoutOpener* of(const QWidget* button) {
+    if (button == nullptr) {
+      return nullptr;
+    }
+    return dynamic_cast<ToolFlyoutOpener*>(
+        button->findChild<QObject*>(QLatin1String(kObjectName), Qt::FindDirectChildrenOnly));
+  }
+
+  void set_mode(ToolFlyoutOpenMode mode) {
+    mode_ = mode;
+    hover_timer_.stop();
+    if (button_ != nullptr) {
+      button_->setPopupMode(mode == ToolFlyoutOpenMode::Click ? QToolButton::InstantPopup
+                                                              : QToolButton::DelayedPopup);
+    }
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == menu_) {
+      // A left press on the button closes the hovered flyout (Qt does not pass it on to the
+      // button): remember it, so the tool the button shows is selected once the menu is gone.
+      if (hover_session_ && event->type() == QEvent::MouseButtonPress) {
+        const auto* mouse = static_cast<QMouseEvent*>(event);
+        clicked_button_ = mouse->button() == Qt::LeftButton &&
+                          button_global_rect().contains(mouse->globalPosition().toPoint());
+      }
+      return QObject::eventFilter(watched, event);
+    }
+    switch (event->type()) {
+      case QEvent::Enter:
+        if (mode_ == ToolFlyoutOpenMode::Hover && armed_) {
+          hover_timer_.start();
+        }
+        break;
+      case QEvent::Leave:
+        // Leaving re-arms the hover after a flyout closed with the pointer still on it.
+        armed_ = true;
+        hover_timer_.stop();
+        break;
+      case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonDblClick:
+      case QEvent::Hide:
+      case QEvent::EnabledChange:
+        hover_timer_.stop();
+        break;
+      default:
+        break;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  [[nodiscard]] QRect button_global_rect() const {
+    return button_ != nullptr ? QRect(button_->mapToGlobal(QPoint(0, 0)), button_->size()) : QRect();
+  }
+
+  [[nodiscard]] bool pointer_on_button() const { return button_global_rect().contains(QCursor::pos()); }
+
+  // The hover-mode tool group button under the pointer, if it is not this one.
+  [[nodiscard]] ToolFlyoutOpener* other_opener_under_pointer() const {
+    for (auto* widget = QApplication::widgetAt(QCursor::pos()); widget != nullptr; widget = widget->parentWidget()) {
+      if (auto* opener = of(widget); opener != nullptr) {
+        return opener != this && opener->mode_ == ToolFlyoutOpenMode::Hover ? opener : nullptr;
+      }
+      if (widget->isWindow()) {
+        break;
+      }
+    }
+    return nullptr;
+  }
+
+  void open_by_hover() {
+    if (mode_ != ToolFlyoutOpenMode::Hover || button_ == nullptr || menu_ == nullptr || !button_->isEnabled() ||
+        !button_->isVisible() || QApplication::activeWindow() == nullptr ||
+        QApplication::activePopupWidget() != nullptr || QGuiApplication::mouseButtons() != Qt::NoButton ||
+        !pointer_on_button()) {
+      return;
+    }
+    hover_session_ = true;
+    clicked_button_ = false;
+    outside_ms_ = 0;
+    hand_over_to_ = nullptr;
+    close_timer_.start();
+    const QPointer<ToolFlyoutOpener> self(this);
+    const QPointer<QToolButton> button = button_;
+    button->setProperty(kHoverOpeningProperty, true);
+    // Runs the menu's own event loop until it closes.
+    button->showMenu();
+    if (button != nullptr) {
+      button->setProperty(kHoverOpeningProperty, false);
+    }
+    if (self == nullptr || button == nullptr) {
+      return;
+    }
+    close_timer_.stop();
+    hover_session_ = false;
+    // The flyout closed with the pointer on the button (Escape, a pick): no reopening until
+    // the pointer leaves it.
+    armed_ = !pointer_on_button();
+    if (clicked_button_) {
+      auto* shown = button->defaultAction();
+      if (button->isEnabled() && shown != nullptr && shown->isEnabled() && !shown->isChecked()) {
+        shown->trigger();
+      }
+      return;
+    }
+    if (hand_over_to_ != nullptr) {
+      // After this menu's loop has unwound, so flyouts never nest.
+      QTimer::singleShot(0, hand_over_to_.data(), [next = hand_over_to_] {
+        if (next != nullptr) {
+          next->open_by_hover();
+        }
+      });
+    }
+  }
+
+  void poll_hover_close() {
+    if (!hover_session_ || menu_ == nullptr || button_ == nullptr || !menu_->isVisible()) {
+      return;
+    }
+    const QPoint pointer = QCursor::pos();
+    QRect button_rect = button_global_rect();
+    const QRect menu_rect = menu_->geometry();
+    // The gap between the button and a flyout beside it is part of the way across.
+    if (menu_rect.left() > button_rect.right()) {
+      button_rect.setRight(menu_rect.left());
+    }
+    if (button_rect.contains(pointer) || menu_rect.contains(pointer)) {
+      outside_ms_ = 0;
+      return;
+    }
+    if (auto* next = other_opener_under_pointer(); next != nullptr) {
+      hand_over_to_ = next;
+      menu_->close();
+      return;
+    }
+    outside_ms_ += kHoverPollMs;
+    if (outside_ms_ >= kHoverCloseMs) {
+      menu_->close();
+    }
+  }
+
+  QPointer<QToolButton> button_;
+  QPointer<QMenu> menu_;
+  ToolFlyoutOpenMode mode_{ToolFlyoutOpenMode::Hold};
+  QTimer hover_timer_;
+  QTimer close_timer_;
+  bool armed_{true};
+  bool hover_session_{false};
+  bool clicked_button_{false};
+  int outside_ms_{0};
+  QPointer<ToolFlyoutOpener> hand_over_to_;
+};
+
 // Stock QToolBar collapses an expanded overflow bar half a second after the
 // pointer leaves it, which makes the palette's second column nearly
 // unreachable. Swallowing Leave while the extension button is checked turns
@@ -1090,6 +1281,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   // "Customizing the palette"): Window > Customize Tool Palette..., the palette's
   // right-click menu and a Preferences button open the dialog.
   tool_palette_customization_ = stored_tool_palette_customization();
+  tool_flyout_open_mode_ = stored_tool_flyout_open_mode();
   customize_tool_palette_action_ = new QAction(tr("Customize Tool Palette..."), this);
   customize_tool_palette_action_->setObjectName(QStringLiteral("windowCustomizeToolPaletteAction"));
   bind_action_text(customize_tool_palette_action_,
@@ -1143,6 +1335,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                                                       const char* cycle_id, QKeySequence cycle_shortcut) {
     button->setProperty("toolFlyout", true);
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    // Hold's popup mode; ToolFlyoutOpener sets the one the stored open mode asks for.
     button->setPopupMode(QToolButton::DelayedPopup);
     button->setMenu(menu);
     button->setDefaultAction(default_action);
@@ -1166,7 +1359,11 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // (GitHub issue 368); a pick in the flyout then selects that member as usual. The
     // already-active tool is left alone, so the first click of a double-click is the only
     // selection that pair makes.
+    // A flyout the pointer opened by resting on the button (Hover) selects nothing.
     QObject::connect(menu, &QMenu::aboutToShow, button, [button] {
+      if (button->property(ToolFlyoutOpener::kHoverOpeningProperty).toBool()) {
+        return;
+      }
       auto* shown = button->defaultAction();
       if (button->isEnabled() && shown != nullptr && shown->isEnabled() && !shown->isChecked()) {
         shown->trigger();
@@ -1174,6 +1371,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     });
     new ToolFlyoutMenuPlacement(button, menu);
     new ToolFlyoutCurrentMarker(button, menu);
+    (new ToolFlyoutOpener(button, menu))->set_mode(tool_flyout_open_mode_);
     menu->setStyleSheet(tool_flyout_menu_style(palette->iconSize().width()));
     for (auto* action : actions) {
       // A member hidden from the flyout still works from its own key; the button keeps
@@ -1622,6 +1820,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     show_tool_palette_context_menu(tool_palette->mapToGlobal(position));
   });
   tool_palette_layout_->apply(tool_palette_customization_);
+  apply_tool_palette_footer_rows();
 
   // Export the cross-phase locals bind_action_translations() still needs.
   ctx.tool_palette = tool_palette;
@@ -1664,6 +1863,12 @@ ToolPaletteCatalog MainWindow::tool_palette_catalog() const {
     catalog.foreground = primary_color_button_->color();
     catalog.background = secondary_color_button_->color();
   }
+  if (quick_mask_action_ != nullptr) {
+    catalog.quick_mask_icon = quick_mask_action_->icon();
+  }
+  if (screen_mode_button_ != nullptr) {
+    catalog.screen_mode_icon = screen_mode_button_->icon();
+  }
   return catalog;
 }
 
@@ -1678,12 +1883,14 @@ void MainWindow::show_tool_palette_customization(ToolPaletteCustomizeTab tab, QW
     return;
   }
   const auto catalog = tool_palette_catalog();
+  const ToolPaletteDialogChoice current{tool_palette_customization_, stored_toolbar_icon_size(),
+                                        tool_flyout_open_mode_};
   // Opened from Preferences, the dialog is its child, so it closes with Preferences
   // (run_non_modal_dialog rejects children when their parent finishes).
-  if (const auto chosen = request_tool_palette_customization(parent != nullptr ? parent : this, catalog,
-                                                             tool_palette_customization_, tab);
+  if (const auto chosen = request_tool_palette_customization(parent != nullptr ? parent : this, catalog, current, tab);
       chosen.has_value()) {
-    apply_tool_palette_customization(*chosen);
+    apply_tool_palette_customization(chosen->customization);
+    apply_tool_palette_preferences(chosen->icon_size, chosen->flyout_open_mode);
   }
 }
 
@@ -1693,7 +1900,46 @@ void MainWindow::apply_tool_palette_customization(const ToolPaletteCustomization
   if (tool_palette_layout_ != nullptr) {
     tool_palette_layout_->apply(tool_palette_customization_);
   }
+  apply_tool_palette_footer_rows();
   apply_layer_footer_visibility();
+}
+
+void MainWindow::apply_tool_palette_footer_rows() {
+  if (tool_palette_footer_ == nullptr) {
+    return;
+  }
+  const auto& hidden = tool_palette_customization_.hidden_footer_items;
+  tool_palette_footer_->set_shown_rows(!hidden.contains(QLatin1String(kToolPaletteColorsId)),
+                                       !hidden.contains(QLatin1String(kToolPaletteQuickMaskId)),
+                                       !hidden.contains(QLatin1String(kToolPaletteScreenModeId)));
+}
+
+void MainWindow::apply_tool_palette_preferences(ToolbarIconSize icon_size, ToolFlyoutOpenMode flyout_open_mode) {
+  if (icon_size != stored_toolbar_icon_size()) {
+    set_stored_toolbar_icon_size(icon_size);
+  }
+  if (flyout_open_mode != stored_tool_flyout_open_mode()) {
+    set_stored_tool_flyout_open_mode(flyout_open_mode);
+  }
+  apply_tool_palette_factor(toolbar_icon_size_factor(icon_size));
+  tool_flyout_open_mode_ = flyout_open_mode;
+  for (auto* object : findChildren<QObject*>(QLatin1String(ToolFlyoutOpener::kObjectName))) {
+    if (auto* opener = dynamic_cast<ToolFlyoutOpener*>(object); opener != nullptr) {
+      opener->set_mode(flyout_open_mode);
+    }
+  }
+  // Preferences and the customize dialog both show these: an open one follows.
+  const auto follow = [this](const char* combo_name, const QString& token) {
+    for (auto* combo : findChildren<QComboBox*>(QLatin1String(combo_name))) {
+      if (const int index = combo->findData(token); index >= 0) {
+        combo->setCurrentIndex(index);
+      }
+    }
+  };
+  follow("preferencesToolbarIconSizeCombo", toolbar_icon_size_token(icon_size));
+  follow("toolPaletteIconSizeCombo", toolbar_icon_size_token(icon_size));
+  follow("preferencesToolFlyoutOpenCombo", tool_flyout_open_mode_token(flyout_open_mode));
+  follow("toolPaletteFlyoutOpenCombo", tool_flyout_open_mode_token(flyout_open_mode));
 }
 
 void MainWindow::show_tool_palette_context_menu(const QPoint& global_position) {

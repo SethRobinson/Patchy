@@ -2927,10 +2927,6 @@
         <translation>預設</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>色版:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -13127,6 +13123,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy 作為建立程式、匯出日期和一筆記錄項目，與偏好設定中的「基本」寫入的相同。不包含文件檔案資訊中的任何內容。</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>按鈕</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>面板底部</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>色票</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>快速遮色片按鈕</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>螢幕模式按鈕</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15326,6 +15342,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color panel settings</source>
         <translation>顏色面板設定</translation>
+    </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>CMYK 滑桿</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>青色</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>洋紅</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>黃色</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>黑色</translation>
     </message>
 </context>
 <context>
@@ -26457,14 +26513,6 @@ The open document keeps its blend modes either way.</source>
         <translation>套用</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>顯示疊加</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>繪畫前在筆刷下預覽來源</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>移動：拖曳以移動，Shift+拖曳保持水平或垂直，%ALT%+拖曳以複製。%CTRL%+點按選取圖層，Shift+點按切換選取。%CTRL%+拖曳框選；開啟自動選取時，在空白處拖曳也可框選。</translation>
     </message>
@@ -26981,6 +27029,29 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>佈景主題指令碼無法開啟您的檔案或文件，也無法使用網際網路。但為了安全起見，只應在您信任的人所製作的佈景主題中允許它們。</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>工具群組選單的開啟方式：按住按鈕、按一下按鈕，或將指標停在按鈕上。</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>開啟工具群組的方式：</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>按一下</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>停留</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>按住</translation>
     </message>
 </context>
 <context>

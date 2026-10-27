@@ -4,7 +4,11 @@
 // Window menu and patchy.ui reach it, and a saved layout from before it keeps its panels.
 // Alt over the field, the hue strip or a Palette swatch shows the background cursor, and an
 // Alt-click on a Palette swatch sets the background. The view menu switches to RGB or HSB
-// sliders, which set the foreground, follow it, and are remembered (GitHub issue 404).
+// sliders, which set the foreground, follow it, and are remembered (GitHub issue 404), and
+// to CMYK sliders in the working CMYK space (the issue's follow-up). A drag in the field
+// keeps its per-move work small: no gradient re-render, no settings write until the
+// release (GitHub issue 464).
+#include "color/color_management.hpp"
 #include "core/document.hpp"
 #include "core/palette_presets.hpp"
 #include "ui/app_settings.hpp"
@@ -36,7 +40,9 @@
 #include <QStatusBar>
 #include <QWidget>
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include "scripting_test_support.hpp"
@@ -649,7 +655,7 @@ int track_value_at(QWidget& track, Channel channel, int x) {
 
 int checked_view_count(const ColorDockPanel& panel) {
   int checked = 0;
-  for (const auto view : {View::HueCube, View::RgbSliders, View::HsbSliders}) {
+  for (const auto view : {View::HueCube, View::RgbSliders, View::HsbSliders, View::CmykSliders}) {
     checked += panel.view_action(view)->isChecked() ? 1 : 0;
   }
   return checked;
@@ -679,11 +685,12 @@ void ui_color_panel_view_menu_switches_views() {
   CHECK(button->menu() != nullptr);
   if (button->menu() != nullptr) {
     const auto entries = button->menu()->actions();
-    CHECK(entries.size() == 3);
-    if (entries.size() == 3) {
+    CHECK(entries.size() == 4);
+    if (entries.size() == 4) {
       CHECK(entries[0]->text() == QStringLiteral("Hue Cube"));
       CHECK(entries[1]->text() == QStringLiteral("RGB Sliders"));
       CHECK(entries[2]->text() == QStringLiteral("HSB Sliders"));
+      CHECK(entries[3]->text() == QStringLiteral("CMYK Sliders"));
     }
   }
   CHECK(button->toolTip() == QStringLiteral("Color panel settings"));
@@ -712,7 +719,7 @@ void ui_color_panel_view_menu_switches_views() {
       }
       saw_menu = true;
       CHECK(menu->objectName() == QStringLiteral("panelHeaderMenu"));
-      for (const auto view : {View::HueCube, View::RgbSliders, View::HsbSliders}) {
+      for (const auto view : {View::HueCube, View::RgbSliders, View::HsbSliders, View::CmykSliders}) {
         CHECK(!menu->actions().contains(panel->view_action(view)));
       }
       menu->close();
@@ -731,7 +738,7 @@ void ui_color_panel_view_menu_switches_views() {
 
   // RGB Sliders, picked from the gear's menu: three rows of track and number, the cube
   // hidden, and the section shorter.
-  if (button->menu() != nullptr && button->menu()->actions().size() == 3) {
+  if (button->menu() != nullptr && button->menu()->actions().size() == 4) {
     button->menu()->actions()[1]->trigger();
   }
   QApplication::processEvents();
@@ -763,6 +770,31 @@ void ui_color_panel_view_menu_switches_views() {
   CHECK(panel->channel_spin(Channel::Brightness)->maximum() == 100);
   CHECK(section->height() < cube_height);
   save_widget_artifact("ui_color_panel_hsb_sliders", *section);
+
+  // CMYK Sliders: four rows of ink percent, all of them inside the panel, which grows by
+  // the fourth row (taller than the cube's 170 with offscreen's tall number boxes).
+  const int hsb_height = section->height();
+  if (button->menu() != nullptr && button->menu()->actions().size() == 4) {
+    button->menu()->actions()[3]->trigger();
+  }
+  QApplication::processEvents();
+  CHECK(panel->view() == View::CmykSliders);
+  CHECK(checked_view_count(*panel) == 1);
+  for (const auto channel : {Channel::Cyan, Channel::Magenta, Channel::Yellow, Channel::Black}) {
+    CHECK(panel->channel_track(channel)->isVisible());
+    CHECK(panel->channel_spin(channel)->isVisible());
+    CHECK(panel->channel_spin(channel)->maximum() == 100);
+    CHECK(panel->channel_spin(channel)->suffix() == panel->channel_spin(Channel::Saturation)->suffix());
+  }
+  CHECK(!panel->channel_track(Channel::Hue)->isVisible());
+  CHECK(section->height() > hsb_height);
+  auto* black = panel->channel_spin(Channel::Black);
+  CHECK(black->mapTo(panel, QPoint(0, black->height())).y() <= panel->height());
+  save_widget_artifact("ui_color_panel_cmyk_sliders", *section);
+  if (auto* menu = button->menu(); menu != nullptr) {
+    menu->adjustSize();
+    save_widget_artifact("ui_color_panel_view_menu", *menu);
+  }
 
   // Back to the cube: it takes its preferred height back.
   panel->view_action(View::HueCube)->trigger();
@@ -963,13 +995,191 @@ void ui_color_panel_view_persists() {
     QApplication::processEvents();
     CHECK(patchy::ui::app_settings().value(kColorPanelViewKey).toString() == QStringLiteral("rgbSliders"));
   }
+  // CMYK Sliders is remembered too.
+  CHECK(ColorDockPanel::view_from_token(QStringLiteral("cmykSliders")) == View::CmykSliders);
+  CHECK(ColorDockPanel::view_token(View::CmykSliders) == QStringLiteral("cmykSliders"));
   // An unknown value opens the Hue Cube.
-  patchy::ui::app_settings().setValue(kColorPanelViewKey, QStringLiteral("cmykSliders"));
+  patchy::ui::app_settings().setValue(kColorPanelViewKey, QStringLiteral("brightnessCube"));
   {
     patchy::ui::MainWindow window;
     auto* panel = window.findChild<ColorDockPanel*>(QStringLiteral("colorPanel"));
     CHECK(panel != nullptr && panel->view() == View::HueCube);
   }
+}
+
+// The inks the Color Picker window shows for `color`, in the working CMYK space.
+std::array<int, 4> picker_inks(QColor color) {
+  const auto ink = patchy::working_cmyk_space()->cmyk_from_rgb(
+      {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+       static_cast<std::uint8_t>(color.blue())});
+  return {static_cast<int>(std::lround(ink.cyan)), static_cast<int>(std::lround(ink.magenta)),
+          static_cast<int>(std::lround(ink.yellow)), static_cast<int>(std::lround(ink.black))};
+}
+
+QColor color_of_inks(const std::array<int, 4>& inks) {
+  const auto rgb = patchy::working_cmyk_space()->rgb_from_cmyk(
+      {static_cast<double>(inks[0]), static_cast<double>(inks[1]), static_cast<double>(inks[2]),
+       static_cast<double>(inks[3])});
+  return QColor(rgb.red, rgb.green, rgb.blue);
+}
+
+std::array<int, 4> shown_inks(const ColorDockPanel& panel) {
+  return {panel.channel_spin(Channel::Cyan)->value(), panel.channel_spin(Channel::Magenta)->value(),
+          panel.channel_spin(Channel::Yellow)->value(), panel.channel_spin(Channel::Black)->value()};
+}
+
+// The #404 follow-up: the CMYK sliders show the Color Picker window's numbers, set the
+// foreground through the working space, keep inks as set, and follow changes elsewhere.
+void ui_color_panel_cmyk_sliders_set_foreground() {
+  SettingsValueRestorer view_setting(kColorPanelViewKey);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* panel = open_color_panel(window);
+  if (panel == nullptr) {
+    return;
+  }
+  require_action(window, "colorDefaultAction")->trigger();
+  QApplication::processEvents();
+  panel->set_view(View::CmykSliders);
+  QApplication::processEvents();
+  const auto background = canvas->secondary_color();
+  int picks = 0;
+  QObject::connect(panel, &ColorDockPanel::color_picked, panel, [&picks] { ++picks; });
+  CHECK(shown_inks(*panel) == picker_inks(QColor(Qt::black)));
+
+  // Numbers set the inks, and the foreground is the color they print as.
+  const std::array<int, 4> typed{30, 30, 30, 30};
+  panel->channel_spin(Channel::Cyan)->setValue(typed[0]);
+  panel->channel_spin(Channel::Magenta)->setValue(typed[1]);
+  panel->channel_spin(Channel::Yellow)->setValue(typed[2]);
+  panel->channel_spin(Channel::Black)->setValue(typed[3]);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == color_of_inks(typed).rgb());
+  // The inks stay as typed, whatever RGB would convert back to.
+  CHECK(shown_inks(*panel) == typed);
+  CHECK(canvas->secondary_color().rgb() == background.rgb());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Foreground color changed"));
+
+  // A click on the magenta track sets magenta only.
+  auto* magenta = panel->channel_track(Channel::Magenta);
+  const int magenta_x = magenta->width() * 4 / 5;
+  const int magenta_value = track_value_at(*magenta, Channel::Magenta, magenta_x);
+  click(*magenta, QPoint(magenta_x, magenta->height() / 2));
+  const std::array<int, 4> clicked{typed[0], magenta_value, typed[2], typed[3]};
+  CHECK(shown_inks(*panel) == clicked);
+  CHECK(canvas->primary_color().rgb() == color_of_inks(clicked).rgb());
+  // The track shows the color each magenta level gives, the others held.
+  CHECK(panel->channel_color(Channel::Magenta, 0).rgb() == color_of_inks({typed[0], 0, typed[2], typed[3]}).rgb());
+  // A drag on the black track follows the pointer.
+  auto* black = panel->channel_track(Channel::Black);
+  const int drag_x = black->width() / 5;
+  send_mouse(*black, QEvent::MouseButtonPress, QPoint(black->width() / 2, 4), Qt::LeftButton, Qt::LeftButton,
+             Qt::NoModifier);
+  send_mouse(*black, QEvent::MouseMove, QPoint(drag_x, 4), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*black, QEvent::MouseButtonRelease, QPoint(drag_x, 4), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+  const std::array<int, 4> dragged{typed[0], magenta_value, typed[2], track_value_at(*black, Channel::Black, drag_x)};
+  CHECK(shown_inks(*panel) == dragged);
+  CHECK(canvas->primary_color().rgb() == color_of_inks(dragged).rgb());
+  const int own_picks = picks;
+  CHECK(own_picks > 0);
+
+  // A color from elsewhere shows as the picker window's numbers, and is no pick.
+  require_action(window, "colorSwapAction")->trigger();
+  QApplication::processEvents();
+  CHECK(shown_inks(*panel) == picker_inks(canvas->primary_color()));
+  require_action(window, "colorSwapAction")->trigger();
+  QApplication::processEvents();
+  CHECK(shown_inks(*panel) == picker_inks(canvas->primary_color()));
+  panel->set_view(View::HueCube);
+  QApplication::processEvents();
+  click(*panel->field(), QPoint(panel->field()->width() * 2 / 3, panel->field()->height() / 3));
+  panel->set_view(View::CmykSliders);
+  QApplication::processEvents();
+  CHECK(shown_inks(*panel) == picker_inks(canvas->primary_color()));
+  CHECK(picks == own_picks + 1);
+  // The Foreground Color window shows the same numbers.
+  panel->foreground_chip()->click();
+  QApplication::processEvents();
+  auto* dialog = window.findChild<QDialog*>(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr);
+  if (dialog != nullptr) {
+    const std::array<const char*, 4> names{"patchyColorCyanSpin", "patchyColorMagentaSpin", "patchyColorYellowSpin",
+                                           "patchyColorBlackSpin"};
+    for (std::size_t index = 0; index < names.size(); ++index) {
+      auto* spin = dialog->findChild<QSpinBox*>(QLatin1String(names[index]));
+      CHECK(spin != nullptr && spin->value() == shown_inks(*panel)[index]);
+    }
+    dialog->close();
+    QApplication::processEvents();
+  }
+}
+
+// GitHub issue 464: a drag in the field sets the foreground on every move, but no move
+// renders the field's gradient again (its hue does not change), writes the settings file
+// or restyles the gradient preview; the release writes the pair once.
+void ui_color_panel_field_drag_keeps_per_move_work_small() {
+  const QString foreground_key = QStringLiteral("tools/foregroundColor");
+  SettingsValueRestorer foreground_setting(foreground_key);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* panel = open_color_panel(window);
+  if (panel == nullptr) {
+    return;
+  }
+  auto* field = panel->field();
+  auto* gradient_preview = window.findChild<QWidget*>(QStringLiteral("gradientPreviewButton"));
+  CHECK(gradient_preview != nullptr);
+  click(*panel->hue_strip(), QPoint(4, panel->hue_strip()->height() / 3));
+  click(*field, QPoint(field->width() / 2, field->height() / 2));
+  (void)field->grab();
+  const auto renders = field->plane_render_count();
+  const auto stored_before = patchy::ui::app_settings().value(foreground_key).toString();
+  CHECK(stored_before == canvas->primary_color().name(QColor::HexRgb));
+  const auto preview_style_before = gradient_preview != nullptr ? gradient_preview->styleSheet() : QString();
+
+  const QPoint start(field->width() / 5, field->height() / 5);
+  send_mouse(*field, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(panel->picking());
+  constexpr int kMoves = 40;
+  bool every_move_applied = true;
+  QPoint last = start;
+  for (int step = 1; step <= kMoves; ++step) {
+    last = QPoint(field->width() / 5 + (field->width() * 3 / 5) * step / kMoves,
+                  field->height() / 5 + (field->height() * 3 / 5) * step / kMoves);
+    send_mouse(*field, QEvent::MouseMove, last, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::processEvents();
+    (void)field->grab();
+    const auto expected = field_color_at(panel->hue(), last, field->size());
+    every_move_applied = every_move_applied && canvas->primary_color().rgb() == expected.rgb() &&
+                         panel->foreground_chip()->color().rgb() == expected.rgb();
+  }
+  CHECK(every_move_applied);
+  // The crosshair is where the pointer is, to the field's 8-bit saturation and value.
+  const double marker_x = panel->saturation() / 255.0 * std::max(1, field->width() - 1);
+  const double marker_y = (255 - panel->value()) / 255.0 * std::max(1, field->height() - 1);
+  CHECK(std::abs(marker_x - last.x()) <= 1.0 && std::abs(marker_y - last.y()) <= 1.0);
+  CHECK(field->plane_render_count() == renders);
+  CHECK(patchy::ui::app_settings().value(foreground_key).toString() == stored_before);
+  if (gradient_preview != nullptr) {
+    CHECK(gradient_preview->styleSheet() == preview_style_before);
+  }
+
+  send_mouse(*field, QEvent::MouseButtonRelease, last, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(!panel->picking());
+  CHECK(patchy::ui::app_settings().value(foreground_key).toString() == canvas->primary_color().name(QColor::HexRgb));
+  if (gradient_preview != nullptr) {
+    // The default gradient runs from the foreground, so its preview follows at the release.
+    CHECK(gradient_preview->styleSheet() != preview_style_before);
+  }
+  // A hue change renders the gradient again, once.
+  click(*panel->hue_strip(), QPoint(4, panel->hue_strip()->height() * 2 / 3));
+  (void)field->grab();
+  CHECK(field->plane_render_count() == renders + 1);
 }
 
 }  // namespace
@@ -993,5 +1203,7 @@ std::vector<patchy::test::TestCase> color_dock_panel_tests() {
       {"ui_color_panel_sliders_follow_color_changes_elsewhere",
        ui_color_panel_sliders_follow_color_changes_elsewhere},
       {"ui_color_panel_view_persists", ui_color_panel_view_persists},
+      {"ui_color_panel_cmyk_sliders_set_foreground", ui_color_panel_cmyk_sliders_set_foreground},
+      {"ui_color_panel_field_drag_keeps_per_move_work_small", ui_color_panel_field_drag_keeps_per_move_work_small},
   };
 }

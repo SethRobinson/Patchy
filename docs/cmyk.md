@@ -47,7 +47,7 @@ Limits to keep stating plainly in user-facing text:
 
 `working_cmyk_space()` is the process-wide instance and is never null.
 `MainWindow`'s constructor installs the stored choice; Preferences replaces it on OK and
-calls `refresh_color_picker_cmyk_fields()`.
+calls `refresh_color_picker_cmyk_fields()` and the Color panel's `working_cmyk_space_changed()`.
 
 Percentages are a print shop's: 0 is no ink, 100 is full ink (`CmykPercent`). The PSD
 storage convention (255 = no ink) used by `CmykToRgbTransform` and `InkSpace` stays inside
@@ -116,6 +116,9 @@ Licence record (October 14, 2026):
   color they produced (`cmyk_color_`) and recomputes them only when the current color stops
   being that color or the working space changes. Recomputing on every sync would change a
   value under the cursor. The tooltip names the active profile.
+- **Color panel CMYK Sliders** (`src/ui/color_dock_panel.cpp`, GitHub issue 404): the same
+  conversion, rounding and kept inks as the picker, as four tracks and percent boxes
+  ([right-docks.md](right-docks.md#color-panel)).
 - **Picker gamut warning** (`patchyColorGamutWarningButton`, under the preview): shown while
   the current color is outside the working space's gamut, filled with the color it prints as
   (`CmykProofTransform::printed`); a click takes that color. Hidden under the formula. The

@@ -29,6 +29,7 @@ namespace {
 // Persisted identifiers: never rename them (see AGENTS.md).
 QString gui_scale_key() { return QStringLiteral("preferences/guiScalePercent"); }
 QString toolbar_icon_size_key() { return QStringLiteral("preferences/toolbarIconSize"); }
+QString tool_flyout_open_mode_key() { return QStringLiteral("preferences/toolFlyoutOpenMode"); }
 #ifndef Q_OS_WASM
 QString recovery_enabled_key() { return QStringLiteral("recovery/enabled"); }
 #endif
@@ -257,6 +258,40 @@ ToolbarIconSize stored_toolbar_icon_size() {
 void set_stored_toolbar_icon_size(ToolbarIconSize size) {
   auto settings = app_settings();
   settings.setValue(toolbar_icon_size_key(), toolbar_icon_size_token(size));
+}
+
+QString tool_flyout_open_mode_token(ToolFlyoutOpenMode mode) {
+  switch (mode) {
+    case ToolFlyoutOpenMode::Hold:
+      break;
+    case ToolFlyoutOpenMode::Click:
+      return QStringLiteral("click");
+    case ToolFlyoutOpenMode::Hover:
+      return QStringLiteral("hover");
+  }
+  return QStringLiteral("hold");
+}
+
+ToolFlyoutOpenMode tool_flyout_open_mode_from_token(const QString& token) {
+  for (const auto mode : kToolFlyoutOpenModes) {
+    if (token == tool_flyout_open_mode_token(mode)) {
+      return mode;
+    }
+  }
+  return ToolFlyoutOpenMode::Hold;
+}
+
+ToolFlyoutOpenMode stored_tool_flyout_open_mode() {
+  return tool_flyout_open_mode_from_token(app_settings().value(tool_flyout_open_mode_key()).toString());
+}
+
+void set_stored_tool_flyout_open_mode(ToolFlyoutOpenMode mode) {
+  auto settings = app_settings();
+  if (mode == ToolFlyoutOpenMode::Hold) {
+    settings.remove(tool_flyout_open_mode_key());
+  } else {
+    settings.setValue(tool_flyout_open_mode_key(), tool_flyout_open_mode_token(mode));
+  }
 }
 
 int normalize_recovery_interval_minutes(int stored) {

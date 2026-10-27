@@ -37,7 +37,6 @@
 #include <utility>
 
 namespace patchy::ui {
-bool line_is_entirely_faux_italic(const QTextBlock& block, const QTextLine& line);
 bool document_has_faux_italic(const QTextDocument& document);
 QTransform faux_italic_shear(double baseline_y);
 double dominant_text_run_size(const TextToolSettings& settings, const QString& rich_text_runs);
@@ -122,7 +121,9 @@ bool format_has_decoration(const QTextCharFormat& format) {
 // superscript or subscript, whose shift QTextLine::draw would round through Qt's percentage of
 // the font height (a subscript landed a pixel high) instead of the exact engine-pixel property.
 bool format_needs_glyph_run_draw(const QTextCharFormat& format) {
-  return text_format_has_render_features(format) || format.property(kTextFontBaselineFormatProperty).toInt() != 0;
+  // Faux italic shears each run on its own (issue 466), which only the glyph-run draw can do.
+  return text_format_has_render_features(format) || format.property(kTextFontBaselineFormatProperty).toInt() != 0 ||
+         format.property(kTextFauxItalicFormatProperty).toBool();
 }
 
 // Whether any fragment needs the per-line draw path: a bar to place, or glyph-run drawing.
@@ -308,32 +309,6 @@ QList<QGlyphRun> fragment_glyph_runs(const QTextBlock& block, const QTextLine& l
 // Applied here rather than when the runs are parsed so it follows the format's current colour
 // and pixel size, and so both the raster pass and the caret layout (which share this function)
 // see the identical advances.
-// Whether EVERY inked fragment of a line asks for faux italic. Qt draws a line at a time, so the
-// shear is applied per line: a line whose runs disagree would need the glyph-run draw path (see
-// docs/text-render-calibration.md) and is left upright rather than slanting runs that did not ask for it.
-bool line_is_entirely_faux_italic(const QTextBlock& block, const QTextLine& line) {
-  if (!block.isValid() || !line.isValid()) {
-    return false;
-  }
-  const auto line_start = block.position() + line.textStart();
-  const auto line_end = line_start + line.textLength();
-  bool saw_fragment = false;
-  for (auto it = block.begin(); !it.atEnd(); ++it) {
-    const auto fragment = it.fragment();
-    if (!fragment.isValid() || fragment.length() <= 0) {
-      continue;
-    }
-    if (fragment.position() + fragment.length() <= line_start || fragment.position() >= line_end) {
-      continue;
-    }
-    saw_fragment = true;
-    if (!fragment.charFormat().property(kTextFauxItalicFormatProperty).toBool()) {
-      return false;
-    }
-  }
-  return saw_fragment;
-}
-
 bool document_has_faux_italic(const QTextDocument& document) {
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
     for (auto it = block.begin(); !it.atEnd(); ++it) {
@@ -794,6 +769,12 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
     }
     const auto outline = format.textOutline();
     const bool faux_bold = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
+    // Faux italic is a per-run flag: only this fragment's glyphs lean, sheared about the line's
+    // baseline so neighbouring upright runs keep their place (issue 466).
+    painter.save();
+    if (format.property(kTextFauxItalicFormatProperty).toBool()) {
+      painter.setTransform(faux_italic_shear(item.block_origin.y() + line.y() + line.ascent()), true);
+    }
     // A stretched QFont is two different things to Qt's engines: FreeType (the offscreen
     // suite) stretches the glyph images and the advances, DirectWrite (a Windows window)
     // stretches the advances only and rasterizes every glyph at its design width, so the
@@ -890,6 +871,7 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
       painter.setPen(color);
       painter.drawGlyphRun(item.block_origin, run);
     }
+    painter.restore();
   }
 }
 
@@ -956,7 +938,6 @@ void draw_vertical_text_plan(const TextRenderPlan& plan, QPainter& painter) {
 
 void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
   auto& document = *plan.built.document;
-  const auto& font = plan.built.font;
   if (plan.has_document_transform) {
     painter.setTransform(plan.document_transform, true);
   }
@@ -968,14 +949,8 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
     for (const auto& item : plan.line_render_items) {
       painter.save();
       painter.setClipRect(item.clip_rect);
-      if (plan.faux_italic_render &&
-          line_is_entirely_faux_italic(document.findBlock(item.block_position), item.line)) {
-        // Shear about this line's own baseline so the slant pivots on the text, not on the
-        // buffer origin. Applied to the painter rather than the font because Qt resolves
-        // StyleOblique to the family's real Italic face whenever it has one.
-        painter.setTransform(
-            faux_italic_shear(item.block_origin.y() + item.line.y() + item.line.ascent()), true);
-      }
+      // Faux italic lines always take a glyph-run path (format_needs_glyph_run_draw), which shears
+      // each faux italic run about the line's baseline; QTextLine::draw only sees upright lines.
       if (plan.pixel_align_glyphs) {
         draw_line_glyphs_pixel_aligned(document.findBlock(item.block_position), item, plan.document_transform,
                                        painter);
@@ -993,10 +968,7 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
       painter.fillRect(bar.rect, bar.color);
     }
   } else {
-    if (plan.faux_italic_render) {
-      const QFontMetricsF metrics(font);
-      painter.setTransform(faux_italic_shear(plan.local_rect.top() + metrics.ascent()), true);
-    }
+    // Only text with no faux italic run gets here: document_needs_line_items asks for line items.
     document.drawContents(&painter, plan.local_rect);
   }
 }

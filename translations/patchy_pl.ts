@@ -2991,10 +2991,6 @@
         <translation>Domyślny</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Kanał:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -13201,6 +13197,26 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy jako aplikacja tworząca, daty eksportu i wpis historii, tak jak zapisuje je opcja Podstawowe w Preferencjach. Nic z informacji o pliku dokumentu.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Przyciski</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Dół palety</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Próbki kolorów</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Przycisk szybkiej maski</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Przycisk trybu ekranu</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15400,6 +15416,46 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Color panel settings</source>
         <translation>Ustawienia panelu Kolor</translation>
+    </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>Suwaki CMYK</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cyjan</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Żółty</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Czarny</translation>
     </message>
 </context>
 <context>
@@ -26607,14 +26663,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Zastosuj</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>Pokaż nakładkę</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Pokazuje źródło pod pędzlem przed malowaniem</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Przesuwanie: przeciągnij, aby przesunąć, Shift+przeciąganie utrzymuje ruch w poziomie lub pionie, %ALT%+przeciąganie powiela. %CTRL%+kliknięcie zaznacza warstwę, Shift+kliknięcie ją przełącza. %CTRL%+przeciąganie zaznacza prostokąt, podobnie jak przeciąganie po pustym miejscu przy włączonym automatycznym zaznaczaniu.</translation>
     </message>
@@ -27133,6 +27181,29 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Skrypty motywów nie mogą otwierać Twoich plików i dokumentów ani korzystać z internetu. Ale dla bezpieczeństwa zezwalaj na nie tylko w motywach od osób, którym ufasz.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Jak otwiera się menu grupy narzędzi: przytrzymanie przycisku, kliknięcie go lub zatrzymanie na nim wskaźnika.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Otwieraj grupy narzędzi:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Kliknięcie</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Najechanie</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Kliknięcie i przytrzymanie</translation>
     </message>
 </context>
 <context>

@@ -556,15 +556,15 @@ void ui_levels_dialog_adjusts_selected_color_channel_on_transparent_layer() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
     CHECK(dialog != nullptr);
-    auto* channel = dialog->findChild<QComboBox*>(QStringLiteral("levelsChannelCombo"));
+    auto* channel = dialog->findChild<QTabBar*>(QStringLiteral("levelsChannelTabs"));
     auto* black_output = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackOutputSpin"));
     CHECK(channel != nullptr);
     CHECK(black_output != nullptr);
     CHECK(channel->count() == 4);
-    CHECK(channel->itemText(0) == QStringLiteral("RGB"));
-    CHECK(channel->itemText(1) == QStringLiteral("Red"));
-    CHECK(channel->itemText(2) == QStringLiteral("Green"));
-    CHECK(channel->itemText(3) == QStringLiteral("Blue"));
+    CHECK(channel->tabText(0) == QStringLiteral("RGB"));
+    CHECK(channel->tabText(1) == QStringLiteral("Red"));
+    CHECK(channel->tabText(2) == QStringLiteral("Green"));
+    CHECK(channel->tabText(3) == QStringLiteral("Blue"));
     channel->setCurrentIndex(1);
     black_output->setValue(255);
     process_events_for(180);
@@ -588,16 +588,16 @@ void ui_levels_dialog_preserves_independent_channel_records() {
   QTimer::singleShot(0, [] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
     CHECK(dialog != nullptr);
-    auto* channel = dialog->findChild<QComboBox*>(QStringLiteral("levelsChannelCombo"));
+    auto* channel = dialog->findChild<QTabBar*>(QStringLiteral("levelsChannelTabs"));
     auto* black_input = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
     auto* black_output = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackOutputSpin"));
     CHECK(channel != nullptr);
     CHECK(black_input != nullptr);
     CHECK(black_output != nullptr);
-    CHECK(channel->currentText() == QStringLiteral("RGB"));
+    CHECK(channel->tabText(channel->currentIndex()) == QStringLiteral("RGB"));
     black_input->setValue(24);
     channel->setCurrentIndex(1);
-    CHECK(channel->currentText() == QStringLiteral("Red"));
+    CHECK(channel->tabText(channel->currentIndex()) == QStringLiteral("Red"));
     CHECK(black_input->value() == 0);
     black_output->setValue(255);
     channel->setCurrentIndex(0);
@@ -617,6 +617,96 @@ void ui_levels_dialog_preserves_independent_channel_records() {
   CHECK(result->red.black_output == 255);
   CHECK(result->green.black_input == 0);
   CHECK(result->green.black_output == 0);
+}
+
+void ui_levels_dialog_channel_tabs_tint_the_histogram() {
+  // Issue 453: one click on a channel tab switches the record and the
+  // histogram, and a color channel's bars take its hue the way Curves tints
+  // them. Each 2x2 block is one color, so the box-averaged histograms are exact:
+  // the top band spreads red over 20..109, green over 140..229 and blue over
+  // 160..249 evenly, the bottom band piles onto 50..79, 170..199 and
+  // 200..229, which gives each channel a visible hump.
+  patchy::PixelBuffer pixels(360, 64, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 360; ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      const auto block = x / 2;
+      const bool top = y < 32;
+      pixel[0] = static_cast<std::uint8_t>(top ? 20 + block % 90 : 50 + block % 30);
+      pixel[1] = static_cast<std::uint8_t>(top ? 140 + (block * 7) % 90 : 170 + block % 30);
+      pixel[2] = static_cast<std::uint8_t>(top ? 160 + (block * 13) % 90 : 200 + block % 30);
+    }
+  }
+  const QColor plot(55, 55, 55);
+  const auto tinted = [&plot](patchy::CurvesChannel channel) {
+    const auto color = patchy::ui::channel_histogram_color(channel);
+    const auto alpha = color.alphaF();
+    const auto mix = [alpha](int top, int bottom) {
+      return static_cast<int>(std::lround(bottom + (top - bottom) * alpha));
+    };
+    return QColor(mix(color.red(), plot.red()), mix(color.green(), plot.green()), mix(color.blue(), plot.blue()));
+  };
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* tabs = dialog->findChild<QTabBar*>(QStringLiteral("levelsChannelTabs"));
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+    auto* black_input = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+    CHECK(tabs != nullptr);
+    CHECK(graph != nullptr);
+    CHECK(black_input != nullptr);
+    CHECK(dialog->findChild<QComboBox*>(QStringLiteral("levelsChannelCombo")) == nullptr);
+    CHECK(tabs->currentIndex() == 0);
+
+    const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
+    const auto bar_pixel = [&](int bin) {
+      const auto column = graph_rect.left() + (bin * graph_rect.width()) / 256;
+      return graph->grab().toImage().pixelColor(column, graph_rect.bottom() - 2);
+    };
+    const auto click_tab = [&](int index) {
+      const auto center = tabs->tabRect(index).center();
+      send_mouse(*tabs, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*tabs, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+    };
+
+    // The composite keeps the neutral bars at every channel's bin.
+    CHECK(color_close(bar_pixel(60), QColor(218, 218, 218), 8));
+    CHECK(color_close(bar_pixel(150), QColor(218, 218, 218), 8));
+    black_input->setValue(30);
+
+    click_tab(1);
+    CHECK(tabs->currentIndex() == 1);
+    CHECK(black_input->value() == 0);
+    CHECK(color_close(bar_pixel(60), tinted(patchy::CurvesChannel::Red), 8));
+    CHECK(color_close(bar_pixel(150), plot, 8));
+    save_widget_artifact("ui_levels_dialog_red_channel_tab", *dialog);
+    black_input->setValue(12);
+
+    click_tab(2);
+    CHECK(tabs->currentIndex() == 2);
+    CHECK(color_close(bar_pixel(150), tinted(patchy::CurvesChannel::Green), 8));
+    CHECK(color_close(bar_pixel(60), plot, 8));
+
+    click_tab(3);
+    CHECK(color_close(bar_pixel(200), tinted(patchy::CurvesChannel::Blue), 8));
+
+    click_tab(0);
+    CHECK(black_input->value() == 30);
+    CHECK(color_close(bar_pixel(200), QColor(218, 218, 218), 8));
+    click_tab(1);
+    CHECK(black_input->value() == 12);
+    inspected = true;
+    dialog->accept();
+  });
+  const auto result = patchy::ui::request_levels_settings(nullptr, {}, {}, &pixels);
+  CHECK(inspected);
+  CHECK(result.has_value());
+  CHECK(result->black_input == 30);
+  CHECK(result->red.black_input == 12);
+  CHECK(result->channel == patchy::LevelsChannel::Red);
 }
 
 void ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin() {
@@ -4084,6 +4174,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_levels_dialog_adjusts_selected_color_channel_on_transparent_layer},
       {"ui_levels_dialog_preserves_independent_channel_records",
        ui_levels_dialog_preserves_independent_channel_records},
+      {"ui_levels_dialog_channel_tabs_tint_the_histogram", ui_levels_dialog_channel_tabs_tint_the_histogram},
       {"ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler",
        ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler},
       {"ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin",

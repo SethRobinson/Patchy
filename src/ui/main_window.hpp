@@ -232,6 +232,11 @@ public:
     return tool_palette_customization_;
   }
   [[nodiscard]] ToolPaletteLayout* tool_palette_layout() const noexcept { return tool_palette_layout_; }
+  // Preferences' toolbar icon size and tool group opening (GitHub issues 213 and 459), which
+  // Preferences and the customize dialog both show: stores a changed value, applies both
+  // live, and moves the controls of an open Preferences or customize dialog to match.
+  void apply_tool_palette_preferences(ToolbarIconSize icon_size, ToolFlyoutOpenMode flyout_open_mode);
+  [[nodiscard]] ToolFlyoutOpenMode tool_flyout_open_mode() const noexcept { return tool_flyout_open_mode_; }
   // True where Patchy draws its own window frame (Windows, and Linux unless the
   // "Use the system title bar" preference is on): the frameless flag, the chrome buttons
   // in the menu-bar row, and the edge-resize machinery. macOS uses the native frame and
@@ -689,6 +694,9 @@ private:
   // when Alt was held at the press.
   void create_color_dock(std::vector<PanelSpec>& specs);
   void apply_color_panel_pick(QColor color, bool background);
+  // The release of a Color panel drag: writes the pair and refreshes the gradient preview
+  // that the drag's moves left for it (GitHub issue 464).
+  void finish_color_panel_drag();
   // The foreground change every color control shares (GitHub issue 371): the canvas
   // foreground, an open text session's selection, and the live shape paint, exactly what the
   // Foreground Color window has always done.
@@ -1195,6 +1203,8 @@ private:
                                                       const std::function<void(QFrame*)>& configure_panel);
   // Resizes the tool palette for a toolbar icon size factor (toolbar_icon_size_factor).
   void apply_tool_palette_factor(double factor);
+  // Shows the footer rows (color well, Quick Mask, screen mode) the customization keeps.
+  void apply_tool_palette_footer_rows();
   void new_guide_dialog();
   // View > Show > Show Extras Options (GitHub issue 420): stores and applies the choice.
   void view_extras_options_dialog();
@@ -2231,6 +2241,10 @@ private:
   // Channel visibility (docs/channels.md): the Channels panel's eyes and Ctrl+2 to Ctrl+6.
   void toggle_channel_eye(ChannelPanel::RowKind kind);
   void show_channel_by_shortcut(int slot);
+  // True when Ctrl+3 to Ctrl+6 pick ink plates (a CMYK Proof document with plates listed).
+  [[nodiscard]] bool channel_shortcuts_pick_inks() const;
+  // Puts the channel view actions' current keys on the Channels rows they pick.
+  void refresh_channel_row_shortcuts();
   void apply_channel_view_change(ChannelViewChange change);
   [[nodiscard]] QString channel_view_names(ChannelView view) const;
   // The Composite, component and ink plate rows' thumbnails, sampled from the canvas's
@@ -2827,6 +2841,8 @@ private:
   // choice, the dialog's action, and the Layers footer buttons by permanent id.
   ToolPaletteLayout* tool_palette_layout_{nullptr};
   ToolPaletteCustomization tool_palette_customization_;
+  // When tool groups open (Preferences, app_settings.hpp); the flyout buttons' openers follow it.
+  ToolFlyoutOpenMode tool_flyout_open_mode_{ToolFlyoutOpenMode::Hold};
   QAction* customize_tool_palette_action_{nullptr};
   struct LayerFooterButton {
     const char* id;
@@ -2937,8 +2953,6 @@ private:
   QPushButton* ruler_straighten_image_button_{nullptr};
   QPushButton* ruler_clear_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
-  // Show Overlay on the bar (GitHub issue 426), the same setting as the popup's checkbox.
-  QCheckBox* clone_overlay_check_{nullptr};
   QToolButton* clone_source_options_button_{nullptr};
   QMenu* clone_source_menu_{nullptr};
   CloneSourcePanel* clone_source_panel_{nullptr};
@@ -3484,6 +3498,11 @@ private:
   // not count as a change of the pair.
   QColor canvas_applied_foreground_;
   QColor canvas_applied_background_;
+  // A Color panel drag defers the settings write (a whole Patchy.ini rewrite) and the
+  // gradient preview's restyle to its release; per move they made the drag lag (GitHub
+  // issue 464).
+  bool color_settings_save_pending_{false};
+  bool gradient_controls_refresh_pending_{false};
   // Full paint mirrors (None/Solid/Gradient/Pattern) for the options-bar
   // fill/stroke pickers; VectorFill's defaults are solid black, matching the
   // historical QColor mirrors. Sticky like Photoshop: selecting a shape layer

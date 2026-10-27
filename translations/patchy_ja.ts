@@ -2185,10 +2185,6 @@ RGB: %2, %3, %4</translation>
         <translation>ピクセルにフィルターを適用しています</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>チャンネル:</translation>
-    </message>
-    <message>
         <source>Input Levels:</source>
         <translation>入力レベル:</translation>
     </message>
@@ -13127,6 +13123,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>作成アプリとしての Patchy、書き出し日時、履歴の項目 (環境設定の「基本」と同じ内容)。ドキュメントのファイル情報からは何も含めません。</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>ボタン</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>パレットの下部</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>カラースウォッチ</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>クイックマスクボタン</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>スクリーンモードボタン</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15326,6 +15342,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color panel settings</source>
         <translation>カラーパネルの設定</translation>
+    </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>CMYK スライダー</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>シアン</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>マゼンタ</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>イエロー</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>ブラック</translation>
     </message>
 </context>
 <context>
@@ -26457,14 +26513,6 @@ The open document keeps its blend modes either way.</source>
         <translation>適用</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>オーバーレイを表示</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>ペイントする前にブラシの下にソースをプレビューします</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>移動: ドラッグで移動、Shift+ドラッグで水平または垂直に移動、%ALT%+ドラッグで複製します。%CTRL%+クリックでレイヤーを選択、Shift+クリックで切り替えます。%CTRL%+ドラッグで矩形選択します。自動選択がオンなら空いた場所のドラッグでも選択します。</translation>
     </message>
@@ -26981,6 +27029,29 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>テーマのスクリプトは、ファイルやドキュメントを開いたりインターネットを使用したりできません。ただし、念のため、信頼できる人のテーマでのみ許可してください。</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>ツールグループのメニューの開き方: ボタンを長押しする、クリックする、またはポインターを置く。</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>ツールグループを開く操作:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>クリック</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>ポインターを置く</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>長押し</translation>
     </message>
 </context>
 <context>

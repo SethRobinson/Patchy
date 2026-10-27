@@ -19,6 +19,7 @@
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
@@ -3950,6 +3951,311 @@ void ui_faux_italic_shears_the_rendered_glyphs() {
   CHECK(slanted.width - upright.width <= upright.width / 2);
 }
 
+// Issue 466: faux italic (and faux bold) ticked in the Character dialog with part of a line
+// selected styles only the selected characters. "HH HH" with the second word selected: only its
+// stems lean, and the first word keeps its exact pixels; faux bold on the first word then thickens
+// that word alone. The run columns carry each flag on the selected runs only.
+void ui_faux_italic_on_a_selection_slants_only_the_selected_characters() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::Document document(480, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(480, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Words",
+                           solid_pixels(400, 100, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  text_layer.set_bounds(patchy::Rect{20, 30, 400, 100});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "HH HH";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "64";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t5\t64\t0\t0\t#000000\tArial";
+  const auto layer_id = document.add_layer(std::move(text_layer)).id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Faux Italic Selection"));
+  QApplication::processEvents();
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  live_document.set_active_layer(layer_id);
+  auto* canvas = require_canvas(window);
+
+  // Opens the layer in the Type tool, optionally ticks `checkbox` in the Character dialog with
+  // [from, to) selected, and commits through Move (which re-renders the layer).
+  const auto edit = [&](int from, int to, const char* checkbox) {
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    const auto hit = canvas->widget_position_for_document_point(QPoint(45, 70));
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    process_events_for(250);
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor != nullptr && checkbox != nullptr) {
+      auto cursor = editor->textCursor();
+      cursor.setPosition(from);
+      cursor.setPosition(to, QTextCursor::KeepAnchor);
+      editor->setTextCursor(cursor);
+      QApplication::processEvents();
+      auto* character_button = window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"));
+      CHECK(character_button != nullptr);
+      bool ticked = false;
+      QTimer::singleShot(0, [&window, &ticked, checkbox] {
+        auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        if (auto* box = dialog->findChild<QCheckBox*>(QString::fromLatin1(checkbox)); box != nullptr) {
+          CHECK(!box->isChecked());
+          box->click();
+          process_events_for(50);
+          ticked = box->isChecked();
+        }
+        dialog->close();
+      });
+      if (character_button != nullptr) {
+        character_button->click();
+      }
+      QApplication::processEvents();
+      CHECK(ticked);
+    }
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(200);
+  };
+
+  // Alpha of the layer at a DOCUMENT point (0 outside the raster).
+  const auto alpha_at = [&live_document, layer_id](int x, int y) -> int {
+    const auto* layer = std::as_const(live_document).find_layer(layer_id);
+    if (layer == nullptr) {
+      return 0;
+    }
+    const auto& pixels = layer->pixels();
+    const int local_x = x - layer->bounds().x;
+    const int local_y = y - layer->bounds().y;
+    if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height() ||
+        pixels.format().channels < 4U) {
+      return 0;
+    }
+    const auto offset = static_cast<std::size_t>(local_y) * pixels.stride_bytes() +
+                        static_cast<std::size_t>(local_x) * pixels.format().channels + 3U;
+    const auto bytes = pixels.data();
+    return offset < bytes.size() ? static_cast<int>(bytes[offset]) : 0;
+  };
+  constexpr int kInk = 12;
+  const auto column_inked_in_rows = [&](int x, int y0, int y1) {
+    for (int y = y0; y < y1; ++y) {
+      if (alpha_at(x, y) >= kInk) {
+        return true;
+      }
+    }
+    return false;
+  };
+  const auto column_inked = [&](int x) { return column_inked_in_rows(x, 0, 160); };
+  // Leftmost inked column of a document column range, within the rows given.
+  const auto leftmost_ink = [&](int x0, int x1, int y0, int y1) {
+    for (int x = x0; x < x1; ++x) {
+      if (column_inked_in_rows(x, y0, y1)) {
+        return x;
+      }
+    }
+    return -1;
+  };
+  const auto snapshot = [&](int x0, int x1) {
+    std::vector<int> alpha;
+    for (int y = 0; y < 160; ++y) {
+      for (int x = x0; x < x1; ++x) {
+        alpha.push_back(alpha_at(x, y));
+      }
+    }
+    return alpha;
+  };
+  // The first word's left edge, where its ink ends, and where the second word's ink starts.
+  struct Words {
+    int first_left{-1};
+    int gap_start{-1};
+    int second_left{-1};
+    bool valid{false};
+  };
+  const auto find_words = [&] {
+    Words words;
+    words.first_left = leftmost_ink(0, 480, 0, 160);
+    if (words.first_left < 0) {
+      return words;
+    }
+    // The word space is the widest blank column run inside the ink (the H-to-H gap is narrower).
+    int last_inked = words.first_left;
+    for (int x = words.first_left; x < 480; ++x) {
+      if (column_inked(x)) {
+        last_inked = x;
+      }
+    }
+    int blank_start = -1;
+    for (int x = words.first_left; x <= last_inked; ++x) {
+      if (!column_inked(x)) {
+        if (blank_start < 0) {
+          blank_start = x;
+        }
+      } else if (blank_start >= 0) {
+        if (x - blank_start > words.second_left - words.gap_start) {
+          words.gap_start = blank_start;
+          words.second_left = x;
+        }
+        blank_start = -1;
+      }
+    }
+    words.valid = words.gap_start > words.first_left + 40 && words.second_left > words.gap_start + 4 &&
+                  last_inked > words.second_left + 40;
+    return words;
+  };
+
+  // Upright baseline: the same Patchy re-render with nothing changed.
+  edit(0, 0, nullptr);
+  const auto upright = find_words();
+  CHECK(upright.valid);
+  if (!upright.valid) {
+    return;
+  }
+  const int split = (upright.gap_start + upright.second_left) / 2;
+  const auto upright_first_word = snapshot(0, split);
+  int ink_top = 160;
+  int ink_bottom = -1;
+  for (int y = 0; y < 160; ++y) {
+    for (int x = 0; x < 480; ++x) {
+      if (alpha_at(x, y) >= kInk) {
+        ink_top = std::min(ink_top, y);
+        ink_bottom = std::max(ink_bottom, y);
+        break;
+      }
+    }
+  }
+  CHECK(ink_bottom - ink_top > 20);
+  const int band = std::max(1, (ink_bottom - ink_top + 1) / 5);
+  // How far right the top fifth of a word's stems starts compared with its bottom fifth.
+  const auto lean_of = [&](int x0, int x1) {
+    return leftmost_ink(x0, x1, ink_top, ink_top + band) -
+           leftmost_ink(x0, x1, ink_bottom + 1 - band, ink_bottom + 1);
+  };
+  CHECK(std::abs(lean_of(0, split)) <= 2);
+  CHECK(std::abs(lean_of(split, 480)) <= 2);
+
+  // start len size bold italic color family leading tracking hscale vscale fauxbold style fauxitalic
+  const auto run_lines = [&live_document, layer_id] {
+    std::vector<QStringList> runs;
+    const auto* current = std::as_const(live_document).find_layer(layer_id);
+    if (current == nullptr) {
+      return runs;
+    }
+    const auto found = current->metadata().find(patchy::kLayerMetadataTextRuns);
+    if (found == current->metadata().end()) {
+      return runs;
+    }
+    const auto lines = QString::fromStdString(found->second).split(QLatin1Char('\n'));
+    for (int index = 1; index < lines.size(); ++index) {
+      const auto fields = lines[index].split(QLatin1Char('\t'));
+      if (fields.size() >= 2) {
+        runs.push_back(fields);
+      }
+    }
+    return runs;
+  };
+  const auto flag = [](const QStringList& fields, int column) {
+    return fields.size() > column && fields[column] == QStringLiteral("1");
+  };
+
+  // Faux italic on the second word only.
+  edit(3, 5, "textCharacterFauxItalic");
+  bool saw_italic_run = false;
+  for (const auto& fields : run_lines()) {
+    const int start = fields[0].toInt();
+    const int end = start + fields[1].toInt();
+    std::printf("  run %d..%d fauxitalic=%d\n", start, end, flag(fields, 13) ? 1 : 0);
+    if (end <= 3) {
+      CHECK(!flag(fields, 13));
+    } else if (start >= 3) {
+      CHECK(flag(fields, 13));
+      saw_italic_run = true;
+    } else {
+      CHECK(false);  // a run straddling the selection edge
+    }
+  }
+  CHECK(saw_italic_run);
+  save_widget_artifact("text_faux_italic_selection", *canvas);
+  const auto first_lean = lean_of(0, split);
+  const auto second_lean = lean_of(split, 480);
+  std::printf("  faux italic selection: first word lean=%d, second word lean=%d\n", first_lean, second_lean);
+  std::fflush(stdout);
+  CHECK(std::abs(first_lean) <= 2);
+  CHECK(second_lean >= 4);
+  // The unselected word is pixel for pixel what it was.
+  CHECK(snapshot(0, split) == upright_first_word);
+
+  // Faux bold on the first word only: it thickens, the italic second word keeps its lean.
+  edit(0, 2, "textCharacterFauxBold");
+  bool saw_bold_run = false;
+  for (const auto& fields : run_lines()) {
+    const int start = fields[0].toInt();
+    const int end = start + fields[1].toInt();
+    std::printf("  run %d..%d fauxbold=%d fauxitalic=%d\n", start, end, flag(fields, 11) ? 1 : 0,
+                flag(fields, 13) ? 1 : 0);
+    if (end <= 2) {
+      CHECK(flag(fields, 11));
+      CHECK(!flag(fields, 13));
+      saw_bold_run = true;
+    } else if (start >= 2) {
+      CHECK(!flag(fields, 11));
+      CHECK(flag(fields, 13) == (start >= 3));
+    } else {
+      CHECK(false);
+    }
+  }
+  CHECK(saw_bold_run);
+  save_widget_artifact("text_faux_bold_selection", *canvas);
+  const auto bold = find_words();
+  CHECK(bold.valid);
+  if (!bold.valid) {
+    return;
+  }
+  std::printf("  faux bold selection: first word width %d -> %d\n", upright.gap_start - upright.first_left,
+              bold.gap_start - bold.first_left);
+  std::fflush(stdout);
+  CHECK(bold.gap_start - bold.first_left > upright.gap_start - upright.first_left);
+  const int bold_split = (bold.gap_start + bold.second_left) / 2;
+  CHECK(std::abs(lean_of(0, bold_split)) <= 2);
+  CHECK(lean_of(bold_split, 480) >= 4);
+
+  // Both flags stay on their own runs through a PSD save and reopen.
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(live_document));
+  bool reread_text = false;
+  for (const auto& reread_layer : reread.layers()) {
+    const auto found = reread_layer.metadata().find(patchy::kLayerMetadataTextRuns);
+    if (reread_layer.name() != "Words" || found == reread_layer.metadata().end()) {
+      continue;
+    }
+    reread_text = true;
+    const auto lines = QString::fromStdString(found->second).split(QLatin1Char('\n'));
+    for (int index = 1; index < lines.size(); ++index) {
+      const auto fields = lines[index].split(QLatin1Char('\t'));
+      if (fields.size() < 2) {
+        continue;
+      }
+      const int start = fields[0].toInt();
+      const int end = start + fields[1].toInt();
+      std::printf("  reopened run %d..%d fauxbold=%d fauxitalic=%d\n", start, end, flag(fields, 11) ? 1 : 0,
+                  flag(fields, 13) ? 1 : 0);
+      if (end <= 2) {
+        CHECK(flag(fields, 11) && !flag(fields, 13));
+      } else if (start >= 3) {
+        CHECK(!flag(fields, 11) && flag(fields, 13));
+      } else if (start >= 2 && end <= 3) {
+        CHECK(!flag(fields, 11) && !flag(fields, 13));
+      } else {
+        CHECK(false);
+      }
+    }
+  }
+  CHECK(reread_text);
+}
+
 // Ctrl+B and Ctrl+I have to mean something for every family. Century Gothic ships Regular and
 // Bold but NO italic, so Ctrl+I has no real face to select: Qt would quietly hand back Regular
 // and the shortcut would look broken (the reported "clicking italics does nothing" in another
@@ -4116,6 +4422,8 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
       {"ui_picking_bold_in_style_combo_stays_flag_expressible",
        ui_picking_bold_in_style_combo_stays_flag_expressible},
       {"ui_faux_italic_shears_the_rendered_glyphs", ui_faux_italic_shears_the_rendered_glyphs},
+      {"ui_faux_italic_on_a_selection_slants_only_the_selected_characters",
+       ui_faux_italic_on_a_selection_slants_only_the_selected_characters},
       {"ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face",
        ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face},
       // Last in the group: registers the Bookman family, and a new family registration moves the

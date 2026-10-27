@@ -2556,7 +2556,7 @@ void accept_levels_dialog(int black_value, int white_value, int gamma_value) {
       auto* white_output = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteOutputSpin"));
       auto* input_graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
       auto* output_range = dialog->findChild<QWidget*>(QStringLiteral("levelsOutputRange"));
-      auto* channel = dialog->findChild<QComboBox*>(QStringLiteral("levelsChannelCombo"));
+      auto* channel = dialog->findChild<QTabBar*>(QStringLiteral("levelsChannelTabs"));
       auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
       CHECK(black != nullptr);
       CHECK(white != nullptr);
@@ -2569,10 +2569,10 @@ void accept_levels_dialog(int black_value, int white_value, int gamma_value) {
       CHECK(preview != nullptr);
       CHECK(preview->isChecked());
       CHECK(channel->count() == 4);
-      CHECK(channel->itemText(0) == QStringLiteral("RGB"));
-      CHECK(channel->itemText(1) == QStringLiteral("Red"));
-      CHECK(channel->itemText(2) == QStringLiteral("Green"));
-      CHECK(channel->itemText(3) == QStringLiteral("Blue"));
+      CHECK(channel->tabText(0) == QStringLiteral("RGB"));
+      CHECK(channel->tabText(1) == QStringLiteral("Red"));
+      CHECK(channel->tabText(2) == QStringLiteral("Green"));
+      CHECK(channel->tabText(3) == QStringLiteral("Blue"));
       black->setValue(black_value);
       white->setValue(white_value);
       gamma->setValue(gamma_value);

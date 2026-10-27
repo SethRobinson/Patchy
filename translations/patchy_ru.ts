@@ -2991,10 +2991,6 @@
         <translation>По умолчанию</translation>
     </message>
     <message>
-        <source>Channel:</source>
-        <translation>Канал:</translation>
-    </message>
-    <message>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
@@ -13201,6 +13197,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy как программа-создатель, даты экспорта и запись в истории, как их записывает вариант «Базовые» в настройках. Ничего из сведений о файле документа.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Кнопки</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Низ панели</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Образцы цвета</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Кнопка быстрой маски</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Кнопка режима экрана</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15400,6 +15416,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color panel settings</source>
         <translation>Настройки панели «Цвет»</translation>
+    </message>
+    <message>
+        <source>CMYK Sliders</source>
+        <translation>Слайдеры CMYK</translation>
+    </message>
+    <message>
+        <source>C</source>
+        <comment>Cyan ink</comment>
+        <translation>C</translation>
+    </message>
+    <message>
+        <source>M</source>
+        <comment>Magenta ink</comment>
+        <translation>M</translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <comment>Yellow ink</comment>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <source>K</source>
+        <comment>Black ink</comment>
+        <translation>K</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Голубой</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Пурпурный</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Желтый</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Черный</translation>
     </message>
 </context>
 <context>
@@ -26607,14 +26663,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Применить</translation>
     </message>
     <message>
-        <source>Show Overlay</source>
-        <translation>Показывать наложение</translation>
-    </message>
-    <message>
-        <source>Preview the source under the brush before you paint</source>
-        <translation>Показывает источник под кистью до начала рисования</translation>
-    </message>
-    <message>
         <source>Move: drag to move, Shift+drag keeps it horizontal or vertical, %ALT%+drag duplicates. %CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects a rectangle, as does a drag on empty space with Auto-Select on.</source>
         <translation>Перемещение: перетаскивание перемещает, Shift+перетаскивание держит движение по горизонтали или вертикали, %ALT%+перетаскивание дублирует. %CTRL%+щелчок выбирает слой, Shift+щелчок переключает его. %CTRL%+перетаскивание выбирает прямоугольник, как и перетаскивание по пустому месту при включённом автоматическом выборе.</translation>
     </message>
@@ -27133,6 +27181,29 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Скрипты тем не могут открывать ваши файлы и документы или пользоваться интернетом. Но на всякий случай разрешайте их только в темах от людей, которым вы доверяете.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Как открывается меню группы инструментов: удержанием кнопки, щелчком по ней или наведением указателя.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Открывать группы инструментов:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Щелчок</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Наведение</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Нажатие с удержанием</translation>
     </message>
 </context>
 <context>
