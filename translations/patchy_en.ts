@@ -21781,10 +21781,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27045,6 +27041,46 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

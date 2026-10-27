@@ -333,6 +333,11 @@ enum class FilterNameDetails { Shown, Hidden };
                                           const QString& filter, QString* selected_filter = nullptr,
                                           const QString& object_name = QString(),
                                           const QStringList& recent_files = QStringList());
+// A folder picker with an object name (tests find it like the file dialogs). Empty when
+// cancelled. The browser build has no folders to pick: it returns a fresh MEMFS folder, and
+// each file written there goes out through offer_browser_download_for_saved_file.
+[[nodiscard]] QString get_existing_directory(QWidget* parent, const QString& caption, const QString& dir,
+                                              const QString& object_name = QString());
 // Call after successfully writing `path`. On wasm the write landed in MEMFS,
 // which the user cannot see, so this hands the file to the browser as a
 // download; desktop builds write real files and this is a no-op.

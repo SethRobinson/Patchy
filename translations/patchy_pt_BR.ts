@@ -22976,10 +22976,6 @@ Y: %2
         <translation>Opacidade do preenchimento</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>Visibilidade</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>Bloquear camada</translation>
     </message>
@@ -27128,6 +27124,46 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>Clicar e segurar</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>Exportação rápida como PNG</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>Exportar como...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>Selecione uma camada para exportar</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>Exportar camada como</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>Exportar camadas como</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>A camada não tem pixels visíveis para exportar</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>Nada foi exportado: as camadas selecionadas não têm pixels visíveis</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>%1 camadas exportadas para %2</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>%1 camadas exportadas para %2; %3 camadas sem pixels foram ignoradas</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>Mesclar</translation>
     </message>
 </context>
 <context>

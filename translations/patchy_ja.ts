@@ -19311,10 +19311,6 @@ To update, paste this into a terminal:
         <translation>描画モード</translation>
     </message>
     <message>
-        <source>Visibility</source>
-        <translation>表示</translation>
-    </message>
-    <message>
         <source>Lock layer</source>
         <translation>レイヤーをロック</translation>
     </message>
@@ -27052,6 +27048,46 @@ The open document keeps its blend modes either way.</source>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>長押し</translation>
+    </message>
+    <message>
+        <source>Quick Export as PNG</source>
+        <translation>PNG としてクイック書き出し</translation>
+    </message>
+    <message>
+        <source>Export As...</source>
+        <translation>形式を選択して書き出し...</translation>
+    </message>
+    <message>
+        <source>Select a layer to export</source>
+        <translation>書き出すレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>Export Layer As</source>
+        <translation>レイヤーを書き出し</translation>
+    </message>
+    <message>
+        <source>Export Layers As</source>
+        <translation>レイヤーを書き出し (複数)</translation>
+    </message>
+    <message>
+        <source>The layer has no visible pixels to export</source>
+        <translation>このレイヤーには書き出せる表示ピクセルがありません</translation>
+    </message>
+    <message>
+        <source>Nothing was exported: the selected layers have no visible pixels</source>
+        <translation>何も書き出されませんでした: 選択したレイヤーに表示ピクセルがありません</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2</source>
+        <translation>%1 個のレイヤーを %2 に書き出しました</translation>
+    </message>
+    <message>
+        <source>Exported %1 layers to %2; %3 layers without pixels were skipped</source>
+        <translation>%1 個のレイヤーを %2 に書き出しました。ピクセルのない %3 個のレイヤーはスキップしました</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>結合</translation>
     </message>
 </context>
 <context>

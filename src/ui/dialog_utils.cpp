@@ -21,6 +21,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QCursor>
+#include <QDateTime>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QDir>
@@ -3136,6 +3137,31 @@ QString get_save_file_name(QWidget* parent, const QString& caption, const QStrin
   }
   const auto files = dialog.selectedFiles();
   return files.isEmpty() ? QString() : files.front();
+#endif
+}
+
+QString get_existing_directory(QWidget* parent, const QString& caption, const QString& dir,
+                               const QString& object_name) {
+#ifdef Q_OS_WASM
+  Q_UNUSED(parent);
+  Q_UNUSED(caption);
+  Q_UNUSED(dir);
+  Q_UNUSED(object_name);
+  const auto folder = QDir(QDir::tempPath()).filePath(
+      QStringLiteral("patchy-export-%1").arg(QDateTime::currentMSecsSinceEpoch()));
+  return QDir().mkpath(folder) ? folder : QString();
+#else
+  QFileDialog dialog(parent, caption);
+  configure_file_dialog(dialog, object_name, QString(), QFileDialog::AcceptOpen, QFileDialog::Directory, nullptr);
+  dialog.setOption(QFileDialog::ShowDirsOnly, true);
+  if (!dir.isEmpty() && QFileInfo(dir).isDir()) {
+    dialog.setDirectory(dir);
+  }
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return {};
+  }
+  const auto folders = dialog.selectedFiles();
+  return folders.isEmpty() ? QString() : folders.front();
 #endif
 }
 
