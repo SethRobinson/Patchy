@@ -1026,6 +1026,40 @@ Bytes minimal_png() {
   return out;
 }
 
+// Issue 450: the Exif dates carry their OffsetTime tags into Created and Modified; without
+// an offset, an XMP date naming the same second keeps its time zone.
+void exif_dates_carry_their_time_offsets() {
+  const auto info_with = [](const std::string& original_offset, const std::string& offset, const std::string& xmp) {
+    md::TiffStream stream;
+    stream.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kDateTime, "2026:10:26 13:12:12");
+    stream.set_ascii(md::IfdKind::Exif, md::exif_tag::kDateTimeOriginal, "2026:10:26 13:12:12");
+    if (!original_offset.empty()) {
+      stream.set_ascii(md::IfdKind::Exif, md::exif_tag::kOffsetTimeOriginal, original_offset);
+    }
+    if (!offset.empty()) {
+      stream.set_ascii(md::IfdKind::Exif, md::exif_tag::kOffsetTime, offset);
+    }
+    patchy::DocumentFileInfo info;
+    info.exif = patchy::make_metadata_bytes(md::write_tiff(stream));
+    if (!xmp.empty()) {
+      md::XmpPacket packet;
+      packet.set_simple(md::xmp_ns::kXmp, "CreateDate", xmp);
+      info.xmp = patchy::make_metadata_bytes(bytes_of(md::serialize_xmp(packet, 0)));
+    }
+    return md::read_fields(info);
+  };
+  auto fields = info_with("+03:00", "-05:30", "2026-10-26T13:12:12+03:00");
+  CHECK(fields.created == "2026-10-26T13:12:12+03:00");
+  CHECK(fields.modified == "2026-10-26T13:12:12-05:30");
+  fields = info_with("", "", "2026-10-26T13:12:12.25+01:00");
+  CHECK(fields.created == "2026-10-26T13:12:12.25+01:00");
+  CHECK(fields.modified == "2026-10-26T13:12:12");
+  fields = info_with("bogus", "", "2026-10-25T09:00:00+01:00");
+  CHECK(fields.created == "2026-10-26T13:12:12");
+  fields = info_with("", "", "");
+  CHECK(fields.created == "2026-10-26T13:12:12");
+}
+
 void edit_fields_follow_mwg_and_mirror_legacy_blocks() {
   auto info = sample_info();
   const auto before = md::read_fields(info);
@@ -1739,6 +1773,7 @@ std::vector<patchy::test::TestCase> file_info_metadata_tests() {
       {"metadata_container_scanners_survive_mutation", container_scanners_survive_mutation},
       {"metadata_extract_file_info_from_unicode_paths", extract_file_info_from_unicode_paths},
       {"metadata_psd_round_trips_file_info_resources", psd_round_trips_file_info_resources},
+      {"metadata_exif_dates_carry_their_time_offsets", exif_dates_carry_their_time_offsets},
       {"metadata_edit_fields_follow_mwg_and_mirror_legacy_blocks", edit_fields_follow_mwg_and_mirror_legacy_blocks},
       {"metadata_strip_and_targeted_removals", strip_and_targeted_removals},
       {"metadata_orientation_bakes_and_saves_as_normal", orientation_bakes_and_saves_as_normal},
