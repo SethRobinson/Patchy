@@ -62,6 +62,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QAbstractItemView>
+#include <QAbstractSpinBox>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QColor>
@@ -345,6 +346,78 @@ QString preferences_page_list_text(const QString& title) {
   return text;
 }
 
+// GitHub issue 451: a settings field is as wide as what it holds, not as wide as the page.
+// A combo box takes its longest entry, at most kPreferencesFieldMaxWidth; a longer list
+// shrinks down to kPreferencesComboMinimumCharacters and elides, so it never sets the
+// dialog's minimum width. Spin boxes stop at kPreferencesSpinMaxWidth (or their own size
+// hint) and one-line text fields at kPreferencesTextFieldMaxWidth, unless the page set a
+// smaller maximum itself. Lists (the plug-in folders) still stretch. Run after the dialog
+// sheet: its paddings are part of every size hint.
+constexpr int kPreferencesFieldMaxWidth = 320;
+constexpr int kPreferencesComboMinimumCharacters = 16;
+constexpr int kPreferencesSpinMaxWidth = 160;
+constexpr int kPreferencesTextFieldMaxWidth = 360;
+// Set on a button that has a form row to itself: it stays as wide as its text instead of
+// becoming a bar across the page.
+constexpr char kPreferencesTextWidthButton[] = "preferencesTextWidthButton";
+
+void keep_preferences_fields_compact(QWidget& pages) {
+  for (auto* combo : pages.findChildren<QComboBox*>()) {
+    combo->ensurePolished();
+    if (combo->sizeAdjustPolicy() != QComboBox::AdjustToMinimumContentsLengthWithIcon &&
+        combo->sizeHint().width() > kPreferencesFieldMaxWidth) {
+      combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+      combo->setMinimumContentsLength(kPreferencesComboMinimumCharacters);
+    }
+    combo->setMaximumWidth(combo->sizeAdjustPolicy() == QComboBox::AdjustToMinimumContentsLengthWithIcon
+                               ? std::max(kPreferencesFieldMaxWidth, combo->minimumSizeHint().width())
+                               : std::max(combo->sizeHint().width(), combo->minimumSizeHint().width()));
+  }
+  for (auto* button : pages.findChildren<QPushButton*>()) {
+    if (button->property(kPreferencesTextWidthButton).toBool()) {
+      button->ensurePolished();
+      button->setMaximumWidth(button->sizeHint().width());
+    }
+  }
+  for (auto* spin : pages.findChildren<QAbstractSpinBox*>()) {
+    spin->ensurePolished();
+    spin->setMaximumWidth(std::max(kPreferencesSpinMaxWidth, spin->sizeHint().width()));
+  }
+  for (auto* edit : pages.findChildren<QLineEdit*>()) {
+    // A combo's or spin box's own editor follows its owner.
+    if (qobject_cast<QComboBox*>(edit->parentWidget()) != nullptr ||
+        qobject_cast<QAbstractSpinBox*>(edit->parentWidget()) != nullptr) {
+      continue;
+    }
+    edit->setMaximumWidth(std::min(edit->maximumWidth(), kPreferencesTextFieldMaxWidth));
+  }
+}
+
+// QFormLayout's WrapLongRows keeps a row beside its label when the label column plus the
+// field's minimum fit, without counting the gap between them, so a field that only just fits
+// is squeezed by up to the gap (Qt 6.8 setupVerticalLayoutData). The gap becomes the labels'
+// right margin instead, which that test counts.
+void move_form_gaps_into_labels(QWidget& pages) {
+  for (auto* form : pages.findChildren<QFormLayout*>()) {
+    const int gap = form->horizontalSpacing();
+    if (form->rowWrapPolicy() != QFormLayout::WrapLongRows || gap <= 0) {
+      continue;
+    }
+    form->setHorizontalSpacing(0);
+    for (int row = 0; row < form->rowCount(); ++row) {
+      auto* label_item = form->itemAt(row, QFormLayout::LabelRole);
+      if (label_item == nullptr || label_item->widget() == nullptr ||
+          form->itemAt(row, QFormLayout::FieldRole) == nullptr) {
+        continue;
+      }
+      auto* label = label_item->widget();
+      auto margins = label->contentsMargins();
+      margins.setRight(margins.right() + gap);
+      label->setContentsMargins(margins);
+    }
+  }
+}
+
 // Lets the editable interface-scale combo take any whole percent in the range. Over the
 // maximum cannot be typed; under the minimum is held as intermediate and clamped up when
 // the edit is committed, as normalize_gui_scale_percent clamps a stored value.
@@ -381,7 +454,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
 
   auto settings = app_settings();
   dialog.setMinimumSize(650, 430);
-  dialog.resize(700, 560);
+  // Opens a little wider than its minimum (about 750 px, GitHub issue 451), so the longer
+  // form rows sit beside their labels until the user makes it narrower.
+  dialog.resize(840, 560);
 
   const auto make_tab_page = [](QWidget* parent) {
     // Wrap each page in a scroll area so a page whose content is taller than the
@@ -416,6 +491,11 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     form->setHorizontalSpacing(14);
     form->setVerticalSpacing(10);
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    // A field that does not fit beside its label goes under it, so a long label in a
+    // longer language never sets the dialog's minimum width (GitHub issue 451). Only a row
+    // with a label item wraps: an unlabeled field beside the labels gets an empty QLabel,
+    // never addRow(QString(), field), which adds no label and squeezes the field instead.
+    form->setRowWrapPolicy(QFormLayout::WrapLongRows);
   };
 
   // The pages are listed down the left (GitHub issue 451): a tab row made the dialog wider
@@ -547,7 +627,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
           [this, &dialog] { show_tool_palette_customization(ToolPaletteCustomizeTab::Tools, &dialog); });
   customize_palette_layout->addWidget(customize_palette_button);
   customize_palette_layout->addStretch(1);
-  application_form->addRow(QString(), customize_palette_row);
+  application_form->addRow(new QLabel(application_group), customize_palette_row);
 
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
   // Linux only: the desktop's own title bar and frame instead of the frameless chrome
@@ -555,7 +635,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // applies on the next launch and the accept branch shows the restart notice. It shows
   // the setting in effect: until the user picks, that is the desktop default (on with a
   // global menu bar, GitHub issue 161), and the key is written only when they change it.
-  auto* system_title_bar_check = new QCheckBox(tr("Use the system title bar"), application_group);
+  auto* system_title_bar_check = new WrappingCheckBox(tr("Use the system title bar"), application_group);
   system_title_bar_check->setObjectName(QStringLiteral("preferencesSystemTitleBarCheck"));
   system_title_bar_check->setToolTip(
       tr("Shows the desktop's own title bar and window frame instead of Patchy's window "
@@ -578,7 +658,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     update_row->setObjectName(QStringLiteral("preferencesUpdateCheckRow"));
     auto* update_layout = new QHBoxLayout(update_row);
     update_layout->setContentsMargins(0, 0, 0, 0);
-    update_check = new QCheckBox(tr("Check for updates on startup"), update_row);
+    update_check = new WrappingCheckBox(tr("Check for updates on startup"), update_row);
     update_check->setObjectName(QStringLiteral("preferencesCheckForUpdatesCheck"));
     update_check->setChecked(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
     update_interval_combo = new QComboBox(update_row);
@@ -610,7 +690,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   recovery_row->setObjectName(QStringLiteral("preferencesRecoveryRow"));
   auto* recovery_layout = new QHBoxLayout(recovery_row);
   recovery_layout->setContentsMargins(0, 0, 0, 0);
-  auto* recovery_check = new QCheckBox(tr("Automatically save recovery information every"), recovery_row);
+  auto* recovery_check = new WrappingCheckBox(tr("Automatically save recovery information every"), recovery_row);
   recovery_check->setObjectName(QStringLiteral("preferencesRecoveryEnabledCheck"));
   recovery_check->setToolTip(
       tr("Writes a copy of each changed document to a recovery folder so it can be reopened after a "
@@ -631,7 +711,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   application_form->addRow(recovery_row);
 #endif
   auto* psd_import_warnings_check =
-      new QCheckBox(tr("Show import warnings and notes in a popup (status bar otherwise)"), application_group);
+      new WrappingCheckBox(tr("Show import warnings and notes in a popup (status bar otherwise)"), application_group);
   psd_import_warnings_check->setObjectName(QStringLiteral("preferencesShowPsdImportWarningsCheck"));
   psd_import_warnings_check->setToolTip(
       tr("When enabled, opening a file shows the PSD compatibility report and an Import Notes popup. "
@@ -640,7 +720,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       settings.value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool());
   application_form->addRow(psd_import_warnings_check);
   auto* raw_develop_check =
-      new QCheckBox(tr("Show the develop dialog when opening camera raw files"), application_group);
+      new WrappingCheckBox(tr("Show the develop dialog when opening camera raw files"), application_group);
   raw_develop_check->setObjectName(QStringLiteral("preferencesShowRawDevelopCheck"));
   raw_develop_check->setToolTip(
       tr("When disabled, camera raw files open immediately with neutral develop settings "
@@ -650,7 +730,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // docs/rgb-profiles.md: Patchy shows every RGB document as sRGB, so other RGB profiles
   // convert on open unless this is off.
   auto* convert_rgb_profiles_check =
-      new QCheckBox(tr("Convert files with other RGB profiles to sRGB when opening"), application_group);
+      new WrappingCheckBox(tr("Convert files with other RGB profiles to sRGB when opening"), application_group);
   convert_rgb_profiles_check->setObjectName(QStringLiteral("preferencesConvertRgbProfilesCheck"));
   convert_rgb_profiles_check->setToolTip(
       tr("Patchy shows and edits RGB colors as sRGB. Files in Display P3, Adobe RGB or another RGB profile "
@@ -661,7 +741,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   application_form->addRow(convert_rgb_profiles_check);
   // GitHub issue 363: File > New can leave the document as the Background alone.
   auto* new_document_layer_check =
-      new QCheckBox(tr("Add an empty layer above the Background in new documents"), application_group);
+      new WrappingCheckBox(tr("Add an empty layer above the Background in new documents"), application_group);
   new_document_layer_check->setObjectName(QStringLiteral("preferencesNewDocumentEmptyLayerCheck"));
   new_document_layer_check->setToolTip(
       tr("When disabled, File > New creates only the Background layer, selected. Artboard documents and "
@@ -669,27 +749,27 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   new_document_layer_check->setChecked(settings.value(QStringLiteral("newDocument/addEmptyLayer"), true).toBool());
   application_form->addRow(new_document_layer_check);
   auto* missing_fonts_check =
-      new QCheckBox(tr("Show the Missing Fonts dialog when opening a document with missing fonts"), application_group);
+      new WrappingCheckBox(tr("Show the Missing Fonts dialog when opening a document with missing fonts"), application_group);
   missing_fonts_check->setObjectName(QStringLiteral("preferencesShowMissingFontsDialogCheck"));
   missing_fonts_check->setToolTip(
       tr("Type > Resolve Missing Fonts opens the same dialog at any time."));
   missing_fonts_check->setChecked(settings.value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
   application_form->addRow(missing_fonts_check);
-  auto* missing_links_check = new QCheckBox(
+  auto* missing_links_check = new WrappingCheckBox(
       tr("Show the Missing Linked Files dialog when opening a document with missing linked files"), application_group);
   missing_links_check->setObjectName(QStringLiteral("preferencesShowMissingLinksDialogCheck"));
   missing_links_check->setToolTip(tr("Layer > Smart Objects > Relink to File... repairs a link at any time."));
   missing_links_check->setChecked(settings.value(QStringLiteral("imports/showMissingLinksDialog"), true).toBool());
   application_form->addRow(missing_links_check);
   auto* zoom_thumbnails_check =
-      new QCheckBox(tr("Zoom layer thumbnails to the layer content"), application_group);
+      new WrappingCheckBox(tr("Zoom layer thumbnails to the layer content"), application_group);
   zoom_thumbnails_check->setObjectName(QStringLiteral("preferencesZoomLayerThumbnailsCheck"));
   zoom_thumbnails_check->setToolTip(
       tr("When enabled, layer thumbnails crop to the layer's visible pixels instead of "
          "previewing the whole canvas, so small layers fill their thumbnail."));
   zoom_thumbnails_check->setChecked(zoom_layer_thumbnails_to_content_);
   application_form->addRow(zoom_thumbnails_check);
-  auto* vector_preview_check = new QCheckBox(tr("Dynamic Vector Preview"), application_group);
+  auto* vector_preview_check = new WrappingCheckBox(tr("Dynamic Vector Preview"), application_group);
   vector_preview_check->setObjectName(QStringLiteral("preferencesDynamicVectorPreviewCheck"));
   vector_preview_check->setToolTip(tr("Keep vector artwork sharp when zooming, including in documents with pixel layers. Saved files and exports keep their pixel resolution."));
   vector_preview_check->setChecked(view_vector_preview_enabled_);
@@ -746,6 +826,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // the next launch (docs/fonts.md).
   auto* remove_fonts_button = new QPushButton(tr("Remove Added Fonts..."), application_group);
   remove_fonts_button->setObjectName(QStringLiteral("preferencesRemoveUserFontsButton"));
+  remove_fonts_button->setProperty(kPreferencesTextWidthButton, true);
   application_form->addRow(remove_fonts_button);
   connect(remove_fonts_button, &QPushButton::clicked, &dialog, [&dialog] {
     QMessageBox confirm(QMessageBox::Question, tr("Remove Added Fonts"),
@@ -887,7 +968,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   cmyk_intent_combo->setCurrentIndex(
       std::max(cmyk_intent_combo->findData(static_cast<int>(entry_cmyk_settings.intent)), 0));
   cmyk_form->addRow(tr("Rendering intent:"), cmyk_intent_combo);
-  auto* cmyk_black_point_check = new QCheckBox(tr("Black point compensation"), cmyk_group);
+  auto* cmyk_black_point_check = new WrappingCheckBox(tr("Black point compensation"), cmyk_group);
   cmyk_black_point_check->setObjectName(QStringLiteral("preferencesCmykBlackPointCheck"));
   cmyk_black_point_check->setChecked(entry_cmyk_settings.black_point_compensation);
   cmyk_form->addRow(cmyk_black_point_check);
@@ -925,6 +1006,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   development_form->addRow(tr("Stress test size:"), stress_size_combo);
   auto* run_stress_button = new QPushButton(tr("Run Profiling Stress Test..."), development_group);
   run_stress_button->setObjectName(QStringLiteral("preferencesRunStressTestButton"));
+  run_stress_button->setProperty(kPreferencesTextWidthButton, true);
   development_form->addRow(run_stress_button);
   // Set by the run button; show_preferences starts the run only after the
   // dialog has closed and applied its settings (never from inside its nested
@@ -966,7 +1048,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   configure_panel(tools_group);
   auto* tools_form = new QFormLayout(tools_group);
   configure_form(tools_form);
-  auto* wheel_zoom_check = new QCheckBox(tr("Mouse wheel zooms the canvas"), tools_group);
+  auto* wheel_zoom_check = new WrappingCheckBox(tr("Mouse wheel zooms the canvas"), tools_group);
   wheel_zoom_check->setObjectName(QStringLiteral("preferencesWheelZoomCheck"));
   wheel_zoom_check->setChecked(wheel_zooms_);
   wheel_zoom_check->setToolTip(
@@ -975,7 +1057,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
              "Two-finger scrolling on a trackpad always pans; pinch to zoom.")));
   tools_form->addRow(wheel_zoom_check);
   auto* transform_shift_aspect_check =
-      new QCheckBox(tr("Hold Shift to keep the aspect ratio when transforming"), tools_group);
+      new WrappingCheckBox(tr("Hold Shift to keep the aspect ratio when transforming"), tools_group);
   transform_shift_aspect_check->setObjectName(QStringLiteral("preferencesTransformShiftAspectCheck"));
   transform_shift_aspect_check->setToolTip(
       tr("When off, corner handles keep the aspect ratio and Shift resizes freely, matching "
@@ -983,7 +1065,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   transform_shift_aspect_check->setChecked(shift_keeps_transform_aspect_);
   tools_form->addRow(transform_shift_aspect_check);
   auto* transform_values_check =
-      new QCheckBox(tr("Show transformation values while dragging"), tools_group);
+      new WrappingCheckBox(tr("Show transformation values while dragging"), tools_group);
   transform_values_check->setObjectName(QStringLiteral("preferencesShowTransformValuesCheck"));
   transform_values_check->setToolTip(
       tr("Shows a small readout beside the pointer while moving, scaling, or rotating: the "
@@ -991,7 +1073,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
          "percentages, or the angle and how far it turned."));
   transform_values_check->setChecked(show_transform_drag_values_);
   tools_form->addRow(transform_values_check);
-  auto* transform_snap_check = new QCheckBox(tr("Snap transforms to the pixel grid"), tools_group);
+  auto* transform_snap_check = new WrappingCheckBox(tr("Snap transforms to the pixel grid"), tools_group);
   transform_snap_check->setObjectName(QStringLiteral("preferencesTransformSnapToPixelGridCheck"));
   transform_snap_check->setToolTip(
       tr("Positions and sizes typed into the Free Transform bar land on whole pixels, like "
@@ -1000,7 +1082,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
          "resampled."));
   transform_snap_check->setChecked(snap_transforms_to_pixel_grid_);
   tools_form->addRow(transform_snap_check);
-  auto* escape_commits_text_check = new QCheckBox(tr("Use Esc to commit text"), tools_group);
+  auto* escape_commits_text_check = new WrappingCheckBox(tr("Use Esc to commit text"), tools_group);
   escape_commits_text_check->setObjectName(QStringLiteral("preferencesEscapeCommitsTextCheck"));
   escape_commits_text_check->setToolTip(resolve_modifier_names(
       tr("When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar's "
@@ -1094,12 +1176,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   configure_form(metadata_form);
   const auto entry_save_metadata_mode = stored_save_metadata_mode();
   const auto entry_personal = stored_personal_save_metadata();
-  auto* metadata_none_radio = new QRadioButton(tr("None: Patchy adds nothing of its own"), metadata_group);
+  auto* metadata_none_radio = new WrappingRadioButton(tr("None: Patchy adds nothing of its own"), metadata_group);
   metadata_none_radio->setObjectName(QStringLiteral("preferencesSavedMetadataNoneRadio"));
-  auto* metadata_basic_radio = new QRadioButton(
+  auto* metadata_basic_radio = new WrappingRadioButton(
       tr("Basic: Patchy as the creating application, the save dates and a history entry"), metadata_group);
   metadata_basic_radio->setObjectName(QStringLiteral("preferencesSavedMetadataBasicRadio"));
-  auto* metadata_personal_radio = new QRadioButton(tr("Basic plus my name and copyright"), metadata_group);
+  auto* metadata_personal_radio = new WrappingRadioButton(tr("Basic plus my name and copyright"), metadata_group);
   metadata_personal_radio->setObjectName(QStringLiteral("preferencesSavedMetadataPersonalRadio"));
   auto* metadata_modes = new QButtonGroup(metadata_group);
   metadata_modes->addButton(metadata_none_radio);
@@ -1141,7 +1223,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   metadata_website_edit->setObjectName(QStringLiteral("preferencesSavedMetadataWebsiteEdit"));
   metadata_website_edit->setPlaceholderText(tr("Optional"));
   metadata_form->addRow(tr("Website:"), metadata_website_edit);
-  auto* metadata_ask_check = new QCheckBox(tr("Ask before adding them to a file"), metadata_group);
+  auto* metadata_ask_check = new WrappingCheckBox(tr("Ask before adding them to a file"), metadata_group);
   metadata_ask_check->setObjectName(QStringLiteral("preferencesSavedMetadataAskCheck"));
   metadata_ask_check->setChecked(entry_personal.ask);
   metadata_form->addRow(metadata_ask_check);
@@ -1154,7 +1236,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   metadata_help->setWordWrap(true);
   metadata_form->addRow(metadata_help);
   auto* privacy_notice_check =
-      new QCheckBox(tr("Show the File Info notice about information you may not want to share"), metadata_group);
+      new WrappingCheckBox(tr("Show the File Info notice about information you may not want to share"), metadata_group);
   privacy_notice_check->setObjectName(QStringLiteral("preferencesFileInfoPrivacyNoticeCheck"));
   privacy_notice_check->setChecked(stored_show_file_info_privacy_notice());
   metadata_form->addRow(privacy_notice_check);
@@ -1210,6 +1292,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       QRegularExpression(QStringLiteral("[\\x20-\\x7E]*")), watermark_text_edit));
   watermark_text_edit->setMaxLength(watermark_capacity);
   watermark_text_edit->setPlaceholderText(tr("Your name or a short ID"));
+  // Room for the placeholder; the text itself is at most a few characters.
+  watermark_text_edit->setMaximumWidth(
+      std::max(watermark_text_edit->fontMetrics().horizontalAdvance(watermark_text_edit->placeholderText()) + 24, 160));
   auto* watermark_remaining = new QLabel(watermark_text_row);
   watermark_remaining->setObjectName(QStringLiteral("preferencesWatermarkRemainingLabel"));
   watermark_text_layout->addWidget(watermark_text_edit, 1);
@@ -1229,7 +1314,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
          "TIFF with layers) are not, since that would change layer pixels without you seeing it. Images under "
          "128 pixels and images that already carry your text are skipped."),
       watermark_group, "preferencesWatermarkSaveHelp"));
-  auto* watermark_check_open = new QCheckBox(tr("Check opened images for watermarks"), watermark_group);
+  auto* watermark_check_open = new WrappingCheckBox(tr("Check opened images for watermarks"), watermark_group);
   watermark_check_open->setObjectName(QStringLiteral("preferencesWatermarkCheckOnOpenCheck"));
   watermark_check_open->setChecked(stored_watermark_check_on_open());
   watermark_form->addRow(watermark_check_open);
@@ -1336,10 +1421,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* pen_form = new QFormLayout(pen_group);
   configure_form(pen_form);
 
-  auto* pen_enabled_check = new QCheckBox(tr("Enable pen and tablet input"), pen_group);
+  auto* pen_enabled_check = new WrappingCheckBox(tr("Enable pen and tablet input"), pen_group);
   pen_enabled_check->setObjectName(QStringLiteral("preferencesPenEnabledCheck"));
   pen_enabled_check->setChecked(pen_input_settings_.enabled);
-  auto* pen_pressure_size_check = new QCheckBox(tr("Pressure controls brush size"), pen_group);
+  auto* pen_pressure_size_check = new WrappingCheckBox(tr("Pressure controls brush size"), pen_group);
   pen_pressure_size_check->setObjectName(QStringLiteral("preferencesPenPressureSizeCheck"));
   pen_pressure_size_check->setChecked(pen_input_settings_.pressure_size);
   auto* pen_pressure_size_min_spin = new QSpinBox(pen_group);
@@ -1347,7 +1432,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   pen_pressure_size_min_spin->setRange(1, 100);
   pen_pressure_size_min_spin->setSuffix(percent_suffix());
   pen_pressure_size_min_spin->setValue(pen_input_settings_.pressure_size_min_percent);
-  auto* pen_pressure_opacity_check = new QCheckBox(tr("Pressure controls opacity"), pen_group);
+  auto* pen_pressure_opacity_check = new WrappingCheckBox(tr("Pressure controls opacity"), pen_group);
   pen_pressure_opacity_check->setObjectName(QStringLiteral("preferencesPenPressureOpacityCheck"));
   pen_pressure_opacity_check->setChecked(pen_input_settings_.pressure_opacity);
   auto* pen_pressure_opacity_min_spin = new QSpinBox(pen_group);
@@ -1355,7 +1440,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   pen_pressure_opacity_min_spin->setRange(1, 100);
   pen_pressure_opacity_min_spin->setSuffix(percent_suffix());
   pen_pressure_opacity_min_spin->setValue(pen_input_settings_.pressure_opacity_min_percent);
-  auto* pen_eraser_check = new QCheckBox(tr("Use eraser tip as Eraser"), pen_group);
+  auto* pen_eraser_check = new WrappingCheckBox(tr("Use eraser tip as Eraser"), pen_group);
   pen_eraser_check->setObjectName(QStringLiteral("preferencesPenEraserTipCheck"));
   pen_eraser_check->setChecked(pen_input_settings_.use_eraser_tip);
   const auto populate_pen_button_combo = [](QComboBox* combo, PenButtonAction current) {
@@ -1384,7 +1469,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* pen_secondary_button_combo = new QComboBox(pen_group);
   pen_secondary_button_combo->setObjectName(QStringLiteral("preferencesPenSecondaryButtonCombo"));
   populate_pen_button_combo(pen_secondary_button_combo, pen_input_settings_.secondary_button_action);
-  auto* pen_tilt_shape_check = new QCheckBox(tr("Tilt shapes brush dabs"), pen_group);
+  auto* pen_tilt_shape_check = new WrappingCheckBox(tr("Tilt shapes brush dabs"), pen_group);
   pen_tilt_shape_check->setObjectName(QStringLiteral("preferencesPenTiltShapeCheck"));
   pen_tilt_shape_check->setChecked(pen_input_settings_.tilt_shape);
   auto* pen_tilt_roundness_spin = new QSpinBox(pen_group);
@@ -1460,19 +1545,19 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       ruler_units_combo->findData(measurement_unit_settings_token(ruler_unit_));
   ruler_units_combo->setCurrentIndex(ruler_units_index >= 0 ? ruler_units_index : 0);
 
-  auto* default_rulers_check = new QCheckBox(tr("Show rulers"), view_group);
+  auto* default_rulers_check = new WrappingCheckBox(tr("Show rulers"), view_group);
   default_rulers_check->setObjectName(QStringLiteral("preferencesShowRulersCheck"));
   default_rulers_check->setChecked(view_rulers_visible_);
-  auto* default_grid_check = new QCheckBox(tr("Show grid"), view_group);
+  auto* default_grid_check = new WrappingCheckBox(tr("Show grid"), view_group);
   default_grid_check->setObjectName(QStringLiteral("preferencesShowGridCheck"));
   default_grid_check->setChecked(view_grid_visible_);
-  auto* default_guides_check = new QCheckBox(tr("Show guides"), view_group);
+  auto* default_guides_check = new WrappingCheckBox(tr("Show guides"), view_group);
   default_guides_check->setObjectName(QStringLiteral("preferencesShowGuidesCheck"));
   default_guides_check->setChecked(view_guides_visible_);
-  auto* lock_guides_check = new QCheckBox(tr("Lock guides"), view_group);
+  auto* lock_guides_check = new WrappingCheckBox(tr("Lock guides"), view_group);
   lock_guides_check->setObjectName(QStringLiteral("preferencesLockGuidesCheck"));
   lock_guides_check->setChecked(view_guides_locked_);
-  auto* snap_check = new QCheckBox(tr("Enable snapping"), view_group);
+  auto* snap_check = new WrappingCheckBox(tr("Enable snapping"), view_group);
   snap_check->setObjectName(QStringLiteral("preferencesSnapCheck"));
   snap_check->setChecked(view_snap_enabled_);
 
@@ -1560,19 +1645,19 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   connect(grid_style_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), &dialog,
           [&](int) { refresh_overlay_preview(); });
 
-  auto* snap_guides_check = new QCheckBox(tr("Guides"), &dialog);
+  auto* snap_guides_check = new WrappingCheckBox(tr("Guides"), &dialog);
   snap_guides_check->setObjectName(QStringLiteral("preferencesSnapGuidesCheck"));
   snap_guides_check->setChecked(view_snap_to_guides_);
-  auto* snap_grid_check = new QCheckBox(tr("Grid"), &dialog);
+  auto* snap_grid_check = new WrappingCheckBox(tr("Grid"), &dialog);
   snap_grid_check->setObjectName(QStringLiteral("preferencesSnapGridCheck"));
   snap_grid_check->setChecked(view_snap_to_grid_);
-  auto* snap_document_check = new QCheckBox(tr("Document bounds and center"), &dialog);
+  auto* snap_document_check = new WrappingCheckBox(tr("Document bounds and center"), &dialog);
   snap_document_check->setObjectName(QStringLiteral("preferencesSnapDocumentCheck"));
   snap_document_check->setChecked(view_snap_to_document_);
-  auto* snap_layers_check = new QCheckBox(tr("Layer bounds and centers"), &dialog);
+  auto* snap_layers_check = new WrappingCheckBox(tr("Layer bounds and centers"), &dialog);
   snap_layers_check->setObjectName(QStringLiteral("preferencesSnapLayersCheck"));
   snap_layers_check->setChecked(view_snap_to_layers_);
-  auto* snap_selection_check = new QCheckBox(tr("Selection bounds and center"), &dialog);
+  auto* snap_selection_check = new WrappingCheckBox(tr("Selection bounds and center"), &dialog);
   snap_selection_check->setObjectName(QStringLiteral("preferencesSnapSelectionCheck"));
   snap_selection_check->setChecked(view_snap_to_selection_);
 
@@ -1605,6 +1690,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   view_form->addRow(tr("Grid style:"), grid_style_combo);
   const auto overlay_color_row = [view_group](QPushButton* button, QSpinBox* opacity) {
     auto* row = new QWidget(view_group);
+    // As compact as the other fields (issue 451): the color button grows only this far.
+    row->setMaximumWidth(kPreferencesFieldMaxWidth);
     auto* layout = new QHBoxLayout(row);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(6);
@@ -1643,8 +1730,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // slowdown). The page itself stays at this position: tests and the Windows
   // Plug-ins page after it depend on the order.
   HotkeyEditorPanel* hotkey_editor = nullptr;
+  // Sets the dialog's minimum width from the pages built so far (defined below, once the
+  // dialog sheet is set); the Hotkeys panel, built later, runs it again.
+  std::function<void()> fit_minimum_width_to_pages;
   connect(page_stack, &QStackedWidget::currentChanged, &dialog,
-          [this, hotkeys_page, hotkeys_layout, hotkeys_tab_index, &hotkey_editor](int index) {
+          [this, hotkeys_page, hotkeys_layout, hotkeys_tab_index, &hotkey_editor,
+           &fit_minimum_width_to_pages](int index) {
             if (index != hotkeys_tab_index || hotkey_editor != nullptr) {
               return;
             }
@@ -1652,6 +1743,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
             refresh_script_commands(scan_scripts(bundled_scripts_directory(), user_scripts_directory()));
             hotkey_editor = new HotkeyEditorPanel(hotkey_registry_, menuBar(), hotkeys_page);
             hotkeys_layout->insertWidget(0, hotkey_editor);
+            if (fit_minimum_width_to_pages) {
+              fit_minimum_width_to_pages();
+            }
           });
 #ifdef Q_OS_WIN
   // Plug-ins: the folders scanned for legacy Photoshop .8bf filters (Windows
@@ -1688,14 +1782,19 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     plugins_auto_label->setText(fixed.join(QLatin1Char('\n')));
   }
   plugins_form->addRow(tr("Always scanned:"), plugins_auto_label);
-  auto* plugin_folders_list = new QListWidget(plugins_group);
+  // The list and its buttons are one field, so a narrow page wraps them together.
+  auto* plugin_folders_field = new QWidget(plugins_group);
+  plugin_folders_field->setObjectName(QStringLiteral("preferencesPluginFoldersField"));
+  auto* plugin_folders_field_layout = new QVBoxLayout(plugin_folders_field);
+  plugin_folders_field_layout->setContentsMargins(0, 0, 0, 0);
+  auto* plugin_folders_list = new QListWidget(plugin_folders_field);
   plugin_folders_list->setObjectName(QStringLiteral("preferencesPluginFoldersList"));
   plugin_folders_list->setSelectionMode(QAbstractItemView::SingleSelection);
   const auto entry_plugin_folders = stored_legacy_plugin_folders();
   for (const auto& folder : entry_plugin_folders) {
     plugin_folders_list->addItem(QDir::toNativeSeparators(folder));
   }
-  auto* plugin_folder_buttons = new QWidget(plugins_group);
+  auto* plugin_folder_buttons = new QWidget(plugin_folders_field);
   auto* plugin_folder_buttons_layout = new QHBoxLayout(plugin_folder_buttons);
   plugin_folder_buttons_layout->setContentsMargins(0, 0, 0, 0);
   auto* add_plugin_folder = new QPushButton(tr("Add Folder..."), plugin_folder_buttons);
@@ -1726,8 +1825,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   connect(remove_plugin_folder, &QPushButton::clicked, &dialog, [plugin_folders_list] {
     qDeleteAll(plugin_folders_list->selectedItems());
   });
-  plugins_form->addRow(tr("Added folders:"), plugin_folders_list);
-  plugins_form->addRow(QString(), plugin_folder_buttons);
+  plugin_folders_field_layout->addWidget(plugin_folders_list);
+  plugin_folders_field_layout->addWidget(plugin_folder_buttons);
+  plugins_form->addRow(tr("Added folders:"), plugin_folders_field);
   // The virtual screen (docs/plugins.md): plug-in windows open on the monitor
   // showing Patchy; full-screen plug-in interfaces size themselves to this.
   auto* plugin_screen_combo = new QComboBox(plugins_group);
@@ -1843,6 +1943,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     QDialog#patchyPreferencesDialog QWidget#preferencesSnapTargetsRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesWatermarkTextRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataModesRow,
+    QDialog#patchyPreferencesDialog QWidget#preferencesThemeButtons,
+    QDialog#patchyPreferencesDialog QWidget#preferencesPluginFoldersField,
     QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataCopyrightRow {
       background: transparent;
     }
@@ -1865,6 +1967,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // Appended last, after the block above: the spin sub-control rules must be the
   // final word (see docs/ui-conventions.md).
   append_themed_style(dialog, dialog_spinbox_button_style());
+  keep_preferences_fields_compact(*page_stack);
+  move_form_gaps_into_labels(*page_stack);
 
   // The list is as wide as its longest title in the current language, measured with
   // the sheet above applied (row padding included), and no wider.
@@ -1892,27 +1996,30 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
 
   // The pages scroll only vertically, so the page area is as wide as the widest page's
   // content plus a scroll bar; the scroll areas themselves report almost no minimum.
-  int page_content_width = 0;
-  for (const auto* scroll : page_stack->findChildren<QScrollArea*>(QStringLiteral("preferencesTabScroll"))) {
-    if (const auto* content_widget = scroll->widget(); content_widget != nullptr) {
-      content_widget->ensurePolished();  // hidden pages: measure with the sheet's paddings
-      page_content_width = std::max(page_content_width, content_widget->minimumSizeHint().width() +
-                                                            scroll->verticalScrollBar()->sizeHint().width());
+  fit_minimum_width_to_pages = [&dialog, page_stack, root] {
+    int page_content_width = 0;
+    for (const auto* scroll : page_stack->findChildren<QScrollArea*>(QStringLiteral("preferencesTabScroll"))) {
+      if (const auto* content_widget = scroll->widget(); content_widget != nullptr) {
+        content_widget->ensurePolished();  // hidden pages: measure with the sheet's paddings
+        page_content_width = std::max(page_content_width, content_widget->minimumSizeHint().width() +
+                                                              scroll->verticalScrollBar()->sizeHint().width());
+      }
     }
-  }
-  page_stack->setMinimumWidth(page_content_width + 2 * page_stack->frameWidth());
+    page_stack->setMinimumWidth(page_content_width + 2 * page_stack->frameWidth());
 
-  // Wide enough for the list and every page's content: the explicit minimum size above
-  // keeps the layout from raising the dialog's minimum itself, so take the layout's
-  // minimum width by hand.
-  root->activate();
-  const int needed_width = root->totalMinimumSize().width();
-  if (needed_width > dialog.minimumWidth()) {
-    dialog.setMinimumWidth(needed_width);
-  }
-  if (dialog.width() < needed_width) {
-    dialog.resize(needed_width, dialog.height());
-  }
+    // Wide enough for the list and every page's content: the explicit minimum size above
+    // keeps the layout from raising the dialog's minimum itself, so take the layout's
+    // minimum width by hand.
+    root->activate();
+    const int needed_width = root->totalMinimumSize().width();
+    if (needed_width > dialog.minimumWidth()) {
+      dialog.setMinimumWidth(needed_width);
+    }
+    if (dialog.width() < needed_width) {
+      dialog.resize(needed_width, dialog.height());
+    }
+  };
+  fit_minimum_width_to_pages();
   // The size the user last dragged the dialog to, kept inside the screen it opens on.
   if (const auto saved_size = stored_preferences_dialog_size(); saved_size.isValid()) {
     auto restored_size = saved_size;

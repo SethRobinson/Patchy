@@ -8,6 +8,7 @@
 
 #include "support/atomic_file_write.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/options_flow_layout.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_effects.hpp"
 #include "ui/theme_file.hpp"
@@ -62,8 +63,9 @@ constexpr int kHeaderRole = Qt::UserRole + 3;
 
 constexpr int kSwatchWidth = 64;
 constexpr int kSwatchHeight = 40;
-constexpr int kPreviewWidth = 300;
-constexpr int kPreviewHeight = 180;
+// Small enough that the list and the details fit the dialog's minimum width (issue 451).
+constexpr int kPreviewWidth = 240;
+constexpr int kPreviewHeight = 144;
 
 const QString kCustomPrefix = QStringLiteral("custom:");
 
@@ -317,7 +319,7 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   list_->setSelectionMode(QAbstractItemView::SingleSelection);
   list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   list_->setItemDelegate(new ThemeListDelegate(list_));
-  list_->setMinimumSize(260, 260);
+  list_->setMinimumSize(180, 260);
   list_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   columns->addWidget(list_, 5);
 
@@ -358,7 +360,7 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   // Per theme: the box shows the stored answer of the theme the list shows (a theme
   // downloaded from anywhere must never inherit another theme's yes). Edits wait in
   // script_choices_ and are stored on OK, before the theme commit restarts the host.
-  scripts_check_ = new QCheckBox(MainWindow::tr("Run this theme's scripts"), details);
+  scripts_check_ = new WrappingCheckBox(MainWindow::tr("Run this theme's scripts"), details);
   scripts_check_->setObjectName(QStringLiteral("preferencesRunThemeScriptsCheck"));
   scripts_check_->setEnabled(false);
   details_layout->addWidget(scripts_check_);
@@ -402,18 +404,18 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   auto* icons_button = button(
       MainWindow::tr("Export Icon Template..."), "preferencesExportIconTemplateButton",
       MainWindow::tr("Write every built-in icon as an SVG file into a folder, to start a theme's icons/ folder from."));
-  // Rows of at most three: wider rows outgrow the page in the longer languages, and
-  // the page's scroll area clips rather than scrolls horizontally.
-  for (const auto& row : {std::vector<QPushButton*>{import_button, export_button, reload_button},
-                          std::vector<QPushButton*>{delete_button_, folder_button},
-                          std::vector<QPushButton*>{package_button, icons_button}}) {
-    auto* buttons = new QHBoxLayout();
-    for (auto* push : row) {
-      buttons->addWidget(push);
-    }
-    buttons->addStretch(1);
-    group_layout->addLayout(buttons);
+  // The buttons flow onto as many rows as the page width needs: fixed rows outgrew the
+  // page in the longer languages (the scroll area clips rather than scrolls sideways) and
+  // set the dialog's minimum width (GitHub issue 451).
+  auto* buttons = new QWidget(group);
+  buttons->setObjectName(QStringLiteral("preferencesThemeButtons"));
+  auto* buttons_layout = new FlowLayout(buttons, 6, 6);
+  buttons_layout->setContentsMargins(0, 0, 0, 0);
+  for (auto* push : {import_button, export_button, reload_button, delete_button_, folder_button, package_button,
+                     icons_button}) {
+    buttons_layout->addWidget(push);
   }
+  group_layout->addWidget(buttons);
   delete_button_->setEnabled(false);
   QObject::connect(import_button, &QPushButton::clicked, &dialog_, [this] { import_theme(); });
   QObject::connect(export_button, &QPushButton::clicked, &dialog_, [this] { export_theme(); });
@@ -456,12 +458,12 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   auto* extras_layout = new QHBoxLayout(extras);
   extras_layout->setContentsMargins(12, 12, 12, 12);
   extras_layout->setSpacing(18);
-  sounds_check_ = new QCheckBox(MainWindow::tr("Play theme sounds"), extras);
+  sounds_check_ = new WrappingCheckBox(MainWindow::tr("Play theme sounds"), extras);
   sounds_check_->setObjectName(QStringLiteral("preferencesPlayThemeSoundsCheck"));
   sounds_check_->setToolTip(MainWindow::tr("Play the sounds a theme package includes, for example when a save "
                                            "finishes. Themes without sounds stay silent."));
   sounds_check_->setChecked(theme_sounds_enabled());
-  effects_check_ = new QCheckBox(MainWindow::tr("Play theme effects"), extras);
+  effects_check_ = new WrappingCheckBox(MainWindow::tr("Play theme effects"), extras);
   effects_check_->setObjectName(QStringLiteral("preferencesPlayThemeEffectsCheck"));
   effects_check_->setToolTip(MainWindow::tr(
       "Play the short animations a theme shows for events, such as fireworks when a document opens."));

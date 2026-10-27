@@ -22,6 +22,20 @@ vertical-only `preferencesTabScroll`.
   ampersands. The page area's minimum width is the widest page content plus a vertical scroll
   bar, because a scroll area reports almost no minimum of its own and the pages never scroll
   sideways.
+- **Minimum width (issue 451).** About 750 px with the list, in every shipped language
+  (`ui_preferences_minimum_width_fits_and_fields_stay_compact` caps it at 760 and checks that
+  nothing is cut off at that width); the dialog opens at 840. Nothing on a page may need a wide
+  single line: options are `WrappingCheckBox`/`WrappingRadioButton` (`dialog_utils.hpp`), notes
+  word-wrap, forms use `WrapLongRows` (a field that does not fit goes under its label), hotkey
+  names over 200 px wrap, the theme buttons flow, and the theme list and preview are sized to
+  fit. Only a row with a label item wraps: give an unlabeled field an empty `QLabel`, never
+  `addRow(QString(), field)`, which squeezes it. The Hotkeys panel, built on first visit,
+  re-runs the minimum-width fit.
+- **Field widths.** `keep_preferences_fields_compact` runs after the dialog sheet: a combo is as
+  wide as its longest entry, at most 320 px (a longer list elides, down to 16 characters), spin
+  boxes stop at 160 px, one-line text fields at 360 px, and a button with the
+  `preferencesTextWidthButton` property at its text. Lists (plug-in folders) still stretch. Do
+  not undo it with an Expanding policy.
 - **Theme.** The list and page area use the `dialog_tab_*` roles (named for the old tab bar;
   role names are `.patchytheme` keys and never change); the selected row adds
   `@text_on_raised` text and an `@accent` bar on its left edge. No colors in code ([ui-conventions.md](ui-conventions.md#color-scheme)).
