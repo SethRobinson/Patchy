@@ -13164,6 +13164,26 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy comme application de création, les dates d&apos;exportation et une entrée d&apos;historique, comme les écrit De base dans les Préférences. Rien des informations sur le fichier du document.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Boutons</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Bas de la palette</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Pastilles de couleur</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Bouton Masque rapide</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Bouton Mode d&apos;affichage</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27097,6 +27117,29 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Les scripts de thème ne peuvent ni ouvrir vos fichiers ou documents, ni utiliser Internet. Mais par précaution, ne les autorisez que dans les thèmes de personnes en qui vous avez confiance.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Comment s&apos;ouvre le menu d&apos;un groupe d&apos;outils : maintenir son bouton enfoncé, cliquer dessus ou laisser le pointeur dessus.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Ouvrir les groupes d&apos;outils :</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Clic</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Survol</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Clic maintenu</translation>
     </message>
 </context>
 <context>

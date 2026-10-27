@@ -13201,6 +13201,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Patchy as the creating application, the export dates and a history entry, as Basic in Preferences writes them. Nothing from the document&apos;s File Info.</source>
         <translation>Patchy как программа-создатель, даты экспорта и запись в истории, как их записывает вариант «Базовые» в настройках. Ничего из сведений о файле документа.</translation>
     </message>
+    <message>
+        <source>Buttons</source>
+        <translation>Кнопки</translation>
+    </message>
+    <message>
+        <source>Bottom of the palette</source>
+        <translation>Низ панели</translation>
+    </message>
+    <message>
+        <source>Color swatches</source>
+        <translation>Образцы цвета</translation>
+    </message>
+    <message>
+        <source>Quick Mask button</source>
+        <translation>Кнопка быстрой маски</translation>
+    </message>
+    <message>
+        <source>Screen mode button</source>
+        <translation>Кнопка режима экрана</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -27173,6 +27193,29 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Theme scripts cannot open your files or documents or use the internet. But to be safe, only allow them in themes from people you trust.</source>
         <translation>Скрипты тем не могут открывать ваши файлы и документы или пользоваться интернетом. Но на всякий случай разрешайте их только в темах от людей, которым вы доверяете.</translation>
+    </message>
+    <message>
+        <source>How a tool group&apos;s menu opens: press and hold its button, click it, or rest the pointer on it.</source>
+        <translation>Как открывается меню группы инструментов: удержанием кнопки, щелчком по ней или наведением указателя.</translation>
+    </message>
+    <message>
+        <source>Open tool groups on:</source>
+        <translation>Открывать группы инструментов:</translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <comment>when a tool group opens</comment>
+        <translation>Щелчок</translation>
+    </message>
+    <message>
+        <source>Hover</source>
+        <comment>when a tool group opens</comment>
+        <translation>Наведение</translation>
+    </message>
+    <message>
+        <source>Click and hold</source>
+        <comment>when a tool group opens</comment>
+        <translation>Нажатие с удержанием</translation>
     </message>
 </context>
 <context>

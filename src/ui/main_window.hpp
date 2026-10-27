@@ -232,6 +232,11 @@ public:
     return tool_palette_customization_;
   }
   [[nodiscard]] ToolPaletteLayout* tool_palette_layout() const noexcept { return tool_palette_layout_; }
+  // Preferences' toolbar icon size and tool group opening (GitHub issues 213 and 459), which
+  // Preferences and the customize dialog both show: stores a changed value, applies both
+  // live, and moves the controls of an open Preferences or customize dialog to match.
+  void apply_tool_palette_preferences(ToolbarIconSize icon_size, ToolFlyoutOpenMode flyout_open_mode);
+  [[nodiscard]] ToolFlyoutOpenMode tool_flyout_open_mode() const noexcept { return tool_flyout_open_mode_; }
   // True where Patchy draws its own window frame (Windows, and Linux unless the
   // "Use the system title bar" preference is on): the frameless flag, the chrome buttons
   // in the menu-bar row, and the edge-resize machinery. macOS uses the native frame and
@@ -1198,6 +1203,8 @@ private:
                                                       const std::function<void(QFrame*)>& configure_panel);
   // Resizes the tool palette for a toolbar icon size factor (toolbar_icon_size_factor).
   void apply_tool_palette_factor(double factor);
+  // Shows the footer rows (color well, Quick Mask, screen mode) the customization keeps.
+  void apply_tool_palette_footer_rows();
   void new_guide_dialog();
   // View > Show > Show Extras Options (GitHub issue 420): stores and applies the choice.
   void view_extras_options_dialog();
@@ -2830,6 +2837,8 @@ private:
   // choice, the dialog's action, and the Layers footer buttons by permanent id.
   ToolPaletteLayout* tool_palette_layout_{nullptr};
   ToolPaletteCustomization tool_palette_customization_;
+  // When tool groups open (Preferences, app_settings.hpp); the flyout buttons' openers follow it.
+  ToolFlyoutOpenMode tool_flyout_open_mode_{ToolFlyoutOpenMode::Hold};
   QAction* customize_tool_palette_action_{nullptr};
   struct LayerFooterButton {
     const char* id;
