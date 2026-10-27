@@ -76,7 +76,9 @@ LibRaw's `RawFileInfo` is not mapped into EXIF.
 
 `read_fields` takes XMP first. IPTC-IIM fills gaps, and wins when the 1061 digest is present
 and does not match the IIM (another program edited it). EXIF fills description, author and
-copyright gaps and is authoritative for the capture date. `apply_fields` writes changed
+copyright gaps and is authoritative for the capture date: DateTimeOriginal joined with
+OffsetTimeOriginal (DateTime, the Modified fallback, with OffsetTime); without an offset, an
+XMP CreateDate naming the same second keeps its time zone. `apply_fields` writes changed
 fields to XMP always and to EXIF (ImageDescription, Artist, Copyright) and IIM only where
 those blocks exist; a rewritten IIM gets a fresh digest. Copyright status also sets the PSD
 copyright flag.
