@@ -58,7 +58,7 @@
 - Image > Mode > CMYK Proof keeps a document in that proof view and makes JPEG, TIFF, and flattened PDF saves CMYK by default. CMYK JPEG and TIFF files open through their embedded profile into CMYK Proof. Documents are still edited in RGB
 - File > Export writes JPEG, TIFF and flattened PDF in CMYK through that profile, with the profile embedded, for print shops, optionally with black text and grays on the black plate alone
 - Channels panel: New Layer from Channel turns any channel or ink plate into a grayscale layer, and New Layer from Channel Color turns components and plates into colored layers that stack back into the image
-- Channels panel eyes show or hide Red, Green and Blue (or the CMYK proof's plates) on the canvas, one channel in grayscale or several in color, without touching the pixels; Ctrl+2 shows the composite and Ctrl+3 to Ctrl+5 one channel alone (Ctrl+3 to Ctrl+6 for the plates in CMYK Proof). Each row's thumbnail shows that channel of the image
+- Channels panel eyes show or hide Red, Green and Blue (or the CMYK proof's plates) on the canvas, one channel in grayscale or several in color, pixels untouched; Ctrl+2 shows the composite and Ctrl+3 to Ctrl+5 one channel alone (to Ctrl+6 for CMYK Proof plates), keys shown on each row. Each row's thumbnail shows that channel of the image
 
 ## Files, photographs, and multiple documents
 

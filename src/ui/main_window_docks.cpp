@@ -1872,6 +1872,8 @@ void MainWindow::create_docks() {
     register_document_action(action);
     addAction(action);
     connect(action, &QAction::triggered, this, [this, slot] { show_channel_by_shortcut(static_cast<int>(slot)); });
+    // The Channels rows show the key, a rebound one included.
+    connect(action, &QAction::changed, this, [this] { refresh_channel_row_shortcuts(); });
     channel_view_actions_[slot] = action;
   }
   register_document_widget(channel_panel_);

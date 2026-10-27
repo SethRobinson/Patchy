@@ -5,6 +5,7 @@
 
 #include <QAbstractItemModel>
 #include <QAction>
+#include <QApplication>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QListWidget>
@@ -13,6 +14,8 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QSignalBlocker>
+#include <QStyle>
+#include <QStyledItemDelegate>
 #include <QToolButton>
 #include <QTimer>
 #include <QToolTip>
@@ -22,6 +25,55 @@
 #include <utility>
 
 namespace patchy::ui {
+
+namespace {
+
+// Draws a row's channel shortcut right-aligned in the text area and elides the name
+// before it, so a narrow panel shortens the name, never the key. A key that does not
+// fit beside the icon is left out.
+class ChannelRowDelegate final : public QStyledItemDelegate {
+public:
+  ChannelRowDelegate(int shortcut_role, QObject* parent) : QStyledItemDelegate(parent), shortcut_role_(shortcut_role) {}
+
+  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    const auto shortcut = index.data(shortcut_role_).toString();
+    if (shortcut.isEmpty()) {
+      QStyledItemDelegate::paint(painter, option, index);
+      return;
+    }
+    QStyleOptionViewItem item_option(option);
+    initStyleOption(&item_option, index);
+    const auto* widget = option.widget;
+    auto* style = widget != nullptr ? widget->style() : QApplication::style();
+    const auto text_rect = style->subElementRect(QStyle::SE_ItemViewItemText, &item_option, widget);
+    const QFontMetrics metrics(item_option.font);
+    constexpr int kRightPadding = 8;
+    constexpr int kGap = 10;
+    const int shortcut_width = metrics.horizontalAdvance(shortcut);
+    const QRect shortcut_rect(text_rect.right() + 1 - kRightPadding - shortcut_width, text_rect.top(), shortcut_width,
+                              text_rect.height());
+    if (shortcut_rect.left() < text_rect.left()) {
+      QStyledItemDelegate::paint(painter, option, index);
+      return;
+    }
+    item_option.text = metrics.elidedText(item_option.text, Qt::ElideRight,
+                                          std::max(0, shortcut_rect.left() - kGap - text_rect.left()));
+    style->drawControl(QStyle::CE_ItemViewItem, &item_option, painter, widget);
+    painter->save();
+    painter->setFont(item_option.font);
+    const bool selected = (option.state & QStyle::State_Selected) != 0;
+    painter->setPen(!(option.state & QStyle::State_Enabled) ? theme().text_disabled
+                    : selected                              ? theme().list_selection_text
+                                                            : theme().text_secondary);
+    painter->drawText(shortcut_rect, Qt::AlignRight | Qt::AlignVCenter, shortcut);
+    painter->restore();
+  }
+
+private:
+  int shortcut_role_;
+};
+
+}  // namespace
 
 ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
   setObjectName(QStringLiteral("channelPanel"));
@@ -42,6 +94,7 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
   list_->setSpacing(1);
   list_->viewport()->installEventFilter(this);
   list_->setContextMenuPolicy(Qt::CustomContextMenu);
+  list_->setItemDelegate(new ChannelRowDelegate(kShortcutRole, list_));
   layout->addWidget(list_, 1);
 
   auto* action_bar = new QWidget(this);
@@ -126,6 +179,10 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
       if (item->text() != row.name) {
         item->setText(row.name);
       }
+      if (const auto shortcut = row_shortcuts_.contains(row.kind) ? row_shortcuts_.at(row.kind) : QString();
+          item->data(kShortcutRole).toString() != shortcut) {
+        item->setData(kShortcutRole, shortcut);
+      }
       const auto old_thumbnail = item->data(kThumbnailRole).value<QPixmap>();
       if (item->data(kEyeRole).toInt() != eye || old_thumbnail.cacheKey() != row.thumbnail.cacheKey()) {
         item->setData(kThumbnailRole, row.thumbnail);
@@ -156,6 +213,9 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
     item->setData(kChannelIdRole, QVariant::fromValue<qulonglong>(row.id));
     item->setData(kThumbnailRole, row.thumbnail);
     item->setData(kEyeRole, eye);
+    if (row_shortcuts_.contains(row.kind)) {
+      item->setData(kShortcutRole, row_shortcuts_.at(row.kind));
+    }
     auto flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
     if (row.kind == RowKind::Alpha) {
       flags |= Qt::ItemIsDragEnabled;
@@ -247,6 +307,19 @@ void ChannelPanel::set_eye_callback(EyeCallback callback) {
   eye_callback_ = std::move(callback);
 }
 
+void ChannelPanel::set_row_shortcuts(std::map<RowKind, QString> shortcuts) {
+  row_shortcuts_ = std::move(shortcuts);
+  const QSignalBlocker blocker(list_);
+  for (int row = 0; row < list_->count(); ++row) {
+    auto* item = list_->item(row);
+    const auto kind = static_cast<RowKind>(item->data(kKindRole).toInt());
+    const auto shortcut = row_shortcuts_.contains(kind) ? row_shortcuts_.at(kind) : QString();
+    if (item->data(kShortcutRole).toString() != shortcut) {
+      item->setData(kShortcutRole, shortcut);
+    }
+  }
+}
+
 void ChannelPanel::set_row_thumbnail(RowKind kind, const QPixmap& thumbnail) {
   for (auto& row : committed_rows_) {
     if (row.kind == kind) {
@@ -284,6 +357,11 @@ std::optional<bool> ChannelPanel::row_eye(int row) const {
 QPixmap ChannelPanel::row_thumbnail(int row) const {
   const auto* item = list_->item(row);
   return item != nullptr ? item->data(kThumbnailRole).value<QPixmap>() : QPixmap();
+}
+
+QString ChannelPanel::row_shortcut(int row) const {
+  const auto* item = list_->item(row);
+  return item != nullptr ? item->data(kShortcutRole).toString() : QString();
 }
 
 QIcon ChannelPanel::row_icon(const QPixmap& thumbnail, int eye) const {
