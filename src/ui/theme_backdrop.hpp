@@ -7,6 +7,7 @@
 // theme_generation(): a repaint only fills the area it exposes.
 
 #include <QColor>
+#include <QDateTime>
 #include <QImage>
 #include <QRect>
 #include <QString>
@@ -34,7 +35,16 @@ bool paint_theme_backdrop(QPainter& painter, const QRect& area, const QWidget& w
 
 // Writes `image` once to <temp>/patchy-theme-cache/<prefix>-<sha1>.png (named after its
 // content, so it is never rewritten while in use) and returns it as a QSS url() argument.
-// Empty when it cannot be written.
+// Empty when it cannot be written, or once this process has written
+// kThemeCacheSessionBytes there (a theme script must not fill the disk). A reused file's
+// modification time is refreshed; the first call in a process prunes the folder.
 [[nodiscard]] QString theme_cache_png_url(const QImage& image, const QString& prefix);
+inline constexpr qint64 kThemeCacheSessionBytes = 64LL * 1024 * 1024;
+// Removes the cache folder's PNGs last modified before `cutoff` (another running Patchy
+// refreshes the files it reuses, so a week-old one belongs to nobody); the count removed.
+int prune_theme_cache(const QDateTime& cutoff);
+// Tests: the per-process write cap (kThemeCacheSessionBytes by default) and the bytes
+// written so far, reset with the cap.
+void set_theme_cache_session_limit_for_testing(qint64 bytes);
 
 }  // namespace patchy::ui

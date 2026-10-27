@@ -13280,6 +13280,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
         <translation>&quot;minPatchyVersion&quot;은 &quot;1.20&quot;과 같은 버전이어야 합니다(무시됨).</translation>
     </message>
+    <message>
+        <source>Icon &quot;%1&quot; refers to files or addresses outside itself (ignored).</source>
+        <translation>아이콘 &quot;%1&quot;이(가) 외부 파일이나 주소를 참조합니다(무시됨).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -13290,6 +13294,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>the theme&apos;s scripts kept running too long and were turned off</source>
         <translation>테마 스크립트가 계속 너무 오래 실행되어 꺼졌습니다</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts used too much processor time and were turned off</source>
+        <translation>테마 스크립트가 프로세서 시간을 너무 많이 사용하여 꺼졌습니다</translation>
     </message>
 </context>
 <context>

@@ -13317,6 +13317,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
         <translation>&quot;minPatchyVersion&quot; deve essere una versione come &quot;1.20&quot; (ignorato).</translation>
     </message>
+    <message>
+        <source>Icon &quot;%1&quot; refers to files or addresses outside itself (ignored).</source>
+        <translation>L&apos;icona &quot;%1&quot; fa riferimento a file o indirizzi esterni (ignorata).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -13327,6 +13331,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>the theme&apos;s scripts kept running too long and were turned off</source>
         <translation>gli script del tema sono durati troppo a lungo più volte e sono stati disattivati</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts used too much processor time and were turned off</source>
+        <translation>gli script del tema hanno usato troppo tempo del processore e sono stati disattivati</translation>
     </message>
 </context>
 <context>

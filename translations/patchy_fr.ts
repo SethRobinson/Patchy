@@ -13317,6 +13317,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
         <translation>&quot;minPatchyVersion&quot; doit être une version comme &quot;1.20&quot; (ignoré).</translation>
     </message>
+    <message>
+        <source>Icon &quot;%1&quot; refers to files or addresses outside itself (ignored).</source>
+        <translation>L&apos;icône &quot;%1&quot; fait référence à des fichiers ou adresses externes (ignorée).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -13327,6 +13331,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>the theme&apos;s scripts kept running too long and were turned off</source>
         <translation>les scripts du thème ont trop souvent dépassé leur durée et ont été désactivés</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts used too much processor time and were turned off</source>
+        <translation>les scripts du thème ont utilisé trop de temps processeur et ont été désactivés</translation>
     </message>
 </context>
 <context>

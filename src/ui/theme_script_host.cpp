@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 namespace patchy::ui {
 
@@ -238,7 +239,7 @@ bool ThemeScriptBridge::playSound(const QString& path) {
     return false;
   }
   auto bytes = host_.assets_->files.value(path);
-  if (bytes.size() < 12 || !bytes.startsWith("RIFF") || bytes.mid(8, 4) != "WAVE" || !theme_sounds_enabled()) {
+  if (!is_well_formed_wav(bytes) || !theme_sounds_enabled()) {
     return false;
   }
   play_wav_bytes(std::move(bytes));
@@ -481,7 +482,8 @@ bool ThemeScriptHost::set_panel_background(const QString& panel, const QString& 
   faint.fill(Qt::transparent);
   {
     QPainter painter(&faint);
-    painter.setOpacity(std::clamp(std::isfinite(opacity) ? opacity : 0.3, 0.05, 0.6));
+    // In steps of 0.05: a script sweeping the opacity cannot mint a cache file per call.
+    painter.setOpacity(std::round(std::clamp(std::isfinite(opacity) ? opacity : 0.3, 0.05, 0.6) * 20.0) / 20.0);
     painter.drawImage(0, 0, picture);
   }
   const auto url = theme_cache_png_url(faint, QStringLiteral("panel"));
@@ -614,6 +616,8 @@ void ThemeScriptHost::start() {
     return;
   }
   timeouts_ = 0;
+  busy_calls_.clear();
+  busy_ms_ = 0;
   listened_.clear();
   if (watchdog_ == nullptr) {
     watchdog_ = std::make_unique<ScriptWatchdog>([this] {
@@ -678,10 +682,22 @@ void ThemeScriptHost::stop(const QString& reason) {
   }
 }
 
+bool ThemeScriptHost::over_busy_budget(qint64 elapsed_ms) {
+  const auto now = now_ms(clock_);
+  busy_calls_.emplace_back(now, elapsed_ms);
+  busy_ms_ += elapsed_ms;
+  while (!busy_calls_.empty() && now - busy_calls_.front().first >= kBusyWindowMs) {
+    busy_ms_ -= busy_calls_.front().second;
+    busy_calls_.pop_front();
+  }
+  return busy_ms_ > kMaxBusyMs;
+}
+
 void ThemeScriptHost::after_call(const QJSValue& result) {
   if (watchdog_ != nullptr) {
     watchdog_->disarm();
   }
+  const auto elapsed = call_clock_.elapsed();
   bool timed_out = false;
   {
     const std::lock_guard lock(interrupt_mutex_);
@@ -705,6 +721,16 @@ void ThemeScriptHost::after_call(const QJSValue& result) {
   } else if (result.isError()) {
     note(QStringLiteral("Error: ") + result.toString());
   }
+  if (over_busy_budget(elapsed)) {
+    busy_calls_.clear();
+    busy_ms_ = 0;
+    QTimer::singleShot(0, this, [this] {
+      if (running()) {
+        stop(QCoreApplication::translate("ThemeScripts",
+                                         "the theme's scripts used too much processor time and were turned off"));
+      }
+    });
+  }
 }
 
 QJSValue ThemeScriptHost::guarded_call(QJSValue function, const QJSValueList& arguments) {
@@ -713,6 +739,7 @@ QJSValue ThemeScriptHost::guarded_call(QJSValue function, const QJSValueList& ar
   }
   in_call_ = true;
   timed_out_ = false;
+  call_clock_.start();
   watchdog_->arm(std::chrono::milliseconds(budget_ms_));
   auto result = function.call(arguments);
   after_call(result);
@@ -725,6 +752,7 @@ QJSValue ThemeScriptHost::guarded_evaluate(const QString& source, const QString&
   }
   in_call_ = true;
   timed_out_ = false;
+  call_clock_.start();
   // main.js sets everything up at once: twice the per-call budget.
   watchdog_->arm(std::chrono::milliseconds(budget_ms_ * 2));
   auto result = engine_->evaluate(source, file_name);

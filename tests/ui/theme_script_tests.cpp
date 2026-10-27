@@ -311,6 +311,27 @@ void ui_theme_script_watchdog_stops_a_runaway_loop() {
   host.set_budget_for_testing(ThemeScriptHost::kCallBudgetMs);
 }
 
+// Calls that each stay under the per-call budget still add up: a theme busy for more
+// than kMaxBusyMs of any kBusyWindowMs is turned off.
+void ui_theme_script_cpu_budget_stops_a_busy_theme() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  ScriptThemesDir themes;
+  write_package(themes.file(QStringLiteral("Busy")), {},
+                QByteArrayLiteral("setInterval(function () {\n"
+                                  "  var start = Date.now();\n"
+                                  "  while (Date.now() - start < 60) {}\n"
+                                  "}, 30);\n"));
+  apply(QStringLiteral("Busy"), true);
+  auto& host = ThemeScriptHost::instance();
+  CHECK(host.running());
+  QElapsedTimer clock;
+  clock.start();
+  CHECK(process_events_until([&host] { return !host.running(); }, 8000));
+  CHECK(clock.elapsed() < 6000);
+  CHECK(log_contains(QStringLiteral("too much processor time")));
+}
+
 void ui_theme_script_trust_prompt_and_stored_answer() {
   ColorSchemeRestorer restore_active;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
@@ -611,6 +632,7 @@ std::vector<patchy::test::TestCase> theme_script_tests() {
       {"ui_theme_effect_overlay_costs_nothing_while_idle", ui_theme_effect_overlay_costs_nothing_while_idle},
       {"ui_theme_script_engine_is_isolated", ui_theme_script_engine_is_isolated},
       {"ui_theme_script_watchdog_stops_a_runaway_loop", ui_theme_script_watchdog_stops_a_runaway_loop},
+      {"ui_theme_script_cpu_budget_stops_a_busy_theme", ui_theme_script_cpu_budget_stops_a_busy_theme},
       {"ui_theme_script_trust_prompt_and_stored_answer", ui_theme_script_trust_prompt_and_stored_answer},
       {"ui_theme_menu_sits_right_of_help_with_hotkeys", ui_theme_menu_sits_right_of_help_with_hotkeys},
       {"ui_theme_cursors_backgrounds_and_splash", ui_theme_cursors_backgrounds_and_splash},

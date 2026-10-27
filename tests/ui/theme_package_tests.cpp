@@ -28,6 +28,8 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QCheckBox>
+#include <QCoreApplication>
+#include <QDateTime>
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
@@ -733,6 +735,138 @@ void ui_theme_package_capture_shots() {
   ThemeManager::instance().clear_custom_theme(/*persist=*/false);
 }
 
+// A theme's SVG icon may not reach outside itself: QtSvg would load an <image> href as
+// a file path (a network path leaks the Windows login hash). Every shipped icon, which
+// Export Icon Template hands authors, still passes.
+void ui_theme_svg_icons_reaching_outside_are_refused() {
+  const auto svg = [](const char* body) {
+    return QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" "
+                      "viewBox=\"0 0 32 32\">") +
+           body + "</svg>";
+  };
+  for (const auto* body : {
+           "<image href=\"file:///C:/secret.png\" width=\"32\" height=\"32\"/>",
+           "<image xlink:href=\"//server/share/a.png\" width=\"32\" height=\"32\"/>",
+           "<image href=\"data:image/svg+xml;base64,PHN2Zy8+\" width=\"32\" height=\"32\"/>",
+           "<image width=\"32\" height=\"32\"/>",
+           "<use href=\"other.svg#shape\"/>",
+           "<rect width=\"32\" height=\"32\" fill=\"url(other.svg#g)\"/>",
+           "<rect width=\"32\" height=\"32\" style=\"fill: url( 'http://example.com/a' )\"/>",
+           "<style>@import 'theme.css';</style>",
+           "<style>rect { fill: url(x.svg#g); }</style>",
+       }) {
+    CHECK(!patchy::ui::is_safe_theme_svg(svg(body)));
+  }
+  CHECK(!patchy::ui::is_safe_theme_svg(QByteArrayLiteral(
+      "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY a \"aaaa\">]><svg xmlns=\"http://www.w3.org/2000/svg\"/>")));
+  CHECK(!patchy::ui::is_safe_theme_svg(
+      QByteArrayLiteral("<?xml-stylesheet href=\"x.css\"?><svg xmlns=\"http://www.w3.org/2000/svg\"/>")));
+  CHECK(!patchy::ui::is_safe_theme_svg(QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\"><rect")));
+  for (const auto* body : {
+           "<image href=\"data:image/png;base64,iVBORw0KGgo=\" width=\"32\" height=\"32\"/>",
+           "<defs><linearGradient id=\"g\"/></defs><rect width=\"32\" height=\"32\" fill=\"url(#g)\"/>",
+           "<rect width=\"32\" height=\"32\" style=\"fill: url( '#g' )\"/>",
+           "<defs><path id=\"p\" d=\"M0 0h4\"/></defs><use xlink:href=\"#p\"/>",
+       }) {
+    if (!patchy::ui::is_safe_theme_svg(svg(body))) {
+      fprintf(stderr, "  safe SVG refused: %s\n", body);
+      CHECK(false);
+    }
+  }
+  CHECK(patchy::ui::is_safe_theme_svg(red_svg()));
+
+  QTemporaryDir out;
+  QString error;
+  CHECK(patchy::ui::export_icon_template(out.path(), &error) > 0);
+  for (const auto& info : QDir(out.path()).entryInfoList({QStringLiteral("*.svg")}, QDir::Files)) {
+    QFile file(info.absoluteFilePath());
+    CHECK(file.open(QIODevice::ReadOnly));
+    if (!patchy::ui::is_safe_theme_svg(file.readAll())) {
+      fprintf(stderr, "  shipped icon refused: %s\n", info.fileName().toUtf8().constData());
+      CHECK(false);
+    }
+  }
+
+  // In a package: a load warning, and the shipped icon stays.
+  PackageThemesDir themes;
+  const auto root = themes.file(QStringLiteral("Reach"));
+  write_bytes(QDir(root).filePath(QStringLiteral("theme.json")), manifest_json(QColor(1, 2, 3)));
+  write_bytes(QDir(root).filePath(QStringLiteral("icons/apply.svg")),
+              svg("<image href=\"//server/share/a.png\" width=\"32\" height=\"32\"/>"));
+  const auto result = patchy::ui::load_theme_package_directory(root);
+  CHECK(result.theme.has_value());
+  CHECK(result.warnings.size() == 1 && result.warnings.value(0).contains(QStringLiteral("apply.svg")));
+  CHECK(result.theme && !result.theme->assets->icons.contains(QStringLiteral("apply")));
+}
+
+// Players trust a WAV's own sizes (winmm reads the RIFF size's worth of bytes), so only
+// well-formed WAVs play, and a package's malformed one is a load warning.
+void ui_theme_sounds_refuse_malformed_wav() {
+  const auto good = patchy::ui::build_tone_wav(440.0, 50, 0.5, patchy::ui::ToneWave::Sine);
+  CHECK(patchy::ui::is_well_formed_wav(good));
+  const auto put_u32 = [](QByteArray bytes, int offset, quint32 value) {
+    for (int i = 0; i < 4; ++i) {
+      bytes[offset + i] = static_cast<char>((value >> (8 * i)) & 0xFF);
+    }
+    return bytes;
+  };
+  CHECK(!patchy::ui::is_well_formed_wav(put_u32(good, 4, static_cast<quint32>(good.size()) * 4)));  // RIFF size lies
+  CHECK(!patchy::ui::is_well_formed_wav(put_u32(good, 40, static_cast<quint32>(good.size()) * 4)));  // data size lies
+  CHECK(!patchy::ui::is_well_formed_wav(good.left(40)));  // no data chunk
+  CHECK(!patchy::ui::is_well_formed_wav(QByteArrayLiteral("RIFF\x04\x00\x00\x00WAVE")));
+  auto odd_bits = good;
+  odd_bits[34] = 12;  // bits per sample
+  CHECK(!patchy::ui::is_well_formed_wav(odd_bits));
+  auto data_first = good;
+  data_first.replace(12, 4, "junk");  // the fmt chunk renamed: data without a format
+  CHECK(!patchy::ui::is_well_formed_wav(data_first));
+  // A padding byte after the RIFF size is fine.
+  CHECK(patchy::ui::is_well_formed_wav(good + QByteArray(1, '\0')));
+
+  PackageThemesDir themes;
+  const auto root = themes.file(QStringLiteral("Noisy"));
+  write_bytes(QDir(root).filePath(QStringLiteral("theme.json")), manifest_json(QColor(1, 2, 3)));
+  write_bytes(QDir(root).filePath(QStringLiteral("sounds/save-done.wav")),
+              put_u32(good, 4, static_cast<quint32>(good.size()) * 4));
+  const auto result = patchy::ui::load_theme_package_directory(root);
+  CHECK(result.theme.has_value() && result.warnings.size() == 1);
+  CHECK(result.theme &&
+        patchy::ui::theme_sound_for_event(result.theme->assets.get(), patchy::ui::ThemeSoundEvent::SaveDone).isEmpty());
+}
+
+// The theme cache: week-old PNGs are pruned, a reused file's time is refreshed, and one
+// process writes at most its byte cap there.
+void ui_theme_cache_prunes_old_files_and_caps_writes() {
+  const auto file_of = [](QString url) {
+    if (url.startsWith(QLatin1Char('"'))) {
+      url = url.mid(1, url.size() - 2);
+    }
+    return url;
+  };
+  const auto prefix = QStringLiteral("test%1").arg(QCoreApplication::applicationPid());
+  const auto fresh = file_of(patchy::ui::theme_cache_png_url(solid_image(3, 3, QColor(1, 2, 3)), prefix));
+  CHECK(!fresh.isEmpty() && QFileInfo::exists(fresh));
+  const auto stale = QFileInfo(fresh).dir().filePath(prefix + QStringLiteral("-old.png"));
+  write_bytes(stale, png_bytes(solid_image(2, 2, QColor(4, 5, 6))));
+  const auto month_ago = QDateTime::currentDateTime().addDays(-30);
+  for (const auto& path : {stale, fresh}) {
+    QFile file(path);
+    CHECK(file.open(QIODevice::ReadWrite));
+    file.setFileTime(month_ago, QFileDevice::FileModificationTime);
+  }
+  // Reusing the fresh one refreshes its time, so only the stale one goes.
+  CHECK(file_of(patchy::ui::theme_cache_png_url(solid_image(3, 3, QColor(1, 2, 3)), prefix)) == fresh);
+  CHECK(patchy::ui::prune_theme_cache(QDateTime::currentDateTime().addDays(-7)) >= 1);
+  CHECK(!QFileInfo::exists(stale));
+  CHECK(QFileInfo::exists(fresh));
+
+  patchy::ui::set_theme_cache_session_limit_for_testing(16);
+  CHECK(patchy::ui::theme_cache_png_url(solid_image(5, 5, QColor(7, 8, 9)), prefix).isEmpty());
+  CHECK(file_of(patchy::ui::theme_cache_png_url(solid_image(3, 3, QColor(1, 2, 3)), prefix)) == fresh);
+  patchy::ui::set_theme_cache_session_limit_for_testing(patchy::ui::kThemeCacheSessionBytes);
+  CHECK(QFile::remove(fresh));
+}
+
 // theme.json "version", "author" and "minPatchyVersion": parsed, written back, shown in
 // the Colors and Themes list and details, and a theme for a newer Patchy warns once.
 void ui_theme_info_shows_version_author_and_minimum_patchy() {
@@ -869,5 +1003,8 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
       {"ui_theme_package_icon_template_and_example_package", ui_theme_package_icon_template_and_example_package},
       {"ui_theme_package_capture_shots", ui_theme_package_capture_shots},
       {"ui_theme_info_shows_version_author_and_minimum_patchy", ui_theme_info_shows_version_author_and_minimum_patchy},
+      {"ui_theme_svg_icons_reaching_outside_are_refused", ui_theme_svg_icons_reaching_outside_are_refused},
+      {"ui_theme_sounds_refuse_malformed_wav", ui_theme_sounds_refuse_malformed_wav},
+      {"ui_theme_cache_prunes_old_files_and_caps_writes", ui_theme_cache_prunes_old_files_and_caps_writes},
   };
 }

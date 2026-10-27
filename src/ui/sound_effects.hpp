@@ -15,6 +15,13 @@ enum class ToneWave { Sine, Square };
 [[nodiscard]] QByteArray build_tone_wav(double frequency_hz, int duration_ms, double volume,
                                         ToneWave wave);
 
+// True for RIFF/WAVE bytes every backend can play safely: every chunk, and the RIFF
+// size the players trust (winmm reads that many bytes from the buffer), lies inside
+// the bytes; a PCM or float "fmt " chunk with sane fields comes before a non-empty
+// "data" chunk. Theme packages are checked with it at load, and every play_wav_bytes
+// refuses anything else, since a theme's WAV comes from anywhere.
+[[nodiscard]] bool is_well_formed_wav(const QByteArray& wav);
+
 // Fire-and-forget playback through the platform's built-in facility - winmm
 // PlaySound (Windows), NSSound (macOS, sound_effects_mac.mm), or a detached
 // paplay/pw-play/aplay process (Linux). Deliberately NOT Qt Multimedia: that

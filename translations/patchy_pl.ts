@@ -13354,6 +13354,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
         <translation>&quot;minPatchyVersion&quot; musi być wersją, np. &quot;1.20&quot; (zignorowano).</translation>
     </message>
+    <message>
+        <source>Icon &quot;%1&quot; refers to files or addresses outside itself (ignored).</source>
+        <translation>Ikona &quot;%1&quot; odwołuje się do plików lub adresów spoza niej (zignorowano).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -13364,6 +13368,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>the theme&apos;s scripts kept running too long and were turned off</source>
         <translation>skrypty motywu zbyt często działały za długo i zostały wyłączone</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts used too much processor time and were turned off</source>
+        <translation>skrypty motywu zużyły zbyt dużo czasu procesora i zostały wyłączone</translation>
     </message>
 </context>
 <context>

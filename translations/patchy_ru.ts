@@ -13354,6 +13354,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
         <translation>&quot;minPatchyVersion&quot; должно быть версией, например &quot;1.20&quot; (пропущено).</translation>
     </message>
+    <message>
+        <source>Icon &quot;%1&quot; refers to files or addresses outside itself (ignored).</source>
+        <translation>Значок &quot;%1&quot; ссылается на внешние файлы или адреса (пропущен).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -13364,6 +13368,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>the theme&apos;s scripts kept running too long and were turned off</source>
         <translation>скрипты темы слишком часто работали слишком долго и были отключены</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts used too much processor time and were turned off</source>
+        <translation>скрипты темы заняли слишком много процессорного времени и были отключены</translation>
     </message>
 </context>
 <context>

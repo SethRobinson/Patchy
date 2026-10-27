@@ -32,6 +32,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <utility>
 #include <vector>
 
 class QJSEngine;
@@ -134,6 +135,11 @@ class ThemeScriptHost final : public QObject {
 
   static constexpr int kCallBudgetMs = 250;
   static constexpr int kMaxTimeouts = 3;
+  // Over any kBusyWindowMs, theme code may run kMaxBusyMs in total, or the scripts are
+  // turned off: calls that each stay under kCallBudgetMs (16 timers every 30 ms) could
+  // otherwise keep the UI thread busy for good.
+  static constexpr int kBusyWindowMs = 3000;
+  static constexpr int kMaxBusyMs = 1000;
   static constexpr int kMaxTimers = 16;
   static constexpr int kMaxCommands = 32;
 
@@ -168,6 +174,8 @@ class ThemeScriptHost final : public QObject {
   QJSValue guarded_call(QJSValue function, const QJSValueList& arguments);
   QJSValue guarded_evaluate(const QString& source, const QString& file_name);
   void after_call(const QJSValue& result);
+  // Adds a call's run time to the busy window; true when the window is over kMaxBusyMs.
+  [[nodiscard]] bool over_busy_budget(qint64 elapsed_ms);
   void note(const QString& text);
   [[nodiscard]] bool allow(RateLimit& limit);
   void apply_declarative_hooks();
@@ -202,6 +210,9 @@ class ThemeScriptHost final : public QObject {
   qint64 last_status_error_ms_ = -100000;
   qint64 last_splash_ms_ = -100000;
   QElapsedTimer clock_;
+  QElapsedTimer call_clock_;
+  std::deque<std::pair<qint64, qint64>> busy_calls_;  // (end ms, run ms) inside the busy window
+  qint64 busy_ms_ = 0;
   RateLimit sound_limit_{4, 1000, {}};
   RateLimit effect_limit_{4, 1000, {}};
   RateLimit status_limit_{4, 1000, {}};

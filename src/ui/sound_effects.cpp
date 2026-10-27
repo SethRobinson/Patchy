@@ -55,7 +55,60 @@ void append_u32(QByteArray& out, std::uint32_t value) {
 bool sound_disabled() { return qEnvironmentVariableIsSet("PATCHY_NO_SOUND"); }
 #endif
 
+[[nodiscard]] std::uint32_t read_u32(const QByteArray& bytes, qsizetype offset) {
+  const auto* data = reinterpret_cast<const unsigned char*>(bytes.constData()) + offset;
+  return static_cast<std::uint32_t>(data[0]) | static_cast<std::uint32_t>(data[1]) << 8 |
+         static_cast<std::uint32_t>(data[2]) << 16 | static_cast<std::uint32_t>(data[3]) << 24;
+}
+
+[[nodiscard]] std::uint16_t read_u16(const QByteArray& bytes, qsizetype offset) {
+  const auto* data = reinterpret_cast<const unsigned char*>(bytes.constData()) + offset;
+  return static_cast<std::uint16_t>(data[0] | data[1] << 8);
+}
+
 }  // namespace
+
+bool is_well_formed_wav(const QByteArray& wav) {
+  if (wav.size() < 12 || !wav.startsWith("RIFF") || wav.mid(8, 4) != "WAVE") {
+    return false;
+  }
+  // The RIFF size is what the players read: it must not reach past the bytes.
+  const auto riff_end = static_cast<qint64>(read_u32(wav, 4)) + 8;
+  if (riff_end < 12 || riff_end > wav.size()) {
+    return false;
+  }
+  bool have_format = false;
+  qint64 offset = 12;
+  while (offset + 8 <= riff_end) {
+    const auto id = wav.mid(offset, 4);
+    const auto size = static_cast<qint64>(read_u32(wav, offset + 4));
+    const auto body = offset + 8;
+    if (size > riff_end - body) {
+      return false;
+    }
+    if (id == "fmt ") {
+      if (size < 16) {
+        return false;
+      }
+      const auto tag = read_u16(wav, body);
+      const auto channels = read_u16(wav, body + 2);
+      const auto rate = read_u32(wav, body + 4);
+      const auto align = read_u16(wav, body + 12);
+      const auto bits = read_u16(wav, body + 14);
+      // PCM, IEEE float, or WAVE_FORMAT_EXTENSIBLE.
+      if ((tag != 1 && tag != 3 && tag != 0xFFFE) || channels < 1 || channels > 8 || rate < 1000 ||
+          rate > 384000 || (bits != 8 && bits != 16 && bits != 24 && bits != 32) ||
+          align != channels * (bits / 8)) {
+        return false;
+      }
+      have_format = true;
+    } else if (id == "data") {
+      return have_format && size > 0;
+    }
+    offset = body + size + (size & 1);  // chunks are padded to an even size
+  }
+  return false;
+}
 
 QByteArray build_tone_wav(double frequency_hz, int duration_ms, double volume, ToneWave wave) {
   frequency_hz = std::clamp(frequency_hz, 20.0, 20000.0);
@@ -112,13 +165,16 @@ QByteArray build_tone_wav(double frequency_hz, int duration_ms, double volume, T
 #ifdef Q_OS_WIN
 
 void play_wav_bytes(QByteArray wav) {
-  if (wav.isEmpty() || sound_disabled()) {
+  if (!is_well_formed_wav(wav) || sound_disabled()) {
     return;
   }
   // PlaySound reads the buffer asynchronously, so it must outlive the call;
-  // the static keeps it alive until the next sound (which cancels the current
-  // one - acceptable for game blips, and how PlaySound behaves anyway).
+  // the static keeps it alive until the next sound, which cancels the current
+  // one (acceptable for game blips, and how PlaySound behaves anyway). The
+  // current sound is stopped BEFORE its buffer is replaced: winmm may still be
+  // reading it, and freeing it first is a read after free.
   static QByteArray playing;
+  PlaySoundW(nullptr, nullptr, 0);
   playing = std::move(wav);
   PlaySoundW(reinterpret_cast<LPCWSTR>(playing.constData()), nullptr,
              SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
@@ -143,7 +199,7 @@ void play_wav_file(const QString& path) {
 // above stays shared so the synth logic keeps compiling on every platform,
 // and the sound_disabled() gate keeps the same shape as the real backends.
 void play_wav_bytes(QByteArray wav) {
-  if (wav.isEmpty() || sound_disabled()) {
+  if (!is_well_formed_wav(wav) || sound_disabled()) {
     return;
   }
 }
@@ -175,7 +231,7 @@ QStringList player_command(const QString& wav_path) {
 }  // namespace
 
 void play_wav_bytes(QByteArray wav) {
-  if (wav.isEmpty() || sound_disabled()) {
+  if (!is_well_formed_wav(wav) || sound_disabled()) {
     return;
   }
   // The detached player streams from disk, so the temp file must outlive it:

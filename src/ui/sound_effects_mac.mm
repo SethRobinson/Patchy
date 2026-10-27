@@ -40,7 +40,7 @@ bool sound_disabled() { return qEnvironmentVariableIsSet("PATCHY_NO_SOUND"); }
 namespace patchy::ui {
 
 void play_wav_bytes(QByteArray wav) {
-  if (wav.isEmpty() || sound_disabled()) {
+  if (!is_well_formed_wav(wav) || sound_disabled()) {
     return;
   }
   NSData* data = [NSData dataWithBytes:wav.constData()

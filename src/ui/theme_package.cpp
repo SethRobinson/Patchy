@@ -3,6 +3,7 @@
 #include "formats/ora_document_io.hpp"
 #include "formats/zip_entry_reader.hpp"
 #include "ui/icon_theme.hpp"
+#include "ui/sound_effects.hpp"
 #include "ui/theme_sounds.hpp"
 
 #include <QBuffer>
@@ -16,7 +17,9 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QSaveFile>
+#include <QRegularExpression>
 #include <QSet>
+#include <QXmlStreamReader>
 
 #include <algorithm>
 #include <cstdint>
@@ -75,9 +78,7 @@ std::shared_ptr<const ThemeAssets>& active_assets_slot() {
   return {data, data + bytes.size()};
 }
 
-[[nodiscard]] bool is_wav(const QByteArray& bytes) {
-  return bytes.size() >= 12 && bytes.startsWith("RIFF") && bytes.mid(8, 4) == "WAVE";
-}
+[[nodiscard]] bool is_wav(const QByteArray& bytes) { return is_well_formed_wav(bytes); }
 
 [[nodiscard]] bool is_known_effect(const QString& name) {
   return name == QStringLiteral("fireworks") || name == QStringLiteral("sparkles") ||
@@ -171,6 +172,13 @@ ThemeLoadResult load_theme_package_files(QHash<QString, QByteArray> files, const
         continue;
       }
       if (suffix == QStringLiteral("svg") && !double_size) {
+        if (!is_safe_theme_svg(bytes)) {
+          result.warnings.push_back(
+              QCoreApplication::translate("ThemeFile",
+                                          "Icon \"%1\" refers to files or addresses outside itself (ignored).")
+                  .arg(file_name));
+          continue;
+        }
         assets->icons[stem].svg = bytes;
         continue;
       }
@@ -259,6 +267,56 @@ QImage theme_package_image(const ThemeAssets& assets, const QString& path, int m
 
 bool is_theme_package_zip_name(const QString& file_name) {
   return file_name.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive);
+}
+
+bool is_safe_theme_svg(const QByteArray& svg) {
+  // url( that does not go straight to a "#fragment", quoted or not (possessive, so the
+  // spaces cannot give back a character to dodge the lookahead).
+  static const QRegularExpression outside_url(QStringLiteral("url\\s*\\(\\s*+(?![\"']?\\s*#)"),
+                                              QRegularExpression::CaseInsensitiveOption);
+  static const QRegularExpression embedded_image(QStringLiteral("^data:image/(png|jpeg|jpg);"),
+                                                 QRegularExpression::CaseInsensitiveOption);
+  const auto reaches_outside = [](QStringView text) {
+    return outside_url.matchView(text).hasMatch() || text.contains(QStringLiteral("@import"), Qt::CaseInsensitive);
+  };
+  QXmlStreamReader reader(svg);
+  while (!reader.atEnd()) {
+    switch (reader.readNext()) {
+      case QXmlStreamReader::DTD:
+      case QXmlStreamReader::EntityReference:
+      case QXmlStreamReader::ProcessingInstruction:
+        return false;
+      case QXmlStreamReader::StartElement: {
+        const bool image = reader.name().compare(QStringLiteral("image"), Qt::CaseInsensitive) == 0;
+        bool image_has_data = false;
+        for (const auto& attribute : reader.attributes()) {
+          const auto value = attribute.value().trimmed();
+          if (attribute.name().compare(QStringLiteral("href"), Qt::CaseInsensitive) == 0) {
+            if (image && embedded_image.matchView(value).hasMatch()) {
+              image_has_data = true;
+            } else if (!value.startsWith(QLatin1Char('#'))) {
+              return false;
+            }
+          } else if (reaches_outside(value)) {
+            return false;
+          }
+        }
+        if (image && !image_has_data) {
+          return false;
+        }
+        break;
+      }
+      case QXmlStreamReader::Characters:
+        // <style> text, and anything else a renderer might read as CSS.
+        if (reaches_outside(reader.text())) {
+          return false;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  return !reader.hasError();
 }
 
 bool is_safe_theme_package_path(const QString& path) {

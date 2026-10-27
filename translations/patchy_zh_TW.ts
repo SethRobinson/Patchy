@@ -13280,6 +13280,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
         <translation>&quot;minPatchyVersion&quot; 必須是類似 &quot;1.20&quot; 的版本號(已忽略)。</translation>
     </message>
+    <message>
+        <source>Icon &quot;%1&quot; refers to files or addresses outside itself (ignored).</source>
+        <translation>圖示 &quot;%1&quot; 參照了其外部的檔案或位址(已忽略)。</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -13290,6 +13294,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>the theme&apos;s scripts kept running too long and were turned off</source>
         <translation>佈景主題指令碼多次執行過久,已被關閉</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts used too much processor time and were turned off</source>
+        <translation>佈景主題指令碼佔用過多處理器時間,已被關閉</translation>
     </message>
 </context>
 <context>

@@ -6,7 +6,9 @@
 #include <QBrush>
 #include <QBuffer>
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QImage>
@@ -113,7 +115,49 @@ bool paint_theme_backdrop(QPainter& painter, const QRect& area, const QWidget& w
   return true;
 }
 
+namespace {
+
+[[nodiscard]] QDir theme_cache_directory() { return QDir(QDir::temp().filePath(QStringLiteral("patchy-theme-cache"))); }
+
+struct ThemeCacheSession {
+  qint64 limit = kThemeCacheSessionBytes;
+  qint64 written = 0;
+  bool pruned = false;
+};
+
+ThemeCacheSession& theme_cache_session() {
+  static ThemeCacheSession session;
+  return session;
+}
+
+}  // namespace
+
+int prune_theme_cache(const QDateTime& cutoff) {
+  // Only the PNGs this cache writes, by a literal folder name: never a recursive delete.
+  const auto directory = theme_cache_directory();
+  if (directory.dirName() != QStringLiteral("patchy-theme-cache") || !directory.exists()) {
+    return 0;
+  }
+  int removed = 0;
+  for (const auto& info : directory.entryInfoList({QStringLiteral("*.png")}, QDir::Files | QDir::NoSymLinks)) {
+    if (info.lastModified() < cutoff && QFile::remove(info.absoluteFilePath())) {
+      ++removed;
+    }
+  }
+  return removed;
+}
+
+void set_theme_cache_session_limit_for_testing(qint64 bytes) {
+  theme_cache_session().limit = bytes;
+  theme_cache_session().written = 0;
+}
+
 QString theme_cache_png_url(const QImage& image, const QString& prefix) {
+  auto& session = theme_cache_session();
+  if (!session.pruned) {
+    session.pruned = true;
+    (void)prune_theme_cache(QDateTime::currentDateTime().addDays(-7));
+  }
   QByteArray png;
   {
     QBuffer buffer(&png);
@@ -122,7 +166,7 @@ QString theme_cache_png_url(const QImage& image, const QString& prefix) {
     }
   }
   const auto digest = QCryptographicHash::hash(png, QCryptographicHash::Sha1).toHex().left(20);
-  const QDir directory(QDir::temp().filePath(QStringLiteral("patchy-theme-cache")));
+  const auto directory = theme_cache_directory();
   if (!QDir().mkpath(directory.path())) {
     return {};
   }
@@ -131,10 +175,17 @@ QString theme_cache_png_url(const QImage& image, const QString& prefix) {
     return {};  // the stylesheet's @token pass would read it as a color role
   }
   if (!QFileInfo::exists(path)) {
+    if (session.written + png.size() > session.limit) {
+      return {};
+    }
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(png) != png.size() || !file.commit()) {
       return {};
     }
+    session.written += png.size();
+  } else if (QFile file(path); file.open(QIODevice::ReadWrite)) {
+    // In use again: a fresh time keeps the next process's prune off it.
+    file.setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
   }
   // QSS takes a bare url() path; quote one holding anything a bare one cannot.
   static const QRegularExpression bare_path(QStringLiteral("^[A-Za-z0-9_./:~-]+$"));

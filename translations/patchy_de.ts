@@ -13317,6 +13317,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>&quot;minPatchyVersion&quot; must be a version such as &quot;1.20&quot; (ignored).</source>
         <translation>&quot;minPatchyVersion&quot; muss eine Version wie &quot;1.20&quot; sein (ignoriert).</translation>
     </message>
+    <message>
+        <source>Icon &quot;%1&quot; refers to files or addresses outside itself (ignored).</source>
+        <translation>Symbol &quot;%1&quot; verweist auf Dateien oder Adressen außerhalb seiner selbst (ignoriert).</translation>
+    </message>
 </context>
 <context>
     <name>ThemeScripts</name>
@@ -13327,6 +13331,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>the theme&apos;s scripts kept running too long and were turned off</source>
         <translation>die Skripte des Themas liefen wiederholt zu lange und wurden abgeschaltet</translation>
+    </message>
+    <message>
+        <source>the theme&apos;s scripts used too much processor time and were turned off</source>
+        <translation>die Skripte des Themas beanspruchten zu viel Rechenzeit und wurden abgeschaltet</translation>
     </message>
 </context>
 <context>

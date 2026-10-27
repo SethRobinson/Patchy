@@ -74,6 +74,12 @@ struct ThemePackageLimits {
 // A package-relative path that stays inside the package: no "..", no absolute or
 // drive path, no backslash, not empty.
 [[nodiscard]] bool is_safe_theme_package_path(const QString& path);
+// True when a theme's SVG icon reaches nothing outside itself. QtSvg loads an
+// <image> href as a file path (a network path on Windows sends the user's login
+// hash to that server), so a theme SVG may not hold: an href other than "#id", an
+// <image> other than embedded PNG or JPEG data, a url() other than "url(#id)", a
+// CSS @import, a DTD (entities) or a processing instruction. Malformed XML is unsafe.
+[[nodiscard]] bool is_safe_theme_svg(const QByteArray& svg);
 
 // Loaders. A path that escapes the package, a package past a limit, or a missing
 // or invalid theme.json is an error; an unreadable icon, sound or backdrop is a
