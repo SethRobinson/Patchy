@@ -15227,10 +15227,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>复位</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>恢复为 100% 和 0 度</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>显示叠加</translation>
     </message>
@@ -15267,8 +15263,32 @@ Each item&apos;s own View setting still applies.</source>
         <translation>下一笔将设置位移。</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>缩放和旋转适用于仿制图章。</translation>
+        <source>Flip:</source>
+        <translation>翻转:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>水平翻转: 将仿制内容左右镜像</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>水平翻转</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>垂直翻转: 将仿制内容上下镜像</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>垂直翻转</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>恢复为 100%、0 度且不翻转</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>缩放、旋转和翻转适用于仿制图章。</translation>
     </message>
 </context>
 <context>
@@ -26401,10 +26421,6 @@ The open document keeps its blend modes either way.</source>
         <translation>是否删除预设“%1”?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>仿制源设置: 源、位移、缩放、旋转和叠加</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>与单击位置周围正方形的平均颜色比较，而不是单个像素</translation>
     </message>
@@ -27024,6 +27040,14 @@ The open document keeps its blend modes either way.</source>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>按住</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>仿制源设置: 源、位移、缩放、旋转、翻转和叠加</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>仿制源</translation>
     </message>
 </context>
 <context>

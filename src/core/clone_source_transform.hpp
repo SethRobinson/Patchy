@@ -8,20 +8,25 @@
 namespace patchy {
 
 // The Clone Stamp's source transform (GitHub issue 424, docs/healing.md "Clone source
-// settings"): a uniform scale and a rotation applied to what the stroke samples, about
-// the Alt-clicked source point. At 100% and 0 degrees the mapping is the plain offset and
-// callers keep their untransformed path, so the output stays byte-identical.
+// settings"): a mirror, a uniform scale and a rotation applied to what the stroke samples,
+// about the Alt-clicked source point. The flips mirror the source first, so the rotation
+// still turns what the user sees clockwise. At 100%, 0 degrees and no flip the mapping is
+// the plain offset and callers keep their untransformed path, so the output stays
+// byte-identical.
 struct CloneSourceTransform {
   double scale_percent{100.0};
   // Positive turns the cloned content clockwise on screen (y down).
   double rotation_degrees{0.0};
+  // Mirror the cloned content left to right, and top to bottom, about the source point.
+  bool flip_horizontal{false};
+  bool flip_vertical{false};
 
   static constexpr double kMinScalePercent = 10.0;
   static constexpr double kMaxScalePercent = 400.0;
   static constexpr double kMaxRotationDegrees = 180.0;
 
   [[nodiscard]] bool is_identity() const noexcept;
-  // Scale clamped to its range, rotation folded into (-180, 180].
+  // Scale clamped to its range, rotation folded into (-180, 180], the flips kept.
   [[nodiscard]] CloneSourceTransform normalized() const noexcept;
   friend bool operator==(const CloneSourceTransform&, const CloneSourceTransform&) = default;
 };

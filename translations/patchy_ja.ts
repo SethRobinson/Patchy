@@ -15227,10 +15227,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>リセット</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>100% と 0 度に戻します</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>オーバーレイを表示</translation>
     </message>
@@ -15267,8 +15263,32 @@ Each item&apos;s own View setting still applies.</source>
         <translation>次のストロークでオフセットが決まります。</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>スケールと回転はコピースタンプに適用されます。</translation>
+        <source>Flip:</source>
+        <translation>反転:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>水平方向に反転: クローンする内容を左右に反転します</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>水平方向に反転</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>垂直方向に反転: クローンする内容を上下に反転します</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>垂直方向に反転</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>100%、0 度、反転なしに戻します</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>スケール、回転、反転はコピースタンプに適用されます。</translation>
     </message>
 </context>
 <context>
@@ -26401,10 +26421,6 @@ The open document keeps its blend modes either way.</source>
         <translation>プリセット「%1」を削除しますか?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>クローン元の設定: ソース、オフセット、スケール、回転、オーバーレイ</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>クリックした 1 ピクセルではなく、周囲の正方形の平均色と比較します</translation>
     </message>
@@ -27024,6 +27040,14 @@ The open document keeps its blend modes either way.</source>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>長押し</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>クローン元の設定: ソース、オフセット、スケール、回転、反転、オーバーレイ</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>クローン元</translation>
     </message>
 </context>
 <context>

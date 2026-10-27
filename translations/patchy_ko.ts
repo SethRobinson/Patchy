@@ -15227,10 +15227,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>초기화</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>100%와 0도로 되돌립니다</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>오버레이 표시</translation>
     </message>
@@ -15267,8 +15263,32 @@ Each item&apos;s own View setting still applies.</source>
         <translation>다음 획이 오프셋을 정합니다.</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>비율과 회전은 복제 도장에 적용됩니다.</translation>
+        <source>Flip:</source>
+        <translation>뒤집기:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>수평으로 뒤집기: 복제할 내용을 좌우로 뒤집습니다</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>수평으로 뒤집기</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>수직으로 뒤집기: 복제할 내용을 상하로 뒤집습니다</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>수직으로 뒤집기</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>100%, 0도, 뒤집기 없음으로 되돌립니다</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>비율, 회전, 뒤집기는 복제 도장에 적용됩니다.</translation>
     </message>
 </context>
 <context>
@@ -26401,10 +26421,6 @@ The open document keeps its blend modes either way.</source>
         <translation>사전 설정 &quot;%1&quot;을(를) 삭제하시겠습니까?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>복제 소스 설정: 소스, 오프셋, 비율, 회전, 오버레이</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>클릭한 픽셀 하나 대신 주변 정사각형의 평균 색상과 비교합니다</translation>
     </message>
@@ -27024,6 +27040,14 @@ The open document keeps its blend modes either way.</source>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>길게 누르기</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>복제 소스 설정: 소스, 오프셋, 비율, 회전, 뒤집기, 오버레이</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>복제 소스</translation>
     </message>
 </context>
 <context>

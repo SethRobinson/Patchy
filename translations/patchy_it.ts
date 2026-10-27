@@ -15264,10 +15264,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Ripristina</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>Torna a 100% e 0 gradi</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>Mostra sovrapposizione</translation>
     </message>
@@ -15304,8 +15300,32 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Il prossimo tratto imposta lo spostamento.</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>Scala e rotazione valgono per il Timbro clone.</translation>
+        <source>Flip:</source>
+        <translation>Rifletti:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>Rifletti in orizzontale: specchia il contenuto clonato da sinistra a destra</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Rifletti in orizzontale</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>Rifletti in verticale: specchia il contenuto clonato dall&apos;alto in basso</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Rifletti in verticale</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>Torna a 100%, 0 gradi e nessun riflesso</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>Scala, rotazione e riflesso valgono per il Timbro clone.</translation>
     </message>
 </context>
 <context>
@@ -26476,10 +26496,6 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <translation>Eliminare il predefinito &quot;%1&quot;?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>Impostazioni della sorgente di clonazione: sorgenti, spostamento, scala, rotazione e sovrapposizione</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Confronta con il colore medio di un quadrato attorno al clic invece di un solo pixel</translation>
     </message>
@@ -27100,6 +27116,14 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>Clic prolungato</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>Impostazioni della sorgente di clonazione: sorgenti, spostamento, scala, rotazione, riflesso e sovrapposizione</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Sorgente di clonazione</translation>
     </message>
 </context>
 <context>

@@ -15247,10 +15247,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15287,7 +15283,31 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
+        <source>Flip:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -26394,10 +26414,6 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27017,6 +27033,14 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

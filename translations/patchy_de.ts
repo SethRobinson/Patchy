@@ -15264,10 +15264,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Zurücksetzen</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>Zurück auf 100 % und 0 Grad</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>Überlagerung anzeigen</translation>
     </message>
@@ -15304,8 +15300,32 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Ihr nächster Strich legt den Versatz fest.</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>Skalierung und Drehung gelten für den Kopierstempel.</translation>
+        <source>Flip:</source>
+        <translation>Spiegeln:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>Horizontal spiegeln: kopierten Inhalt von links nach rechts spiegeln</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Horizontal spiegeln</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>Vertikal spiegeln: kopierten Inhalt von oben nach unten spiegeln</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Vertikal spiegeln</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>Zurück auf 100 %, 0 Grad und ohne Spiegelung</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>Skalierung, Drehung und Spiegelung gelten für den Kopierstempel.</translation>
     </message>
 </context>
 <context>
@@ -26476,10 +26496,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Vorgabe &quot;%1&quot; löschen?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung und Überlagerung</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Mit der Durchschnittsfarbe eines Quadrats um den Klick statt mit einem Pixel vergleichen</translation>
     </message>
@@ -27100,6 +27116,14 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>Klicken und halten</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>Kopierquellen-Einstellungen: Quellen, Versatz, Skalierung, Drehung, Spiegelung und Überlagerung</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Kopierquelle</translation>
     </message>
 </context>
 <context>
