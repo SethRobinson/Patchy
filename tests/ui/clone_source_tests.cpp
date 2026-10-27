@@ -1,7 +1,7 @@
 // Clone source settings (GitHub issue 424; docs/healing.md "Clone source settings"): the
-// Clone Stamp's scale and rotation (byte-identical output at the identity), the editable
-// offset, the four source slots, the Healing Brush keeping its untransformed source, the
-// overlay under the hovered brush, and the gear popup.
+// Clone Stamp's scale, rotation and flips (byte-identical output at the identity), the
+// editable offset, the four source slots, the Healing Brush keeping its untransformed
+// source, the overlay under the hovered brush, and the gear popup with Window > Clone Source.
 #include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
@@ -111,6 +111,13 @@ void open_gear_popup(QToolButton& gear, QMenu& menu) {
   QApplication::processEvents();
 }
 
+CloneSourceTransform flipped(bool horizontal, bool vertical, double scale = 100.0, double rotation = 0.0) {
+  CloneSourceTransform transform{scale, rotation};
+  transform.flip_horizontal = horizontal;
+  transform.flip_vertical = vertical;
+  return transform;
+}
+
 std::array<std::uint8_t, 4> pixel_at(const patchy::Layer& layer, QPoint point) {
   const auto* px = std::as_const(layer).pixels().pixel(point.x(), point.y());
   return {px[0], px[1], px[2], px[3]};
@@ -212,6 +219,58 @@ void ui_clone_source_scale_and_rotation_transform_the_sample() {
   patchy::set_deep_editing_override(std::nullopt);
 }
 
+// Flip Horizontal and Flip Vertical (GitHub issue 424 follow-up) mirror the sampled content
+// about the source point: right of the anchor samples left of the source point, below it
+// samples above (8 and 16 bits). A hard dab at 100% copies whole pixels.
+void ui_clone_source_flip_paints_mirrored_pixels() {
+  patchy::set_deep_editing_override(true);
+  for (const bool deep : {false, true}) {
+    const auto sample = [deep](const CloneSourceTransform& transform, const std::vector<QPoint>& probes) {
+      patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+      auto& layer = document.add_pixel_layer("Coordinates", coordinate_pixels(64));
+      const auto id = layer.id();
+      if (deep) {
+        patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+      }
+      CanvasWidget canvas;
+      prepare_clone_canvas(canvas, document, 9, 0, 100);
+      canvas.set_clone_source_transform(transform);
+      alt_click(canvas, QPoint(16, 16));
+      click(canvas, QPoint(48, 48));
+      std::vector<std::array<int, 2>> read;
+      const auto* target = document.find_layer(id);
+      for (const auto probe : probes) {
+        const auto& pixels = std::as_const(*target).pixels();
+        const auto value = patchy::load_pixel(pixels.format(), pixels.pixel(probe.x(), probe.y()));
+        read.push_back({static_cast<int>(std::lround(value[0])), static_cast<int>(std::lround(value[1]))});
+      }
+      return read;
+    };
+    const std::vector<QPoint> probes = {QPoint(48, 48), QPoint(50, 48), QPoint(48, 51), QPoint(46, 47)};
+    // Unflipped for reference: (50, 48) samples (18, 16).
+    const auto plain = sample(CloneSourceTransform{}, probes);
+    CHECK((plain[1] == std::array<int, 2>{72, 64}));
+    const auto horizontal = sample(flipped(true, false), probes);
+    CHECK((horizontal[0] == std::array<int, 2>{64, 64}));
+    CHECK((horizontal[1] == std::array<int, 2>{56, 64}));
+    CHECK((horizontal[2] == std::array<int, 2>{64, 76}));
+    CHECK((horizontal[3] == std::array<int, 2>{72, 60}));
+    const auto vertical = sample(flipped(false, true), probes);
+    CHECK((vertical[0] == std::array<int, 2>{64, 64}));
+    CHECK((vertical[1] == std::array<int, 2>{72, 64}));
+    CHECK((vertical[2] == std::array<int, 2>{64, 52}));
+    CHECK((vertical[3] == std::array<int, 2>{56, 68}));
+    const auto both = sample(flipped(true, true), probes);
+    CHECK((both[1] == std::array<int, 2>{56, 64}));
+    CHECK((both[2] == std::array<int, 2>{64, 52}));
+    CHECK((both[3] == std::array<int, 2>{72, 68}));
+    // With 200%: a step of two right of the anchor samples one left of the source point.
+    const auto doubled = sample(flipped(true, false, 200.0), {QPoint(50, 48)});
+    CHECK((doubled[0] == std::array<int, 2>{60, 64}));
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
 // The offset can be typed in; each of the four slots keeps its own source, offset and
 // transform, and switching back restores them.
 void ui_clone_source_offset_edit_and_slots_switch_sources() {
@@ -241,7 +300,7 @@ void ui_clone_source_offset_edit_and_slots_switch_sources() {
   CHECK(!canvas.clone_source_slot_state(1).set);
   CHECK(canvas.clone_source_transform().is_identity());
   alt_click(canvas, QPoint(10, 2));
-  canvas.set_clone_source_transform(CloneSourceTransform{200.0, 0.0});
+  canvas.set_clone_source_transform(flipped(true, false, 200.0));
   CHECK(canvas.clone_source_slot_state(0).point == QPoint(4, 4));
   CHECK(canvas.clone_source_slot_state(0).transform.is_identity());
   CHECK(canvas.clone_source_slot_state(1).point == QPoint(10, 2));
@@ -253,6 +312,7 @@ void ui_clone_source_offset_edit_and_slots_switch_sources() {
   CHECK((pixel_at(layer, QPoint(44, 52)) == std::array<std::uint8_t, 4>{96, 88, 100, 255}));
   canvas.set_clone_source_slot(1);
   CHECK(canvas.clone_source_transform().scale_percent == 200.0);
+  CHECK(canvas.clone_source_transform().flip_horizontal && !canvas.clone_source_transform().flip_vertical);
   CHECK(canvas.clone_source_slot_state(1).set);
   CHECK(changes >= 6);
 }
@@ -266,7 +326,7 @@ void ui_clone_source_healing_brush_ignores_transform() {
   prepare_clone_canvas(canvas, document, 9, 0, 100);
   canvas.set_tool(CanvasTool::Healing);
   canvas.set_healing_mode(patchy::ui::HealingMode::Replace);
-  canvas.set_clone_source_transform(CloneSourceTransform{200.0, 90.0});
+  canvas.set_clone_source_transform(flipped(true, true, 200.0, 90.0));
   alt_click(canvas, QPoint(16, 16));
   click(canvas, QPoint(48, 48));
   CHECK((pixel_at(layer, QPoint(50, 48)) == std::array<std::uint8_t, 4>{72, 64, 100, 255}));
@@ -314,9 +374,39 @@ void ui_clone_source_overlay_previews_source_under_brush() {
   CHECK(color_close(pixel_under_brush(), QColor(30, 40, 210), 12));
 }
 
-// The gear on the Clone Stamp bar opens the settings; edits reach the canvas and the
-// overlay settings persist. The Window menu has no Clone Source entry: the settings are
-// a popup, not a panel.
+// The overlay shows the flipped source: with the source point just left of the red/blue
+// boundary, the unflipped preview is red left of the pointer and blue right of it, and
+// Flip Horizontal swaps them.
+void ui_clone_source_overlay_shows_flipped_source() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(30, 40, 210, 255));
+  fill_pixel_rect(pixels, QRect(0, 0, 48, 64), QColor(220, 40, 30, 255));
+  document.add_pixel_layer("Halves", std::move(pixels));
+  CanvasWidget canvas;
+  prepare_clone_canvas(canvas, document, 24, 0, 100);
+  canvas.set_clone_aligned(true);
+  canvas.set_clone_overlay_shown(true);
+  canvas.set_clone_overlay_opacity(100);
+  alt_click(canvas, QPoint(47, 32));
+  const auto hover = canvas.widget_position_for_document_point(QPoint(72, 32));
+  const auto sides = [&canvas, hover] {
+    send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto image = canvas.grab().toImage();
+    return std::pair{image.pixelColor(canvas.widget_position_for_document_point(QPoint(66, 32))),
+                     image.pixelColor(canvas.widget_position_for_document_point(QPoint(78, 32)))};
+  };
+  const auto [plain_left, plain_right] = sides();
+  CHECK(color_close(plain_left, QColor(220, 40, 30), 12));
+  CHECK(color_close(plain_right, QColor(30, 40, 210), 12));
+  canvas.set_clone_source_transform(flipped(true, false));
+  const auto [mirrored_left, mirrored_right] = sides();
+  CHECK(color_close(mirrored_left, QColor(30, 40, 210), 12));
+  CHECK(color_close(mirrored_right, QColor(220, 40, 30), 12));
+}
+
+// The gear on the Clone Stamp bar opens the settings; edits reach the canvas, the overlay
+// settings persist, and Window > Clone Source picks the Clone Stamp and opens the popup.
 void ui_clone_source_gear_popup_drives_canvas() {
   SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
   SettingsValueRestorer saved_overlay(QStringLiteral("tools/cloneOverlay"));
@@ -332,13 +422,24 @@ void ui_clone_source_gear_popup_drives_canvas() {
     return;
   }
   CHECK(!gear->isVisible());
-  CHECK(window.findChild<QAction*>(QStringLiteral("windowCloneSourceAction")) == nullptr);
 
-  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  // Window > Clone Source from the Brush: the Clone Stamp, and the popup under the gear.
+  auto* entry = require_action(window, "windowCloneSourceAction");
+  CHECK(entry->menuRole() == QAction::NoRole);
+  if (auto* window_menu = qobject_cast<QMenu*>(entry->parent()); window_menu != nullptr) {
+    CHECK(window_menu->actions().contains(entry));
+    window_menu->popup(window.mapToGlobal(QPoint(40, 0)));
+    QApplication::processEvents();
+    save_widget_artifact("ui_clone_source_window_menu_entry", *window_menu);
+    window_menu->hide();
+    QApplication::processEvents();
+  } else {
+    CHECK(false);
+  }
+  entry->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == CanvasTool::Clone);
   CHECK(gear->isVisible());
-  open_gear_popup(*gear, *menu);
   CHECK(menu->isVisible());
   // An earlier test may have saved Aligned off; the offset fields need it on.
   if (auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck")); aligned != nullptr) {
@@ -359,6 +460,16 @@ void ui_clone_source_gear_popup_drives_canvas() {
   panel->rotation_spin()->setValue(-45.0);
   CHECK(canvas->clone_source_transform().rotation_degrees == -45.0);
   CHECK(panel->reset_button()->isEnabled());
+  // Flip Horizontal and Vertical are toggles stored with the source.
+  CHECK(!panel->flip_horizontal_button()->isChecked() && !panel->flip_vertical_button()->isChecked());
+  panel->flip_horizontal_button()->click();
+  CHECK(canvas->clone_source_transform().flip_horizontal);
+  CHECK(canvas->clone_source_transform().scale_percent == 150.0);
+  panel->flip_vertical_button()->click();
+  CHECK(canvas->clone_source_transform().flip_vertical);
+  panel->flip_vertical_button()->click();
+  CHECK(!canvas->clone_source_transform().flip_vertical);
+  CHECK(panel->flip_horizontal_button()->isChecked() && !panel->flip_vertical_button()->isChecked());
   panel->offset_x_spin()->setValue(-120);
   CHECK(canvas->clone_source_slot_state(0).offset_set);
   CHECK(canvas->clone_source_slot_state(0).offset.x() == -120);
@@ -377,6 +488,7 @@ void ui_clone_source_gear_popup_drives_canvas() {
   panel->reset_button()->click();
   CHECK(canvas->clone_source_transform().is_identity());
   CHECK(panel->scale_spin()->value() == 100.0);
+  CHECK(!panel->flip_horizontal_button()->isChecked());
   CHECK(!panel->reset_button()->isEnabled());
 
   // Slot 2 from the popup: an empty source, then back.
@@ -392,6 +504,15 @@ void ui_clone_source_gear_popup_drives_canvas() {
   QApplication::processEvents();
   CHECK(canvas->tool() == CanvasTool::Healing);
   CHECK(!panel->scale_spin()->isEnabled());
+  CHECK(!panel->flip_horizontal_button()->isEnabled() && !panel->flip_vertical_button()->isEnabled());
+  menu->close();
+  QApplication::processEvents();
+
+  // From the Healing Brush the entry keeps the tool and opens the popup.
+  entry->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == CanvasTool::Healing);
+  CHECK(menu->isVisible());
   menu->close();
   QApplication::processEvents();
 }
@@ -576,9 +697,11 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_identity_transform_keeps_stroke_bytes", ui_clone_source_identity_transform_keeps_stroke_bytes},
       {"ui_clone_source_scale_and_rotation_transform_the_sample",
        ui_clone_source_scale_and_rotation_transform_the_sample},
+      {"ui_clone_source_flip_paints_mirrored_pixels", ui_clone_source_flip_paints_mirrored_pixels},
       {"ui_clone_source_offset_edit_and_slots_switch_sources", ui_clone_source_offset_edit_and_slots_switch_sources},
       {"ui_clone_source_healing_brush_ignores_transform", ui_clone_source_healing_brush_ignores_transform},
       {"ui_clone_source_overlay_previews_source_under_brush", ui_clone_source_overlay_previews_source_under_brush},
+      {"ui_clone_source_overlay_shows_flipped_source", ui_clone_source_overlay_shows_flipped_source},
       {"ui_clone_source_gear_popup_drives_canvas", ui_clone_source_gear_popup_drives_canvas},
       {"ui_clone_source_overlay_check_lives_in_the_popup", ui_clone_source_overlay_check_lives_in_the_popup},
       {"ui_clone_source_overlay_screenshot", ui_clone_source_overlay_screenshot},

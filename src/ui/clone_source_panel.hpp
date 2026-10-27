@@ -1,11 +1,11 @@
 #pragma once
 
 // The clone source settings (GitHub issue 424, docs/healing.md "Clone source settings"):
-// four source slots, the active source's point and offset, the Clone Stamp's scale and
-// rotation with a Reset, and the overlay preview with its opacity. It shows what
-// MainWindow hands it through set_state (signals blocked) and reports each edit through
-// its signals; MainWindow applies them to the active canvas. The options bar's gear
-// popup shows it.
+// four source slots, the active source's point and offset, the Clone Stamp's scale,
+// rotation and Flip Horizontal/Vertical with a Reset, and the overlay preview with its
+// opacity. It shows what MainWindow hands it through set_state (signals blocked) and
+// reports each edit through its signals; MainWindow applies them to the active canvas.
+// The options bar's gear popup shows it; Window > Clone Source opens that popup.
 
 #include "core/clone_source_transform.hpp"
 
@@ -56,6 +56,8 @@ public:
   [[nodiscard]] QSpinBox* offset_y_spin() const noexcept { return offset_y_spin_; }
   [[nodiscard]] QDoubleSpinBox* scale_spin() const noexcept { return scale_spin_; }
   [[nodiscard]] QDoubleSpinBox* rotation_spin() const noexcept { return rotation_spin_; }
+  [[nodiscard]] QToolButton* flip_horizontal_button() const noexcept { return flip_horizontal_button_; }
+  [[nodiscard]] QToolButton* flip_vertical_button() const noexcept { return flip_vertical_button_; }
   [[nodiscard]] QPushButton* reset_button() const noexcept { return reset_button_; }
   [[nodiscard]] QCheckBox* overlay_check() const noexcept { return overlay_check_; }
   [[nodiscard]] QSpinBox* overlay_opacity_spin() const noexcept { return overlay_opacity_spin_; }
@@ -90,6 +92,9 @@ private:
   QDoubleSpinBox* scale_spin_{nullptr};
   QLabel* rotation_label_{nullptr};
   QDoubleSpinBox* rotation_spin_{nullptr};
+  QLabel* flip_label_{nullptr};
+  QToolButton* flip_horizontal_button_{nullptr};
+  QToolButton* flip_vertical_button_{nullptr};
   QPushButton* reset_button_{nullptr};
   QLabel* transform_note_{nullptr};
   QCheckBox* overlay_check_{nullptr};

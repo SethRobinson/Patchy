@@ -411,8 +411,8 @@ public:
   [[nodiscard]] bool clone_aligned() const noexcept;
   // Clone source settings (GitHub issue 424, docs/healing.md "Clone source settings").
   // Each canvas keeps kCloneSourceSlotCount sources; the active one is what Alt-click
-  // sets and strokes sample. Clone and the Healing Brush share them; the scale and
-  // rotation apply to the Clone Stamp only.
+  // sets and strokes sample. Clone and the Healing Brush share them; the scale, rotation
+  // and flips apply to the Clone Stamp only.
   static constexpr int kCloneSourceSlotCount = 4;
   struct CloneSourceSlot {
     bool set{false};

@@ -15297,10 +15297,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Przywróć</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>Powrót do 100% i 0 stopni</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>Pokaż nakładkę</translation>
     </message>
@@ -15337,8 +15333,32 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Następne pociągnięcie ustali przesunięcie.</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>Skala i obrót dotyczą Stempla.</translation>
+        <source>Flip:</source>
+        <translation>Odbicie:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>Odbij w poziomie: odbija klonowaną zawartość z lewej na prawą</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Odbij w poziomie</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>Odbij w pionie: odbija klonowaną zawartość z góry na dół</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Odbij w pionie</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>Powrót do 100%, 0 stopni i bez odbicia</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>Skala, obrót i odbicie dotyczą Stempla.</translation>
     </message>
 </context>
 <context>
@@ -26587,10 +26607,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Usunąć ustawienie wstępne „%1”?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>Ustawienia źródła klonowania: źródła, przesunięcie, skala, obrót i nakładka</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Porównuj ze średnim kolorem kwadratu wokół kliknięcia zamiast jednego piksela</translation>
     </message>
@@ -27204,6 +27220,14 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>Kliknięcie i przytrzymanie</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>Ustawienia źródła klonowania: źródła, przesunięcie, skala, obrót, odbicie i nakładka</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Źródło klonowania</translation>
     </message>
 </context>
 <context>

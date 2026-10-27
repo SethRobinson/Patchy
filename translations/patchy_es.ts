@@ -15260,10 +15260,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Restaurar</translation>
     </message>
     <message>
-        <source>Back to 100% and 0 degrees</source>
-        <translation>Volver a 100% y 0 grados</translation>
-    </message>
-    <message>
         <source>Show overlay</source>
         <translation>Mostrar superposición</translation>
     </message>
@@ -15300,8 +15296,32 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Su próximo trazo define el desplazamiento.</translation>
     </message>
     <message>
-        <source>Scale and rotation apply to the Clone Stamp.</source>
-        <translation>La escala y la rotación se aplican al Tampón de clonar.</translation>
+        <source>Flip:</source>
+        <translation>Voltear:</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal: mirror the cloned content left to right</source>
+        <translation>Voltear horizontal: refleja el contenido clonado de izquierda a derecha</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Voltear horizontal</translation>
+    </message>
+    <message>
+        <source>Flip Vertical: mirror the cloned content top to bottom</source>
+        <translation>Voltear vertical: refleja el contenido clonado de arriba abajo</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Voltear vertical</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip</source>
+        <translation>Volver a 100%, 0 grados y sin volteo</translation>
+    </message>
+    <message>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <translation>La escala, la rotación y el volteo se aplican al Tampón de clonar.</translation>
     </message>
 </context>
 <context>
@@ -26512,10 +26532,6 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>¿Desea eliminar el ajuste preestablecido &quot;%1&quot;?</translation>
     </message>
     <message>
-        <source>Clone source settings: sources, offset, scale, rotation and overlay</source>
-        <translation>Ajustes del origen de clonación: orígenes, desplazamiento, escala, rotación y superposición</translation>
-    </message>
-    <message>
         <source>Compare against the average color of a square around the click instead of one pixel</source>
         <translation>Comparar con el color promedio de un cuadrado alrededor del clic en lugar de un solo píxel</translation>
     </message>
@@ -27128,6 +27144,14 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Click and hold</source>
         <comment>when a tool group opens</comment>
         <translation>Mantener pulsado</translation>
+    </message>
+    <message>
+        <source>Clone source settings: sources, offset, scale, rotation, flip and overlay</source>
+        <translation>Ajustes del origen de clonación: orígenes, desplazamiento, escala, rotación, volteo y superposición</translation>
+    </message>
+    <message>
+        <source>Clone Source</source>
+        <translation>Origen de clonación</translation>
     </message>
 </context>
 <context>
