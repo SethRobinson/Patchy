@@ -13020,10 +13020,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13393,6 +13389,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Paint Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

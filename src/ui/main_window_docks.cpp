@@ -847,11 +847,49 @@ void MainWindow::show_panel_header_menu(const QString& panel_id, const QPoint& g
   menu.exec(global_position);
 }
 
-void MainWindow::apply_layer_footer_visibility() {
-  const auto& hidden = tool_palette_customization_.hidden_layer_buttons;
+std::vector<const MainWindow::LayerFooterButton*> MainWindow::ordered_layer_footer_buttons() const {
+  std::vector<const LayerFooterButton*> ordered;
+  for (const auto& id : resolved_layer_footer_order(tool_palette_customization_.layer_button_order)) {
+    for (const auto& footer : layer_footer_buttons_) {
+      if (id == QLatin1String(footer.id)) {
+        ordered.push_back(&footer);
+        break;
+      }
+    }
+  }
   for (const auto& footer : layer_footer_buttons_) {
+    if (std::find(ordered.begin(), ordered.end(), &footer) == ordered.end()) {
+      ordered.push_back(&footer);
+    }
+  }
+  return ordered;
+}
+
+void MainWindow::apply_layer_footer_visibility() {
+  const auto ordered = ordered_layer_footer_buttons();
+  // The row lays its items out in their order, so a new order re-adds them (GitHub issue 471);
+  // Tab follows it.
+  if (layer_footer_layout_ != nullptr) {
+    bool in_order = layer_footer_layout_->count() == static_cast<int>(ordered.size());
+    for (int index = 0; in_order && index < layer_footer_layout_->count(); ++index) {
+      in_order = layer_footer_layout_->itemAt(index)->widget() == ordered[static_cast<std::size_t>(index)]->button;
+    }
+    if (!in_order) {
+      for (const auto* footer : ordered) {
+        layer_footer_layout_->removeWidget(footer->button);
+      }
+      for (const auto* footer : ordered) {
+        layer_footer_layout_->addWidget(footer->button);
+      }
+      for (std::size_t index = 1; index < ordered.size(); ++index) {
+        QWidget::setTabOrder(ordered[index - 1]->button, ordered[index]->button);
+      }
+    }
+  }
+  const auto& hidden = tool_palette_customization_.hidden_layer_buttons;
+  for (const auto* footer : ordered) {
     // A hidden button leaves the footer's wrapping row, so the rest share the room.
-    footer.button->setVisible(!hidden.contains(QLatin1String(footer.id)));
+    footer->button->setVisible(!hidden.contains(QLatin1String(footer->id)));
   }
   if (!layer_footer_buttons_.empty()) {
     update_right_dock_minimum_width();
@@ -867,7 +905,8 @@ void MainWindow::show_layer_footer_menu(const QPoint& global_position) {
   // both show (a menu item draws one or the other) and several can change before the menu
   // closes. The row's action carries the same checked state for keyboard and scripts.
   std::vector<std::pair<QWidgetAction*, QCheckBox*>> rows;
-  for (const auto& footer : layer_footer_buttons_) {
+  for (const auto* footer_entry : ordered_layer_footer_buttons()) {
+    const auto& footer = *footer_entry;
     const auto id = QString::fromLatin1(footer.id);
     auto* action = new QWidgetAction(menu);
     action->setObjectName(QStringLiteral("layerFooterToggle_") + id);
@@ -1794,6 +1833,7 @@ void MainWindow::create_docks() {
   layer_buttons->addWidget(animation_button);
   layer_buttons->addWidget(delete_button);
   layers_layout->addLayout(layer_buttons);
+  layer_footer_layout_ = layer_buttons;
   // Alt-click opens the New Layer dialog (#408) and adds a hiding mask (#400); Ctrl-click
   // (Command-click on macOS) adds the new layer below the current one (#467).
   record_click_modifiers(add_button);

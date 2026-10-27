@@ -13000,10 +13000,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>工具</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>勾选图层面板显示的按钮。隐藏按钮的命令仍在菜单中。</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>图层按钮</translation>
     </message>
@@ -13374,6 +13370,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Paint Color</source>
         <translation>绘画颜色</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>勾选图层面板显示的按钮，拖动它们或使用“上移”和“下移”设置顺序。隐藏按钮的命令仍在菜单中。</translation>
     </message>
 </context>
 <context>

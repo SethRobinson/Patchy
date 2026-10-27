@@ -8,7 +8,8 @@
 // ids stored under them are compatibility contracts. Only what the user hid is stored, never a
 // full list: a tool or button the settings do not name shows, so ones added in a later version
 // appear on a customized palette, and ids this build does not know are ignored (and kept). The
-// optional Layers footer buttons are the one exception: their key stores what was shown.
+// optional Layers footer buttons are the one exception: their key stores what was shown. The
+// footer's order (GitHub issue 471) is stored only once the user changed it.
 
 #include "ui/app_settings.hpp"
 
@@ -36,6 +37,9 @@ struct ToolPaletteCustomization {
                                    QStringLiteral("move_up")};
   // The palette's bottom items (kToolPaletteFooterItemIds) left off it.
   QStringList hidden_footer_items;
+  // The Layers footer buttons in the order the user set (GitHub issue 471), hidden ones
+  // included; empty is kLayerFooterButtonIds' order. See resolved_layer_footer_order.
+  QStringList layer_button_order;
 
   bool operator==(const ToolPaletteCustomization&) const = default;
 };
@@ -57,7 +61,13 @@ inline constexpr const char* kToolPaletteScreenModeId = "screen_mode";
 inline constexpr const char* kToolPaletteFooterItemIds[] = {kToolPaletteColorsId, kToolPaletteQuickMaskId,
                                                             kToolPaletteScreenModeId};
 
-// Sorted, without duplicates or empty ids, so equal choices compare and store equal.
+// Every footer button id once, in the order `stored` names them: ids this build does not know
+// are dropped, and a button `stored` leaves out (one added in a later version) goes right after
+// the button it follows in kLayerFooterButtonIds, or first when none of those is placed.
+[[nodiscard]] QStringList resolved_layer_footer_order(const QStringList& stored);
+
+// Sorted, without duplicates or empty ids, so equal choices compare and store equal; the
+// footer order resolved, and empty when it is the default one.
 [[nodiscard]] ToolPaletteCustomization normalized_tool_palette_customization(ToolPaletteCustomization value);
 [[nodiscard]] ToolPaletteCustomization stored_tool_palette_customization();
 void set_stored_tool_palette_customization(const ToolPaletteCustomization& value);

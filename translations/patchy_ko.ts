@@ -13000,10 +13000,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>도구</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>레이어 패널에 표시할 버튼을 선택하세요. 숨긴 버튼의 명령은 메뉴에 남습니다.</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>레이어 버튼</translation>
     </message>
@@ -13374,6 +13370,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Paint Color</source>
         <translation>칠하기 색</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>레이어 패널에 표시할 버튼을 선택하고, 끌어 놓거나 위로 이동과 아래로 이동으로 순서를 정하세요. 숨긴 버튼의 명령은 메뉴에 남습니다.</translation>
     </message>
 </context>
 <context>

@@ -13037,10 +13037,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Herramientas</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>Marque los botones que muestra el panel Capas. Los comandos de los botones ocultos siguen en los menús.</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>Botones de Capas</translation>
     </message>
@@ -13411,6 +13407,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Paint Color</source>
         <translation>Color de pintura</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Marque los botones que muestra el panel Capas y arrástrelos o use Subir y Bajar para fijar su orden. Los comandos de los botones ocultos siguen en los menús.</translation>
     </message>
 </context>
 <context>

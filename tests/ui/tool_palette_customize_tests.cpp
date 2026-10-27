@@ -46,6 +46,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <string>
@@ -64,7 +65,7 @@ struct CustomizationSettingsGuard {
     for (const auto* key : {"toolPalette/hiddenTools", "toolPalette/layout", "toolPalette/wheelScroll",
                             "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons",
                             "layersPanel/shownFooterButtons", "toolPalette/hiddenFooterItems",
-                            "preferences/toolbarIconSize",
+                            "layersPanel/footerButtonOrder", "preferences/toolbarIconSize",
                             "preferences/toolFlyoutOpenMode"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
@@ -597,7 +598,7 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
     auto settings = patchy::ui::app_settings();
     for (const auto* key : {"toolPalette/hiddenTools", "toolPalette/layout", "toolPalette/wheelScroll",
                             "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons",
-                            "layersPanel/shownFooterButtons"}) {
+                            "layersPanel/shownFooterButtons", "layersPanel/footerButtonOrder"}) {
       CHECK(!settings.contains(QString::fromLatin1(key)));
     }
   }
@@ -1279,6 +1280,211 @@ void ui_layer_footer_move_and_merge_buttons_follow_modifiers() {
   CHECK(layers.size() < count - 1U);
 }
 
+QStringList footer_ids(std::initializer_list<const char*> ids) {
+  QStringList out;
+  for (const auto* id : ids) {
+    out.push_back(QString::fromLatin1(id));
+  }
+  return out;
+}
+
+QStringList default_footer_order() {
+  QStringList out;
+  for (const auto* id : patchy::ui::kLayerFooterButtonIds) {
+    out.push_back(QString::fromLatin1(id));
+  }
+  return out;
+}
+
+// GitHub issue 471: the stored footer order keeps every known button once; ids this build does
+// not know drop, and a button the order leaves out (one added later) follows the button it
+// follows by default, or leads when it leads by default. The default order stores no key.
+void ui_layer_footer_order_resolves_unknown_and_missing_ids() {
+  CustomizationSettingsGuard settings_guard;
+  using patchy::ui::resolved_layer_footer_order;
+  const auto moved_delete = footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles",
+                                        "add_mask", "duplicate", "move_up", "move_down", "merge_down", "animation"});
+  CHECK(resolved_layer_footer_order({}) == default_footer_order());
+  CHECK(resolved_layer_footer_order(footer_ids({"delete", "future_button", "new_layer", "delete"})) == moved_delete);
+  CHECK(resolved_layer_footer_order(footer_ids({"delete", "new_folder"})) ==
+        footer_ids({"new_layer", "delete", "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate",
+                    "move_up", "move_down", "merge_down", "animation"}));
+  CHECK(resolved_layer_footer_order(footer_ids({"animation", "duplicate"})) ==
+        footer_ids({"new_layer", "new_folder", "new_adjustment", "layer_styles", "add_mask", "animation", "delete",
+                    "duplicate", "move_up", "move_down", "merge_down"}));
+
+  ToolPaletteCustomization value;
+  value.layer_button_order = default_footer_order();
+  CHECK(patchy::ui::normalized_tool_palette_customization(value) == ToolPaletteCustomization{});
+  value.layer_button_order = footer_ids({"delete", "new_layer"});
+  CHECK(patchy::ui::normalized_tool_palette_customization(value).layer_button_order == moved_delete);
+  // Delete Layer alone: every other button goes back before it, the default order.
+  value.layer_button_order = footer_ids({"delete"});
+  CHECK(patchy::ui::normalized_tool_palette_customization(value).layer_button_order.isEmpty());
+
+  const auto key = QStringLiteral("layersPanel/footerButtonOrder");
+  patchy::ui::app_settings().setValue(key, footer_ids({"delete", "future_button", "new_layer"}));
+  const auto stored = patchy::ui::stored_tool_palette_customization();
+  CHECK(stored.layer_button_order == moved_delete);
+  patchy::ui::set_stored_tool_palette_customization(stored);
+  CHECK(patchy::ui::app_settings().value(key).toStringList() == moved_delete);
+  patchy::ui::set_stored_tool_palette_customization(ToolPaletteCustomization{});
+  CHECK(!patchy::ui::app_settings().contains(key));
+}
+
+// GitHub issue 471: the footer and its right-click menu follow the stored order, a new window
+// starts with it, and the default order puts them back.
+void ui_layer_footer_follows_stored_order() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  settle();
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+  auto* delete_button = window.findChild<QPushButton*>(QStringLiteral("layerDeleteButton"));
+  auto* duplicate = window.findChild<QPushButton*>(QStringLiteral("layerDuplicateButton"));
+  CHECK(new_button != nullptr && delete_button != nullptr && duplicate != nullptr);
+  if (new_button == nullptr || delete_button == nullptr || duplicate == nullptr) {
+    return;
+  }
+  CHECK(new_button->x() < duplicate->x() && duplicate->x() < delete_button->x());
+  const auto expected = footer_ids({"delete", "duplicate", "new_layer", "new_folder", "new_adjustment", "layer_styles",
+                                    "add_mask", "move_up", "move_down", "merge_down", "animation"});
+  auto customization = window.tool_palette_customization();
+  customization.layer_button_order = expected;
+  window.apply_tool_palette_customization(customization);
+  settle();
+  CHECK(window.tool_palette_customization().layer_button_order == expected);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("layersPanel/footerButtonOrder")).toStringList() == expected);
+  // Still one row, in the new order.
+  CHECK(delete_button->y() == new_button->y() && duplicate->y() == new_button->y());
+  CHECK(delete_button->x() < duplicate->x() && duplicate->x() < new_button->x());
+  if (auto* layers_panel = duplicate->parentWidget(); layers_panel != nullptr) {
+    (void)capture_widget_artifact("ui_layer_footer_reordered", *layers_panel);
+  }
+  // The right-click menu lists the buttons in the same order.
+  const QPoint position = duplicate->rect().center();
+  QContextMenuEvent event(QContextMenuEvent::Mouse, position, duplicate->mapToGlobal(position));
+  QApplication::sendEvent(duplicate, &event);
+  QApplication::processEvents();
+  auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+  CHECK(menu != nullptr && menu->objectName() == QStringLiteral("layerFooterButtonsMenu"));
+  if (menu != nullptr) {
+    CHECK(menu->actions().size() > 2 &&
+          menu->actions()[0]->objectName() == QStringLiteral("layerFooterToggle_delete") &&
+          menu->actions()[1]->objectName() == QStringLiteral("layerFooterToggle_duplicate"));
+    menu->close();
+  }
+  settle();
+  // A new window (a restart) starts with the stored order.
+  {
+    patchy::ui::MainWindow second;
+    CHECK(second.tool_palette_customization().layer_button_order == expected);
+  }
+  // Back to the default order: the footer too, and no key.
+  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  settle();
+  CHECK(new_button->x() < duplicate->x() && duplicate->x() < delete_button->x());
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/footerButtonOrder")));
+}
+
+// GitHub issue 471: the dialog's Layers buttons tab lists the buttons in footer order; Move Up
+// and Move Down move the current row (off where they would do nothing), OK applies the order to
+// the footer, and Reset to Default restores the default order.
+void ui_tool_palette_dialog_reorders_layer_buttons() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  settle();
+  const auto row_ids = [](QListWidget& list) {
+    QStringList ids;
+    for (int index = 0; index < list.count(); ++index) {
+      ids.push_back(list.item(index)->data(Qt::UserRole).toString());
+    }
+    return ids;
+  };
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* list = dialog.findChild<QListWidget*>(QStringLiteral("layerFooterButtonsList"));
+    auto* up = dialog.findChild<QPushButton*>(QStringLiteral("layerFooterOrderUpButton"));
+    auto* down = dialog.findChild<QPushButton*>(QStringLiteral("layerFooterOrderDownButton"));
+    CHECK(list != nullptr && up != nullptr && down != nullptr);
+    if (list == nullptr || up == nullptr || down == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(list->isVisible());
+    CHECK(row_ids(*list) == default_footer_order());
+    CHECK(!up->isEnabled() && !down->isEnabled());
+    list->setCurrentRow(list->count() - 1);
+    CHECK(up->isEnabled() && !down->isEnabled());
+    // Delete Layer to the top, then Duplicate Layer one step up.
+    for (int step = 0; step < list->count() - 1; ++step) {
+      up->click();
+    }
+    CHECK(list->currentRow() == 0 && !up->isEnabled() && down->isEnabled());
+    list->setCurrentRow(row_ids(*list).indexOf(QStringLiteral("duplicate")));
+    up->click();
+    down->click();
+    up->click();
+    // Show Move Layer Up too, so the picture shows an optional button in its place.
+    list->item(row_ids(*list).indexOf(QStringLiteral("move_up")))->setCheckState(Qt::Checked);
+    QApplication::processEvents();
+    CHECK(row_ids(*list) == footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles",
+                                        "duplicate", "add_mask", "move_up", "move_down", "merge_down", "animation"}));
+    (void)capture_widget_artifact("ui_tool_palette_customize_layer_button_order", dialog);
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+  CHECK(ran);
+  settle();
+  const auto expected = footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles", "duplicate",
+                                    "add_mask", "move_up", "move_down", "merge_down", "animation"});
+  CHECK(window.tool_palette_customization().layer_button_order == expected);
+  CHECK(!window.tool_palette_customization().hidden_layer_buttons.contains(QStringLiteral("move_up")));
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+  auto* delete_button = window.findChild<QPushButton*>(QStringLiteral("layerDeleteButton"));
+  auto* duplicate = window.findChild<QPushButton*>(QStringLiteral("layerDuplicateButton"));
+  auto* add_mask = window.findChild<QPushButton*>(QStringLiteral("layerAddMaskButton"));
+  auto* move_up = window.findChild<QPushButton*>(QStringLiteral("layerMoveUpButton"));
+  CHECK(new_button != nullptr && delete_button != nullptr && duplicate != nullptr && add_mask != nullptr &&
+        move_up != nullptr);
+  if (new_button != nullptr && delete_button != nullptr && duplicate != nullptr && add_mask != nullptr &&
+      move_up != nullptr) {
+    const auto visual_index = [](QWidget* button) { return button->y() * 10000 + button->x(); };
+    CHECK(visual_index(delete_button) < visual_index(new_button));
+    CHECK(visual_index(duplicate) < visual_index(add_mask));
+    CHECK(visual_index(add_mask) < visual_index(move_up));
+    if (auto* layers_panel = duplicate->parentWidget(); layers_panel != nullptr) {
+      (void)capture_widget_artifact("ui_layer_footer_reordered_from_dialog", *layers_panel);
+    }
+  }
+
+  // Reopened, the list follows the footer; Reset to Default restores the order, OK stores no key.
+  ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* list = dialog.findChild<QListWidget*>(QStringLiteral("layerFooterButtonsList"));
+    CHECK(list != nullptr);
+    if (list == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(row_ids(*list) == expected);
+    dialog.findChild<QPushButton*>(QStringLiteral("toolPaletteCustomizeResetButton"))->click();
+    QApplication::processEvents();
+    CHECK(row_ids(*list) == default_footer_order());
+    CHECK(list->item(row_ids(*list).indexOf(QStringLiteral("move_up")))->checkState() == Qt::Unchecked);
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+  CHECK(ran);
+  settle();
+  CHECK(window.tool_palette_customization() == ToolPaletteCustomization{});
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/footerButtonOrder")));
+  if (new_button != nullptr && delete_button != nullptr) {
+    CHECK(new_button->x() < delete_button->x());
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
@@ -1300,5 +1506,8 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_layer_footer_optional_buttons_start_hidden", ui_layer_footer_optional_buttons_start_hidden},
       {"ui_layer_footer_move_and_merge_buttons_follow_modifiers",
        ui_layer_footer_move_and_merge_buttons_follow_modifiers},
+      {"ui_layer_footer_order_resolves_unknown_and_missing_ids", ui_layer_footer_order_resolves_unknown_and_missing_ids},
+      {"ui_layer_footer_follows_stored_order", ui_layer_footer_follows_stored_order},
+      {"ui_tool_palette_dialog_reorders_layer_buttons", ui_tool_palette_dialog_reorders_layer_buttons},
   };
 }

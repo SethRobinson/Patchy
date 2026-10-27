@@ -13037,10 +13037,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Strumenti</translation>
     </message>
     <message>
-        <source>Tick the buttons the Layers panel shows. Hidden buttons&apos; commands stay in the menus.</source>
-        <translation>Spunta i pulsanti che il pannello Livelli mostra. I comandi dei pulsanti nascosti restano nei menu.</translation>
-    </message>
-    <message>
         <source>Layers buttons</source>
         <translation>Pulsanti dei livelli</translation>
     </message>
@@ -13411,6 +13407,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Paint Color</source>
         <translation>Colore pittura</translation>
+    </message>
+    <message>
+        <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
+        <translation>Spunta i pulsanti che il pannello Livelli mostra e trascinali o usa Sposta su e Sposta giù per impostarne l&apos;ordine. I comandi dei pulsanti nascosti restano nei menu.</translation>
     </message>
 </context>
 <context>
