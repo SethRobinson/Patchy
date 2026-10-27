@@ -13352,24 +13352,64 @@ Each item&apos;s own View setting still applies.</source>
         <translation>結果:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>新規レイヤー</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>現在のレイヤー</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>結果を現在のレイヤーの上の新規レイヤーに置くか、現在のレイヤー自体に書き込みます</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>ペイントの色</translation>
     </message>
     <message>
         <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
         <translation>レイヤーパネルに表示するボタンにチェックを入れ、ドラッグするか「上へ」「下へ」で並び順を決めます。非表示のボタンのコマンドはメニューに残ります。</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>レイヤーが平面いっぱいに配置されました。ドラッグで移動、角のドラッグで拡大縮小、丸いハンドルのドラッグで回転します。Enter で配置、Esc で元に戻します。</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>このレイヤーを置く面の 4 つの角をクリックして、「レイヤーを配置」を押します。</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>平面はガイドです。何かを置くまで何も変わりません。「レイヤーを配置」でこのレイヤーを置くか、「平面にペースト」「複製」「ペイント」を使います。</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>平面はガイドです。何かを置くまで何も変わりません。「平面にペースト」「複製」「ペイント」を使います。</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>次に:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>レイヤーを配置</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>このレイヤーを平面の角から角まで配置します (選択範囲があればその部分だけ)。OK でレイヤーが結果に置き換わります</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>平面にペースト</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>他のレイヤーを表示</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>ドキュメントの他のレイヤーをこのレイヤーの後ろに表示します。編集はこのレイヤーにだけ書き込まれます</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>上に新規レイヤー</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>このレイヤーを置き換え</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>「上に新規レイヤー」はこのレイヤーをそのままにして結果を上に置き、「このレイヤーを置き換え」は結果をこのレイヤー自体に書き込みます</translation>
     </message>
 </context>
 <context>
@@ -29604,6 +29644,30 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Perspective Planes</source>
         <translation>遠近平面</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: レイヤーと {plane} を渡してください。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane は 4 つの [x, y] の角か平面の番号にしてください。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement には有限の x と y、正の scale が必要です。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement は &quot;fill&quot;、&quot;fit&quot;、{x, y, scale, rotation} のいずれかです。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer には透明部分を持つ 8 bit レイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: レイヤーが空です。</translation>
     </message>
 </context>
 <context>

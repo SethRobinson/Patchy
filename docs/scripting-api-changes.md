@@ -14,6 +14,11 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-27 (additive): `patchy.perspective.placeLayer(layer, {plane, placement, target})`, Filter >
+Perspective Planes' Place Layer: the layer's own content onto the plane (`placement` `"fill"` by
+default, `"fit"` or `{x, y, scale, rotation}`), replacing the layer unless `target: "newLayer"`
+([perspective-planes.md](perspective-planes.md)). Permanent identifiers: `placeLayer`, its option keys
+and the `target` token `"layer"`/`"newLayer"`. Pinned by `ui_script_perspective_paste_paint_and_clone`.
 2026-10-27 (additive): `patchy.perspective` ([perspective-planes.md](perspective-planes.md)):
 `checkPlane(corners)`, `getPlanes(doc)` / `setPlanes(doc, planes)`, and `paste(layer, {plane, source,
 placement, target})`, `clone(layer, {plane, sourcePlane, from, points, size, hardness, opacity, target})`

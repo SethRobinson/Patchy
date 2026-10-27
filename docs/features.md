@@ -33,7 +33,7 @@
 - G'MIC Filter Library on desktop: nearly 400 standard G'MIC filters, with controls built from each filter's own description, live preview on the layer, multi-layer input and output, draggable point markers on the canvas, and script access
 - Filter > Last Filter (Ctrl+Alt+F) repeats the last filter with its settings on the current layer and selection, for built-in filters, Filter Gallery looks, G'MIC filters, and plug-ins
 - Filter Gallery with photo looks, blur, sharpen, noise, distort, and more, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks, plus a manual Liquify workspace with warp, twirl, pucker, bloat, and freeze brushes
-- Perspective Planes: paste, clone, and paint onto walls and floors in perspective
+- Perspective Planes: put layers, pastes, and paint on walls and floors in perspective
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), and command line options
 

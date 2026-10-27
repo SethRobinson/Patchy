@@ -13389,24 +13389,64 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Risultato:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>Nuovo livello</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>Livello attuale</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>Metti il risultato su un nuovo livello sopra quello attuale o sul livello attuale stesso</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>Colore pittura</translation>
     </message>
     <message>
         <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
         <translation>Spunta i pulsanti che il pannello Livelli mostra e trascinali o usa Sposta su e Sposta giù per impostarne l&apos;ordine. I comandi dei pulsanti nascosti restano nei menu.</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>Il livello ora riempie il piano. Trascinalo per spostarlo, trascina un angolo per ridimensionarlo o la maniglia rotonda per ruotarlo. Invio lo posiziona; Esc lo rimette com&apos;era.</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>Fai clic sui quattro angoli della superficie dove deve andare questo livello, poi premi Posiziona livello.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Il piano è una guida; nulla cambia finché non ci metti qualcosa. Premi Posiziona livello per metterci questo livello, oppure Incolla sul piano, Clona o Dipingi.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Il piano è una guida; nulla cambia finché non ci metti qualcosa. Premi Incolla sul piano, Clona o Dipingi.</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>Poi:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>Posiziona livello</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>Metti questo livello sul piano, da angolo ad angolo (solo la parte selezionata se c&apos;è una selezione); OK sostituisce il livello con il risultato</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>Incolla sul piano</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>Mostra altri livelli</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>Mostra gli altri livelli del documento dietro questo; le modifiche vanno sempre solo in questo livello</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>Nuovo livello sopra</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>Sostituisci questo livello</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>Nuovo livello sopra lascia questo livello com&apos;è e mette il risultato sopra; Sostituisci questo livello mette il risultato in questo livello stesso</translation>
     </message>
 </context>
 <context>
@@ -29681,6 +29721,30 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Perspective Planes</source>
         <translation>Piani prospettici</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: passa un livello e {plane}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane deve essere quattro angoli [x, y] o un indice di piano.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement richiede x e y finiti e uno scale positivo.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement è &quot;fill&quot;, &quot;fit&quot; o {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer richiede un livello a 8 bit con trasparenza.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: il livello è vuoto.</translation>
     </message>
 </context>
 <context>

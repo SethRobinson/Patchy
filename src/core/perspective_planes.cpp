@@ -781,10 +781,11 @@ std::array<std::uint32_t, 4> PerspectiveSampler::sample(double x, double y, doub
 Homography placement_to_plane(const PerspectivePlacement& placement, std::int32_t image_width,
                               std::int32_t image_height) noexcept {
   const auto [sine, cosine] = perspective_sin_cos_degrees(placement.rotation_degrees);
+  const double tall = placement.scale * placement.stretch;
   const double a = placement.scale * cosine;
-  const double b = -placement.scale * sine;
+  const double b = -tall * sine;
   const double d = placement.scale * sine;
-  const double e = placement.scale * cosine;
+  const double e = tall * cosine;
   const double half_w = image_width * 0.5;
   const double half_h = image_height * 0.5;
   Homography result;
@@ -797,6 +798,17 @@ Homography placement_to_plane(const PerspectivePlacement& placement, std::int32_
 Homography fill_plane_from_image(const PlaneGeometry& plane, std::int32_t image_width, std::int32_t image_height) noexcept {
   return homography_scale_translate(plane.width / std::max(1, image_width), plane.height / std::max(1, image_height), 0.0,
                                     0.0);
+}
+
+PerspectivePlacement fill_placement(const PlaneGeometry& plane, std::int32_t image_width,
+                                    std::int32_t image_height) noexcept {
+  PerspectivePlacement placement;
+  placement.center_x = plane.width * 0.5;
+  placement.center_y = plane.height * 0.5;
+  placement.scale = plane.width / std::max(1, image_width);
+  const double height_scale = plane.height / std::max(1, image_height);
+  placement.stretch = placement.scale > 0.0 ? height_scale / placement.scale : 1.0;
+  return placement;
 }
 
 PerspectivePlacement fit_placement(const PlaneGeometry& plane, std::int32_t image_width, std::int32_t image_height) noexcept {
@@ -908,9 +920,74 @@ PerspectiveCanvas::PerspectiveCanvas(const PixelBuffer& layer, Rect layer_bounds
                   static_cast<std::size_t>(overlap.width) * 4);
     }
   }
+  initial_original_ = original_;
   composite_ = original_;
   (void)composite_.data();
   composite_sampler_ = PerspectiveSampler(composite_);
+}
+
+std::optional<std::pair<PixelBuffer, PerspectiveCanvas::Lift>> PerspectiveCanvas::lift(const PixelBuffer* coverage) {
+  const bool masked = coverage != nullptr && coverage->width() == width() && coverage->height() == height() &&
+                      coverage->format().channels == 1;
+  const auto weight = [&](std::int32_t x, std::int32_t y) -> int { return masked ? coverage->pixel(x, y)[0] : 255; };
+  const auto& original = std::as_const(original_);
+  std::int32_t left = width();
+  std::int32_t top = height();
+  std::int32_t right = -1;
+  std::int32_t bottom = -1;
+  for (std::int32_t y = 0; y < height(); ++y) {
+    for (std::int32_t x = 0; x < width(); ++x) {
+      if (original.pixel(x, y)[3] != 0 && weight(x, y) != 0) {
+        left = std::min(left, x);
+        right = std::max(right, x);
+        top = std::min(top, y);
+        bottom = std::max(bottom, y);
+      }
+    }
+  }
+  if (right < left || bottom < top) {
+    return std::nullopt;
+  }
+  Lift record;
+  record.rect = Rect{left, top, right - left + 1, bottom - top + 1};
+  record.before = PixelBuffer(record.rect.width, record.rect.height, PixelFormat::rgba8());
+  record.after = PixelBuffer(record.rect.width, record.rect.height, PixelFormat::rgba8());
+  PixelBuffer content(record.rect.width, record.rect.height, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < record.rect.height; ++y) {
+    for (std::int32_t x = 0; x < record.rect.width; ++x) {
+      const auto* source = original.pixel(record.rect.x + x, record.rect.y + y);
+      const int w = weight(record.rect.x + x, record.rect.y + y);
+      std::memcpy(record.before.pixel(x, y), source, 4);
+      auto* lifted = content.pixel(x, y);
+      auto* left_behind = record.after.pixel(x, y);
+      std::memcpy(lifted, source, 4);
+      std::memcpy(left_behind, source, 4);
+      lifted[3] = static_cast<std::uint8_t>((source[3] * w + 127) / 255);
+      left_behind[3] = static_cast<std::uint8_t>(source[3] - lifted[3]);
+    }
+  }
+  set_original_region(record.rect, record.after);
+  return std::make_pair(std::move(content), std::move(record));
+}
+
+Rect PerspectiveCanvas::set_original_region(Rect rect, const PixelBuffer& pixels) {
+  rect = intersect_rect(rect, Rect{0, 0, width(), height()});
+  if (rect.empty() || pixels.width() < rect.width || pixels.height() < rect.height) {
+    return {};
+  }
+  (void)original_.data();
+  for (std::int32_t y = 0; y < rect.height; ++y) {
+    std::memcpy(original_.pixel(rect.x, rect.y + y), pixels.pixel(0, y), static_cast<std::size_t>(rect.width) * 4);
+  }
+  refresh(rect);
+  composite_sampler_.update(composite_, rect);
+  return rect;
+}
+
+bool PerspectiveCanvas::original_changed() const {
+  const auto current = original_.data();
+  const auto initial = initial_original_.data();
+  return current.size() != initial.size() || !std::equal(current.begin(), current.end(), initial.begin());
 }
 
 bool PerspectiveCanvas::has_edits() const noexcept { return cropped_edits().has_value(); }

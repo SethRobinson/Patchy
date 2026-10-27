@@ -1,5 +1,6 @@
 #include "core/document.hpp"
 #include "core/perspective_planes.hpp"
+#include "render/compositor.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/main_window.hpp"
@@ -11,6 +12,7 @@
 #include "ui_test_support.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
@@ -220,6 +222,36 @@ void add_scene_document(patchy::ui::MainWindow& window, const QString& name) {
   window.add_document_session(std::move(document), name);
 }
 
+// Seth's path (#457 follow-up): the poster pasted into the wall document as its own layer,
+// which is active when the workspace opens.
+constexpr int kPosterX = 250;
+constexpr int kPosterY = 200;
+
+patchy::LayerId add_poster_document(patchy::ui::MainWindow& window, const QString& name) {
+  patchy::Document document(800, 600, patchy::PixelFormat::rgba8());
+  patchy::Layer wall(document.allocate_layer_id(), "Street", wall_scene());
+  wall.set_bounds(patchy::Rect{0, 0, 800, 600});
+  document.add_layer(std::move(wall));
+  const auto art = poster();
+  patchy::Layer layer(document.allocate_layer_id(), "Poster", art);
+  layer.set_bounds(patchy::Rect{kPosterX, kPosterY, art.width(), art.height()});
+  const auto id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(id);
+  window.add_document_session(std::move(document), name);
+  return id;
+}
+
+const patchy::Layer* find_layer(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  return std::as_const(MainWindowTestAccess::document(window)).find_layer(id);
+}
+
+QPushButton* button(QDialog& dialog, const char* name) {
+  auto* found = dialog.findChild<QPushButton*>(QLatin1String(name));
+  CHECK(found != nullptr);
+  return found;
+}
+
 std::size_t layer_count(patchy::ui::MainWindow& window) {
   return std::as_const(MainWindowTestAccess::document(window)).layers().size();
 }
@@ -240,7 +272,7 @@ void ui_perspective_planes_cancel_leaves_the_document_untouched() {
         click_corners(view, QSize(800, 600), kWall);
         // A new plane switches to Edit Plane and says how to adjust it.
         CHECK(tool(dialog, "perspectiveEditPlaneTool")->isChecked());
-        CHECK(hint_text(dialog).contains(QStringLiteral("Drag a corner")));
+        CHECK(hint_text(dialog).contains(QStringLiteral("guide")));
         QTest::mouseClick(tool(dialog, "perspectivePaintTool"), Qt::LeftButton);
         drag(view, view_point(QSize(800, 600), {250.0, 250.0}), view_point(QSize(800, 600), {400.0, 280.0}));
         dialog.reject();
@@ -297,6 +329,120 @@ void ui_perspective_planes_ok_writes_one_undo_step() {
   CHECK(patchy::test::ui::scripting_support::run_script(window, QStringLiteral("app.activeDocument.undo();")));
   QApplication::processEvents();
   CHECK(layer_count(window) == layers_before);
+}
+
+// The workspace draws the document's other layers behind the layer it edits, so the wall a
+// pasted poster layer belongs on is there to line up with; the opening hint suggests Place
+// Layer. Cancel changes nothing.
+void ui_perspective_planes_shows_the_other_layers_behind() {
+  patchy::ui::MainWindow window;
+  const auto poster_id = add_poster_document(window, QStringLiteral("Perspective Backdrop"));
+  show_window(window);
+  (void)require_canvas(window);
+  const auto undo_before = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto layers_before = layer_count(window);
+  const auto poster_before = std::as_const(*find_layer(window, poster_id)).pixels();
+  std::exception_ptr error;
+  bool ran = false;
+  schedule_workspace_driver(
+      [](QDialog& dialog, QWidget& view) {
+        const QSize document(800, 600);
+        CHECK(hint_text(dialog).contains(QStringLiteral("where this layer should go")));
+        auto* show_others = dialog.findChild<QCheckBox*>(QStringLiteral("perspectiveShowOtherLayersCheck"));
+        CHECK(show_others != nullptr && show_others->isVisible() && show_others->isChecked());
+        // On the wall, outside the poster: the poster layer is transparent there, the wall is not.
+        const auto probe = view_point(document, {170.0, 300.0});
+        const QColor shown = view.grab().toImage().pixelColor(probe);
+        CHECK(shown.red() > shown.blue() + 40);
+        show_others->setChecked(false);
+        QApplication::processEvents();
+        const QColor hidden = view.grab().toImage().pixelColor(probe);
+        CHECK(std::abs(hidden.red() - hidden.blue()) < 12);
+        std::filesystem::create_directories("test-artifacts/perspective-planes");
+        show_others->setChecked(true);
+        QApplication::processEvents();
+        save_widget_artifact("perspective-planes/after-open-on-poster-layer", dialog);
+        dialog.reject();
+      },
+      error, ran);
+  require_action(window, "filterPerspectivePlanesAction")->trigger();
+  QApplication::processEvents();
+  if (error) {
+    std::rethrow_exception(error);
+  }
+  CHECK(ran);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+  CHECK(layer_count(window) == layers_before);
+  CHECK(patchy::ui::pixel_buffers_equal(std::as_const(*find_layer(window, poster_id)).pixels(), poster_before));
+}
+
+// Place Layer: a finished plane names its next steps; Place Layer moves the poster layer's
+// own content onto the plane and OK replaces that layer, as one undo step.
+void ui_perspective_planes_place_layer_replaces_the_layer() {
+  patchy::ui::MainWindow window;
+  const auto poster_id = add_poster_document(window, QStringLiteral("Perspective Place Layer"));
+  show_window(window);
+  (void)require_canvas(window);
+  const auto undo_before = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto layers_before = layer_count(window);
+  std::exception_ptr error;
+  bool ran = false;
+  schedule_workspace_driver(
+      [](QDialog& dialog, QWidget& view) {
+        click_corners(view, QSize(800, 600), kWall);
+        CHECK(hint_text(dialog).contains(QStringLiteral("guide")));
+        auto* place = button(dialog, "perspectivePlaceLayerButton");
+        CHECK(place->isVisible() && place->isEnabled());
+        CHECK(button(dialog, "perspectivePasteOntoPlaneButton")->isVisible());
+        CHECK(button(dialog, "perspectiveNextCloneButton")->isVisible());
+        std::filesystem::create_directories("test-artifacts/perspective-planes");
+        save_widget_artifact("perspective-planes/after-plane-next-steps", dialog);
+        QTest::mouseClick(place, Qt::LeftButton);
+        QApplication::processEvents();
+        CHECK(hint_text(dialog).contains(QStringLiteral("The layer now fills the plane")));
+        auto* output = dialog.findChild<QComboBox*>(QStringLiteral("perspectiveOutputCombo"));
+        CHECK(output != nullptr && output->currentIndex() == 1);
+        send_mouse(view, QEvent::MouseMove, view_point(QSize(800, 600), {700.0, 120.0}), Qt::NoButton, Qt::NoButton);
+        QApplication::processEvents();
+        save_widget_artifact("perspective-planes/after-place-layer", dialog);
+        QTest::keyClick(&view, Qt::Key_Return);
+        QApplication::processEvents();
+        dialog.accept();
+      },
+      error, ran);
+  require_action(window, "filterPerspectivePlanesAction")->trigger();
+  QApplication::processEvents();
+  if (error) {
+    std::rethrow_exception(error);
+  }
+  CHECK(ran);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  CHECK(layer_count(window) == layers_before);
+  const auto* poster_layer = find_layer(window, poster_id);
+  CHECK(poster_layer != nullptr);
+  const auto& pixels = std::as_const(*poster_layer).pixels();
+  const auto bounds = poster_layer->bounds();
+  const auto alpha_at = [&](int x, int y) {
+    if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
+      return 0;
+    }
+    return static_cast<int>(pixels.pixel(x - bounds.x, y - bounds.y)[3]);
+  };
+  // The poster now covers the wall: near the wall's far top corner, and no longer just its old box.
+  CHECK(alpha_at(540, 170) == 255);
+  CHECK(alpha_at(140, 70) == 255);
+  {
+    const auto flattened = patchy::Compositor().flatten_rgb8(MainWindowTestAccess::document(window));
+    QImage image(flattened.width(), flattened.height(), QImage::Format_RGB888);
+    for (int y = 0; y < flattened.height(); ++y) {
+      std::copy_n(flattened.pixel(0, y), static_cast<std::size_t>(flattened.width()) * 3, image.scanLine(y));
+    }
+    CHECK(image.save(QStringLiteral("test-artifacts/perspective-planes/after-place-layer-result.png")));
+  }
+  CHECK(patchy::test::ui::scripting_support::run_script(window, QStringLiteral("app.activeDocument.undo();")));
+  QApplication::processEvents();
+  const auto* restored = find_layer(window, poster_id);
+  CHECK(restored != nullptr && restored->bounds().x == kPosterX && restored->bounds().y == kPosterY);
 }
 
 void ui_perspective_planes_explains_impossible_corners() {
@@ -445,6 +591,17 @@ void ui_script_perspective_paste_paint_and_clone() {
     console.log("planes=" + patchy.perspective.getPlanes(doc).length);
     var cloned = patchy.perspective.clone(base, {plane: 0, from: [60, 170], points: [[150, 150], [160, 150]], size: 16});
     console.log("clone=" + (cloned !== null));
+    var sticker = doc.addLayer("Sticker");
+    sticker.fillRect(0, 0, 20, 20, "#0000ff");
+    doc.activeLayer = sticker;
+    var placed = patchy.perspective.placeLayer(sticker, {plane: plane});
+    var sb = placed.getPixels();
+    var sbytes = new Uint8Array(sb.data);
+    var sat = function (x, y) {
+      if (x < sb.x || y < sb.y || x >= sb.x + sb.width || y >= sb.y + sb.height) return 0;
+      return sbytes[((y - sb.y) * sb.width + (x - sb.x)) * 4 + 3];
+    };
+    console.log("placeSame=" + (placed.id === sticker.id) + " filled=" + sat(120, 110) + " old=" + sat(10, 10));
     var thrown = "none";
     try { patchy.perspective.paint(base, {plane: [[0, 0], [1, 0], [1, 1], [0, 1]], points: [[0, 0]]}); }
     catch (e) { thrown = "refused"; }
@@ -458,6 +615,7 @@ void ui_script_perspective_paste_paint_and_clone() {
   CHECK(backlog_contains(window, QStringLiteral("planes=1")));
   CHECK(backlog_contains(window, QStringLiteral("clone=true")));
   CHECK(backlog_contains(window, QStringLiteral("tiny=refused")));
+  CHECK(backlog_contains(window, QStringLiteral("placeSame=true filled=255 old=0")));
 }
 
 }  // namespace
@@ -467,6 +625,8 @@ std::vector<patchy::test::TestCase> perspective_planes_ui_tests() {
       {"ui_perspective_planes_cancel_leaves_the_document_untouched",
        ui_perspective_planes_cancel_leaves_the_document_untouched},
       {"ui_perspective_planes_ok_writes_one_undo_step", ui_perspective_planes_ok_writes_one_undo_step},
+      {"ui_perspective_planes_shows_the_other_layers_behind", ui_perspective_planes_shows_the_other_layers_behind},
+      {"ui_perspective_planes_place_layer_replaces_the_layer", ui_perspective_planes_place_layer_replaces_the_layer},
       {"ui_perspective_planes_explains_impossible_corners", ui_perspective_planes_explains_impossible_corners},
       {"ui_perspective_planes_workspace_captures", ui_perspective_planes_workspace_captures},
       {"ui_script_perspective_paste_paint_and_clone", ui_script_perspective_paste_paint_and_clone},

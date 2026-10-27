@@ -11,6 +11,7 @@
 
 #include <QAction>
 #include <QButtonGroup>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -89,6 +90,8 @@ struct HistoryEntry {
   PerspectiveCanvas::Change pixels;
   // Grid and angle edits of one plane merge into one step.
   int merge_key{0};
+  // Place Layer: the layer's own content taken out of it.
+  std::optional<PerspectiveCanvas::Lift> lift;
 };
 
 struct Floating {
@@ -98,6 +101,9 @@ struct Floating {
   std::optional<int> plane_id;
   PerspectivePlacement placement;
   QPointF loose_center;  // document point while not on a plane
+  // Place Layer: the layer's content was taken out of the layer for this image; dropping
+  // the image puts it back.
+  std::optional<PerspectiveCanvas::Lift> lift;
 };
 
 class PerspectivePlanesView final : public QWidget {
@@ -105,6 +111,9 @@ public:
   PerspectivePlanesView(PerspectiveWorkspaceInput& input, QWidget* parent)
       : QWidget(parent),
         canvas_(input.layer, input.layer_bounds, input.document_width, input.document_height),
+        backdrop_(std::move(input.backdrop)),
+        selection_(std::move(input.selection)),
+        can_place_layer_(input.can_place_layer),
         planes_(std::move(input.planes)),
         sources_(std::move(input.paste_sources)),
         paint_color_(input.foreground) {
@@ -117,6 +126,32 @@ public:
     }
     composite_image_ = QImage(canvas_.composite().data().data(), canvas_.width(), canvas_.height(),
                               static_cast<qsizetype>(canvas_.composite().stride_bytes()), QImage::Format_RGBA8888);
+    // The other layers, drawn behind: built once by the caller, never per repaint.
+    if (backdrop_.width() == canvas_.width() && backdrop_.height() == canvas_.height() &&
+        backdrop_.format() == PixelFormat::rgba8()) {
+      const auto& backdrop = std::as_const(backdrop_);
+      backdrop_image_ = QImage(backdrop.data().data(), backdrop.width(), backdrop.height(),
+                               static_cast<qsizetype>(backdrop.stride_bytes()), QImage::Format_RGBA8888);
+    }
+    if (selection_.width() != canvas_.width() || selection_.height() != canvas_.height() ||
+        selection_.format().channels != 1) {
+      selection_ = PixelBuffer();
+    }
+    // A layer with see-through parts over other layers is usually something to put on a
+    // surface of the picture below: the opening hint suggests Place Layer.
+    bool transparent = false;
+    bool opaque = false;
+    const auto& layer = canvas_.original();
+    for (std::int32_t y = 0; y < layer.height() && !(transparent && opaque); ++y) {
+      const auto row = layer.row(y);
+      for (std::int32_t x = 0; x < layer.width(); ++x) {
+        const auto alpha = row[static_cast<std::size_t>(x) * 4 + 3];
+        transparent = transparent || alpha < 255;
+        opaque = opaque || alpha > 0;
+      }
+    }
+    layer_has_content_ = opaque;
+    suggest_place_layer_ = can_place_layer_ && opaque && transparent && !backdrop_image_.isNull();
     planes_changed();
     if (!planes_.empty()) {
       selected_id_ = planes_.front().id;
@@ -133,6 +168,24 @@ public:
   [[nodiscard]] bool can_redo() const noexcept { return !redo_.empty(); }
   [[nodiscard]] bool has_floating() const noexcept { return floating_.has_value(); }
   [[nodiscard]] const std::vector<PerspectivePasteSource>& sources() const noexcept { return sources_; }
+  [[nodiscard]] bool has_backdrop() const noexcept { return !backdrop_image_.isNull(); }
+  [[nodiscard]] bool show_backdrop() const noexcept { return show_backdrop_; }
+  void set_show_backdrop(bool show) {
+    show_backdrop_ = show;
+    update();
+  }
+  // Place Layer needs a layer that can give up its content and a usable plane.
+  [[nodiscard]] bool can_place_layer() const noexcept { return can_place_layer_ && layer_has_content_; }
+  [[nodiscard]] bool has_usable_plane() const {
+    return std::any_of(planes_.begin(), planes_.end(),
+                       [this](const PerspectivePlane& plane) { return geometry_for(plane.id).has_value(); });
+  }
+  // Something was written or placed (the plane is no longer only a guide).
+  [[nodiscard]] bool has_content_edits() const {
+    return std::any_of(undo_.begin(), undo_.end(),
+                       [](const HistoryEntry& entry) { return !entry.pixels.empty() || entry.lift.has_value(); });
+  }
+  std::function<void()> on_layer_placed;
   [[nodiscard]] double zoom() const noexcept { return zoom_; }
   [[nodiscard]] const PerspectivePlane* selected_plane() const {
     const auto found = std::find_if(planes_.begin(), planes_.end(),
@@ -158,6 +211,10 @@ public:
 
   [[nodiscard]] QString hint() const {
     if (floating_.has_value()) {
+      if (floating_->lift.has_value()) {
+        return QObject::tr("The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the "
+                           "round handle to turn it. Enter places it; Esc puts it back.");
+      }
       return floating_->plane_id.has_value()
                  ? QObject::tr("Drag the image to move it on the plane, drag a corner to scale it, or drag the round "
                                "handle to turn it. Enter places it; Esc removes it.")
@@ -166,6 +223,10 @@ public:
     switch (tool_) {
       case WorkspaceTool::CreatePlane:
         if (points_.empty()) {
+          if (suggest_place_layer_ && planes_.empty()) {
+            return QObject::tr("Click the four corners of the surface where this layer should go, then press Place "
+                               "Layer.");
+          }
           return QObject::tr("Click the first corner of a flat surface, such as a wall, a floor or the side of a box.");
         }
         if (points_.size() < 3) {
@@ -187,6 +248,14 @@ public:
         if (!geometry_for(plane->id).has_value()) {
           return QObject::tr("This plane cannot be used: %1")
               .arg(quad_problem_text(check_plane_quad(plane->corners)));
+        }
+        if (!has_content_edits()) {
+          // A plane alone changes nothing: say so, and name the next step.
+          return can_place_layer()
+                     ? QObject::tr("The plane is a guide; nothing changes until you put something on it. Press Place "
+                                   "Layer to put this layer on it, or Paste onto Plane, Clone or Paint.")
+                     : QObject::tr("The plane is a guide; nothing changes until you put something on it. Press Paste "
+                                   "onto Plane, Clone or Paint.");
         }
         if (plane->link.has_value()) {
           return QObject::tr("This plane is joined to an edge of another. Set its Angle, or drag the diamond on its far "
@@ -280,12 +349,22 @@ public:
       return;
     }
     if (floating_.has_value()) {
-      floating_.reset();
-      update();
-      notify();
+      drop_floating();
       return;
     }
     delete_selected_plane();
+  }
+  // Removes the floating image without placing it; a lifted layer's content goes back.
+  void drop_floating() {
+    if (!floating_.has_value()) {
+      return;
+    }
+    if (floating_->lift.has_value()) {
+      composite_changed(canvas_.set_original_region(floating_->lift->rect, floating_->lift->before));
+    }
+    floating_.reset();
+    update();
+    notify();
   }
   // Esc: drop what is pending. Returns false when there was nothing, so the dialog closes.
   bool cancel_pending() {
@@ -294,9 +373,7 @@ public:
       return true;
     }
     if (floating_.has_value()) {
-      floating_.reset();
-      update();
-      notify();
+      drop_floating();
       return true;
     }
     if (!points_.empty()) {
@@ -346,6 +423,57 @@ public:
     update();
     notify();
   }
+  // Place Layer: the layer's own content (or the selected part) comes out of the layer and
+  // floats on the selected plane, filling it corner to corner.
+  void start_place_layer() {
+    if (!can_place_layer()) {
+      return;
+    }
+    if (canvas_.stroke_active()) {
+      finish_stroke();
+    }
+    commit_floating();
+    const auto* plane = selected_plane();
+    std::optional<PlaneGeometry> geometry = plane != nullptr ? geometry_for(plane->id) : std::nullopt;
+    if (!geometry.has_value()) {
+      for (const auto& candidate : planes_) {
+        geometry = geometry_for(candidate.id);
+        if (geometry.has_value()) {
+          plane = &candidate;
+          break;
+        }
+      }
+    }
+    if (!geometry.has_value()) {
+      notify();
+      return;
+    }
+    auto lifted = canvas_.lift(selection_.empty() ? nullptr : &selection_);
+    if (!lifted.has_value()) {
+      notify();
+      return;
+    }
+    Floating floating;
+    floating.source = sources_.size();
+    floating.pixels = std::move(lifted->first);
+    floating.sampler = PerspectiveSampler(floating.pixels);
+    floating.plane_id = plane->id;
+    floating.placement = fill_placement(*geometry, floating.pixels.width(), floating.pixels.height());
+    composite_changed(lifted->second.rect);
+    floating.lift = std::move(lifted->second);
+    floating_ = std::move(floating);
+    selected_id_ = plane->id;
+    if (tool_ != WorkspaceTool::EditPlane) {
+      tool_ = WorkspaceTool::EditPlane;
+      points_.clear();
+      updateCursor();
+    }
+    if (on_layer_placed) {
+      on_layer_placed();
+    }
+    update();
+    notify();
+  }
   void set_floating_scale(double scale) {
     if (floating_.has_value() && scale > 0.0) {
       floating_->placement.scale = scale;
@@ -371,11 +499,18 @@ public:
         auto change = canvas_.paste(*geometry, floating.pixels,
                                     placement_to_plane(floating.placement, floating.pixels.width(),
                                                        floating.pixels.height()));
-        if (!change.empty()) {
+        if (!change.empty() || floating.lift.has_value()) {
           composite_changed(change.bounds);
-          push_history({planes_, planes_, std::move(change), 0});
+          push_history({planes_, planes_, std::move(change), 0, std::move(floating.lift)});
         }
+        update();
+        notify();
+        return;
       }
+    }
+    // Not on a plane: nothing is written, and a lifted layer gets its content back.
+    if (floating.lift.has_value()) {
+      composite_changed(canvas_.set_original_region(floating.lift->rect, floating.lift->before));
     }
     update();
     notify();
@@ -406,6 +541,9 @@ public:
     if (!entry.pixels.empty()) {
       composite_changed(canvas_.revert(entry.pixels));
     }
+    if (entry.lift.has_value()) {
+      composite_changed(canvas_.set_original_region(entry.lift->rect, entry.lift->before));
+    }
     redo_.push_back(std::move(entry));
     keep_selection_valid();
     notify();
@@ -419,6 +557,9 @@ public:
     redo_.pop_back();
     planes_ = entry.planes_after;
     planes_changed();
+    if (entry.lift.has_value()) {
+      composite_changed(canvas_.set_original_region(entry.lift->rect, entry.lift->after));
+    }
     if (!entry.pixels.empty()) {
       composite_changed(canvas_.reapply(entry.pixels));
     }
@@ -485,6 +626,9 @@ protected:
     if (!visible.isEmpty()) {
       const QRectF source((visible.left() - offset_.x()) / zoom_, (visible.top() - offset_.y()) / zoom_,
                           visible.width() / zoom_, visible.height() / zoom_);
+      if (show_backdrop_ && !backdrop_image_.isNull()) {
+        painter.drawImage(visible, backdrop_image_, source);
+      }
       painter.drawImage(visible, composite_image_, source);
     }
     painter.setRenderHint(QPainter::Antialiasing, true);
@@ -1432,6 +1576,13 @@ private:
 
   PerspectiveCanvas canvas_;
   QImage composite_image_;
+  PixelBuffer backdrop_;
+  QImage backdrop_image_;
+  bool show_backdrop_{true};
+  PixelBuffer selection_;
+  bool can_place_layer_{false};
+  bool layer_has_content_{false};
+  bool suggest_place_layer_{false};
   std::vector<PerspectivePlane> planes_;
   std::map<int, std::optional<PlaneGeometry>> geometries_;
   PerspectiveCamera camera_{};
@@ -1566,6 +1717,25 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   auto* delete_plane = new QPushButton(QObject::tr("Delete Plane"), plane_page);
   delete_plane->setObjectName(QStringLiteral("perspectiveDeletePlaneButton"));
   plane_row->addWidget(delete_plane);
+  // What to do with a plane: these name the next step once one exists.
+  plane_row->addSpacing(18);
+  auto* next_label = new QLabel(QObject::tr("Then:"), plane_page);
+  next_label->setObjectName(QStringLiteral("perspectiveNextStepLabel"));
+  plane_row->addWidget(next_label);
+  auto* place_layer = new QPushButton(QObject::tr("Place Layer"), plane_page);
+  place_layer->setObjectName(QStringLiteral("perspectivePlaceLayerButton"));
+  place_layer->setToolTip(QObject::tr("Put this layer on the plane, filling it corner to corner (only the selected part "
+                                      "when there is a selection); OK replaces the layer with the result"));
+  plane_row->addWidget(place_layer);
+  auto* paste_onto = new QPushButton(QObject::tr("Paste onto Plane"), plane_page);
+  paste_onto->setObjectName(QStringLiteral("perspectivePasteOntoPlaneButton"));
+  plane_row->addWidget(paste_onto);
+  auto* next_clone = new QPushButton(QObject::tr("Clone"), plane_page);
+  next_clone->setObjectName(QStringLiteral("perspectiveNextCloneButton"));
+  plane_row->addWidget(next_clone);
+  auto* next_paint = new QPushButton(QObject::tr("Paint"), plane_page);
+  next_paint->setObjectName(QStringLiteral("perspectiveNextPaintButton"));
+  plane_row->addWidget(next_paint);
   plane_row->addStretch(1);
   strip->addWidget(plane_page);
 
@@ -1665,6 +1835,12 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   paste->setFixedWidth(tool_width);
   paste->setPopupMode(QToolButton::InstantPopup);
   tools_layout->addWidget(paste);
+  auto* place_layer_tool = new QToolButton(tools);
+  place_layer_tool->setObjectName(QStringLiteral("perspectivePlaceLayerTool"));
+  place_layer_tool->setText(QObject::tr("Place Layer"));
+  place_layer_tool->setToolTip(place_layer->toolTip());
+  place_layer_tool->setFixedWidth(tool_width);
+  tools_layout->addWidget(place_layer_tool);
   tools_layout->addStretch(1);
   content->addWidget(tools);
 
@@ -1680,7 +1856,11 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
     QObject::connect(action, &QAction::triggered, view, [view, index] { view->start_paste(index); });
   }
   paste->setMenu(paste_menu);
+  paste_onto->setMenu(paste_menu);
   paste->setEnabled(!view->sources().empty());
+  if (view->sources().empty()) {
+    paste_onto->setEnabled(false);
+  }
   paste->setToolTip(view->sources().empty()
                         ? QObject::tr("Copy an image, or make a selection, before opening Perspective Planes to paste it")
                         : with_key(QObject::tr("Paste an image onto a plane"), QKeySequence(QKeySequence::Paste)));
@@ -1701,12 +1881,21 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   zoom_label->setMinimumWidth(48);
   bottom->addWidget(zoom_label);
   bottom->addSpacing(12);
+  auto* show_others = new QCheckBox(QObject::tr("Show other layers"), &dialog);
+  show_others->setObjectName(QStringLiteral("perspectiveShowOtherLayersCheck"));
+  show_others->setToolTip(QObject::tr("Show the document's other layers behind this one; edits still go only to this "
+                                      "layer"));
+  show_others->setChecked(view->show_backdrop());
+  show_others->setVisible(view->has_backdrop());
+  bottom->addWidget(show_others);
+  bottom->addSpacing(12);
   bottom->addWidget(new QLabel(QObject::tr("Result:"), &dialog));
   auto* output = new QComboBox(&dialog);
   output->setObjectName(QStringLiteral("perspectiveOutputCombo"));
-  output->addItem(QObject::tr("New layer"));
-  output->addItem(QObject::tr("Current layer"));
-  output->setToolTip(QObject::tr("Put the result on a new layer above the current one, or onto the current layer itself"));
+  output->addItem(QObject::tr("New layer above"));
+  output->addItem(QObject::tr("Replace this layer"));
+  output->setToolTip(QObject::tr("New layer above keeps this layer as it is and puts the result above it; Replace this "
+                                 "layer puts the result into this layer itself"));
   if (!input.can_write_onto_layer) {
     output->setEnabled(false);
   } else if (input.write_onto_layer) {
@@ -1727,7 +1916,7 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   buttons->setObjectName(QStringLiteral("perspectiveButtonBox"));
   bottom->addWidget(buttons);
   root->addLayout(bottom);
-  for (auto* button : {fit, delete_plane, place, remove, color_button}) {
+  for (auto* button : {fit, delete_plane, place, remove, color_button, place_layer, paste_onto, next_clone, next_paint}) {
     button->setAutoDefault(false);
   }
 
@@ -1753,6 +1942,14 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
       const auto* plane = view->selected_plane();
       grid->setEnabled(plane != nullptr);
       delete_plane->setEnabled(plane != nullptr);
+      const bool usable = plane != nullptr && view->geometry_for(plane->id).has_value();
+      for (QWidget* next : {static_cast<QWidget*>(next_label), static_cast<QWidget*>(place_layer),
+                            static_cast<QWidget*>(paste_onto), static_cast<QWidget*>(next_clone),
+                            static_cast<QWidget*>(next_paint)}) {
+        next->setVisible(usable);
+      }
+      place_layer->setVisible(usable && view->can_place_layer());
+      paste_onto->setEnabled(!view->sources().empty());
       const bool joined = plane != nullptr && plane->link.has_value();
       angle->setEnabled(joined);
       angle_label->setEnabled(joined);
@@ -1775,6 +1972,8 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
     zoom_label->setText(QStringLiteral("%1%").arg(std::lround(view->zoom() * 100.0)));
     undo->setEnabled(view->can_undo());
     redo->setEnabled(view->can_redo());
+    place_layer_tool->setVisible(view->can_place_layer());
+    place_layer_tool->setEnabled(view->has_usable_plane() && !view->has_floating());
     syncing = false;
   };
   view->on_state_changed = refresh;
@@ -1795,6 +1994,17 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
     }
   });
   QObject::connect(delete_plane, &QPushButton::clicked, view, [view] { view->delete_selected_plane(); });
+  QObject::connect(place_layer, &QPushButton::clicked, view, [view] { view->start_place_layer(); });
+  QObject::connect(place_layer_tool, &QToolButton::clicked, view, [view] { view->start_place_layer(); });
+  QObject::connect(next_clone, &QPushButton::clicked, view, [view] { view->set_tool(WorkspaceTool::Clone); });
+  QObject::connect(next_paint, &QPushButton::clicked, view, [view] { view->set_tool(WorkspaceTool::Paint); });
+  QObject::connect(show_others, &QCheckBox::toggled, view, [view](bool checked) { view->set_show_backdrop(checked); });
+  // Placing the layer itself means the layer becomes the result.
+  view->on_layer_placed = [output] {
+    if (output->isEnabled()) {
+      output->setCurrentIndex(1);
+    }
+  };
   const auto brush_changed = [view, size, hardness, opacity] {
     view->set_brush({static_cast<double>(size->value()), hardness->value(), opacity->value()});
   };
@@ -1875,8 +2085,12 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
   result.write_onto_layer = output->currentIndex() == 1 && input.can_write_onto_layer;
   if (accepted) {
     result.edits = view->canvas().cropped_edits();
+    if (view->canvas().original_changed()) {
+      result.lifted_layer = view->canvas().original();
+    }
   }
   view->on_state_changed = nullptr;
+  view->on_layer_placed = nullptr;
   return result;
 }
 

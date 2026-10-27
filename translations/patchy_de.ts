@@ -13389,24 +13389,64 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Ergebnis:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>Neue Ebene</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>Aktuelle Ebene</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>Das Ergebnis auf eine neue Ebene über der aktuellen oder auf die aktuelle Ebene selbst legen</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>Malfarbe</translation>
     </message>
     <message>
         <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
         <translation>Haken Sie die Schaltflächen an, die das Ebenen-Bedienfeld zeigt, und ziehen Sie sie oder verwenden Sie „Nach oben“ und „Nach unten“, um ihre Reihenfolge festzulegen. Die Befehle ausgeblendeter Schaltflächen bleiben in den Menüs.</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>Die Ebene füllt jetzt die Fläche. Ziehen Sie sie zum Verschieben, eine Ecke zum Skalieren oder den runden Griff zum Drehen. Eingabe platziert sie, Esc setzt sie zurück.</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>Klicken Sie die vier Ecken der Fläche, auf die diese Ebene soll, und dann auf „Ebene platzieren“.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Die Ebene ist eine Hilfe; nichts ändert sich, bis Sie etwas darauf legen. Klicken Sie auf „Ebene platzieren“, um diese Ebene darauf zu legen, oder auf „Auf Ebene einfügen“, „Klonen“ oder „Malen“.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Die Ebene ist eine Hilfe; nichts ändert sich, bis Sie etwas darauf legen. Klicken Sie auf „Auf Ebene einfügen“, „Klonen“ oder „Malen“.</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>Dann:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>Ebene platzieren</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>Diese Ebene auf die Fläche legen und sie von Ecke zu Ecke füllen (bei einer Auswahl nur den ausgewählten Teil); OK ersetzt die Ebene durch das Ergebnis</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>Auf Ebene einfügen</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>Andere Ebenen anzeigen</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>Die anderen Ebenen des Dokuments hinter dieser anzeigen; Änderungen gehen weiterhin nur in diese Ebene</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>Neue Ebene darüber</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>Diese Ebene ersetzen</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>„Neue Ebene darüber“ lässt diese Ebene unverändert und legt das Ergebnis darüber; „Diese Ebene ersetzen“ schreibt das Ergebnis in diese Ebene selbst</translation>
     </message>
 </context>
 <context>
@@ -29681,6 +29721,30 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Perspective Planes</source>
         <translation>Perspektivebenen</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: Übergeben Sie eine Ebene und {plane}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane muss aus vier [x, y]-Ecken oder einem Ebenenindex bestehen.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement benötigt endliche x und y und einen positiven scale.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement ist &quot;fill&quot;, &quot;fit&quot; oder {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer benötigt eine 8-Bit-Ebene mit Transparenz.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: Die Ebene ist leer.</translation>
     </message>
 </context>
 <context>

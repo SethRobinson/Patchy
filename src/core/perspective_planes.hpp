@@ -165,13 +165,15 @@ private:
   std::vector<Level> levels_;
 };
 
-// Where a pasted image sits on its plane: its center in plane units, a uniform scale
-// (1 = one image pixel per plane unit) and a rotation in plane space.
+// Where a pasted image sits on its plane: its center in plane units, a scale (1 = one
+// image pixel per plane unit), the height's extra factor (1 keeps the image's
+// proportions) and a rotation in plane space.
 struct PerspectivePlacement {
   double center_x{0.0};
   double center_y{0.0};
   double scale{1.0};
   double rotation_degrees{0.0};
+  double stretch{1.0};
 
   friend bool operator==(const PerspectivePlacement&, const PerspectivePlacement&) = default;
 };
@@ -181,6 +183,9 @@ struct PerspectivePlacement {
 // The placement that fills the whole plane with the image (stretched to its corners).
 [[nodiscard]] Homography fill_plane_from_image(const PlaneGeometry& plane, std::int32_t image_width,
                                                std::int32_t image_height) noexcept;
+// The same as a placement, so the image can still be moved, scaled and turned.
+[[nodiscard]] PerspectivePlacement fill_placement(const PlaneGeometry& plane, std::int32_t image_width,
+                                                  std::int32_t image_height) noexcept;
 // A placement centred on the plane that fits the image inside it with a margin, turned a
 // quarter turn at a time so the image's top faces up on screen.
 [[nodiscard]] PerspectivePlacement fit_placement(const PlaneGeometry& plane, std::int32_t image_width,
@@ -259,6 +264,22 @@ public:
   Rect revert(const Change& change);
   Rect reapply(const Change& change);
 
+  // Taking the layer's own content out to place it on a plane. `before` and `after` are the
+  // layer pixels (canvas-sized original) under `rect` around the lift.
+  struct Lift {
+    Rect rect{};
+    PixelBuffer before;
+    PixelBuffer after;
+  };
+  // Lifts the layer's content, or the part a canvas-sized gray8 `coverage` selects, out of
+  // the layer: returns it cropped to what it covers (its document place is lift.rect) and
+  // the lift record. nullopt when there is nothing to lift.
+  [[nodiscard]] std::optional<std::pair<PixelBuffer, Lift>> lift(const PixelBuffer* coverage);
+  // Writes layer pixels back under `rect` (a lift's before for undo, after for redo).
+  Rect set_original_region(Rect rect, const PixelBuffer& pixels);
+  // Whether the layer pixels differ from the ones the canvas started with.
+  [[nodiscard]] bool original_changed() const;
+
   // The edits alone, cropped to what they cover (nullopt when there are none).
   [[nodiscard]] std::optional<std::pair<PixelBuffer, Rect>> cropped_edits() const;
 
@@ -280,6 +301,7 @@ private:
   Rect dab(PlanePoint center);
 
   PixelBuffer original_;
+  PixelBuffer initial_original_;
   PixelBuffer edits_;
   PixelBuffer composite_;
   PerspectiveSampler composite_sampler_;

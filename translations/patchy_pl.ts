@@ -13426,24 +13426,64 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Wynik:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>Nowa warstwa</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>Bieżąca warstwa</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>Umieść wynik na nowej warstwie nad bieżącą albo na samej bieżącej warstwie</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>Kolor malowania</translation>
     </message>
     <message>
         <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
         <translation>Zaznacz przyciski widoczne w panelu Warstwy, a ich kolejność ustaw, przeciągając je lub używając przycisków Przesuń w górę i Przesuń w dół. Polecenia ukrytych przycisków pozostają w menu.</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>Warstwa wypełnia teraz płaszczyznę. Przeciągnij ją, aby przesunąć, narożnik, aby zmienić rozmiar, albo okrągły uchwyt, aby obrócić. Enter umieszcza, Esc przywraca.</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>Kliknij cztery narożniki powierzchni, na której ma się znaleźć ta warstwa, a potem naciśnij Umieść warstwę.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>Płaszczyzna jest prowadnicą; nic się nie zmienia, dopóki czegoś na niej nie umieścisz. Naciśnij Umieść warstwę, aby umieścić na niej tę warstwę, albo Wklej na płaszczyznę, Klonuj lub Maluj.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>Płaszczyzna jest prowadnicą; nic się nie zmienia, dopóki czegoś na niej nie umieścisz. Naciśnij Wklej na płaszczyznę, Klonuj lub Maluj.</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>Potem:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>Umieść warstwę</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>Umieść tę warstwę na płaszczyźnie, od narożnika do narożnika (przy zaznaczeniu tylko zaznaczoną część); OK zastępuje warstwę wynikiem</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>Wklej na płaszczyznę</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>Pokaż inne warstwy</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>Pokaż pozostałe warstwy dokumentu za tą; zmiany nadal trafiają tylko do tej warstwy</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>Nowa warstwa powyżej</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>Zastąp tę warstwę</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>Nowa warstwa powyżej zostawia tę warstwę bez zmian i umieszcza wynik nad nią; Zastąp tę warstwę zapisuje wynik w tej warstwie</translation>
     </message>
 </context>
 <context>
@@ -29758,6 +29798,30 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Perspective Planes</source>
         <translation>Płaszczyzny perspektywy</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: przekaż warstwę i {plane}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane musi być czterema narożnikami [x, y] lub indeksem płaszczyzny.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement wymaga skończonych x i y oraz dodatniego scale.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement to &quot;fill&quot;, &quot;fit&quot; lub {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer wymaga 8-bitowej warstwy z przezroczystością.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: warstwa jest pusta.</translation>
     </message>
 </context>
 <context>

@@ -13389,24 +13389,64 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Resultado:</translation>
     </message>
     <message>
-        <source>New layer</source>
-        <translation>Capa nueva</translation>
-    </message>
-    <message>
-        <source>Current layer</source>
-        <translation>Capa actual</translation>
-    </message>
-    <message>
-        <source>Put the result on a new layer above the current one, or onto the current layer itself</source>
-        <translation>Poner el resultado en una capa nueva sobre la actual o en la propia capa actual</translation>
-    </message>
-    <message>
         <source>Paint Color</source>
         <translation>Color de pintura</translation>
     </message>
     <message>
         <source>Tick the buttons the Layers panel shows, and drag them or use Move Up and Move Down to set their order. Hidden buttons&apos; commands stay in the menus.</source>
         <translation>Marque los botones que muestra el panel Capas y arrástrelos o use Subir y Bajar para fijar su orden. Los comandos de los botones ocultos siguen en los menús.</translation>
+    </message>
+    <message>
+        <source>The layer now fills the plane. Drag it to move it, drag a corner to scale it, or drag the round handle to turn it. Enter places it; Esc puts it back.</source>
+        <translation>La capa ya llena el plano. Arrástrela para moverla, arrastre una esquina para escalarla o el tirador redondo para girarla. Intro la coloca; Esc la devuelve.</translation>
+    </message>
+    <message>
+        <source>Click the four corners of the surface where this layer should go, then press Place Layer.</source>
+        <translation>Haga clic en las cuatro esquinas de la superficie donde debe ir esta capa y pulse Colocar capa.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Place Layer to put this layer on it, or Paste onto Plane, Clone or Paint.</source>
+        <translation>El plano es una guía; nada cambia hasta que ponga algo encima. Pulse Colocar capa para poner esta capa en él, o Pegar en el plano, Clonar o Pintar.</translation>
+    </message>
+    <message>
+        <source>The plane is a guide; nothing changes until you put something on it. Press Paste onto Plane, Clone or Paint.</source>
+        <translation>El plano es una guía; nada cambia hasta que ponga algo encima. Pulse Pegar en el plano, Clonar o Pintar.</translation>
+    </message>
+    <message>
+        <source>Then:</source>
+        <translation>Después:</translation>
+    </message>
+    <message>
+        <source>Place Layer</source>
+        <translation>Colocar capa</translation>
+    </message>
+    <message>
+        <source>Put this layer on the plane, filling it corner to corner (only the selected part when there is a selection); OK replaces the layer with the result</source>
+        <translation>Poner esta capa en el plano, llenándolo de esquina a esquina (solo la parte seleccionada si hay una selección); Aceptar reemplaza la capa por el resultado</translation>
+    </message>
+    <message>
+        <source>Paste onto Plane</source>
+        <translation>Pegar en el plano</translation>
+    </message>
+    <message>
+        <source>Show other layers</source>
+        <translation>Mostrar otras capas</translation>
+    </message>
+    <message>
+        <source>Show the document&apos;s other layers behind this one; edits still go only to this layer</source>
+        <translation>Mostrar las demás capas del documento detrás de esta; los cambios siguen yendo solo a esta capa</translation>
+    </message>
+    <message>
+        <source>New layer above</source>
+        <translation>Capa nueva encima</translation>
+    </message>
+    <message>
+        <source>Replace this layer</source>
+        <translation>Reemplazar esta capa</translation>
+    </message>
+    <message>
+        <source>New layer above keeps this layer as it is and puts the result above it; Replace this layer puts the result into this layer itself</source>
+        <translation>Capa nueva encima deja esta capa como está y pone el resultado encima; Reemplazar esta capa pone el resultado en esta misma capa</translation>
     </message>
 </context>
 <context>
@@ -29681,6 +29721,30 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
     <message>
         <source>Perspective Planes</source>
         <translation>Planos de perspectiva</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: pass a layer and {plane}.</source>
+        <translation>perspective.placeLayer: pase una capa y {plane}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: plane must be four [x, y] corners or a plane index.</source>
+        <translation>perspective.placeLayer: plane debe ser cuatro esquinas [x, y] o un índice de plano.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement needs finite x and y and a positive scale.</source>
+        <translation>perspective.placeLayer: placement necesita x e y finitos y un scale positivo.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: placement is &quot;fill&quot;, &quot;fit&quot; or {x, y, scale, rotation}.</source>
+        <translation>perspective.placeLayer: placement es &quot;fill&quot;, &quot;fit&quot; o {x, y, scale, rotation}.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer needs an 8-bit layer with transparency.</source>
+        <translation>perspective.placeLayer necesita una capa de 8 bits con transparencia.</translation>
+    </message>
+    <message>
+        <source>perspective.placeLayer: the layer is empty.</source>
+        <translation>perspective.placeLayer: la capa está vacía.</translation>
     </message>
 </context>
 <context>
