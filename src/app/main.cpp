@@ -15,6 +15,7 @@
 #include "ui/single_instance.hpp"
 #include "ui/psd_font_resolver.hpp"
 #include "ui/stress_test.hpp"
+#include "ui/text_font_service.hpp"
 #include "ui/app_style.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/theme_sounds.hpp"
@@ -563,8 +564,18 @@ int main(int argc, char* argv[]) {
   patchy::startup_trace::Scope theme_phase("theme.load");
   patchy::ui::ThemeManager::instance().load_saved_preference();
   theme_phase.end();
-
 #ifndef Q_OS_WASM
+  // A headless run on Windows draws text through the offscreen platform, whose font database
+  // holds only the bundled and user fonts until something asks for a family it lacks. A PSD's
+  // "Arial Black" never counted as such a miss (a near match answered first), so it rendered in
+  // another face than in a window. Loading the installed fonts before any document opens gives
+  // headless runs (scripts, exports, screenshots, the hidden connector) the window's database
+  // (card local-018, docs/font-resolution.md). The startup benchmark keeps timing the
+  // interactive startup without it; a no-op off Windows, where offscreen sees system fonts.
+  if (headless_mode && !startup_benchmark_requested) {
+    patchy::startup_trace::Scope headless_fonts_phase("fonts.headless_system");
+    patchy::ui::ensure_headless_system_fonts_loaded();
+  }
   if (connector_mode) { return patchy::run_mcp_server(app); }
 #endif
 

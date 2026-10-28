@@ -107,11 +107,15 @@ public:
   // when the column gets its height.
   void apply_preferred_heights();
   // Lowers expanded sections' floors by up to `excess` pixels (bottom up, the first
-  // section added (Layers) last wherever it sits, never below its title row plus `keep`). Returns how much
+  // section added (Layers) last wherever it sits, never below its title row plus `keep`,
+  // and with `keep_content` never below its content's own minimum). Returns how much
   // it lowered. The window calls it when the column's minimum would not fit the screen.
-  int lower_floors(int excess, int keep = 48);
+  int lower_floors(int excess, int keep = 48, bool keep_content = true);
   // Puts every section's floor back to its spec (Reset Panels, a taller screen).
   void restore_floors();
+  // Re-applies the expanded sections' floors after their content's minimum height
+  // changed (wrapped Layers rows): an unlowered floor is at least that minimum.
+  void refresh_floors();
   // The panel's preferred height changed (its preferred_content_height answers
   // differently). When the panel is open, expanded and in front, its section takes the
   // new height at once: a shorter one hands the difference to its neighbors, a taller

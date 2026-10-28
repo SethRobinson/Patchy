@@ -2,6 +2,7 @@
 #include <QTextBlock>
 
 #include "ui/canvas_widget.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/font_face_name_index.hpp"
 #include "ui/qt_paths.hpp"
 #include "core/layer_metadata.hpp"
@@ -1334,6 +1335,154 @@ void ui_psd_tools_tracked_box_text_matches_photoshop_if_available() {
   CHECK(mismatches == 0);
 }
 
+// Total alpha of a layer's raster and its per-pixel distance from another raster, both read in
+// DOCUMENT space so rasters of different bounds compare where their ink actually lands.
+struct AlphaComparison {
+  double ink{0.0};            // sum of `layer` alpha, in whole pixels
+  double reference_ink{0.0};  // the same for `reference`
+  double difference{0.0};     // sum |layer - reference| / reference_ink
+};
+
+AlphaComparison compare_layer_alpha(const patchy::Layer& layer, const patchy::Layer& reference) {
+  const auto alpha_at = [](const patchy::Layer& source, int x, int y) -> double {
+    const auto& pixels = source.pixels();
+    const auto channels = pixels.format().channels;
+    const auto local_x = x - source.bounds().x;
+    const auto local_y = y - source.bounds().y;
+    if (pixels.empty() || (channels != 1U && channels < 4U) || local_x < 0 || local_y < 0 ||
+        local_x >= pixels.width() || local_y >= pixels.height()) {
+      return 0.0;
+    }
+    return pixels.pixel(local_x, local_y)[channels == 1U ? 0U : 3U] / 255.0;
+  };
+  const auto a = layer.bounds();
+  const auto b = reference.bounds();
+  const auto left = std::min(a.x, b.x);
+  const auto top = std::min(a.y, b.y);
+  const auto right = std::max(a.x + a.width, b.x + b.width);
+  const auto bottom = std::max(a.y + a.height, b.y + b.height);
+  AlphaComparison result;
+  double difference = 0.0;
+  for (int y = top; y < bottom; ++y) {
+    for (int x = left; x < right; ++x) {
+      const auto ours = alpha_at(layer, x, y);
+      const auto theirs = alpha_at(reference, x, y);
+      result.ink += ours;
+      result.reference_ink += theirs;
+      difference += std::abs(ours - theirs);
+    }
+  }
+  result.difference = result.reference_ink > 0.0 ? difference / result.reference_ink : 0.0;
+  return result;
+}
+
+// Photoshop's Strong anti-aliasing (/AntiAlias 2) draws glyphs heavier than Smooth: PS 2026
+// captures of Arial "Hamburgefonts" carry about 23% more ink at 12 px and 5% at 30 px, and the
+// Testy repro clip-adjustment.psd ("a", ArialMT 12 px, Strong) lost its weight on every edit
+// (card local-019). Committing each layer unchanged must keep Photoshop's weight: Strong within
+// 8% of Photoshop's ink and clearly heavier than the Smooth twin, which keeps its own weight, and
+// the per-pixel difference below what the unstroked render had (Strong12 0.30, Strong30 0.16,
+// type-layer.psd 0.12), so the extra ink lands where Photoshop's does (docs/text-anti-alias.md).
+void ui_psd_strong_anti_alias_commit_keeps_photoshop_weight_if_available() {
+  const auto pin = patchy::test::local_psd_fixture_path("ps2026_text_antialias/aa_pin.psd");
+  patchy::test::skip_unless_exists(pin);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  struct Case {
+    const char* needle;
+    const char* artifact;
+    double max_difference;  // 0: not checked (the Smooth twins)
+  };
+  const std::array<Case, 4> cases{{
+      {"Strong12", "ui_psd_strong_aa_strong12_commit", 0.28},
+      {"Smooth12", "ui_psd_strong_aa_smooth12_commit", 0.0},
+      {"Strong30", "ui_psd_strong_aa_strong30_commit", 0.15},
+      {"Smooth30", "ui_psd_strong_aa_smooth30_commit", 0.0},
+  }};
+  // Every case is measured and printed before anything is checked, so a failing run still
+  // reports the whole table.
+  std::array<double, 4> committed_ink{};
+  std::array<double, 4> ink_ratio{};
+  std::array<double, 4> difference{};
+  for (std::size_t i = 0; i < cases.size(); ++i) {
+    const auto& entry = cases[i];
+    const auto probe = run_photoshop_text_commit_probe(pin, entry.needle, 1.0, entry.artifact, "Arial");
+    if (!probe.has_value()) {
+      patchy::test::skip("Arial is not available for the fixture's type");
+    }
+    if (!probe->original_layer.has_value() || !probe->committed_layer.has_value()) {
+      return;
+    }
+    const auto comparison = compare_layer_alpha(*probe->committed_layer, *probe->original_layer);
+    committed_ink[i] = comparison.ink;
+    ink_ratio[i] = comparison.ink / comparison.reference_ink;
+    difference[i] = comparison.difference;
+    save_image_artifact(std::string(entry.artifact) + "_patchy_layer",
+                        patchy::ui::display_qimage_from_pixel_buffer(probe->committed_layer->pixels()));
+    std::printf("  %-9s photoshop ink %.1f at (%d,%d) -> patchy %.1f at (%d,%d) (ratio %.3f), pixel difference %.3f\n",
+                entry.needle, comparison.reference_ink, probe->original_layer->bounds().x,
+                probe->original_layer->bounds().y, comparison.ink, probe->committed_layer->bounds().x,
+                probe->committed_layer->bounds().y, comparison.ink / comparison.reference_ink, comparison.difference);
+    std::fflush(stdout);
+  }
+  // Strong over Smooth, Photoshop: 1.231 at 12 px, 1.055 at 30 px.
+  std::printf("  Strong/Smooth ink: 12 px %.3f, 30 px %.3f\n", committed_ink[0] / committed_ink[1],
+              committed_ink[2] / committed_ink[3]);
+  std::fflush(stdout);
+
+  // The Testy files: the repro (one Strong "a" at 12 px under a clipped Hue/Saturation) and two
+  // Strong "A" layers at 30 px that already matched and must stay there.
+  struct TestyCase {
+    const char* file;
+    const char* needle;
+    const char* artifact;
+    double tolerance;
+    double max_difference;
+  };
+  // clip-adjustment's "a" keeps a pre-existing half-pixel x offset (difference 0.41 either way).
+  const std::array<TestyCase, 3> testy{{
+      {"clip-adjustment.psd", "a", "ui_psd_strong_aa_clip_adjustment", 0.12, 0.45},
+      {"layers/type-layer.psd", "A", "ui_psd_strong_aa_type_layer", 0.08, 0.10},
+      {"transparency/fill-opacity.psd", "A", "ui_psd_strong_aa_fill_opacity", 0.08, 0.10},
+  }};
+  std::vector<bool> testy_within;
+  for (const auto& entry : testy) {
+    const auto path =
+        patchy::test::local_format_fixture_path("psd-tools", std::string("tests/psd_files/") + entry.file);
+    if (!std::filesystem::exists(path)) {
+      std::cout << "  note: " << entry.file << " not checked: the psd-tools corpus is not in local-test-fixtures\n";
+      continue;
+    }
+    const auto artifact = std::string(entry.artifact);
+    const auto commit_artifact = artifact + "_commit";
+    const auto probe = run_photoshop_text_commit_probe(path, entry.needle, 1.0, commit_artifact.c_str(), "Arial");
+    if (!probe.has_value() || !probe->original_layer.has_value() || !probe->committed_layer.has_value()) {
+      continue;
+    }
+    const auto comparison = compare_layer_alpha(*probe->committed_layer, *probe->original_layer);
+    // The two rasters as images, for the side-by-side comparison on the card.
+    save_image_artifact(artifact + "_photoshop_layer",
+                        patchy::ui::display_qimage_from_pixel_buffer(probe->original_layer->pixels()));
+    save_image_artifact(artifact + "_patchy_layer",
+                        patchy::ui::display_qimage_from_pixel_buffer(probe->committed_layer->pixels()));
+    std::printf("  %-30s photoshop ink %.1f at (%d,%d) -> patchy %.1f at (%d,%d) (ratio %.3f), pixel difference %.3f\n",
+                entry.file, comparison.reference_ink, probe->original_layer->bounds().x,
+                probe->original_layer->bounds().y, comparison.ink, probe->committed_layer->bounds().x,
+                probe->committed_layer->bounds().y, comparison.ink / comparison.reference_ink, comparison.difference);
+    std::fflush(stdout);
+    testy_within.push_back(std::abs(comparison.ink / comparison.reference_ink - 1.0) <= entry.tolerance &&
+                           comparison.difference <= entry.max_difference);
+  }
+  for (std::size_t i = 0; i < cases.size(); ++i) {
+    CHECK(std::abs(ink_ratio[i] - 1.0) <= 0.08);
+    CHECK(cases[i].max_difference <= 0.0 || difference[i] <= cases[i].max_difference);
+  }
+  CHECK(committed_ink[0] / committed_ink[1] >= 1.12);
+  CHECK(committed_ink[2] / committed_ink[3] >= 1.02);
+  for (const bool within : testy_within) {
+    CHECK(within);
+  }
+}
+
 // Dungeon Scroll's Game_Screen.psd, the reported repro: point text authored in a much older
 // Photoshop, every button under a 0.9 free-transform, headings on the identity transform.
 // Editing a layer used to move it, and the two named causes are pinned here:
@@ -2006,6 +2155,57 @@ void ui_la_methode_script_text_setter_matches_interactive_commit_if_available() 
     std::fflush(stdout);
     CHECK(std::abs(transforms[0][4] - 794.0) <= 1.0);
     CHECK(std::abs(transforms[0][5] - 700.0) <= 1.0);
+  }
+}
+
+// psd-tools' layer_effects.psd (card local-018): eleven Arial Black 62.5px lines with FauxBold,
+// one layer style each, written by Photoshop CC 2017. The old 0.03 em faux bold ran the long
+// lines 2-6px past Photoshop's ink ("Gradient Overlay" to half-alpha column 703 against 698) and
+// 2px taller. With 0.027 em and the 1px stroke cap the lines end within 2px of the file's raster,
+// in both directions from line to line (Photoshop 2026's own faux bold captures are the exact
+// pin: ui_faux_bold_widening_matches_photoshop_captures).
+void ui_layer_effects_psd_faux_bold_commit_matches_photoshop_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("psd-tools/tests/psd_files", "layer_effects.psd");
+  patchy::test::skip_unless_exists(path);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  struct Probe {
+    const char* needle;
+    const char* artifact;
+  };
+  const std::array<Probe, 4> probes{{
+      {"Gradient Overlay", "ui_layer_effects_gradient_overlay_commit"},
+      {"Pattern Overlay", "ui_layer_effects_pattern_overlay_commit"},
+      {"Drop Shadow", "ui_layer_effects_drop_shadow_commit"},
+      {"Outer Glow", "ui_layer_effects_outer_glow_commit"},
+  }};
+  for (const auto& entry : probes) {
+    const auto probe = run_photoshop_text_commit_probe(path, entry.needle, 1.0, entry.artifact, "Arial Black");
+    if (!probe.has_value()) {
+      continue;
+    }
+    std::printf("  %-16s photoshop ink (%d,%d %dx%d) -> patchy ink (%d,%d %dx%d)\n", entry.needle,
+                probe->original_ink.x, probe->original_ink.y, probe->original_ink.width, probe->original_ink.height,
+                probe->committed_ink.x, probe->committed_ink.y, probe->committed_ink.width,
+                probe->committed_ink.height);
+    std::fflush(stdout);
+    CHECK(probe->original_layer.has_value() && probe->committed_layer.has_value());
+    if (probe->original_layer.has_value() && probe->committed_layer.has_value()) {
+      const auto photoshop_span = half_alpha_column_span(*probe->original_layer);
+      const auto committed_span = half_alpha_column_span(*probe->committed_layer);
+      CHECK(photoshop_span.has_value() && committed_span.has_value());
+      if (photoshop_span.has_value() && committed_span.has_value()) {
+        std::printf("  %-16s half-alpha columns photoshop %d..%d -> patchy %d..%d\n", entry.needle,
+                    photoshop_span->first, photoshop_span->second, committed_span->first, committed_span->second);
+        std::fflush(stdout);
+        CHECK(std::abs(committed_span->first - photoshop_span->first) <= 1);
+        CHECK(std::abs(committed_span->second - photoshop_span->second) <= 2);
+      }
+    }
+    CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 2);
+    CHECK(std::abs(probe->committed_ink.height - probe->original_ink.height) <= 1);
+    CHECK(std::abs(probe->committed_ink.x - probe->original_ink.x) <= 1);
+    CHECK(std::abs(probe->committed_ink.y - probe->original_ink.y) <= 1);
   }
 }
 
@@ -4173,6 +4373,8 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_psd_tools_tracked_box_text_matches_photoshop_if_available},
       {"ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available",
        ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available},
+      {"ui_psd_strong_anti_alias_commit_keeps_photoshop_weight_if_available",
+       ui_psd_strong_anti_alias_commit_keeps_photoshop_weight_if_available},
       {"ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available",
        ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available},
       {"ui_la_methode_psd_text_commit_is_zoom_and_edit_independent_if_available",
@@ -4183,6 +4385,8 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_la_methode_psd_text_commit_scrolled_with_selection_if_available},
       {"ui_la_methode_script_text_setter_matches_interactive_commit_if_available",
        ui_la_methode_script_text_setter_matches_interactive_commit_if_available},
+      {"ui_layer_effects_psd_faux_bold_commit_matches_photoshop_if_available",
+       ui_layer_effects_psd_faux_bold_commit_matches_photoshop_if_available},
       {"ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available",
        ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available},
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",

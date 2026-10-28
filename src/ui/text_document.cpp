@@ -1170,7 +1170,8 @@ void apply_faux_bold_to_document(QTextDocument& document) {
       auto font = format.font();
       const auto pixel_size = font.pixelSize() > 0 ? static_cast<double>(font.pixelSize())
                                                    : std::max(1.0, font.pointSizeF());
-      const auto stroke = kFauxBoldEmFraction * pixel_size;
+      const auto advance = kFauxBoldAdvanceEmFraction * pixel_size;
+      const auto stroke = std::min(advance, kFauxBoldMaxStrokePixels);
       if (!(stroke > 0.0)) {
         continue;
       }
@@ -1182,10 +1183,11 @@ void apply_faux_bold_to_document(QTextDocument& document) {
       pen.setJoinStyle(Qt::RoundJoin);
       pen.setCapStyle(Qt::RoundCap);
       // Photoshop's synthetic bold pushes the glyph out on BOTH sides and pays for it in the
-      // advance, so tracked text keeps its gaps instead of colliding.
+      // advance, so tracked text keeps its gaps instead of colliding. Past the stroke cap the
+      // advance still grows with the em: a 62.5px line gains 1.69px per glyph, its ink 1px.
       const auto spacing =
           font.letterSpacingType() == QFont::AbsoluteSpacing ? font.letterSpacing() : 0.0;
-      font.setLetterSpacing(QFont::AbsoluteSpacing, spacing + stroke);
+      font.setLetterSpacing(QFont::AbsoluteSpacing, spacing + advance);
       QTextCharFormat overlay;
       overlay.setFont(font);
       overlay.setTextOutline(pen);

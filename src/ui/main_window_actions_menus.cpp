@@ -715,10 +715,11 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     warp_transform_action->setMenuRole(QAction::NoRole);
   }
   edit_menu->addSeparator();
-  auto* select_all_action = edit_menu->addAction(tr("Select &All"));
-  auto* clear_selection_action = edit_menu->addAction(tr("&Clear Selection"));
-  auto* reselect_action = edit_menu->addAction(tr("&Reselect"));
-  auto* inverse_selection_action = edit_menu->addAction(tr("&Inverse"));
+  // Select All, Clear Selection, Reselect and Inverse live only in the Select menu (GitHub issue 493).
+  auto* select_all_action = new QAction(tr("Select &All"), this);
+  auto* clear_selection_action = new QAction(tr("&Clear Selection"), this);
+  auto* reselect_action = new QAction(tr("&Reselect"), this);
+  auto* inverse_selection_action = new QAction(tr("&Inverse"), this);
   auto* deselect_layers_action = new QAction(tr("Deselect La&yers"), this);
   deselect_layers_action->setObjectName(QStringLiteral("selectDeselectLayersAction"));
   bind_action_text(deselect_layers_action, QT_TR_NOOP("Deselect La&yers"));

@@ -30,6 +30,7 @@
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <chrono>
+#include <tuple>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -47,6 +48,8 @@
 #include <QMetaObject>
 #include <QPainter>
 #include <QMessageBox>
+#include <QMenu>
+#include <QMenuBar>
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QSpinBox>
@@ -3047,6 +3050,82 @@ void ui_photoshop_shortcuts_are_registered() {
   settings.remove(QStringLiteral("tools"));
   settings.sync();
 }
+
+// Select All, Clear Selection, Reselect and Inverse sit only in the Select menu,
+// keep their hotkey ids and keys, and the keys still fire from the canvas (GitHub issue 493).
+void ui_selection_commands_live_only_in_select_menu() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QMenu* edit_menu = nullptr;
+  QMenu* select_menu = nullptr;
+  for (auto* top : window.menuBar()->actions()) {
+    const auto title = top->text().remove(QLatin1Char('&'));
+    if (title == QStringLiteral("Edit")) {
+      edit_menu = top->menu();
+    } else if (title == QStringLiteral("Select")) {
+      select_menu = top->menu();
+    }
+  }
+  CHECK(edit_menu != nullptr);
+  CHECK(select_menu != nullptr);
+  if (edit_menu == nullptr || select_menu == nullptr) {
+    return;
+  }
+  for (const auto& [object_name, hotkey_id, key] :
+       std::vector<std::tuple<const char*, const char*, QKeySequence>>{
+           {"editSelectAllAction", "select.all", QKeySequence(Qt::CTRL | Qt::Key_A)},
+           {"editDeselectAction", "select.deselect", QKeySequence(Qt::CTRL | Qt::Key_D)},
+           {"selectReselectAction", "select.reselect", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D)},
+           {"selectInverseAction", "select.inverse", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I)}}) {
+    auto* action = require_action(window, object_name);
+    CHECK(require_hotkey_action(window, QLatin1String(hotkey_id)) == action);
+    CHECK(action->shortcut() == key);
+    CHECK(!edit_menu->actions().contains(action));
+    CHECK(select_menu->actions().contains(action));
+  }
+
+  auto* canvas = require_canvas(window);
+  canvas->setFocus();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+  QTest::keyClick(canvas, Qt::Key_A, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  QTest::keyClick(canvas, Qt::Key_D, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+  QTest::keyClick(canvas, Qt::Key_D, Qt::ControlModifier | Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+
+  // The hotkey editor groups rows by the menu they sit in: these now list under Select.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    for (const auto* id : {"select.all", "select.deselect", "select.reselect", "select.inverse"}) {
+      auto* row = dialog->findChild<QWidget*>(QStringLiteral("hotkeyRow.") + QLatin1String(id));
+      CHECK(row != nullptr);
+      QString category;
+      if (auto* panel = row != nullptr ? row->parentWidget() : nullptr; panel != nullptr) {
+        for (auto* label : panel->findChildren<QLabel*>(Qt::FindDirectChildrenOnly)) {
+          if (label->property("hotkeyCategoryHeader").toBool()) {
+            category = label->text();
+          }
+        }
+      }
+      CHECK(category == QStringLiteral("Select"));
+    }
+    saw_dialog = true;
+    dialog->reject();
+  });
+  window.show_hotkey_preferences(QString());
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
 void ui_brush_flow_popup_slider_updates_canvas() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -4623,6 +4702,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
+      {"ui_selection_commands_live_only_in_select_menu", ui_selection_commands_live_only_in_select_menu},
       {"ui_brush_flow_popup_slider_updates_canvas",
        ui_brush_flow_popup_slider_updates_canvas},
       {"ui_slider_popup_dismissing_press_paints", ui_slider_popup_dismissing_press_paints},

@@ -3765,6 +3765,10 @@ private:
   // The Layers panel layout's minimum height when its last layout request came
   // in; rows wrapping in a narrow column raise it.
   int layers_panel_minimum_height_{0};
+  // The Layers panel's own floor before its content raises it (240 px, lowered by the
+  // screen fit); refresh_layers_panel_floor sets the larger of the two on the panel.
+  int layers_panel_floor_{240};
+  void refresh_layers_panel_floor();
   // -1 until the chrome around the layers panel is measured from the laid-out
   // column; 0 is a valid measurement.
   int right_dock_chrome_width_{-1};

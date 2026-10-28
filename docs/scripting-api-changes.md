@@ -14,6 +14,13 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-28 (additive): `layer.resolvedTextFonts()`: per run of a text layer, `{text, font, family,
+style}`, the font the run names and the family and style the text engine really draws it in
+(`render_text_font_for_display_family` read back through `QFontInfo`). Permanent identifiers: the
+method and its four keys. Pinned by `ui_headless_text_fonts_match_windowed_if_available`.
+2026-10-28 (behavioral): a `--headless` run on Windows loads the installed fonts at startup, so
+scripts, exports and screenshots resolve fonts exactly as a windowed run does (a PSD's Arial Black
+rendered in another face before; [font-resolution.md](font-resolution.md)).
 2026-10-28 (behavioral): the built-in brush presets lead with `soft_round`, now named "Round", then
 `hard_round` (now 25 px, the old Round's values), `square`, `pencil`, `ink`, `airbrush`.
 `brushes.listPresets()` no longer lists `round`; `getPreset("round")` and `presetId: "round"` still

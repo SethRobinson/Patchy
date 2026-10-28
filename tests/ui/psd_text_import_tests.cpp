@@ -4,6 +4,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/text_layout.hpp"
+#include "ui/text_render.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/font_picker.hpp"
@@ -3951,6 +3952,132 @@ void ui_faux_italic_shears_the_rendered_glyphs() {
   CHECK(slanted.width - upright.width <= upright.width / 2);
 }
 
+// Faux bold against Photoshop 2026's own rasters (captures in local-test-fixtures/faux-bold-
+// calibration, measured with the same coverage edges): "HHHHHHHHHH" in Smooth antialiasing at
+// 72 ppi, plain and with FauxBold, in each face and size below. Photoshop widens every advance by
+// ~0.027 em but its outline stroke stops at 1px, so a 62.5px line grows 16.25px and its ink 1px
+// in height; the old 0.03 em stroke-and-advance grew it 18.75px wide and 1.9px tall
+// (layer_effects.psd, card local-018). The deltas hold for any face, so this runs everywhere.
+struct InkEdges {
+  double left{0.0};
+  double right{0.0};
+  double top{0.0};
+  double bottom{0.0};
+  bool valid{false};
+};
+
+// Ink extent to a fraction of a pixel: the outermost inked column/row counts for its coverage.
+InkEdges coverage_ink_edges(const patchy::PixelBuffer& pixels) {
+  InkEdges edges;
+  const auto channels = pixels.format().channels;
+  if (pixels.empty() || channels < 4U) {
+    return edges;
+  }
+  const auto bytes = pixels.data();
+  const auto stride = pixels.stride_bytes();
+  std::vector<int> column_max(static_cast<std::size_t>(pixels.width()), 0);
+  std::vector<int> row_max(static_cast<std::size_t>(pixels.height()), 0);
+  for (int y = 0; y < pixels.height(); ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      const int alpha = bytes[static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * channels + 3U];
+      auto& column = column_max[static_cast<std::size_t>(x)];
+      auto& row = row_max[static_cast<std::size_t>(y)];
+      column = std::max(column, alpha);
+      row = std::max(row, alpha);
+    }
+  }
+  const auto first = [](const std::vector<int>& values) {
+    for (std::size_t i = 0; i < values.size(); ++i) {
+      if (values[i] > 0) {
+        return static_cast<int>(i);
+      }
+    }
+    return -1;
+  };
+  const auto last = [](const std::vector<int>& values) {
+    for (std::size_t i = values.size(); i-- > 0;) {
+      if (values[i] > 0) {
+        return static_cast<int>(i);
+      }
+    }
+    return -1;
+  };
+  const int x0 = first(column_max);
+  const int x1 = last(column_max);
+  const int y0 = first(row_max);
+  const int y1 = last(row_max);
+  if (x0 < 0 || y0 < 0) {
+    return edges;
+  }
+  edges.left = x0 + 1.0 - column_max[static_cast<std::size_t>(x0)] / 255.0;
+  edges.right = x1 + column_max[static_cast<std::size_t>(x1)] / 255.0;
+  edges.top = y0 + 1.0 - row_max[static_cast<std::size_t>(y0)] / 255.0;
+  edges.bottom = y1 + row_max[static_cast<std::size_t>(y1)] / 255.0;
+  edges.valid = true;
+  return edges;
+}
+
+void ui_faux_bold_widening_matches_photoshop_captures() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
+  struct Capture {
+    const char* family;
+    bool italic;
+    double size;
+    double photoshop_width_gain;   // faux minus plain ink width, px
+    double photoshop_height_gain;  // faux minus plain ink height, px
+  };
+  const std::array<Capture, 12> captures{{
+      {"Arial Black", false, 12.0, 3.25, 0.25},  {"Arial Black", false, 24.0, 6.50, 0.25},
+      {"Arial Black", false, 62.5, 16.25, 1.00}, {"Arial Black", false, 120.0, 30.00, 1.00},
+      {"Arial", false, 12.0, 3.50, 0.25},        {"Arial", false, 24.0, 6.50, 0.25},
+      {"Arial", false, 62.5, 16.25, 1.00},       {"Arial", false, 120.0, 30.00, 1.00},
+      {"Georgia", true, 12.0, 3.31, 0.25},       {"Georgia", true, 24.0, 6.63, 0.25},
+      {"Georgia", true, 62.5, 16.06, 1.00},      {"Georgia", true, 120.0, 29.94, 1.00},
+  }};
+  const auto text = QStringLiteral("HHHHHHHHHH");
+  const auto render = [&text](const Capture& capture, bool faux_bold) {
+    patchy::ui::TextToolSettings settings;
+    settings.text = text;
+    settings.family = QString::fromUtf8(capture.family);
+    settings.size = static_cast<int>(std::lround(capture.size));
+    settings.italic = capture.italic;
+    settings.photoshop_layout = true;
+    // start len size bold italic color family leading tracking hscale vscale fauxbold
+    const auto runs = QStringLiteral("v4\n0\t%1\t%2\t0\t%3\t#000000\t%4\tauto\t0\t1\t1\t%5")
+                          .arg(text.size())
+                          .arg(capture.size)
+                          .arg(capture.italic ? 1 : 0)
+                          .arg(settings.family)
+                          .arg(faux_bold ? 1 : 0);
+    const auto rendered =
+        patchy::ui::render_text_pixels_with_local_rect(settings, QColor(Qt::black), 4096, QString(), runs);
+    return coverage_ink_edges(rendered.pixels);
+  };
+  // Print every row before checking any, so a failure shows the whole table.
+  std::vector<std::pair<double, double>> gains;
+  bool all_inked = true;
+  for (const auto& capture : captures) {
+    const auto plain = render(capture, false);
+    const auto bold = render(capture, true);
+    all_inked = all_inked && plain.valid && bold.valid;
+    const auto width_gain = (bold.right - bold.left) - (plain.right - plain.left);
+    const auto height_gain = (bold.bottom - bold.top) - (plain.bottom - plain.top);
+    std::printf("  %-11s %5.1fpx  width +%.2f (photoshop +%.2f)  height +%.2f (photoshop +%.2f)\n", capture.family,
+                capture.size, width_gain, capture.photoshop_width_gain, height_gain, capture.photoshop_height_gain);
+    gains.emplace_back(width_gain, height_gain);
+  }
+  std::fflush(stdout);
+  CHECK(all_inked);
+  for (std::size_t i = 0; i < captures.size(); ++i) {
+    // Glyph origins land on whole pixels, so the ten-glyph line can round up to 1px either way.
+    CHECK(std::abs(gains[i].first - captures[i].photoshop_width_gain) <= 1.0);
+    // Below ~36px Photoshop's ink height moves in quarter pixels (+0.25 for a 0.3-0.7px stroke).
+    CHECK(std::abs(gains[i].second - captures[i].photoshop_height_gain) <= 0.6);
+  }
+}
+
 // Issue 466: faux italic (and faux bold) ticked in the Character dialog with part of a line
 // selected styles only the selected characters. "HH HH" with the second word selected: only its
 // stems lean, and the first word keeps its exact pixels; faux bold on the first word then thickens
@@ -4422,6 +4549,7 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
       {"ui_picking_bold_in_style_combo_stays_flag_expressible",
        ui_picking_bold_in_style_combo_stays_flag_expressible},
       {"ui_faux_italic_shears_the_rendered_glyphs", ui_faux_italic_shears_the_rendered_glyphs},
+      {"ui_faux_bold_widening_matches_photoshop_captures", ui_faux_bold_widening_matches_photoshop_captures},
       {"ui_faux_italic_on_a_selection_slants_only_the_selected_characters",
        ui_faux_italic_on_a_selection_slants_only_the_selected_characters},
       {"ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face",

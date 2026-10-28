@@ -140,6 +140,9 @@ public:
   Q_INVOKABLE void setTextRuns(const QJSValue& runs);
   // Renders the layer again from its stored text, with no change to the text itself.
   Q_INVOKABLE void rerenderText();
+  // The face the text engine draws each run in: the font it names and the family and style
+  // that really resolve on this machine (a probe for font-resolution differences).
+  Q_INVOKABLE QJSValue resolvedTextFonts() const;
 
   Q_INVOKABLE void moveTo(double x, double y);
   // Free Transform with a matrix or a corner quad (GitHub issue 225; patchy.d.ts).

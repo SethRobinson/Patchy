@@ -22,6 +22,7 @@
 #include <QMutexLocker>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPen>
 #include <QRawFont>
 #include <QTextBlock>
 #include <QTextBlockFormat>
@@ -43,7 +44,8 @@ double dominant_text_run_size(const TextToolSettings& settings, const QString& r
 double dominant_run_width_residual(const QTextDocument& document, double metric_scale);
 void grow_point_text_rect_to_glyph_ink(QRectF& local_rect, const QRectF& ink);
 void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRenderItem& item,
-                                    const QTransform& document_transform, QPainter& painter, bool snap = true);
+                                    const QTransform& document_transform, QPainter& painter, bool snap = true,
+                                    double strong_stroke = 0.0);
 void draw_vertical_text_plan(const TextRenderPlan& plan, QPainter& painter);
 TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const TextToolSettings& settings,
                                                const QString& rich_text_runs);
@@ -264,6 +266,25 @@ std::vector<TextDecorationRect> text_decorations_for_lines(const QTextDocument& 
   return bars;
 }
 
+// The pen a glyph-path draw strokes with: the format's faux-bold outline, widened by Strong
+// anti-aliasing's pen (TextRenderPlan::strong_stroke) when that is set, or Strong's pen alone in
+// the run's colour. Qt::NoPen when neither applies, so the glyph images draw as they are.
+QPen glyph_outline_pen(const QTextCharFormat& format, const QColor& color, double strong_stroke) {
+  auto pen = format.textOutline();
+  const bool faux_bold = pen.style() != Qt::NoPen && pen.widthF() > 0.0;
+  if (!(strong_stroke > 0.0)) {
+    return pen;
+  }
+  if (faux_bold) {
+    pen.setWidthF(pen.widthF() + strong_stroke);
+    return pen;
+  }
+  QPen strong(color, strong_stroke);
+  strong.setJoinStyle(Qt::RoundJoin);
+  strong.setCapStyle(Qt::RoundCap);
+  return strong;
+}
+
 // The glyph runs of [from, to) on `line`: Qt's own, or, for a fragment carrying OpenType
 // features (kTextRenderFeaturesFormatProperty), the fragment's text shaped with them and moved
 // onto the line where Qt's first glyph of the range starts.
@@ -301,9 +322,9 @@ QList<QGlyphRun> fragment_glyph_runs(const QTextBlock& block, const QTextLine& l
 
 }  // namespace
 
-// Photoshop's faux bold, applied to every run that carries kTextFauxBoldFormatProperty: stroke
-// the glyph outlines with a pen kFauxBoldEmFraction of the em wide and widen each advance by the
-// same amount. That is what Photoshop does -- it thickens the run's OWN face rather than
+// Photoshop's faux bold, applied to every run that carries kTextFauxBoldFormatProperty: widen
+// each advance by kFauxBoldAdvanceEmFraction of the em and stroke the glyph outlines with a pen
+// as wide, at most kFauxBoldMaxStrokePixels. That is what Photoshop does -- it thickens the run's OWN face rather than
 // switching to the family's real bold face, which is a different, wider typeface.
 //
 // Applied here rather than when the runs are parsed so it follows the format's current colour
@@ -663,8 +684,9 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
     local_rect = QRectF(0.0, 0.0, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0),
                         std::max<qreal>(1.0, std::ceil(size.height()) + 2.0));
     grow_point_text_rect_to_glyph_ink(local_rect, document_glyph_ink_rect(document));
-    if (!settings.vertical && document_needs_line_items(document)) {
-      // drawContents cannot place bars or featured glyphs; the same lines, drawn one by one, can.
+    if (!settings.vertical && (document_needs_line_items(document) || settings.anti_alias == kTextAntiAliasStrong)) {
+      // drawContents cannot place bars or featured glyphs, nor stroke Strong's outlines; the same
+      // lines, drawn one by one, can.
       line_render_items = natural_line_items(document, local_rect);
     }
   }
@@ -726,6 +748,13 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   result.document_transform = document_transform;
   result.has_document_transform = !document_transform.isIdentity();
   result.faux_italic_render = faux_italic_render;
+  if (settings.anti_alias == kTextAntiAliasStrong) {
+    // The pen is measured in document pixels, so it shrinks by the transform's area scale (a
+    // 2x scaled layer strokes 0.125 local units, which the matrix draws 0.25 px wide).
+    const auto area_scale = std::sqrt(std::abs(document_transform.determinant()));
+    result.strong_stroke =
+        kStrongAntiAliasStrokePixels / (std::isfinite(area_scale) && area_scale > 1e-6 ? area_scale : 1.0);
+  }
   return result;
 }
 
@@ -741,9 +770,11 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
 // the vertical plan does, because drawGlyphRun ignores the char format's outline.
 //
 // `snap` false draws the same runs at their fractional positions: the path a Qt-laid-out line takes
-// when a fragment on it carries OpenType features, which QTextLine::draw cannot apply.
+// when a fragment on it carries OpenType features, which QTextLine::draw cannot apply, or when
+// `strong_stroke` (Strong anti-aliasing's pen, glyph_outline_pen) has to stroke its glyphs.
 void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRenderItem& item,
-                                    const QTransform& document_transform, QPainter& painter, bool snap) {
+                                    const QTransform& document_transform, QPainter& painter, bool snap,
+                                    double strong_stroke) {
   const auto& line = item.line;
   if (!line.isValid() || line.textLength() <= 0) {
     return;
@@ -767,8 +798,8 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
     if (!color.isValid()) {
       color = QColor(Qt::black);
     }
-    const auto outline = format.textOutline();
-    const bool faux_bold = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
+    const auto outline = glyph_outline_pen(format, color, strong_stroke);
+    const bool outlined = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
     // Faux italic is a per-run flag: only this fragment's glyphs lean, sheared about the line's
     // baseline so neighbouring upright runs keep their place (issue 466).
     painter.save();
@@ -823,7 +854,7 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
         }
         const bool own_face = image_font.isValid() && image_font.familyName() == run_font.familyName();
         painter.save();
-        if (faux_bold) {
+        if (outlined) {
           painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
         } else {
           painter.setPen(color);
@@ -835,7 +866,7 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
             painter.scale(image_scale, 1.0);
           }
           const auto& glyph_font = own_face ? image_font : run_font;
-          if (faux_bold) {
+          if (outlined) {
             const auto path = glyph_font.pathForGlyph(indexes[index]);
             painter.fillPath(path, color);
             painter.strokePath(path, outline);
@@ -854,7 +885,7 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
         painter.restore();
         continue;
       }
-      if (faux_bold) {
+      if (outlined) {
         painter.save();
         painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
         const auto raw_font = run.rawFont();
@@ -881,7 +912,7 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
 // centred on the column axis with the baseline the plan computed. QPainter::drawGlyphRun keeps
 // the font engine's rasterization (hinting/antialias settings) but ignores char-format outlines,
 // so faux-bold cells fill and stroke glyph paths instead, the same stroke width
-// apply_faux_bold_to_document merged into the format.
+// apply_faux_bold_to_document merged into the format (plus Strong's pen, glyph_outline_pen).
 void draw_vertical_text_plan(const TextRenderPlan& plan, QPainter& painter) {
   for (const auto& column : plan.vertical_plan.columns) {
     for (const auto& cell : column.cells) {
@@ -910,9 +941,9 @@ void draw_vertical_text_plan(const TextRenderPlan& plan, QPainter& painter) {
       if (!color.isValid()) {
         color = QColor(Qt::black);
       }
-      const auto outline = cell.format.textOutline();
-      const bool faux_bold = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
-      if (faux_bold) {
+      const auto outline = glyph_outline_pen(cell.format, color, plan.strong_stroke);
+      const bool outlined = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
+      if (outlined) {
         painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
         for (const auto& run : runs) {
           const auto raw_font = run.rawFont();
@@ -953,10 +984,10 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
       // each faux italic run about the line's baseline; QTextLine::draw only sees upright lines.
       if (plan.pixel_align_glyphs) {
         draw_line_glyphs_pixel_aligned(document.findBlock(item.block_position), item, plan.document_transform,
-                                       painter);
+                                       painter, true, plan.strong_stroke);
       } else if (const auto block = document.findBlock(item.block_position);
-                 line_has_render_features(block, item.line)) {
-        draw_line_glyphs_pixel_aligned(block, item, plan.document_transform, painter, false);
+                 plan.strong_stroke > 0.0 || line_has_render_features(block, item.line)) {
+        draw_line_glyphs_pixel_aligned(block, item, plan.document_transform, painter, false, plan.strong_stroke);
       } else {
         item.line.draw(&painter, item.block_origin);
       }
@@ -1155,6 +1186,21 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
       for (int x = 0; x < image.width(); ++x) {
         auto* pixel = line + static_cast<std::size_t>(x) * 4U;
         pixel[3] = pixel[3] >= 128 ? 255 : 0;
+      }
+    }
+  } else if (plan.strong_stroke > 0.0) {
+    // Photoshop's 4 x 4 coverage samples miss an edge that covers less than 1/8 of a pixel, so
+    // the stroke's thinnest graze stays empty there (kStrongAntiAliasMinimumAlpha). Here it would
+    // be a faint new row or column, and the imported-text placement pins the ink's top-left corner
+    // to Photoshop's (anchored_text_transform_for_pixels): one such pixel moved the whole re-render
+    // a pixel down or right.
+    for (int y = 0; y < image.height(); ++y) {
+      auto* line = image.scanLine(y);
+      for (int x = 0; x < image.width(); ++x) {
+        auto* pixel = line + static_cast<std::size_t>(x) * 4U;
+        if (pixel[3] < kStrongAntiAliasMinimumAlpha) {
+          pixel[0] = pixel[1] = pixel[2] = pixel[3] = 0;
+        }
       }
     }
   }

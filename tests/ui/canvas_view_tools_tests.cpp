@@ -10009,6 +10009,106 @@ void ui_right_dock_floors_fit_the_screen_height() {
   patchy::ui::MainWindowTestAccess::set_available_window_height(window, 0);
 }
 
+// #213 follow-up (Seth's screenshot, October 28, 2026): a short window on a short screen with
+// the column narrower than the Layers compact width. The screen fit lowers the Layers
+// section under the panel's minimum; the panel still gets its full minimum height for its
+// width (wrapped footer included) and the overflow area scrolls vertically, so no footer
+// button or Lock-row control is squeezed, clipped or left under the sideways bar: each
+// one shows whole once scrolled to.
+void ui_right_dock_short_narrow_column_scrolls_instead_of_clipping() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  patchy::Document document(320, 240, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(320, 240, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  window.add_document_session(std::move(document), QStringLiteral("Short Column"));
+  QApplication::processEvents();
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+  auto* layers_dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("layersDock"));
+  // The panel sits in its overflow area's viewport.
+  auto* overflow = panel != nullptr && panel->parentWidget() != nullptr
+                       ? qobject_cast<QScrollArea*>(panel->parentWidget()->parentWidget())
+                       : nullptr;
+  CHECK(panel != nullptr && overflow != nullptr && panel->layout() != nullptr && layers_dock != nullptr);
+  if (panel == nullptr || overflow == nullptr || panel->layout() == nullptr || layers_dock == nullptr) {
+    return;
+  }
+  // History open too, as in the screenshot's column; then a 600 px screen and window.
+  if (auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
+      history_toggle != nullptr) {
+    history_toggle->setChecked(true);
+    QApplication::processEvents();
+  }
+  const int budget = 600;
+  patchy::ui::MainWindowTestAccess::set_available_window_height(window, budget);
+  patchy::ui::MainWindowTestAccess::fit_right_dock_floors_to_screen(window);
+  window.resize(920, budget);
+  const auto compact = patchy::ui::MainWindowTestAccess::right_dock_compact_width(window);
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, compact - 50);
+  for (int pass = 0; pass < 4; ++pass) {
+    QApplication::processEvents();
+  }
+  save_widget_artifact("ui_right_dock_short_narrow_column", window);
+  std::cout << "[INFO] window " << window.height() << " px, Layers section " << layers_dock->height()
+            << " px, viewport " << overflow->viewport()->width() << "x" << overflow->viewport()->height()
+            << ", panel " << panel->width() << "x" << panel->height() << " (minimum "
+            << panel->layout()->totalMinimumHeightForWidth(panel->width()) << ")\n";
+  CHECK(window.height() <= std::max(budget, window.minimumSizeHint().height()));
+  // Narrower than the panel: the sideways bar shows.
+  CHECK(overflow->horizontalScrollBar()->isVisible());
+  // The panel is never squeezed under its minimum for its width.
+  CHECK(panel->height() >= panel->layout()->totalMinimumHeightForWidth(panel->width()));
+  // Whatever does not fit is reachable: the scroll ranges cover the whole panel.
+  const auto* viewport = overflow->viewport();
+  CHECK(overflow->verticalScrollBar()->maximum() == std::max(0, panel->height() - viewport->height()));
+  CHECK(overflow->horizontalScrollBar()->maximum() == std::max(0, panel->width() - viewport->width()));
+  if (panel->height() > viewport->height()) {
+    CHECK(overflow->verticalScrollBar()->isVisible());
+  }
+  std::vector<QWidget*> controls;
+  for (auto* button : panel->findChildren<QAbstractButton*>()) {
+    if (button->property("layerActionButton").toBool() && button->isVisible()) {
+      controls.push_back(button);
+    }
+  }
+  CHECK(controls.size() == 8);
+  for (const auto* name : {"layerLockTransparentButton", "layerLockPixelsButton", "layerLockPositionButton",
+                           "layerLockAllButton", "layerNameFilterEdit"}) {
+    auto* control = panel->findChild<QWidget*>(QLatin1String(name));
+    CHECK(control != nullptr && control->isVisible());
+    if (control != nullptr) {
+      controls.push_back(control);
+    }
+  }
+  for (auto* control : controls) {
+    const QRect in_panel(control->mapTo(panel, QPoint()), control->size());
+    CHECK(panel->rect().contains(in_panel));
+    // Scrolled to, it shows whole inside the viewport, clear of both bars. (Not
+    // ensureWidgetVisible: for a line edit it only brings the text cursor into view.)
+    const auto scroll_to = [](QScrollBar* bar, int start, int extent, int visible) {
+      if (start < bar->value()) {
+        bar->setValue(start);
+      } else if (start + extent > bar->value() + visible) {
+        bar->setValue(start + extent - visible);
+      }
+    };
+    scroll_to(overflow->horizontalScrollBar(), in_panel.x(), in_panel.width(), viewport->width());
+    scroll_to(overflow->verticalScrollBar(), in_panel.y(), in_panel.height(), viewport->height());
+    QApplication::processEvents();
+    const QRect in_viewport(control->mapTo(viewport, QPoint()), control->size());
+    if (!viewport->rect().contains(in_viewport)) {
+      std::cout << "[INFO] " << control->objectName().toStdString() << " at " << in_viewport.x() << ","
+                << in_viewport.y() << " " << in_viewport.width() << "x" << in_viewport.height() << " in viewport "
+                << viewport->width() << "x" << viewport->height() << "\n";
+    }
+    CHECK(viewport->rect().contains(in_viewport));
+  }
+  // The footer scrolled into view, for the card.
+  overflow->horizontalScrollBar()->setValue(0);
+  overflow->verticalScrollBar()->setValue(overflow->verticalScrollBar()->maximum());
+  QApplication::processEvents();
+  save_widget_artifact("ui_right_dock_short_narrow_column_scrolled", window);
+  patchy::ui::MainWindowTestAccess::set_available_window_height(window, 0);
+}
+
 void ui_collapsed_right_docks_have_uniform_title_height() {
   auto&& [window, canvas] = ShownWindowFixture{};
   // Properties/Info/History all start collapsed (the Color and Palette group starts expanded):
@@ -10169,9 +10269,10 @@ void ui_right_dock_drags_below_content_minimum_with_scroll() {
   auto* bar = overflow->horizontalScrollBar();
   CHECK(bar->isVisible());
   CHECK(bar->maximum() > 0);
-  // Scrolled to the end, the footer's last button sits whole inside the
-  // viewport, above the scroll bar.
-  bar->setValue(bar->maximum());
+  // Scrolled to it, the footer's last button sits whole inside the viewport,
+  // above the scroll bar. It wraps to the second row's first column (#213
+  // follow-up), so bring its left edge into view.
+  bar->setValue(std::min(bar->maximum(), delete_button->mapTo(overflow->widget(), QPoint()).x()));
   QApplication::processEvents();
   const QRect delete_rect(delete_button->mapTo(overflow->viewport(), QPoint()), delete_button->size());
   CHECK(overflow->viewport()->rect().contains(delete_rect));
@@ -10543,6 +10644,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_collapsed_right_docks_keep_deep_layer_rows_readable},
       {"ui_right_dock_panels_expand_within_window_height", ui_right_dock_panels_expand_within_window_height},
       {"ui_right_dock_floors_fit_the_screen_height", ui_right_dock_floors_fit_the_screen_height},
+      {"ui_right_dock_short_narrow_column_scrolls_instead_of_clipping",
+       ui_right_dock_short_narrow_column_scrolls_instead_of_clipping},
       {"ui_collapsed_right_docks_have_uniform_title_height",
        ui_collapsed_right_docks_have_uniform_title_height},
       {"ui_tabbed_right_dock_group_collapses_as_one", ui_tabbed_right_dock_group_collapses_as_one},
