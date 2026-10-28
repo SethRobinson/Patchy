@@ -210,6 +210,7 @@ void ui_layer_context_menu_fits_short_screens() {
         exports == pixel.submenus.size() - 1);
   CHECK(!pixel.submenus.contains(QStringLiteral("layerThumbnailSizeMenu")));
   CHECK(pixel.merge == (QStringList{QStringLiteral("layerContextMergeVisibleLayersAction"), QString(),
+                                    QStringLiteral("layerMergeSelectedToNewAction"),
                                     QStringLiteral("imageFlattenAction")}));
   CHECK(pixel.rasterize == (QStringList{QStringLiteral("layerRasterizeAction"),
                                         QStringLiteral("layerRasterizeLayerStyleAction"), QStringLiteral("-"),
