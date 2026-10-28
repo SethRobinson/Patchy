@@ -29,8 +29,10 @@ captures unless noted.
   source refresh). That matters for the approximate filters below (ZigZag, Shear,
   Wave, Ripple); `ui_smart_filter_approximate_schema_stacks_keep_photoshop_pixels_on_open`
   pins it.
-- These filters have no Filter menu entry in Patchy yet: Patchy renders and edits
-  imported entries but cannot add new ones.
+- Solarize, Find Edges, Trace Contour and Diffuse have Filter > Stylize commands that run
+  these kernels and append a native entry on a Smart Object
+  ([stylize-render-filters.md](stylize-render-filters.md)); the others are imported only.
+  Patchy's own Wind, Tiles and Extrude commands write no native entry.
 
 ## Filters
 

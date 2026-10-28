@@ -103,7 +103,18 @@ const QStringList& expected_filter_gallery_ids() {
       QStringLiteral("patchy.filters.edge_detect"),
       QStringLiteral("patchy.filters.emboss"),
       QStringLiteral("patchy.filters.glowing_edges"),
+      QStringLiteral("patchy.filters.diffuse"),
+      QStringLiteral("patchy.filters.extrude"),
+      QStringLiteral("patchy.filters.find_edges"),
+      QStringLiteral("patchy.filters.solarize"),
+      QStringLiteral("patchy.filters.tiles"),
+      QStringLiteral("patchy.filters.trace_contour"),
+      QStringLiteral("patchy.filters.wind"),
       QStringLiteral("patchy.filters.clouds"),
+      QStringLiteral("patchy.filters.difference_clouds"),
+      QStringLiteral("patchy.filters.fibers"),
+      QStringLiteral("patchy.filters.flame"),
+      QStringLiteral("patchy.filters.lens_flare"),
       QStringLiteral("patchy.filters.plastic_wrap"),
   };
   return ids;
@@ -199,7 +210,13 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
         QStringLiteral("Dust & Scratches"),
         QStringLiteral("Pixel Mosaic"),    QStringLiteral("Color Halftone"),
         QStringLiteral("Edge Detect"),     QStringLiteral("Emboss"),
-        QStringLiteral("Glowing Edges"),   QStringLiteral("Clouds"),
+        QStringLiteral("Glowing Edges"),   QStringLiteral("Diffuse"),
+        QStringLiteral("Extrude"),         QStringLiteral("Find Edges"),
+        QStringLiteral("Solarize"),        QStringLiteral("Tiles"),
+        QStringLiteral("Trace Contour"),   QStringLiteral("Wind"),
+        QStringLiteral("Clouds"),          QStringLiteral("Difference Clouds"),
+        QStringLiteral("Fibers"),          QStringLiteral("Flame"),
+        QStringLiteral("Lens Flare"),
         QStringLiteral("Plastic Wrap"),
     };
     CHECK(looks->count() == expected_ids.size());
@@ -701,9 +718,9 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
         {QStringLiteral("distort"), expected_filter_gallery_ids().mid(23, 3)},
         {QStringLiteral("noise"), expected_filter_gallery_ids().mid(26, 4)},
         {QStringLiteral("pixelate"), expected_filter_gallery_ids().mid(30, 2)},
-        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(32, 3)},
-        {QStringLiteral("render"), expected_filter_gallery_ids().mid(35, 1)},
-        {QStringLiteral("artistic"), expected_filter_gallery_ids().mid(36, 1)},
+        {QStringLiteral("stylize"), expected_filter_gallery_ids().mid(32, 10)},
+        {QStringLiteral("render"), expected_filter_gallery_ids().mid(42, 5)},
+        {QStringLiteral("artistic"), expected_filter_gallery_ids().mid(47, 1)},
     }};
     for (const auto& [token, ids] : categories) {
       category->setCurrentIndex(require_combo_data_index(*category, token));
@@ -1921,6 +1938,11 @@ const QStringList& expected_smart_capable_gallery_ids() {
       QStringLiteral("patchy.filters.sharpen_more"),
       QStringLiteral("patchy.filters.average"),
       QStringLiteral("patchy.filters.sharpen_edges"),
+      QStringLiteral("patchy.filters.solarize"),
+      QStringLiteral("patchy.filters.find_edges"),
+      QStringLiteral("patchy.filters.trace_contour"),
+      QStringLiteral("patchy.filters.diffuse"),
+      QStringLiteral("patchy.filters.fibers"),
   };
   return ids;
 }

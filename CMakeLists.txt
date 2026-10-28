@@ -518,6 +518,8 @@ add_library(patchy_filters
   src/filters/smart_filter_distort_stylize.cpp
   src/filters/smart_filter_table_render.cpp
   src/filters/smart_filter_table_render.hpp
+  src/filters/stylize_render_filters.cpp
+  src/filters/stylize_render_filters.hpp
 )
 target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
@@ -2350,6 +2352,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_filter_adjustment_tests.cpp
     tests/core/smart_filter_gallery_tests.cpp
     tests/core/smart_filter_classic_tests.cpp
+    tests/core/stylize_render_filters_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
     tests/core/pdf_tests.cpp
@@ -2419,6 +2422,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/font_coverage_tests.cpp
       tests/ui/missing_fonts_tests.cpp
       tests/ui/filter_catalog_dialog_tests.cpp
+      tests/ui/stylize_render_filters_ui_tests.cpp
       tests/ui/layer_style_gradient_tests.cpp
       tests/ui/layer_style_gradient_tests_effects.cpp
       tests/ui/layer_style_gradient_tests_presets.cpp

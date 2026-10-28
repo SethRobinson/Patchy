@@ -4149,6 +4149,30 @@
         <translation>镜头晕影</translation>
     </message>
     <message>
+        <source>Extrude</source>
+        <translation>凸出</translation>
+    </message>
+    <message>
+        <source>Tiles</source>
+        <translation>拼贴</translation>
+    </message>
+    <message>
+        <source>Wind</source>
+        <translation>风</translation>
+    </message>
+    <message>
+        <source>Difference Clouds</source>
+        <translation>差值云彩</translation>
+    </message>
+    <message>
+        <source>Flame</source>
+        <translation>火焰</translation>
+    </message>
+    <message>
+        <source>Lens Flare</source>
+        <translation>镜头光晕</translation>
+    </message>
+    <message>
         <source>Other</source>
         <translation>其他</translation>
     </message>
@@ -4307,6 +4331,114 @@
     <message>
         <source>Transition Width</source>
         <translation>过渡宽度</translation>
+    </message>
+    <message>
+        <source>Blast</source>
+        <translation>大风</translation>
+    </message>
+    <message>
+        <source>Stagger</source>
+        <translation>错开</translation>
+    </message>
+    <message>
+        <source>From the Right</source>
+        <translation>从右</translation>
+    </message>
+    <message>
+        <source>From the Left</source>
+        <translation>从左</translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation>长度</translation>
+    </message>
+    <message>
+        <source>Number of Tiles</source>
+        <translation>拼贴数</translation>
+    </message>
+    <message>
+        <source>Maximum Offset</source>
+        <translation>最大位移</translation>
+    </message>
+    <message>
+        <source>Fill Gaps With</source>
+        <translation>空隙填充</translation>
+    </message>
+    <message>
+        <source>Foreground Color</source>
+        <translation>前景色</translation>
+    </message>
+    <message>
+        <source>Inverse Image</source>
+        <translation>反向图像</translation>
+    </message>
+    <message>
+        <source>Unaltered Image</source>
+        <translation>未改变的图像</translation>
+    </message>
+    <message>
+        <source>Block Shape</source>
+        <translation>块形状</translation>
+    </message>
+    <message>
+        <source>Blocks</source>
+        <translation>块</translation>
+    </message>
+    <message>
+        <source>Pyramids</source>
+        <translation>金字塔</translation>
+    </message>
+    <message>
+        <source>Heights</source>
+        <translation>高度</translation>
+    </message>
+    <message>
+        <source>Random</source>
+        <translation>随机</translation>
+    </message>
+    <message>
+        <source>Level-Based</source>
+        <translation>基于色阶</translation>
+    </message>
+    <message>
+        <source>Solid Front Faces</source>
+        <translation>实色正面</translation>
+    </message>
+    <message>
+        <source>Flare Type</source>
+        <translation>光晕类型</translation>
+    </message>
+    <message>
+        <source>Halo Ring</source>
+        <translation>光环</translation>
+    </message>
+    <message>
+        <source>Wide Streak</source>
+        <translation>宽条纹</translation>
+    </message>
+    <message>
+        <source>Colors</source>
+        <translation>颜色</translation>
+    </message>
+    <message>
+        <source>Classic Fire</source>
+        <translation>经典火焰</translation>
+    </message>
+    <message>
+        <source>Blue Gas</source>
+        <translation>蓝色燃气</translation>
+    </message>
+    <message>
+        <source>Turbulence</source>
+        <translation>湍流</translation>
+    </message>
+    <message>
+        <source>Base X</source>
+        <translation>基点 X</translation>
+    </message>
+    <message>
+        <source>Base Y</source>
+        <translation>基点 Y</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -23879,6 +24011,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>已应用 %1（按 %2 可还原）</translation>
     </message>
     <message>

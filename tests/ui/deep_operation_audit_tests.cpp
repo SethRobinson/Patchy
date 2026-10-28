@@ -149,7 +149,10 @@ const std::vector<std::string>& audit_filters() {
       "edge_detect", "emboss", "film_grain", "gaussian_blur", "glowing_edges", "grayscale", "high_pass", "invert",
       "iris_blur", "lens_blur", "median", "motion_blur", "noir", "pinch_bloat", "pixelate", "plastic_wrap",
       "posterize", "punchy_color", "radial_blur", "sepia", "sharpen", "sharpen_edges", "sharpen_more", "soft_glow",
-      "surface_blur", "threshold", "tilt_shift_blur", "twirl", "unsharp_mask", "vignette", "vintage_fade", "wave"};
+      "surface_blur", "threshold", "tilt_shift_blur", "twirl", "unsharp_mask", "vignette", "vintage_fade", "wave",
+      // GitHub issue 496.
+      "diffuse", "extrude", "find_edges", "solarize", "tiles", "trace_contour", "wind", "difference_clouds",
+      "fibers", "flame", "lens_flare"};
   return filters;
 }
 

@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <initializer_list>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -983,6 +984,20 @@ void vintage_fade(PixelBuffer& pixels) {
   film_grain(pixels);
 }
 
+// The compatibility path of a filter added after the named-parameter catalog:
+// its catalog defaults (black foreground, white background).
+PixelFilterFn catalog_defaults(const char* identifier) {
+  return [identifier](PixelBuffer& pixels) {
+    require_uint8(pixels);
+    // A registry of this one filter supplies the catalog defaults; its own
+    // compatibility entry is never called.
+    FilterRegistry registry;
+    registry.register_filter(
+        {identifier, identifier, [](PixelBuffer&) {}, builtin_filter_catalog(identifier)});
+    registry.apply(registry.default_invocation(identifier), pixels);
+  };
+}
+
 }  // namespace
 
 void register_builtin_filters(FilterRegistry& registry) {
@@ -1038,6 +1053,23 @@ void register_builtin_filters(FilterRegistry& registry) {
   add("patchy.filters.average", "Average", average);
   add("patchy.filters.sharpen_more", "Sharpen More", photoshop_sharpen_more);
   add("patchy.filters.sharpen_edges", "Sharpen Edges", photoshop_sharpen_edges);
+  // GitHub issue 496: more Stylize and Render filters, each category in
+  // alphabetical order. They have no historical legacy kernel: the
+  // compatibility path runs their catalog defaults.
+  for (const auto& [identifier, display_name] :
+       {std::pair{"patchy.filters.diffuse", "Diffuse"},
+        std::pair{"patchy.filters.extrude", "Extrude"},
+        std::pair{"patchy.filters.find_edges", "Find Edges"},
+        std::pair{"patchy.filters.solarize", "Solarize"},
+        std::pair{"patchy.filters.tiles", "Tiles"},
+        std::pair{"patchy.filters.trace_contour", "Trace Contour"},
+        std::pair{"patchy.filters.wind", "Wind"},
+        std::pair{"patchy.filters.difference_clouds", "Difference Clouds"},
+        std::pair{"patchy.filters.fibers", "Fibers"},
+        std::pair{"patchy.filters.flame", "Flame"},
+        std::pair{"patchy.filters.lens_flare", "Lens Flare"}}) {
+    add(identifier, display_name, catalog_defaults(identifier));
+  }
 }
 
 }  // namespace patchy

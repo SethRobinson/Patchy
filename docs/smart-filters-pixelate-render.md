@@ -29,8 +29,9 @@ drives everything except the pixels:
   edge clamping, also when the Smart Object is smaller than the document) and returns those
   bounds; the stack alpha-trims.
 
-These filters exist only as imported (or duplicated) entries: they have no Filter-menu action, so
-`native_smart_filter_kind_supported` makes them editable but nothing appends them.
+Only Fibers has a Filter-menu command (Render > Fibers, [stylize-render-filters.md](stylize-render-filters.md)),
+which appends a native entry on a Smart Object; the others exist only as imported (or duplicated)
+entries, editable through `native_smart_filter_kind_supported` but appended by nothing.
 
 Adding a filter: a `SmartFilterKind` value (plus its `native_smart_filter_kind_supported` case), a
 table row, a kernel branch, a capture layer in the fixture, and catalog strings.

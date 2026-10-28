@@ -15,6 +15,7 @@ std::vector<patchy::test::TestCase> font_coverage_tests();
 std::vector<patchy::test::TestCase> missing_fonts_tests();
 std::vector<patchy::test::TestCase> missing_font_type_tests();
 std::vector<patchy::test::TestCase> filter_catalog_dialog_tests();
+std::vector<patchy::test::TestCase> stylize_render_filters_ui_tests();
 std::vector<patchy::test::TestCase> layer_style_gradient_tests();
 std::vector<patchy::test::TestCase> destructive_filters_gallery_tests();
 std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests();

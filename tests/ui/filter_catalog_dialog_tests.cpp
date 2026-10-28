@@ -279,6 +279,62 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
       {"patchy.filters.average", Category::Blur, false, {}},
       {"patchy.filters.sharpen_more", Category::Sharpen, false, {}},
       {"patchy.filters.sharpen_edges", Category::Sharpen, false, {}},
+      // GitHub issue 496.
+      {"patchy.filters.diffuse", Category::Stylize, false,
+       {{"mode", "filterMode", 0, 0, 0, Unit::None, Scale::None, Kind::Option}}},
+      {"patchy.filters.extrude", Category::Stylize, false,
+       {{"type", "filterBlockShape", 0, 0, 0, Unit::None, Scale::None,
+         Kind::Option},
+        {"size", "filterSize", 2, 255, 30, Unit::Pixels, Scale::Pixels},
+        {"depth", "filterDepth", 1, 255, 30, Unit::Pixels, Scale::Pixels},
+        {"heights", "filterHeights", 0, 0, 0, Unit::None, Scale::None,
+         Kind::Option},
+        {"solid_front", "filterSolidFront", 0, 0, 0, Unit::None, Scale::None,
+         Kind::Boolean},
+        {"seed", "filterSeed", 1, 9999, 1, Unit::None}}},
+      {"patchy.filters.find_edges", Category::Stylize, false, {}},
+      {"patchy.filters.solarize", Category::Stylize, false, {}},
+      {"patchy.filters.tiles", Category::Stylize, false,
+       {{"count", "filterTileCount", 1, 99, 10, Unit::None},
+        {"max_offset", "filterMaximumOffset", 1, 99, 10, Unit::Percent},
+        {"fill", "filterFill", 0, 0, 0, Unit::None, Scale::None, Kind::Option},
+        {"seed", "filterSeed", 1, 9999, 1, Unit::None}}},
+      {"patchy.filters.trace_contour", Category::Stylize, false,
+       {{"level", "filterLevel", 0, 255, 128, Unit::None},
+        {"edge", "filterEdge", 0, 0, 0, Unit::None, Scale::None, Kind::Option}}},
+      {"patchy.filters.wind", Category::Stylize, false,
+       {{"method", "filterMethod", 0, 0, 0, Unit::None, Scale::None,
+         Kind::Option},
+        {"direction", "filterDirection", 0, 0, 0, Unit::None, Scale::None,
+         Kind::Option},
+        {"length", "filterLength", 1, 200, 40, Unit::Pixels, Scale::Pixels}}},
+      {"patchy.filters.difference_clouds", Category::Render, false,
+       {{"scale", "filterScale", 12, 512, 96, Unit::Pixels, Scale::Pixels},
+        {"detail", "filterDetail", 1, 8, 6, Unit::None},
+        {"contrast", "filterContrast", 0, 100, 40, Unit::Percent},
+        {"seed", "filterSeed", 1, 9999, 1, Unit::None}}},
+      {"patchy.filters.fibers", Category::Render, false,
+       {{"variance", "filterVariance", 1, 64, 16, Unit::None},
+        {"strength", "filterStrength", 1, 64, 4, Unit::None}}},
+      {"patchy.filters.flame", Category::Render, false,
+       {{"colors", "filterFlameColors", 0, 0, 0, Unit::None, Scale::None,
+         Kind::Option},
+        {"length", "filterLength", 5, 100, 40, Unit::Percent},
+        {"width", "filterWidth", 1, 100, 60, Unit::Percent},
+        {"turbulence", "filterTurbulence", 0, 100, 50, Unit::Percent},
+        {"seed", "filterSeed", 1, 9999, 1, Unit::None},
+        {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterXPercent},
+        {"center_y", "filterCenterY", 0, 100, 100, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterYPercent}}},
+      {"patchy.filters.lens_flare", Category::Render, false,
+       {{"lens", "filterFlareType", 0, 0, 0, Unit::None, Scale::None,
+         Kind::Option},
+        {"brightness", "filterBrightness", 10, 300, 100, Unit::Percent},
+        {"center_x", "filterCenterX", 0, 100, 30, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterXPercent},
+        {"center_y", "filterCenterY", 0, 100, 30, Unit::Percent, Scale::None,
+         Kind::Double, 0.1, Presentation::CenterYPercent}}},
   };
   return expected;
 }
@@ -305,9 +361,13 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
     CHECK(actual_filter.identifier == expected_filter.id);
     CHECK(actual_filter.catalog.category == expected_filter.category);
     CHECK(actual_filter.catalog.adjustment_only == expected_filter.adjustment_only);
-    // Clouds is the only canvas-filling (generative) filter in the catalog.
+    // The generative Render filters fill the canvas.
     CHECK(actual_filter.catalog.fills_entire_canvas ==
-          (actual_filter.identifier == "patchy.filters.clouds"));
+          (actual_filter.identifier == "patchy.filters.clouds" ||
+           actual_filter.identifier == "patchy.filters.difference_clouds" ||
+           actual_filter.identifier == "patchy.filters.fibers" ||
+           actual_filter.identifier == "patchy.filters.flame" ||
+           actual_filter.identifier == "patchy.filters.lens_flare"));
     CHECK(actual_filter.catalog.schema_version == 1U);
     CHECK(actual_filter.catalog.parameters.size() == expected_filter.parameters.size());
     CHECK(static_cast<bool>(actual_filter.catalog.execute));
@@ -527,11 +587,24 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
         QStringLiteral("filterAction_patchy_filters_color_halftone")}},
       {"filterArtisticMenu",
        {QStringLiteral("filterAction_patchy_filters_plastic_wrap")}},
+      // Stylize is alphabetical (GitHub issue 496); Render already was.
       {"filterStylizeMenu",
-       {QStringLiteral("filterAction_patchy_filters_edge_detect"),
+       {QStringLiteral("filterAction_patchy_filters_diffuse"),
+        QStringLiteral("filterAction_patchy_filters_edge_detect"),
         QStringLiteral("filterAction_patchy_filters_emboss"),
-        QStringLiteral("filterAction_patchy_filters_glowing_edges")}},
-      {"filterRenderMenu", {QStringLiteral("filterAction_patchy_filters_clouds")}},
+        QStringLiteral("filterAction_patchy_filters_extrude"),
+        QStringLiteral("filterAction_patchy_filters_find_edges"),
+        QStringLiteral("filterAction_patchy_filters_glowing_edges"),
+        QStringLiteral("filterAction_patchy_filters_solarize"),
+        QStringLiteral("filterAction_patchy_filters_tiles"),
+        QStringLiteral("filterAction_patchy_filters_trace_contour"),
+        QStringLiteral("filterAction_patchy_filters_wind")}},
+      {"filterRenderMenu",
+       {QStringLiteral("filterAction_patchy_filters_clouds"),
+        QStringLiteral("filterAction_patchy_filters_difference_clouds"),
+        QStringLiteral("filterAction_patchy_filters_fibers"),
+        QStringLiteral("filterAction_patchy_filters_flame"),
+        QStringLiteral("filterAction_patchy_filters_lens_flare")}},
   }};
   QStringList actual_submenus;
   for (const auto* action : filter_menu->actions()) {

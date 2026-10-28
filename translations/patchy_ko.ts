@@ -4303,6 +4303,30 @@
         <translation>렌즈 비네트</translation>
     </message>
     <message>
+        <source>Extrude</source>
+        <translation>돌출</translation>
+    </message>
+    <message>
+        <source>Tiles</source>
+        <translation>타일</translation>
+    </message>
+    <message>
+        <source>Wind</source>
+        <translation>바람</translation>
+    </message>
+    <message>
+        <source>Difference Clouds</source>
+        <translation>차이 구름</translation>
+    </message>
+    <message>
+        <source>Flame</source>
+        <translation>불꽃</translation>
+    </message>
+    <message>
+        <source>Lens Flare</source>
+        <translation>렌즈 플레어</translation>
+    </message>
+    <message>
         <source>Other</source>
         <translation>기타</translation>
     </message>
@@ -4461,6 +4485,114 @@
     <message>
         <source>Transition Width</source>
         <translation>전환 폭</translation>
+    </message>
+    <message>
+        <source>Blast</source>
+        <translation>강풍</translation>
+    </message>
+    <message>
+        <source>Stagger</source>
+        <translation>엇갈림</translation>
+    </message>
+    <message>
+        <source>From the Right</source>
+        <translation>오른쪽에서</translation>
+    </message>
+    <message>
+        <source>From the Left</source>
+        <translation>왼쪽에서</translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation>길이</translation>
+    </message>
+    <message>
+        <source>Number of Tiles</source>
+        <translation>타일 수</translation>
+    </message>
+    <message>
+        <source>Maximum Offset</source>
+        <translation>최대 오프셋</translation>
+    </message>
+    <message>
+        <source>Fill Gaps With</source>
+        <translation>빈 곳 채우기</translation>
+    </message>
+    <message>
+        <source>Foreground Color</source>
+        <translation>전경색</translation>
+    </message>
+    <message>
+        <source>Inverse Image</source>
+        <translation>반전 이미지</translation>
+    </message>
+    <message>
+        <source>Unaltered Image</source>
+        <translation>원본 이미지</translation>
+    </message>
+    <message>
+        <source>Block Shape</source>
+        <translation>블록 모양</translation>
+    </message>
+    <message>
+        <source>Blocks</source>
+        <translation>블록</translation>
+    </message>
+    <message>
+        <source>Pyramids</source>
+        <translation>피라미드</translation>
+    </message>
+    <message>
+        <source>Heights</source>
+        <translation>높이</translation>
+    </message>
+    <message>
+        <source>Random</source>
+        <translation>무작위</translation>
+    </message>
+    <message>
+        <source>Level-Based</source>
+        <translation>밝기 기준</translation>
+    </message>
+    <message>
+        <source>Solid Front Faces</source>
+        <translation>앞면 단색</translation>
+    </message>
+    <message>
+        <source>Flare Type</source>
+        <translation>플레어 유형</translation>
+    </message>
+    <message>
+        <source>Halo Ring</source>
+        <translation>후광 고리</translation>
+    </message>
+    <message>
+        <source>Wide Streak</source>
+        <translation>넓은 줄무늬</translation>
+    </message>
+    <message>
+        <source>Colors</source>
+        <translation>색상</translation>
+    </message>
+    <message>
+        <source>Classic Fire</source>
+        <translation>기본 불꽃</translation>
+    </message>
+    <message>
+        <source>Blue Gas</source>
+        <translation>푸른 가스</translation>
+    </message>
+    <message>
+        <source>Turbulence</source>
+        <translation>난류</translation>
+    </message>
+    <message>
+        <source>Base X</source>
+        <translation>기준점 X</translation>
+    </message>
+    <message>
+        <source>Base Y</source>
+        <translation>기준점 Y</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -22445,6 +22577,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1을(를) 적용했습니다(%2 키로 실행 취소)</translation>
     </message>
     <message>

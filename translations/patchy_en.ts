@@ -4156,6 +4156,30 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Extrude</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tiles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wind</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Difference Clouds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lens Flare</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Other</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4313,6 +4337,114 @@
     </message>
     <message>
         <source>Transition Width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blast</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stagger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>From the Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>From the Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Number of Tiles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Maximum Offset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill Gaps With</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Foreground Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inverse Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unaltered Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Block Shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blocks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pyramids</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Heights</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Random</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Level-Based</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Solid Front Faces</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flare Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Halo Ring</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wide Streak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Classic Fire</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue Gas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turbulence</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Base X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Base Y</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -23899,6 +24031,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
