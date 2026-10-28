@@ -491,10 +491,10 @@ QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
     const int left = (device.width() - side) / 2;
     const int top = (device.height() - side) / 2;
     const bool large = side >= qRound(16.0 * ratio);
-    constexpr qreal grid = 16.0;
+    static constexpr qreal grid = 16.0;
     const qreal unit = side / grid;
     // The button design rounds from the nearer edge, so its glyphs stay mirror-symmetric at 150%.
-    const auto px = [unit, large, grid, side](qreal at) {
+    const auto px = [unit, large, side](qreal at) {
       if (large && at > grid / 2.0) {
         return side - qRound((grid - at) * unit);
       }
