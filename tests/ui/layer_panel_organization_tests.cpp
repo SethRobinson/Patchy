@@ -4481,8 +4481,8 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
 }
 
 // GitHub issue 199: below the width the column opens at, the Layers panel
-// rows wrap instead of clipping: the footer buttons narrow and then wrap four
-// over four, Fill drops under Opacity, and the name filter takes a line of its
+// rows wrap instead of clipping: the footer buttons narrow and then wrap one
+// at a time (#213 follow-up), Fill drops under Opacity, and the name filter takes a line of its
 // own. The compact width (every row wrapped) sits far under the opening width,
 // and there every control is whole, apart, and inside the panel, with no
 // sideways scroll. Narrower than that the panel scrolls sideways.

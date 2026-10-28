@@ -1749,11 +1749,12 @@ void ui_layer_footer_wraps_one_button_at_a_time() {
     patchy::ui::set_stored_layer_footer_icon_size(size);
     for (const bool all_buttons : {false, true}) {
       auto&& [window, canvas] = ShownWindowFixture{};
+      // Applying stores it, so the default is applied too.
+      ToolPaletteCustomization customization;
       if (all_buttons) {
-        auto customization = window.tool_palette_customization();
         customization.hidden_layer_buttons.clear();
-        window.apply_tool_palette_customization(customization);
       }
+      window.apply_tool_palette_customization(customization);
       settle();
       auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
       CHECK(panel != nullptr);
