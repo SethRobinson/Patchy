@@ -79,7 +79,9 @@
 #include <QSpinBox>
 #include <QImage>
 #include <QDialogButtonBox>
+#include <QScreen>
 #include <QScrollArea>
+#include <QSizeGrip>
 #include <QStandardItemModel>
 #include <QTabWidget>
 #include <QTimer>
@@ -2178,6 +2180,116 @@ void ui_custom_shape_picker_grid_view_picks_and_folds() {
     return;
   }
   CHECK(tree_of(popup)->isVisible() && !grid_of(popup)->isVisible());
+  close_popup();
+}
+
+// How many cells share the first row of `folder`'s cells in a Shapes grid.
+int shape_grid_first_row_columns(patchy::ui::PresetGridWidget& grid, const QString& folder) {
+  const auto cells = shape_grid_folder_cells(grid, folder);
+  if (cells.empty()) {
+    return 0;
+  }
+  const auto top = grid.visualItemRect(cells.front()).top();
+  return static_cast<int>(std::count_if(cells.begin(), cells.end(), [&](QListWidgetItem* cell) {
+    return !cell->isHidden() && grid.visualItemRect(cell).top() == top;
+  }));
+}
+
+void ui_custom_shape_picker_resizes_and_remembers_its_size() {
+  // Seth (desk, October 28, 2026): the Shape picker's dropdown resizes from its corner grip,
+  // the grid gains columns when it widens, and the size comes back on the next opening,
+  // clamped to the screen.
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  SettingsValueRestorer saved_collapsed{QString::fromLatin1(patchy::ui::kCustomShapePickerCollapsedFoldersKey)};
+  SettingsValueRestorer saved_view{QString::fromLatin1(patchy::ui::kCustomShapePickerGridViewKey)};
+  SettingsValueRestorer saved_size{QString::fromLatin1(patchy::ui::kCustomShapePickerSizeKey)};
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey));
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerGridViewKey));
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerSizeKey));
+  // The clamp on its own: the default for no stored size, the minimum, and the screen.
+  CHECK(patchy::ui::custom_shape_picker_popup_size({}, QSize(1920, 1080)) ==
+        QSize(patchy::ui::kCustomShapePickerDefaultWidth, patchy::ui::kCustomShapePickerDefaultHeight));
+  CHECK(patchy::ui::custom_shape_picker_popup_size(QSize(50, 40), QSize(1920, 1080)) ==
+        QSize(patchy::ui::kCustomShapePickerMinimumWidth, patchy::ui::kCustomShapePickerMinimumHeight));
+  CHECK(patchy::ui::custom_shape_picker_popup_size(QSize(5000, 4000), QSize(1280, 700)) == QSize(1280, 700));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  auto* picker = dynamic_cast<patchy::ui::CustomShapePickerCombo*>(combo);
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return;
+  }
+  combo->setCurrentIndex(combo->findData(QStringLiteral("shape.builtin.heart")));
+  QApplication::processEvents();
+  const auto open_popup = [&]() -> QFrame* {
+    picker->showPopup();
+    QApplication::processEvents();
+    auto* popup = picker->picker_popup();
+    CHECK(popup != nullptr && popup->isVisible());
+    return popup;
+  };
+  const auto close_popup = [&] {
+    if (auto* popup = picker->picker_popup(); popup != nullptr) {
+      popup->close();
+    }
+    QApplication::processEvents();
+    QTest::qWait(300);  // past the reopen guard
+  };
+  const auto grid_of = [](QFrame* popup) {
+    return static_cast<patchy::ui::PresetGridWidget*>(popup->findChild<QListWidget*>(QStringLiteral("customShapeComboGrid")));
+  };
+
+  auto* popup = open_popup();
+  if (popup == nullptr) {
+    return;
+  }
+  CHECK(popup->findChild<QSizeGrip*>(QStringLiteral("customShapeComboSizeGrip")) != nullptr);
+  const auto first_size = popup->size();
+  CHECK(first_size.width() >= patchy::ui::kCustomShapePickerDefaultWidth);
+  auto* grid = grid_of(popup);
+  CHECK(grid != nullptr);
+  if (grid == nullptr) {
+    return;
+  }
+  const auto columns_before = shape_grid_first_row_columns(*grid, QStringLiteral("Symbols"));
+  // Wider and taller, as a drag on the grip does: the grid gets more columns and the height.
+  const auto* screen = picker->screen();
+  const auto available = screen != nullptr ? screen->availableGeometry().size() : QSize(1024, 768);
+  const QSize enlarged(std::min(first_size.width() + 220, available.width()),
+                       std::min(first_size.height() + 60, available.height()));
+  popup->resize(enlarged);
+  QApplication::processEvents();
+  QTest::qWait(150);  // the list relayouts on a short timer after a resize
+  QApplication::processEvents();
+  const auto columns_after = shape_grid_first_row_columns(*grid, QStringLiteral("Symbols"));
+  CHECK(columns_before > 0);
+  CHECK(columns_after > columns_before);
+  CHECK(grid->height() > 300);
+  grid->scrollToTop();
+  QApplication::processEvents();
+  save_widget_artifact("ui_custom_shape_picker_resized", *popup);
+  close_popup();
+  CHECK(patchy::ui::app_settings().value(QLatin1String(patchy::ui::kCustomShapePickerSizeKey)).toSize() == enlarged);
+  // The next opening comes back at that size.
+  popup = open_popup();
+  if (popup == nullptr) {
+    return;
+  }
+  CHECK(popup->size() == enlarged);
+  close_popup();
+  // A size stored on a larger screen opens within this one.
+  patchy::ui::app_settings().setValue(QLatin1String(patchy::ui::kCustomShapePickerSizeKey), QSize(20000, 15000));
+  popup = open_popup();
+  if (popup == nullptr) {
+    return;
+  }
+  CHECK(popup->width() <= available.width() && popup->height() <= available.height());
+  if (screen != nullptr) {
+    CHECK(screen->availableGeometry().contains(popup->frameGeometry().topLeft()));
+  }
   close_popup();
 }
 
@@ -7267,6 +7379,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_custom_shape_manager_grid_view_toggles_and_organizes",
        ui_custom_shape_manager_grid_view_toggles_and_organizes},
       {"ui_custom_shape_picker_grid_view_picks_and_folds", ui_custom_shape_picker_grid_view_picks_and_folds},
+      {"ui_custom_shape_picker_resizes_and_remembers_its_size", ui_custom_shape_picker_resizes_and_remembers_its_size},
       {"ui_edit_define_menu_holds_the_define_commands", ui_edit_define_menu_holds_the_define_commands},
       {"ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes",
        ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes},

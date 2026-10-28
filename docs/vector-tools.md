@@ -114,7 +114,12 @@ grid matches the tree's selection (a selected header is its folder's shapes),
 filter, collapse memory and drop-onto-folder rules, and lists unfiled shapes
 before the folders. Switching keeps the current shape, the closed folders and
 the search; the view persists in `tools/customShapeManagerGridView` and
-`tools/customShapePickerGridView`.
+`tools/customShapePickerGridView`. The picker popup resizes from a corner
+`VisibleSizeGrip` (the Brush Tip and Font pickers' grip; a frameless Qt::Popup
+has no border to drag) and the grid reflows to the width; closing stores the size
+in `tools/customShapePickerSize`, and each opening clamps it to the minimum and
+the screen's available geometry (`custom_shape_picker_popup_size`, also the
+popup's maximum).
 
 ### Photoshop .csh files
 

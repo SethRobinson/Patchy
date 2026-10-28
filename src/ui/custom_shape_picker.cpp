@@ -12,6 +12,7 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QScreen>
 #include <QSettings>
 #include <QTimer>
 #include <QToolButton>
@@ -52,7 +53,31 @@ private:
   std::function<void()> pick_first_;
 };
 
+// The popup is a frameless Qt::Popup resized through its corner grip; closing it, by a pick or
+// by a click outside, stores the size for the next opening.
+class SizeRememberingPopup final : public QFrame {
+public:
+  using QFrame::QFrame;
+
+protected:
+  void closeEvent(QCloseEvent* event) override {
+    app_settings().setValue(QLatin1String(kCustomShapePickerSizeKey), size());
+    QFrame::closeEvent(event);
+  }
+};
+
 }  // namespace
+
+QSize custom_shape_picker_popup_size(QSize wanted, const QSize& available) {
+  if (!wanted.isValid() || wanted.isEmpty()) {
+    wanted = QSize(kCustomShapePickerDefaultWidth, kCustomShapePickerDefaultHeight);
+  }
+  wanted = wanted.expandedTo(QSize(kCustomShapePickerMinimumWidth, kCustomShapePickerMinimumHeight));
+  if (available.isValid() && !available.isEmpty()) {
+    wanted = wanted.boundedTo(available);
+  }
+  return wanted;
+}
 
 CustomShapePickerCombo::CustomShapePickerCombo(std::function<const CustomShapeLibrary*()> library,
                                                std::function<void()> manage, QWidget* parent)
@@ -78,7 +103,7 @@ void CustomShapePickerCombo::showPopup() {
     QComboBox::showPopup();
     return;
   }
-  auto* popup = new QFrame(this, Qt::Popup);
+  auto* popup = new SizeRememberingPopup(this, Qt::Popup);
   popup->setAttribute(Qt::WA_DeleteOnClose);
   popup->setObjectName(QStringLiteral("customShapeComboPopup"));
   popup->setFrameShape(QFrame::StyledPanel);
@@ -155,7 +180,14 @@ void CustomShapePickerCombo::showPopup() {
   auto* manage = new QPushButton(QObject::tr("Shapes Manager..."), popup);
   manage->setObjectName(QStringLiteral("customShapeComboManageButton"));
   manage->setAutoDefault(false);
-  layout->addWidget(manage);
+  auto* bottom_row = new QHBoxLayout();
+  bottom_row->setSpacing(2);
+  bottom_row->addWidget(manage, 1);
+  // A frameless popup has no native border to drag; the grip resizes it (Seth, October 28, 2026).
+  auto* grip = new VisibleSizeGrip(popup);
+  grip->setObjectName(QStringLiteral("customShapeComboSizeGrip"));
+  bottom_row->addWidget(grip, 0, Qt::AlignBottom);
+  layout->addLayout(bottom_row);
 
   const auto pick = [this, popup, library](const QString& storage_id) {
     const auto* entry = library->find_entry(storage_id);
@@ -202,7 +234,19 @@ void CustomShapePickerCombo::showPopup() {
     }
   });
 
-  popup->resize(std::max(width(), 300), 440);
+  // The stored size (first opening: the default, at least the combo's width), clamped to the
+  // screen; the grip cannot drag it past the screen either.
+  const auto* screen = this->screen();
+  const auto available = screen != nullptr ? screen->availableGeometry().size() : QSize();
+  popup->setMinimumSize(kCustomShapePickerMinimumWidth, kCustomShapePickerMinimumHeight);
+  if (available.isValid() && !available.isEmpty()) {
+    popup->setMaximumSize(available.expandedTo(popup->minimumSize()));
+  }
+  auto stored = app_settings().value(QLatin1String(kCustomShapePickerSizeKey)).toSize();
+  if (!stored.isValid()) {
+    stored = QSize(std::max(width(), kCustomShapePickerDefaultWidth), kCustomShapePickerDefaultHeight);
+  }
+  popup->resize(custom_shape_picker_popup_size(stored, available));
   position_popup_below(*this, *popup);
   popup->show();
   filter->setFocus(Qt::PopupFocusReason);
