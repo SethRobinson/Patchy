@@ -1832,9 +1832,9 @@ void ui_tool_palette_dialog_layer_button_presets() {
   CHECK(window.tool_palette_customization() == ToolPaletteCustomization{});
 }
 
-// GitHub issue 470 follow-up: Move Layer Up and Down are an arrow beside a layer stack and
-// Merge Down two layers joining into one, drawn in the icon ink and accent roles, so both
-// show at every footer icon size in Dark and Light. Saves the sheet the card shows.
+// GitHub issue 470 follow-up: Move Layer Up and Down (a layer and an arrow) and Merge Down (a
+// three-layer stack, the bottom layer in the accent) draw in the icon ink and accent roles, so
+// both show at every footer icon size in Dark and Light. Saves the sheet the card shows.
 void ui_layer_footer_arrange_icons_draw_in_both_schemes() {
   const char* const names[] = {"layer-up", "layer-down", "merge-down"};
   constexpr int kCell = 44;
@@ -1878,6 +1878,22 @@ void ui_layer_footer_arrange_icons_draw_in_both_schemes() {
         sheet_painter.drawImage(QPoint(column * kCell + (kCell - extent) / 2, scheme_row * kCell + (kCell - extent) / 2),
                                 image);
         ++column;
+      }
+    }
+    sheet_painter.end();
+    // The footer with every button shown, the three among the others.
+    {
+      CustomizationSettingsGuard settings_guard;
+      auto&& [window, canvas] = ShownWindowFixture{};
+      ToolPaletteCustomization customization;
+      customization.hidden_layer_buttons.clear();
+      window.apply_tool_palette_customization(customization);
+      settle();
+      if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel")); panel != nullptr) {
+        (void)capture_widget_artifact(
+            std::string("ui_layer_footer_arrange_buttons_") +
+                (scheme == patchy::ui::ColorSchemePreference::Dark ? "dark" : "light"),
+            *panel);
       }
     }
     ++scheme_row;
