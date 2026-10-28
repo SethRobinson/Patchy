@@ -218,8 +218,6 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
                            QT_TR_NOOP("Subtract Pixels from Selection"), QT_TR_NOOP("Intersect Pixels with Selection")},
                           QStringLiteral("layerThumbnailPixels"));
     add_export_menu();
-    add_layer_thumbnail_size_menu(&menu);  // after its own separator
-    add_layer_thumbnail_bounds_actions(&menu);
   } else {
     menu.setObjectName(raster_mask ? QStringLiteral("layerMaskThumbnailMenu")
                                    : QStringLiteral("layerVectorMaskThumbnailMenu"));
@@ -275,6 +273,8 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
                           QStringLiteral("layerMaskThumbnail"));
     add_export_menu();
   }
+  // Every thumbnail's own menu ends with how thumbnails are drawn (#481).
+  add_layer_thumbnail_view_menus(&menu);
   hide_menu_action_icons(&menu);
   menu.exec(layer_list_->viewport()->mapToGlobal(viewport_position));
   return true;

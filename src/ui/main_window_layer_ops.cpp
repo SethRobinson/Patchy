@@ -4234,6 +4234,11 @@ void MainWindow::add_layer_thumbnail_bounds_actions(QMenu* menu) {
   }
 }
 
+void MainWindow::add_layer_thumbnail_view_menus(QMenu* menu) {
+  add_layer_thumbnail_size_menu(menu);  // after its own separator
+  add_layer_thumbnail_bounds_actions(menu);
+}
+
 void MainWindow::set_zoom_layer_thumbnails_to_content(bool zoom) {
   add_layer_thumbnail_bounds_actions(nullptr);
   if (zoom == zoom_layer_thumbnails_to_content_) {
