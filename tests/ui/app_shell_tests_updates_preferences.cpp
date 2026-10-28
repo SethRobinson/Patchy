@@ -2146,6 +2146,79 @@ void ui_preferences_dialog_resizes_and_remembers_its_size() {
 
 // GitHub issue 451: the pages are listed down the left, the arrow keys move through them,
 // and the dialog reopens on the page it was closed on (Hotkeys when asked for it).
+void ui_preferences_presets_page_opens_each_manager() {
+  // Seth, October 28, 2026 (GitHub issue 485): a Presets page with one button per preset
+  // manager, in Edit > Presets' order and groups, opening the same dialogs over Preferences.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  ColorSchemeRestorer restore_scheme;
+  const std::vector<std::pair<const char*, QString>> dialogs{
+      {"preferencesPresetsStylesButton", QStringLiteral("styleManagerDialog")},
+      {"preferencesPresetsBrushTipsButton", QStringLiteral("brushTipManagerDialog")},
+      {"preferencesPresetsSavedBrushesButton", QStringLiteral("brushPresetManager")},
+      {"preferencesPresetsGradientsButton", QStringLiteral("gradientManagerDialog")},
+      {"preferencesPresetsPatternsButton", QStringLiteral("patternManagerDialog")},
+      {"preferencesPresetsCustomShapesButton", QStringLiteral("customShapeManagerDialog")}};
+  for (const auto preference :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const bool dark = preference == patchy::ui::ColorSchemePreference::Dark;
+    run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+      CHECK(select_preferences_page(dialog, QStringLiteral("Presets")));
+      QApplication::processEvents();
+      auto* page = preferences_current_page(dialog);
+      CHECK(page != nullptr);
+      if (page == nullptr) {
+        return;
+      }
+      // One button per entry, labelled like the menu, top to bottom in menu order, all one width.
+      const auto& entries = patchy::ui::MainWindow::preset_manager_entries();
+      CHECK(entries.size() == dialogs.size());
+      int previous_y = -1;
+      int width = -1;
+      for (std::size_t index = 0; index < entries.size(); ++index) {
+        auto* button = dialog.findChild<QPushButton*>(QLatin1String(entries[index].button_object_name));
+        auto* action = window.findChild<QAction*>(QLatin1String(entries[index].action_object_name));
+        CHECK(button != nullptr && action != nullptr);
+        if (button == nullptr || action == nullptr) {
+          continue;
+        }
+        CHECK(page->isAncestorOf(button));
+        CHECK(QLatin1String(entries[index].button_object_name) == QLatin1String(dialogs[index].first));
+        CHECK(button->text() == action->text());
+        const auto y = button->mapTo(page, QPoint(0, 0)).y();
+        CHECK(y > previous_y);
+        previous_y = y;
+        CHECK(width < 0 || button->width() == width);
+        width = button->width();
+      }
+      (void)capture_widget_artifact(dark ? "ui_preferences_presets_page_dark" : "ui_preferences_presets_page_light",
+                                    dialog);
+      if (!dark) {
+        return;
+      }
+      // Each button opens its manager as a child of Preferences.
+      for (const auto& [button_name, dialog_name] : dialogs) {
+        auto* button = dialog.findChild<QPushButton*>(QLatin1String(button_name));
+        if (button == nullptr) {
+          continue;
+        }
+        bool opened = false;
+        QTimer::singleShot(0, [&, name = dialog_name] {
+          auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(name));
+          opened = manager != nullptr && manager->parentWidget() == &dialog;
+          if (manager != nullptr) {
+            manager->reject();
+          }
+        });
+        button->click();
+        QApplication::processEvents();
+        CHECK(opened);
+      }
+    });
+  }
+}
+
 void ui_preferences_page_list_switches_pages_and_remembers_the_last() {
   SettingsValueRestorer restore_page(QStringLiteral("preferences/lastPage"));
   {
@@ -3452,6 +3525,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_preferences_wheel_over_unfocused_control_scrolls_the_page", ui_preferences_wheel_over_unfocused_control_scrolls_the_page},
       {"ui_recent_filter_matches_file_names_and_extensions", ui_recent_filter_matches_file_names_and_extensions},
       {"ui_preferences_dialog_resizes_and_remembers_its_size", ui_preferences_dialog_resizes_and_remembers_its_size},
+      {"ui_preferences_presets_page_opens_each_manager", ui_preferences_presets_page_opens_each_manager},
       {"ui_preferences_page_list_switches_pages_and_remembers_the_last",
        ui_preferences_page_list_switches_pages_and_remembers_the_last},
       {"ui_preferences_interval_combos_fit_their_longest_entry", ui_preferences_interval_combos_fit_their_longest_entry},

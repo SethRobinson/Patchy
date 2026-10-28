@@ -1416,10 +1416,11 @@ CustomShapeLibrary& MainWindow::custom_shape_library() {
   return *custom_shape_library_;
 }
 
-void MainWindow::open_custom_shape_manager() {
+void MainWindow::open_custom_shape_manager(QWidget* parent) {
   const auto initial =
       custom_shape_combo_ != nullptr ? custom_shape_combo_->currentData().toString() : QString();
-  const auto storage_id = request_custom_shape_manager(this, custom_shape_library(), initial);
+  const auto storage_id =
+      request_custom_shape_manager(parent != nullptr ? parent : this, custom_shape_library(), initial);
   const auto* entry = custom_shape_library().find_entry(storage_id);
   if (entry == nullptr || custom_shape_combo_ == nullptr) {
     return;
