@@ -13526,6 +13526,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Target: no plane yet</source>
         <translation>Destinazione: ancora nessun piano</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>Dimensione icone:</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>Dimensione dei pulsanti del pannello Livelli, rispetto alla scala dell&apos;interfaccia.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

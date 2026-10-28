@@ -13526,6 +13526,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Target: no plane yet</source>
         <translation>Cible : pas encore de plan</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>Taille des icônes :</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>Taille des boutons du panneau Calques, par rapport à l&apos;échelle de l&apos;interface.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

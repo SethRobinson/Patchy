@@ -13526,6 +13526,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Target: no plane yet</source>
         <translation>Ziel: noch keine Ebene</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>Symbolgröße:</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>Größe der Schaltflächen des Ebenen-Bedienfelds, relativ zur Oberflächenskalierung.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

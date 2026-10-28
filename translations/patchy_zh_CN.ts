@@ -13489,6 +13489,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation>目标：尚无平面</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>图标大小:</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>图层面板按钮的大小，相对于界面缩放。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

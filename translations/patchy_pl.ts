@@ -13563,6 +13563,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Target: no plane yet</source>
         <translation>Cel: jeszcze brak płaszczyzny</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>Rozmiar ikon:</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>Rozmiar przycisków panelu Warstwy względem skali interfejsu.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

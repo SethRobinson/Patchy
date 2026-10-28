@@ -18,6 +18,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -129,11 +130,13 @@ struct ToolPaletteCatalog {
   QIcon screen_mode_icon;
 };
 
-// What the dialog edits: the customization, and the two Preferences settings it also shows.
+// What the dialog edits: the customization, the two Preferences settings it also shows, and
+// the Layers footer's own icon size (layersPanel/footerIconSize, app_settings.hpp).
 struct ToolPaletteDialogChoice {
   ToolPaletteCustomization customization;
   ToolbarIconSize icon_size{ToolbarIconSize::Normal};
   ToolFlyoutOpenMode flyout_open_mode{ToolFlyoutOpenMode::Hold};
+  ToolbarIconSize layer_icon_size{ToolbarIconSize::Normal};
 };
 
 // Translated names of the Preferences choices, shared by Preferences and the dialog.
@@ -145,9 +148,13 @@ enum class ToolPaletteCustomizeTab { Tools, LayerButtons };
 // The Customize Tool Palette dialog (non-modal, run_non_modal_dialog). Returns the choice on
 // OK, nothing on Cancel. Its icon size and tool group combos are named
 // toolPaletteIconSizeCombo and toolPaletteFlyoutOpenCombo (item data: the stored token), so
-// an open dialog can follow a change made in Preferences.
+// an open dialog can follow a change made in Preferences. The Layers buttons tab's icon size
+// combo is layerFooterIconSizeCombo; while the dialog is open each pick there goes to
+// `preview_layer_icon_size` (when set) so the footer shows it at once, and Cancel sends the
+// size the dialog opened with.
 [[nodiscard]] std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(
     QWidget* parent, const ToolPaletteCatalog& catalog, const ToolPaletteDialogChoice& current,
-    ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools);
+    ToolPaletteCustomizeTab tab = ToolPaletteCustomizeTab::Tools,
+    const std::function<void(ToolbarIconSize)>& preview_layer_icon_size = {});
 
 }  // namespace patchy::ui

@@ -13526,6 +13526,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Target: no plane yet</source>
         <translation>Destino: aún no hay plano</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>Tamaño de los iconos:</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>Tamaño de los botones del panel Capas, relativo a la escala de la interfaz.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

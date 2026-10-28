@@ -13526,6 +13526,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Target: no plane yet</source>
         <translation>Destino: ainda não há plano</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>Tamanho dos ícones:</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>Tamanho dos botões do painel Camadas, em relação à escala da interface.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

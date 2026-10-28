@@ -13489,6 +13489,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation>대상: 아직 평면 없음</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>아이콘 크기:</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>레이어 패널 버튼의 크기입니다. 인터페이스 배율을 기준으로 합니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

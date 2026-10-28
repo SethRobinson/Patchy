@@ -13509,6 +13509,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

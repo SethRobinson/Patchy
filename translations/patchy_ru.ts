@@ -13563,6 +13563,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation>Цель: плоскости пока нет</translation>
     </message>
+    <message>
+        <source>Icon size:</source>
+        <translation>Размер значков:</translation>
+    </message>
+    <message>
+        <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
+        <translation>Размер кнопок панели «Слои» относительно масштаба интерфейса.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
