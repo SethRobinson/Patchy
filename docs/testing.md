@@ -107,6 +107,156 @@ On macOS a menu popped up with `QMenu::popup` leaves the window's shortcuts unma
 - Tests that enable `imports/showPsdWarningsAndInfo` need a repeating QTimer notice dismisser. A one-shot can fire during open progress and leave the suite hung; see [file-formats.md](file-formats.md) under Import notices.
 - Platform-specific skips and their reasons are maintained in [platform.md](platform.md).
 
+## README screenshots
+
+`scripts\make-readme-screenshots.ps1` regenerates `docs/images/screenshots/`. The current
+showcase, per-image inputs, and regeneration commands are listed in
+[readme-showcase.md](readme-showcase.md). KPT is an explicit driver scene
+(`-Scene plugin_kpt5`, or `-IncludeLegacyPlugins` for a full run) using an isolated
+portable host and fixture copy; it combines direct Patchy and plug-in window captures.
+Two pipelines:
+
+- **Script-driven scenes** (`scripts/dev/readme-shots/*.js`, listed in the driver's
+  `$jsScenes` table): a fresh unattended `patchy.exe --run-script` run stages the UI with the
+  `patchy.ui` staging APIs on the REAL windows platform, so every installed font renders
+  (offscreen enumerates none). The driver pins DPI (`QT_ENABLE_HIGHDPI_SCALING=0`,
+  `QT_FONT_DPI=96`), sets `PATCHY_NO_SINGLE_INSTANCE=1`, and isolates settings with
+  `PATCHY_SETTINGS_DIR`, so a run never touches the user's Patchy state. The window shows
+  on screen for a few seconds per scene.
+- **Offscreen test scenes** (everything not yet migrated): the `shot_readme_*` scenes in
+  `patchy_ui_visual_tests` run offscreen and their artifacts are copied out. New scenes should
+  be authored as scripts in the first pipeline; the remaining test scenes migrate over time and
+  stay in the suite as regression smoke tests either way (the driver skips copying a test
+  artifact whose scene has a script-driven owner). Scenes that picture a modal dialog the
+  scripting surface cannot open stay here permanently: `shot_readme_image_trace` captures the
+  Trace Image to Shapes dialog, which `layer.traceToShapes` bypasses and `app.runCommand`
+  would block a script on; `shot_readme_long_shadow` opens the Layer Style dialog
+  beside generated editable text with a live continuous shadow.
+
+`scripts/dev/readme-shots/plugin-dialog.js` (driver scene `plugin_dialog`) produces
+`docs/images/screenshots/plugin_dialog.png`, the dialog of a third-party 8bf plug-in
+(Mehdi's Absolute Color from `local-test-fixtures/photoshop-plugins/mehdi`) captured through
+`layer.applyPlugin(id, {captureDialog})` on Windows. The plug-in is not committed, so the
+driver skips the scene with a `[SKIP]` line where that folder is missing; its window-targeted
+capture and automatic dialog answers are authorized Patchy automation, not desktop control.
+
+Both pipelines round the corners of the window they captured, because DWM rounds Patchy's
+frameless windows in the compositor and a `QWidget::grab()` is therefore square. The offscreen
+side does it in `save_readme_shot` and `draw_readme_overlay` (which also rounds the shadow it
+fakes under a composited dialog); the driver does it to the script-driven PNGs in
+`Set-RoundedWindowCorners`. Both use 8 px, `DWMWCP_ROUND`'s radius at 96 DPI, and leave the
+corner pixels transparent so a shot reads as a window on a light or dark page. Change the
+radius in both places or the two pipelines drift.
+
+## Native visual QA and app-driving commands
+
+The permission rule is in AGENTS.md: automation confined to Patchy and its hosted
+plug-in windows (KPT included) is authorized; desktop screenshots (even cropped),
+global input (`SendInput`, cursor moves), Computer Use, and other applications need
+explicit authorization in the current request, and an MCP wrapper does not change
+that. Drive Patchy through its scripting, CLI, MCP, or messages targeted to its own
+windows; `patchy.ui.captureWindow`, `QWidget::grab`, and the plug-in helper's
+`PrintWindow` capture only the intended windows.
+
+Keep unattended runs in task-owned instances with isolated settings, offscreen where
+possible. Permission for Patchy input never covers discarding unsaved work, closing
+the user's running app/connector, or stopping unrelated processes.
+
+`patchy-mcp --attach` connects to an already-running interactive Patchy; use it
+only when authorized to control that workspace. For automated attachment tests,
+launch a test-owned app with `QT_QPA_PLATFORM=offscreen`, isolated
+`PATCHY_SETTINGS_DIR`, and a unique `PATCHY_MCP_ENDPOINT` shared with the proxy.
+Do not pass `--headless`: it deliberately disables attachment. `ui_mcp` covers
+state guards, input locking, cancellation, reconnect, and unsaved history.
+
+For persistent background editing use `patchy-mcp`, which owns an isolated
+offscreen workspace. When a task needs its own visible Patchy workspace,
+`patchy-mcp --visible` runs the same protocol visibly under the rules above.
+`patchy-mcp --check` validates native strokes, previews, and
+the assembled control kit from its installed location. See [ai-control.md](ai-control.md).
+The UI filter `ui_script_automation` covers native stroke parity, pressure,
+selection, palette snapping, history, stale IDs, and Unicode preview output.
+
+The standard-client integration test uses a development-only Python 3.10+
+environment:
+
+```powershell
+python -m venv .deps/mcp-client
+.deps/mcp-client/Scripts/python -m pip install 'mcp>=1.26,<2'
+cmd /s /c 'scripts\run-throttled.bat .deps\mcp-client\Scripts\python.exe tests\mcp_client_tests.py build\release\patchy-mcp.exe'
+```
+
+Run from the repository root; artifacts stay under `test-artifacts/mcp`. The test
+uses only owned offscreen processes and also accepts a staged package's connector
+(resource discovery without source-relative paths). The shipped connector needs no Python.
+Mac host: `.deps/mcp-client-py312/bin/python` (system Python 3.9 cannot install the MCP
+dependency); linux host: `.deps/mcp-client/bin/python`; run
+`nice -n 10 <python> tests/mcp_client_tests.py <connector>` from the remote repository root.
+The suite covers owned and attached workspaces, competing clients, cancellation,
+disconnect cleanup, app restart, stale tokens, and shared history; Unix crash
+simulations remove their own sockets.
+Pass `--attachment-recovery-only` after the connector path to reproduce offline
+discovery, late app startup, restart with fresh state tokens, and interruption
+without replay. This test owns its offscreen apps and requires no prior artifacts.
+The client suite also checks `--visible` option handling and mode/preview metadata on an
+explicit offscreen backend. A real visible smoke test may use a task-owned Patchy instance
+under the rules above.
+On Linux it also holds a fake desktop bus open without answering and verifies that
+headless scripting and an immediately closed MCP client still exit promptly.
+After installing the current Flatpak user bundle, run `nice -n 10 .deps/mcp-client/bin/python
+tests/flatpak_mcp_tests.py` from the host. This launches the app and connector in
+separate sandboxes with the default endpoint, verifies an owned document before
+editing, and checks preview and unsaved reconnect. Close any existing Patchy Flatpak first; the test refuses
+to run alongside it and removes only its own processes and runtime socket.
+The host session must set `XDG_RUNTIME_DIR`; the test forwards it through the MCP
+SDK's filtered subprocess environment so both launchers use the same runtime mount.
+Pass `--recent-history-only` after the connector path to check shared history
+with owned headless and MCP processes. The UI filters `ui_unicode_recent_history`
+and `ui_vector_preview_action_persistence` cover history merging/live refresh and
+the restored preview preference's menu/Preferences synchronization.
+
+`patchy.exe --screenshot <out.png>` captures the running instance without raising or focusing it; `--screenshot-widget <qtObjectName>` and/or `--screenshot-rect x,y,w,h` narrow it; positional files open a document. The invoker exits at once: poll for the output. With no instance running, Patchy opens, waits about 1.5 s, captures and exits 0 (3 on failure). Add `--language <code>` (with `--headless`, so no running instance is reused) to capture a UI language without changing the saved preference ([localization.md](localization.md)). Never run `patchy.exe --help` or `--version` during verification: the Windows GUI build has no console, so Qt shows them in a message box over whatever Seth is doing.
+
+`patchy.exe --stress-test[=quick|small|standard|huge] [--stress-report-dir <dir>] [--stress-depth 16|32]` builds the deterministic performance scene (16 or 32 bits optional) and exits. Reports default to `%APPDATA%\Patchy\stress-reports\` (`stress-latest.json`). Quick (1024 px) is for iteration, standard (4096 px) for full-scale measurements; real timings need a real screen ([performance.md](performance.md)).
+
+`patchy.exe --headless ...` runs any of those modes on Qt's offscreen platform. It never forwards to a running instance, so the exit code and `--script-output` file are the run's own; prompts are suppressed and sound muted. Leave it off when a capture must show the real platform and installed fonts (offscreen sees only bundled fonts; a Windows headless run loads installed fonts from the registry on the first text request).
+
+Useful diagnostic variables:
+
+- `PATCHY_NO_SINGLE_INSTANCE=1` allows multiple instances.
+- `patchy_core_tests` also validates the hardware-agnostic GPU foundation: dirty-region coalescing, tile invalidation by mip, deterministic render-graph ordering, cycle and multiple-writer rejection, explicit RGB8 comparison tolerances, CPU-equivalent tiled rendering, bounded dirty-tile updates, and fake-backend device-loss recovery. These tests do not open a window, download Dawn, or require a graphics adapter; see [Hardware-agnostic GPU render graph](gpu-render-graph.md).
+- The optional UI build also compiles `WebGpuRenderBackend` when Dawn is absent. With a real Dawn prefix, an explicit `PATCHY_RENDER_BACKEND=webgpu` run exercises the graph gate followed by Dawn's per-tile compute and regional readback path. Confirm `Patchy WebGPU document compositor active on ... via ...` and inspect the reported `tiles:` and `readback bytes:` values before treating the real backend as exercised. A missing package, failed graph submission, queue error, tile readback error, or recovery failure is expected to fall back without changing CPU-authoritative tests.
+- `PATCHY_FAKE_SCANNER_FILE=<path>` bypasses native scanner acquisition in tests.
+- `PATCHY_ZOOM_TRACE=1` logs paint and zoom phases over 2 ms.
+- `PATCHY_STYLE_MASK_CACHE_OFF=1` disables the style-mask cache.
+- `PATCHY_RENDER_SINGLE_THREADED=1` forces byte-stable sequential rendering.
+- `PATCHY_RENDER_THREADS=<n>` caps every parallel fan-out at n workers in place of the hardware thread count (perf harness emulation of a low-core machine; the transform proxy gate scales with it).
+- `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` overrides the processing-overlay threshold.
+- `PATCHY_RENDER_BACKEND=auto|webgpu|cpu|opengl|vulkan|metal|d3d11|d3d12` selects the graphics preference. Unset means `cpu`. `auto` uses Qt Quick/RHI for presentation only; `webgpu` (or `gpu`) additionally attempts the optional Dawn/WebGPU document compositor when it was found at configure time. `ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request` and `ui_webgpu_compositor_is_only_probed_on_explicit_request` pin both rules. `PATCHY_GPU_CANVAS=auto|cpu` remains an alias. A hardware scene graph or Dawn adapter can still fall back to the complete CPU compositor when the document is outside the GPU capability matrix, including malformed Blend If payloads.
+- The CTest registration for `patchy_ui_visual_tests` sets `QT_QPA_PLATFORM=offscreen;PATCHY_RENDER_BACKEND=cpu;PATCHY_NO_SOUND=1;PATCHY_RENDER_SINGLE_THREADED=1;PATCHY_RENDER_THREADS=1;LC_ALL=C.UTF-8;LANG=C.UTF-8;LANGUAGE=C;QT_SCALE_FACTOR=1`. This keeps byte-sensitive UI/export tests CPU-authoritative, deterministic, and independent of Dawn, worker count, locale, and desktop scale. Exercise WebGPU separately with an explicit `PATCHY_RENDER_BACKEND=webgpu` run.
+- `PATCHY_BUILD_WEBGPU_VALIDATION_TESTS=ON` builds `patchy_webgpu_equivalence_tests` and registers it with CTest (labels `hardware;gpu`). The default configuration leaves the option OFF, so the standard suite stays machine-independent. When Dawn or a hardware adapter is unavailable the executable exits with 77 and CTest reports it as **Not Run (Skipped)**; it is never counted as a pass. Set `PATCHY_WEBGPU_TESTS_REQUIRE_HARDWARE=1` on machines that must have a GPU to turn that skip into a failure. The snapshot handed to Dawn comes from `CanvasWidget::gpu_document_snapshot()`, the same conversion the live canvas performs, so capability gating, Fill folding, Grayscale8 mask conversion and Blend If packing are under test rather than re-implemented by the test. With hardware it compares native frames against `Compositor::flatten_rgb8()` for: 255/256/257 tile boundaries; a gray8 mask and a supported Blend If record; every blend mode the capability matrix accepts (20 modes) with an opaque overlay, a partially transparent overlay with holes, and 60% layer opacity; Fill at 45% for every ordinary mode (plus 70% opacity) and the requirement that the eight special-Fill modes stay on the CPU below 100% Fill while composing at 100%; a combined gray mask + Blend If + partial alpha + Screen 80% document; incremental dirty-tile readback; controlled device-loss recovery; and `[METRIC]` records for cold/warm full frames, one or multiple dirty tiles, and idle frames. Those records measure uploads, readback bytes, resource reuse, and CPU/Dawn elapsed time; they are not a product-level speedup claim. `PATCHY_WEBGPU_REPRESENTATIVE_BENCHMARK=1` additionally runs the opt-in representative benchmark (large images, 24 and 64 layers, masks and mixed blend modes) that times the canvas snapshot, Dawn composition and CPU reference end to end and reports the RSS delta; see [performance.md](performance.md#representative-end-to-end-benchmark-opt-in).
+- The same manual executable runs `webgpu_device_loss_recovery_rebuilds_resources` when Dawn and hardware are available. It injects one controlled failure before queue submission and another before regional readback, verifies that a failed frame does not replace the previous image, recreates the Dawn device-owned caches through `recover()`, and compares the recovered full and incremental frames with the CPU compositor. Set `PATCHY_WEBGPU_INJECT_DEVICE_LOSS=before-submit` or `before-readback` only for a manual diagnostic; each stage is consumed once, and the standard CTest suite never sets either variable.
+- `webgpu_wait_budget_timeout_fails_fast_and_disables_after_repeats` (same executable) sets `PATCHY_WEBGPU_FRAME_BUDGET_MS=0` so the first queue wait expires on the real timeout path, then checks that the frame is preserved, the backend reports `Lost`, one `recover()` succeeds, the second timeout makes `recover()` refuse with `Failed`, and a fresh backend composes normally once the variable is cleared. `gpu_wait_budget_parses_overrides_and_keeps_defaults_on_bad_input` and `gpu_wait_deadline_expires_only_after_its_budget` in `patchy_core_tests` cover the parser and deadline without hardware.
+- `zero_copy_interop` validates only the Qt-free eligibility gate for a future native presentation bridge. It checks matching APIs, shared-device ownership, native texture import, and explicit synchronization. It must not be described as a zero-copy smoke test: the current Dawn path still performs regional readback and Qt Quick still presents a `QImage`.
+- `PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE=ON` adds an opt-in native-window diagnostic that reads Qt Vulkan handles on the scene-graph render thread and observes Dawn's Vulkan instance and adapter identity when the pinned native target is available. Set `PATCHY_VULKAN_QT_INTEROP_PROBE=1` and `QSG_RHI_BACKEND=vulkan` to run it. A matching vendor/device identity only confirms the same physical GPU; it does not prove shared `VkDevice` ownership. The probe never imports or publishes a texture and must report zero-copy as disabled until shared device ownership, native texture import, and explicit synchronization are all verified. It is not a CTest entry.
+- The same records expose queue submissions and waits. A non-empty full or dirty plan should report one of each, including `dirty_multiple`; an idle frame should report zero for both.
+- `PATCHY_ENABLE_WEBGPU=ON` enables CMake discovery of an installed Dawn package; a missing package is expected and leaves the same binary on the Qt RHI/CPU path. `scripts/build-gpu.sh linux-release` performs the configure, build, core tests, and the deterministic backend-selection test in one step; set `PATCHY_QT_PREFIX` and `PATCHY_DAWN_PREFIX` when the dependencies are outside the preset. `scripts/build-dawn.sh --print-config` checks the pinned lock without network access, while `scripts/build-gpu.sh linux-release --dawn-only` builds and verifies the optional Dawn prefix. For a real Dawn build, use `--with-dawn`, inspect the configure output for the Dawn target, then run `PATCHY_NO_SINGLE_INSTANCE=1 PATCHY_RENDER_BACKEND=webgpu QSG_INFO=1 ./build/linux-release/patchy` with a real native display. Confirm a line containing `Patchy WebGPU document compositor active on ... via ...` before treating WebGPU composition as exercised. See [GPU build and dependency guide](gpu-build.md) and [GPU troubleshooting](gpu-troubleshooting.md) for the full setup and fallback procedure.
+- `PATCHY_NO_SOUND=1` suppresses script audio; offscreen suites rely on it.
+- `PATCHY_UPDATE_MANIFEST_URL=<url>` replaces the update check's manifest URL (a loopback server in the update-check tests). An unresolvable host such as `https://x.local/m.json` holds a resolver call open for seconds and reproduced the issue 48 macOS quit freeze (quit in that window and time the exit). `PATCHY_NO_UPDATE_CHECK=1` removes the check, like a `PATCHY_STORE_BUILD` build.
+- `PATCHY_SETTINGS_DIR=<dir>` redirects the app's ini settings store (automation isolation).
+- `PATCHY_RECOVERY_DIR=<dir>` redirects the automatic document recovery store (the UI suite uses `test-artifacts/recovery`); `PATCHY_RECOVERY_INTERVAL_MS=<ms>` overrides the timer interval ([document-recovery.md](document-recovery.md)). `PATCHY_USER_FONTS_DIR=<dir>` moves the font store ([fonts.md](fonts.md)); `PATCHY_USER_SCRIPTS_DIR=<dir>` the user scripts folder (the UI suite uses `test-artifacts/user-scripts/<pid>`).
+- `PATCHY_HEADLESS=1` marks a `--headless` app run (main.cpp sets it). Never set it for the suites: it re-enables the registry font rescue and makes layouts machine-dependent.
+- `QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1` makes `patchy.exe --help` and command-line parse errors print to the redirected stdout/stderr instead of a modal Win32 message box (patchy.exe is a GUI-subsystem binary), which is what an automated `--help` check needs.
+- `PATCHY_UI_PROFILE=1` prints stderr timing lines for instrumented UI stages (layer-panel rebuild phases, layer-style dialog open/close, undo snapshots).
+- `PATCHY_PERF_SAMPLER=1` (patchy_perf_tests only) samples the main thread's stacks every 10 ms and prints the hottest ones at exit.
+
+Composite checksums from stress reports or large renders are comparable only on the same machine: text antialiasing varies by system and the parallel strip renderer varies with thread count.
+
+Committed PSD corpus fixtures must decode; unreadable committed files fail the
+corpus test. Optional local files may still skip. The real-photo HEIC sweep skips
+only a recognized unavailable-codec/backend condition; decoding or assertion
+failures with an available decoder fail the test.
+
 ## Scratch tools linking Patchy's release libs
 
 Scratch tools linking Patchy's release libs (e.g. flattening a PSD through the reader outside the test suite) compile with:
