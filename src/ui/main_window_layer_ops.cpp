@@ -4204,7 +4204,7 @@ void MainWindow::add_layer_thumbnail_bounds_actions(QMenu* menu) {
     };
     // Index 0 zooms to the layer content, 1 shows the whole document.
     const std::array<BoundsEntry, 2> entries{{
-        {QT_TR_NOOP("Zoom to Layer Content"), "layerThumbnailBoundsLayerAction"},
+        {QT_TR_NOOP("Layer Content"), "layerThumbnailBoundsLayerAction"},
         {QT_TR_NOOP("Whole Document"), "layerThumbnailBoundsDocumentAction"},
     }};
     auto* group = new QActionGroup(this);

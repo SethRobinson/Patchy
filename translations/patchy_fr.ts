@@ -27980,10 +27980,6 @@ Verrouillé : %1</translation>
         <translation>Gestionnaire de motifs...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>Zoomer sur le contenu du calque</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>Document entier</translation>
     </message>
@@ -28026,6 +28022,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Shapes Manager...</source>
         <translation>Gestionnaire de formes...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>Contenu du calque</translation>
     </message>
 </context>
 <context>
