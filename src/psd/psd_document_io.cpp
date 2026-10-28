@@ -1556,6 +1556,14 @@ bool read_merged_transparency_flag_and_skip_layer_mask(BigEndianReader& reader,
   return has_merged_transparency;
 }
 
+// Version Info (resource 1057) starts with a u32 version and a hasRealMergedData byte.
+// Photoshop writes 0 there when Maximize Compatibility is off, and the composite is then
+// an all-white placeholder: only the layers hold the image.
+bool composite_is_placeholder(std::span<const std::uint8_t> image_resources) {
+  const auto version_info = find_image_resource_payload(image_resources, kImageResourceVersionInfo);
+  return version_info.has_value() && version_info->size() >= 5U && (*version_info)[4] == 0U;
+}
+
 }  // namespace
 
 bool DocumentIo::can_read(std::span<const std::uint8_t> bytes) noexcept {
@@ -1780,7 +1788,9 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   // Counts scanlines this file could not decode cleanly, across layers and the composite,
   // so one recovery notice covers the whole document.
   std::size_t damaged_rows = 0;
-  if (options.prefer_flat_composite) {
+  // A placeholder composite is never the image: read the layers instead (a file with no
+  // layers still gets its composite from the layered path).
+  if (options.prefer_flat_composite && !composite_is_placeholder(image_resources)) {
     has_merged_transparency =
         read_merged_transparency_flag_and_skip_layer_mask(reader, layer_mask_length, header);
 
