@@ -363,6 +363,61 @@ void psd_flat_rgb8_round_trips() {
   CHECK(px[2] == 6);
 }
 
+// Photoshop with Maximize Compatibility off: Version Info (1057) says hasRealMergedData = 0
+// and the composite is all white. A flat-composite read (the smart object preview decode)
+// must show the layers, or every re-rendered embedded PSB of such a file turns white
+// (LaunchImagesAndIcons-2016.psd in the Testy private corpus).
+void psd_placeholder_composite_reads_the_layers() {
+  patchy::Document document(2, 1, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_rgba(2, 1, 255, 0, 0, 255));
+  const auto layered = patchy::psd::DocumentIo::write_layered_rgb8(document);
+
+  const auto with_version_info = [&](std::uint8_t has_real_merged_data) {
+    patchy::psd::BigEndianReader reader(layered);
+    const auto header = patchy::psd::read_header(reader);
+    reader.skip(reader.read_u32());
+    const auto resources_offset = reader.position();
+    const auto resources = reader.read_bytes(reader.read_u32());
+    const auto layer_mask = reader.read_bytes(reader.read_u32());
+
+    patchy::psd::BigEndianWriter version_info;
+    version_info.write_u32(1);
+    version_info.write_u8(has_real_merged_data);
+    version_info.write_u32(0);  // empty writer name
+    version_info.write_u32(0);  // empty reader name
+    version_info.write_u32(1);
+    patchy::psd::BigEndianWriter all_resources;
+    all_resources.write_bytes(resources);
+    write_test_image_resource(all_resources, 1057, "", version_info.bytes());
+
+    patchy::psd::BigEndianWriter file;
+    file.write_bytes(std::span(layered).subspan(0, resources_offset));
+    file.write_u32(static_cast<std::uint32_t>(all_resources.bytes().size()));
+    file.write_bytes(all_resources.bytes());
+    file.write_u32(static_cast<std::uint32_t>(layer_mask.size()));
+    file.write_bytes(layer_mask);
+    file.write_u16(0);  // raw composite, every channel white
+    for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
+      file.write_u8(255);
+      file.write_u8(255);
+    }
+    return file.bytes();
+  };
+
+  patchy::psd::ReadOptions options;
+  options.prefer_flat_composite = true;
+  // A real composite is read as stored (white here), which shows the flat path ran...
+  const auto stored = patchy::psd::DocumentIo::read(with_version_info(1), options);
+  CHECK(stored.layers().size() == 1);
+  CHECK(stored.layers().front().pixels().pixel(0, 0)[1] == 255);
+  // ...and a placeholder one gives way to the layers.
+  const auto placeholder = patchy::psd::DocumentIo::read(with_version_info(0), options);
+  CHECK(placeholder.layers().size() == 1);
+  CHECK(placeholder.layers().front().name() == "Paint");
+  const auto* px = placeholder.layers().front().pixels().pixel(0, 0);
+  CHECK(px[0] == 255 && px[1] == 0 && px[2] == 0);
+}
+
 void psd_flat_rgb8_writer_uses_rle_for_compressible_data() {
   patchy::Document document(32, 16, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(32, 16, 20, 40, 80));
@@ -3746,6 +3801,7 @@ void psd_annotations_survive_save_if_available() {
 std::vector<patchy::test::TestCase> psd_core_io_tests() {
   return {
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
+      {"psd_placeholder_composite_reads_the_layers", psd_placeholder_composite_reads_the_layers},
       {"psd_flat_rgb8_writer_uses_rle_for_compressible_data",
        psd_flat_rgb8_writer_uses_rle_for_compressible_data},
       {"psd_flat_rgb8_writer_keeps_raw_for_incompressible_data",

@@ -66,6 +66,7 @@ constexpr std::uint16_t kImageResourceIccProfile = 1039;
 constexpr std::uint16_t kImageResourceUnicodeAlphaChannelNames = 1045;
 constexpr std::uint16_t kImageResourceGlobalLightAltitude = 1049;
 constexpr std::uint16_t kImageResourceAlphaIdentifiers = 1053;
+constexpr std::uint16_t kImageResourceVersionInfo = 1057;
 constexpr std::uint16_t kImageResourceDisplayInfoFloat = 1077;
 // Patchy-private resource (Photoshop plug-in id range 4000-4999): the document
 // palette for the palettized editing mode. Photoshop and pre-feature Patchy
