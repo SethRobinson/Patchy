@@ -35,6 +35,7 @@
     <file alias="effects.svg">icons/effects.svg</file>
     <file alias="smart-object.svg">icons/smart-object.svg</file>
     <file alias="smart-object-linked.svg">icons/smart-object-linked.svg</file>
+    <file alias="badge-blending.svg">icons/badge-blending.svg</file>
     <file alias="badge-fx.svg">icons/badge-fx.svg</file>
     <file alias="badge-vector.svg">icons/badge-vector.svg</file>
     <file alias="merge.svg">icons/merge.svg</file>

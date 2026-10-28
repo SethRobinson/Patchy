@@ -13700,6 +13700,58 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Shapes Manager...</source>
         <translation>Gerenciador de formas...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>Camada de ajuste %1</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>Canal R: desligado</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>Canal G: desligado</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>Canal B: desligado</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>Vazado</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>Vazado: Raso</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>Vazado: Profundo</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>Máscara de camada oculta efeitos: ligado</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>Máscara vetorial oculta efeitos: ligado</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>Mesclar efeitos internos como grupo: ligado</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>Mesclar camadas recortadas como grupo: desligado</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>Transparência modela a camada: desligado</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>Mesclagem avançada: %1. Clique para abrir as opções de mesclagem.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

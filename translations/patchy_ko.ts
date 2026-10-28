@@ -13657,6 +13657,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Shapes Manager...</source>
         <translation>모양 관리자...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>%1 조정 레이어</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>R 채널: 끄기</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>G 채널: 끄기</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>B 채널: 끄기</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>녹아웃</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>녹아웃: 얕게</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>녹아웃: 깊게</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>레이어 마스크로 효과 숨기기: 켜기</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>벡터 마스크로 효과 숨기기: 켜기</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>내부 효과를 그룹으로 혼합: 켜기</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>클리핑된 레이어를 그룹으로 혼합: 끄기</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>투명 영역으로 레이어 모양 지정: 끄기</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>고급 혼합: %1. 혼합 옵션을 열려면 클릭하세요.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

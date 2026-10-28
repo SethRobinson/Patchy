@@ -1563,6 +1563,17 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
   return pixmap;
 }
 
+// Names the adjustment kind (GitHub issue 492): the thumbnail symbol alone is not always clear.
+QString adjustment_layer_thumbnail_tooltip(const Layer& layer) {
+  const auto& metadata = layer.metadata();
+  const auto found = metadata.find(kLayerMetadataAdjustmentType);
+  const auto kind = found != metadata.end() ? adjustment_kind_from_key(found->second) : std::nullopt;
+  if (!kind.has_value()) {
+    return QObject::tr("Adjustment Layer");
+  }
+  return QObject::tr("%1 adjustment layer").arg(localized_adjustment_display_name(*kind));
+}
+
 // `report_font_problems` is false while an open session already draws the layer's missing fonts
 // in installed faces (the badge is left out then too).
 QString layer_content_thumbnail_tooltip(const Layer& layer, bool report_font_problems = true) {
@@ -1593,7 +1604,7 @@ QString layer_content_thumbnail_tooltip(const Layer& layer, bool report_font_pro
          : layer.kind() == LayerKind::Group
              ? QObject::tr("Folder layer")
              : layer.kind() == LayerKind::Adjustment
-                 ? QObject::tr("Adjustment Layer")
+                 ? adjustment_layer_thumbnail_tooltip(layer)
                  : !font_problems.empty()
                        ? font_problem_tooltip()
                        : layer_is_text(layer)         ? QObject::tr("Text layer")
@@ -1619,6 +1630,39 @@ QString layer_row_details_text(const Layer& layer, bool clipped) {
     detail_text += QStringLiteral("  %1").arg(QObject::tr("clipped"));
   }
   return detail_text;
+}
+
+// The advanced blending options set away from their defaults (GitHub issue 494), in the
+// Blending Options page's order; empty when the layer blends the default way. Transparency
+// Shapes Layer has no control: Photoshop writes 'tsly' 0 only when it is off.
+QStringList layer_advanced_blending_differences(const Layer& layer) {
+  QStringList differences;
+  const auto restricted = layer.channel_restriction_supported() ? layer.restricted_channels() : std::uint8_t{0};
+  if ((restricted & kRestrictRed) != 0U) differences << QObject::tr("R channel off");
+  if ((restricted & kRestrictGreen) != 0U) differences << QObject::tr("G channel off");
+  if ((restricted & kRestrictBlue) != 0U) differences << QObject::tr("B channel off");
+  if (const auto knockout = layer_knockout_setting(layer); !knockout.has_value()) {
+    differences << QObject::tr("Knockout");
+  } else if (*knockout == 1U) {
+    differences << QObject::tr("Knockout Shallow");
+  } else if (*knockout == 2U) {
+    differences << QObject::tr("Knockout Deep");
+  }
+  const auto& style = layer.layer_style();
+  if (style.layer_mask_hides_effects) differences << QObject::tr("Layer Mask Hides Effects on");
+  if (style.vector_mask_hides_effects) differences << QObject::tr("Vector Mask Hides Effects on");
+  if (style.blend_interior_elements) differences << QObject::tr("Blend Interior Effects as Group on");
+  if (!style.blend_clipped_elements) differences << QObject::tr("Blend Clipped Layers as Group off");
+  const auto& blocks = layer.unknown_psd_blocks();
+  if (std::any_of(blocks.begin(), blocks.end(), [](const UnknownPsdBlock& block) {
+        return block.key == "tsly" && !block.payload.empty() && block.payload[0] == 0U;
+      })) {
+    differences << QObject::tr("Transparency Shapes Layer off");
+  }
+  if (layer.blend_if_payload_status() == BlendIfPayloadStatus::Supported && !blend_if_is_identity(layer.blend_if())) {
+    differences << QObject::tr("Blend If");
+  }
+  return differences;
 }
 
 QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent,
@@ -1962,6 +2006,12 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     badge_row->addWidget(badge, 0, Qt::AlignVCenter);
     return badge;
   };
+  if (const auto differences = layer_advanced_blending_differences(layer); !differences.isEmpty()) {
+    add_badge_button(QStringLiteral("layerBlendingBadgeButton"), QStringLiteral("badge-blending"),
+                     QObject::tr("Advanced blending: %1. Click to open Blending Options.")
+                         .arg(differences.join(QStringLiteral(", "))),
+                     open_layer_styles);
+  }
   if (layer.layer_style().effect_count() > 0) {
     // Hidden effects keep the badge (Photoshop does the same): the rows below list them.
     // badge-fx.svg, not the shared effects.svg: badge art needs heavier strokes

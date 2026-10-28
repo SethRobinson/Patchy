@@ -13743,6 +13743,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Shapes Manager...</source>
         <translation>Менеджер фигур...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>Корректирующий слой %1</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>Канал R: выкл.</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>Канал G: выкл.</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>Канал B: выкл.</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>Выбивание</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>Выбивание: неглубокое</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>Выбивание: глубокое</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>Маска слоя скрывает эффекты: вкл.</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>Векторная маска скрывает эффекты: вкл.</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>Внутренние эффекты как группа: вкл.</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>Обтравочные слои как группа: выкл.</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>Прозрачность формирует слой: выкл.</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>Расширенное наложение: %1. Нажмите, чтобы открыть параметры наложения.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

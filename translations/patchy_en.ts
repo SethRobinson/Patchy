@@ -13683,6 +13683,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Shapes Manager...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

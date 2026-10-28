@@ -13657,6 +13657,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Shapes Manager...</source>
         <translation>シェイプマネージャー...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>%1 調整レイヤー</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>R チャンネル: オフ</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>G チャンネル: オフ</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>B チャンネル: オフ</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>抜き</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>抜き: 浅く</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>抜き: 深く</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>レイヤーマスクで効果を隠す: オン</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>ベクトルマスクで効果を隠す: オン</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>内側の効果をグループとして描画: オン</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>クリップされたレイヤーをグループとして描画: オフ</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>透明部分でレイヤーを形成: オフ</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>高度な描画: %1。クリックで描画オプションを開きます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
