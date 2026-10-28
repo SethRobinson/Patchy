@@ -1548,7 +1548,10 @@ void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
         std::printf("  %-12s half-alpha columns photoshop %d..%d -> patchy %d..%d\n", entry.needle,
                     photoshop_span->first, photoshop_span->second, committed_span->first, committed_span->second);
         std::fflush(stdout);
-        CHECK(std::abs(committed_span->first - photoshop_span->first) <= 1);
+        // The 0.25 px heavier Strong stroke (docs/text-anti-alias.md) lifts the faint left-edge
+        // pixels of the italic 'S' over half alpha: 'Submit word' starts 2 columns early (361
+        // against 363) though its ink width is now closer to Photoshop's (102 against 103).
+        CHECK(std::abs(committed_span->first - photoshop_span->first) <= 2);
         CHECK(std::abs(committed_span->second - photoshop_span->second) <= 1);
       }
     }
