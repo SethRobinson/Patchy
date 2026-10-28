@@ -845,7 +845,7 @@ QString photoshop_style_template() {
       background: transparent;
       border-color: transparent;
     }
-    QLabel#layerLockBadge {
+    QLabel#layerLockBadge, QLabel#layerLockSummaryBadge {
       background: transparent;
       border: 0;
       padding: 0;
@@ -874,7 +874,7 @@ QString photoshop_style_template() {
     }
     QToolButton#layerMaskLinkButton, QToolButton#layerVectorMaskLinkButton, QToolButton#layerFxBadgeButton,
     QToolButton#layerBlendingBadgeButton, QToolButton#layerSmartObjectBadgeButton,
-    QToolButton#layerClippingBadgeButton {
+    QToolButton#layerVectorBadgeButton, QToolButton#layerClippingBadgeButton {
       background: transparent;
       border: 1px solid transparent;
       border-radius: 3px;
@@ -883,12 +883,15 @@ QString photoshop_style_template() {
     /* The clip badge takes the content thumbnail's width (Small is 22 px), so it centers on
        the base row's thumbnail (#397), and the mask link is 22 px; the generic 26 px minimum
        would widen both. */
-    QToolButton#layerClippingBadgeButton, QToolButton#layerMaskLinkButton, QToolButton#layerVectorMaskLinkButton {
+    QToolButton#layerClippingBadgeButton, QToolButton#layerMaskLinkButton, QToolButton#layerVectorMaskLinkButton,
+    QToolButton#layerFxBadgeButton, QToolButton#layerBlendingBadgeButton, QToolButton#layerSmartObjectBadgeButton,
+    QToolButton#layerVectorBadgeButton {
       min-width: 0;
     }
     QToolButton#layerMaskLinkButton:hover, QToolButton#layerVectorMaskLinkButton:hover,
     QToolButton#layerFxBadgeButton:hover, QToolButton#layerBlendingBadgeButton:hover,
-    QToolButton#layerSmartObjectBadgeButton:hover, QToolButton#layerClippingBadgeButton:hover {
+    QToolButton#layerSmartObjectBadgeButton:hover, QToolButton#layerVectorBadgeButton:hover,
+    QToolButton#layerClippingBadgeButton:hover {
       background: @layer_button_hover_bg;
       border-color: @layer_button_hover_border;
     }

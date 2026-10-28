@@ -199,6 +199,7 @@ public:
   static void show_layer_context_menu(MainWindow& window, QPoint position);
 
   static void refresh_layer_ui(MainWindow& window);
+  static void set_layer_thumbnail_size(MainWindow& window, LayerThumbnailSize size);
 
   static void set_right_dock_stack_width(MainWindow& window, int width);
 

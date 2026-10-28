@@ -285,6 +285,10 @@ void MainWindowTestAccess::refresh_layer_ui(MainWindow& window) {
   window.refresh_layer_controls();
 }
 
+void MainWindowTestAccess::set_layer_thumbnail_size(MainWindow& window, LayerThumbnailSize size) {
+  window.set_layer_thumbnail_size(size);
+}
+
 void MainWindowTestAccess::set_right_dock_stack_width(MainWindow& window, int width) {
   window.set_right_dock_stack_width(width);
 }

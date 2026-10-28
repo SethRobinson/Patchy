@@ -3,6 +3,11 @@
 // double-click that opens the Layer Style dialog on that effect.
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "core/vector_raster.hpp"
+#include "core/vector_shape.hpp"
+#include "ui/layer_thumbnail_size.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/qt_paths.hpp"
@@ -39,6 +44,8 @@
 #include <QToolButton>
 #include <QWidget>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -1057,10 +1064,203 @@ void ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options(
   CHECK(badge != nullptr && badge->toolTip().contains(QStringLiteral("Knockout Deep")));
 }
 
+// The follow-up to GitHub issue 494: rows that carry every row indicator at once (blending,
+// fx, smart object, vector shape, both mask thumbnails and links, the clip badge, all four
+// locks, a color label, long names), captured at the narrowest panel and at 460 px, at every
+// thumbnail size, in both schemes. Each row's name keeps a few characters and ends before its
+// first badge, no badge overlaps another or leaves the row, and where the panel has room the
+// row fits it (the lock badges fold into one padlock first).
+void ui_layer_rows_with_every_badge_fit_narrow_and_wide() {
+  ColorSchemeRestorer restore_scheme;
+  SettingsValueRestorer restore_size{QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey)};
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+
+  constexpr int kWidth = 320;
+  constexpr int kHeight = 200;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  auto square = [&](QColor color) {
+    auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+    fill_pixel_rect(pixels, QRect(60, 40, 200, 120), color);
+    return pixels;
+  };
+  document.add_pixel_layer("Clip base", square(QColor(40, 120, 220)));
+  // A shape layer clipped to the base.
+  {
+    patchy::Layer shape(document.allocate_layer_id(), "Shape layer with styles, masks, locks and blending",
+                        patchy::PixelBuffer());
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Rectangle;
+    params.left = 80; params.top = 60; params.right = 240; params.bottom = 140; params.index = 0;
+    patchy::populate_live_shape_box_corners(params);
+    patchy::VectorShapeContent content;
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    content.origination.push_back(params);
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.fill.color = patchy::RgbColor{240, 180, 40};
+    shape.set_vector_shape(std::move(content));
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(kWidth, kHeight), nullptr);
+    document.add_layer(std::move(shape));
+  }
+  const auto smart_id = document.add_pixel_layer(
+      "Every badge at once on one smart object layer with a long name", square(QColor(220, 60, 60))).id();
+  patchy::Layer folder(document.allocate_layer_id(), "Folder with styles, masks, locks and knockout",
+                       patchy::LayerKind::Group);
+  folder.set_blend_mode(patchy::BlendMode::PassThrough);
+  folder.children().emplace_back(document.allocate_layer_id(), "Inside the folder", square(QColor(60, 200, 90)));
+  document.add_layer(std::move(folder));
+  document.set_active_layer(smart_id);
+  window.add_document_session(std::move(document), QStringLiteral("All Badges"));
+  QApplication::processEvents();
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.size = 3.0F;
+  stroke.color = patchy::RgbColor{20, 20, 20};
+  stroke.opacity = 1.0F;
+  const auto dress = [&](patchy::Layer& layer, patchy::LayerColorLabel color, bool clipped) {
+    layer.layer_style().strokes.push_back(stroke);
+    patchy::set_layer_knockout(layer, layer.kind() == patchy::LayerKind::Group ? 1U : 2U);
+    layer.layer_style().blend_clipped_elements = false;
+    patchy::LayerMask mask;
+    mask.bounds = patchy::Rect{0, 0, kWidth, kHeight};
+    mask.pixels = patchy::PixelBuffer(kWidth, kHeight, patchy::PixelFormat::gray8());
+    const auto mask_bytes = mask.pixels.data();
+    std::fill(mask_bytes.begin(), mask_bytes.end(), std::uint8_t{255});
+    layer.set_mask(std::move(mask));
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Rectangle;
+    params.left = 20; params.top = 20; params.right = 300; params.bottom = 180; params.index = 0;
+    patchy::populate_live_shape_box_corners(params);
+    patchy::LayerVectorMask vector_mask;
+    vector_mask.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    layer.set_vector_mask(std::move(vector_mask));
+    patchy::update_vector_mask_raster(layer, patchy::Rect{0, 0, kWidth, kHeight});
+    layer.set_color_label(color);
+    layer.set_clipped(clipped);
+    layer.set_lock_flags(patchy::kLayerLockAll | patchy::kLayerLockArtboardAutonest);
+  };
+  bool smart_found = false;
+  std::vector<QString> dressed_names;
+  for (auto& layer : doc.layers()) {
+    const auto name = QString::fromStdString(layer.name());
+    if (patchy::layer_is_smart_object(std::as_const(layer))) {
+      smart_found = true;
+      dress(layer, patchy::kLayerColorRed, true);
+    } else if (patchy::layer_is_vector_shape(std::as_const(layer))) {
+      dress(layer, patchy::kLayerColorYellow, true);
+    } else if (layer.kind() == patchy::LayerKind::Group) {
+      dress(layer, patchy::kLayerColorViolet, false);
+    } else {
+      continue;
+    }
+    dressed_names.push_back(name);
+  }
+  CHECK(smart_found);
+  CHECK(dressed_names.size() == 3U);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+
+  ensure_artifact_dir();
+  const auto psd_path =
+      QDir(QStringLiteral("test-artifacts")).absoluteFilePath(QStringLiteral("issue494_all_badges.psd"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path));
+
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(list != nullptr && layers_dock != nullptr);
+  const auto badge_names = QStringList{QStringLiteral("layerBlendingBadgeButton"), QStringLiteral("layerFxBadgeButton"),
+                                       QStringLiteral("layerSmartObjectBadgeButton"),
+                                       QStringLiteral("layerVectorBadgeButton"), QStringLiteral("layerLockBadge"),
+                                       QStringLiteral("layerLockSummaryBadge")};
+  int failures = 0;
+  const auto check_rows = [&](const QString& label, bool must_fit) {
+    for (const auto& name : dressed_names) {
+      auto* row = list->itemWidget(require_layer_item(*list, name));
+      auto* main_row = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerMainRow")) : nullptr;
+      auto* name_label = main_row != nullptr ? main_row->findChild<QLabel*>(QStringLiteral("layerRowName")) : nullptr;
+      if (name_label == nullptr) {
+        ++failures;
+        std::cout << "[BADGES] " << label.toStdString() << " missing row parts for " << name.toStdString() << '\n';
+        continue;
+      }
+      const QRect name_rect(name_label->mapTo(main_row, QPoint()), name_label->size());
+      std::vector<std::pair<QString, QRect>> badges;
+      for (auto* child : main_row->findChildren<QWidget*>()) {
+        if (child->isVisible() && badge_names.contains(child->objectName())) {
+          badges.emplace_back(child->objectName(), QRect(child->mapTo(main_row, QPoint()), child->size()));
+        }
+      }
+      std::sort(badges.begin(), badges.end(),
+                [](const auto& a, const auto& b) { return a.second.left() < b.second.left(); });
+      std::string line = "[BADGES] " + label.toStdString() + " row=\"" + name.left(24).toStdString() +
+                         "\" main=" + std::to_string(main_row->width()) + " name=" +
+                         std::to_string(name_rect.left()) + ".." + std::to_string(name_rect.right());
+      for (const auto& [object_name, rect] : badges) {
+        line += " " + object_name.mid(5, 6).toStdString() + "=" + std::to_string(rect.left()) + ".." +
+                std::to_string(rect.right()) + "@" + std::to_string(rect.top()) + "h" + std::to_string(rect.height());
+      }
+      const bool fits = main_row->width() <= list->viewport()->width();
+      line += fits ? " fits" : " overflows";
+      bool ok = badges.size() >= 3U && name_rect.width() >= name_label->fontMetrics().horizontalAdvance(QStringLiteral("Www")) &&
+                name_rect.right() < badges.front().second.left() && (fits || !must_fit);
+      for (std::size_t index = 0; index < badges.size(); ++index) {
+        // Badges keep their size however crowded the row: 20 px buttons, 18 px lock marks.
+        const int expected = badges[index].first.endsWith(QStringLiteral("Button")) ? 20 : 18;
+        ok = ok && badges[index].second.width() == expected && badges[index].second.height() == expected;
+        ok = ok && main_row->rect().contains(badges[index].second);
+        if (index > 0) ok = ok && !badges[index].second.intersects(badges[index - 1].second);
+      }
+      if (!ok) {
+        ++failures;
+        line += "  <- PROBLEM";
+      }
+      std::cout << line << '\n';
+    }
+  };
+
+  const int minimum_width = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
+  const std::array<std::pair<patchy::ui::LayerThumbnailSize, const char*>, 4> sizes{{
+      {patchy::ui::LayerThumbnailSize::None, "none"},
+      {patchy::ui::LayerThumbnailSize::Small, "small"},
+      {patchy::ui::LayerThumbnailSize::Medium, "medium"},
+      {patchy::ui::LayerThumbnailSize::Large, "large"},
+  }};
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(scheme);
+    const std::string scheme_name = scheme == patchy::ui::ColorSchemePreference::Dark ? "dark" : "light";
+    for (const auto& [size, size_name] : sizes) {
+      patchy::ui::MainWindowTestAccess::set_layer_thumbnail_size(window, size);
+      for (const auto width : {minimum_width, 460}) {
+        patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, width);
+        patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+        for (int pass = 0; pass < 4; ++pass) QApplication::processEvents();
+        const auto label = scheme_name + "_" + size_name + "_" + std::to_string(width);
+        save_widget_artifact("issue494_all_badges_" + label, *layers_dock);
+        // Every indicator at once cannot fit beside Medium or Large thumbnails in the narrowest
+        // panel, nor beside Large ones at 460 px: the list scrolls sideways there.
+        const bool must_fit = size == patchy::ui::LayerThumbnailSize::None ||
+                              size == patchy::ui::LayerThumbnailSize::Small ||
+                              (width >= 460 && size == patchy::ui::LayerThumbnailSize::Medium);
+        check_rows(QString::fromStdString(label), must_fit);
+      }
+    }
+  }
+  std::cout << "[BADGES] minimum width " << minimum_width << ", dock width now " << layers_dock->width() << '\n';
+  CHECK(failures == 0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
   return {
+      {"ui_layer_rows_with_every_badge_fit_narrow_and_wide", ui_layer_rows_with_every_badge_fit_narrow_and_wide},
       {"ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options",
        ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options},
       {"ui_layer_fx_badge_right_click_opens_style_menu", ui_layer_fx_badge_right_click_opens_style_menu},

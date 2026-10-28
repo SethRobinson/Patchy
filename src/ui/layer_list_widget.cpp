@@ -659,7 +659,9 @@ void LayerListWidget::refresh_row_widths() {
 
     const auto current_size = layer_item->sizeHint();
     const auto row_size = row_widget->sizeHint();
-    const auto target_width = std::max(viewport_width, row_size.width());
+    // The minimum, not the hint: a row with every badge folds its lock badges to fit the panel
+    // (LayerRowLockStrip) and scrolls sideways only past that (the #494 follow-up).
+    const auto target_width = std::max(viewport_width, row_widget->minimumSizeHint().width());
     const auto target_height = current_size.height() > 0 ? current_size.height() : std::max(1, row_size.height());
     const QSize next_size(target_width, target_height);
     if (current_size != next_size) {
