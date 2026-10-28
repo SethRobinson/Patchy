@@ -9154,6 +9154,8 @@ void ui_layer_blend_mode_next_previous_commands_step_the_list() {
   patchy::ui::MainWindow window;
   window.add_document_session(std::move(document), QStringLiteral("Blend Shortcuts"));
   show_window(window);
+  // A tool without a blend Mode list: Brush, the default, steps its own Mode.
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
 
   using Access = patchy::ui::MainWindowTestAccess;
@@ -9210,6 +9212,89 @@ void ui_layer_blend_mode_next_previous_commands_step_the_list() {
   CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
 }
 
+// GitHub issue 476 follow-up: with a tool whose options bar has a blend Mode list (Brush, Healing
+// Brush), Next / Previous Blend Mode step that list instead of the layer's, wrapping at both ends
+// and saved like a choice from it; the Move tool still steps the layer.
+void ui_tool_blend_mode_next_previous_commands_step_the_tool_mode() {
+  SettingsValueRestorer saved_brush_mode(QStringLiteral("tools/brushMode"));
+  SettingsValueRestorer saved_healing_mode(QStringLiteral("tools/healingMode"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/brushMode"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/healingMode"));
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Paint",
+                      solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  layer.set_bounds(patchy::Rect{20, 20, 60, 40});
+  const auto id = document.add_layer(std::move(layer)).id();
+  document.set_active_layer(id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Tool Blend Shortcuts"));
+  show_window(window);
+  QApplication::processEvents();
+
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto* next = require_hotkey_action(window, QStringLiteral("layer.blend_mode_next"));
+  auto* previous = require_hotkey_action(window, QStringLiteral("layer.blend_mode_previous"));
+  auto* canvas = require_canvas(window);
+  const auto blend_of_layer = [&window, id] {
+    const auto* found = std::as_const(Access::document(window)).find_layer(id);
+    return found != nullptr ? found->blend_mode() : patchy::BlendMode::Normal;
+  };
+  const auto depth_before = Access::active_session_undo_depth(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* brush_mode = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+  CHECK(brush_mode != nullptr);
+  CHECK(brush_mode->currentText() == QStringLiteral("Normal"));
+  next->trigger();
+  CHECK(brush_mode->currentText() == QStringLiteral("Dissolve"));
+  next->trigger();
+  CHECK(brush_mode->currentText() == QStringLiteral("Behind"));
+  CHECK(canvas->brush_paint_mode() == patchy::PaintMode::behind());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Blend mode: Behind"));
+  next->trigger();
+  next->trigger();  // past the separator after Clear
+  CHECK(brush_mode->currentText() == QStringLiteral("Darken"));
+  CHECK(canvas->brush_paint_mode() == patchy::PaintMode::of(patchy::BlendMode::Darken));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushMode")).toString() == QStringLiteral("darken"));
+  // Up from the first mode wraps to the last, and Down from there back to Normal.
+  brush_mode->setCurrentIndex(0);
+  previous->trigger();
+  CHECK(brush_mode->currentText() == QStringLiteral("Luminosity"));
+  CHECK(canvas->brush_paint_mode() == patchy::PaintMode::of(patchy::BlendMode::Luminosity));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushMode")).toString() ==
+        QStringLiteral("luminosity"));
+  next->trigger();
+  CHECK(brush_mode->currentText() == QStringLiteral("Normal"));
+  // The layer was never touched.
+  CHECK(blend_of_layer() == patchy::BlendMode::Normal);
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+
+  // The Healing Brush steps its own Mode list the same way.
+  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
+  QApplication::processEvents();
+  auto* healing_mode = window.findChild<QComboBox*>(QStringLiteral("healingModeCombo"));
+  CHECK(healing_mode != nullptr);
+  CHECK(healing_mode->currentIndex() == 0);
+  next->trigger();
+  CHECK(healing_mode->currentText() == QStringLiteral("Replace"));
+  CHECK(canvas->healing_mode() == patchy::ui::HealingMode::Replace);
+  previous->trigger();
+  previous->trigger();
+  CHECK(healing_mode->currentIndex() == healing_mode->count() - 1);
+  CHECK(blend_of_layer() == patchy::BlendMode::Normal);
+
+  // Any other tool steps the selected layers' mode, as before; the brush Mode stays.
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  next->trigger();
+  CHECK(blend_of_layer() == patchy::BlendMode::Dissolve);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Blend mode: Dissolve"));
+  CHECK(brush_mode->currentText() == QStringLiteral("Normal"));
+}
+
 // GitHub issue 476 follow-up: fast Next Blend Mode presses never wait on the compositor. Each
 // press sets the mode at once (document, panel and status); the canvas renders on a worker and,
 // while one render is in flight, only the newest mode, so seven quick presses render at most
@@ -9244,6 +9329,7 @@ void ui_layer_blend_mode_fast_steps_render_only_the_landing_mode() {
   patchy::ui::MainWindow window;
   window.add_document_session(std::move(document), QStringLiteral("Fast Blend Steps"));
   show_window(window);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();  // Brush steps its own Mode
   using Access = patchy::ui::MainWindowTestAccess;
   auto* canvas = require_canvas(window);
   canvas->set_zoom(1.0);
@@ -10651,6 +10737,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
       {"ui_layer_blend_mode_next_previous_commands_step_the_list",
        ui_layer_blend_mode_next_previous_commands_step_the_list},
+      {"ui_tool_blend_mode_next_previous_commands_step_the_tool_mode",
+       ui_tool_blend_mode_next_previous_commands_step_the_tool_mode},
       {"ui_layer_blend_mode_fast_steps_render_only_the_landing_mode",
        ui_layer_blend_mode_fast_steps_render_only_the_landing_mode},
       {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",
