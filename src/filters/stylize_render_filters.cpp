@@ -911,7 +911,11 @@ void render_flame(PixelBuffer& rgba, const FlameSettings& settings, const Filter
   const auto add_tongue = [&](double x, double y, double dx, double dy, double envelope) {
     auto rng = seeded(0x546f6e67ULL, static_cast<std::int64_t>(tongue_index++), 0,
                       static_cast<std::int64_t>(seed));
-    const auto size = 1.0 - style.variation * rng.uniform() * rng.uniform() * 1.6;
+    // One draw per statement: the order of two calls in one expression is up to
+    // the compiler, and the product would round differently.
+    const auto first = rng.uniform();
+    const auto second = rng.uniform();
+    const auto size = 1.0 - style.variation * first * second * 1.6;
     const auto wide = 0.8 + 0.4 * rng.uniform();
     tongues.push_back({x, y, dx, dy, flame_height * envelope * std::max(0.15, size),
                        tongue_width * wide * (0.6 + 0.4 * envelope)});
@@ -1093,14 +1097,17 @@ void render_flame(PixelBuffer& rgba, const FlameSettings& settings, const Filter
     if (sparks > 0.0) {
       auto rng = seeded(0x53706b73ULL, static_cast<std::int64_t>(spark_index++), 0,
                         static_cast<std::int64_t>(seed));
-      const auto count = static_cast<int>(std::floor(sparks * 2.2 * rng.uniform() + rng.uniform()));
+      const auto share = rng.uniform();
+      const auto extra = rng.uniform();
+      const auto count = static_cast<int>(std::floor(sparks * 2.2 * share + extra));
       for (int i = 0; i < count; ++i) {
         const auto v = 0.7 + 1.3 * rng.uniform();
         const auto u = (rng.uniform() - 0.5) * 3.0;
+        const auto size = rng.uniform();
+        const auto strength = rng.uniform();
         spark_list.push_back({tongue.x + tongue.dx * v * tongue.height + px * u * tongue.width,
                               tongue.y + tongue.dy * v * tongue.height + py * u * tongue.width,
-                              std::max(0.6, tongue_width * 0.025 * (0.5 + rng.uniform())),
-                              0.6 + 0.4 * rng.uniform()});
+                              std::max(0.6, tongue_width * 0.025 * (0.5 + size)), 0.6 + 0.4 * strength});
       }
     }
   }
