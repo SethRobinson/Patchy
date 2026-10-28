@@ -1,23 +1,30 @@
 {
   "platforms": {
     "windows": {
-      "version": "1.19",
+      "version": "1.20",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsInstaller.exe",
-      "installer_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.19/PatchyWindowsInstaller.exe",
-      "installer_size": 113809512,
-      "installer_sha256": "926fccfd444e6e4f5855cc2ea557b7833a4c2716356b1c9fb66d239ed00e2a90"
+      "installer_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.20/PatchyWindowsInstaller.exe",
+      "installer_size": 117938280,
+      "installer_sha256": "b0474cab1ba5874b11c2215022811430e7a5cc3047b565e9219bff603f5d8f07"
+    },
+    "windows-arm64": {
+      "version": "1.20",
+      "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsArm64Installer.exe",
+      "installer_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.20/PatchyWindowsArm64Installer.exe",
+      "installer_size": 110368872,
+      "installer_sha256": "27a5c07040d019a15b819088fd016153352a2d5b85f46d3567e415b1aeb33cca"
     },
     "macos": {
-      "version": "1.19",
+      "version": "1.20",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyMacOS.dmg"
     },
     "linux": {
-      "version": "1.19",
+      "version": "1.20",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak",
       "appimage_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.AppImage",
-      "appimage_install_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.19/PatchyLinux.AppImage",
-      "appimage_install_size": 97999352,
-      "appimage_install_sha256": "51f0dcf07451f56b4bbc7c85575d83e4a371d7e2587e8fb790acb290c74747f7"
+      "appimage_install_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.20/PatchyLinux.AppImage",
+      "appimage_install_size": 99772920,
+      "appimage_install_sha256": "bfadac617a241b83238f3a4e9f9bd69fb7ec15d76ceb0d90f9ac47e3d4ef5e6d"
     }
   }
 }
