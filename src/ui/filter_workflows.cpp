@@ -492,6 +492,26 @@ std::optional<FilterInvocation> request_filter_settings(
     initial.schema_version = spec.schema_version;
   }
 
+  // A long filter (Flame) puts its preview on the left and its controls in
+  // two columns on the right, so the dialog stays short enough for a 1080p
+  // screen at 150 %; shorter filters keep the preview above one column.
+  const auto wide_layout = spec.controls.size() >= kFilterDialogTwoColumnControls &&
+                           preview_source != nullptr && preview_source->pixels != nullptr &&
+                           !preview_source->pixels->empty();
+  QBoxLayout* preview_column = layout;
+  QBoxLayout* controls_column = layout;
+  if (wide_layout) {
+    auto* body = new QHBoxLayout();
+    body->setSpacing(18);
+    auto* left = new QVBoxLayout();
+    auto* right = new QVBoxLayout();
+    body->addLayout(left, 2);
+    body->addLayout(right, 3);
+    layout->addLayout(body, 1);
+    preview_column = left;
+    controls_column = right;
+  }
+
   // Optional bounded proxy preview (the gallery's center-preview machinery).
   // The proxy is built once from the immutable source; the live canvas
   // preview stays gated by filterPreviewCheck while the in-dialog proxy
@@ -510,12 +530,14 @@ std::optional<FilterInvocation> request_filter_settings(
     proxy_preview = new ZoomableImagePreview(&dialog);
     proxy_preview->setObjectName(QStringLiteral("filterDialogPreview"));
     proxy_preview->setProperty("filterDialogRenderedFilterId", QString());
-    proxy_preview->setMinimumSize(380, 260);
+    // Beside two columns of controls the preview may narrow, so the dialog
+    // still fits a 1024 px wide screen.
+    proxy_preview->setMinimumSize(wide_layout ? 300 : 380, 260);
     proxy_preview->set_image(image_from_pixels(dialog_proxy.original));
     current_proxy_bounds = Rect::from_size(dialog_proxy.original.width(),
                                            dialog_proxy.original.height());
     rendered_input_bounds = current_proxy_bounds;
-    layout->addWidget(proxy_preview, 1);
+    preview_column->addWidget(proxy_preview, 1);
 
     auto* zoom_row = new QHBoxLayout();
     zoom_row->setSpacing(4);
@@ -551,7 +573,7 @@ std::optional<FilterInvocation> request_filter_settings(
     zoom_row->addWidget(zoom_out);
     zoom_row->addWidget(zoom_in);
     zoom_row->addWidget(zoom_label);
-    layout->addLayout(zoom_row);
+    preview_column->addLayout(zoom_row);
     proxy_preview->set_zoom_changed_callback([proxy_preview, zoom_label] {
       const auto percent =
           proxy_preview->property("previewZoomPercent").toInt();
@@ -577,11 +599,13 @@ std::optional<FilterInvocation> request_filter_settings(
     notice_label = new QLabel(&dialog);
     notice_label->setObjectName(QStringLiteral("filterDialogNotice"));
     notice_label->setWordWrap(true);
-    layout->addWidget(notice_label);
+    controls_column->addWidget(notice_label);
   }
   auto* panel = new FilterParameterPanel(&dialog);
   FilterParameterPanelOptions panel_options;
   panel_options.build_companions = true;
+  // Long filters (Flame's 17 controls) lay their controls out in two columns.
+  panel_options.two_columns_from = kFilterDialogTwoColumnControls;
   panel->rebuild(spec, initial, panel_options);
   panel->set_values_changed_callback(
       [&schedule_preview_callback, &schedule_proxy_render_callback,
@@ -596,7 +620,10 @@ std::optional<FilterInvocation> request_filter_settings(
           schedule_proxy_render_callback();
         }
       });
-  layout->addWidget(panel);
+  controls_column->addWidget(panel);
+  if (wide_layout) {
+    controls_column->addStretch(1);
+  }
 
   // Smart-filter callers pass per-entry blending; the settings dialog is the
   // one place that edits a Smart Filter, so Mode/Opacity live here instead of

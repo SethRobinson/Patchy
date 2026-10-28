@@ -6,6 +6,8 @@
 #include <QString>
 #include <QWidget>
 
+#include <cstddef>
+
 #include <functional>
 #include <string>
 #include <utility>
@@ -37,6 +39,11 @@ struct FilterParameterPanelOptions {
   // Append the FilterAngleDial / FilterWaveformControl companion rows for
   // controls carrying the matching presentation roles.
   bool build_companions{false};
+  // With at least this many controls (0: never), the controls fill two
+  // columns side by side, the first half on the left, so a long filter (Flame)
+  // stays short enough for the screen. Tab order runs down the left column,
+  // then the right.
+  std::size_t two_columns_from{0};
 };
 
 // One generated parameter editor shared by the direct filter dialog, the
@@ -100,8 +107,10 @@ class FilterParameterPanel : public QWidget {
   };
 
   void delete_generated_children();
+  // `owned`: the form is the panel's layout; otherwise a parentless column
+  // form for the two-column layout.
   [[nodiscard]] QFormLayout* make_form(
-      const FilterParameterPanelOptions& options);
+      const FilterParameterPanelOptions& options, bool owned = true);
   void fire(const ValueChanges& changes);
   [[nodiscard]] const ControlBinding* binding_for(
       const FilterControlSpec& control) const;

@@ -14,6 +14,7 @@
 #include <QRegion>
 #include <QString>
 
+#include <cstddef>
 #include <functional>
 #include <optional>
 #include <string>
@@ -113,6 +114,10 @@ struct FilterControlSpec {
   FilterParameterPresentation presentation{
       FilterParameterPresentation::Standard};
 };
+
+// A direct filter dialog with at least this many controls lays them out in two
+// columns (FilterParameterPanelOptions::two_columns_from); shorter ones keep one.
+inline constexpr std::size_t kFilterDialogTwoColumnControls = 12;
 
 struct FilterDialogSpec {
   QString identifier;

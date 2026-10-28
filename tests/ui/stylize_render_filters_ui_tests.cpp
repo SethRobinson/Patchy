@@ -26,6 +26,7 @@
 #include <QDoubleSpinBox>
 #include <QImage>
 #include <QMenu>
+#include <QRegion>
 #include <QFont>
 #include <QSpinBox>
 #include <QPainterPath>
@@ -37,6 +38,7 @@
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <string>
@@ -488,6 +490,85 @@ void ui_issue_496_flame_follow_path_and_wind_angle_dialogs() {
   }
 }
 
+
+// Flame's 17 controls sit in two columns, so its dialog fits a 1080p screen at
+// 150 % (720 logical pixels tall); dialogs with fewer controls keep one column.
+void ui_issue_496_long_filter_dialogs_use_two_columns() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto photo = photo_pixels(900);
+  if (photo.empty()) {
+    return;
+  }
+  const patchy::Rect bounds{0, 0, photo.width(), photo.height()};
+  const patchy::ui::FilterDialogPreviewSource source{&photo, bounds, QRegion(), &registry};
+  struct Case {
+    const char* id;
+    const char* first;  // the first control's slider or combo
+    const char* last;   // the last control's slider
+    bool two_columns;
+    std::string artifact;
+  };
+  const std::vector<Case> cases{
+      {"patchy.filters.flame", "filterFlameColorsCombo", "filterCenterYSlider", true,
+       "issue_496_flame_dialog_two_columns"},
+      {"patchy.filters.lens_flare", "filterFlareTypeCombo", "filterCenterYSlider", false,
+       "issue_496_lens_flare_dialog_after"},
+      {"patchy.filters.wind", "filterMethodCombo", "filterLengthSlider", false, "issue_496_wind_dialog_after"},
+      {"patchy.filters.extrude", "filterBlockShapeCombo", "filterSeedSpin", false,
+       "issue_496_extrude_dialog_after"},
+  };
+  for (const auto& test_case : cases) {
+    const auto* filter = registry.find(test_case.id);
+    CHECK(filter != nullptr);
+    if (filter == nullptr) {
+      continue;
+    }
+    const auto spec = patchy::ui::filter_dialog_spec_for(*filter);
+    CHECK((spec.controls.size() >= patchy::ui::kFilterDialogTwoColumnControls) == test_case.two_columns);
+    bool checked = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* first = dialog->findChild<QWidget*>(QString::fromLatin1(test_case.first));
+      auto* last = dialog->findChild<QWidget*>(QString::fromLatin1(test_case.last));
+      CHECK(first != nullptr && last != nullptr);
+      if (first != nullptr && last != nullptr) {
+        const auto first_x = first->mapTo(dialog, QPoint(0, 0)).x();
+        const auto last_x = last->mapTo(dialog, QPoint(0, 0)).x();
+        // The last control starts a column to the right of the first only in
+        // the two-column layout.
+        CHECK((last_x > first_x + first->width() / 2) == test_case.two_columns);
+      }
+      const auto hint = dialog->sizeHint();
+      std::cout << "  [dialog] " << test_case.id << " size hint " << hint.width() << " x " << hint.height()
+                << '\n';
+      CHECK(hint.height() <= 680);
+      CHECK(hint.width() <= 1200);
+      // And it still fits a 1024 px wide screen without squeezing a control.
+      CHECK(dialog->minimumSizeHint().width() <= 1000);
+      std::cout << "  [dialog] minimum " << dialog->minimumSizeHint().width() << " x "
+                << dialog->minimumSizeHint().height() << '\n';
+      static_cast<void>(process_events_until(
+          [&] {
+            auto* preview = dialog->findChild<QWidget*>(QStringLiteral("filterDialogPreview"));
+            return preview != nullptr &&
+                   preview->property("filterDialogRenderedFilterId").toString() ==
+                       QString::fromLatin1(test_case.id);
+          },
+          8000));
+      save_widget_artifact(test_case.artifact, *dialog);
+      checked = true;
+      dialog->reject();
+    });
+    static_cast<void>(patchy::ui::request_filter_settings(nullptr, spec, {}, {}, &source));
+    CHECK(checked);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> stylize_render_filters_ui_tests() {
@@ -498,5 +579,6 @@ std::vector<patchy::test::TestCase> stylize_render_filters_ui_tests() {
       {"ui_issue_496_flame_follows_text_outlines", ui_issue_496_flame_follows_text_outlines},
       {"ui_issue_496_flame_follow_path_and_wind_angle_dialogs",
        ui_issue_496_flame_follow_path_and_wind_angle_dialogs},
+      {"ui_issue_496_long_filter_dialogs_use_two_columns", ui_issue_496_long_filter_dialogs_use_two_columns},
   };
 }
