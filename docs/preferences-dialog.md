@@ -36,6 +36,15 @@ vertical-only `preferencesTabScroll`.
   boxes stop at 160 px, one-line text fields at 360 px, and a button with the
   `preferencesTextWidthButton` property at its text. Lists (plug-in folders) still stretch. Do
   not undo it with an Expanding policy.
+- **Open combo lists (issue 489).** Qt opens a list as wide as its box, and the list's own
+  row padding then elided entries a compact box shows whole. `keep_preferences_fields_compact`
+  gives every combo `fit_combo_popup_to_entries`, which widens the list on each open to its
+  widest entry (`combo_list_entry_width`), so it follows the current language. Neither Qt
+  size hint is enough: Fusion's menu rows report a flat minimum for every entry, and Windows
+  11 insets list text 5 px a side beyond the hint, so the width comes from the style's own
+  text rectangle. `ui_preferences_combo_lists_fit_their_entries` opens every combo on every
+  page in English, German and Russian; it covers the Windows styles only when Qt finds the
+  styles plug-in (a development build needs `QT_PLUGIN_PATH` set to the Qt kit's plugins).
 - **Theme.** The list and page area use the `dialog_tab_*` roles (named for the old tab bar;
   role names are `.patchytheme` keys and never change); the selected row adds
   `@text_on_raised` text and an `@accent` bar on its left edge. No colors in code ([ui-conventions.md](ui-conventions.md#color-scheme)).

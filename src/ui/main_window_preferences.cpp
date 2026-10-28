@@ -373,6 +373,8 @@ void keep_preferences_fields_compact(QWidget& pages) {
     combo->setMaximumWidth(combo->sizeAdjustPolicy() == QComboBox::AdjustToMinimumContentsLengthWithIcon
                                ? std::max(kPreferencesFieldMaxWidth, combo->minimumSizeHint().width())
                                : std::max(combo->sizeHint().width(), combo->minimumSizeHint().width()));
+    // The open list shows every entry whole, however compact the box (GitHub issue 489).
+    fit_combo_popup_to_entries(*combo);
   }
   for (auto* button : pages.findChildren<QPushButton*>()) {
     if (button->property(kPreferencesTextWidthButton).toBool()) {

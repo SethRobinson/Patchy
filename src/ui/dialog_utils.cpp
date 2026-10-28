@@ -13,6 +13,7 @@
 #endif
 
 #include <QAbstractButton>
+#include <QAbstractItemDelegate>
 #include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QAbstractSlider>
@@ -20,6 +21,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QFontMetrics>
 #include <QCursor>
 #include <QDateTime>
 #include <QDialog>
@@ -67,6 +69,8 @@
 #include <QStringList>
 #include <QStyle>
 #include <QStyleOptionButton>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
 #include <QStylePainter>
 #include <QTabBar>
 #include <QTabWidget>
@@ -2134,7 +2138,94 @@ private:
   QComboBox* combo_;
 };
 
+constexpr char kEntryFitPopupProperty[] = "patchy.entryFitPopup";
+
+// Widens the combo's list window on Show (fit_combo_popup_to_entries). The list is laid out
+// by then, so the window's width less the viewport's is its frame and scroll bar.
+class ComboPopupEntryFit final : public QObject {
+public:
+  explicit ComboPopupEntryFit(QComboBox& combo) : QObject(&combo), combo_(&combo) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Show) {
+      if (auto* popup = qobject_cast<QWidget*>(watched); popup != nullptr && popup->isWindow()) {
+        widen(*popup);
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  void widen(QWidget& popup) const {
+    int widest = 0;
+    for (int row = 0; row < combo_->count(); ++row) {
+      widest = std::max(widest, combo_list_entry_width(*combo_, row));
+    }
+    const int needed = widest + popup.width() - combo_->view()->viewport()->width();
+    if (needed <= popup.width()) {
+      return;
+    }
+    auto rect = popup.geometry();
+    rect.setWidth(needed);
+    popup.setGeometry(rect);
+    fit_combo_popup_to_screen(*combo_, popup);
+  }
+
+  QComboBox* combo_;
+};
+
 }  // namespace
+
+int combo_list_entry_width(const QComboBox& combo, int row) {
+  const auto* view = combo.view();
+  const auto index = combo.model()->index(row, combo.modelColumn(), combo.rootModelIndex());
+  const auto text = combo.itemText(row);
+  auto* delegate = view->itemDelegateForIndex(index);
+  if (text.isEmpty() || delegate == nullptr) {
+    return 0;  // a separator
+  }
+  // The menu delegate draws with the combo's font (or the entry's own), the list delegate
+  // with the view's.
+  const auto role_font = index.data(Qt::FontRole);
+  const QFontMetrics metrics(role_font.canConvert<QFont>() ? qvariant_cast<QFont>(role_font) : combo.font());
+  const int text_width = std::max(metrics.horizontalAdvance(text), view->fontMetrics().horizontalAdvance(text));
+  // The menu delegate (Fusion, macOS) sizes a row from the size it is handed, not from its
+  // text, so it is handed the text's size; the view's sizeHintForIndex reports the style's
+  // minimum row width for every entry.
+  QStyleOptionViewItem option;
+  option.initFrom(view);
+  option.font = view->font();
+  option.rect = QRect(0, 0, text_width, metrics.height());
+  int width = delegate->sizeHint(option, index).width();
+  if (qobject_cast<const QStyledItemDelegate*>(delegate) != nullptr) {
+    // The list delegate: its size hint leaves out the inset some styles give the text of a
+    // combo list row (Windows 11: 5 px a side), so the text's room is read from the style
+    // the way it draws the row: the text rectangle of a wide row, less its text margins.
+    constexpr int kProbeWidth = 1000;
+    option.widget = view;
+    option.text = text;
+    option.features |= QStyleOptionViewItem::HasDisplay;
+    if (const auto icon = combo.itemIcon(row); !icon.isNull()) {
+      option.icon = icon;
+      option.decorationSize = combo.iconSize();
+      option.features |= QStyleOptionViewItem::HasDecoration;
+    }
+    option.rect = QRect(0, 0, kProbeWidth, metrics.height());
+    const auto* style = view->style();
+    const int text_room = style->subElementRect(QStyle::SE_ItemViewItemText, &option, view).width() -
+                          2 * (style->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, view) + 1);
+    width = std::max(width, kProbeWidth - text_room + text_width);
+  }
+  return width;
+}
+
+void fit_combo_popup_to_entries(QComboBox& combo) {
+  if (combo.property(kEntryFitPopupProperty).toBool()) {
+    return;
+  }
+  combo.setProperty(kEntryFitPopupProperty, true);
+  combo.view()->window()->installEventFilter(new ComboPopupEntryFit(combo));
+}
 
 void fit_combo_popup_to_screen(const QComboBox& combo, QWidget& popup) {
   // A Wayland client cannot see its window's place on the output; the compositor keeps

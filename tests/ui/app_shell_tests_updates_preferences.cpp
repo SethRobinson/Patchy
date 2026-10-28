@@ -14,6 +14,7 @@
 #include "ui/missing_fonts_dialog.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/localization.hpp"
+#include "ui/app_style.hpp"
 #include "ui/theme_file.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/app_settings.hpp"
@@ -36,6 +37,10 @@
 #include <QCollator>
 #include <QAbstractItemView>
 #include <QComboBox>
+#include <QPainter>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
+#include <QStyleFactory>
 #include <QTime>
 #include <QTimeZone>
 #include <QDialog>
@@ -2513,6 +2518,155 @@ void ui_preferences_minimum_width_fits_and_fields_stay_compact() {
   CHECK(manager.set_language(QStringLiteral("en"), false));
 }
 
+// GitHub issue 489: an open combo list shows every entry whole. Every combo on every
+// Preferences page is opened and each row of its list must fit the list's width, in English
+// and the longer German and Russian, under the suite's style (Fusion: the list is a menu) and
+// the Windows styles (a list view) when Qt finds them: a release ships the styles plug-in, a
+// development build does not, so set QT_PLUGIN_PATH to the Qt kit's plugins folder to run
+// those. Captures show the lists the issue's screenshots show, open over the dialog.
+void ui_preferences_combo_lists_fit_their_entries() {
+  SettingsValueRestorer restore_size(QStringLiteral("preferences/dialogSize"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("preferences/dialogSize"));
+    settings.sync();
+  }
+  const auto expect = [](bool ok, const std::string& message) {
+    if (!ok) {
+      patchy::test::report_failure(message);
+    }
+  };
+  const auto settle = [] {
+    for (int pass = 0; pass < 4; ++pass) {
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+      QApplication::processEvents();
+    }
+  };
+  // The dialog with the open list painted where it sits on screen, cropped around the list.
+  // Not save_window_popup_artifact: Qt's list window keeps its unthemed frame color, which
+  // that helper's theme check refuses.
+  const auto capture_open_list = [](const std::string& name, QDialog& dialog, QComboBox& combo, QWidget& popup) {
+    auto shot = dialog.grab().toImage();
+    const auto origin = dialog.mapToGlobal(QPoint(0, 0));
+    const auto popup_position = popup.mapToGlobal(QPoint(0, 0)) - origin;
+    {
+      QPainter painter(&shot);
+      painter.drawPixmap(popup_position, popup.grab());
+    }
+    const auto crop = QRect(combo.mapToGlobal(QPoint(0, 0)) - origin, combo.size())
+                          .united(QRect(popup_position, popup.size()))
+                          .adjusted(-220, -14, 48, 14)
+                          .intersected(shot.rect());
+    save_image_artifact(name, shot.copy(crop));
+  };
+  const std::map<QString, std::string> captured_combos = {
+      {QStringLiteral("preferencesToolFlyoutOpenCombo"), "tool_groups"},
+      {QStringLiteral("preferencesUpdateCheckIntervalCombo"), "update_interval"},
+      {QStringLiteral("preferencesRecoveryIntervalCombo"), "recovery_interval"},
+      {QStringLiteral("preferencesToolbarIconSizeCombo"), "icon_size"},
+  };
+  QStringList style_keys{QString()};  // the suite's own style first
+  for (const auto& key : {QStringLiteral("windows11"), QStringLiteral("windowsvista")}) {
+    if (QStyleFactory::keys().contains(key, Qt::CaseInsensitive)) {
+      style_keys.append(key);
+    }
+  }
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  int checked = 0;
+  for (const auto& style_key : style_keys) {
+    if (!style_key.isEmpty()) {
+      QApplication::setStyle(new patchy::ui::AppStyle(QStyleFactory::create(style_key)));
+    }
+    const auto style_name = style_key.isEmpty() ? std::string("suite") : style_key.toStdString();
+    {
+      patchy::ui::MainWindow window;
+      show_window(window);
+      for (const auto& code : {QStringLiteral("en"), QStringLiteral("de"), QStringLiteral("ru")}) {
+        CHECK(manager.set_language(code, false));
+        QApplication::processEvents();
+        const auto lang = code.toStdString();
+        run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+          auto* list = preferences_page_list(dialog);
+          CHECK(list != nullptr);
+          if (list == nullptr) {
+            return;
+          }
+          settle();
+          for (int row = 0; row < list->count(); ++row) {
+            list->setCurrentRow(row);
+            settle();
+            auto* page = preferences_current_page(dialog);
+            if (page == nullptr) {
+              continue;
+            }
+            for (auto* combo : page->findChildren<QComboBox*>()) {
+              if (!combo->isVisibleTo(page) || combo->count() == 0) {
+                continue;
+              }
+              ++checked;
+              const auto where = style_name + " / " + lang + " / " + list->item(row)->text().toStdString() + " / " +
+                                 combo->objectName().toStdString() + ": ";
+              combo->showPopup();
+              settle();
+              auto* view = combo->view();
+              auto* popup = view->window();
+              expect(popup->isVisible(), where + "the list did not open");
+              const int room = view->viewport()->width();
+              for (int item = 0; item < combo->count(); ++item) {
+                const auto index = view->model()->index(item, combo->modelColumn(), view->rootIndex());
+                if (combo->itemText(item).isEmpty()) {
+                  continue;  // a separator
+                }
+                // Checked as each style draws the row at its real width: a menu-style row
+                // (Fusion) fits when the size the style asks for the text's size fits; a list
+                // row (the Windows styles) when the text fits the style's text rectangle less
+                // its text margins.
+                const auto item_text = combo->itemText(item);
+                const int text = std::max(combo->fontMetrics().horizontalAdvance(item_text),
+                                          view->fontMetrics().horizontalAdvance(item_text));
+                auto* delegate = view->itemDelegateForIndex(index);
+                QStyleOptionViewItem option;
+                option.initFrom(view);
+                option.font = view->font();
+                int needs = 0;
+                int has = room;
+                if (qobject_cast<QStyledItemDelegate*>(delegate) != nullptr) {
+                  option.widget = view;
+                  option.text = item_text;
+                  option.features |= QStyleOptionViewItem::HasDisplay;
+                  option.rect = view->visualRect(index);
+                  needs = text;
+                  has = view->style()->subElementRect(QStyle::SE_ItemViewItemText, &option, view).width() -
+                        2 * (view->style()->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, view) + 1);
+                } else {
+                  option.rect = QRect(0, 0, text, combo->fontMetrics().height());
+                  needs = delegate->sizeHint(option, index).width();
+                }
+                expect(needs <= has && text < room, where + "'" + item_text.toStdString() + "' needs " +
+                                                        std::to_string(needs) + " px of " + std::to_string(has) +
+                                                        " (text " + std::to_string(text) + ", list " +
+                                                        std::to_string(room) + ")");
+              }
+              if (const auto found = captured_combos.find(combo->objectName());
+                  found != captured_combos.end() && (code == QStringLiteral("en") || code == QStringLiteral("de"))) {
+                capture_open_list("preferences_combo_list_" + found->second + "_" + lang + "_" + style_name, dialog,
+                                  *combo, *popup);
+              }
+              combo->hidePopup();
+              settle();
+            }
+          }
+        });
+      }
+      CHECK(manager.set_language(QStringLiteral("en"), false));
+    }
+    if (!style_key.isEmpty()) {
+      QApplication::setStyle(new patchy::ui::AppStyle);
+    }
+  }
+  CHECK(checked > 0);
+}
+
 // GitHub issue 144: Preferences answers Photoshop's Ctrl+K off macOS (Cmd+, there).
 void ui_preferences_hotkey_is_ctrl_k_off_macos() {
   patchy::ui::MainWindow window;
@@ -3531,6 +3685,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_preferences_interval_combos_fit_their_longest_entry", ui_preferences_interval_combos_fit_their_longest_entry},
       {"ui_preferences_interface_scale_and_icon_size_share_a_row", ui_preferences_interface_scale_and_icon_size_share_a_row},
       {"ui_preferences_hotkey_is_ctrl_k_off_macos", ui_preferences_hotkey_is_ctrl_k_off_macos},
+      {"ui_preferences_combo_lists_fit_their_entries", ui_preferences_combo_lists_fit_their_entries},
       {"ui_preferences_minimum_width_fits_and_fields_stay_compact",
        ui_preferences_minimum_width_fits_and_fields_stay_compact},
       {"ui_update_check_interval_gates_the_startup_check", ui_update_check_interval_gates_the_startup_check},
