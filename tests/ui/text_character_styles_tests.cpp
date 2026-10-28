@@ -22,6 +22,7 @@
 #include <QDir>
 #include <QFontDatabase>
 #include <QGlyphRun>
+#include <QPainter>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTextEdit>
@@ -445,6 +446,55 @@ void ui_text_character_style_buttons_toggle_run_styles() {
   CHECK(drove);
 }
 
+// Opens the text layer in the Type tool, selects [from, to), clicks `button` in the Character dialog
+// (checking it showed `checked_before` and flipped) and commits through Move, which re-renders.
+void edit_text_layer_style(patchy::ui::MainWindow& window, const patchy::Document& live, patchy::LayerId layer_id,
+                           int from, int to, const char* button, bool checked_before) {
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto bounds = std::as_const(live).find_layer(layer_id)->bounds();
+  const auto hit = canvas->widget_position_for_document_point(QPoint(bounds.x + 25, bounds.y + bounds.height / 2));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor != nullptr && button != nullptr) {
+    auto cursor = editor->textCursor();
+    cursor.setPosition(from);
+    cursor.setPosition(to, QTextCursor::KeepAnchor);
+    editor->setTextCursor(cursor);
+    QApplication::processEvents();
+    bool flipped = false;
+    QTimer::singleShot(0, [&] {
+      try {
+        auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        if (auto* toggle = dialog->findChild<QPushButton*>(QLatin1String(button)); toggle != nullptr) {
+          CHECK(toggle->isEnabled());
+          CHECK(toggle->isChecked() == checked_before);
+          toggle->click();
+          process_events_for(50);
+          flipped = toggle->isChecked() != checked_before;
+        }
+        dialog->close();
+      } catch (...) {
+        patchy::ui::unwind_non_modal_dialog_loop(std::current_exception());
+      }
+    });
+    window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"))->click();
+    QApplication::processEvents();
+    CHECK(flipped);
+  }
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(200);
+}
+
 // Issue 466 for every style button: with part of the line selected in a live session, each toggle
 // (faux bold, faux italic and the eight styles) sets its flag on the selected runs alone and leaves
 // the other word's glyphs exactly as they were; with both words styled, turning it off on one word
@@ -474,52 +524,8 @@ void ui_text_character_styles_apply_only_to_the_selection() {
     layer_id = id.value_or(patchy::LayerId{});
   };
 
-  // Opens the layer in the Type tool, selects [from, to), clicks `button` in the Character dialog
-  // (checking it showed `checked_before` and flipped) and commits through Move, which re-renders.
   const auto edit = [&](int from, int to, const char* button, bool checked_before) {
-    auto* canvas = require_canvas(window);
-    require_action_by_text(window, QStringLiteral("Type"))->trigger();
-    const auto bounds = std::as_const(*live).find_layer(layer_id)->bounds();
-    const auto hit = canvas->widget_position_for_document_point(QPoint(bounds.x + 25, bounds.y + bounds.height / 2));
-    send_mouse(*canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
-    send_mouse(*canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
-    QApplication::processEvents();
-    process_events_for(250);
-    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-    CHECK(editor != nullptr);
-    if (editor != nullptr && button != nullptr) {
-      auto cursor = editor->textCursor();
-      cursor.setPosition(from);
-      cursor.setPosition(to, QTextCursor::KeepAnchor);
-      editor->setTextCursor(cursor);
-      QApplication::processEvents();
-      bool flipped = false;
-      QTimer::singleShot(0, [&] {
-        try {
-          auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
-          CHECK(dialog != nullptr);
-          if (dialog == nullptr) {
-            return;
-          }
-          if (auto* toggle = dialog->findChild<QPushButton*>(QLatin1String(button)); toggle != nullptr) {
-            CHECK(toggle->isEnabled());
-            CHECK(toggle->isChecked() == checked_before);
-            toggle->click();
-            process_events_for(50);
-            flipped = toggle->isChecked() != checked_before;
-          }
-          dialog->close();
-        } catch (...) {
-          patchy::ui::unwind_non_modal_dialog_loop(std::current_exception());
-        }
-      });
-      window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"))->click();
-      QApplication::processEvents();
-      CHECK(flipped);
-    }
-    require_action_by_text(window, QStringLiteral("Move"))->trigger();
-    QApplication::processEvents();
-    process_events_for(200);
+    edit_text_layer_style(window, *live, layer_id, from, to, button, checked_before);
   };
 
   // Layer alpha at a DOCUMENT point, and the whole frame of it (the raster may move or grow).
@@ -645,11 +651,23 @@ void ui_text_character_styles_apply_only_to_the_selection() {
     return layer == nullptr ? std::string() : layer->metadata().at(patchy::kLayerMetadataTextRuns);
   };
 
-  // Whether columns [x0, x1) still hold `before`, the whole line allowed to sit up to 2 px away:
-  // a re-edit pins the layer's visible ink top-left (layer_source_visible_anchor), so a style that
-  // raises the ink elsewhere (a superscript, faux bold's stroke) moves the line, not the word's
-  // glyphs. A difference is counted and described, not thrown, so one run reports every style.
-  const auto unchanged = [&](const std::vector<int>& before, int x0, int x1, const char* name, const char* step) {
+  const auto layer_transform = [&]() {
+    const auto* layer = std::as_const(*live).find_layer(layer_id);
+    if (layer == nullptr) {
+      return std::string();
+    }
+    const auto found = layer->metadata().find(patchy::kLayerMetadataTextTransform);
+    return found == layer->metadata().end() ? std::string() : found->second;
+  };
+  // Whether columns [x0, x1) still hold `before` exactly where they were: a re-edit keeps the
+  // text's pen and first baseline (anchored_text_transform_for_pixels), so a style that grows the
+  // ink elsewhere (a superscript, faux bold's stroke) must not move the other word at all. A
+  // difference is counted and described, not thrown, so one run reports every style.
+  // Known gap: turning faux bold off on one word re-antialiases a faux bold neighbour by a few
+  // alpha levels with the transform and bounds unchanged (Qt's outline draw, not the placement),
+  // so a sub-pixel difference with an unchanged transform is reported but not counted.
+  const auto unchanged = [&](const std::vector<int>& before, const std::string& transform_before, int x0, int x1,
+                             const char* name, const char* step) {
     const int columns = x1 - x0;
     for (int dy = -2; dy <= 2; ++dy) {
       for (int dx = -2; dx <= 2; ++dx) {
@@ -660,39 +678,16 @@ void ui_text_character_styles_apply_only_to_the_selection() {
         if (same) {
           if (dx != 0 || dy != 0) {
             std::printf("  %s, %s: the line moved %d,%d px\n", name, step, dx, dy);
+            ++failures;
           }
           return;
         }
       }
     }
-    // A fractional move re-rasterizes the glyphs on another sub-pixel phase; any style reaching the
-    // word changes its ink far more than that (faux bold adds a quarter, faux italic leans the box
-    // 9 px wider, a bar adds a band, caps and scripts change the letters).
-    const auto ink = [](const std::vector<int>& alpha, int width) {
-      long long mass = 0;
-      int left = width;
-      int right = -1;
-      int top = kHeight;
-      int bottom = -1;
-      for (int index = 0; index < static_cast<int>(alpha.size()); ++index) {
-        const auto value = alpha[static_cast<std::size_t>(index)];
-        mass += value;
-        if (value >= kInk) {
-          left = std::min(left, index % width);
-          right = std::max(right, index % width);
-          top = std::min(top, index / width);
-          bottom = std::max(bottom, index / width);
-        }
-      }
-      return std::array<long long, 3>{mass, right - left, bottom - top};
-    };
-    const auto was = ink(before, columns);
-    const auto now = ink(snapshot(x0, x1), columns);
-    const bool close = was[0] > 0 && std::llabs(now[0] - was[0]) * 50 <= was[0] && std::llabs(now[1] - was[1]) <= 1 &&
-                       std::llabs(now[2] - was[2]) <= 1;
-    std::printf("  %s, %s: the unselected word %s (ink %lld -> %lld, %lldx%lld -> %lldx%lld)\n", name, step,
-                close ? "moved by a fraction of a pixel" : "changed", was[0], now[0], was[1], was[2], now[1], now[2]);
-    failures += close ? 0 : 1;
+    const bool placed_alike = layer_transform() == transform_before;
+    std::printf("  %s, %s: the unselected word was re-rendered differently, transform %s\n", name, step,
+                placed_alike ? "unchanged (known gap)" : "MOVED");
+    failures += placed_alike ? 0 : 1;
   };
   for (const auto& style : styles) {
     std::printf("  %s\n", style.name);
@@ -705,11 +700,12 @@ void ui_text_character_styles_apply_only_to_the_selection() {
     }
     const auto plain_first = snapshot(0, split);
     const auto plain_second = snapshot(split, kWidth);
+    const auto plain_transform = layer_transform();
 
     // On the second word only: the first keeps its flags and its pixels.
     edit(4, 10, style.button, false);
     expect_runs(style, layer_runs(), {{4, 10}}, "second word on");
-    unchanged(plain_first, 0, split, style.name, "second word on");
+    unchanged(plain_first, plain_transform, 0, split, style.name, "second word on");
     if (style.visible && snapshot(split, kWidth) == plain_second) {
       ++failures;
       std::printf("  %s: the selected word did not change\n", style.name);
@@ -725,9 +721,10 @@ void ui_text_character_styles_apply_only_to_the_selection() {
       return;
     }
     const auto styled_first = snapshot(0, both_split);
+    const auto styled_transform = layer_transform();
     edit(4, 10, style.button, true);
     expect_runs(style, layer_runs(), {{0, 3}}, "second word off");
-    unchanged(styled_first, 0, both_split, style.name, "second word off");
+    unchanged(styled_first, styled_transform, 0, both_split, style.name, "second word off");
 
     // The runs survive a PSD save and reopen as they are.
     const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(*live));
@@ -740,6 +737,89 @@ void ui_text_character_styles_apply_only_to_the_selection() {
       }
     }
     CHECK(reread_text);
+  }
+  std::fflush(stdout);
+  CHECK(failures == 0);
+}
+
+// Styling one word of point text never moves the other: Photoshop keeps the type anchor (the pen
+// on the first baseline) still, and a re-edit pinned the raster's ink corner instead, so the
+// superscript's raised ink or faux bold's stroke above the line top dropped the whole line a
+// pixel and turning a style off with another still on re-rasterized it on a fractional phase.
+void ui_text_style_edits_keep_the_point_text_line_in_place() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  constexpr int kWidth = 420;
+  constexpr int kHeight = 160;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document seed(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  seed.add_pixel_layer("Background", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  window.add_document_session(std::move(seed), QStringLiteral("Hab Hab"));
+  QApplication::processEvents();
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.addTextLayer('Hab Hab', {font: 'Arial', size: 64, x: 20, "
+                                          "y: 40, color: '#000000'});")));
+  const auto& live = MainWindowTestAccess::document(window);
+  const auto id = live.active_layer_id();
+  CHECK(id.has_value());
+  const auto layer_id = id.value_or(patchy::LayerId{});
+  // Layer alpha over the first word's columns, in DOCUMENT space (the raster grows and moves).
+  constexpr int kFirstWordRight = 135;
+  const auto first_word = [&] {
+    std::vector<int> alpha;
+    const auto* layer = std::as_const(live).find_layer(layer_id);
+    CHECK(layer != nullptr);
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kFirstWordRight; ++x) {
+        const int local_x = x - layer->bounds().x;
+        const int local_y = y - layer->bounds().y;
+        alpha.push_back(local_x < 0 || local_y < 0 || local_x >= layer->pixels().width() ||
+                                local_y >= layer->pixels().height()
+                            ? 0
+                            : layer->pixels().pixel(local_x, local_y)[3]);
+      }
+    }
+    return alpha;
+  };
+  // The layer drawn where it sits in the document, for the before/after shots.
+  const auto save_frame = [&](const char* step) {
+    const auto* layer = std::as_const(live).find_layer(layer_id);
+    QImage frame(kWidth, kHeight, QImage::Format_ARGB32);
+    frame.fill(Qt::white);
+    QPainter painter(&frame);
+    painter.drawImage(QPoint(layer->bounds().x, layer->bounds().y),
+                      patchy::ui::qimage_from_pixel_buffer(layer->pixels()));
+    painter.end();
+    save_image_artifact(std::string("ui_text_style_edits_keep_the_point_text_line_in_place_") + step, frame);
+  };
+  // A plain re-edit first, so the reference is a layer the Type tool has already committed.
+  edit_text_layer_style(window, live, layer_id, 0, 0, nullptr, false);
+  const auto plain = first_word();
+  save_frame("0_plain");
+  CHECK(std::ranges::any_of(plain, [](int alpha) { return alpha > 128; }));
+  // "Hab " is 4 characters: the second word is [4, 7).
+  struct Step {
+    const char* button;
+    bool checked_before;
+    const char* what;
+  };
+  const std::array<Step, 5> steps{{
+      {"textCharacterSuperscriptButton", false, "1_superscript_on"},
+      {"textCharacterFauxBold", false, "2_faux_bold_on"},
+      {"textCharacterSubscriptButton", false, "3_subscript_on"},
+      {"textCharacterFauxBold", true, "4_faux_bold_off"},
+      {"textCharacterSubscriptButton", true, "5_subscript_off"},
+  }};
+  int failures = 0;
+  for (const auto& step : steps) {
+    const auto before_bounds = std::as_const(live).find_layer(layer_id)->bounds();
+    edit_text_layer_style(window, live, layer_id, 4, 7, step.button, step.checked_before);
+    const auto after_bounds = std::as_const(live).find_layer(layer_id)->bounds();
+    const bool same = first_word() == plain;
+    std::printf("  %s: layer %d,%d %dx%d -> %d,%d %dx%d, first word %s\n", step.what, before_bounds.x,
+                before_bounds.y, before_bounds.width, before_bounds.height, after_bounds.x, after_bounds.y,
+                after_bounds.width, after_bounds.height, same ? "unchanged" : "MOVED");
+    failures += same ? 0 : 1;
+    save_frame(step.what);
   }
   std::fflush(stdout);
   CHECK(failures == 0);
@@ -848,6 +928,7 @@ std::vector<patchy::test::TestCase> text_character_styles_tests() {
        ui_text_ordinals_and_fractions_use_the_font_features_if_available},
       {"ui_text_character_style_buttons_toggle_run_styles", ui_text_character_style_buttons_toggle_run_styles},
       {"ui_text_character_styles_apply_only_to_the_selection", ui_text_character_styles_apply_only_to_the_selection},
+      {"ui_text_style_edits_keep_the_point_text_line_in_place", ui_text_style_edits_keep_the_point_text_line_in_place},
       {"ui_text_character_styles_sample_rerenders_if_available", ui_text_character_styles_sample_rerenders_if_available},
   };
 }

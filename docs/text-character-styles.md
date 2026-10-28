@@ -77,6 +77,10 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
   toggle is one Type step on the selection, the whole object with a bare caret, or every selected
   text layer. A selection's toggle never reaches the runs outside it, on or off, in the runs or
   the pixels (issue 466; `ui_text_character_styles_apply_only_to_the_selection` covers all ten).
+  Nor does the rest of the line move: a re-edit keeps the session-start pen and first baseline
+  ("The text on screen is never missing" in [text-tool.md](text-tool.md)), so a superscript or faux bold stroke
+  that raises one word's ink leaves the other word on its pixels
+  (`ui_text_style_edits_keep_the_point_text_line_in_place`).
 - Scripting: text runs take `caps` (`"all"`, `"small"`, `"none"`), `script` (`"superscript"`,
   `"subscript"`, `"none"`), `underline`, `strikethrough`, `ordinals`, `fractions`; `textRuns`
   reads them back ([scripting-api-changes.md](scripting-api-changes.md)).
@@ -85,7 +89,8 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
 
 Vertical text takes the caps only (no bars, no shifted baselines, no features). Fractions and
 ordinals do not shape across run boundaries. A superscript's fractional pixel size rounds to a
-whole pixel.
+whole pixel. Turning faux bold off on one word re-antialiases a faux bold neighbour by a few alpha
+levels at the same transform and bounds (the draw, not the placement).
 
 ## Verification
 
