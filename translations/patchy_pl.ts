@@ -13743,6 +13743,58 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Shapes Manager...</source>
         <translation>Menedżer kształtów...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>Warstwa dopasowania %1</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>Kanał R: wyłączony</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>Kanał G: wyłączony</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>Kanał B: wyłączony</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>Wycinanie</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>Wycinanie: Płytkie</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>Wycinanie: Głębokie</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>Maska warstwy ukrywa efekty: włączone</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>Maska wektorowa ukrywa efekty: włączone</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>Mieszaj efekty wewnętrzne jako grupę: włączone</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>Mieszaj warstwy przycinane jako grupę: wyłączone</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>Przezroczystość kształtuje warstwę: wyłączone</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>Zaawansowane mieszanie: %1. Kliknij, aby otworzyć opcje mieszania.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

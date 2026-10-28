@@ -13657,6 +13657,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Shapes Manager...</source>
         <translation>形状管理器...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>%1调整图层</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>R 通道：关</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>G 通道：关</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>B 通道：关</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>挖空</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>挖空：浅</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>挖空：深</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>图层蒙版隐藏效果：开</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>矢量蒙版隐藏效果：开</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>将内部效果混合成组：开</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>将剪贴图层混合成组：关</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>透明形状图层：关</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>高级混合：%1。单击可打开混合选项。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

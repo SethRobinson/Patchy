@@ -13700,6 +13700,58 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Shapes Manager...</source>
         <translation>Formenverwaltung...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>Einstellungsebene %1</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>Kanal R: aus</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>Kanal G: aus</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>Kanal B: aus</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>Aussparung</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>Aussparung: Flach</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>Aussparung: Tief</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>Ebenenmaske verbirgt Effekte: ein</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>Vektormaske verbirgt Effekte: ein</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>Interne Effekte als Gruppe mischen: ein</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>Beschnittene Ebenen als Gruppe mischen: aus</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>Transparenz formt Ebene: aus</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>Erweiterte Fülloptionen: %1. Klicken, um die Fülloptionen zu öffnen.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

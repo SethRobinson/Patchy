@@ -18,6 +18,8 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QColor>
 #include <QDialog>
 #include <QImage>
@@ -953,10 +955,114 @@ void ui_layer_fx_badge_right_click_opens_style_menu() {
   CHECK(badge_row(*list)->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton")) == nullptr);
 }
 
+// GitHub issue 494: a layer or folder whose advanced blending is not the default shows the
+// blending badge, its tooltip names what differs, and a click opens Blending Options. The
+// document goes through a PSD save and open first, so the badge reads what the file holds.
+void ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options() {
+  auto source = styled_document(true);
+  auto plain_pixels = solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(40, 90, 200, 255));
+  auto& blended = source.add_pixel_layer("Blended", plain_pixels);
+  patchy::set_layer_knockout(blended, 2U);
+  blended.layer_style().blend_clipped_elements = false;
+  auto& shapes_off = source.add_pixel_layer("Shapes Off", plain_pixels);
+  shapes_off.unknown_psd_blocks().push_back({"tsly", {0U, 0U, 0U, 0U}});
+  shapes_off.layer_style().layer_mask_hides_effects = true;
+  source.add_pixel_layer("Plain", plain_pixels);
+  patchy::Layer folder(source.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  folder.set_blend_mode(patchy::BlendMode::PassThrough);
+  patchy::set_layer_knockout(folder, 1U);
+  folder.children().emplace_back(source.allocate_layer_id(), "Inside", plain_pixels);
+  source.add_layer(std::move(folder));
+  ensure_artifact_dir();
+  const auto input_path =
+      QDir(QStringLiteral("test-artifacts")).absoluteFilePath(QStringLiteral("issue494_advanced_blending.psd"));
+  patchy::psd::DocumentIo::write_layered_rgb8_file(source, patchy::ui::to_filesystem_path(input_path));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // Every row in view: the expanded Color panel takes the Layers list's height in the test window.
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, input_path);
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  const auto blending_badge = [&](const QString& name) -> QToolButton* {
+    auto* row = list->itemWidget(require_layer_item(*list, name));
+    return row == nullptr ? nullptr : row->findChild<QToolButton*>(QStringLiteral("layerBlendingBadgeButton"));
+  };
+  if (auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock")); layers_dock != nullptr) {
+    save_widget_artifact("issue494_advanced_blending_badges", *layers_dock);
+  }
+  CHECK(blending_badge(QStringLiteral("Plain")) == nullptr);
+  CHECK(blending_badge(QStringLiteral("Badge")) == nullptr);  // layer styles alone are not advanced blending
+  CHECK(blending_badge(QStringLiteral("Inside")) == nullptr);
+  auto* badge = blending_badge(QStringLiteral("Blended"));
+  CHECK(badge != nullptr);
+  CHECK(badge != nullptr &&
+        badge->toolTip() == QStringLiteral("Advanced blending: Knockout Deep, Blend Clipped Layers as Group off. "
+                                           "Click to open Blending Options."));
+  auto* shapes_badge = blending_badge(QStringLiteral("Shapes Off"));
+  CHECK(shapes_badge != nullptr &&
+        shapes_badge->toolTip() == QStringLiteral("Advanced blending: Layer Mask Hides Effects on, Transparency "
+                                                  "Shapes Layer off. Click to open Blending Options."));
+  auto* folder_badge = blending_badge(QStringLiteral("Folder"));
+  CHECK(folder_badge != nullptr &&
+        folder_badge->toolTip() == QStringLiteral("Advanced blending: Knockout Shallow. Click to open Blending Options."));
+  if (badge == nullptr) {
+    return;
+  }
+
+  // The click opens Layer Style on Blending Options; setting both back to their defaults
+  // there drops the badge, and undo brings it back.
+  QString current_label;
+  bool found = false;
+  const std::function<void(int)> watch_dialog = [&](int attempts) {
+    QTimer::singleShot(20, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+      if (dialog == nullptr || !dialog->isVisible()) {
+        if (attempts > 0) {
+          watch_dialog(attempts - 1);
+        }
+        return;
+      }
+      found = true;
+      auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+      if (categories != nullptr && categories->currentItem() != nullptr) {
+        current_label = categories->currentItem()->text();
+      }
+      auto* knockout = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleKnockoutCombo"));
+      auto* blend_clipped = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBlendClippedCheck"));
+      if (knockout == nullptr || blend_clipped == nullptr) {
+        dialog->reject();
+        return;
+      }
+      knockout->setCurrentIndex(knockout->findData(0));
+      blend_clipped->setChecked(true);
+      dialog->accept();
+    });
+  };
+  list->scrollToItem(require_layer_item(*list, QStringLiteral("Blended")));
+  QApplication::processEvents();
+  badge = blending_badge(QStringLiteral("Blended"));
+  CHECK(badge != nullptr && badge->isVisible());
+  watch_dialog(100);
+  click_row_child(*list, *badge);
+  process_events_for(300);
+  CHECK(found);
+  CHECK(current_label == QStringLiteral("Blending Options"));
+  CHECK(blending_badge(QStringLiteral("Blended")) == nullptr);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  badge = blending_badge(QStringLiteral("Blended"));
+  CHECK(badge != nullptr && badge->toolTip().contains(QStringLiteral("Knockout Deep")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
   return {
+      {"ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options",
+       ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options},
       {"ui_layer_fx_badge_right_click_opens_style_menu", ui_layer_fx_badge_right_click_opens_style_menu},
       {"ui_layer_effect_rows_start_collapsed_and_remember_state", ui_layer_effect_rows_start_collapsed_and_remember_state},
       {"ui_layer_effect_rows_grey_eyes_under_master_off", ui_layer_effect_rows_grey_eyes_under_master_off},

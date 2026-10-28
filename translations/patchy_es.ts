@@ -13700,6 +13700,58 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Shapes Manager...</source>
         <translation>Gestor de formas...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>Capa de ajuste %1</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>Canal R: desactivado</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>Canal G: desactivado</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>Canal B: desactivado</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>Extractor</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>Extractor: Superficial</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>Extractor: Profundo</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>La máscara de capa oculta los efectos: activado</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>La máscara vectorial oculta los efectos: activado</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>Fusionar efectos interiores como grupo: activado</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>Fusionar capas recortadas como grupo: desactivado</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>Las transparencias dan forma a la capa: desactivado</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>Fusión avanzada: %1. Haga clic para abrir las opciones de fusión.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

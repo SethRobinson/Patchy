@@ -1594,7 +1594,8 @@ void ui_adjustment_layer_thumbnails_show_type_symbols() {
     CHECK(row != nullptr);
     auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
     CHECK(thumbnail != nullptr);
-    CHECK(thumbnail->toolTip() == QStringLiteral("Adjustment Layer"));
+    // GitHub issue 492: the tooltip names the adjustment ("Curves adjustment layer").
+    CHECK(thumbnail->toolTip() == QStringLiteral("%1 adjustment layer").arg(name));
     return thumbnail->pixmap(Qt::ReturnByValue).toImage();
   };
   const auto levels_image = thumbnail_image(QStringLiteral("Levels"));

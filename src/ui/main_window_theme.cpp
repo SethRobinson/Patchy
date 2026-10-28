@@ -873,7 +873,8 @@ QString photoshop_style_template() {
       border-color: @layer_lock_mixed_border;
     }
     QToolButton#layerMaskLinkButton, QToolButton#layerVectorMaskLinkButton, QToolButton#layerFxBadgeButton,
-    QToolButton#layerSmartObjectBadgeButton, QToolButton#layerClippingBadgeButton {
+    QToolButton#layerBlendingBadgeButton, QToolButton#layerSmartObjectBadgeButton,
+    QToolButton#layerClippingBadgeButton {
       background: transparent;
       border: 1px solid transparent;
       border-radius: 3px;
@@ -886,7 +887,7 @@ QString photoshop_style_template() {
       min-width: 0;
     }
     QToolButton#layerMaskLinkButton:hover, QToolButton#layerVectorMaskLinkButton:hover,
-    QToolButton#layerFxBadgeButton:hover,
+    QToolButton#layerFxBadgeButton:hover, QToolButton#layerBlendingBadgeButton:hover,
     QToolButton#layerSmartObjectBadgeButton:hover, QToolButton#layerClippingBadgeButton:hover {
       background: @layer_button_hover_bg;
       border-color: @layer_button_hover_border;

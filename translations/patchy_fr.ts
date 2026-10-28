@@ -13700,6 +13700,58 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Shapes Manager...</source>
         <translation>Gestionnaire de formes...</translation>
     </message>
+    <message>
+        <source>%1 adjustment layer</source>
+        <translation>Calque de réglage %1</translation>
+    </message>
+    <message>
+        <source>R channel off</source>
+        <translation>Couche R : désactivée</translation>
+    </message>
+    <message>
+        <source>G channel off</source>
+        <translation>Couche V : désactivée</translation>
+    </message>
+    <message>
+        <source>B channel off</source>
+        <translation>Couche B : désactivée</translation>
+    </message>
+    <message>
+        <source>Knockout</source>
+        <translation>Défonce</translation>
+    </message>
+    <message>
+        <source>Knockout Shallow</source>
+        <translation>Défonce : Faible</translation>
+    </message>
+    <message>
+        <source>Knockout Deep</source>
+        <translation>Défonce : Profonde</translation>
+    </message>
+    <message>
+        <source>Layer Mask Hides Effects on</source>
+        <translation>Le masque de fusion masque les effets : activé</translation>
+    </message>
+    <message>
+        <source>Vector Mask Hides Effects on</source>
+        <translation>Le masque vectoriel masque les effets : activé</translation>
+    </message>
+    <message>
+        <source>Blend Interior Effects as Group on</source>
+        <translation>Fusionner les effets intérieurs en groupe : activé</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group off</source>
+        <translation>Fusionner les calques écrêtés en groupe : désactivé</translation>
+    </message>
+    <message>
+        <source>Transparency Shapes Layer off</source>
+        <translation>La transparence définit la forme du calque : désactivé</translation>
+    </message>
+    <message>
+        <source>Advanced blending: %1. Click to open Blending Options.</source>
+        <translation>Fusion avancée : %1. Cliquez pour ouvrir les options de fusion.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

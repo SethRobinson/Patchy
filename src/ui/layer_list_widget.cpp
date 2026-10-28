@@ -112,6 +112,7 @@ bool layer_row_button_owns_clicks(const QString& object_name) {
          object_name == QLatin1String("layerMaskLinkButton") ||
          object_name == QLatin1String("layerVectorMaskLinkButton") ||
          object_name == QLatin1String("layerFxBadgeButton") ||
+         object_name == QLatin1String("layerBlendingBadgeButton") ||
          object_name == QLatin1String("layerSmartObjectBadgeButton") ||
          object_name == QLatin1String("layerVectorBadgeButton") ||
          object_name == QLatin1String("layerClippingBadgeButton") ||
