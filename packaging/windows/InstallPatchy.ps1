@@ -257,6 +257,30 @@ function Get-PatchyPayloadArchitecture {
 # IsWow64Process2, never PROCESSOR_ARCHITECTURE: an x64 process emulated on an ARM64 PC
 # sees AMD64 there.
 function Get-PatchyNativeArchitecture {
+    $fromApi = Get-PatchyNativeArchitectureFromApi
+    if ($fromApi) {
+        return $fromApi
+    }
+    # Add-Type compiles the declaration above and failed once on an ARM64 PC right after a
+    # heavy test run (October 2026). The machine's own PROCESSOR_ARCHITECTURE in the registry
+    # is not the emulated value a process sees in its environment, so it is the fallback.
+    try {
+        $machine = (Get-ItemProperty -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -ErrorAction Stop).PROCESSOR_ARCHITECTURE
+        switch ("$machine".ToUpperInvariant()) {
+            "ARM64" { return "arm64" }
+            "AMD64" { return "x64" }
+            "X86" { return "x86" }
+        }
+    } catch {
+    }
+    return ""
+}
+
+function Get-PatchyNativeArchitectureFromApi {
+    # verify-windows-package.ps1 sets this to check the fallback above.
+    if ($env:PATCHY_INSTALLER_TEST_SKIP_WOW64_API -eq "1") {
+        return ""
+    }
     try {
         if (-not ("PatchySetup.NativeMachine" -as [type])) {
             Add-Type -Namespace PatchySetup -Name NativeMachine -MemberDefinition @"
@@ -1826,9 +1850,20 @@ if ($ArchitectureCheck) {
             $failures += "a $($case[0]) payload on a '$($case[1])' PC should give $($case[2])"
         }
     }
+    # Both ways of naming the processor: the API, and the registry fallback on its own.
+    $fromApi = Get-PatchyNativeArchitectureFromApi
+    $env:PATCHY_INSTALLER_TEST_SKIP_WOW64_API = "1"
+    $fromRegistry = Get-PatchyNativeArchitecture
+    Remove-Item Env:\PATCHY_INSTALLER_TEST_SKIP_WOW64_API
     $native = Get-PatchyNativeArchitecture
+    if (-not $fromRegistry) {
+        $failures += "the registry did not name this PC's processor"
+    }
+    if ($fromApi -and $fromRegistry -and $fromApi -ne $fromRegistry) {
+        $failures += "IsWow64Process2 names $fromApi, the registry $fromRegistry"
+    }
     if (-not $native) {
-        $failures += "IsWow64Process2 did not name this PC's processor"
+        $failures += "neither IsWow64Process2 nor the registry named this PC's processor"
     }
     foreach ($language in $PatchyInstallerText.Keys) {
         $text = $PatchyInstallerText[$language]["WrongArchitectureMessage"]
@@ -1841,7 +1876,8 @@ if ($ArchitectureCheck) {
         Write-Host ("Installer architecture check FAILED: " + ($failures -join "; "))
         exit 1
     }
-    Write-Host "Installer architecture check passed (payload $payload, this PC $native)."
+    $apiNote = $(if ($fromApi) { $fromApi } else { "unavailable" })
+    Write-Host "Installer architecture check passed (payload $payload, this PC $native; IsWow64Process2 $apiNote, registry $fromRegistry)."
     exit 0
 }
 
