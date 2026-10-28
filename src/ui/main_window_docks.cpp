@@ -1736,7 +1736,7 @@ void MainWindow::create_docks() {
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
   move_up_button->setIcon(simple_icon(QStringLiteral("layer-up")));
   move_down_button->setIcon(simple_icon(QStringLiteral("layer-down")));
-  merge_down_button->setIcon(simple_icon(QStringLiteral("merge")));
+  merge_down_button->setIcon(simple_icon(QStringLiteral("merge-down")));
   animation_button->setIcon(simple_icon(QStringLiteral("film")));
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
   const auto apply_new_layer_tooltip = [add_button] {

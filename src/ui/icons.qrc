@@ -40,6 +40,7 @@
     <file alias="merge.svg">icons/merge.svg</file>
     <file alias="layer-up.svg">icons/layer-up.svg</file>
     <file alias="layer-down.svg">icons/layer-down.svg</file>
+    <file alias="merge-down.svg">icons/merge-down.svg</file>
     <file alias="fill.svg">icons/fill.svg</file>
     <file alias="clear.svg">icons/clear.svg</file>
     <file alias="cancel.svg">icons/cancel.svg</file>

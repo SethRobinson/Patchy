@@ -4,12 +4,14 @@
 // show/hide menu, the dialog's OK, Cancel and Reset to Default, and the stored settings. Also
 // the palette's bottom items, the toolbar icon size and tool group opening shown in the dialog
 // (213 follow-up), and when tool groups open: click and hold, click or hover (459).
+#include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/tool_palette_customization.hpp"
 #include "ui/tool_palette_footer.hpp"
 #include "ui/tool_palette_layout.hpp"
+#include "ui/theme_palette.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -28,6 +30,7 @@
 #include <QLayout>
 #include <QListWidget>
 #include <QMenu>
+#include <QPainter>
 #include <QHeaderView>
 #include <QImage>
 #include <QPushButton>
@@ -1663,6 +1666,59 @@ void ui_tool_palette_dialog_layer_button_presets() {
   CHECK(window.tool_palette_customization() == ToolPaletteCustomization{});
 }
 
+// GitHub issue 470 follow-up: Move Layer Up and Down are an arrow beside a layer stack and
+// Merge Down two layers joining into one, drawn in the icon ink and accent roles, so both
+// show at every footer icon size in Dark and Light. Saves the sheet the card shows.
+void ui_layer_footer_arrange_icons_draw_in_both_schemes() {
+  const char* const names[] = {"layer-up", "layer-down", "merge-down"};
+  constexpr int kCell = 44;
+  QImage sheet(QSize(kCell * 3 * static_cast<int>(patchy::ui::kToolbarIconSizes.size()), kCell * 2),
+               QImage::Format_ARGB32_Premultiplied);
+  int scheme_row = 0;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    const auto& palette = patchy::ui::theme();
+    QPainter sheet_painter(&sheet);
+    sheet_painter.fillRect(QRect(0, scheme_row * kCell, sheet.width(), kCell), palette.panel_bg);
+    int column = 0;
+    for (const auto size : patchy::ui::kToolbarIconSizes) {
+      const auto extent = patchy::ui::tool_palette_length(24, patchy::ui::toolbar_icon_size_factor(size));
+      for (const auto* name : names) {
+        const auto image =
+            patchy::ui::simple_icon(QString::fromLatin1(name)).pixmap(QSize(extent, extent), 1.0).toImage();
+        CHECK(image.width() == extent);
+        // Some pixels near the ink and some near the accent, at every size.
+        int ink = 0;
+        int accent = 0;
+        const auto near = [](const QColor& a, const QColor& b) {
+          return std::abs(a.red() - b.red()) + std::abs(a.green() - b.green()) + std::abs(a.blue() - b.blue()) < 60;
+        };
+        for (int y = 0; y < image.height(); ++y) {
+          for (int x = 0; x < image.width(); ++x) {
+            const auto color = image.pixelColor(x, y);
+            if (color.alpha() < 200) {
+              continue;
+            }
+            ink += near(color, palette.icon_ink) ? 1 : 0;
+            accent += near(color, palette.icon_accent) ? 1 : 0;
+          }
+        }
+        if (ink < 4 || accent < 2) {
+          std::cout << "[INFO] " << name << " at " << extent << " px: " << ink << " ink, " << accent
+                    << " accent pixels\n";
+        }
+        CHECK(ink >= 4);
+        CHECK(accent >= 2);
+        sheet_painter.drawImage(QPoint(column * kCell + (kCell - extent) / 2, scheme_row * kCell + (kCell - extent) / 2),
+                                image);
+        ++column;
+      }
+    }
+    ++scheme_row;
+  }
+  save_image_artifact("ui_layer_footer_arrange_icons", sheet);
+}
+
 // The visible Layers footer buttons in reading order, and each one's rect in the panel.
 struct FooterButtonRect {
   QAbstractButton* button;
@@ -1902,5 +1958,6 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_tool_palette_dialog_layer_button_presets", ui_tool_palette_dialog_layer_button_presets},
       {"ui_layer_footer_wraps_one_button_at_a_time", ui_layer_footer_wraps_one_button_at_a_time},
       {"ui_layer_footer_icon_size_persists_and_applies", ui_layer_footer_icon_size_persists_and_applies},
+      {"ui_layer_footer_arrange_icons_draw_in_both_schemes", ui_layer_footer_arrange_icons_draw_in_both_schemes},
   };
 }
