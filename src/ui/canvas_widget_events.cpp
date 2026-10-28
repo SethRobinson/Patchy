@@ -4579,7 +4579,7 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
 }
 
 bool CanvasWidget::defer_coalesced_drag_move(const QMouseEvent& event) {
-  if (replaying_drag_move_ || handling_tablet_event_ || !(moving_layer_ || dragging_transform_) ||
+  if (replaying_drag_move_ || handling_tablet_event_ || !coalescing_drag_active() ||
       drag_move_coalescing_mode_ == DragMoveCoalescing::Off) {
     return false;
   }
@@ -4609,7 +4609,7 @@ void CanvasWidget::end_drag_move_pass() {
   if (!pending_drag_move_.has_value()) {
     return;
   }
-  if (moving_layer_ || dragging_transform_) {
+  if (coalescing_drag_active()) {
     // Moves that queue up behind this apply coalesce into the next pass.
     begin_drag_move_pass();
   }
@@ -4622,7 +4622,7 @@ void CanvasWidget::flush_pending_drag_move() {
   }
   const auto pending = *pending_drag_move_;
   pending_drag_move_.reset();
-  if (!(moving_layer_ || dragging_transform_)) {
+  if (!coalescing_drag_active()) {
     return;  // the drag ended or was cancelled before the apply ran
   }
   QMouseEvent replay(QEvent::MouseMove, pending.position, pending.global_position, Qt::NoButton, pending.buttons,

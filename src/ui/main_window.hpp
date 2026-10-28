@@ -701,6 +701,7 @@ private:
   // The release of a Color panel drag: writes the pair and refreshes the gradient preview
   // that the drag's moves left for it (GitHub issue 464).
   void finish_color_panel_drag();
+  [[nodiscard]] bool color_drag_in_progress() const;
   // The foreground change every color control shares (GitHub issue 371): the canvas
   // foreground, an open text session's selection, and the live shape paint, exactly what the
   // Foreground Color window has always done.

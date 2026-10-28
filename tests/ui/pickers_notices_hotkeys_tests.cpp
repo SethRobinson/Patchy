@@ -39,6 +39,7 @@
 #include <QFileInfo>
 #include <QFrame>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
@@ -2283,6 +2284,136 @@ void ui_sample_loupe_shows_while_a_pick_is_held() {
   QApplication::processEvents();
 }
 
+// GitHub #478: a Pick drag sampled, refreshed the loupe and reported the color to the
+// panels for every pointer move, so on Wayland (every motion delivered) a fast pointer
+// queued moves and the loupe trailed behind it. Moves queued in one event-loop pass now
+// apply once, at the latest position; the release still picks where the pointer is, and
+// moves over flat color do not report the same color again.
+void ui_pick_drag_coalesces_queued_moves() {
+  auto document = eyedropper_overlay_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.show();
+  canvas.set_zoom(6.0);
+  QApplication::processEvents();
+  canvas.set_eyedropper_sample_size(1);
+  canvas.set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves);
+  int reports = 0;
+  canvas.set_color_picked_callback([&reports, &canvas](QColor color) {
+    ++reports;
+    canvas.set_primary_color(color);
+  });
+  const auto at = [&canvas](QPoint document_point) {
+    return canvas.widget_position_for_document_point(document_point) + QPoint(3, 3);
+  };
+  // The gradient under the blocks (eyedropper_overlay_document).
+  const auto gradient = [](QPoint point) { return QColor(60 + point.x() * 3, 90 + point.y() * 3, 230 - point.x() * 2); };
+  const auto coalesced = [&canvas] { return canvas.render_cache_diagnostics().drag_moves_coalesced; };
+  const auto deliver_move = [&canvas](QPoint position) {
+    // Delivered without running the event loop, which would end the pass between moves.
+    QMouseEvent event(QEvent::MouseMove, QPointF(position), QPointF(canvas.mapToGlobal(position)), Qt::NoButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&canvas, &event);
+  };
+
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(2, 4)), Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(reports == 1);
+  CHECK(color_close(canvas.primary_color(), gradient(QPoint(2, 4)), 1));
+  const auto before = coalesced();
+  // A burst of 30 moves along the gradient, queued as a window system queues them.
+  for (int move = 1; move <= 30; ++move) {
+    const auto position = at(QPoint(2 + move, 4));
+    QApplication::postEvent(&canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                     QPointF(canvas.mapToGlobal(position)), Qt::NoButton,
+                                                     Qt::LeftButton, Qt::NoModifier));
+  }
+  QApplication::processEvents();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  // The first queued move applies at once, the other 29 wait for the pass end, which
+  // samples the latest: three reports for the whole gesture so far, not 31.
+  CHECK(coalesced() - before == 29);
+  CHECK(reports == 3);
+  CHECK(color_close(canvas.primary_color(), gradient(QPoint(32, 4)), 1));
+  auto colors = canvas.sample_loupe_colors();
+  CHECK(colors.has_value() && colors->first == canvas.primary_color());
+  const auto loupe = canvas.sample_loupe_widget_rect();
+  CHECK(loupe.has_value() && loupe->contains(at(QPoint(32, 4))));
+  // A move recorded right before the release still lands: the release applies it and
+  // picks at the release position.
+  deliver_move(at(QPoint(30, 30)));  // applied, opens a pass
+  deliver_move(at(QPoint(31, 31)));  // recorded
+  CHECK(coalesced() - before == 30);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(31, 31)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(coalesced() - before == 30);
+  CHECK(color_close(canvas.primary_color(), gradient(QPoint(31, 31)), 1));
+  CHECK(!canvas.sample_loupe_widget_rect().has_value());
+
+  // Moves over flat color (the dark block) report the color once, at the press.
+  reports = 0;
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(38, 10)), Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  for (int move = 1; move <= 5; ++move) {
+    send_mouse(canvas, QEvent::MouseMove, at(QPoint(38 + move, 10 + move)), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+  }
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(43, 15)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(reports == 1);
+  CHECK(color_close(canvas.primary_color(), QColor(30, 26, 40), 1));
+  // Leaving the block reports the new color.
+  send_mouse(canvas, QEvent::MouseButtonPress, at(QPoint(38, 10)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, at(QPoint(30, 30)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, at(QPoint(30, 30)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(reports == 3);
+  CHECK(color_close(canvas.primary_color(), gradient(QPoint(30, 30)), 1));
+}
+
+// GitHub #478: each Pick drag move saved the colors to the settings file (a disk flush
+// per move, the largest part of a move's cost). The drag's moves still show the color in
+// the panels; the pair is written once, when the pick ends.
+void ui_pick_drag_saves_colors_on_release() {
+  SettingsValueRestorer foreground_setting(QStringLiteral("tools/foregroundColor"));
+  SettingsValueRestorer background_setting(QStringLiteral("tools/backgroundColor"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(eyedropper_overlay_document(), QStringLiteral("Pick drag"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Pick"))->trigger();
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(6.0);
+  canvas->set_eyedropper_sample_size(1);
+  QApplication::processEvents();
+  const auto at = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point) + QPoint(3, 3);
+  };
+  const auto saved_foreground = [] {
+    return patchy::ui::app_settings().value(QStringLiteral("tools/foregroundColor")).toString();
+  };
+  const auto before = saved_foreground();
+  const QColor last(60 + 30 * 3, 90 + 30 * 3, 230 - 30 * 2);  // the gradient at (30, 30)
+  CHECK(before != last.name(QColor::HexRgb));
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(QPoint(2, 4)), Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseMove, at(QPoint(10, 20)), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseMove, at(QPoint(30, 30)), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  // The panels follow the drag; the file does not.
+  CHECK(color_close(canvas->primary_color(), last, 1));
+  CHECK(saved_foreground() == before);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(QPoint(30, 30)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(QColor(saved_foreground()) == canvas->primary_color());
+  CHECK(color_close(QColor(saved_foreground()), last, 1));
+}
+
 // GitHub issue 320: deep documents reach the lens through the display conversion. The
 // lens center shows the sampled pixel as the canvas shows it at 8, 16 and 32 bits (a
 // 32-bit composite drawn as raw linear floats would come out too dark).
@@ -4481,6 +4612,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_eyedropper_sample_outline_follows_the_pointer", ui_eyedropper_sample_outline_follows_the_pointer},
       {"ui_sample_loupe_geometry_stays_inside_the_viewport", ui_sample_loupe_geometry_stays_inside_the_viewport},
       {"ui_sample_loupe_shows_while_a_pick_is_held", ui_sample_loupe_shows_while_a_pick_is_held},
+      {"ui_pick_drag_coalesces_queued_moves", ui_pick_drag_coalesces_queued_moves},
+      {"ui_pick_drag_saves_colors_on_release", ui_pick_drag_saves_colors_on_release},
       {"ui_sample_loupe_lens_matches_the_canvas_at_every_depth",
        ui_sample_loupe_lens_matches_the_canvas_at_every_depth},
       {"ui_eyedropper_options_bar_sample_controls", ui_eyedropper_options_bar_sample_controls},

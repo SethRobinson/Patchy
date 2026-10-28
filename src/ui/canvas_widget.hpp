@@ -1382,6 +1382,13 @@ public:
   // or live Shift/Alt) so the Options-bar mode buttons can follow.
   void set_selection_mode_changed_callback(std::function<void(SelectionMode)> callback);
   void set_color_picked_callback(std::function<void(QColor)> callback);
+  // A held pick (the Pick tool or a paint tool's Alt eyedropper) is in progress, and the
+  // callback that runs when it ends: MainWindow saves the colors once then, not per move
+  // (GitHub #478).
+  [[nodiscard]] bool color_pick_active() const noexcept { return color_picking_; }
+  void set_color_pick_finished_callback(std::function<void()> callback) {
+    color_pick_finished_callback_ = std::move(callback);
+  }
   // Reports a pick the Eyedropper tool made with Alt held, which lands in the
   // background color (GitHub issue 150); the canvas has already stored it.
   void set_background_color_picked_callback(std::function<void(QColor)> callback) {
@@ -1555,6 +1562,11 @@ protected:
   void end_drag_move_pass();
   // Applies a recorded drag move now (presses, releases and keys call it first).
   void flush_pending_drag_move();
+  // The drags whose moves coalesce: Move tool, Free Transform, and a held pick (the Pick
+  // tool or a paint tool's Alt eyedropper, GitHub #478).
+  [[nodiscard]] bool coalescing_drag_active() const noexcept {
+    return moving_layer_ || dragging_transform_ || color_picking_;
+  }
   void cancel_pointer_gestures();
   void mouseDoubleClickEvent(QMouseEvent* event) override;
   void tabletEvent(QTabletEvent* event) override;
@@ -4091,11 +4103,15 @@ private:
   std::function<void(SelectionMode)> selection_mode_changed_callback_;
   std::function<void(QColor)> color_picked_callback_;
   std::function<void(QColor)> background_color_picked_callback_;
+  std::function<void()> color_pick_finished_callback_;
   // The Eyedropper tool's own Alt+click picks the background color; the paint
   // tools' temporary Alt eyedropper always picks the foreground (issue 150).
   bool color_pick_to_background_{false};
   // One "no layer to sample" warning per pick gesture, not one per drag step.
   bool color_pick_layer_warned_{false};
+  // Set once a pick gesture has reported a color: later drag steps that sample the same
+  // color skip the callbacks (color panels, status bar; GitHub #478).
+  bool color_pick_reported_{false};
   std::function<void(const CanvasReadGesture&)> transient_read_callback_;
   QCursor transient_read_cursor_{Qt::CrossCursor};
   bool transient_read_dragging_{false};
