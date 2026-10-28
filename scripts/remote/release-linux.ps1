@@ -30,8 +30,11 @@ $remoteHost = (Get-PatchyRemoteHost linux).ssh
 # docs/images/screenshots or the <release> entry is missing (scripts/release/check-metainfo.py;
 # 1.17 and 1.18 shipped v1.16's pictures that way). Before the deletes: a refused run leaves
 # the previous artifacts alone.
-$python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue
+# The first python on PATH, and an exit code that fails unless the check really ran
+# (publish-github-release.ps1 says why).
+$python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $python) { throw 'python is not on PATH (scripts\release\check-metainfo.py needs Python 3)' }
+$global:LASTEXITCODE = 1
 & $python.Source (Join-Path $PSScriptRoot '..\release\check-metainfo.py')
 if ($LASTEXITCODE -ne 0) {
   throw 'packaging/linux/com.rtsoft.patchy.metainfo.xml does not describe this release (errors above; python scripts\release\check-metainfo.py --fix)'

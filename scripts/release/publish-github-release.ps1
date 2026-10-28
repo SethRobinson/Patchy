@@ -85,8 +85,12 @@ $title = "Patchy $Version"
 # (scripts\release\check-metainfo.py). Publishing creates the tag the pins name. A backfill
 # (-Target) republishes a commit as it was, so its metainfo is not re-checked.
 if (-not $Target) {
-  $python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue
+  # The first python on PATH: with several (a conda install and the Store stub, say), the
+  # whole list once went to & as one command that did not exist, the check never ran, and
+  # the stale exit code read as a pass (1.20). The preset exit code makes that a failure.
+  $python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $python) { Fail 'python is not on PATH (scripts\release\check-metainfo.py needs Python 3)' }
+  $global:LASTEXITCODE = 1
   & $python.Source (Join-Path $PSScriptRoot 'check-metainfo.py') --version $Version
   if ($LASTEXITCODE -ne 0) { Fail 'packaging/linux/com.rtsoft.patchy.metainfo.xml does not describe this release (errors above; python scripts\release\check-metainfo.py --fix, commit, push, rerun)' }
 }

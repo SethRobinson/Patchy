@@ -34,8 +34,8 @@ Write-Host "== Patchy Qt wasm kit setup (Qt $QtVersion $WasmArch) =="
 
 if (-not (Test-Path (Join-Path $VenvDir 'Scripts\aqt.exe'))) {
   Write-Host "== Creating aqtinstall venv at $VenvDir =="
-  $Python = (Get-Command python -ErrorAction SilentlyContinue) ??
-            (Get-Command python3 -ErrorAction SilentlyContinue)
+  $Python = (Get-Command python -ErrorAction SilentlyContinue | Select-Object -First 1) ??
+            (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -First 1)
   if (-not $Python) { throw "No python found on PATH to create the aqt venv" }
   & $Python.Source -m venv $VenvDir
 }
