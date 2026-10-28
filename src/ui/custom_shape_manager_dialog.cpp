@@ -8,6 +8,7 @@
 #include <QDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -24,7 +25,7 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
                                      const QString& initial_shape_id) {
   QDialog dialog(parent);
   PresetManagerScaffold scaffold(dialog, QStringLiteral("customShapeManagerDialog"),
-                                 QObject::tr("Custom Shapes"));
+                                 QObject::tr("Shapes Manager"));
 
   auto* tree = new PresetTreeWidget(&dialog);
   tree->setObjectName(QStringLiteral("customShapeManagerTree"));
@@ -65,12 +66,19 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
   auto* import_button = new QPushButton(QObject::tr("Import…"), &dialog);
   import_button->setObjectName(QStringLiteral("customShapeManagerImportButton"));
   import_button->setToolTip(QObject::tr("Import Photoshop .csh shape files or SVG files"));
+  // Organizing (Seth, October 28, 2026): drag shapes onto a folder row, or these two.
+  auto* new_folder_button = new QPushButton(QObject::tr("Move to New Folder…"), &dialog);
+  new_folder_button->setObjectName(QStringLiteral("customShapeManagerNewFolderButton"));
+  new_folder_button->setToolTip(QObject::tr("Put the selected shapes in a new folder"));
+  auto* rename_folder_button = new QPushButton(QObject::tr("Rename Folder…"), &dialog);
+  rename_folder_button->setObjectName(QStringLiteral("customShapeManagerRenameFolderButton"));
   auto* duplicate_button = new QPushButton(QObject::tr("Duplicate"), &dialog);
   duplicate_button->setObjectName(QStringLiteral("customShapeManagerDuplicateButton"));
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
   delete_button->setObjectName(QStringLiteral("customShapeManagerDeleteButton"));
   delete_button->setToolTip(QObject::tr("Delete the selected shapes or folders (Del)"));
-  scaffold.add_action_row({import_button}, {duplicate_button, delete_button});
+  scaffold.add_action_row({import_button, new_folder_button, rename_folder_button},
+                          {duplicate_button, delete_button});
 
   auto* restore_button = new QPushButton(QObject::tr("Restore Default Shapes"), &dialog);
   restore_button->setObjectName(QStringLiteral("customShapeManagerRestoreButton"));
@@ -87,7 +95,7 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
 
   const auto show_update_failure = [&] {
     QMessageBox::warning(
-        &dialog, QObject::tr("Custom Shapes"),
+        &dialog, QObject::tr("Shapes Manager"),
         QObject::tr("Could not update the selected shape. Check that the shape library folder is writable."));
   };
 
@@ -98,6 +106,10 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     const auto any = !ids.isEmpty();
     name_edit->setEnabled(single);
     folder_edit->setEnabled(any);
+    new_folder_button->setEnabled(any);
+    const auto* current = tree->currentItem();
+    rename_folder_button->setEnabled(current != nullptr &&
+                                     current->data(0, PresetTreeWidget::kFolderMarkerRole).toBool());
     duplicate_button->setEnabled(single);
     delete_button->setEnabled(any);
     use_button->setEnabled(single);
@@ -172,21 +184,72 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
       show_update_failure();
     }
   });
-  QObject::connect(folder_edit, &QLineEdit::editingFinished, &dialog, [&] {
+  // Moves shapes into a folder (empty: ungrouped) and keeps the first one selected.
+  const auto move_to_folder = [&](const QStringList& ids, const QString& folder) {
+    if (ids.isEmpty()) {
+      return;
+    }
+    int already_there = 0;
+    for (const auto& id : ids) {
+      const auto* entry = library.find_entry(id);
+      already_there += entry != nullptr && entry->folder == folder.trimmed() ? 1 : 0;
+    }
+    const auto moved = library.move_shapes_to_folder(ids, folder);
+    tree->remember_collapsed_folders();
+    tree->reload(ids.front());
+    refresh_details();
+    if (moved + already_there < static_cast<int>(ids.size())) {
+      show_update_failure();
+    }
+  };
+  tree->set_drop_callback(move_to_folder);
+  // A folder name prompt the tests can find by object name.
+  const auto ask_folder_name = [&](const QString& title, const QString& initial) -> QString {
+    QInputDialog prompt(&dialog);
+    prompt.setObjectName(QStringLiteral("customShapeManagerFolderNameDialog"));
+    prompt.setWindowTitle(title);
+    prompt.setLabelText(QObject::tr("Folder name:"));
+    prompt.setTextValue(initial);
+    if (exec_dialog(prompt) != QDialog::Accepted) {
+      return {};
+    }
+    return prompt.textValue().trimmed();
+  };
+  QObject::connect(folder_edit, &QLineEdit::editingFinished, &dialog,
+                   [&] { move_to_folder(tree->selected_ids(), folder_edit->text()); });
+  QObject::connect(new_folder_button, &QPushButton::clicked, &dialog, [&] {
     const auto ids = tree->selected_ids();
     if (ids.isEmpty()) {
       return;
     }
-    auto failed = false;
-    for (const auto& id : ids) {
-      failed = !library.set_shape_folder(id, folder_edit->text()) || failed;
+    const auto name = ask_folder_name(QObject::tr("Move to New Folder"), QObject::tr("New Folder"));
+    if (!name.isEmpty()) {
+      move_to_folder(ids, name);
     }
-    tree->remember_collapsed_folders();
-    tree->reload(ids.front());
-    refresh_details();
-    if (failed) {
+  });
+  QObject::connect(rename_folder_button, &QPushButton::clicked, &dialog, [&] {
+    const auto* current = tree->currentItem();
+    if (current == nullptr || !current->data(0, PresetTreeWidget::kFolderMarkerRole).toBool()) {
+      return;
+    }
+    const auto folder = current->data(0, Qt::UserRole).toString();
+    const auto shown = custom_shape_folder_display_name(folder);
+    const auto name = ask_folder_name(QObject::tr("Rename Folder"), shown);
+    if (name.isEmpty() || name == shown || name == folder) {
+      return;
+    }
+    QStringList ids;
+    for (const auto& entry : library.entries()) {
+      if (entry.folder == folder) {
+        ids.append(entry.storage_id);
+      }
+    }
+    if (library.rename_folder(folder, name) < static_cast<int>(ids.size())) {
       show_update_failure();
     }
+    tree->remember_collapsed_folders();
+    tree->reload(ids.isEmpty() ? QString() : ids.front());
+    refresh_details();
   });
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
     const auto filter =

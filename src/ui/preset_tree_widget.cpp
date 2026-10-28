@@ -1,6 +1,8 @@
 #include "ui/preset_tree_widget.hpp"
 
+#include <QDropEvent>
 #include <QSignalBlocker>
+#include <QTimer>
 
 #include <map>
 #include <utility>
@@ -78,6 +80,127 @@ void PresetTreeWidget::remember_collapsed_folders() {
       collapsed_folders_.insert(item->data(0, Qt::UserRole).toString());
     }
   }
+}
+
+QStringList PresetTreeWidget::collapsed_folders() const {
+  QStringList folders;
+  for (int index = 0; index < topLevelItemCount(); ++index) {
+    const auto* item = topLevelItem(index);
+    if (item->data(0, kFolderMarkerRole).toBool() && !item->isExpanded()) {
+      folders.append(item->data(0, Qt::UserRole).toString());
+    }
+  }
+  return folders;
+}
+
+void PresetTreeWidget::set_collapsed_folders(const QStringList& folders) {
+  collapsed_folders_ = QSet<QString>(folders.begin(), folders.end());
+}
+
+void PresetTreeWidget::set_filter_text(const QString& text) {
+  const auto needle = text.trimmed();
+  const QSignalBlocker blocker(this);
+  if (filter_text_.isEmpty() && !needle.isEmpty()) {
+    remember_collapsed_folders();
+  }
+  filter_text_ = needle;
+  const auto matches = [&needle](const QTreeWidgetItem* item) {
+    return needle.isEmpty() || item->text(0).contains(needle, Qt::CaseInsensitive);
+  };
+  for (int index = 0; index < topLevelItemCount(); ++index) {
+    auto* item = topLevelItem(index);
+    if (!item->data(0, kFolderMarkerRole).toBool()) {
+      item->setHidden(!matches(item));
+      continue;
+    }
+    int visible = 0;
+    for (int child = 0; child < item->childCount(); ++child) {
+      const bool show = matches(item->child(child));
+      item->child(child)->setHidden(!show);
+      visible += show ? 1 : 0;
+    }
+    item->setHidden(visible == 0);
+    item->setExpanded(needle.isEmpty() ? !collapsed_folders_.contains(item->data(0, Qt::UserRole).toString())
+                                       : true);
+  }
+}
+
+QString PresetTreeWidget::first_visible_entry_id() const {
+  for (int index = 0; index < topLevelItemCount(); ++index) {
+    const auto* item = topLevelItem(index);
+    if (item->isHidden()) {
+      continue;
+    }
+    if (!item->data(0, kFolderMarkerRole).toBool()) {
+      if (const auto id = item_entry_id(item); !id.isEmpty()) {
+        return id;
+      }
+      continue;
+    }
+    for (int child = 0; child < item->childCount(); ++child) {
+      if (!item->child(child)->isHidden()) {
+        return item_entry_id(item->child(child));
+      }
+    }
+  }
+  return {};
+}
+
+void PresetTreeWidget::set_drop_callback(std::function<void(const QStringList&, const QString&)> moved) {
+  drop_moved_ = std::move(moved);
+  const bool enabled = static_cast<bool>(drop_moved_);
+  setDragEnabled(enabled);
+  setAcceptDrops(enabled);
+  setDropIndicatorShown(enabled);
+  setDragDropMode(enabled ? QAbstractItemView::InternalMove : QAbstractItemView::NoDragDrop);
+}
+
+void PresetTreeWidget::dragEnterEvent(QDragEnterEvent* event) {
+  if (drop_moved_ && event->source() == this) {
+    event->acceptProposedAction();
+    return;
+  }
+  event->ignore();
+}
+
+void PresetTreeWidget::dragMoveEvent(QDragMoveEvent* event) {
+  if (drop_moved_ && event->source() == this) {
+    event->acceptProposedAction();
+    return;
+  }
+  event->ignore();
+}
+
+void PresetTreeWidget::dropEvent(QDropEvent* event) {
+  if (!drop_moved_ || event->source() != this) {
+    event->ignore();
+    return;
+  }
+  // The library owns the order (folder, then name), so the rows never move themselves:
+  // only the folder changes, and the callback reloads the tree.
+  event->setDropAction(Qt::IgnoreAction);
+  event->accept();
+  drop_selected_on(itemAt(event->position().toPoint()));
+}
+
+void PresetTreeWidget::drop_selected_on(const QTreeWidgetItem* target) {
+  QString folder;
+  if (target != nullptr) {
+    if (target->data(0, kFolderMarkerRole).toBool()) {
+      folder = target->data(0, Qt::UserRole).toString();
+    } else if (target->parent() != nullptr) {
+      folder = target->parent()->data(0, Qt::UserRole).toString();
+    }
+  }
+  const auto ids = selected_ids();
+  if (ids.isEmpty() || !drop_moved_) {
+    return;
+  }
+  QTimer::singleShot(0, this, [this, ids, folder] {
+    if (drop_moved_) {
+      drop_moved_(ids, folder);
+    }
+  });
 }
 
 void PresetTreeWidget::reload(const QString& select_id) {

@@ -13560,10 +13560,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Цель: плоскости пока нет</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>Произвольные фигуры</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>Папка для выбранных фигур; оставьте пустым, чтобы убрать их из папок</translation>
     </message>
@@ -13706,6 +13702,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
         <translation>Размер кнопок панели «Слои» относительно масштаба интерфейса.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>Менеджер фигур</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>Переместить в новую папку…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>Поместить выбранные фигуры в новую папку</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>Переименовать папку…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>Имя папки:</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>Переместить в новую папку</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Новая папка</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>Переименовать папку</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>Поиск фигур</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Менеджер фигур...</translation>
     </message>
 </context>
 <context>
@@ -28026,10 +28062,6 @@ Locked: %1</source>
         <translation>Менеджер узоров...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>Произвольные фигуры...</translation>
-    </message>
-    <message>
         <source>Zoom to Layer Content</source>
         <translation>Масштаб по содержимому слоя</translation>
     </message>
@@ -28072,6 +28104,10 @@ Locked: %1</source>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>Импорт фигур .csh или SVG для инструмента «Произвольная фигура».</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Менеджер фигур...</translation>
     </message>
 </context>
 <context>

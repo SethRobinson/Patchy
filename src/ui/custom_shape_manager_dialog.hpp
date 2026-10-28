@@ -8,7 +8,7 @@ namespace patchy::ui {
 
 class CustomShapeLibrary;
 
-// Opens the modal Custom Shapes manager (Edit > Presets > Custom Shapes...),
+// Opens the modal Shapes Manager (Edit > Presets > Shapes Manager...),
 // the shape twin of the Pattern Manager: browse the library the options bar
 // Shape picker lists, rename, move into folders, duplicate, delete, import SVG
 // files, and restore the built-in shapes. Library edits apply at once; the

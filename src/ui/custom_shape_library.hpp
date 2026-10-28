@@ -47,6 +47,12 @@ public:
   bool rename_shape(const QString& storage_id, const QString& name);
   // An empty folder ungroups the shape.
   bool set_shape_folder(const QString& storage_id, const QString& folder);
+  // Moves every listed shape into `folder` (empty: ungrouped), emitting changed() once.
+  // Returns how many moved; false-y writes leave that shape where it was.
+  int move_shapes_to_folder(const QStringList& storage_ids, const QString& folder);
+  // Renames a folder (every shape in it); an empty or unchanged name does nothing. Returns
+  // how many shapes moved, emitting changed() once.
+  int rename_folder(const QString& from, const QString& to);
   bool remove_shape(const QString& storage_id);
   // Removes every listed shape, emitting changed() once; returns the count.
   int remove_shapes(const QStringList& storage_ids);

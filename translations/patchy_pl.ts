@@ -13560,10 +13560,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Cel: jeszcze brak płaszczyzny</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>Niestandardowe kształty</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>Folder dla wybranych kształtów; pozostaw puste, aby usunąć je z folderów</translation>
     </message>
@@ -13706,6 +13702,46 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
         <translation>Rozmiar przycisków panelu Warstwy względem skali interfejsu.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>Menedżer kształtów</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>Przenieś do nowego folderu…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>Umieść wybrane kształty w nowym folderze</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>Zmień nazwę folderu…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>Nazwa folderu:</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>Przenieś do nowego folderu</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Nowy folder</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>Zmień nazwę folderu</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>Szukaj kształtów</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Menedżer kształtów...</translation>
     </message>
 </context>
 <context>
@@ -28026,10 +28062,6 @@ Zablokowano: %1</translation>
         <translation>Menedżer wzorków...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>Niestandardowe kształty...</translation>
-    </message>
-    <message>
         <source>Zoom to Layer Content</source>
         <translation>Powiększ do zawartości warstwy</translation>
     </message>
@@ -28072,6 +28104,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>Importuj kształty .csh lub SVG dla narzędzia Niestandardowy kształt.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Menedżer kształtów...</translation>
     </message>
 </context>
 <context>

@@ -13486,10 +13486,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>目标：尚无平面</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>自定形状</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>所选形状所在的文件夹；留空可将其移出文件夹</translation>
     </message>
@@ -13620,6 +13616,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
         <translation>图层面板按钮的大小，相对于界面缩放。</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>形状管理器</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>移到新文件夹…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>将所选形状放入新文件夹</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>重命名文件夹…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>文件夹名称:</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>移到新文件夹</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>新建文件夹</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>重命名文件夹</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>搜索形状</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>形状管理器...</translation>
     </message>
 </context>
 <context>
@@ -27862,10 +27898,6 @@ Locked: %1</source>
         <translation>图案管理器...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>自定形状...</translation>
-    </message>
-    <message>
         <source>Zoom to Layer Content</source>
         <translation>缩放到图层内容</translation>
     </message>
@@ -27908,6 +27940,10 @@ Locked: %1</source>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>为自定形状工具导入 .csh 或 SVG 形状。</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>形状管理器...</translation>
     </message>
 </context>
 <context>

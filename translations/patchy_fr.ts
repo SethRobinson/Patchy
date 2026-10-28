@@ -13523,10 +13523,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Cible : pas encore de plan</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>Formes personnalisées</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>Dossier des formes sélectionnées ; laissez vide pour les retirer des dossiers</translation>
     </message>
@@ -13663,6 +13659,46 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
         <translation>Taille des boutons du panneau Calques, par rapport à l&apos;échelle de l&apos;interface.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>Gestionnaire de formes</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>Déplacer dans un nouveau dossier…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>Placer les formes sélectionnées dans un nouveau dossier</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>Renommer le dossier…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>Nom du dossier :</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>Déplacer dans un nouveau dossier</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Nouveau dossier</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>Renommer le dossier</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>Rechercher des formes</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Gestionnaire de formes...</translation>
     </message>
 </context>
 <context>
@@ -27944,10 +27980,6 @@ Verrouillé : %1</translation>
         <translation>Gestionnaire de motifs...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>Formes personnalisées...</translation>
-    </message>
-    <message>
         <source>Zoom to Layer Content</source>
         <translation>Zoomer sur le contenu du calque</translation>
     </message>
@@ -27990,6 +28022,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>Importer des formes .csh ou SVG pour l&apos;outil Forme personnalisée.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Gestionnaire de formes...</translation>
     </message>
 </context>
 <context>

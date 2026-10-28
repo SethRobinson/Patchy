@@ -13486,10 +13486,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>대상: 아직 평면 없음</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>사용자 지정 모양</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>선택한 모양에 대한 폴더입니다. 폴더에서 제거하려면 비워 두세요.</translation>
     </message>
@@ -13620,6 +13616,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
         <translation>레이어 패널 버튼의 크기입니다. 인터페이스 배율을 기준으로 합니다.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>모양 관리자</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>새 폴더로 이동…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>선택한 모양을 새 폴더에 넣습니다</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>폴더 이름 바꾸기…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>폴더 이름:</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>새 폴더로 이동</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>새 폴더</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>폴더 이름 바꾸기</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>모양 검색</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>모양 관리자...</translation>
     </message>
 </context>
 <context>
@@ -27862,10 +27898,6 @@ Locked: %1</source>
         <translation>패턴 관리자...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>사용자 지정 모양...</translation>
-    </message>
-    <message>
         <source>Zoom to Layer Content</source>
         <translation>레이어 내용에 맞춰 확대</translation>
     </message>
@@ -27908,6 +27940,10 @@ Locked: %1</source>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>사용자 지정 모양 도구용 .csh 또는 SVG 모양을 가져옵니다.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>모양 관리자...</translation>
     </message>
 </context>
 <context>

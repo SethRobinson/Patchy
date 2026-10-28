@@ -85,14 +85,22 @@ rewrites drifted builtin sidecars, keeping user renames). Edit > Define New Pres
 Custom Shape from Path adds a user entry. Builtins seed once under the
 `shapes/defaultShapesVersion` stamp (`kDefaultCustomShapesVersion`, each
 builtin's `introduced_version`), so a deleted default stays deleted.
-Edit > Presets > Custom Shapes (`request_custom_shape_manager`, GitHub
-issue 486) is the Pattern Manager's shape twin: rename, folder, duplicate,
-delete, Import of SVG files (`custom_shape_path_from_svg_file`, shared with
+Edit > Presets > Shapes Manager (`request_custom_shape_manager`, GitHub
+issue 486; the hotkey id stays `edit.presets_custom_shapes`) is the Pattern
+Manager's shape twin: rename, folder, Move to New Folder, Rename Folder,
+drag shapes onto a folder row (`PresetTreeWidget::set_drop_callback`; the
+rows never reorder, the library sorts by folder and name, so there is no
+manual order), duplicate, delete, Import of SVG files (`custom_shape_path_from_svg_file`, shared with
 Define Custom Shape from SVG File) and Photoshop `.csh` files
 (`CustomShapeLibrary::import_csh`: one user entry per shape, in a folder
 named after the file, one `changed()`), Restore Default Shapes (re-adds and
 resets builtin names and folders) and Use Shape, which picks it in the bar.
-Every edit reaches the bar's picker at once through `changed()`.
+Every edit reaches the bar's picker at once through `changed()`. The bar's
+Shape picker (`CustomShapePickerCombo`, custom_shape_picker.cpp) stays a
+QComboBox for every caller, but its dropdown is a popup: a search field, the
+library as a folder tree (folders open and close; the closed ones persist in
+`tools/customShapePickerCollapsedFolders`, never rewritten while searching),
+and a Shapes Manager... button that opens the manager on the current shape.
 
 ### Photoshop .csh files
 

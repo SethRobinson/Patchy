@@ -13523,10 +13523,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Ziel: noch keine Ebene</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>Eigene Formen</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>Ordner für die ausgewählten Formen. Leer lassen, um sie aus den Ordnern zu entfernen</translation>
     </message>
@@ -13663,6 +13659,46 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Size of the Layers panel&apos;s buttons, relative to the interface scale.</source>
         <translation>Größe der Schaltflächen des Ebenen-Bedienfelds, relativ zur Oberflächenskalierung.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>Formenverwaltung</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>In neuen Ordner verschieben…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>Die ausgewählten Formen in einen neuen Ordner legen</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>Ordner umbenennen…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>Ordnername:</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>In neuen Ordner verschieben</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Neuer Ordner</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>Ordner umbenennen</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>Formen suchen</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Formenverwaltung...</translation>
     </message>
 </context>
 <context>
@@ -27944,10 +27980,6 @@ Fixiert: %1</translation>
         <translation>Musterverwaltung...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>Eigene Formen...</translation>
-    </message>
-    <message>
         <source>Zoom to Layer Content</source>
         <translation>Auf Ebeneninhalt zoomen</translation>
     </message>
@@ -27990,6 +28022,10 @@ Fixiert: %1</translation>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>.csh- oder SVG-Formen für das Werkzeug „Eigene Form“ importieren.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Formenverwaltung...</translation>
     </message>
 </context>
 <context>
