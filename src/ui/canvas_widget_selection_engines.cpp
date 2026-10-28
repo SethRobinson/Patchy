@@ -149,11 +149,6 @@ void CanvasWidget::magic_wand_select(QPoint start) {
   const auto target = patchy::wand_seed_color(source_image.constBits(), width, height,
                                               static_cast<std::size_t>(source_image.bytesPerLine()), start.x(),
                                               start.y(), wand_sample_size_);
-  const int target_red = target[0];
-  const int target_green = target[1];
-  const int target_blue = target[2];
-  const int target_alpha = target[3];
-  const auto tolerance_squared = wand_tolerance_ * wand_tolerance_ * 4;
   std::vector<std::uint8_t> selected(total_pixels);
   auto min_x = std::numeric_limits<int>::max();
   auto min_y = std::numeric_limits<int>::max();
@@ -162,12 +157,7 @@ void CanvasWidget::magic_wand_select(QPoint start) {
   int count = 0;
 
   const auto matches = [&](int x, int y) {
-    const auto* color = pixel(x, y);
-    const auto dr = static_cast<int>(color[0]) - target_red;
-    const auto dg = static_cast<int>(color[1]) - target_green;
-    const auto db = static_cast<int>(color[2]) - target_blue;
-    const auto da = static_cast<int>(color[3]) - target_alpha;
-    return dr * dr + dg * dg + db * db + da * da <= tolerance_squared;
+    return patchy::color_within_tolerance(pixel(x, y), target.data(), 4, wand_tolerance_);
   };
 
   const auto select_pixel = [&](int x, int y) {

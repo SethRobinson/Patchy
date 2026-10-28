@@ -229,8 +229,11 @@ enum class CanvasAnchor {
                                 bool erase);
 // The Magic Wand's color metric, shared with flood_fill: the sum of squared per-channel
 // differences over the channels present (at most four) is within 4 * tolerance^2.
-// Tolerance 0 is an exact match. CanvasWidget's wand engines inline the same formula;
-// keep them in step (`tool_fill_bucket_tolerance_metric_matches_magic_wand` pins it).
+// Tolerance 0 is an exact match. With four channels, a fully transparent pixel's color is
+// invisible, so when either side has alpha 0 only the alpha difference counts and every
+// alpha-0 pixel matches every other (GitHub issue 498: moved content leaves its RGB behind).
+// CanvasWidget's wand engines call it too (`tool_fill_bucket_tolerance_metric_matches_magic_wand`
+// pins it).
 [[nodiscard]] bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::uint16_t channels,
                                           int tolerance) noexcept;
 // The Magic Wand's seed color for a click at (x, y) in an RGBA8 image (GitHub issue 435):
