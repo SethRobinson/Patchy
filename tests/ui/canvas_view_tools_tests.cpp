@@ -10501,12 +10501,29 @@ void ui_right_dock_drags_below_content_minimum_with_scroll() {
   auto* bar = overflow->horizontalScrollBar();
   CHECK(bar->isVisible());
   CHECK(bar->maximum() > 0);
-  // Scrolled to the end, the footer's last button sits whole inside the
-  // viewport, above the scroll bar.
+  // Scrolled to the end, the button that ends the footer's row sits whole inside the
+  // viewport, above the scroll bar. The footer wraps one button at a time (#213) and the
+  // optional Move Up, Move Down and Merge Down buttons (#470) join the row, so which
+  // button ends it is not fixed: Delete starts a row of its own at the compact width.
+  // Measure whichever visible button is furthest right instead of naming one.
   bar->setValue(bar->maximum());
   QApplication::processEvents();
-  const QRect delete_rect(delete_button->mapTo(overflow->viewport(), QPoint()), delete_button->size());
-  CHECK(overflow->viewport()->rect().contains(delete_rect));
+  QPushButton* last_button = nullptr;
+  if (auto* footer = delete_button->parentWidget(); footer != nullptr) {
+    for (auto* button : footer->findChildren<QPushButton*>(QString(), Qt::FindDirectChildrenOnly)) {
+      if (!button->isVisible()) {
+        continue;
+      }
+      if (last_button == nullptr ||
+          button->mapTo(overflow->viewport(), QPoint()).x() >
+              last_button->mapTo(overflow->viewport(), QPoint()).x()) {
+        last_button = button;
+      }
+    }
+  }
+  CHECK(last_button != nullptr);
+  const QRect last_rect(last_button->mapTo(overflow->viewport(), QPoint()), last_button->size());
+  CHECK(overflow->viewport()->rect().contains(last_rect));
   save_widget_artifact("ui_right_dock_narrowed_with_scroll", *layers_dock);
 
   // Widening back past the content width drops the scroll bar again.

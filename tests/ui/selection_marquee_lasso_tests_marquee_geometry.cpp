@@ -2402,10 +2402,10 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
     CHECK(pages != nullptr);
     // Windows appends a Plug-ins page for the legacy 8BF host (docs/plugins.md).
 #ifdef Q_OS_WIN
-    CHECK(pages->count() == 9);
+    CHECK(pages->count() == 10);
     CHECK(pages->item(8)->text() == QStringLiteral("Plug-ins"));
 #else
-    CHECK(pages->count() == 8);
+    CHECK(pages->count() == 9);
 #endif
     CHECK(pages->item(0)->text() == QStringLiteral("Application"));
     CHECK(pages->item(1)->text() == QStringLiteral("Colors and Themes"));
@@ -2415,6 +2415,9 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
     CHECK(pages->item(5)->text() == QStringLiteral("Units & Grids"));
     CHECK(pages->item(6)->text() == QStringLiteral("Snapping"));
     CHECK(pages->item(7)->text() == QStringLiteral("Hotkeys"));
+    // Presets closes the list on every platform (GitHub issue 485, Seth, October 28,
+    // 2026); the count above differs by platform only because of Plug-ins.
+    CHECK(pages->item(pages->count() - 1)->text() == QStringLiteral("Presets"));
     // Tool and canvas-input behavior lives on the Tools tab, not on Application or Pen.
     auto* tools_group = dialog->findChild<QWidget*>(QStringLiteral("preferencesToolsGroup"));
     CHECK(tools_group != nullptr);
