@@ -9,6 +9,8 @@
 #include "ui/mask_properties_dialog.hpp"
 #include "ui/perspective_planes_dialog.hpp"
 #include "ui/camera_raw_filter_dialog.hpp"
+#include "ui/custom_shape_library.hpp"
+#include "ui/custom_shape_manager_dialog.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
@@ -1495,6 +1497,8 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
   const auto style_storage_id =
       styles.add_style(QStringLiteral("Sweep Style"), style_test_shadow_recipe(), std::nullopt, {}, QStringLiteral("Folder"));
   CHECK(styles.find_entry(style_storage_id) != nullptr);
+  patchy::ui::CustomShapeLibrary shapes(directory.filePath(QStringLiteral("shapes")));
+  CHECK(shapes.restore_default_shapes() > 0);
   int captured = 0;
   for (const auto preference :
        {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -1526,6 +1530,8 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
                                               [](const QString&, const patchy::PixelBuffer&) {});
     grab_dialog(QStringLiteral("styleManagerDialog"), "style_manager");
     (void)patchy::ui::request_style_manager(nullptr, styles, styles.find_entry(style_storage_id)->id);
+    grab_dialog(QStringLiteral("customShapeManagerDialog"), "custom_shape_manager");
+    (void)patchy::ui::request_custom_shape_manager(nullptr, shapes, QStringLiteral("shape.builtin.heart"));
     grab_dialog(QStringLiteral("cameraRawFilterDialog"), "camera_raw_filter");
     patchy::ui::CameraRawFilterRequest camera_raw_request;
     camera_raw_request.source = std::make_shared<const patchy::PixelBuffer>(
@@ -1578,7 +1584,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 26);
+  CHECK(captured == 28);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

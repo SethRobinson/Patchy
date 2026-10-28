@@ -13505,6 +13505,112 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Custom Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import SVG files as custom shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the selected shapes or folders (Del)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore Default Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bring back deleted built-in shapes and reset changed defaults</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not update the selected shape. Check that the shape library folder is writable.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n shape(s) selected</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete shape &quot;%1&quot;?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n shape(s)?</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Could not delete %n shape(s). Check that the shape library folder is writable.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>SVG Files (*.svg *.svgz)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SVG Shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No shapes could be imported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n shape(s).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>All default shapes are already present with factory settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some default shapes could not be restored. Check that the shape library folder is writable.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Restored %n default shape(s).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Reset %n default shape(s) to factory settings.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15763,6 +15869,25 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Black</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CustomShapeLibrary</name>
+    <message>
+        <source>Could not read %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not read the SVG: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The SVG has no shape geometry to define</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 Copy</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -22447,14 +22572,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Could not read the SVG: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The SVG has no shape geometry to define</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>SVG Shape</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27687,6 +27804,30 @@ Locked: %1</source>
     <message>
         <source>%1
 %2% opacity%3%4%5%6%7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Styles Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Tips...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saved Brushes...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pattern Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom Shapes...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

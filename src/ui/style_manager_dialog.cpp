@@ -20,7 +20,7 @@
 namespace patchy::ui {
 
 QString request_style_manager(QWidget* parent, StyleLibrary& library,
-                              const QString& initial_style_id) {
+                              const QString& initial_style_id, bool offer_use) {
   QDialog dialog(parent);
   PresetManagerScaffold scaffold(dialog, QStringLiteral("styleManagerDialog"),
                                  QObject::tr("Styles"));
@@ -77,6 +77,7 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
       selected_storage_id);
   auto* use_button = scaffold.add_dialog_buttons(
       QObject::tr("Use Style"), QStringLiteral("styleManagerUseButton"), use_selected);
+  use_button->setVisible(offer_use);
 
   const auto show_update_failure = [&] {
     QMessageBox::warning(
@@ -121,7 +122,7 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
     duplicate_button->setEnabled(single);
     delete_button->setEnabled(any);
     export_button->setEnabled(any);
-    use_button->setEnabled(single);
+    use_button->setEnabled(single && offer_use);
     if (!any) {
       name_edit->clear();
       folder_edit->clear();
@@ -185,8 +186,10 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
   };
 
   scaffold.connect_selection_changed(refresh_details);
-  QObject::connect(tree, &StyleBrowserWidget::style_double_clicked, &dialog,
-                   [&](const QString&) { use_selected(); });
+  if (offer_use) {
+    QObject::connect(tree, &StyleBrowserWidget::style_double_clicked, &dialog,
+                     [&](const QString&) { use_selected(); });
+  }
   scaffold.add_delete_plumbing(delete_button, delete_selected);
   QObject::connect(export_button, &QPushButton::clicked, &dialog,
                    [tree] { tree->export_selection(); });

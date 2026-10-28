@@ -11,8 +11,10 @@ class StyleLibrary;
 // Opens the modal Style Manager (the style twin of the Pattern Manager). The
 // returned value is the library storage id chosen with Use Style or a
 // double-click; an empty value means the dialog was closed without choosing
-// one. Library edits are applied immediately.
+// one. Library edits are applied immediately. offer_use false hides Use Style
+// (Edit > Presets opens it to manage the library, with no layer to style).
 [[nodiscard]] QString request_style_manager(QWidget* parent, StyleLibrary& library,
-                                            const QString& initial_style_id = {});
+                                            const QString& initial_style_id = {},
+                                            bool offer_use = true);
 
 }  // namespace patchy::ui

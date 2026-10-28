@@ -37,6 +37,7 @@
 #include "formats/svg_document_io.hpp"
 #include "render/compositor.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/custom_shape_library.hpp"
 #include "ui/main_window.hpp"
 #include "ui/smart_object_render.hpp"
 #include "local_psd_fixtures.hpp"
@@ -44,6 +45,8 @@
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
 #include "ui_test_support.hpp"
+#include "unicode_path_names.hpp"
+#include "ui/qt_paths.hpp"
 #include <QApplication>
 #include <QBuffer>
 #include <QColor>
@@ -453,6 +456,29 @@ void ui_svg_define_custom_shape_from_file() {
   library.remove_shape(imported->storage_id);  // keep repeated runs clean
 }
 
+void ui_custom_shape_svg_import_reads_unicode_paths() {
+  // custom_shape_path_from_svg_file backs Define Custom Shape from SVG File
+  // and the Custom Shapes manager's Import (GitHub issue 486).
+  const auto fixture = patchy::test::committed_format_fixture_path("svg", "basic-shapes.svg");
+  const auto dir = std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"custom-shape-svg"));
+  for (const auto stem : patchy::test::kUnicodePathStems) {
+    auto target = dir / patchy::test::unicode_path_piece(stem);
+    target += ".svg";
+    std::filesystem::copy_file(fixture, target, std::filesystem::copy_options::overwrite_existing);
+    QString error;
+    const auto shape = patchy::ui::custom_shape_path_from_svg_file(patchy::ui::to_qstring(target), error);
+    CHECK(shape.has_value());
+    CHECK(error.isEmpty());
+    if (shape.has_value()) {
+      const auto bounds = shape->bounds();
+      CHECK(bounds.has_value() && bounds->right - bounds->left <= 1.0001 && bounds->bottom - bounds->top <= 1.0001);
+    }
+  }
+  QString error;
+  CHECK(!patchy::ui::custom_shape_path_from_svg_file(patchy::ui::to_qstring(dir / "missing.svg"), error).has_value());
+  CHECK(!error.isEmpty());
+}
+
 void ui_svg_place_creates_smart_object() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -685,6 +711,7 @@ std::vector<patchy::test::TestCase> svg_ui_tests() {
       {"ui_svg_paste_creates_shape_layers", ui_svg_paste_creates_shape_layers},
       {"ui_svg_copy_as_svg_round_trips_shape_layer", ui_svg_copy_as_svg_round_trips_shape_layer},
       {"ui_svg_define_custom_shape_from_file", ui_svg_define_custom_shape_from_file},
+      {"ui_custom_shape_svg_import_reads_unicode_paths", ui_custom_shape_svg_import_reads_unicode_paths},
       {"ui_svg_place_creates_smart_object", ui_svg_place_creates_smart_object},
   };
 }

@@ -825,6 +825,50 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(define_custom_shape_svg_action, "edit.define_custom_shape_svg");
   connect(define_custom_shape_svg_action, &QAction::triggered, this,
           [this] { define_custom_shape_from_svg_file(); });
+  // Edit > Presets (GitHub issues 485 and 486): the preset manager dialogs in
+  // one place. They manage application libraries, so none needs a document.
+  // The options bar and Layer Style buttons that open them stay as they are.
+  // The hotkey ids are permanent.
+  edit_menu->addSeparator();
+  {
+    auto* presets_menu = new QMenu(tr("Presets"), edit_menu);
+    bind_widget_text(presets_menu, QT_TR_NOOP("Presets"));
+    presets_menu->setObjectName(QStringLiteral("editPresetsMenu"));
+    auto* presets_menu_action = edit_menu->addMenu(presets_menu);
+    presets_menu_action->setMenuRole(QAction::NoRole);
+    presets_menu_action->setProperty(kWorksWithoutDocumentProperty, true);
+    struct PresetEntry {
+      const char* text;
+      const char* object_name;
+      const char* hotkey_id;
+      void (MainWindow::*open)();
+      bool separator_before;
+    };
+    for (const auto& entry :
+         {PresetEntry{QT_TR_NOOP("Styles Manager..."), "editPresetsStylesAction", "edit.presets_styles",
+                      &MainWindow::open_style_manager, false},
+          PresetEntry{QT_TR_NOOP("Brush Tips..."), "editPresetsBrushTipsAction", "edit.presets_brush_tips",
+                      &MainWindow::open_brush_tip_manager, true},
+          PresetEntry{QT_TR_NOOP("Saved Brushes..."), "editPresetsSavedBrushesAction", "edit.presets_saved_brushes",
+                      &MainWindow::manage_automation_brush_presets, false},
+          PresetEntry{QT_TR_NOOP("Gradient Manager..."), "editPresetsGradientsAction", "edit.presets_gradients",
+                      &MainWindow::open_gradient_manager, true},
+          PresetEntry{QT_TR_NOOP("Pattern Manager..."), "editPresetsPatternsAction", "edit.presets_patterns",
+                      &MainWindow::open_pattern_manager, false},
+          PresetEntry{QT_TR_NOOP("Custom Shapes..."), "editPresetsCustomShapesAction", "edit.presets_custom_shapes",
+                      &MainWindow::open_custom_shape_manager, true}}) {
+      if (entry.separator_before) {
+        presets_menu->addSeparator();
+      }
+      auto* action = presets_menu->addAction(tr(entry.text));
+      bind_action_text(action, entry.text);
+      action->setObjectName(QLatin1String(entry.object_name));
+      action->setMenuRole(QAction::NoRole);
+      action->setProperty(kWorksWithoutDocumentProperty, true);
+      register_hotkey(action, entry.hotkey_id, QKeySequence());
+      connect(action, &QAction::triggered, this, [this, open = entry.open] { (this->*open)(); });
+    }
+  }
   // Edit > Convert to Color Profile (docs/rgb-profiles.md): converts the pixels from the
   // document's RGB profile to another one. Refused in CMYK Proof and Indexed modes.
   edit_menu->addSeparator();

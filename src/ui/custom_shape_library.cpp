@@ -1,5 +1,7 @@
 #include "ui/custom_shape_library.hpp"
 
+#include "core/document.hpp"
+#include "formats/svg_document_io.hpp"
 #include "ui/default_custom_shapes.hpp"
 #include "ui/localization.hpp"
 
@@ -7,6 +9,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
@@ -15,9 +18,95 @@
 #include <QSignalBlocker>
 #include <QUuid>
 
+#include <algorithm>
+#include <cstdint>
+#include <exception>
+#include <span>
 #include <utility>
 
 namespace patchy::ui {
+
+namespace {
+
+const BuiltinCustomShape* builtin_shape(const QString& shape_id) {
+  for (const auto& builtin : builtin_custom_shapes()) {
+    if (shape_id == QLatin1String(builtin.id)) {
+      return &builtin;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+QString custom_shape_folder_display_name(const QString& folder) {
+  for (const auto& builtin : builtin_custom_shapes()) {
+    if (folder == QLatin1String(builtin.english_folder)) {
+      return translate_data_text(builtin.english_folder);
+    }
+  }
+  return folder;
+}
+
+bool normalize_custom_shape_path(VectorPath& path) {
+  const auto bounds = path.bounds();
+  if (!bounds.has_value() || bounds->right - bounds->left < 1e-6 || bounds->bottom - bounds->top < 1e-6) {
+    return false;
+  }
+  const auto scale = 1.0 / std::max(bounds->right - bounds->left, bounds->bottom - bounds->top);
+  transform_vector_path(path, {scale, 0.0, 0.0, scale, -bounds->left * scale, -bounds->top * scale});
+  return true;
+}
+
+std::optional<VectorPath> custom_shape_path_from_svg_file(const QString& path, QString& error) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    error = QCoreApplication::translate("patchy::ui::CustomShapeLibrary", "Could not read %1")
+                .arg(QFileInfo(path).fileName());
+    return std::nullopt;
+  }
+  const auto raw = file.readAll();
+  Document imported;
+  try {
+    imported = svg::DocumentIo::read(
+        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(raw.constData()),
+                                      static_cast<std::size_t>(raw.size())));
+  } catch (const std::exception& failure) {
+    error = QCoreApplication::translate("patchy::ui::CustomShapeLibrary", "Could not read the SVG: %1")
+                .arg(translate_data_text(failure.what()));
+    return std::nullopt;
+  }
+  // The Photoshop Shapes-panel behavior: one stampable shape per file, all
+  // drawable geometry merged (paint ignored), combine ops preserved so holes
+  // keep cutting when stamped. Shape groups renumber per source layer.
+  VectorPath merged;
+  std::int32_t group_base = 0;
+  const auto collect = [&](auto&& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      const auto* shape = layer.vector_shape();
+      if (shape == nullptr || shape->path.subpaths.empty()) {
+        continue;
+      }
+      std::int32_t highest = 0;
+      for (const auto& subpath : shape->path.subpaths) {
+        auto copy = subpath;
+        highest = std::max(highest, copy.shape_group);
+        copy.shape_group += group_base;
+        merged.subpaths.push_back(std::move(copy));
+      }
+      group_base += highest + 1;
+    }
+  };
+  collect(collect, std::as_const(imported).layers());
+  if (!normalize_custom_shape_path(merged)) {
+    error = QCoreApplication::translate("patchy::ui::CustomShapeLibrary", "The SVG has no shape geometry to define");
+    return std::nullopt;
+  }
+  return merged;
+}
 
 QPixmap custom_shape_thumbnail(const VectorPath& path, int size) {
   QPixmap pixmap(size, size);
@@ -161,26 +250,36 @@ QString CustomShapeLibrary::add_shape(const QString& name, const VectorPath& pat
 }
 
 bool CustomShapeLibrary::rename_shape(const QString& storage_id, const QString& name) {
-  const auto it = entry_iterator(storage_id);
-  if (it == entries_.end() || name.trimmed().isEmpty()) {
-    return false;
-  }
-  it->name = name.trimmed();
-  const auto ok = write_sidecar(*it);
-  sort_entries();
-  emit changed();
-  return ok;
+  return rename_entry(storage_id, name, /*skip_unchanged=*/true,
+                      [this](const CustomShapeLibraryEntry& entry) { return write_sidecar(entry); });
+}
+
+bool CustomShapeLibrary::set_shape_folder(const QString& storage_id, const QString& folder) {
+  return set_entry_folder(storage_id, folder, /*skip_unchanged=*/true,
+                          [this](const CustomShapeLibraryEntry& entry) { return write_sidecar(entry); });
 }
 
 bool CustomShapeLibrary::remove_shape(const QString& storage_id) {
-  const auto it = entry_iterator(storage_id);
-  if (it == entries_.end()) {
-    return false;
+  return remove_shapes({storage_id}) == 1;
+}
+
+int CustomShapeLibrary::remove_shapes(const QStringList& storage_ids) {
+  return remove_entries(storage_ids, [this](const QString& storage_id) {
+    const auto file = json_path(storage_id);
+    return !QFile::exists(file) || QFile::remove(file);
+  });
+}
+
+QString CustomShapeLibrary::duplicate_shape(const QString& storage_id) {
+  const auto* entry = find_entry(storage_id);
+  if (entry == nullptr) {
+    return {};
   }
-  QFile::remove(json_path(storage_id));
-  entries_.erase(it);
-  emit changed();
-  return true;
+  // Copies first: add_shape reallocates the entry vector.
+  const auto name = tr("%1 Copy").arg(custom_shape_display_name(*entry));
+  const auto path = entry->path;
+  const auto folder = entry->folder;
+  return add_shape(name, path, folder);
 }
 
 const CustomShapeLibraryEntry* CustomShapeLibrary::find_entry_by_shape_id(
@@ -189,7 +288,7 @@ const CustomShapeLibraryEntry* CustomShapeLibrary::find_entry_by_shape_id(
       [&shape_id](const CustomShapeLibraryEntry& entry) { return entry.id == shape_id; });
 }
 
-int CustomShapeLibrary::restore_default_shapes() {
+int CustomShapeLibrary::restore_default_shapes(int newer_than_version) {
   int added = 0;
   bool refreshed = false;
   for (const auto& builtin : builtin_custom_shapes()) {
@@ -207,6 +306,9 @@ int CustomShapeLibrary::restore_default_shapes() {
       }
       continue;
     }
+    if (builtin.introduced_version <= newer_than_version) {
+      continue;  // a deleted default stays deleted
+    }
     // The storage id doubles as the shape id for builtins (stable filenames).
     const auto storage_id = QString::fromLatin1(builtin.id);
     if (!add_shape(QLatin1String(builtin.english_name), builtin.path,
@@ -220,6 +322,54 @@ int CustomShapeLibrary::restore_default_shapes() {
     emit changed();
   }
   return added;
+}
+
+int CustomShapeLibrary::reset_default_shapes_to_factory() {
+  int reset = 0;
+  for (auto& entry : entries_) {
+    const auto* builtin = builtin_shape(entry.id);
+    if (builtin == nullptr) {
+      continue;
+    }
+    const auto name = QString::fromLatin1(builtin->english_name);
+    const auto folder = QString::fromLatin1(builtin->english_folder);
+    if (entry.name == name && entry.folder == folder && entry.path == builtin->path) {
+      continue;
+    }
+    auto updated = entry;
+    updated.name = name;
+    updated.folder = folder;
+    updated.path = builtin->path;
+    updated.thumbnail = custom_shape_thumbnail(updated.path);
+    if (write_sidecar(updated)) {
+      entry = std::move(updated);
+      ++reset;
+    }
+  }
+  if (reset > 0) {
+    sort_entries();
+    emit changed();
+  }
+  return reset;
+}
+
+bool CustomShapeLibrary::has_all_default_shapes_introduced_after(int version) const {
+  const auto& builtins = builtin_custom_shapes();
+  return std::all_of(builtins.begin(), builtins.end(), [this, version](const BuiltinCustomShape& builtin) {
+    return builtin.introduced_version <= version ||
+           find_entry_by_shape_id(QLatin1String(builtin.id)) != nullptr;
+  });
+}
+
+bool CustomShapeLibrary::default_shapes_match_factory() const {
+  for (const auto& builtin : builtin_custom_shapes()) {
+    const auto* entry = find_entry_by_shape_id(QLatin1String(builtin.id));
+    if (entry == nullptr || entry->name != QLatin1String(builtin.english_name) ||
+        entry->folder != QLatin1String(builtin.english_folder) || entry->path != builtin.path) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace patchy::ui

@@ -3085,19 +3085,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_widget_text(manage_patterns, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Manage..."));
   bind_tooltip(manage_patterns, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Import or manage patterns"));
   add_option_widget(manage_patterns, {CanvasTool::PatternStamp});
-  connect(manage_patterns, &QPushButton::clicked, this, [this] {
-    const auto selected_storage_id =
-        request_pattern_manager(this, pattern_library(), current_pattern_stamp_pattern_id_);
-    if (selected_storage_id.isEmpty()) {
-      return;
-    }
-    if (const auto* entry = pattern_library().find_entry(selected_storage_id); entry != nullptr) {
-      current_pattern_stamp_pattern_id_ = entry->id;
-      refresh_pattern_stamp_pattern_combo();
-      apply_pattern_stamp_settings_to_canvas(canvas_);
-      save_tool_settings();
-    }
-  });
+  connect(manage_patterns, &QPushButton::clicked, this, [this] { open_pattern_manager(); });
 
   pattern_stamp_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
 
