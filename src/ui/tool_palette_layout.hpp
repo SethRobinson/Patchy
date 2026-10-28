@@ -5,7 +5,8 @@
 // with a separator between clusters. Hiding a tool never touches its QAction, so its shortcut
 // and its Shift+letter cycle membership are decided here, not by QAction visibility (a hidden
 // QAction drops its shortcut). In wheel-scroll mode the leading items of an overflowing
-// column scroll off the top and small arrows replace the overflow extension.
+// column scroll off the top, small arrows scroll it, and an expand row of the palette's own
+// stands in for the overflow extension (GitHub issue 488).
 
 #include "ui/tool_palette_customization.hpp"
 
@@ -30,11 +31,11 @@ namespace patchy::ui {
 // The tool hotkey id ("tools.hand") every tool action carries, the id a customization hides.
 inline constexpr const char* kToolPaletteToolIdProperty = "toolPaletteToolId";
 
-// One of the small chevrons that mark more tools above or below a scrolled column; a click
-// scrolls one item.
+// One of the full-width arrow rows of a scrolled column: Up and Down mark more tools above or
+// below and scroll one item per click; Expand opens the overflow columns.
 class ToolPaletteScrollArrow final : public QWidget {
 public:
-  enum class Direction { Up, Down };
+  enum class Direction { Up, Down, Expand };
   ToolPaletteScrollArrow(Direction direction, QWidget* parent);
 
   [[nodiscard]] QSize sizeHint() const override;
@@ -82,6 +83,13 @@ public:
   [[nodiscard]] bool can_scroll_down() const;
   // Scrolls by whole items, positive toward the bottom; returns whether anything moved.
   bool scroll_by(int steps);
+  // Wheel-scroll mode (GitHub issue 488): the height of the expand row kept clear directly
+  // above the footer, 0 when nothing is hidden or the columns are open. The footer placer
+  // adds it to the bar's bottom margin and is told through on_bottom_reserve_changed.
+  [[nodiscard]] int bottom_reserve() const noexcept { return bottom_reserve_; }
+  std::function<void()> on_bottom_reserve_changed;
+  // Scrolls back to the top and opens the overflow columns with every tool.
+  void expand();
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -103,7 +111,9 @@ private:
   void apply_scroll();
   void schedule_scroll_update();
   void update_scroll_state();
-  void place_down_arrow();
+  void update_bottom_reserve();
+  void place_arrows();
+  [[nodiscard]] bool expanded() const;
   [[nodiscard]] bool scroll_mode() const;
   [[nodiscard]] int scrollable_count() const;
 
@@ -112,11 +122,13 @@ private:
   QPointer<QToolButton> extension_;
   QAction* scroll_up_item_{nullptr};
   ToolPaletteScrollArrow* scroll_down_arrow_{nullptr};
+  ToolPaletteScrollArrow* expand_arrow_{nullptr};
   std::vector<Slot> slots_;
   std::vector<Item> items_;
   ToolPaletteCustomization customization_;
   int scroll_offset_{0};
   int wheel_remainder_{0};
+  int bottom_reserve_{0};
   bool scroll_update_scheduled_{false};
 };
 
