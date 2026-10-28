@@ -12,6 +12,7 @@
 #include <QPixmap>
 #include <QPointF>
 #include <QPolygonF>
+#include <QRectF>
 
 namespace patchy::ui {
 namespace {
@@ -253,6 +254,29 @@ QCursor build_transform_gesture_cursor(const QPolygonF& badge) {
   return QCursor(pixmap, 3, 3);
 }
 
+// The arrow plus a dashed box at the lower right: a dark halo, a light outline, then dark
+// dashes over it so the box reads as a selection edge.
+QCursor build_load_selection_pointer_cursor() {
+  constexpr int kSize = 32;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  draw_pointer_arrow(painter);
+  const QRectF box(16.5, 17.5, 12.0, 10.0);
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(QColor(20, 23, 28), 3.2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+  painter.drawRect(box);
+  painter.setPen(QPen(QColor(245, 248, 252), 1.2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+  painter.drawRect(box);
+  QPen dashes(QColor(20, 23, 28), 1.2, Qt::CustomDashLine, Qt::FlatCap, Qt::MiterJoin);
+  dashes.setDashPattern({2.0, 2.0});
+  painter.setPen(dashes);
+  painter.drawRect(box);
+  painter.end();
+  return QCursor(pixmap, 3, 3);
+}
+
 QCursor build_move_pointer_cursor() {
   constexpr int kSize = 32;
   QPixmap pixmap(kSize, kSize);
@@ -334,6 +358,12 @@ QCursor transform_gesture_cursor(TransformGestureCursor gesture) {
           QPolygonF({QPointF(20.5, 17.5), QPointF(25.5, 17.5), QPointF(29.5, 28.5), QPointF(16.5, 28.5)})),
   };
   return cursors[static_cast<std::size_t>(gesture)];
+}
+
+QCursor load_selection_pointer_cursor() {
+  // Built once and reused: the Layers panel re-applies it on every mouse move.
+  static const QCursor cursor = build_load_selection_pointer_cursor();
+  return cursor;
 }
 
 QCursor path_select_cursor() {

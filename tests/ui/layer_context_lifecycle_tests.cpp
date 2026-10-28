@@ -3798,8 +3798,7 @@ void ui_background_layer_marker_and_short_menu() {
                              QStringLiteral("Delete Layer"), QStringLiteral("-"),
                              QStringLiteral("Convert to Smart Object"), QStringLiteral("-"),
                              QStringLiteral("Merge Visible"), QStringLiteral("Merge Visible to New Layer (Copy)"),
-                             QStringLiteral("Flatten Image"), QStringLiteral("-"),
-                             QStringLiteral("Thumbnail Size")}));
+                             QStringLiteral("Flatten Image")}));
   const auto& bottom = std::as_const(doc).layers().front();
   CHECK(bottom.name() == "Layer 0");
   CHECK(patchy::background_layer(std::as_const(doc).layers(), doc.width(), doc.height()) == nullptr);

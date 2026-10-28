@@ -20629,28 +20629,10 @@ Collapsed</source>
 已摺疊</translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation>%1
-%2% 不透明度%3%4%5%6%7%8</translation>
-    </message>
-    <message>
         <source>
 Hidden by parent folder</source>
         <translation>
 已由上層資料夾隱藏</translation>
-    </message>
-    <message>
-        <source>
-Locked</source>
-        <translation>
-已鎖定</translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
-        <translation>
-已鎖定透明像素</translation>
     </message>
     <message>
         <source>
@@ -27634,6 +27616,47 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Not a supported image or document: %1</source>
         <translation>不支援的影像或文件：%1</translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation>縮圖縮放至圖層內容</translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation>縮圖顯示整份文件</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>全部</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>影像</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation>自動巢狀</translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation>
+已鎖定：%1</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation>、</translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+%2% 不透明度%3%4%5%6%7</translation>
     </message>
 </context>
 <context>

@@ -20638,23 +20638,8 @@ Collapsed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>
 Hidden by parent folder</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>
-Locked</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -27627,6 +27612,45 @@ The open document keeps its blend modes either way.</source>
     </message>
     <message>
         <source>Not a supported image or document: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

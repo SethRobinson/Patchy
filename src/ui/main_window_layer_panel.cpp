@@ -16,6 +16,7 @@
 #include "color/color_management.hpp"
 #include "core/palette.hpp"
 #include "ui/main_window.hpp"
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QLayout>
@@ -365,20 +366,21 @@ QString layer_lock_flag_tooltip(LayerLockFlags flag, bool inherited) {
   return inherited ? QObject::tr("%1 by folder").arg(text) : text;
 }
 
+// The layer_lock_icon kind for one lock (GitHub issue 484).
 QString layer_lock_flag_icon_key(LayerLockFlags flag) {
   if (flag == kLayerLockTransparentPixels) {
-    return QStringLiteral("AL");
+    return QStringLiteral("transparent");
   }
   if (flag == kLayerLockImagePixels) {
-    return QStringLiteral("fill");
+    return QStringLiteral("pixels");
   }
   if (flag == kLayerLockPosition) {
-    return QStringLiteral("TR");
+    return QStringLiteral("position");
   }
   if (flag == kLayerLockArtboardAutonest) {
-    return QStringLiteral("tool-artboard");
+    return QStringLiteral("autonest");
   }
-  return QStringLiteral("lock");
+  return QStringLiteral("all");
 }
 
 QLabel* make_layer_lock_badge(LayerLockFlags flag, bool inherited, QWidget* parent, LayerListWidget* list_parent) {
@@ -388,8 +390,10 @@ QLabel* make_layer_lock_badge(LayerLockFlags flag, bool inherited, QWidget* pare
   badge->setAlignment(Qt::AlignCenter);
   badge->setToolTip(layer_lock_flag_tooltip(flag, inherited));
   badge->setProperty("inherited", inherited);
-  const auto color = inherited ? theme().layer_lock_badge_inherited : theme().layer_lock_badge_active;
-  badge->setPixmap(simple_icon(layer_lock_flag_icon_key(flag), color).pixmap(QSize(14, 14)));
+  const auto role = inherited ? &ThemePalette::layer_lock_badge_inherited : &ThemePalette::layer_lock_badge_active;
+  // Rendered at the screen's pixel ratio so the badge stays sharp on HiDPI.
+  const auto ratio = parent != nullptr ? parent->devicePixelRatioF() : qApp->devicePixelRatio();
+  badge->setPixmap(layer_lock_icon(layer_lock_flag_icon_key(flag), role).pixmap(QSize(14, 14), ratio));
   if (list_parent != nullptr) {
     badge->installEventFilter(list_parent);
   }
@@ -4028,18 +4032,37 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
 QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
   const auto& layer = *row.layer;
   const auto effective_lock_flags = row.ancestor_lock_flags | layer_lock_flags(layer);
+  // One line for every lock (GitHub issue 483): "Locked: All", or the partial locks joined.
+  QStringList locks;
+  if ((effective_lock_flags & kLayerLockAll) == kLayerLockAll) {
+    locks << tr("All");
+  } else {
+    if ((effective_lock_flags & kLayerLockTransparentPixels) != kLayerLockNone) {
+      locks << tr("Transparent");
+    }
+    if ((effective_lock_flags & kLayerLockImagePixels) != kLayerLockNone) {
+      locks << tr("Image");
+    }
+    if ((effective_lock_flags & kLayerLockPosition) != kLayerLockNone) {
+      locks << tr("Position");
+    }
+  }
+  if ((effective_lock_flags & kLayerLockArtboardAutonest) != kLayerLockNone) {
+    locks << tr("Auto-nesting");
+  }
+  const auto lock_line =
+      locks.isEmpty() ? QString() : tr("\nLocked: %1").arg(locks.join(tr(", ", "separator between lock names")));
   const auto folder_detail =
       layer.kind() == LayerKind::Group
           ? tr("\nFolder with %1 layers%2")
                 .arg(layer_descendant_count(layer))
                 .arg(row.group_expanded ? QString() : tr("\nCollapsed"))
           : QString();
-  return tr("%1\n%2% opacity%3%4%5%6%7%8")
+  return tr("%1\n%2% opacity%3%4%5%6%7")
       .arg(QString::fromStdString(layer.name()))
       .arg(std::round(layer.opacity() * 100.0F))
       .arg(!row.ancestors_visible ? tr("\nHidden by parent folder") : QString())
-      .arg((effective_lock_flags & kLayerLockAll) != kLayerLockNone ? tr("\nLocked") : QString())
-      .arg(layer_locks_transparent_pixels(layer) ? tr("\nTransparent pixels locked") : QString())
+      .arg(lock_line)
       .arg(layer.mask().has_value() ? tr("\nLayer mask") : QString())
       .arg(folder_detail)
       .arg(row.row_clipped ? tr("\nClipped to the layer below") : QString());

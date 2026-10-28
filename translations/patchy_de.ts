@@ -20675,28 +20675,10 @@ Collapsed</source>
 Eingeklappt</translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation>%1
-%2% Deckkraft%3%4%5%6%7%8</translation>
-    </message>
-    <message>
         <source>
 Hidden by parent folder</source>
         <translation>
 Durch übergeordneten Ordner ausgeblendet</translation>
-    </message>
-    <message>
-        <source>
-Locked</source>
-        <translation>
-Fixiert</translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
-        <translation>
-Transparente Pixel fixiert</translation>
     </message>
     <message>
         <source>
@@ -27710,6 +27692,47 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
     <message>
         <source>Not a supported image or document: %1</source>
         <translation>Kein unterstütztes Bild oder Dokument: %1</translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation>Miniaturen auf Ebeneninhalt zoomen</translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation>Ganzes Dokument in Miniaturen zeigen</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Alles</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>Bild</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Position</translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation>Automatisches Einordnen</translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation>
+Fixiert: %1</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+%2% Deckkraft%3%4%5%6%7</translation>
     </message>
 </context>
 <context>

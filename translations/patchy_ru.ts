@@ -21545,28 +21545,10 @@ Collapsed</source>
 Свернутый</translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation>%1
-%2% непрозрачность%3%4%5%6%7%8</translation>
-    </message>
-    <message>
         <source>
 Hidden by parent folder</source>
         <translation>
 Скрыто родительской папкой</translation>
-    </message>
-    <message>
-        <source>
-Locked</source>
-        <translation>
-Заблокировано</translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
-        <translation>
-Прозрачные пиксели заблокированы</translation>
     </message>
     <message>
         <source>
@@ -27786,6 +27768,47 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Not a supported image or document: %1</source>
         <translation>Неподдерживаемое изображение или документ: %1</translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation>Масштабировать миниатюры по содержимому слоя</translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation>Показывать весь документ в миниатюрах</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Всё</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>Изображение</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Позиция</translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation>Автовложение</translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation>
+Заблокировано: %1</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+%2% непрозрачность%3%4%5%6%7</translation>
     </message>
 </context>
 <context>

@@ -200,13 +200,15 @@ void ui_layer_context_menu_fits_short_screens() {
     CHECK(!pixel.texts.contains(QLatin1String(hidden)));
   }
   CHECK(pixel.texts.contains(QStringLiteral("Merge Down")));
-  // Merge, Rasterize and Smart Objects follow Merge Down; Export sits before Thumbnail Size.
+  // Merge, Rasterize and Smart Objects follow Merge Down; Export ends the menu (Thumbnail Size
+  // moved to the thumbnail's own menu, #481).
   const auto merge = pixel.submenus.indexOf(QStringLiteral("layerContextMergeMenu"));
   CHECK(merge >= 0 && pixel.submenus.value(merge + 1) == QStringLiteral("layerContextRasterizeMenu") &&
         pixel.submenus.value(merge + 2) == QStringLiteral("layerContextSmartObjectsMenu"));
   const auto exports = pixel.submenus.indexOf(QStringLiteral("layerContextExportMenu"));
   CHECK(exports >= 0 && pixel.submenus.value(exports - 1) == QStringLiteral("layerContextVectorMaskMenu") &&
-        pixel.submenus.value(exports + 1) == QStringLiteral("layerThumbnailSizeMenu"));
+        exports == pixel.submenus.size() - 1);
+  CHECK(!pixel.submenus.contains(QStringLiteral("layerThumbnailSizeMenu")));
   CHECK(pixel.merge == (QStringList{QStringLiteral("layerContextMergeVisibleLayersAction"), QString(),
                                     QStringLiteral("imageFlattenAction")}));
   CHECK(pixel.rasterize == (QStringList{QStringLiteral("layerRasterizeAction"),
@@ -302,7 +304,8 @@ ThumbnailMenuSeen read_thumbnail_menu(patchy::ui::MainWindow& window, QListWidge
 }
 
 // The pixel, layer mask and vector mask thumbnails' own menus carry the same Export submenu
-// (#462): before Thumbnail Size on a pixel thumbnail, last on a mask thumbnail.
+// (#462): before Thumbnail Size and the thumbnail bounds pair (#481) on a pixel thumbnail, last
+// on a mask thumbnail.
 void ui_layer_thumbnail_menu_offers_layer_export() {
   patchy::ui::MainWindow window;
   patchy::Document built(80, 60, patchy::PixelFormat::rgba8());
@@ -335,7 +338,9 @@ void ui_layer_thumbnail_menu_offers_layer_export() {
                                   "issue462_thumbnail_menu");
   CHECK(seen.name == QStringLiteral("layerThumbnailMenu"));
   CHECK(seen.entries.mid(4) == (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu"),
-                                            QStringLiteral("-"), QStringLiteral("layerThumbnailSizeMenu")}));
+                                            QStringLiteral("-"), QStringLiteral("layerThumbnailSizeMenu"),
+                                            QStringLiteral("layerThumbnailBoundsLayerAction"),
+                                            QStringLiteral("layerThumbnailBoundsDocumentAction")}));
   CHECK(seen.export_entries == both_actions);
 
   seen = read_thumbnail_menu(window, *layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),

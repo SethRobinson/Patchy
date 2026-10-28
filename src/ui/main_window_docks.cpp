@@ -1525,6 +1525,7 @@ void MainWindow::create_docks() {
   connect(layer_list_, &QListWidget::customContextMenuRequested, this,
           [this](const QPoint& position) { show_layer_context_menu(position); });
   add_layer_thumbnail_size_menu(nullptr);
+  add_layer_thumbnail_bounds_actions(nullptr);
   connect(layer_list_->model(), &QAbstractItemModel::rowsMoved, this, [this] {
     if (updating_layer_list_) {
       return;
@@ -1624,8 +1625,8 @@ void MainWindow::create_docks() {
     button->setProperty("layerLockControl", true);
     button->setCheckable(true);
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    button->setIcon(simple_icon(icon_key, QColor(226, 232, 240)));
-    button->setIconSize(QSize(15, 15));
+    button->setIcon(layer_lock_icon(icon_key, &ThemePalette::icon_ink));
+    button->setIconSize(QSize(16, 16));
     button->setToolTip(tooltip);
     button->setFixedSize(24, 24);
     connect(button, &QToolButton::toggled, this, [this, flag](bool checked) {
@@ -1635,21 +1636,21 @@ void MainWindow::create_docks() {
     return button;
   };
   lock_transparent_pixels_button_ =
-      make_lock_button(QStringLiteral("layerLockTransparentButton"), QStringLiteral("AL"),
+      make_lock_button(QStringLiteral("layerLockTransparentButton"), QStringLiteral("transparent"),
                        tr("Lock transparent pixels"), kLayerLockTransparentPixels);
   lock_image_pixels_button_ =
-      make_lock_button(QStringLiteral("layerLockPixelsButton"), QStringLiteral("fill"),
+      make_lock_button(QStringLiteral("layerLockPixelsButton"), QStringLiteral("pixels"),
                        tr("Lock image pixels"), kLayerLockImagePixels);
   lock_position_button_ =
-      make_lock_button(QStringLiteral("layerLockPositionButton"), QStringLiteral("TR"),
+      make_lock_button(QStringLiteral("layerLockPositionButton"), QStringLiteral("position"),
                        tr("Lock position"), kLayerLockPosition);
   lock_all_button_ = new QToolButton(layers_panel);
   lock_all_button_->setObjectName(QStringLiteral("layerLockAllButton"));
   lock_all_button_->setProperty("layerLockControl", true);
   lock_all_button_->setCheckable(true);
   lock_all_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  lock_all_button_->setIcon(simple_icon(QStringLiteral("lock")));
-  lock_all_button_->setIconSize(QSize(15, 15));
+  lock_all_button_->setIcon(layer_lock_icon(QStringLiteral("all"), &ThemePalette::icon_ink));
+  lock_all_button_->setIconSize(QSize(16, 16));
   bind_tooltip(lock_all_button_, QT_TR_NOOP("Lock all"));
   lock_all_button_->setFixedSize(24, 24);
   connect(lock_all_button_, &QToolButton::toggled, this, [this](bool checked) { set_active_layer_lock_all(checked); });
