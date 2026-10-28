@@ -989,8 +989,8 @@ const textStanding = psdTextStanding({
   photoshop:{scores:[1], files:1, noRender:0, noSave:0}, photopea:{scores:[], files:0, noRender:0, noSave:0}},
   ['photoshop','patchy','krita','gimp','affinity','photopea'], {affinity:'Affinity', gimp:'GIMP', krita:'Krita', patchy:'Patchy'});
 assert.deepEqual(textStanding.rows.map(r => r.key), ['patchy','krita','affinity','gimp']);
-assert.equal(textStanding.rows[0].label, '80%');
-assert.equal(textStanding.rows[1].label, '30% *');
+assert.equal(textStanding.rows[0].label, '80.0%');
+assert.equal(textStanding.rows[1].label, '30.0% *');
 assert.equal(textStanding.rows[2].label, '0% (FAIL ***)');
 assert.equal(textStanding.rows[3].label, '0% (FAIL ** ***)');
 assert(textStanding.rows[2].failed && !textStanding.rows[1].failed);
@@ -998,10 +998,13 @@ assert.deepEqual(textStanding.rows[2].reasons, ['Cannot save text objects back o
 assert.equal(textStanding.rows[3].reasons.length, 2); assert.equal(textStanding.rows[0].reasons.length, 0);
 const helped = psdTextStanding({photopea:{scores:[0.96], files:1, noRender:0, noSave:0}, patchy:{scores:[0.9], files:1, noRender:0, noSave:0}},
   ['patchy','photopea'], {}, {photopea:'Photopea is fed the correct fonts'});
-assert.equal(helped.rows[0].key, 'photopea'); assert.equal(helped.rows[0].label, '96% †');
+assert.equal(helped.rows[0].key, 'photopea'); assert.equal(helped.rows[0].label, '96.0% †');
 assert.deepEqual(helped.rows[0].reasons, ['Photopea is fed the correct fonts']);
 assert.deepEqual(helped.notes, [{mark:'†', text:'Photopea is fed the correct fonts'}]);
-assert.equal(helped.rows[1].label, '90%');
+assert.equal(helped.rows[1].label, '90.0%');
+// One decimal, so close rankings stay distinguishable (92.2% and 92.8% are not both "92%").
+assert.equal(psdTextStanding({patchy:{scores:[0.928, 0.916], files:2, noRender:0, noSave:0}}, ['patchy'], {}).rows[0].label,
+             '92.2%');
 const noteFor = mark => textStanding.notes.find(n => n.mark === mark).text;
 assert.equal(noteFor('***'), 'Cannot save text objects back out into the .psd as text');
 assert.equal(noteFor('**'), 'Cannot render psd text objects, only uses the baked pixels saved in the file');

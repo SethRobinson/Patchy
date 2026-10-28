@@ -364,7 +364,7 @@ function psdTextStanding(tally, editors, names, helpNotes) {
     }
     rows.push({ key: k, score: score, failed: failed, reasons: reasons,
                 label: (failed ? "0% (FAIL " + marks.join(" ") + ")"
-                               : Math.round(100 * score) + "%" + (marks.length ? " " + marks.join(" ") : "") +
+                               : pct(score) + (marks.length ? " " + marks.join(" ") : "") +
                                  helpMark) });
   });
   rows.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
@@ -986,7 +986,7 @@ function render() {
       (perceptual ? "perceptual" : "byte") + " match to Photoshop" +
       (skipKnown ? ", known limitations left out" : "") + "; unopened files count as 0</div>" +
       ranked.map((r, i) => '<div class="row' + (r.key === "patchy" ? " me" : "") + '"><span>' + (i + 1) + ". " +
-        esc((S.editors[r.key] || {}).displayName || r.key) + "</span><b>" + pct(r.score, 0) + "</b></div>").join("") +
+        esc((S.editors[r.key] || {}).displayName || r.key) + "</span><b>" + pct(r.score) + "</b></div>").join("") +
       textBlock + "</div>";
   })();
   renderHistory();
