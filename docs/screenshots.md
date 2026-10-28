@@ -45,8 +45,8 @@ Click any image to inspect it at full size. These are captures of the real edito
       <br><sub>Trace Image to Shapes turns any image into editable vector shape layers, with Illustrator-style presets and a live traced preview</sub>
     </td>
 <td align="center" valign="top" width="50%">
-      <a href="images/screenshots/warp_text.png"><img src="images/screenshots/warp_text.png" width="430" alt="Type Playground with live warp controls, inline bold, italic and color in one paragraph, mixed fonts, tracked lettering, and vertical Japanese text"></a>
-      <br><sub>Live Warp Text, rich paragraph styling, letter spacing, and Japanese vertical columns, kept as editable text layers</sub>
+      <a href="images/screenshots/warp_text.png"><img src="images/screenshots/warp_text.png" width="430" alt="Type Playground with the Warp Text dialog and the Character and Paragraph panels open, a paragraph with bold, italic, color, underline, strikethrough, superscript, subscript, small caps and all caps, warped words, tracked lettering, and vertical Japanese text"></a>
+      <br><sub>Live Warp Text with the Character and Paragraph panels; one paragraph mixes bold, italic, color, underline, strikethrough, superscript, subscript, small caps and all caps, beside letter spacing and Japanese vertical columns, all editable text layers</sub>
     </td>
 </tr>
 <tr>

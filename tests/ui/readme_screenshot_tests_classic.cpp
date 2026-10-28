@@ -46,6 +46,7 @@
 #include <QDoubleSpinBox>
 #include <QFont>
 #include <QFontDatabase>
+#include <QIcon>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
@@ -1052,8 +1053,36 @@ void shot_readme_long_shadow() {
   CHECK(captured);
 }
 
-// Live typography specimen: warped type, mixed-run paragraph text, tracking,
-// and real Japanese vertical columns, with the Warp Text controls visible.
+// A natively framed dialog grabs without its title bar, which the desktop draws. Adds the
+// dark caption Windows shows for Patchy's dialogs (app icon, title, close glyph) so the
+// overlay reads as the window people see.
+QImage readme_captioned_dialog(QWidget& dialog, const QIcon& icon) {
+  constexpr int kCaption = 32;
+  const auto content = dialog.grab().toImage();
+  QImage framed(content.width(), content.height() + kCaption, QImage::Format_ARGB32_Premultiplied);
+  const auto background = content.pixelColor(4, 4);
+  framed.fill(background.darker(108));
+  QPainter painter(&framed);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.drawImage(0, kCaption, content);
+  painter.drawPixmap(10, (kCaption - 18) / 2, icon.pixmap(18, 18));
+  QFont title(QStringLiteral("Segoe UI"));
+  title.setPixelSize(15);
+  painter.setFont(title);
+  painter.setPen(QColor(232, 232, 232));
+  painter.drawText(QRect(36, 0, framed.width() - 80, kCaption), Qt::AlignVCenter | Qt::AlignLeft,
+                   dialog.windowTitle());
+  painter.setPen(QPen(QColor(205, 205, 205), 1.3));
+  const QPointF close(framed.width() - 22.0, kCaption / 2.0);
+  painter.drawLine(close + QPointF(-5, -5), close + QPointF(5, 5));
+  painter.drawLine(close + QPointF(-5, 5), close + QPointF(5, -5));
+  painter.end();
+  return framed;
+}
+
+// Live typography specimen: warped type, mixed-run paragraph text with the Character
+// panel's styles, tracking, and real Japanese vertical columns, with the Warp Text dialog
+// and the Character and Paragraph panels open.
 void shot_readme_warp_text() {
   for (const auto role : {patchy::test::TestFontRole::ArialBlack, patchy::test::TestFontRole::UiDefault,
                           patchy::test::TestFontRole::Verdana, patchy::test::TestFontRole::Georgia,
@@ -1110,30 +1139,47 @@ void shot_readme_warp_text() {
   std::string paragraph_text;
   std::vector<patchy::psd::PsdTextStyleRun> paragraph_runs;
   const auto append_run = [&](const char* text, bool bold = false, bool italic = false,
-                               patchy::RgbColor color = {0x28, 0x36, 0x42}, const char* family = "Verdana") {
+                               patchy::RgbColor color = {0x28, 0x36, 0x42}, const char* family = "Verdana",
+                               const std::function<void(patchy::psd::PsdTextStyleRun&)>& character = {}) {
     patchy::psd::PsdTextStyleRun run;
     run.start = static_cast<int>(paragraph_text.size());
     run.length = static_cast<int>(std::string_view(text).size());
     run.family = family;
-    run.size = 27;
-    run.leading = 39;
+    run.size = 24;
+    run.leading = 44;
     run.bold = bold;
     run.italic = italic;
     run.color = color;
+    if (character) character(run);
     paragraph_runs.push_back(run);
     paragraph_text += text;
   };
+  // The Character panel's styles, each on its own words: underline, strikethrough,
+  // superscript, subscript, small caps and all caps.
+  constexpr patchy::RgbColor kInk{0x28, 0x36, 0x42};
   append_run("Make something ");
   append_run("bold", true);
   append_run(", add a little ");
   append_run("italic", false, true);
-  append_run(", and give ");
+  append_run(", give ");
   append_run("color", true, false, {0xb2, 0x48, 0x35});
-  append_run(" a voice. Mix ");
+  append_run(" a voice. ");
+  append_run("Underline", false, false, kInk, "Verdana", [](auto& run) { run.underline = true; });
+  append_run(" what matters, ");
+  append_run("strike", false, false, kInk, "Verdana", [](auto& run) { run.strikethrough = true; });
+  append_run(" what doesn't, add a footnote");
+  append_run("1", false, false, kInk, "Verdana", [](auto& run) { run.font_baseline = 1; });
+  append_run(" or H");
+  append_run("2", false, false, kInk, "Verdana", [](auto& run) { run.font_baseline = 2; });
+  append_run("O, set ");
+  append_run("Small Caps", false, false, kInk, "Verdana", [](auto& run) { run.font_caps = 1; });
+  append_run(" or ");
+  append_run("all caps", false, false, kInk, "Verdana", [](auto& run) { run.font_caps = 2; });
+  append_run(", and mix ");
   append_run("a serif", false, true, {0x26, 0x76, 0x79}, "Georgia");
-  append_run(" with a sans, shape the paragraph, and keep every word editable.");
+  append_run(" with a sans. Every word stays editable.");
   const auto paragraph_id = add_readme_warp_text_layer(built, "One paragraph / mixed styles", 70, 490,
-      paragraph_text, patchy::psd::serialize_patchy_text_runs(paragraph_runs), 27, "#283642", 0, 0, 0);
+      paragraph_text, patchy::psd::serialize_patchy_text_runs(paragraph_runs), 24, "#283642", 0, 0, 0);
   auto* paragraph = built.find_layer(paragraph_id);
   CHECK(paragraph != nullptr);
   paragraph->layer_style().strokes.clear();
@@ -1207,32 +1253,64 @@ void shot_readme_warp_text() {
   require_canvas(window)->document_changed();
   require_action(window, "viewFitOnScreenAction")->trigger();
   QApplication::processEvents();
+  // The Character and Paragraph panels open first and show the headline's settings beside
+  // the Warp Text dialog. Each panel runs its own non-modal loop (run_non_modal_dialog), so
+  // the next window opens from a timer inside the previous one's loop, and each closes as
+  // the loops unwind.
+  auto* character_button = window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"));
+  auto* paragraph_button = window.findChild<QPushButton*>(QStringLiteral("textParagraphButton"));
+  CHECK(character_button != nullptr && character_button->isVisible());
+  CHECK(paragraph_button != nullptr && paragraph_button->isVisible());
   bool captured = false;
   std::exception_ptr error;
-  QTimer::singleShot(0, [&] {
+  const auto capture = [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("warpTextDialog"));
     try {
-      CHECK(dialog != nullptr);
+      auto* character = find_top_level_dialog(QStringLiteral("textCharacterDialog"));
+      auto* paragraph_panel = find_top_level_dialog(QStringLiteral("textParagraphDialog"));
+      CHECK(dialog != nullptr && character != nullptr && paragraph_panel != nullptr);
+      CHECK(character->isVisible() && paragraph_panel->isVisible());
       auto* style_combo = dialog->findChild<QComboBox*>(QStringLiteral("warpTextStyleCombo"));
       auto* bend_spin = dialog->findChild<QSpinBox*>(QStringLiteral("warpTextBendSpin"));
       CHECK(style_combo != nullptr && bend_spin != nullptr);
       style_combo->setCurrentIndex(style_combo->findData(QStringLiteral("warpArc")));
       bend_spin->setValue(36);
       process_events_for(300);
-      const QPoint dialog_offset(925, 185);
-      dialog->move(window.geometry().topLeft() + dialog_offset);
-      QApplication::processEvents();
       reset_readme_status_bar(window);
+      const auto icon = window.windowIcon();
+      const auto paragraph_image = readme_captioned_dialog(*paragraph_panel, icon);
+      const auto warp_image = readme_captioned_dialog(*dialog, icon);
+      const auto character_image = readme_captioned_dialog(*character, icon);
+      // Paragraph and Warp Text side by side in the empty canvas right of the headline;
+      // Character over the lower Layers rows, leaving the text layers above it in view.
+      const QPoint paragraph_offset(690, 128);
+      const QPoint warp_offset(paragraph_offset.x() + paragraph_image.width() + 12, 128);
+      const QPoint character_offset(window.width() - character_image.width() - 8,
+                                    window.height() - character_image.height() - 48);
       auto base = window.grab().toImage();
-      draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+      draw_readme_overlay(base, paragraph_image, paragraph_offset);
+      draw_readme_overlay(base, character_image, character_offset);
+      draw_readme_overlay(base, warp_image, warp_offset);
       save_readme_shot("shot_readme_warp_text", base);
       captured = true;
     } catch (...) {
       error = std::current_exception();
     }
     if (dialog != nullptr) dialog->reject();
+  };
+  QTimer::singleShot(0, [&] {
+    // Inside the Character panel's loop.
+    QTimer::singleShot(0, [&] {
+      // Inside the Paragraph panel's loop: Warp Text is modal and returns once captured.
+      QTimer::singleShot(0, capture);
+      patchy::ui::MainWindowTestAccess::request_warp_text_dialog(window);
+      if (auto* panel = find_top_level_dialog(QStringLiteral("textParagraphDialog")); panel != nullptr) panel->reject();
+    });
+    paragraph_button->click();
+    if (auto* panel = find_top_level_dialog(QStringLiteral("textCharacterDialog")); panel != nullptr) panel->reject();
   });
-  patchy::ui::MainWindowTestAccess::request_warp_text_dialog(window);
+  character_button->click();
+  QApplication::processEvents();
   if (error) std::rethrow_exception(error);
   CHECK(captured);
 }

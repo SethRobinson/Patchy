@@ -146,8 +146,13 @@ steeply foreshortened plane samples a coarse mip level and blurs the art (a firs
 the Havana street's right-hand wall did). Use real CC0 photos here, never generated ones.
 
 The text showcase combines a live Warp Text preview with three warped words,
-a single boxed paragraph containing bold, italic, colored, and mixed-font runs,
-a tracked heading, and two Japanese vertical columns. The sample reads
+a single boxed paragraph containing bold, italic, colored, and mixed-font runs plus the
+Character panel's underline, strikethrough, superscript, subscript, small caps and all caps,
+a tracked heading, and two Japanese vertical columns. The Character and Paragraph panels
+open before Warp Text; each runs a nested non-modal loop (`run_non_modal_dialog`), so the
+scene opens each window from a timer inside the previous one's loop. Their native title
+bars are not part of a widget grab, so `readme_captioned_dialog` draws the dark caption
+(icon, title, close glyph) the desktop shows. The sample reads
 "Let's play with letters / Let's enjoy color." Every sample is an editable
 type layer. The scene registers its Latin and Japanese test fonts and reports
 a skip if no Japanese family is available; it never publishes missing-glyph boxes.
