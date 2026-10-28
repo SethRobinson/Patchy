@@ -216,6 +216,16 @@ void use_scrolling_list_popup(QComboBox& combo, int max_rows = kLongListPopupRow
 // Moves and shortens `combo`'s open list window `popup` so it sits inside the available
 // geometry of the combo's screen: below the box, else above it, else on the taller side.
 void fit_combo_popup_to_screen(const QComboBox& combo, QWidget& popup);
+// Widens `combo`'s open list, each time it opens, to its widest entry (combo_list_entry_width,
+// plus the list's frame and scroll bar), never narrower than the box. Qt opens the list as wide
+// as the box, and the list's row padding then elided entries the box shows whole (GitHub issue
+// 489). Measured from the entries at that moment, so a language change or new entries need no
+// call. Preferences applies it to every combo. Test: ui_preferences_combo_lists_fit_their_entries.
+void fit_combo_popup_to_entries(QComboBox& combo);
+// The width `combo`'s open list needs for entry `row` to show whole, as its delegate and the
+// style draw it (the menu-style rows of Fusion and macOS, the inset text of Windows 11's list
+// rows); 0 for a separator.
+[[nodiscard]] int combo_list_entry_width(const QComboBox& combo, int row);
 // For a dialog whose pages scroll (GitHub issue 92): a combo box, spin box or slider inside
 // a scroll area under `root` ignores the mouse wheel unless it holds keyboard focus (a click
 // or Tab; their focus policy drops from WheelFocus to StrongFocus), so a wheel that passes
