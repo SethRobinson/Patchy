@@ -27847,14 +27847,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Füllmethode: %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>Miniaturen auf Ebeneninhalt zoomen</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>Ganzes Dokument in Miniaturen zeigen</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>Alles</translation>
     </message>
@@ -27910,6 +27902,18 @@ Fixiert: %1</translation>
     <message>
         <source>Custom Shapes...</source>
         <translation>Eigene Formen...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>Auf Ebeneninhalt zoomen</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>Ganzes Dokument</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>Miniaturanzeige</translation>
     </message>
 </context>
 <context>

@@ -4204,8 +4204,8 @@ void MainWindow::add_layer_thumbnail_bounds_actions(QMenu* menu) {
     };
     // Index 0 zooms to the layer content, 1 shows the whole document.
     const std::array<BoundsEntry, 2> entries{{
-        {QT_TR_NOOP("Zoom Thumbnails to Layer Content"), "layerThumbnailBoundsLayerAction"},
-        {QT_TR_NOOP("Show Whole Document in Thumbnails"), "layerThumbnailBoundsDocumentAction"},
+        {QT_TR_NOOP("Zoom to Layer Content"), "layerThumbnailBoundsLayerAction"},
+        {QT_TR_NOOP("Whole Document"), "layerThumbnailBoundsDocumentAction"},
     }};
     auto* group = new QActionGroup(this);
     for (std::size_t index = 0; index < entries.size(); ++index) {
@@ -4225,8 +4225,12 @@ void MainWindow::add_layer_thumbnail_bounds_actions(QMenu* menu) {
   if (menu == nullptr) {
     return;
   }
+  // A submenu like Thumbnail Size, right under it.
+  auto* display_menu = menu->addMenu(tr("Thumbnail Display"));
+  display_menu->setObjectName(QStringLiteral("layerThumbnailDisplayMenu"));
+  display_menu->menuAction()->setMenuRole(QAction::NoRole);
   for (auto* action : layer_thumbnail_bounds_actions_) {
-    menu->addAction(action);
+    display_menu->addAction(action);
   }
 }
 

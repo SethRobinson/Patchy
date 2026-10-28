@@ -27847,14 +27847,6 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <translation>Metodo di fusione: %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>Ingrandisci le miniature sul contenuto del livello</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>Mostra l&apos;intero documento nelle miniature</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>Tutto</translation>
     </message>
@@ -27910,6 +27902,18 @@ Bloccato: %1</translation>
     <message>
         <source>Custom Shapes...</source>
         <translation>Forme personali...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>Ingrandisci al contenuto del livello</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>Intero documento</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>Visualizzazione miniature</translation>
     </message>
 </context>
 <context>

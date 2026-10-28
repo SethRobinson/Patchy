@@ -27765,14 +27765,6 @@ The open document keeps its blend modes either way.</source>
         <translation>描画モード: %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>サムネイルをレイヤーの内容にズーム</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>サムネイルにドキュメント全体を表示</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>すべて</translation>
     </message>
@@ -27828,6 +27820,18 @@ Locked: %1</source>
     <message>
         <source>Custom Shapes...</source>
         <translation>カスタムシェイプ...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>レイヤーの内容にズーム</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>ドキュメント全体</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>サムネイルの表示</translation>
     </message>
 </context>
 <context>

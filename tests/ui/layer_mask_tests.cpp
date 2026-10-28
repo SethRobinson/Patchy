@@ -861,9 +861,8 @@ void ui_layer_thumbnail_right_click_opens_pixels_menu() {
   CHECK(seen.texts.value(5) == QStringLiteral("Export"));
   CHECK(seen.actions.value(6) == QStringLiteral("-"));
   CHECK(seen.texts.value(7) == QStringLiteral("Thumbnail Size"));
-  // And the thumbnail bounds pair (#481).
-  CHECK(seen.texts.mid(8) == (QStringList{QStringLiteral("Zoom Thumbnails to Layer Content"),
-                                          QStringLiteral("Show Whole Document in Thumbnails")}));
+  // And the Thumbnail Display submenu (#481).
+  CHECK(seen.texts.mid(8) == QStringList{QStringLiteral("Thumbnail Display")});
   CHECK(selected(5, 15) && selected(30, 5) && !selected(30, 15));
 
   click_layer_row_thumbnail(*layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),
