@@ -288,6 +288,12 @@ constexpr auto kTextEditorSourceVisibleSizeProperty = "patchy.sourceVisibleSize"
 // is already whole, so the anchor pin would otherwise lose it; the re-render needs it because
 // Photoshop rounds every glyph from the UNROUNDED start (docs/text-render-calibration.md).
 constexpr auto kTextEditorSourceLineStartFractionProperty = "patchy.sourceLineStartFraction";
+// The session-start render's ink offset from its text-local origin (visible top-left plus
+// local_rect.topLeft()) and its first baseline in local units. The anchor pin places the
+// origin (the pen) from these, not from each new render's ink, so a style that grows the ink
+// elsewhere (a superscript, faux bold's stroke) leaves the rest of the line where it was.
+constexpr auto kTextEditorSourceInkOffsetProperty = "patchy.sourceInkOffset";
+constexpr auto kTextEditorSourceFirstBaselineProperty = "patchy.sourceFirstBaseline";
 constexpr auto kTextEditorVisibleLocalRectProperty = "patchy.textVisibleLocalRect";
 constexpr auto kTextEditorRenderLocalRectProperty = "patchy.textRenderLocalRect";
 constexpr auto kTextEditorExtendedBoxPreviewProperty = "patchy.extendedBoxPreview";
@@ -1855,6 +1861,8 @@ private:
     editor_->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
     editor_->setProperty(kTextEditorSourceVisibleSizeProperty, QVariant());
     editor_->setProperty(kTextEditorSourceLineStartFractionProperty, QVariant());
+    editor_->setProperty(kTextEditorSourceInkOffsetProperty, QVariant());
+    editor_->setProperty(kTextEditorSourceFirstBaselineProperty, QVariant());
     editor_->setProperty(kTextEditorVisibleLocalRectProperty, QVariant());
     // Box geometry changed: drop the import-frame render rect so glyphs lay out against the live
     // box instead of the original Photoshop frame (free helper isn't visible inside this class).
@@ -2498,10 +2506,18 @@ Rect rendered_text_bounds_for_editor(const QTextEdit& editor, QPoint document_po
   if (text_editor_render_local_rect(editor).has_value()) {
     if (const auto anchor = text_editor_source_visible_anchor(editor); anchor.has_value()) {
       if (const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels); visible_bounds.has_value()) {
-        return Rect{snapped_pixel_coordinate(anchor->x() - static_cast<double>(visible_bounds->x)),
-                    snapped_pixel_coordinate(anchor->y() - static_cast<double>(visible_bounds->y)),
-                    rendered.pixels.width(),
-                    rendered.pixels.height()};
+        // The source ink sits where the session-start render put its ink, so the frame stays
+        // put while an edit grows or shrinks the ink (kTextEditorSourceInkOffsetProperty).
+        auto ink_x = static_cast<double>(visible_bounds->x);
+        auto ink_y = static_cast<double>(visible_bounds->y);
+        if (const auto source_offset = editor.property(kTextEditorSourceInkOffsetProperty);
+            source_offset.isValid() && std::isfinite(source_offset.toPointF().x()) &&
+            std::isfinite(source_offset.toPointF().y())) {
+          ink_x = source_offset.toPointF().x() - rendered.local_rect.left();
+          ink_y = source_offset.toPointF().y() - rendered.local_rect.top();
+        }
+        return Rect{snapped_pixel_coordinate(anchor->x() - ink_x), snapped_pixel_coordinate(anchor->y() - ink_y),
+                    rendered.pixels.width(), rendered.pixels.height()};
       }
     }
     return Rect{snapped_pixel_coordinate(static_cast<double>(document_point.x()) + rendered.local_rect.left()),
@@ -2570,12 +2586,50 @@ std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTe
   // The pin places the BUFFER; the transform names the text-local origin, which sits
   // local_rect.topLeft() inside it (left of / above the buffer corner only when glyph ink
   // overhangs the line start or top, grow_point_text_rect_to_glyph_ink).
-  return LayerAffineTransform{1.0,
-                              0.0,
-                              0.0,
-                              1.0,
-                              anchor_x - static_cast<double>(visible_bounds->x) - rendered.local_rect.left(),
-                              anchor_y - static_cast<double>(visible_bounds->y) - rendered.local_rect.top()};
+  auto ink_offset_x = static_cast<double>(visible_bounds->x) + rendered.local_rect.left();
+  auto ink_offset_y = static_cast<double>(visible_bounds->y) + rendered.local_rect.top();
+  // Once the session has its start render, the pin keeps THAT render's origin instead: the
+  // source ink sat where the session-start ink offset puts it, and Photoshop keeps the pen
+  // (along the reading axis) and the first baseline (horizontal text) still while the ink grows
+  // around them. Re-pinning each render's ink corner moved the whole line by a pixel whenever a
+  // style grew the ink of one word (a superscript or faux bold stroke above the line top, a bold
+  // first glyph left of the line start). An unchanged render has the same offset, so a commit
+  // without edits places exactly as before.
+  if (const auto source_offset = editor.property(kTextEditorSourceInkOffsetProperty);
+      source_offset.isValid() && std::isfinite(source_offset.toPointF().x()) &&
+      std::isfinite(source_offset.toPointF().y())) {
+    const auto offset = source_offset.toPointF();
+    if (text_editor_is_vertical(editor)) {
+      // The stack axis keeps the ink's right edge (columns grow leftward); the reading axis
+      // keeps the session-start top.
+      ink_offset_y = offset.y();
+    } else {
+      ink_offset_x = offset.x();
+      ink_offset_y = offset.y();
+      const auto source_baseline = editor.property(kTextEditorSourceFirstBaselineProperty);
+      if (source_baseline.isValid() && std::isfinite(source_baseline.toDouble()) &&
+          rendered.metrics.first_baseline.has_value() && std::isfinite(*rendered.metrics.first_baseline)) {
+        // Same document baseline: the origin moves by however much the line's ascent changed.
+        ink_offset_y += *rendered.metrics.first_baseline - source_baseline.toDouble();
+      }
+    }
+  }
+  return LayerAffineTransform{1.0, 0.0, 0.0, 1.0, anchor_x - ink_offset_x, anchor_y - ink_offset_y};
+}
+
+// Records the session-start render's ink offset and first baseline for
+// anchored_text_transform_for_pixels (see kTextEditorSourceInkOffsetProperty).
+void capture_text_editor_source_ink_offset(QTextEdit& editor, const RenderedTextPixels& rendered) {
+  const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels);
+  if (!visible_bounds.has_value()) {
+    return;
+  }
+  editor.setProperty(kTextEditorSourceInkOffsetProperty,
+                     QPointF(static_cast<double>(visible_bounds->x) + rendered.local_rect.left(),
+                             static_cast<double>(visible_bounds->y) + rendered.local_rect.top()));
+  if (rendered.metrics.first_baseline.has_value() && std::isfinite(*rendered.metrics.first_baseline)) {
+    editor.setProperty(kTextEditorSourceFirstBaselineProperty, *rendered.metrics.first_baseline);
+  }
 }
 
 bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const RenderedTextPixels& rendered) {
@@ -2588,8 +2642,11 @@ bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const Re
   return true;
 }
 
+// `box_frame`: also render a box session that has a fixed render rect (an anchored extended box
+// preview), the way commit_text_editor does, for the session-start ink reference.
 std::optional<RenderedTextPixels> render_text_editor_pixels_for_source_anchor(const QTextEdit& editor, double zoom,
-                                                                              QColor fallback_color) {
+                                                                              QColor fallback_color,
+                                                                              bool box_frame = false) {
   // Untrimmed: run offsets index the full document text (see calibrated_box_text_metric_scale_for_editor).
   const auto text = editor.toPlainText();
   if (text.trimmed().isEmpty()) {
@@ -2599,7 +2656,8 @@ std::optional<RenderedTextPixels> render_text_editor_pixels_for_source_anchor(co
   const auto text_width = std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextWidth").toInt());
   const auto text_height = std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextHeight").toInt());
   const auto boxed_text = text_flow_is_box(editor.property("patchy.documentTextFlow").toString());
-  if (boxed_text || editor.property("patchy.usesPsdTextFrame").toBool()) {
+  if ((boxed_text || editor.property("patchy.usesPsdTextFrame").toBool()) &&
+      !(box_frame && text_editor_render_local_rect(editor).has_value())) {
     return std::nullopt;
   }
   const auto stored_color = editor.property("patchy.documentTextColor").value<QColor>();
@@ -2628,18 +2686,29 @@ std::optional<RenderedTextPixels> render_text_editor_pixels_for_source_anchor(co
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
-  auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs, rich_text_runs);
+  // The same render arguments as commit_text_editor (a point session has no render rect and unit
+  // scales, so it renders as before).
+  const auto frame_layout_scale = settings.photoshop_layout && editor.property("patchy.usesPsdTextFrame").toBool()
+                                      ? text_editor_size_display_scale(editor)
+                                      : 1.0;
+  auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs, rich_text_runs,
+                                                     text_editor_render_local_rect(editor),
+                                                     text_editor_metric_scale(editor), QTransform(),
+                                                     frame_layout_scale);
   if (rendered.pixels.empty()) {
     return std::nullopt;
   }
   return rendered;
 }
 
+// Session start only: this render is the text as the layer holds it, so it also becomes the
+// reference later renders keep their origin against (capture_text_editor_source_ink_offset).
 bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, double zoom, QColor fallback_color) {
   const auto rendered = render_text_editor_pixels_for_source_anchor(editor, zoom, fallback_color);
   if (!rendered.has_value()) {
     return false;
   }
+  capture_text_editor_source_ink_offset(editor, *rendered);
   return update_text_editor_transform_from_source_anchor(editor, *rendered);
 }
 
@@ -6823,6 +6892,14 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                             editor->property("patchy.documentTextY").toInt());
   } else if (editing_layer_source_visible_anchor.has_value()) {
+    if (boxed_text) {
+      // An anchored box session places its buffer from the anchor (rendered_text_bounds_for_editor)
+      // and needs the same session-start ink reference as point text.
+      if (const auto rendered = render_text_editor_pixels_for_source_anchor(*editor, canvas_->zoom(), text_color, true);
+          rendered.has_value()) {
+        capture_text_editor_source_ink_offset(*editor, *rendered);
+      }
+    }
     update_text_editor_transform_from_source_anchor(*editor, canvas_->zoom(), text_color);
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                             editor->property("patchy.documentTextY").toInt());
@@ -10566,6 +10643,8 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
       editor->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
       editor->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
       editor->setProperty(kTextEditorSourceVisibleSizeProperty, QVariant());
+      editor->setProperty(kTextEditorSourceInkOffsetProperty, QVariant());
+      editor->setProperty(kTextEditorSourceFirstBaselineProperty, QVariant());
       // Dragging the box invalidates the import-frame caches: drop the anchor/local-rect so the
       // glyphs lay out against the live box rather than the original Photoshop frame.
       clear_text_editor_render_local_rect(*editor);

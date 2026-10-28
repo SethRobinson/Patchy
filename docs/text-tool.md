@@ -17,8 +17,7 @@ answers are guaranteed to agree with the drawn glyphs.
 Caret and selection geometry MUST go through `TextLineGeometry`, never Qt's natural
 `blockBoundingRect` origins: those drift roughly (leading - Qt line spacing) px per line on a
 PS-model layer (pinned by `ui_psd_text_caret_follows_photoshop_leading`). `BoxTextLineRenderItem::block_position` exists only for this:
-`QTextLine::lineNumber()` is an index within its own block's layout, so the owning block cannot be
-recovered from the line alone. Caret lookup resolves the owning block FIRST (as
+`QTextLine::lineNumber()` is block-local. Caret lookup resolves the owning block FIRST (as
 `QTextDocument::findBlock` does): a document-wide line scan answers the previous block for a
 position at the start of the next one.
 
@@ -28,8 +27,7 @@ argument (`metric_scale` AND the PSD-frame `layout_scale`, `text_editor_size_dis
 `photoshop_layout && usesPsdTextFrame`). A frame session keeps its runs in raw engine units and
 folds the frame's vertical scale in only at render time, so a default `layout_scale` of 1.0 lays
 the caret out at the raw size while the glyphs draw scaled
-(`ui_psd_frame_text_highlight_matches_scaled_glyphs`, which probes by clicking mid-INK from the
-render: click and caret share a layout and agree even when it is wrong).
+(`ui_psd_frame_text_highlight_matches_scaled_glyphs`).
 
 **A face's natural width is `QFont::AnyStretch`, never stretch 100.** Qt synthesizes
 request / face width class, so a Condensed face (width class 75) asked for stretch 100
@@ -43,8 +41,7 @@ unstretched condensed line a third wider than the caret layout
 Mouse hit-testing goes through the same plan, never `QTextEdit::cursorForPosition`.
 `MainWindow::handle_text_editor_viewport_mouse_event` intercepts left press/drag/double-click for
 the flat case and `TransformedTextEditOverlay::cursor_position_for_overlay_point` the transformed
-one; both end at `TextLineGeometry::position_at`; right-click, middle click and release fall
-through. `ui_psd_text_click_returns_to_the_caret_it_drew` pins the round trip. Double-click
+one, both ending at `TextLineGeometry::position_at`. `ui_psd_text_click_returns_to_the_caret_it_drew` pins the round trip. Double-click
 selects the word; a third click inside the double-click interval selects the visual line
 (`TextLineGeometry::line_range_at`, trailing whitespace trimmed; tracked via the
 `patchy.textTripleClick*` properties; GitHub issue 74, `ui_text_triple_click_selects_the_line`). The editor widget
@@ -93,6 +90,9 @@ Re-editing a layer must not MOVE its text: each such session renders live throug
 `render_text_pixels`, plain text included (`kTextEditorForceBakedPreviewProperty`); the editor
 widget rasterizes differently. `ui_text_edit_entry_leaves_the_pixels_alone`
 pins it: enter, do nothing, and the preview and a re-commit are byte-identical at the same origin.
+Nor may an edit move what it did not touch: a session pinned to its source ink places every render
+from the session-start render's ink offset and first baseline (`kTextEditorSourceInkOffsetProperty`),
+not the new ink, so the pen stays put as one word grows, as in Photoshop.
 
 **Every session previews, including the one that creates the text.** A new session renders over
 its provisional layer, and `restore_active_layer` is that provisional (not whatever was active
