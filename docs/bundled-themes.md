@@ -6,7 +6,7 @@ Every bundled theme is compiled into every build, wasm included, and lists under
 
 ## Single-file themes
 
-`themes/bundled/*.patchytheme` go into `src/ui/themes.qrc` (resource prefix `/patchy/themes`). `scripts/dev/generate-bundled-themes.py` writes them from the authored Dark palette in `theme_palette.cpp`: neutral roles go through a per-theme tone ramp, blue-family accents take the theme's accent hue, every other hue is kept. Rerun it after a palette change and commit the result; an unknown-role warning in the test above is how drift shows. A new one is added to the generator, the qrc and the list. The generator writes only its own files, never a package folder.
+`themes/bundled/*.patchytheme` go into `src/ui/themes.qrc` (resource prefix `/patchy/themes`). `scripts/dev/generate-bundled-themes.py` writes them from the authored Dark palette in `theme_palette.cpp`: neutral roles go through a per-theme tone ramp, blue-family accents take the theme's accent hue, every other hue is kept. Each one's one-line `"description"` is in its `DESCRIPTIONS` table. Rerun it after a palette change and commit the result; an unknown-role warning in the test above is how drift shows. A new one is added to the generator, the qrc and the list. The generator writes only its own files, never a package folder.
 
 ## Theme packages
 

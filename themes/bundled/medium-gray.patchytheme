@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "Medium Gray",
+  "description": "A mid-gray interface, between Dark and Light.",
   "base": "dark",
   "roles": {
     "window_bg": "#525252",

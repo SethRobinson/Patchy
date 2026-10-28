@@ -27997,6 +27997,10 @@ Locked: %1</source>
         <source>Layer Content</source>
         <translation>レイヤーの内容</translation>
     </message>
+    <message>
+        <source>Theme description:</source>
+        <translation>テーマの説明:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

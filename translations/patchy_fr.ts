@@ -28079,6 +28079,10 @@ Verrouillé : %1</translation>
         <source>Layer Content</source>
         <translation>Contenu du calque</translation>
     </message>
+    <message>
+        <source>Theme description:</source>
+        <translation>Description du thème :</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

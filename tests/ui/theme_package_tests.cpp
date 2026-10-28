@@ -46,10 +46,12 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QWidget>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -1296,6 +1298,96 @@ void ui_theme_info_shows_version_author_and_minimum_patchy() {
   CHECK(!patchy::ui::has_active_custom_palette());
 }
 
+// theme.json "description": kept with its line breaks, capped, carried by Export Theme
+// Package, and shown under "Theme description:" in Colors and Themes only for a theme
+// that has one (Dink Smallwood does, Dark does not).
+void ui_theme_description_parses_round_trips_and_shows_in_details() {
+  const auto parse = [](const QJsonValue& description) {
+    const QJsonObject object{{QStringLiteral("base"), QStringLiteral("dark")},
+                             {QStringLiteral("name"), QStringLiteral("Described")},
+                             {QStringLiteral("description"), description}};
+    return patchy::ui::load_theme_from_json(QJsonDocument(object).toJson());
+  };
+  const auto described = parse(QStringLiteral("  First   line.\r\n\r\nSecond <b>line</b>.  "));
+  CHECK(described.theme.has_value() && described.warnings.isEmpty());
+  CHECK(described.theme && described.theme->info.description == QStringLiteral("First line.\n\nSecond <b>line</b>."));
+  const auto wrong = parse(QJsonValue(42));
+  CHECK(wrong.theme.has_value() && wrong.warnings.size() == 1);
+  CHECK(wrong.theme && wrong.theme->info.description.isEmpty() &&
+        wrong.warnings.value(0).contains(QStringLiteral("description")));
+  const auto long_one = parse(QString(patchy::ui::kThemeDescriptionMaxLength + 50, QLatin1Char('x')));
+  CHECK(long_one.theme && long_one.theme->info.description.size() == patchy::ui::kThemeDescriptionMaxLength);
+  if (described.theme) {
+    CHECK(!patchy::ui::serialize_theme_to_json(described.theme->palette, described.theme->base,
+                                               QStringLiteral("Described"))
+               .contains("description"));
+  }
+
+  {
+    // Export Theme Package writes it back.
+    PackageThemesDir themes;
+    write_sample_package(themes.file(QStringLiteral("Source")), QColor(40, 50, 60),
+                         QJsonObject{{QStringLiteral("description"), QStringLiteral("Line one.\nLine two.")}});
+    const auto source = patchy::ui::load_theme_by_id(QStringLiteral("Source"));
+    CHECK(source.theme && source.theme->info.description == QStringLiteral("Line one.\nLine two."));
+    if (source.theme) {
+      write_bytes(themes.file(QStringLiteral("Zipped.zip")),
+                  patchy::ui::serialize_theme_package_zip(source.theme->palette, source.theme->base,
+                                                          QStringLiteral("Zipped"), source.theme->assets.get()));
+      const auto zipped = patchy::ui::load_theme_by_id(QStringLiteral("Zipped.zip"));
+      CHECK(zipped.theme && zipped.theme->info.description == QStringLiteral("Line one.\nLine two."));
+    }
+  }
+
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  PackageThemesDir no_user_themes;  // only the bundled set in the list (and the capture)
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* heading = dialog->findChild<QLabel*>(QStringLiteral("preferencesThemeDescriptionHeading"));
+    auto* text = dialog->findChild<QLabel*>(QStringLiteral("preferencesThemeDescription"));
+    CHECK(heading != nullptr && text != nullptr);
+    if (heading == nullptr || text == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:bundled:dink-smallwood")));
+    process_events_for(50);
+    CHECK(heading->isVisible() && heading->text() == QStringLiteral("Theme description:"));
+    CHECK(text->isVisible() && text->textFormat() == Qt::PlainText && text->wordWrap());
+    CHECK(text->text().startsWith(QStringLiteral("This unholy eyesore")) &&
+          text->text().endsWith(QStringLiteral("as a prank on friends.")));
+    // The capture: tall enough to show the whole details column, scrolled to its end.
+    dialog->resize(dialog->width(), std::max(dialog->height(), 680));
+    process_events_for(50);
+    for (auto* parent = text->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+      if (auto* scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr) {
+        scroll->ensureWidgetVisible(text);
+        break;
+      }
+    }
+    process_events_for(50);
+    save_widget_artifact("preferences_theme_description_dink", *dialog);
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("dark")));
+    CHECK(!heading->isVisible() && !text->isVisible());
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(!patchy::ui::has_active_custom_palette());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> theme_package_tests() {
@@ -1324,6 +1416,8 @@ std::vector<patchy::test::TestCase> theme_package_tests() {
        ui_bundled_theme_package_loads_from_resources_and_source},
       {"ui_theme_package_capture_shots", ui_theme_package_capture_shots},
       {"ui_theme_info_shows_version_author_and_minimum_patchy", ui_theme_info_shows_version_author_and_minimum_patchy},
+      {"ui_theme_description_parses_round_trips_and_shows_in_details",
+       ui_theme_description_parses_round_trips_and_shows_in_details},
       {"ui_theme_svg_icons_reaching_outside_are_refused", ui_theme_svg_icons_reaching_outside_are_refused},
       {"ui_theme_sounds_refuse_malformed_wav", ui_theme_sounds_refuse_malformed_wav},
       {"ui_theme_wav_loop_helpers_and_player", ui_theme_wav_loop_helpers_and_player},

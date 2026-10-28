@@ -28161,6 +28161,10 @@ Locked: %1</source>
         <source>Layer Content</source>
         <translation>Содержимое слоя</translation>
     </message>
+    <message>
+        <source>Theme description:</source>
+        <translation>Описание темы:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

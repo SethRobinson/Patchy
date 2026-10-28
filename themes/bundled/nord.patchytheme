@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "Nord",
+  "description": "Patchy in the cool blue-gray Nord colors.",
   "base": "dark",
   "roles": {
     "window_bg": "#2e3440",

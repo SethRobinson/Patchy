@@ -47,7 +47,11 @@ struct ThemeInfo {
   QString version;             // "version": the theme's own version, free text ("1.2")
   QString author;              // "author"
   QString min_patchy_version;  // "minPatchyVersion": dotted digits ("1.20"), validated
+  QString description;         // "description": a few sentences, line breaks kept
 };
+
+// Longest "description" a theme keeps, in UTF-16 units; the rest is cut.
+inline constexpr qsizetype kThemeDescriptionMaxLength = 2000;
 
 struct CustomTheme {
   QString name;

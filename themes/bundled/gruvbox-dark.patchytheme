@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "Gruvbox Dark",
+  "description": "Patchy in the warm Gruvbox Dark colors.",
   "base": "dark",
   "roles": {
     "window_bg": "#282828",

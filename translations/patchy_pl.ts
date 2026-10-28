@@ -28161,6 +28161,10 @@ Zablokowano: %1</translation>
         <source>Layer Content</source>
         <translation>Zawartość warstwy</translation>
     </message>
+    <message>
+        <source>Theme description:</source>
+        <translation>Opis motywu:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

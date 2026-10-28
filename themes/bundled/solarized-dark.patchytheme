@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "Solarized Dark",
+  "description": "Patchy in the Solarized Dark colors.",
   "base": "dark",
   "roles": {
     "window_bg": "#002b36",
