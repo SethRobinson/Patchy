@@ -376,8 +376,10 @@ void apply_layer_footer_preset(ToolPaletteCustomization& value, LayerFooterPrese
                QStringLiteral("add_mask"),  QStringLiteral("delete")};
       break;
     case LayerFooterPreset::Krita:
-      shown = {QStringLiteral("new_layer"), QStringLiteral("duplicate"), QStringLiteral("move_down"),
-               QStringLiteral("move_up"), QStringLiteral("delete")};
+      // Krita's add button also offers groups, adjustment layers and masks (#471 follow-up).
+      shown = {QStringLiteral("new_layer"),      QStringLiteral("new_folder"), QStringLiteral("duplicate"),
+               QStringLiteral("new_adjustment"), QStringLiteral("add_mask"),   QStringLiteral("move_down"),
+               QStringLiteral("move_up"),        QStringLiteral("layer_styles"), QStringLiteral("delete")};
       break;
   }
   value.layer_button_order = shown;

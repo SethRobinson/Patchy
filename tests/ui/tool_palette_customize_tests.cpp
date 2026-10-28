@@ -1502,7 +1502,8 @@ QStringList preset_shown_buttons(patchy::ui::LayerFooterPreset preset) {
       return footer_ids(
           {"new_layer", "new_folder", "move_up", "move_down", "duplicate", "merge_down", "add_mask", "delete"});
     case LayerFooterPreset::Krita:
-      return footer_ids({"new_layer", "duplicate", "move_down", "move_up", "delete"});
+      return footer_ids({"new_layer", "new_folder", "duplicate", "new_adjustment", "add_mask", "move_down", "move_up",
+                         "layer_styles", "delete"});
   }
   return footer_ids(
       {"new_layer", "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "animation", "delete"});
@@ -1619,9 +1620,10 @@ void ui_tool_palette_dialog_layer_button_presets() {
   CHECK(ran);
   settle();
   CHECK(patchy::ui::matching_layer_footer_preset(window.tool_palette_customization()) == LayerFooterPreset::Krita);
-  // The footer: New Layer, Duplicate, Move Down, Move Up, Delete, in one row; the rest hidden.
+  // The footer: Krita's nine (#471 follow-up), in one row; the rest hidden.
   std::vector<QWidget*> shown;
-  for (const auto* name : {"layerNewButton", "layerDuplicateButton", "layerMoveDownButton", "layerMoveUpButton",
+  for (const auto* name : {"layerNewButton", "layerNewFolderButton", "layerDuplicateButton", "layerNewAdjustmentButton",
+                           "layerAddMaskButton", "layerMoveDownButton", "layerMoveUpButton", "layerStylesButton",
                            "layerDeleteButton"}) {
     auto* button = window.findChild<QWidget*>(QLatin1String(name));
     CHECK(button != nullptr && button->isVisible());
@@ -1632,7 +1634,7 @@ void ui_tool_palette_dialog_layer_button_presets() {
       CHECK(shown[index - 1]->y() == shown[index]->y() && shown[index - 1]->x() < shown[index]->x());
     }
   }
-  for (const auto* name : {"layerNewFolderButton", "layerAddMaskButton", "layerStylesButton", "layerAnimationButton"}) {
+  for (const auto* name : {"layerMergeDownButton", "layerAnimationButton"}) {
     auto* button = window.findChild<QWidget*>(QLatin1String(name));
     CHECK(button != nullptr && !button->isVisible());
   }
