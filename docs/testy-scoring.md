@@ -128,6 +128,12 @@ preservation validate the pipeline itself.
 A file Photoshop opens and an editor does not counts as a 0% match for that editor
 in every average (`refusedWithReference` in the report, `_aggregate` in testy.py).
 Harness failures (a wedged Photoshop, a skipped editor) stay out of the averages.
+So does a Photopea or Affinity leg that failed on Testy's side: the driver returns
+`"opens": None` for a driver crash, a dead browser, a connector that is off, or a host
+page that never got the file into Photopea (`_HARNESS_ERRORS`, `_HARNESS_STALL_STEPS`
+in `drivers/photopea.py`), and the cell keeps no "opens" verdict. A stall after the file
+reached Photopea is Photopea's own and still scores 0 (three psd-tools files hang there
+on every run).
 
 ## Scoring without Photoshop's cached pixels
 

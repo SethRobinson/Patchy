@@ -28,7 +28,21 @@ STALL_TIMEOUT = 45
 
 
 class PhotopeaError(RuntimeError):
-    pass
+    def __init__(self, message: str, harness: bool = False):
+        super().__init__(message)
+        self.harness = harness
+
+
+# Failures on Testy's side of the host page: the page never ran, photopea.com never
+# loaded, a staged file could not be fetched, an export never reached the server. They
+# say nothing about whether Photopea can open the file, so the cell records no "opens"
+# verdict and the file stays out of Photopea's averages (refused_with_reference). A
+# stall after the file was posted into Photopea is Photopea's own (three psd-tools files
+# hang there on every run) and still counts as a refusal.
+_HARNESS_ERRORS = ("missing required parameters", "Photopea never became ready",
+                   "file fetch failed", "upload failed")
+_HARNESS_STALL_STEPS = ("no output", "waiting for the Photopea editor", "loading font",
+                        "font not loaded", "editor ready; fetching")
 
 
 def _chrome():
@@ -87,10 +101,12 @@ def _run_host_page(base_url: str, query: dict[str, str],
         if raw:
             result = json.loads(raw)
             if not result.get("ok"):
-                raise PhotopeaError(result.get("error", "unknown host-page failure"))
+                error = str(result.get("error", "unknown host-page failure"))
+                raise PhotopeaError(error, harness=error.startswith(_HARNESS_ERRORS))
             for output in expected_outputs:
                 if not output.exists() or output.stat().st_size == 0:
-                    raise PhotopeaError(f"host page reported ok but {output.name} is missing")
+                    raise PhotopeaError(f"host page reported ok but {output.name} is missing",
+                                        harness=True)
             return result
         # Fail fast on stalls: the page logs every step, so a frozen log means a dead run.
         current_log = chrome.execute_script(
@@ -100,7 +116,8 @@ def _run_host_page(base_url: str, query: dict[str, str],
             last_progress = time.time()
         elif time.time() - last_progress > STALL_TIMEOUT:
             last_line = current_log.strip().splitlines()[-1] if current_log.strip() else "no output"
-            raise PhotopeaError(f"stalled for {STALL_TIMEOUT}s at: {last_line}")
+            raise PhotopeaError(f"stalled for {STALL_TIMEOUT}s at: {last_line}",
+                                harness=last_line.startswith(_HARNESS_STALL_STEPS))
     raise PhotopeaError("host page timed out")
 
 
@@ -156,9 +173,10 @@ def export_all(
                 notes.append(f"trap: {error}")
         return {"ok": True, "opens": "ok", "notes": notes}
     except PhotopeaError as error:
-        return {"ok": False, "opens": "fail", "error": str(error), "notes": notes}
-    except Exception as error:
-        return {"ok": False, "opens": "fail", "error": f"driver crash: {error}", "notes": notes}
+        return {"ok": False, "opens": None if error.harness else "fail", "error": str(error),
+                "notes": notes}
+    except Exception as error:  # a driver bug or a dead Chrome: no verdict on the file
+        return {"ok": False, "opens": None, "error": f"driver crash: {error}", "notes": notes}
 
 
 def render_text_afresh(base_url: str, testy_root: Path, source: Path, render_png: Path,
