@@ -13531,10 +13531,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Dossier des formes sélectionnées ; laissez vide pour les retirer des dossiers</translation>
     </message>
     <message>
-        <source>Import SVG files as custom shapes</source>
-        <translation>Importer des fichiers SVG comme formes personnalisées</translation>
-    </message>
-    <message>
         <source>Delete the selected shapes or folders (Del)</source>
         <translation>Supprimer les formes ou dossiers sélectionnés (Del)</translation>
     </message>
@@ -13627,6 +13623,38 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
             <numerusform>%n forme par défaut rétablie aux réglages d&apos;usine.</numerusform>
             <numerusform>%n formes par défaut rétablies aux réglages d&apos;usine.</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Not a Photoshop custom shapes file</source>
+        <translation>Ce n&apos;est pas un fichier de formes personnalisées Photoshop</translation>
+    </message>
+    <message>
+        <source>Unsupported custom shapes file version</source>
+        <translation>Version de fichier de formes non prise en charge</translation>
+    </message>
+    <message>
+        <source>Skipped a shape with damaged or empty geometry</source>
+        <translation>Une forme à la géométrie endommagée ou vide a été ignorée</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded shape</source>
+        <translation>Le fichier est endommagé après la dernière forme lue</translation>
+    </message>
+    <message>
+        <source>The file holds no usable shapes</source>
+        <translation>Le fichier ne contient aucune forme utilisable</translation>
+    </message>
+    <message>
+        <source>Import Photoshop .csh shape files or SVG files</source>
+        <translation>Importer des fichiers de formes Photoshop .csh ou des fichiers SVG</translation>
+    </message>
+    <message>
+        <source>Custom Shapes and SVG Files (*.csh *.svg *.svgz)</source>
+        <translation>Formes personnalisées et fichiers SVG (*.csh *.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation>Formes personnalisées Photoshop (*.csh)</translation>
     </message>
 </context>
 <context>
@@ -15906,6 +15934,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>%1 Copy</source>
         <translation>%1 copie</translation>
+    </message>
+    <message>
+        <source>Shape %1</source>
+        <translation>Forme %1</translation>
+    </message>
+    <message>
+        <source>Could not save the custom shape</source>
+        <translation>Impossible d&apos;enregistrer la forme personnalisée</translation>
     </message>
 </context>
 <context>

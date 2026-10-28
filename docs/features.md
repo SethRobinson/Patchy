@@ -11,7 +11,7 @@
 - Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold, Exposure, Channel Mixer, Photo Filter, Gradient Map, Black & White, Color Lookup from embedded tables or a .cube or .3dl file, Selective Color, and Vibrance) with live preview, editable settings, native Photoshop PSD data, and .acv Curves preset import and export
 - One-step Image > Adjustments commands with no dialog: Invert (Ctrl+I), Auto Tone, Auto Contrast, Auto Color, and Auto All, on the active layer or the selection
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (blur, sharpen, noise, distort, stylize, pixelate and render filters plus Image > Adjustments commands) with paintable shared masks and per-filter blending
-- Photoshop-compatible layer style, pattern, and gradient preset libraries, including .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures; Edit > Presets opens each manager, Custom Shapes included
+- Photoshop-compatible layer style, pattern, and gradient preset libraries with .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures; Edit > Presets opens all managers, Custom Shapes (.csh) too
 - Continuous long shadows for type and shapes. This Patchy-specific layer-style setting falls back to a normal drop shadow in Photoshop; see the [example](screenshots.md).
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 
@@ -147,7 +147,7 @@ warnings describe conversions that affect a particular document.
 
 ### Affinity import
 
-Patchy imports Affinity documents for editing: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x-era files. Raster layers (16-bit, float, CMYK and Lab become 8-bit RGB), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes, compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (as embedded Smart Objects) all import. Strokes keep their width, alignment, dashes and miter limit, crop-to-shape containers become masked groups, and the Erase blend mode becomes an isolated group with an inverse-alpha mask. A file that can't import as layers opens as its embedded preview, noting what was skipped.
+Patchy imports Affinity documents for editing: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x files. Raster layers (16-bit, float, CMYK and Lab become 8-bit RGB), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes, compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (as embedded Smart Objects) all import. Strokes keep their width, alignment, dashes and miter limit, crop-to-shape containers become masked groups, and the Erase blend mode becomes an isolated group with an inverse-alpha mask. A file that can't import as layers opens as its embedded preview, noting what was skipped.
 
 Affinity features that are not supported yet, or are only partially supported:
 

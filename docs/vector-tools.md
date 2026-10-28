@@ -88,10 +88,32 @@ builtin's `introduced_version`), so a deleted default stays deleted.
 Edit > Presets > Custom Shapes (`request_custom_shape_manager`, GitHub
 issue 486) is the Pattern Manager's shape twin: rename, folder, duplicate,
 delete, Import of SVG files (`custom_shape_path_from_svg_file`, shared with
-Define Custom Shape from SVG File), Restore Default Shapes (re-adds and
+Define Custom Shape from SVG File) and Photoshop `.csh` files
+(`CustomShapeLibrary::import_csh`: one user entry per shape, in a folder
+named after the file, one `changed()`), Restore Default Shapes (re-adds and
 resets builtin names and folders) and Use Shape, which picks it in the bar.
-Every edit reaches the bar's picker at once through `changed()`. Photoshop
-`.csh` import is not built: it waits on a sample file Patchy may test with.
+Every edit reaches the bar's picker at once through `changed()`.
+
+### Photoshop .csh files
+
+`psd/csh_io.cpp` (`read_csh`) reads them, written from files only (two CC0
+packs and a Photoshop 2026 load-and-draw check, October 2026; never from
+another reader's source). Big-endian: `cush`, u32 version 2, u32 shape
+count; per shape a u32 UTF-16 unit count and the name (terminator
+included), zero padding to a 4-byte file offset, a u32 that is always 1,
+and a u32 block length. The block: a Pascal id string (a GUID or zeros),
+four i32 bounds (top, left, bottom, right; the defining document's pixels),
+then the PSD path-resource record stream (`parse_path_resource_records`,
+points as 8.24 fractions of the bounds box), zero padded to a 4-byte file
+offset. Cut-outs are one compound group (lead op Add, continuation
+contours op 0xFFFF on the same group), filled even-odd. Photoshop draws a
+shape by fitting the outline's exact curve bounds to the drag rectangle
+(Aries, 1128 x 690 px: first anchor at 927.76, 541.91), so the reader
+normalizes by curve bounds, not control points. A damaged shape is skipped
+with a warning; a damaged tail keeps the shapes before it. No .csh writer
+yet: the builtins could be written in this layout as Patchy's own file.
+Tests: `csh_reader_*` (core; the CC0 packs in `local-test-fixtures/csh`)
+and `ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes`.
 
 ## Path editing (Path Select / Direct Select)
 

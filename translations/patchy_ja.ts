@@ -13494,10 +13494,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>選択したシェイプのフォルダー。空欄にするとフォルダーから外します</translation>
     </message>
     <message>
-        <source>Import SVG files as custom shapes</source>
-        <translation>SVG ファイルをカスタムシェイプとして読み込みます</translation>
-    </message>
-    <message>
         <source>Delete the selected shapes or folders (Del)</source>
         <translation>選択したシェイプまたはフォルダーを削除します (Del)</translation>
     </message>
@@ -13584,6 +13580,38 @@ Each item&apos;s own View setting still applies.</source>
         <translation>
             <numerusform>%n 個の標準シェイプを初期設定に戻しました。</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Not a Photoshop custom shapes file</source>
+        <translation>Photoshop のカスタムシェイプファイルではありません</translation>
+    </message>
+    <message>
+        <source>Unsupported custom shapes file version</source>
+        <translation>サポートされていないシェイプファイルのバージョンです</translation>
+    </message>
+    <message>
+        <source>Skipped a shape with damaged or empty geometry</source>
+        <translation>ジオメトリが壊れているか空のシェイプをスキップしました</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded shape</source>
+        <translation>最後に読み込んだシェイプより後ろでファイルが壊れています</translation>
+    </message>
+    <message>
+        <source>The file holds no usable shapes</source>
+        <translation>このファイルには使えるシェイプがありません</translation>
+    </message>
+    <message>
+        <source>Import Photoshop .csh shape files or SVG files</source>
+        <translation>Photoshop の .csh シェイプファイルまたは SVG ファイルを読み込みます</translation>
+    </message>
+    <message>
+        <source>Custom Shapes and SVG Files (*.csh *.svg *.svgz)</source>
+        <translation>カスタムシェイプと SVG ファイル (*.csh *.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation>Photoshop カスタムシェイプ (*.csh)</translation>
     </message>
 </context>
 <context>
@@ -15863,6 +15891,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1 Copy</source>
         <translation>%1 のコピー</translation>
+    </message>
+    <message>
+        <source>Shape %1</source>
+        <translation>シェイプ %1</translation>
+    </message>
+    <message>
+        <source>Could not save the custom shape</source>
+        <translation>カスタムシェイプを保存できませんでした</translation>
     </message>
 </context>
 <context>

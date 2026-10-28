@@ -10,6 +10,8 @@
 #include "formats/tga_document_io.hpp"
 #include "psd/abr_reader.hpp"
 #include "psd/asl_io.hpp"
+#include "psd/csh_io.hpp"
+#include "csh_test_builder.hpp"
 #include "psd/pat_reader.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -886,6 +888,176 @@ void asl_reader_reads_photoshop_shipped_styles_if_available() {
   }
 }
 
+namespace {
+
+struct CshUnitBounds {
+  double left{1e9};
+  double top{1e9};
+  double right{-1e9};
+  double bottom{-1e9};
+};
+
+// Anchor bounds of a decoded shape (the test shapes are all corners).
+CshUnitBounds csh_anchor_bounds(const patchy::VectorPath& path) {
+  CshUnitBounds bounds;
+  for (const auto& subpath : path.subpaths) {
+    for (const auto& anchor : subpath.anchors) {
+      bounds.left = std::min(bounds.left, anchor.anchor_x);
+      bounds.right = std::max(bounds.right, anchor.anchor_x);
+      bounds.top = std::min(bounds.top, anchor.anchor_y);
+      bounds.bottom = std::max(bounds.bottom, anchor.anchor_y);
+    }
+  }
+  return bounds;
+}
+
+bool csh_near(double a, double b, double tolerance = 1e-6) { return std::abs(a - b) <= tolerance; }
+
+}  // namespace
+
+void csh_reader_reads_names_holes_and_proportions() {
+  // GitHub issue 486: Photoshop .csh import (layout in docs/vector-tools.md).
+  const auto bytes = patchy::test::make_test_csh(patchy::test::sample_test_csh_shapes());
+  std::string error;
+  const auto parsed = patchy::psd::read_csh(bytes, error);
+  CHECK(parsed.has_value());
+  if (!parsed.has_value()) {
+    return;
+  }
+  CHECK(error.empty());
+  CHECK(parsed->warnings.empty());
+  CHECK(parsed->shapes.size() == 2U);
+  const auto& frame = parsed->shapes[0];
+  CHECK(frame.name == "Frame \xF0\x9F\x8E\xA8");  // the surrogate pair decodes to U+1F3A8
+  CHECK(frame.id == "00000000-0000-0000-0000-000000000000");
+  // Two contours in one compound group: the continuation takes the lead's op
+  // and group, so the renderer fills them together even-odd (the hole).
+  CHECK(frame.path.subpaths.size() == 2U);
+  CHECK(frame.path.subpaths[0].anchors.size() == 4U && frame.path.subpaths[1].anchors.size() == 4U);
+  CHECK(frame.path.subpaths[0].op == patchy::PathCombineOp::Add);
+  CHECK(frame.path.subpaths[1].op == patchy::PathCombineOp::Add);
+  CHECK(frame.path.subpaths[0].shape_group == frame.path.subpaths[1].shape_group);
+  CHECK(frame.path.subpaths[0].closed && frame.path.subpaths[1].closed);
+  // The 200 x 100 bounds box keeps its 2:1 proportions in the unit box.
+  const auto outer = csh_anchor_bounds(frame.path);
+  CHECK(csh_near(outer.left, 0.0) && csh_near(outer.top, 0.0));
+  CHECK(csh_near(outer.right, 1.0) && csh_near(outer.bottom, 0.5));
+  const auto& hole = frame.path.subpaths[1].anchors;
+  CHECK(csh_near(hole[0].anchor_x, 0.25) && csh_near(hole[0].anchor_y, 0.125));
+  CHECK(csh_near(hole[2].anchor_x, 0.75) && csh_near(hole[2].anchor_y, 0.375));
+  const auto& triangle = parsed->shapes[1];
+  CHECK(triangle.name == "Triangle");
+  CHECK(triangle.id == "8a1d4c52-0d4e-4f6b-9a1e-1b2c3d4e5f60");
+  CHECK(triangle.path.subpaths.size() == 1U && triangle.path.subpaths[0].anchors.size() == 3U);
+  const auto& corner = triangle.path.subpaths[0].anchors[1];
+  CHECK(csh_near(corner.anchor_x, 1.0) && csh_near(corner.anchor_y, 0.25));
+}
+
+void csh_reader_rejects_damaged_files() {
+  std::string error;
+  // Not a .csh, empty, wrong version.
+  for (const auto& bytes : {std::vector<std::uint8_t>{}, std::vector<std::uint8_t>{'c', 'u', 's', 'h'},
+                            std::vector<std::uint8_t>{'8', 'B', 'P', 'S', 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}}) {
+    error.clear();
+    CHECK(!patchy::psd::read_csh(bytes, error).has_value());
+    CHECK(!error.empty());
+  }
+  error.clear();
+  CHECK(!patchy::psd::read_csh(patchy::test::make_test_csh(patchy::test::sample_test_csh_shapes(), 1), error)
+             .has_value());
+  CHECK(error == "Unsupported custom shapes file version");
+  const auto good = patchy::test::make_test_csh(patchy::test::sample_test_csh_shapes());
+  // Every truncation either fails cleanly or keeps the shapes before the cut.
+  for (std::size_t size = 0; size < good.size(); ++size) {
+    const std::span<const std::uint8_t> cut(good.data(), size);
+    error.clear();
+    const auto parsed = patchy::psd::read_csh(cut, error);
+    if (parsed.has_value()) {
+      CHECK(parsed->shapes.size() == 1U);
+      CHECK(!parsed->warnings.empty());
+    } else {
+      CHECK(!error.empty());
+    }
+  }
+  // A huge shape count with no data, and garbage after a valid header.
+  auto huge = std::vector<std::uint8_t>{'c', 'u', 's', 'h', 0, 0, 0, 2, 0xFF, 0xFF, 0xFF, 0xFF};
+  error.clear();
+  CHECK(!patchy::psd::read_csh(huge, error).has_value());
+  std::uint64_t seed = 0x486U;
+  for (int round = 0; round < 64; ++round) {
+    auto noisy = good;
+    for (int flip = 0; flip < 8; ++flip) {
+      seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+      const auto at = 12U + static_cast<std::size_t>((seed >> 33U) % (noisy.size() - 12U));
+      noisy[at] = static_cast<std::uint8_t>(seed >> 56U);
+    }
+    error.clear();
+    (void)patchy::psd::read_csh(noisy, error);  // must not crash or hang
+  }
+  // A shape whose bounds box is empty is skipped; the next one still loads.
+  auto shapes = patchy::test::sample_test_csh_shapes();
+  shapes[0].right = shapes[0].left;
+  error.clear();
+  const auto skipped = patchy::psd::read_csh(patchy::test::make_test_csh(shapes), error);
+  CHECK(skipped.has_value() && skipped->shapes.size() == 1U && skipped->shapes[0].name == "Triangle");
+  CHECK(skipped.has_value() && skipped->warnings.size() == 1U);
+}
+
+void csh_reader_matches_photoshop_zodiac_if_available() {
+  // CC0 "Zodiac Signs Custom Shapes" (local-test-fixtures/csh/README.txt).
+  // Calibration (Photoshop 2026, October 2026): drawing "Aries" into a
+  // 1128 x 690 px rectangle put its first anchor at (927.76, 541.91):
+  // Photoshop fits the outline's curve bounds to the rectangle. Aries's
+  // curve extents are 1125.46 x 678.88 bounds pixels, so in Patchy's unit box
+  // (scaled by the wider extent) that anchor sits at x = 927.76 / 1128 and
+  // y = 541.91 / 690 * 678.88 / 1125.46.
+  const auto path = patchy::test::local_format_fixture_path("csh", "zodiac-signs.csh");
+  patchy::test::skip_unless_exists(path);
+  const auto bytes = read_binary_file(path);
+  std::string error;
+  const auto parsed = patchy::psd::read_csh(bytes, error);
+  CHECK(parsed.has_value());
+  if (!parsed.has_value()) {
+    return;
+  }
+  CHECK(parsed->warnings.empty());
+  CHECK(parsed->shapes.size() == 12U);
+  const auto& aries = parsed->shapes[0];
+  CHECK(aries.name == "Aries");
+  CHECK(aries.id == "50f4568d-2de6-2b4f-99f9-99153c944315");
+  CHECK(aries.path.subpaths.size() == 19U);
+  CHECK(aries.path.subpaths[0].anchors.size() == 35U);
+  const auto& first = aries.path.subpaths[0].anchors[0];
+  CHECK(csh_near(first.anchor_x, 927.76 / 1128.0, 2e-4));
+  CHECK(csh_near(first.anchor_y, 541.91 / 690.0 * 678.88 / 1125.46, 2e-4));
+  for (const auto& shape : parsed->shapes) {
+    CHECK(!shape.name.empty());
+    CHECK(!shape.path.subpaths.empty());
+  }
+}
+
+void csh_reader_reads_speech_bubbles_if_available() {
+  // CC0 "Speech Bubbles Custom Shapes": shapes with cut-outs are one compound
+  // group (lead op Add, continuation contours on the same group).
+  const auto path = patchy::test::local_format_fixture_path("csh", "speech-bubbles.csh");
+  patchy::test::skip_unless_exists(path);
+  const auto bytes = read_binary_file(path);
+  std::string error;
+  const auto parsed = patchy::psd::read_csh(bytes, error);
+  CHECK(parsed.has_value());
+  if (!parsed.has_value()) {
+    return;
+  }
+  CHECK(parsed->shapes.size() == 18U);
+  CHECK(parsed->shapes[0].name == "Shape 316");
+  const auto& dotted = parsed->shapes[11];
+  CHECK(dotted.path.subpaths.size() == 4U);
+  for (const auto& subpath : dotted.path.subpaths) {
+    CHECK(subpath.op == patchy::PathCombineOp::Add);
+    CHECK(subpath.shape_group == dotted.path.subpaths[0].shape_group);
+  }
+}
+
 void pat_attempt_budgets_include_failed_compressed_records() {
   {
     auto bytes = test_raw_rgb_pat_bytes();
@@ -1543,6 +1715,10 @@ std::vector<patchy::test::TestCase> pat_asl_abr_tests() {
        asl_reader_reads_photoshop_shipped_styles_if_available},
       {"pat_attempt_budgets_include_failed_compressed_records",
        pat_attempt_budgets_include_failed_compressed_records},
+      {"csh_reader_reads_names_holes_and_proportions", csh_reader_reads_names_holes_and_proportions},
+      {"csh_reader_rejects_damaged_files", csh_reader_rejects_damaged_files},
+      {"csh_reader_matches_photoshop_zodiac_if_available", csh_reader_matches_photoshop_zodiac_if_available},
+      {"csh_reader_reads_speech_bubbles_if_available", csh_reader_reads_speech_bubbles_if_available},
       {"psd_pattern_unused_vma_slot_is_not_decoded",
        psd_pattern_unused_vma_slot_is_not_decoded},
       {"psd_pattern_multichannel_decodes_as_grayscale",

@@ -2,6 +2,7 @@
 
 #include "core/document.hpp"
 #include "formats/svg_document_io.hpp"
+#include "psd/csh_io.hpp"
 #include "ui/default_custom_shapes.hpp"
 #include "ui/localization.hpp"
 
@@ -223,6 +224,16 @@ bool CustomShapeLibrary::write_sidecar(const CustomShapeLibraryEntry& entry) con
 QString CustomShapeLibrary::add_shape(const QString& name, const VectorPath& path,
                                       const QString& folder, const QString& preferred_storage_id,
                                       const QString& shape_id) {
+  auto storage_id = add_shape_without_signal(name, path, folder, preferred_storage_id, shape_id);
+  if (!storage_id.isEmpty()) {
+    emit changed();
+  }
+  return storage_id;
+}
+
+QString CustomShapeLibrary::add_shape_without_signal(const QString& name, const VectorPath& path,
+                                                     const QString& folder, const QString& preferred_storage_id,
+                                                     const QString& shape_id) {
   if (path.empty()) {
     return {};
   }
@@ -245,8 +256,49 @@ QString CustomShapeLibrary::add_shape(const QString& name, const VectorPath& pat
   }
   entries_.push_back(std::move(entry));
   sort_entries();
-  emit changed();
   return storage_id;
+}
+
+QStringList CustomShapeLibrary::import_csh(const QString& path, QString& error, QStringList& warnings) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    error = tr("Could not read %1").arg(QFileInfo(path).fileName());
+    return {};
+  }
+  const auto raw = file.readAll();
+  std::string read_error;
+  const auto parsed = psd::read_csh(
+      std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(raw.constData()),
+                                    static_cast<std::size_t>(raw.size())),
+      read_error);
+  if (!parsed.has_value()) {
+    error = translate_data_text(read_error);
+    return {};
+  }
+  for (const auto& warning : parsed->warnings) {
+    warnings.append(translate_data_text(warning));
+  }
+  const auto folder = QFileInfo(path).completeBaseName();
+  QStringList added;
+  int number = 0;
+  for (const auto& shape : parsed->shapes) {
+    ++number;
+    auto name = QString::fromStdString(shape.name).trimmed();
+    if (name.isEmpty()) {
+      name = tr("Shape %1").arg(number);
+    }
+    const auto storage_id = add_shape_without_signal(name, shape.path, folder, {}, {});
+    if (storage_id.isEmpty()) {
+      error = tr("Could not save the custom shape");
+      break;
+    }
+    added.append(storage_id);
+  }
+  if (!added.isEmpty()) {
+    error.clear();
+    emit changed();
+  }
+  return added;
 }
 
 bool CustomShapeLibrary::rename_shape(const QString& storage_id, const QString& name) {

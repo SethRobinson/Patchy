@@ -13568,10 +13568,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Folder dla wybranych kształtów; pozostaw puste, aby usunąć je z folderów</translation>
     </message>
     <message>
-        <source>Import SVG files as custom shapes</source>
-        <translation>Importuj pliki SVG jako niestandardowe kształty</translation>
-    </message>
-    <message>
         <source>Delete the selected shapes or folders (Del)</source>
         <translation>Usuń wybrane kształty lub foldery (Del)</translation>
     </message>
@@ -13670,6 +13666,38 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
             <numerusform>Przywrócono ustawienia fabryczne %n domyślnych kształtów.</numerusform>
             <numerusform>Przywrócono ustawienia fabryczne %n domyślnych kształtów.</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Not a Photoshop custom shapes file</source>
+        <translation>To nie jest plik niestandardowych kształtów Photoshopa</translation>
+    </message>
+    <message>
+        <source>Unsupported custom shapes file version</source>
+        <translation>Nieobsługiwana wersja pliku kształtów</translation>
+    </message>
+    <message>
+        <source>Skipped a shape with damaged or empty geometry</source>
+        <translation>Pominięto kształt z uszkodzoną lub pustą geometrią</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded shape</source>
+        <translation>Plik jest uszkodzony za ostatnim odczytanym kształtem</translation>
+    </message>
+    <message>
+        <source>The file holds no usable shapes</source>
+        <translation>Plik nie zawiera użytecznych kształtów</translation>
+    </message>
+    <message>
+        <source>Import Photoshop .csh shape files or SVG files</source>
+        <translation>Importuj pliki kształtów Photoshopa (.csh) lub pliki SVG</translation>
+    </message>
+    <message>
+        <source>Custom Shapes and SVG Files (*.csh *.svg *.svgz)</source>
+        <translation>Niestandardowe kształty i pliki SVG (*.csh *.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation>Niestandardowe kształty Photoshopa (*.csh)</translation>
     </message>
 </context>
 <context>
@@ -15949,6 +15977,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>%1 Copy</source>
         <translation>%1 kopia</translation>
+    </message>
+    <message>
+        <source>Shape %1</source>
+        <translation>Kształt %1</translation>
+    </message>
+    <message>
+        <source>Could not save the custom shape</source>
+        <translation>Nie można zapisać kształtu niestandardowego</translation>
     </message>
 </context>
 <context>
