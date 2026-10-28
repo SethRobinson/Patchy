@@ -4575,10 +4575,6 @@
         <translation>색상</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>기본 불꽃</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>푸른 가스</translation>
     </message>
@@ -13836,6 +13832,90 @@ Each item&apos;s own View setting still applies.</source>
         <source>Color Profile:</source>
         <translation>색상 프로파일:</translation>
     </message>
+    <message>
+        <source>Campfire</source>
+        <translation>모닥불</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>촛불</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>횃불</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>산불</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>불의 벽</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>불의 선</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>잔불</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>연기 나는 불</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>녹색 마법</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>보라색 영혼</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>차가운 불꽃</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>기준선</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>패스 따라가기</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>똑바로 위로</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>패스에서 바깥쪽으로</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>일렁임 크기</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>기울기</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>중심 밝기</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>불티</translation>
+    </message>
+    <message>
+        <source>Randomize</source>
+        <translation>무작위</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>새 무작위 시드 선택</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22572,7 +22652,6 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1을(를) 적용했습니다(%2 키로 실행 취소)</translation>
     </message>
     <message>
@@ -28132,6 +28211,14 @@ Locked: %1</source>
     <message>
         <source>Loading...</source>
         <translation>불러오는 중...</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>패스 따라가기에는 패스가 필요합니다. 패스 패널에서 패스를 선택하거나(선택 영역으로 작업 패스 만들기로 만들 수도 있음) 불꽃을 다시 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>패스 따라가기에는 선택한 패스가 필요합니다</translation>
     </message>
 </context>
 <context>

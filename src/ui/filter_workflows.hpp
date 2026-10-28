@@ -172,7 +172,10 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
     FilterInvocation initial = {},
     const FilterDialogPreviewSource* preview_source = nullptr,
-    SmartFilterBlendingSettings* blending = nullptr);
+    SmartFilterBlendingSettings* blending = nullptr,
+    // Optional: a line the dialog shows above its controls for the current
+    // settings (empty hides it), re-read on every change.
+    const std::function<QString(const FilterInvocation&)>& notice = {});
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
     LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);

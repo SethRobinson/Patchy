@@ -4428,10 +4428,6 @@
         <translation>Colores</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>Fuego clásico</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>Gas azul</translation>
     </message>
@@ -13878,6 +13874,90 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Color Profile:</source>
         <translation>Perfil de color:</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>Hoguera</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>Vela</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>Antorcha</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>Incendio forestal</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>Muro de fuego</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>Línea de fuego</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>Brasas</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>Fuego con humo</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>Magia verde</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>Espíritu púrpura</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>Llama fría</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>Línea base</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>Seguir trazado</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>Hacia arriba</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>Lejos del trazado</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>Tamaño del parpadeo</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>Inclinación</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>Brillo del núcleo</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>Chispas</translation>
+    </message>
+    <message>
+        <source>Randomize</source>
+        <translation>Aleatorio</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>Elegir una nueva semilla aleatoria</translation>
     </message>
 </context>
 <context>
@@ -24075,7 +24155,6 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>Se aplicó %1 (%2 lo deshace)</translation>
     </message>
     <message>
@@ -28214,6 +28293,14 @@ Bloqueada: %1</translation>
     <message>
         <source>Loading...</source>
         <translation>Cargando...</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>Seguir trazado necesita un trazado. Selecciona uno en el panel Trazados (o crea uno con Hacer trazado de trabajo a partir de la selección) y vuelve a elegir Llama.</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>Seguir trazado necesita un trazado seleccionado</translation>
     </message>
 </context>
 <context>

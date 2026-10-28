@@ -1621,13 +1621,14 @@ void filter_catalog_defines_stable_named_contracts() {
           {"patchy.filters.solarize", {}},
           {"patchy.filters.tiles", {"count", "max_offset", "fill", "seed"}},
           {"patchy.filters.trace_contour", {"level", "edge"}},
-          {"patchy.filters.wind", {"method", "direction", "length"}},
+          {"patchy.filters.wind", {"method", "direction", "angle", "length"}},
           {"patchy.filters.difference_clouds",
            {"scale", "detail", "contrast", "seed"}},
           {"patchy.filters.fibers", {"variance", "strength"}},
           {"patchy.filters.flame",
-           {"colors", "length", "width", "turbulence", "seed", "center_x",
-            "center_y"}},
+           {"colors", "mode", "rise", "length", "width", "turbulence",
+            "flicker", "density", "lean", "core", "glow", "smoke", "sparks",
+            "opacity", "seed", "center_x", "center_y"}},
           {"patchy.filters.lens_flare",
            {"lens", "brightness", "center_x", "center_y"}},
       };
@@ -1643,6 +1644,9 @@ void filter_catalog_defines_stable_named_contracts() {
     using Presentation = patchy::FilterParameterPresentation;
     if (key == "center_x") {
       return Presentation::CenterXPercent;
+    }
+    if (key == "seed") {
+      return Presentation::RandomSeed;
     }
     if (key == "center_y") {
       return Presentation::CenterYPercent;

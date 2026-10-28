@@ -19,12 +19,24 @@ using FilterParameterValue =
 using FilterParameterMap =
     std::map<std::string, FilterParameterValue, std::less<>>;
 
+// One point of a guide polyline, in pixels of the buffer a filter runs on.
+struct FilterGuidePoint {
+  double x{0.0};
+  double y{0.0};
+};
+using FilterGuidePolyline = std::vector<FilterGuidePoint>;
+
 struct FilterInvocation {
   std::string filter_id;
   std::uint32_t schema_version{1};
   FilterParameterMap parameters;
   RgbColor foreground{};
   RgbColor background{255, 255, 255};
+  // The active path flattened to polylines for filters that follow one
+  // (Flame's Follow Path), in pixels of the buffer the filter runs on.
+  // Captured when the invocation is made, like the colors, and scaled with
+  // the pixel parameters; never persisted (Saved Looks and recipes keep none).
+  std::vector<FilterGuidePolyline> guide_paths;
 };
 
 struct FilterRecipeEntry {
@@ -152,7 +164,9 @@ enum class FilterParameterPresentation {
   TiltFocusHalfWidthPercent,
   TiltTransitionWidthPercent,
   IrisWidthPercent,
-  IrisHeightPercent
+  IrisHeightPercent,
+  // A random seed: the dialog adds a Randomize button beside it.
+  RandomSeed
 };
 
 struct FilterParameterOption {

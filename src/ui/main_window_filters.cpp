@@ -12,6 +12,7 @@
 #include "core/smart_object.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/main_window.hpp"
+#include "ui/vector_operations.hpp"
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window_shared.hpp"
@@ -2612,6 +2613,38 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
     };
     auto initial_invocation = filters_.default_invocation(identifier_text, to_rgb(foreground_color),
                                                           to_rgb(background_color));
+    // Flame's Follow Path runs along the Paths panel's path, flattened into the
+    // pixels of the buffer the filter renders (docs/stylize-render-filters.md).
+    const auto follows_path = [](const FilterInvocation& invocation) {
+      const auto mode = invocation.parameters.find("mode");
+      const auto* value = mode == invocation.parameters.end() ? nullptr : std::get_if<std::string>(&mode->second);
+      return value != nullptr && *value == "follow_path";
+    };
+    std::vector<FilterGuidePolyline> guide_paths;
+    std::function<QString(const FilterInvocation&)> dialog_notice;
+    const auto is_flame = identifier_text == "patchy.filters.flame";
+    if (is_flame) {
+      if (const auto* guide = resolved_panel_path(); guide != nullptr && !guide->empty()) {
+        for (const auto& polyline : stroke_polylines_for_path(*guide)) {
+          FilterGuidePolyline points;
+          points.reserve(polyline.size());
+          for (const auto& point : polyline) {
+            points.push_back({point.x() - static_cast<double>(source_bounds.x),
+                              point.y() - static_cast<double>(source_bounds.y)});
+          }
+          if (points.size() >= 2U) {
+            guide_paths.push_back(std::move(points));
+          }
+        }
+      }
+      initial_invocation.guide_paths = guide_paths;
+      dialog_notice = [follows_path, has_path = !guide_paths.empty()](const FilterInvocation& invocation) {
+        return follows_path(invocation) && !has_path
+                   ? MainWindow::tr("Follow Path needs a path. Select one in the Paths panel (or make one "
+                                    "with Make Work Path from Selection), then choose Flame again.")
+                   : QString();
+      };
+    }
     // The autos apply immediately at the catalog defaults; every other filter
     // gathers its settings (and drives the canvas preview) through the dialog.
     // The preview machinery must stay inside the dialog branch: the state's
@@ -2623,6 +2656,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
       applied_settings = *repeat;
       applied_settings->foreground = initial_invocation.foreground;
       applied_settings->background = initial_invocation.background;
+      applied_settings->guide_paths = guide_paths;
     } else if (filter_applies_without_settings_dialog(identifier_text)) {
       applied_settings = std::move(initial_invocation);
     } else {
@@ -2721,7 +2755,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
       auto settings =
           request_filter_settings(this, dialog_spec, preview_changed,
                                   std::move(initial_invocation),
-                                  &dialog_preview_source);
+                                  &dialog_preview_source, nullptr, dialog_notice);
       close_async_pixel_preview(preview_state);
       layer = doc.find_layer(*active);
       if (layer == nullptr) {
@@ -2737,6 +2771,10 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
         return;
       }
       applied_settings = std::move(settings);
+    }
+    if (is_flame && guide_paths.empty() && follows_path(*applied_settings)) {
+      show_status_error(tr("Follow Path needs a selected path"));
+      return;
     }
 
     if (canvas_ != nullptr) {

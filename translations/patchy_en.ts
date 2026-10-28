@@ -4428,10 +4428,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13860,6 +13856,90 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Color Profile:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Randomize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -24026,7 +24106,6 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -28132,6 +28211,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>Loading...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

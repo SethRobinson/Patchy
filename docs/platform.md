@@ -25,6 +25,7 @@ Pixel output must be bit-identical on MSVC x64, macOS arm64 clang, Linux x86-64 
 
 - Evidence: with contraction on, 9 of the 20 built-in Look renders (`builtin_looks_render_pins_8_bit`) hashed differently on macOS arm64 (Punchy Color, High Pass, Gaussian Blur under Divide, Brightness/Contrast, Tilt-Shift Blur); with it off all 20 match the MSVC digests, so libm differences play no part. MSVC output is unchanged by the flag.
 - A new library or source with float pixel math gets the same flag, or uses integer math. Never pin per-platform digests or loosen a tolerance on one platform to hide a contraction difference ("Cross-platform implementation rules" above).
+- One random draw per statement; call order within an expression differs by compiler.
 - Never call `std::fma` or add `-ffast-math`, `-mfma` or `/fp:fast`/`/fp:contract`: each changes rounding on some toolchains only.
 
 ## Warning verification

@@ -4428,10 +4428,6 @@
         <translation>Couleurs</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>Feu classique</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>Gaz bleu</translation>
     </message>
@@ -13878,6 +13874,90 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Color Profile:</source>
         <translation>Profil colorimétrique :</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>Feu de camp</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>Bougie</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>Torche</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>Feu de forêt</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>Mur de feu</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>Ligne de feu</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>Braises</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>Feu fumant</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>Magie verte</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>Esprit violet</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>Flamme froide</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>Ligne de base</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>Suivre le tracé</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>Vers le haut</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>À l&apos;écart du tracé</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>Taille du scintillement</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>Inclinaison</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>Luminosité du cœur</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>Étincelles</translation>
+    </message>
+    <message>
+        <source>Randomize</source>
+        <translation>Aléatoire</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>Choisir une nouvelle graine aléatoire</translation>
     </message>
 </context>
 <context>
@@ -24075,7 +24155,6 @@ Y : %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1 appliqué (%2 pour annuler)</translation>
     </message>
     <message>
@@ -28214,6 +28293,14 @@ Verrouillé : %1</translation>
     <message>
         <source>Loading...</source>
         <translation>Chargement...</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>Suivre le tracé nécessite un tracé. Sélectionnez-en un dans le panneau Tracés (ou créez-en un avec Convertir la sélection en tracé de travail), puis choisissez de nouveau Flamme.</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>Suivre le tracé nécessite un tracé sélectionné</translation>
     </message>
 </context>
 <context>

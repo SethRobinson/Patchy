@@ -289,7 +289,6 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Halo Ring"),
     QT_TRANSLATE_NOOP("QObject", "Wide Streak"),
     QT_TRANSLATE_NOOP("QObject", "Colors"),
-    QT_TRANSLATE_NOOP("QObject", "Classic Fire"),
     QT_TRANSLATE_NOOP("QObject", "Blue Gas"),
     QT_TRANSLATE_NOOP("QObject", "Green"),
     QT_TRANSLATE_NOOP("QObject", "Foreground to Background"),
@@ -297,6 +296,31 @@ namespace {
     QT_TRANSLATE_NOOP("QObject", "Turbulence"),
     QT_TRANSLATE_NOOP("QObject", "Base X"),
     QT_TRANSLATE_NOOP("QObject", "Base Y"),
+    QT_TRANSLATE_NOOP("QObject", "Preset"),
+    QT_TRANSLATE_NOOP("QObject", "Campfire"),
+    QT_TRANSLATE_NOOP("QObject", "Candle"),
+    QT_TRANSLATE_NOOP("QObject", "Torch"),
+    QT_TRANSLATE_NOOP("QObject", "Wildfire"),
+    QT_TRANSLATE_NOOP("QObject", "Fire Wall"),
+    QT_TRANSLATE_NOOP("QObject", "Fire Line"),
+    QT_TRANSLATE_NOOP("QObject", "Embers"),
+    QT_TRANSLATE_NOOP("QObject", "Smoky Fire"),
+    QT_TRANSLATE_NOOP("QObject", "Green Magic"),
+    QT_TRANSLATE_NOOP("QObject", "Purple Spirit"),
+    QT_TRANSLATE_NOOP("QObject", "Cold Flame"),
+    QT_TRANSLATE_NOOP("QObject", "Base Line"),
+    QT_TRANSLATE_NOOP("QObject", "Follow Path"),
+    QT_TRANSLATE_NOOP("QObject", "Rise"),
+    QT_TRANSLATE_NOOP("QObject", "Straight Up"),
+    QT_TRANSLATE_NOOP("QObject", "Away from the Path"),
+    QT_TRANSLATE_NOOP("QObject", "Flicker Size"),
+    QT_TRANSLATE_NOOP("QObject", "Density"),
+    QT_TRANSLATE_NOOP("QObject", "Lean"),
+    QT_TRANSLATE_NOOP("QObject", "Core Brightness"),
+    QT_TRANSLATE_NOOP("QObject", "Smoke"),
+    QT_TRANSLATE_NOOP("QObject", "Sparks"),
+    QT_TRANSLATE_NOOP("QObject", "Opacity"),
+    QT_TRANSLATE_NOOP("QObject", "Angle"),
 };
 
 double numeric_filter_value(const FilterParameterValue& value, double fallback = 0.0) {
@@ -451,7 +475,7 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
 std::optional<FilterInvocation> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
     FilterInvocation initial, const FilterDialogPreviewSource* preview_source,
-    SmartFilterBlendingSettings* blending) {
+    SmartFilterBlendingSettings* blending, const std::function<QString(const FilterInvocation&)>& notice) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyFilterDialog"));
   dialog.setProperty("patchy.filterIdentifier", spec.identifier);
@@ -547,13 +571,24 @@ std::optional<FilterInvocation> request_filter_settings(
 
   std::function<void()> schedule_preview_callback;
   std::function<void()> schedule_proxy_render_callback;
+  std::function<void()> refresh_notice_callback;
+  QLabel* notice_label = nullptr;
+  if (notice) {
+    notice_label = new QLabel(&dialog);
+    notice_label->setObjectName(QStringLiteral("filterDialogNotice"));
+    notice_label->setWordWrap(true);
+    layout->addWidget(notice_label);
+  }
   auto* panel = new FilterParameterPanel(&dialog);
   FilterParameterPanelOptions panel_options;
   panel_options.build_companions = true;
   panel->rebuild(spec, initial, panel_options);
   panel->set_values_changed_callback(
-      [&schedule_preview_callback, &schedule_proxy_render_callback](
-          const FilterParameterPanel::ValueChanges&) {
+      [&schedule_preview_callback, &schedule_proxy_render_callback,
+       &refresh_notice_callback](const FilterParameterPanel::ValueChanges&) {
+        if (refresh_notice_callback) {
+          refresh_notice_callback();
+        }
         if (schedule_preview_callback) {
           schedule_preview_callback();
         }
@@ -635,6 +670,14 @@ std::optional<FilterInvocation> request_filter_settings(
         }
       });
   auto schedule_preview = [&] { preview_emitter.schedule(build_settings()); };
+  if (notice_label != nullptr) {
+    refresh_notice_callback = [&] {
+      const auto text = notice(build_settings().invocation);
+      notice_label->setText(text);
+      notice_label->setVisible(!text.isEmpty());
+    };
+    refresh_notice_callback();
+  }
   auto flush_preview = [&] { preview_emitter.flush(build_settings()); };
   schedule_preview_callback = schedule_preview;
 

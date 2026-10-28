@@ -4421,10 +4421,6 @@
         <translation>色彩</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>經典火焰</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>藍色燃氣</translation>
     </message>
@@ -13835,6 +13831,90 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color Profile:</source>
         <translation>色彩描述檔:</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>營火</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>蠟燭</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>火把</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>野火</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>火牆</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>火線</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>餘燼</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>濃煙火</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>綠色魔法</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>紫色靈火</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>冷焰</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>基線</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>沿著路徑</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>垂直向上</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>遠離路徑</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>閃爍大小</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>傾斜</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>焰心亮度</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>火星</translation>
+    </message>
+    <message>
+        <source>Randomize</source>
+        <translation>隨機</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>選擇新的隨機種子</translation>
     </message>
 </context>
 <context>
@@ -24006,7 +24086,6 @@ Y：%2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>已套用 %1（按 %2 可還原）</translation>
     </message>
     <message>
@@ -28132,6 +28211,14 @@ Locked: %1</source>
     <message>
         <source>Loading...</source>
         <translation>載入中...</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>「沿著路徑」需要路徑。請在「路徑」面板中選擇一條路徑（或用「從選取範圍製作工作路徑」建立一條），然後再次選擇「火焰」。</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>「沿著路徑」需要選取一條路徑</translation>
     </message>
 </context>
 <context>

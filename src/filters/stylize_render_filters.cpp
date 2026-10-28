@@ -1,5 +1,6 @@
 #include "filters/stylize_render_filters.hpp"
 
+#include "core/rect_utils.hpp"
 #include "filters/filter_kernels.hpp"
 
 #include <algorithm>
@@ -110,32 +111,114 @@ void streak_row(std::uint8_t* row, std::int32_t width, bool from_left, std::int3
 
 }  // namespace
 
-void render_wind(PixelBuffer& rgba, WindMethod method, bool from_left, int length,
+std::array<double, 2> degrees_unit_vector(int degrees) noexcept {
+  // cos and sin of whole degrees from fixed Taylor series on [0, 45] degrees
+  // and the octant symmetries: basic arithmetic only, so every toolchain
+  // agrees (no std::cos or std::sin).
+  const auto reduced = ((degrees % 360) + 360) % 360;
+  const auto quadrant = reduced / 90;
+  const auto within = reduced % 90;
+  const auto first_octant = [](int angle) {
+    const auto x = static_cast<double>(angle) * (3.14159265358979323846 / 180.0);
+    const auto x2 = x * x;
+    const auto sine = x * (1.0 - x2 / 6.0 * (1.0 - x2 / 20.0 * (1.0 - x2 / 42.0 * (1.0 - x2 / 72.0))));
+    const auto cosine =
+        1.0 - x2 / 2.0 * (1.0 - x2 / 12.0 * (1.0 - x2 / 30.0 * (1.0 - x2 / 56.0 * (1.0 - x2 / 90.0))));
+    return std::array<double, 2>{cosine, sine};
+  };
+  std::array<double, 2> unit{};
+  if (within <= 45) {
+    unit = first_octant(within);
+  } else {
+    const auto mirrored = first_octant(90 - within);
+    unit = {mirrored[1], mirrored[0]};
+  }
+  switch (quadrant) {
+    case 1:
+      return {-unit[1], unit[0]};
+    case 2:
+      return {-unit[0], -unit[1]};
+    case 3:
+      return {unit[1], -unit[0]};
+    default:
+      return unit;
+  }
+}
+
+void render_wind(PixelBuffer& rgba, WindMethod method, int angle_degrees, int length,
                  const FilterProgress* progress) {
   const auto width = rgba.width();
   const auto height = rgba.height();
+  if (width <= 0 || height <= 0) {
+    return;
+  }
   length = std::clamp(length, 1, 1000);
-  std::vector<std::uint8_t> shifted(static_cast<std::size_t>(width) * 4U);
-  // Stagger moves rows in bands of random height; the sequence runs top to
-  // bottom from one generator, so it is repeatable.
+  // The wind blows toward `angle_degrees` (0 to the right, 90 up). Pixels are
+  // gathered into lines along it, one pixel per step of the major axis
+  // (x for mostly horizontal wind), each line a "row" of the streak pass in
+  // its downwind order. At 0 and 180 degrees the lines are the rows.
+  const auto direction = degrees_unit_vector(angle_degrees);
+  const auto dx = direction[0];
+  const auto dy = -direction[1];  // image y grows downward
+  const auto horizontal = std::abs(dx) >= std::abs(dy);
+  const auto slope = horizontal ? dy / dx : dx / dy;  // minor-axis offset per major step
+  const auto major = horizontal ? width : height;
+  const auto minor = horizontal ? height : width;
+  // Scanning the gathered line forward means travelling downwind.
+  const auto forward = horizontal ? dx > 0.0 : dy > 0.0;
+  const auto step_length = std::sqrt(1.0 + slope * slope);
+  const auto offset_at = [slope](std::int32_t step) {
+    return static_cast<std::int32_t>(std::floor(slope * static_cast<double>(step) + 0.5));
+  };
+  const auto first_offset = offset_at(0);
+  const auto last_offset = offset_at(major - 1);
+  const auto low = -std::max(first_offset, last_offset);
+  const auto high = minor - 1 - std::min(first_offset, last_offset);
+  std::vector<std::uint8_t> line(static_cast<std::size_t>(major) * 4U);
+  std::vector<std::uint8_t> shifted(line.size());
+  std::vector<std::int32_t> steps;
+  steps.reserve(static_cast<std::size_t>(major));
+  // Stagger moves lines in bands of random height; the sequence runs from the
+  // first line to the last from one generator, so it is repeatable.
   auto band_rng = seeded(0x53746167ULL, 0, 0, 0);
   std::int32_t band_rows = 0;
   std::int32_t band_shift = 0;
-  for (std::int32_t y = 0; y < height; ++y) {
-    report_rows(progress, y, height, FilterProgressStage::Distorting);
-    auto rng = seeded(0x57696e64ULL, y, 0, 0);
+  const auto total = high - low + 1;
+  for (std::int32_t index = low; index <= high; ++index) {
+    report_rows(progress, index - low, total, FilterProgressStage::Distorting);
+    // The pixels of this line, in increasing major-axis order.
+    steps.clear();
+    for (std::int32_t step = 0; step < major; ++step) {
+      const auto across = index + offset_at(step);
+      if (across >= 0 && across < minor) {
+        steps.push_back(step);
+      }
+    }
+    if (steps.empty()) {
+      continue;
+    }
+    const auto count = static_cast<std::int32_t>(steps.size());
+    const auto pixel_at = [&](std::size_t position) {
+      const auto step = steps[position];
+      const auto across = index + offset_at(step);
+      return horizontal ? rgba.pixel(step, across) : rgba.pixel(across, step);
+    };
+    for (std::size_t position = 0; position < steps.size(); ++position) {
+      const auto* px = pixel_at(position);
+      std::copy(px, px + 4, line.begin() + static_cast<std::ptrdiff_t>(position) * 4);
+    }
+    auto rng = seeded(0x57696e64ULL, index, 0, 0);
     const auto chance = rng.uniform();
     const auto spread = rng.uniform();
     double streak = 0.0;
     if (method == WindMethod::Wind) {
-      // Only some rows streak, by varied lengths.
+      // Only some lines streak, by varied lengths.
       streak = chance < 0.35 ? 0.0 : static_cast<double>(length) * (0.25 + 0.75 * spread * spread);
     } else if (method == WindMethod::Blast) {
       streak = static_cast<double>(length) * (1.5 + 1.5 * spread);
     } else {
       streak = static_cast<double>(length) * 0.35 * spread;
     }
-    auto* row = rgba.pixel(0, y);
     if (method == WindMethod::Stagger) {
       if (band_rows <= 0) {
         band_rows = 1 + static_cast<std::int32_t>(band_rng.next() % 6U);
@@ -143,24 +226,30 @@ void render_wind(PixelBuffer& rgba, WindMethod method, bool from_left, int lengt
                                                static_cast<std::uint64_t>(length + 1));
       }
       --band_rows;
-      // Content moves downwind; the upwind edge repeats.
-      for (std::int32_t x = 0; x < width; ++x) {
-        const auto source = std::clamp(from_left ? x - band_shift : x + band_shift, 0, width - 1);
-        std::copy(row + static_cast<std::size_t>(source) * 4U,
-                  row + static_cast<std::size_t>(source) * 4U + 4U,
+      // Content moves downwind; the upwind end repeats.
+      for (std::int32_t x = 0; x < count; ++x) {
+        const auto source = std::clamp(forward ? x - band_shift : x + band_shift, 0, count - 1);
+        std::copy(line.begin() + static_cast<std::ptrdiff_t>(source) * 4,
+                  line.begin() + static_cast<std::ptrdiff_t>(source) * 4 + 4,
                   shifted.begin() + static_cast<std::ptrdiff_t>(x) * 4);
       }
-      std::copy(shifted.begin(), shifted.end(), row);
+      std::copy(shifted.begin(), shifted.begin() + static_cast<std::ptrdiff_t>(count) * 4, line.begin());
     }
     if (streak >= 1.0) {
-      const auto fall = std::max<std::int32_t>(1, static_cast<std::int32_t>(65025.0 / streak));
-      streak_row(row, width, from_left, fall);
+      // The fall is per pixel of travel, so a diagonal streak is as long as a level one.
+      const auto fall = std::max<std::int32_t>(1, static_cast<std::int32_t>(65025.0 / streak * step_length));
+      streak_row(line.data(), count, forward, fall);
       if (method == WindMethod::Blast) {
-        streak_row(row, width, from_left, fall);
+        streak_row(line.data(), count, forward, fall);
       }
     }
+    for (std::size_t position = 0; position < steps.size(); ++position) {
+      auto* px = pixel_at(position);
+      std::copy(line.begin() + static_cast<std::ptrdiff_t>(position) * 4,
+                line.begin() + static_cast<std::ptrdiff_t>(position) * 4 + 4, px);
+    }
   }
-  report_kernel_progress(progress, height, height, FilterProgressStage::Distorting);
+  report_kernel_progress(progress, total, total, FilterProgressStage::Distorting);
 }
 
 // ---------------------------------------------------------------- Tiles
@@ -565,52 +654,124 @@ struct PaletteStop {
   std::array<double, 3> color;
 };
 
-[[nodiscard]] std::vector<PaletteStop> flame_stops(FlamePalette palette, RgbColor foreground,
-                                                   RgbColor background) {
-  const auto unit = [](RgbColor color) {
-    return std::array<double, 3>{static_cast<double>(color.red) / 255.0,
-                                 static_cast<double>(color.green) / 255.0,
-                                 static_cast<double>(color.blue) / 255.0};
-  };
-  switch (palette) {
-    case FlamePalette::Blue:
-      return {{0.0, {0.02, 0.05, 0.35}},
-              {0.3, {0.05, 0.2, 0.85}},
-              {0.6, {0.2, 0.6, 1.0}},
-              {0.85, {0.6, 0.9, 1.0}},
-              {1.0, {0.95, 0.98, 1.0}}};
-    case FlamePalette::Green:
-      return {{0.0, {0.02, 0.25, 0.04}},
-              {0.3, {0.1, 0.6, 0.1}},
-              {0.6, {0.45, 0.9, 0.2}},
-              {0.85, {0.8, 1.0, 0.5}},
-              {1.0, {0.97, 1.0, 0.88}}};
-    case FlamePalette::Colors: {
-      const auto outer = unit(foreground);
-      const auto inner = unit(background);
-      std::array<double, 3> middle{};
+using Rgb = std::array<double, 3>;
+
+// One preset's look and its defaults, scaled by the dialog's percentages.
+struct FlameStyle {
+  std::vector<PaletteStop> stops;  // heat 0 (edge) to 1 (core)
+  Rgb core;                        // the hottest color
+  Rgb root;                        // tint at the base of each tongue
+  double root_strength;
+  Rgb smoke_color;
+  double tongue;     // tongue width over flame height
+  double variation;  // spread of tongue heights, 0..1
+  double density;
+  double turbulence;
+  double flicker;    // noise scale factor
+  double glow;
+  double smoke;
+  double sparks;
+  double softness;   // edge softness factor
+  double height;     // flame height factor
+  bool single;       // Candle: one tongue at the base center
+};
+
+[[nodiscard]] Rgb unit_color(RgbColor color) {
+  return {static_cast<double>(color.red) / 255.0, static_cast<double>(color.green) / 255.0,
+          static_cast<double>(color.blue) / 255.0};
+}
+
+[[nodiscard]] std::vector<PaletteStop> fire_stops() {
+  return {{0.0, {0.5, 0.04, 0.0}},
+          {0.3, {0.9, 0.2, 0.02}},
+          {0.55, {1.0, 0.45, 0.04}},
+          {0.8, {1.0, 0.7, 0.16}},
+          {1.0, {1.0, 0.88, 0.45}}};
+}
+
+[[nodiscard]] FlameStyle flame_style(FlamePreset preset, RgbColor foreground, RgbColor background) {
+  const Rgb white{1.0, 0.99, 0.94};
+  const Rgb soot{0.13, 0.12, 0.11};
+  const Rgb none{0.0, 0.0, 0.0};
+  //                stops, core, root, root_strength, smoke color,
+  //                tongue, variation, density, turbulence, flicker,
+  //                glow, smoke, sparks, softness, height, single
+  switch (preset) {
+    case FlamePreset::Candle:
+      return {{{0.0, {0.9, 0.28, 0.03}}, {0.35, {1.0, 0.56, 0.12}}, {0.65, {1.0, 0.82, 0.38}},
+               {1.0, {1.0, 0.96, 0.8}}},
+              {1.0, 1.0, 0.96}, {0.25, 0.45, 1.0}, 0.75, soot,
+              0.34, 0.1, 1.0, 0.22, 0.7, 1.1, 0.0, 0.0, 1.25, 0.6, true};
+    case FlamePreset::Torch:
+      return {fire_stops(), white, none, 0.0, soot, 0.24, 0.45, 0.55, 1.25, 1.1, 0.8, 0.3, 0.9, 1.0, 1.0,
+              false};
+    case FlamePreset::Wildfire:
+      return {{{0.0, {0.35, 0.0, 0.0}}, {0.25, {0.8, 0.08, 0.0}}, {0.5, {1.0, 0.32, 0.02}},
+               {0.75, {1.0, 0.6, 0.1}}, {1.0, {1.0, 0.82, 0.35}}},
+              {1.0, 0.96, 0.75}, none, 0.0, {0.1, 0.09, 0.085},
+              0.26, 0.7, 1.7, 1.45, 1.2, 0.5, 1.0, 1.0, 1.0, 1.15, false};
+    case FlamePreset::FireWall:
+      return {fire_stops(), white, none, 0.0, soot, 0.32, 0.25, 2.2, 1.1, 1.0, 0.5, 0.4, 0.4, 1.0, 1.0, false};
+    case FlamePreset::FireLine:
+      return {fire_stops(), white, none, 0.0, soot, 0.55, 0.4, 2.5, 0.9, 0.8, 0.7, 0.1, 0.3, 1.0, 0.35, false};
+    case FlamePreset::Embers:
+      return {{{0.0, {0.3, 0.02, 0.0}}, {0.4, {0.72, 0.09, 0.0}}, {0.75, {1.0, 0.36, 0.05}},
+               {1.0, {1.0, 0.72, 0.32}}},
+              {1.0, 0.85, 0.5}, none, 0.0, soot,
+              0.4, 0.6, 1.2, 0.8, 1.0, 0.9, 0.2, 3.0, 1.0, 0.3, false};
+    case FlamePreset::SmokyFire:
+      return {{{0.0, {0.3, 0.05, 0.01}}, {0.35, {0.7, 0.2, 0.04}}, {0.7, {0.95, 0.46, 0.1}},
+               {1.0, {1.0, 0.76, 0.42}}},
+              {1.0, 0.9, 0.65}, none, 0.0, {0.09, 0.085, 0.08},
+              0.3, 0.6, 1.1, 1.2, 1.0, 0.3, 3.2, 0.3, 1.0, 1.0, false};
+    case FlamePreset::SoftGlow:
+      return {{{0.0, {0.9, 0.36, 0.05}}, {0.5, {1.0, 0.6, 0.2}}, {0.8, {1.0, 0.86, 0.56}},
+               {1.0, {1.0, 0.97, 0.88}}},
+              {1.0, 1.0, 0.96}, none, 0.0, soot,
+              0.36, 0.3, 1.0, 0.45, 0.8, 1.9, 0.0, 0.0, 2.0, 1.0, false};
+    case FlamePreset::BlueGas:
+      return {{{0.0, {0.02, 0.08, 0.45}}, {0.35, {0.08, 0.3, 0.95}}, {0.7, {0.25, 0.55, 1.0}},
+               {1.0, {0.6, 0.85, 1.0}}},
+              {1.0, 1.0, 1.0}, none, 0.0, soot,
+              0.26, 0.2, 1.3, 0.45, 0.6, 0.8, 0.0, 0.0, 1.0, 1.0, false};
+    case FlamePreset::GreenMagic:
+      return {{{0.0, {0.02, 0.3, 0.06}}, {0.35, {0.12, 0.7, 0.15}}, {0.7, {0.5, 0.92, 0.25}},
+               {1.0, {0.78, 1.0, 0.5}}},
+              {0.96, 1.0, 0.9}, none, 0.0, {0.05, 0.18, 0.07},
+              0.3, 0.5, 1.0, 1.1, 1.0, 1.3, 0.15, 1.3, 1.0, 1.0, false};
+    case FlamePreset::PurpleSpirit:
+      return {{{0.0, {0.25, 0.02, 0.4}}, {0.35, {0.6, 0.1, 0.85}}, {0.7, {0.85, 0.4, 1.0}},
+               {1.0, {0.97, 0.72, 1.0}}},
+              {1.0, 0.96, 1.0}, none, 0.0, {0.15, 0.05, 0.22},
+              0.3, 0.55, 1.0, 1.2, 1.0, 1.5, 0.4, 0.8, 1.0, 1.0, false};
+    case FlamePreset::ColdFlame:
+      return {{{0.0, {0.3, 0.55, 0.8}}, {0.4, {0.55, 0.8, 0.95}}, {0.75, {0.8, 0.95, 1.0}},
+               {1.0, {0.97, 1.0, 1.0}}},
+              {1.0, 1.0, 1.0}, none, 0.0, {0.7, 0.8, 0.88},
+              0.28, 0.4, 1.0, 0.7, 0.9, 1.1, 0.25, 0.5, 1.0, 1.0, false};
+    case FlamePreset::Colors: {
+      const auto outer = unit_color(foreground);
+      const auto inner = unit_color(background);
+      Rgb middle{};
       for (std::size_t c = 0; c < 3U; ++c) {
         middle[c] = (outer[c] + inner[c]) * 0.5;
       }
-      return {{0.0, outer}, {0.55, middle}, {1.0, inner}};
+      return {{{0.0, outer}, {0.55, middle}, {1.0, inner}}, inner, none, 0.0, soot,
+              0.3, 0.5, 1.0, 1.0, 1.0, 0.6, 0.25, 0.4, 1.0, 1.0, false};
     }
-    case FlamePalette::Classic:
+    case FlamePreset::Campfire:
       break;
   }
-  return {{0.0, {0.35, 0.02, 0.0}},
-          {0.25, {0.78, 0.1, 0.0}},
-          {0.5, {1.0, 0.38, 0.02}},
-          {0.75, {1.0, 0.72, 0.15}},
-          {1.0, {1.0, 0.97, 0.78}}};
+  return {fire_stops(), white, none, 0.0, soot, 0.3, 0.55, 1.0, 1.0, 1.0, 0.6, 0.35, 0.5, 1.0, 1.0, false};
 }
 
-[[nodiscard]] std::array<double, 3> palette_color(const std::vector<PaletteStop>& stops, double t) {
+[[nodiscard]] Rgb palette_color(const std::vector<PaletteStop>& stops, double t) {
   t = std::clamp(t, 0.0, 1.0);
   for (std::size_t i = 1; i < stops.size(); ++i) {
     if (t <= stops[i].at) {
       const auto span = stops[i].at - stops[i - 1].at;
       const auto f = span > 0.0 ? (t - stops[i - 1].at) / span : 1.0;
-      std::array<double, 3> color{};
+      Rgb color{};
       for (std::size_t c = 0; c < 3U; ++c) {
         color[c] = stops[i - 1].color[c] * (1.0 - f) + stops[i].color[c] * f;
       }
@@ -620,80 +781,482 @@ struct PaletteStop {
   return stops.back().color;
 }
 
+// One flame tongue: a root on the emitter, the unit direction it rises in,
+// and its size in pixels.
+struct Tongue {
+  double x;
+  double y;
+  double dx;
+  double dy;
+  double height;
+  double width;
+};
+
+struct Spark {
+  double x;
+  double y;
+  double radius;
+  double strength;
+};
+
+// The tongue width profile along its height v (0 root, 1 tip): a teardrop,
+// widest about a quarter of the way up.
+[[nodiscard]] double tongue_profile(double v) noexcept {
+  if (v <= 0.0) {
+    return 0.55;
+  }
+  if (v >= 1.0) {
+    return 0.0;
+  }
+  return std::sqrt(1.0 - v) * (0.55 + 1.8 * v * (1.0 - v));
+}
+
+// A float map over `area` of buffer pixels, filled by `value(x, y)`.
+struct NoiseMap {
+  Rect area{};
+  std::vector<float> values;
+  template <typename Fn>
+  void fill(Rect region, Fn&& value) {
+    area = region;
+    values.assign(static_cast<std::size_t>(std::max(0, region.width)) *
+                      static_cast<std::size_t>(std::max(0, region.height)),
+                  0.0F);
+    for (std::int32_t y = 0; y < region.height; ++y) {
+      for (std::int32_t x = 0; x < region.width; ++x) {
+        values[static_cast<std::size_t>(y) * static_cast<std::size_t>(region.width) +
+               static_cast<std::size_t>(x)] =
+            static_cast<float>(value(static_cast<double>(region.x + x), static_cast<double>(region.y + y)));
+      }
+    }
+  }
+  [[nodiscard]] double at(std::int32_t x, std::int32_t y) const {
+    return static_cast<double>(values[static_cast<std::size_t>(y - area.y) * static_cast<std::size_t>(area.width) +
+                                      static_cast<std::size_t>(x - area.x)]);
+  }
+};
+
+// Three box blurs in a row approximate a Gaussian; running sums in a fixed
+// order keep it repeatable.
+void box_blur_plane(std::vector<double>& plane, std::int32_t width, std::int32_t height, std::int32_t radius) {
+  if (radius <= 0 || width <= 0 || height <= 0) {
+    return;
+  }
+  std::vector<double> line(static_cast<std::size_t>(std::max(width, height)));
+  const auto window = static_cast<double>(2 * radius + 1);
+  for (int pass = 0; pass < 3; ++pass) {
+    for (std::int32_t y = 0; y < height; ++y) {
+      auto* row = plane.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+      double sum = 0.0;
+      for (std::int32_t x = -radius; x <= radius; ++x) {
+        sum += row[std::clamp(x, 0, width - 1)];
+      }
+      for (std::int32_t x = 0; x < width; ++x) {
+        line[static_cast<std::size_t>(x)] = sum / window;
+        sum += row[std::min(width - 1, x + radius + 1)] - row[std::max(0, x - radius)];
+      }
+      std::copy(line.begin(), line.begin() + width, row);
+    }
+    for (std::int32_t x = 0; x < width; ++x) {
+      double sum = 0.0;
+      const auto at = [&](std::int32_t y) -> double& {
+        return plane[static_cast<std::size_t>(std::clamp(y, 0, height - 1)) * static_cast<std::size_t>(width) +
+                     static_cast<std::size_t>(x)];
+      };
+      for (std::int32_t y = -radius; y <= radius; ++y) {
+        sum += at(y);
+      }
+      for (std::int32_t y = 0; y < height; ++y) {
+        line[static_cast<std::size_t>(y)] = sum / window;
+        sum += at(y + radius + 1) - at(y - radius);
+      }
+      for (std::int32_t y = 0; y < height; ++y) {
+        at(y) = line[static_cast<std::size_t>(y)];
+      }
+    }
+  }
+}
+
 }  // namespace
 
-void render_flame(PixelBuffer& rgba, double base_x_percent, double base_y_percent,
-                  int length_percent, int width_percent, int turbulence, FlamePalette palette,
-                  RgbColor foreground, RgbColor background, int seed,
-                  const FilterProgress* progress) {
+void render_flame(PixelBuffer& rgba, const FlameSettings& settings, const FilterProgress* progress) {
   const auto width = rgba.width();
   const auto height = rgba.height();
   if (width <= 0 || height <= 0) {
     return;
   }
-  const auto stops = flame_stops(palette, foreground, background);
-  const auto flame_height =
-      std::max(1.0, static_cast<double>(height) * std::clamp(length_percent, 5, 100) / 100.0);
-  const auto half_width =
-      std::max(1.0, static_cast<double>(width) * std::clamp(width_percent, 1, 100) / 200.0);
-  const auto base_x = static_cast<double>(std::max(0, width - 1)) * std::clamp(base_x_percent, 0.0, 100.0) / 100.0;
-  const auto base_y = static_cast<double>(std::max(0, height - 1)) * std::clamp(base_y_percent, 0.0, 100.0) / 100.0;
-  const auto turbulence_amount = static_cast<double>(std::clamp(turbulence, 0, 100)) / 100.0;
-  // Tongue width follows the flame height, so a preview proxy shows the same flame.
-  const auto tongue = std::max(2.0, flame_height * 0.07);
-  const auto salt = static_cast<std::uint64_t>(std::clamp(seed, 1, 9999)) * 0x464c414dULL;
-  const auto top_y = base_y - flame_height * 1.6;
-  for (std::int32_t y = 0; y < height; ++y) {
-    report_rows(progress, y, height, FilterProgressStage::Filtering);
-    const auto fy = static_cast<double>(y);
-    if (fy < top_y || fy > base_y + flame_height * 0.06) {
-      continue;
+  const auto style = flame_style(settings.preset, settings.foreground, settings.background);
+  const auto percent = [](int value, int low, int high) {
+    return static_cast<double>(std::clamp(value, low, high)) / 100.0;
+  };
+  const auto turbulence = percent(settings.turbulence, 0, 100) * 2.0 * style.turbulence;
+  const auto flicker = std::max(0.1, percent(settings.flicker_percent, 10, 400) * style.flicker);
+  const auto density = percent(settings.density_percent, 10, 400) * style.density;
+  const auto core = percent(settings.core_percent, 0, 200);
+  const auto glow = percent(settings.glow_percent, 0, 200) * style.glow;
+  const auto smoke = percent(settings.smoke_percent, 0, 200) * style.smoke;
+  const auto sparks = percent(settings.sparks_percent, 0, 200) * style.sparks;
+  const auto opacity = percent(settings.opacity_percent, 0, 100);
+  const auto seed = static_cast<std::uint64_t>(std::clamp(settings.seed, 1, 9999));
+  const auto flame_height = std::max(
+      4.0, static_cast<double>(height) * percent(settings.length_percent, 5, 100) * style.height);
+  const auto tongue_width = std::max(2.0, flame_height * style.tongue);
+  const auto spacing = std::max(1.0, tongue_width * 0.45 / std::max(0.05, density));
+  const auto lean = degrees_unit_vector(90 - std::clamp(settings.lean_degrees, -60, 60));
+  const auto up_x = lean[0];
+  const auto up_y = -lean[1];
+
+  // Tongue roots along the emitters: the base line, or the guide polylines.
+  std::vector<Tongue> tongues;
+  std::uint64_t tongue_index = 0;
+  const auto add_tongue = [&](double x, double y, double dx, double dy, double envelope) {
+    auto rng = seeded(0x546f6e67ULL, static_cast<std::int64_t>(tongue_index++), 0,
+                      static_cast<std::int64_t>(seed));
+    // One draw per statement: the order of two calls in one expression is up to
+    // the compiler, and the product would round differently.
+    const auto first = rng.uniform();
+    const auto second = rng.uniform();
+    const auto size = 1.0 - style.variation * first * second * 1.6;
+    const auto wide = 0.8 + 0.4 * rng.uniform();
+    tongues.push_back({x, y, dx, dy, flame_height * envelope * std::max(0.15, size),
+                       tongue_width * wide * (0.6 + 0.4 * envelope)});
+  };
+  if (!settings.follow_path) {
+    const auto base_x =
+        static_cast<double>(std::max(0, width - 1)) * std::clamp(settings.base_x_percent, 0.0, 100.0) / 100.0;
+    const auto base_y =
+        static_cast<double>(std::max(0, height - 1)) * std::clamp(settings.base_y_percent, 0.0, 100.0) / 100.0;
+    const auto half = std::max(1.0, static_cast<double>(width) * percent(settings.width_percent, 1, 100) / 2.0);
+    if (style.single) {
+      add_tongue(base_x, base_y, up_x, up_y, 1.0);
+    } else {
+      const auto count = std::max<std::int64_t>(1, static_cast<std::int64_t>(std::floor(2.0 * half / spacing)) + 1);
+      for (std::int64_t i = 0; i < count; ++i) {
+        auto rng = seeded(0x42617365ULL, i, 0, static_cast<std::int64_t>(seed));
+        const auto t = count == 1 ? 0.5
+                                  : std::clamp((static_cast<double>(i) + (rng.uniform() - 0.5) * 0.6) /
+                                                   static_cast<double>(count - 1),
+                                               0.0, 1.0);
+        const auto edge = 2.0 * t - 1.0;
+        // Lower flames toward the ends of the base.
+        const auto envelope = 0.3 + 0.7 * std::sqrt(std::max(0.0, 1.0 - edge * edge));
+        add_tongue(base_x - half + 2.0 * half * t, base_y, up_x, up_y, envelope);
+      }
     }
-    const auto v = (base_y - fy) / flame_height;  // 0 at the base, 1 at the nominal tip
-    const auto rise = std::max(0.0, v);
-    for (std::int32_t x = 0; x < width; ++x) {
-      const auto fx = static_cast<double>(x);
-      // The licks sway sideways more the higher they reach.
-      const auto sway = (fractal_noise(fx / (tongue * 3.0), fy / (tongue * 4.0), 3, salt + 1U) - 0.5) *
-                        tongue * (2.0 + 6.0 * turbulence_amount) * rise;
-      const auto sx = fx + sway;
-      const auto across = std::abs(sx - base_x) / half_width;
-      if (across >= 1.0) {
-        continue;
+  } else {
+    std::int64_t step_index = 0;
+    for (const auto& polyline : settings.guides) {
+      double carried = 0.0;  // distance walked since the last tongue
+      for (std::size_t i = 1; i < polyline.size(); ++i) {
+        const auto ax = polyline[i - 1].x;
+        const auto ay = polyline[i - 1].y;
+        const auto sx = polyline[i].x - ax;
+        const auto sy = polyline[i].y - ay;
+        const auto length = std::sqrt(sx * sx + sy * sy);
+        if (length <= 0.0) {
+          continue;
+        }
+        const auto tx = sx / length;
+        const auto ty = sy / length;
+        auto along = spacing - carried;
+        while (along <= length) {
+          auto rng = seeded(0x50617468ULL, step_index++, 0, static_cast<std::int64_t>(seed));
+          const auto jitter = (rng.uniform() - 0.5) * spacing * 0.5;
+          const auto at = std::clamp(along + jitter, 0.0, length);
+          auto dx = up_x;
+          auto dy = up_y;
+          if (settings.rise_from_path) {
+            // The side of the path that faces up, nudged upward so the flames still rise.
+            auto nx = ty;
+            auto ny = -tx;
+            if (ny > 0.0 || (ny == 0.0 && nx < 0.0)) {
+              nx = -nx;
+              ny = -ny;
+            }
+            dx = nx + up_x * 0.35;
+            dy = ny + up_y * 0.35;
+            const auto norm = std::sqrt(dx * dx + dy * dy);
+            dx /= norm;
+            dy /= norm;
+          }
+          add_tongue(ax + tx * at, ay + ty * at, dx, dy, 0.75 + 0.25 * rng.uniform());
+          along += spacing;
+        }
+        carried = length - (along - spacing);
       }
-      // Lower flames toward the sides of the base, each column of licks reaching its
-      // own height: narrow tall tongues with low gaps between them.
-      const auto envelope = 1.0 - across * across;
-      const auto column = fractal_noise(sx / tongue, 0.37, 3, salt + 2U);
-      const auto reach = std::max(0.02, envelope * (0.12 + 1.25 * column * column));
-      // Vertically stretched noise breaks the body into rising streaks.
-      const auto streaks =
-          fractal_noise(sx / (tongue * 0.7), (fy + rise * tongue * 2.0) / (tongue * 2.4), 3, salt + 3U);
-      auto heat = 1.0 - rise / reach + (streaks - 0.5) * (0.6 + 1.0 * turbulence_amount) * std::min(1.0, rise * 3.0);
-      // The sides of the base cool off; just below the base line the flame keeps its
-      // color and only fades out.
-      heat *= smoothstep(1.0, 0.8, across);
-      const auto base_fade = v < 0.0 ? std::clamp(1.0 + v / 0.06, 0.0, 1.0) : 1.0;
-      heat = std::clamp(heat, 0.0, 1.0);
-      if (heat <= 0.0) {
-        continue;
-      }
-      const auto color = palette_color(stops, heat);
-      const auto coverage = smoothstep(0.0, 0.22, heat) * base_fade;
-      auto* px = rgba.pixel(x, y);
-      const auto alpha = static_cast<double>(px[3]) / 255.0;
-      const auto out_alpha = coverage + alpha * (1.0 - coverage);
-      if (out_alpha <= 0.0) {
-        continue;
-      }
-      for (std::size_t channel = 0; channel < 3U; ++channel) {
-        const auto under = static_cast<double>(px[channel]) / 255.0 * alpha * (1.0 - coverage);
-        px[channel] = to_byte(std::min(1.0, (color[channel] * coverage + under) / out_alpha));
-      }
-      px[3] = to_byte(out_alpha);
     }
   }
-  report_kernel_progress(progress, height, height, FilterProgressStage::Filtering);
+  if (tongues.empty()) {
+    report_kernel_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return;
+  }
+
+  // The region every tongue, its smoke and its sparks can reach.
+  const auto reach_of = [&](const Tongue& tongue) {
+    const auto tall = tongue.height * (smoke > 0.0 || sparks > 0.0 ? 2.3 : 1.35);
+    const auto wide = tongue.width * 2.6 + turbulence * tongue.width * 1.2;
+    const auto x0 = std::min({tongue.x - wide, tongue.x + tongue.dx * tall - wide});
+    const auto x1 = std::max({tongue.x + wide, tongue.x + tongue.dx * tall + wide});
+    const auto y0 = std::min({tongue.y - wide, tongue.y + tongue.dy * tall - wide});
+    const auto y1 = std::max({tongue.y + wide, tongue.y + tongue.dy * tall + wide});
+    const auto left = std::max<std::int32_t>(0, static_cast<std::int32_t>(std::floor(x0)));
+    const auto top = std::max<std::int32_t>(0, static_cast<std::int32_t>(std::floor(y0)));
+    const auto right = std::min<std::int32_t>(width, static_cast<std::int32_t>(std::ceil(x1)) + 1);
+    const auto bottom = std::min<std::int32_t>(height, static_cast<std::int32_t>(std::ceil(y1)) + 1);
+    return Rect{left, top, std::max(0, right - left), std::max(0, bottom - top)};
+  };
+  Rect area{};
+  for (const auto& tongue : tongues) {
+    const auto reach = reach_of(tongue);
+    area = area.empty() ? reach : unite_rect(area, reach);
+  }
+  if (area.empty()) {
+    return;
+  }
+
+  // Shared noise fields, so neighbouring tongues sway and break up together:
+  // sideways sway (broad), flicker (fine, stretched upward into streaks) and
+  // smoke. Domain-warped value noise, splitmix64 lattice.
+  const auto salt = seed * 0x464c414dULL;
+  const auto sway_scale = tongue_width * 1.6 * flicker;
+  const auto fine_scale = tongue_width * 0.42 * flicker;
+  NoiseMap sway_map;
+  NoiseMap flicker_map;
+  NoiseMap smoke_map;
+  sway_map.fill(area, [&](double x, double y) {
+    return fractal_noise(x / sway_scale, y / (sway_scale * 1.4), 3, salt + 11U);
+  });
+  flicker_map.fill(area, [&](double x, double y) {
+    const auto warp = (sway_map.at(static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)) - 0.5) * 1.5;
+    return fractal_noise(x / fine_scale + warp, y / (fine_scale * 2.4) + warp, 4, salt + 23U);
+  });
+  if (smoke > 0.0) {
+    smoke_map.fill(area, [&](double x, double y) {
+      return fractal_noise(x / (sway_scale * 0.7), y / (sway_scale * 0.9), 3, salt + 37U);
+    });
+  }
+  report_kernel_progress(progress, 1, 4, FilterProgressStage::Filtering);
+
+  const auto plane_size = static_cast<std::size_t>(area.width) * static_cast<std::size_t>(area.height);
+  // Each pixel keeps its hottest tongue plus a share of the others, so
+  // overlapping tongues brighten without washing the body out to white.
+  std::vector<double> hottest(plane_size, 0.0);
+  std::vector<double> summed(plane_size, 0.0);
+  std::vector<double> rooted(plane_size, 0.0);  // base tint weight
+  std::vector<double> smoky(plane_size, 0.0);
+  std::vector<double> sparkle(plane_size, 0.0);
+  const auto index_of = [&](std::int32_t x, std::int32_t y) {
+    return static_cast<std::size_t>(y - area.y) * static_cast<std::size_t>(area.width) +
+           static_cast<std::size_t>(x - area.x);
+  };
+  std::vector<Spark> spark_list;
+  std::uint64_t spark_index = 0;
+  for (const auto& tongue : tongues) {
+    const auto reach = reach_of(tongue);
+    const auto px = -tongue.dy;  // across the tongue
+    const auto py = tongue.dx;
+    for (std::int32_t y = reach.y; y < reach.y + reach.height; ++y) {
+      for (std::int32_t x = reach.x; x < reach.x + reach.width; ++x) {
+        const auto rx = static_cast<double>(x) - tongue.x;
+        const auto ry = static_cast<double>(y) - tongue.y;
+        const auto v = (rx * tongue.dx + ry * tongue.dy) / tongue.height;
+        if (v < -0.12 || v > 2.2) {
+          continue;
+        }
+        const auto rise = std::max(0.0, v);
+        const auto sway = (sway_map.at(x, y) - 0.5) * turbulence * 1.1 * rise * std::sqrt(rise);
+        const auto u = (rx * px + ry * py) / tongue.width + sway;
+        const auto index = index_of(x, y);
+        if (v <= 1.0) {
+          const auto profile = tongue_profile(v);
+          if (profile > 0.0) {
+            const auto shape = 1.0 - (u / profile) * (u / profile);
+            if (shape > 0.0) {
+              auto heat = 0.86 * std::sqrt(shape) * (1.0 - 0.75 * rise);
+              if (v < 0.0) {
+                heat *= 1.0 + v / 0.12;
+              }
+              heat -= (flicker_map.at(x, y) - 0.42) * (0.25 + 0.55 * turbulence) * (0.3 + 1.1 * rise);
+              heat = std::clamp(heat, 0.0, 1.0);
+              hottest[index] = std::max(hottest[index], heat);
+              summed[index] += heat;
+              rooted[index] = std::max(rooted[index], heat * std::clamp(1.0 - v / 0.2, 0.0, 1.0));
+            }
+          }
+        }
+        if (smoke > 0.0 && v > 0.5) {
+          const auto spread = 0.9 + 1.1 * (v - 0.5);
+          const auto across = 1.0 - (u / spread) * (u / spread);
+          if (across > 0.0) {
+            const auto fade = smoothstep(0.5, 0.95, v) * (1.0 - smoothstep(1.3, 2.2, v));
+            const auto puff = std::clamp((smoke_map.at(x, y) - 0.3) * 1.8, 0.0, 1.0);
+            smoky[index] = std::max(smoky[index], smoke * 0.55 * across * fade * puff);
+          }
+        }
+      }
+    }
+    if (sparks > 0.0) {
+      auto rng = seeded(0x53706b73ULL, static_cast<std::int64_t>(spark_index++), 0,
+                        static_cast<std::int64_t>(seed));
+      const auto share = rng.uniform();
+      const auto extra = rng.uniform();
+      const auto count = static_cast<int>(std::floor(sparks * 2.2 * share + extra));
+      for (int i = 0; i < count; ++i) {
+        const auto v = 0.7 + 1.3 * rng.uniform();
+        const auto u = (rng.uniform() - 0.5) * 3.0;
+        const auto size = rng.uniform();
+        const auto strength = rng.uniform();
+        spark_list.push_back({tongue.x + tongue.dx * v * tongue.height + px * u * tongue.width,
+                              tongue.y + tongue.dy * v * tongue.height + py * u * tongue.width,
+                              std::max(0.6, tongue_width * 0.025 * (0.5 + size)), 0.6 + 0.4 * strength});
+      }
+    }
+  }
+  report_kernel_progress(progress, 2, 4, FilterProgressStage::Filtering);
+
+  // Sparks: soft dots with a short trail below them.
+  for (const auto& spark : spark_list) {
+    const auto trail = spark.radius * 4.0;
+    const auto x0 = std::max(area.x, static_cast<std::int32_t>(std::floor(spark.x - spark.radius - 1.0 -
+                                                                          std::abs(up_x) * trail)));
+    const auto x1 = std::min(area.x + area.width - 1,
+                             static_cast<std::int32_t>(std::ceil(spark.x + spark.radius + 1.0 + std::abs(up_x) * trail)));
+    const auto y0 = std::max(area.y, static_cast<std::int32_t>(std::floor(spark.y - spark.radius - 1.0)));
+    const auto y1 = std::min(area.y + area.height - 1,
+                             static_cast<std::int32_t>(std::ceil(spark.y + spark.radius + 1.0 + trail)));
+    for (std::int32_t y = y0; y <= y1; ++y) {
+      for (std::int32_t x = x0; x <= x1; ++x) {
+        const auto ex = static_cast<double>(x) - spark.x;
+        const auto ey = static_cast<double>(y) - spark.y;
+        // Distance to the trail segment from the spark back down its rise direction.
+        const auto back = std::clamp(-(ex * up_x + ey * up_y), 0.0, trail);
+        const auto cx = ex + up_x * back;
+        const auto cy = ey + up_y * back;
+        const auto d2 = (cx * cx + cy * cy) / (spark.radius * spark.radius);
+        if (d2 >= 1.0) {
+          continue;
+        }
+        const auto amount = spark.strength * (1.0 - d2) * (1.0 - 0.8 * back / trail);
+        auto& cell = sparkle[index_of(x, y)];
+        cell = std::max(cell, amount);
+      }
+    }
+  }
+
+  // Glow: the flame light, blurred on a grid of a quarter of the resolution.
+  constexpr std::int32_t kGlowStep = 4;
+  const auto glow_width = (area.width + kGlowStep - 1) / kGlowStep;
+  const auto glow_height = (area.height + kGlowStep - 1) / kGlowStep;
+  std::array<std::vector<double>, 3> glow_planes;
+  const auto heat_at = [&](std::size_t index) {
+    return std::min(1.0, hottest[index] + 0.15 * (summed[index] - hottest[index]));
+  };
+  if (glow > 0.0) {
+    for (auto& plane : glow_planes) {
+      plane.assign(static_cast<std::size_t>(glow_width) * static_cast<std::size_t>(glow_height), 0.0);
+    }
+    for (std::int32_t y = 0; y < area.height; ++y) {
+      for (std::int32_t x = 0; x < area.width; ++x) {
+        const auto heat = heat_at(static_cast<std::size_t>(y) * static_cast<std::size_t>(area.width) +
+                                  static_cast<std::size_t>(x));
+        if (heat <= 0.0) {
+          continue;
+        }
+        const auto color = palette_color(style.stops, heat);
+        const auto cell = static_cast<std::size_t>(y / kGlowStep) * static_cast<std::size_t>(glow_width) +
+                          static_cast<std::size_t>(x / kGlowStep);
+        for (std::size_t c = 0; c < 3U; ++c) {
+          glow_planes[c][cell] += color[c] * heat / static_cast<double>(kGlowStep * kGlowStep);
+        }
+      }
+    }
+    const auto radius = std::max<std::int32_t>(1, static_cast<std::int32_t>(std::floor(tongue_width * 0.9 / kGlowStep)));
+    for (auto& plane : glow_planes) {
+      box_blur_plane(plane, glow_width, glow_height, radius);
+    }
+  }
+  const auto glow_at = [&](std::int32_t x, std::int32_t y, std::size_t channel) {
+    // Bilinear from the coarse grid (cell centers at step / 2).
+    const auto gx = std::clamp((static_cast<double>(x - area.x) + 0.5) / kGlowStep - 0.5, 0.0,
+                               static_cast<double>(glow_width - 1));
+    const auto gy = std::clamp((static_cast<double>(y - area.y) + 0.5) / kGlowStep - 0.5, 0.0,
+                               static_cast<double>(glow_height - 1));
+    const auto x0 = static_cast<std::int32_t>(std::floor(gx));
+    const auto y0 = static_cast<std::int32_t>(std::floor(gy));
+    const auto x1 = std::min(glow_width - 1, x0 + 1);
+    const auto y1 = std::min(glow_height - 1, y0 + 1);
+    const auto fx = gx - static_cast<double>(x0);
+    const auto fy = gy - static_cast<double>(y0);
+    const auto& plane = glow_planes[channel];
+    const auto at = [&](std::int32_t cx, std::int32_t cy) {
+      return plane[static_cast<std::size_t>(cy) * static_cast<std::size_t>(glow_width) + static_cast<std::size_t>(cx)];
+    };
+    return (at(x0, y0) * (1.0 - fx) + at(x1, y0) * fx) * (1.0 - fy) +
+           (at(x0, y1) * (1.0 - fx) + at(x1, y1) * fx) * fy;
+  };
+  report_kernel_progress(progress, 3, 4, FilterProgressStage::Filtering);
+
+  const auto spark_color = palette_color(style.stops, 0.9);
+  const auto edge = 0.28 * style.softness;
+  for (std::int32_t y = area.y; y < area.y + area.height; ++y) {
+    for (std::int32_t x = area.x; x < area.x + area.width; ++x) {
+      const auto index = index_of(x, y);
+      const auto heat = heat_at(index);
+      std::array<double, 3> glow_light{0.0, 0.0, 0.0};
+      double glow_max = 0.0;
+      if (glow > 0.0) {
+        for (std::size_t c = 0; c < 3U; ++c) {
+          glow_light[c] = std::clamp(glow_at(x, y, c) * glow * 1.6 * opacity, 0.0, 1.0);
+          glow_max = std::max(glow_max, glow_light[c]);
+        }
+      }
+      if (heat <= 0.0 && smoky[index] <= 0.0 && sparkle[index] <= 0.0 && glow_max <= 0.0) {
+        continue;
+      }
+      auto* px = rgba.pixel(x, y);
+      auto alpha = static_cast<double>(px[3]) / 255.0;
+      std::array<double, 3> color{};  // premultiplied
+      for (std::size_t c = 0; c < 3U; ++c) {
+        color[c] = static_cast<double>(px[c]) / 255.0 * alpha;
+      }
+      const auto over = [&](const Rgb& paint, double coverage) {
+        for (std::size_t c = 0; c < 3U; ++c) {
+          color[c] = paint[c] * coverage + color[c] * (1.0 - coverage);
+        }
+        alpha = coverage + alpha * (1.0 - coverage);
+      };
+      if (smoky[index] > 0.0) {
+        over(style.smoke_color, std::min(0.85, smoky[index]) * opacity);
+      }
+      if (glow_max > 0.0) {
+        // Screened over the layer as if over black; transparency takes the light as alpha.
+        for (std::size_t c = 0; c < 3U; ++c) {
+          color[c] = color[c] + (1.0 - color[c]) * glow_light[c];
+        }
+        alpha = alpha + (1.0 - alpha) * glow_max;
+      }
+      if (heat > 0.0) {
+        auto paint = palette_color(style.stops, heat);
+        const auto hot = std::clamp((heat - 0.84) / 0.16, 0.0, 1.0) * core * 0.75;
+        const auto tint = rooted[index] * style.root_strength;
+        for (std::size_t c = 0; c < 3U; ++c) {
+          paint[c] = std::min(1.0, paint[c] + (style.core[c] - paint[c]) * std::min(1.0, hot));
+          paint[c] = paint[c] + (style.root[c] - paint[c]) * tint;
+        }
+        over(paint, smoothstep(0.0, edge, heat) * opacity);
+      }
+      if (sparkle[index] > 0.0) {
+        over(spark_color, std::min(1.0, sparkle[index]) * opacity);
+      }
+      if (alpha <= 0.0) {
+        continue;
+      }
+      for (std::size_t c = 0; c < 3U; ++c) {
+        px[c] = to_byte(std::min(1.0, color[c] / alpha));
+      }
+      px[3] = to_byte(alpha);
+    }
+  }
+  report_kernel_progress(progress, 4, 4, FilterProgressStage::Filtering);
 }
 
 }  // namespace patchy

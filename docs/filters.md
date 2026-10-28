@@ -49,10 +49,10 @@ extrude: type=blocks size=30 depth=30 heights=random solid_front=false seed=1
 find_edges, solarize: none
 tiles: count=10 max_offset=10 fill=background seed=1
 trace_contour: level=128 edge=lower
-wind: method=wind direction=from_right length=40
+wind: method=wind direction=angle angle=180 length=40 (direction from_right/from_left: 180/0)
 difference_clouds: scale=96 detail=6 contrast=40 seed=1
 fibers: variance=16 strength=4
-flame: colors=classic length=40 width=60 turbulence=50 seed=1 center_x=50.0 center_y=100.0
+flame: colors=classic mode=base_line rise=up length=40 width=60 turbulence=50 flicker=100 density=100 lean=0 core=100 glow=100 smoke=100 sparks=100 opacity=100 seed=1 center_x=50.0 center_y=100.0
 lens_flare: lens=classic brightness=100 center_x=30.0 center_y=30.0
 ```
 
