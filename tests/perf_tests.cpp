@@ -1513,6 +1513,166 @@ void clipped_shape_resize_perf() {
   }
 }
 
+// Pick (Eyedropper) drag on a 6000x4000 document with several layers (GitHub #478: the
+// Pick tool lagged behind the pointer while dragging). Each frame is one mouse move plus
+// the paint and whatever else it queued (the loupe, color panels and status bar),
+// for several Size and Layer choices; then a 120-move burst posted at once, as Wayland
+// queues a fast pointer, with the drag move coalescing off and on. PATCHY_PERF_SAMPLER=1
+// samples each case's frames (Windows).
+void pick_drag_perf() {
+  constexpr int kWidth = 6000;
+  constexpr int kHeight = 4000;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  for (int index = 0; index < 5; ++index) {
+    patchy::PixelBuffer pixels(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    auto bytes = pixels.data();
+    for (int y = 0; y < kHeight; ++y) {
+      auto* row = bytes.data() + static_cast<std::size_t>(y) * kWidth * 4;
+      for (int x = 0; x < kWidth; ++x) {
+        row[x * 4 + 0] = static_cast<std::uint8_t>((x * (index + 1)) / 24);
+        row[x * 4 + 1] = static_cast<std::uint8_t>((y * (index + 2)) / 16);
+        row[x * 4 + 2] = static_cast<std::uint8_t>((x + y) * (index + 3) / 40);
+        row[x * 4 + 3] = index == 0 ? 255 : static_cast<std::uint8_t>(96 + ((x / 50 + y / 50 + index) % 3) * 64);
+      }
+    }
+    patchy::Layer layer(document.allocate_layer_id(), index == 0 ? "Background" : "Layer " + std::to_string(index),
+                        std::move(pixels));
+    if (index > 0) {
+      layer.set_opacity(0.8F);
+    }
+    document.add_layer(std::move(layer));
+  }
+
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  window.add_document_session(std::move(document), QStringLiteral("Pick drag"));
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->fit_to_view();
+  for (auto* action : window.findChildren<QAction*>()) {
+    if (action->text() == QStringLiteral("Pick")) {
+      action->trigger();
+      break;
+    }
+  }
+  const auto settle = [canvas] {
+    QApplication::processEvents();
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+  };
+  settle();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Eyedropper);
+
+  struct Case {
+    const char* name;
+    int size;
+    patchy::SampleLayers layers;
+  };
+  const Case cases[] = {
+      {"point_all", 1, patchy::SampleLayers::AllLayers},
+      {"avg11_all", 11, patchy::SampleLayers::AllLayers},
+      {"avg101_all", 101, patchy::SampleLayers::AllLayers},
+      {"avg11_below", 11, patchy::SampleLayers::CurrentAndBelow},
+      {"point_current", 1, patchy::SampleLayers::CurrentLayer},
+  };
+  const auto start = canvas->widget_position_for_document_point(QPoint(kWidth / 4, kHeight / 4));
+  for (const auto& entry : cases) {
+    canvas->set_eyedropper_sample_size(entry.size);
+    canvas->set_eyedropper_sample_layers(entry.layers);
+    settle();
+    constexpr int kFrames = 60;
+#ifdef Q_OS_WIN
+    std::unique_ptr<MainThreadSampler> sampler;
+    if (qEnvironmentVariableIsSet("PATCHY_PERF_SAMPLER")) {
+      sampler = std::make_unique<MainThreadSampler>();
+    }
+#endif
+    const auto press_ms = elapsed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+      canvas->repaint();
+      QApplication::processEvents();
+    });
+    std::vector<double> frames;
+    for (int frame = 1; frame <= kFrames; ++frame) {
+      const auto point = start + QPoint(frame * 7, frame * 3);
+      frames.push_back(elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton);
+        // The paint the move asked for (the loupe and outline regions), not a full repaint.
+        QApplication::processEvents();
+      }));
+    }
+    const auto release_ms = elapsed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(kFrames * 7, kFrames * 3), Qt::LeftButton,
+                 Qt::NoButton);
+      canvas->repaint();
+      QApplication::processEvents();
+    });
+#ifdef Q_OS_WIN
+    if (sampler) {
+      std::cout << "[SAMPLER_PHASE] pickdrag " << entry.name << '\n';
+      sampler.reset();
+    }
+#endif
+    auto sorted = frames;
+    std::sort(sorted.begin(), sorted.end());
+    double total = 0.0;
+    for (const auto value : frames) {
+      total += value;
+    }
+    std::cout << std::fixed << std::setprecision(2) << "[PERF] pickdrag case=" << entry.name
+              << " press_ms=" << press_ms << " frame_avg_ms=" << total / kFrames
+              << " frame_median_ms=" << sorted[sorted.size() / 2] << " frame_max_ms=" << sorted.back()
+              << " release_ms=" << release_ms << '\n';
+    settle();
+  }
+
+  // A burst of queued moves (11 by 11, All Layers): the time until the canvas has read
+  // them and painted, with the drag move coalescing off and on.
+  canvas->set_eyedropper_sample_size(11);
+  canvas->set_eyedropper_sample_layers(patchy::SampleLayers::AllLayers);
+  for (const bool coalescing : {false, true}) {
+    constexpr int kBurst = 120;
+    canvas->set_drag_move_coalescing_for_testing(coalescing ? patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves
+                                                            : patchy::ui::CanvasWidget::DragMoveCoalescing::Off);
+    settle();
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    canvas->repaint();
+    QApplication::processEvents();
+    const auto before = canvas->render_cache_diagnostics();
+    QPoint last = start;
+    for (int move = 1; move <= kBurst; ++move) {
+      last = start + QPoint(move * 3, move);
+      QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(last),
+                                                      QPointF(canvas->mapToGlobal(last)), Qt::NoButton,
+                                                      Qt::LeftButton, Qt::NoModifier));
+    }
+    const auto burst_ms = elapsed_ms([&] {
+      QApplication::processEvents();
+      QApplication::processEvents();
+      QApplication::processEvents();
+    });
+    const auto coalesced = canvas->render_cache_diagnostics().drag_moves_coalesced - before.drag_moves_coalesced;
+    send_mouse(*canvas, QEvent::MouseButtonRelease, last, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    std::cout << std::fixed << std::setprecision(1) << "[PERF] pickdrag gesture=burst coalescing="
+              << (coalescing ? "on" : "off") << " moves=" << kBurst << " applied=" << (kBurst - coalesced)
+              << " burst_ms=" << burst_ms << '\n';
+  }
+  canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::Default);
+}
+
 // Move-tool drag and Free Transform corner drag of a text layer against a pixel layer
 // holding the same raster (GitHub issues 207, 443, 444: dragging or resizing a small
 // text layer on a 1280x720 document stuttered on a Linux laptop). Each frame is one
@@ -3647,6 +3807,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "textdrag_live") {
       run_scenario("textdrag_live", text_layer_live_drag_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "pickdrag") {
+      run_scenario("pickdrag", pick_drag_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "textdrag") {

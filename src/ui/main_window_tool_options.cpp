@@ -1908,7 +1908,7 @@ void MainWindow::refresh_color_buttons() {
         named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
   }
   refresh_text_color_button();
-  if (color_dock_panel_ != nullptr && color_dock_panel_->picking()) {
+  if (color_drag_in_progress()) {
     gradient_controls_refresh_pending_ = true;
   } else {
     refresh_gradient_controls_from_canvas();
@@ -3006,7 +3006,7 @@ void MainWindow::stash_active_colors() {
   if (!changed) {
     return;
   }
-  if (color_dock_panel_ != nullptr && color_dock_panel_->picking()) {
+  if (color_drag_in_progress()) {
     color_settings_save_pending_ = true;
   } else {
     color_settings_save_pending_ = false;
@@ -3045,6 +3045,14 @@ void MainWindow::load_color_settings() {
   };
   foreground_color_ = stored(kForegroundColorSettingsKey, QColor(Qt::black));
   background_color_ = stored(kBackgroundColorSettingsKey, QColor(Qt::white));
+}
+
+bool MainWindow::color_drag_in_progress() const {
+  // A drag through the Color panel's picker or a held canvas pick (GitHub #478) reports a
+  // color per move; the settings write (a file flush) and the gradient refresh wait for
+  // its end (finish_color_panel_drag).
+  return (color_dock_panel_ != nullptr && color_dock_panel_->picking()) ||
+         (canvas_ != nullptr && canvas_->color_pick_active());
 }
 
 void MainWindow::save_color_settings() const {
