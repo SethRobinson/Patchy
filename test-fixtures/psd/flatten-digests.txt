@@ -137,6 +137,12 @@ d04a366077fb616d photoshop-text-anchor-whole.psd
 f0bc2cd0203e62a1 photoshop-text-point-fixed-leading.psd
 70d3b3aea07a5ee5 photoshop-text-point-transformed.psd
 2970b043cbe68d1f photoshop-text-rtl-hebrew.psd
+7d68e3bf711f3c2c photoshop-text-track-box-bold-shift-m8.psd
+1dd8a90067f08d2b photoshop-text-track-box-center-m80.psd
+4cbeb2ed326c2a48 photoshop-text-track-box-center-p200.psd
+ae713d203c412c1a photoshop-text-track-box-right-m80.psd
+c3bf5965e92c0140 photoshop-text-track-box-right-p200.psd
+3ced5a33f7aea0eb photoshop-text-track-point-center-m80.psd
 3479c3a5ae371251 photoshop-text-tracking.psd
 5417b46e9aff2cfd photoshop-text-vertical-box.psd
 ca2850e3cb0c68c1 photoshop-text-vertical-point.psd

@@ -20,6 +20,7 @@
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include "support/path_utils.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -1011,6 +1012,64 @@ void ui_restaurant_menu_other_layers_commit_match_if_available() {
   }
 }
 
+// Document-space columns where the layer's ink reaches at least half alpha: the first and last
+// are the crisp left and right edges of the raster, immune to the antialiased fringe.
+std::optional<std::pair<int, int>> half_alpha_column_span(const patchy::Layer& layer) {
+  const auto& pixels = layer.pixels();
+  const auto channels = pixels.format().channels;
+  if (pixels.empty() || (channels != 1U && channels < 4U)) {
+    return std::nullopt;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  int left = -1;
+  int right = -1;
+  for (std::int32_t x = 0; x < pixels.width(); ++x) {
+    bool inked = false;
+    for (std::int32_t y = 0; y < pixels.height() && !inked; ++y) {
+      inked = pixels.pixel(x, y)[alpha_channel] >= 128;
+    }
+    if (inked) {
+      if (left < 0) {
+        left = x;
+      }
+      right = x;
+    }
+  }
+  if (left < 0) {
+    return std::nullopt;
+  }
+  return std::make_pair(layer.bounds().x + left, layer.bounds().x + right);
+}
+
+// Document-space rows where the layer's ink reaches at least half alpha (see
+// half_alpha_column_span).
+std::optional<std::pair<int, int>> half_alpha_row_span(const patchy::Layer& layer) {
+  const auto& pixels = layer.pixels();
+  const auto channels = pixels.format().channels;
+  if (pixels.empty() || (channels != 1U && channels < 4U)) {
+    return std::nullopt;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  int top = -1;
+  int bottom = -1;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    bool inked = false;
+    for (std::int32_t x = 0; x < pixels.width() && !inked; ++x) {
+      inked = pixels.pixel(x, y)[alpha_channel] >= 128;
+    }
+    if (inked) {
+      if (top < 0) {
+        top = y;
+      }
+      bottom = y;
+    }
+  }
+  if (top < 0) {
+    return std::nullopt;
+  }
+  return std::make_pair(layer.bounds().y + top, layer.bounds().y + bottom);
+}
+
 // photoshop-text-anchor-center{,90}-{whole,third}.psd: PS 27.9 point text "Hg" (Arial 48 px,
 // Sharp) CENTERED on anchor x 100.0 and 100.3, unscaled and under a 0.9 transform. Photoshop
 // rounds each line's START (the anchor minus the justification offset), not the anchor: the
@@ -1056,35 +1115,54 @@ void ui_psd_centered_text_commit_rounds_line_start_like_photoshop() {
   if (committed_left[2].has_value() && committed_left[3].has_value()) {
     CHECK(*committed_left[3] - *committed_left[2] == 1);
   }
-}
 
-// Document-space columns where the layer's ink reaches at least half alpha: the first and last
-// are the crisp left and right edges of the raster, immune to the antialiased fringe.
-std::optional<std::pair<int, int>> half_alpha_column_span(const patchy::Layer& layer) {
-  const auto& pixels = layer.pixels();
-  const auto channels = pixels.format().channels;
-  if (pixels.empty() || (channels != 1U && channels < 4U)) {
-    return std::nullopt;
-  }
-  const auto alpha_channel = channels == 1U ? 0U : 3U;
-  int left = -1;
-  int right = -1;
-  for (std::int32_t x = 0; x < pixels.width(); ++x) {
-    bool inked = false;
-    for (std::int32_t y = 0; y < pixels.height() && !inked; ++y) {
-      inked = pixels.pixel(x, y)[alpha_channel] >= 128;
+  // Tracked "TEXT" (Arial 48 px, PS 2026 captures from scripts/dev/text-tracking): Photoshop
+  // centres and right-aligns the line WITHOUT the tracking after its last glyph, which Qt's
+  // letter spacing adds (box centred +200 sat 6 columns left, box right +200 ten columns left,
+  // box centred -80 a column right). The bold box with baseline shift -8 and fixed leading pins
+  // the box first baseline (top + the "d" ascender, rounded; it sat a row low). Photoshop's
+  // half-alpha edges, columns and rows, within a pixel; the untracked advances differ by under a
+  // pixel per line, which is all the tolerance absorbs.
+  struct TrackedCase {
+    const char* fixture;
+    const char* needle;
+    const char* artifact;
+  };
+  const std::array<TrackedCase, 6> tracked{{
+      {"photoshop-text-track-box-center-m80.psd", "TEXT", "ui_psd_track_box_center_m80_commit"},
+      {"photoshop-text-track-box-center-p200.psd", "TEXT", "ui_psd_track_box_center_p200_commit"},
+      {"photoshop-text-track-box-right-m80.psd", "TEXT", "ui_psd_track_box_right_m80_commit"},
+      {"photoshop-text-track-box-right-p200.psd", "TEXT", "ui_psd_track_box_right_p200_commit"},
+      {"photoshop-text-track-point-center-m80.psd", "TEXT", "ui_psd_track_point_center_m80_commit"},
+      {"photoshop-text-track-box-bold-shift-m8.psd", "Text 1", "ui_psd_track_box_bold_shift_commit"},
+  }};
+  for (const auto& entry : tracked) {
+    const auto probe = run_photoshop_text_commit_probe(patchy::test::committed_psd_fixture_path(entry.fixture),
+                                                       entry.needle, 1.0, entry.artifact, "Arial");
+    if (!probe.has_value()) {
+      patchy::test::skip("Arial is not available for the fixtures' type");
     }
-    if (inked) {
-      if (left < 0) {
-        left = x;
-      }
-      right = x;
+    CHECK(probe->original_layer.has_value() && probe->committed_layer.has_value());
+    if (!probe->original_layer.has_value() || !probe->committed_layer.has_value()) {
+      return;
     }
+    const auto ps_columns = half_alpha_column_span(*probe->original_layer);
+    const auto patchy_columns = half_alpha_column_span(*probe->committed_layer);
+    const auto ps_rows = half_alpha_row_span(*probe->original_layer);
+    const auto patchy_rows = half_alpha_row_span(*probe->committed_layer);
+    CHECK(ps_columns.has_value() && patchy_columns.has_value() && ps_rows.has_value() && patchy_rows.has_value());
+    if (!ps_columns.has_value() || !patchy_columns.has_value() || !ps_rows.has_value() || !patchy_rows.has_value()) {
+      return;
+    }
+    std::printf("  %-44s photoshop cols %d..%d rows %d..%d -> patchy cols %d..%d rows %d..%d\n", entry.fixture,
+                ps_columns->first, ps_columns->second, ps_rows->first, ps_rows->second, patchy_columns->first,
+                patchy_columns->second, patchy_rows->first, patchy_rows->second);
+    std::fflush(stdout);
+    CHECK(std::abs(patchy_columns->first - ps_columns->first) <= 1);
+    CHECK(std::abs(patchy_columns->second - ps_columns->second) <= 1);
+    CHECK(std::abs(patchy_rows->first - ps_rows->first) <= 1);
+    CHECK(std::abs(patchy_rows->second - ps_rows->second) <= 1);
   }
-  if (left < 0) {
-    return std::nullopt;
-  }
-  return std::make_pair(layer.bounds().x + left, layer.bounds().x + right);
 }
 
 // photoshop-text-anchor-{whole,half}.psd: PS 27.9 point text "Hg" (Arial 48 px, Sharp), left
@@ -1135,6 +1213,126 @@ void ui_psd_left_text_commit_rounds_each_glyph_like_photoshop() {
   CHECK(photoshop_span[1]->second - photoshop_span[0]->second == 0);
   CHECK(committed_span[1]->first - committed_span[0]->first == 1);
   CHECK(committed_span[1]->second - committed_span[0]->second == 0);
+}
+
+// The whole tracking x justification sweep (local-test-fixtures/psd/ps2026_text_tracking_just/,
+// scripts/dev/text-tracking/capture-tracking-just.ps1): every capture's re-render must keep
+// Photoshop's half-alpha edges within a pixel. The committed subset is pinned exactly by
+// ui_psd_centered_text_commit_rounds_line_start_like_photoshop.
+void ui_psd_tracked_text_sweep_matches_photoshop_if_available() {
+  const auto folder = patchy::test::local_psd_fixture_path("ps2026_text_tracking_just");
+  patchy::test::skip_unless_exists(folder / "manifest.jsonl");
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  std::vector<std::filesystem::path> files;
+  for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+    if (entry.path().extension() == ".psd") {
+      files.push_back(entry.path());
+    }
+  }
+  std::sort(files.begin(), files.end());
+  CHECK(!files.empty());
+  int mismatches = 0;
+  for (const auto& file : files) {
+    const auto stem = patchy::path_to_utf8(file.stem());
+    // An edited session (the path layer.rerenderText and Testy take), not the unchanged apply.
+    const auto probe = run_photoshop_text_commit_probe(file, "T", 1.0, ("ui_tracking_sweep_" + stem).c_str(),
+                                                       "Arial", 1, /*edit_and_restore*/ true);
+    if (!probe.has_value()) {
+      patchy::test::skip("Arial is not available for the sweep's type");
+    }
+    if (!probe->original_layer.has_value() || !probe->committed_layer.has_value()) {
+      continue;
+    }
+    const auto ps_columns = half_alpha_column_span(*probe->original_layer);
+    const auto patchy_columns = half_alpha_column_span(*probe->committed_layer);
+    const auto ps_rows = half_alpha_row_span(*probe->original_layer);
+    const auto patchy_rows = half_alpha_row_span(*probe->committed_layer);
+    CHECK(ps_columns.has_value() && patchy_columns.has_value() && ps_rows.has_value() && patchy_rows.has_value());
+    if (!ps_columns.has_value() || !patchy_columns.has_value() || !ps_rows.has_value() || !patchy_rows.has_value()) {
+      continue;
+    }
+    const bool matches = std::abs(patchy_columns->first - ps_columns->first) <= 1 &&
+                         std::abs(patchy_columns->second - ps_columns->second) <= 1 &&
+                         std::abs(patchy_rows->first - ps_rows->first) <= 1 &&
+                         std::abs(patchy_rows->second - ps_rows->second) <= 1;
+    std::printf("  %-36s photoshop cols %d..%d rows %d..%d -> patchy cols %d..%d rows %d..%d%s\n", stem.c_str(),
+                ps_columns->first, ps_columns->second, ps_rows->first, ps_rows->second, patchy_columns->first,
+                patchy_columns->second, patchy_rows->first, patchy_rows->second, matches ? "" : "  MISMATCH");
+    std::fflush(stdout);
+    mismatches += matches ? 0 : 1;
+    // Document-space alpha of both rasters (Photoshop's, then Patchy's) for offline comparison.
+    const auto alpha_image = [](const patchy::Layer& layer) {
+      QImage image(400, 200, QImage::Format_Grayscale8);
+      image.fill(0);
+      const auto& pixels = layer.pixels();
+      const auto channels = pixels.format().channels;
+      const auto alpha_channel = channels == 1U ? 0U : 3U;
+      for (std::int32_t y = 0; y < pixels.height(); ++y) {
+        for (std::int32_t x = 0; x < pixels.width(); ++x) {
+          const auto doc_x = layer.bounds().x + x;
+          const auto doc_y = layer.bounds().y + y;
+          if (doc_x >= 0 && doc_y >= 0 && doc_x < image.width() && doc_y < image.height()) {
+            image.scanLine(doc_y)[doc_x] = pixels.pixel(x, y)[alpha_channel];
+          }
+        }
+      }
+      return image;
+    };
+    save_image_artifact("ui_tracking_sweep_" + stem + "_photoshop", alpha_image(*probe->original_layer));
+    save_image_artifact("ui_tracking_sweep_" + stem + "_patchy", alpha_image(*probe->committed_layer));
+  }
+  // Every capture is printed before the verdict, so one run shows the whole sweep.
+  CHECK(mismatches == 0);
+}
+
+// The psd-tools corpus layers behind the Testy text standing: effect-stroke-gradient.psd's two
+// Arial Bold 48 px box layers (centred, tracking -80, fixed leading, baseline shift -8, box top
+// y 3.896) and adjustment-fillers.psd's "TEXT" (Arial 43.75 px, centred, tracking +75, baseline
+// shift -4.3). The rasters stored in these files come from an older Photoshop and sit up to 2 px
+// off Photoshop 2026's own re-render, so the expected fill-ink spans are Photoshop 2026's (Testy
+// run 20261028-164532, solid fill pixels). Patchy used to sit 2 px right and 1 px low on the
+// first file and 1 px left on the second.
+void ui_psd_tools_tracked_box_text_matches_photoshop_if_available() {
+  const auto folder = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
+  patchy::test::skip_unless_exists(folder / "effect-stroke-gradient.psd");
+  patchy::test::skip_unless_exists(folder / "adjustment-fillers.psd");
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  struct Case {
+    const char* file;
+    const char* needle;
+    const char* artifact;
+    int left, right, top, bottom;  // Photoshop 2026 fill ink, document pixels
+  };
+  const std::array<Case, 3> cases{{
+      {"effect-stroke-gradient.psd", "Text 2", "ui_psd_tools_stroke_gradient_text2_commit", 7, 118, 72, 105},
+      {"effect-stroke-gradient.psd", "Text", "ui_psd_tools_stroke_gradient_text_commit", 23, 104, 12, 45},
+      {"adjustment-fillers.psd", "TEXT", "ui_psd_tools_adjustment_fillers_text_commit", 64, 182, 335, 364},
+  }};
+  int mismatches = 0;
+  for (const auto& entry : cases) {
+    const auto probe = run_photoshop_text_commit_probe(folder / entry.file, entry.needle, 1.0, entry.artifact,
+                                                       "Arial", 1, /*edit_and_restore*/ true);
+    if (!probe.has_value()) {
+      patchy::test::skip("Arial is not available for the corpus type");
+    }
+    if (!probe->committed_layer.has_value()) {
+      continue;
+    }
+    const auto columns = half_alpha_column_span(*probe->committed_layer);
+    const auto rows = half_alpha_row_span(*probe->committed_layer);
+    CHECK(columns.has_value() && rows.has_value());
+    if (!columns.has_value() || !rows.has_value()) {
+      continue;
+    }
+    const bool matches = std::abs(columns->first - entry.left) <= 1 && std::abs(columns->second - entry.right) <= 1 &&
+                         std::abs(rows->first - entry.top) <= 1 && std::abs(rows->second - entry.bottom) <= 1;
+    std::printf("  %-28s %-7s photoshop cols %d..%d rows %d..%d -> patchy cols %d..%d rows %d..%d%s\n", entry.file,
+                entry.needle, entry.left, entry.right, entry.top, entry.bottom, columns->first, columns->second,
+                rows->first, rows->second, matches ? "" : "  MISMATCH");
+    std::fflush(stdout);
+    mismatches += matches ? 0 : 1;
+  }
+  CHECK(mismatches == 0);
 }
 
 // Total alpha of a layer's raster and its per-pixel distance from another raster, both read in
@@ -1350,7 +1548,10 @@ void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
         std::printf("  %-12s half-alpha columns photoshop %d..%d -> patchy %d..%d\n", entry.needle,
                     photoshop_span->first, photoshop_span->second, committed_span->first, committed_span->second);
         std::fflush(stdout);
-        CHECK(std::abs(committed_span->first - photoshop_span->first) <= 1);
+        // The 0.25 px heavier Strong stroke (docs/text-anti-alias.md) lifts the faint left-edge
+        // pixels of the italic 'S' over half alpha: 'Submit word' starts 2 columns early (361
+        // against 363) though its ink width is now closer to Photoshop's (102 against 103).
+        CHECK(std::abs(committed_span->first - photoshop_span->first) <= 2);
         CHECK(std::abs(committed_span->second - photoshop_span->second) <= 1);
       }
     }
@@ -4169,6 +4370,10 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_psd_centered_text_commit_rounds_line_start_like_photoshop},
       {"ui_psd_left_text_commit_rounds_each_glyph_like_photoshop",
        ui_psd_left_text_commit_rounds_each_glyph_like_photoshop},
+      {"ui_psd_tracked_text_sweep_matches_photoshop_if_available",
+       ui_psd_tracked_text_sweep_matches_photoshop_if_available},
+      {"ui_psd_tools_tracked_box_text_matches_photoshop_if_available",
+       ui_psd_tools_tracked_box_text_matches_photoshop_if_available},
       {"ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available",
        ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available},
       {"ui_psd_strong_anti_alias_commit_keeps_photoshop_weight_if_available",

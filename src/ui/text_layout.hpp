@@ -133,14 +133,16 @@ struct PhotoshopTextLayoutPlan {
 
 struct PhotoshopLineMetrics {
   double leading{0.0};         // max effective leading among the line's chars
-  double first_baseline{0.0};  // box text: max typoAscender x size among the line's chars
+  double first_baseline{0.0};  // box text: max ascender ("d" height) x size among the line's chars
 };
 
-// OS/2 sTypoAscender as a fraction of the em. Photoshop positions the first baseline of box
-// (paragraph) text at typoAscender x size below the box top (COM-calibrated against PS 2026:
-// Arial/Times/Verdana/Courier probes land within ~1% of typoAscender; Qt's ascent() is the
-// much larger usWinAscent and would sit the first line visibly too low). Cached per face.
-[[nodiscard]] double typographic_ascent_fraction(const QFont& font);
+// The font's ascender as Photoshop measures it, a fraction of the em: the top of the lowercase
+// "d" outline (the OS/2 typographic ascender for a face without one). Photoshop puts the first
+// baseline of box (paragraph) text at box top + this x size, rounded to a whole pixel (PS 2026
+// COM sweep over eight faces and four sizes: Calibri's "d" sits 7% of the em below its typo
+// ascender and Segoe UI's above it, and both land on the "d"; docs/text-render-calibration.md).
+// Qt's ascent() is the much larger usWinAscent. Cached per face.
+[[nodiscard]] double photoshop_ascender_fraction(const QFont& font);
 
 // The fractional font size a Photoshop-layout char format contributes to leading math.
 [[nodiscard]] double photoshop_char_exact_size(const QTextCharFormat& format);
@@ -177,9 +179,10 @@ struct PhotoshopLineMetrics {
 
 // Lay the document's lines out with Photoshop's leading model: the first line keeps Qt's
 // natural position for point text (the anchor machinery aligns rasters by the first line) or
-// sits typoAscender below the box top for box text; every following baseline advances by the
+// sits the ascender below the box top for box text; every following baseline advances by the
 // *entered* line's max leading (auto = paragraph fraction x size) plus paragraph spacing.
-// Line x positions stay Qt's own (alignment against the layout width).
+// Line x positions are Qt's own (alignment against the layout width) less each centred or
+// right-aligned line's share of the tracking Qt adds after its last glyph.
 [[nodiscard]] PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document, bool boxed);
 
 // Union of the INK boxes of every glyph a line draws (QRawFont::boundingRect per glyph, the

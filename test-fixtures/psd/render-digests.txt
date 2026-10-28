@@ -137,6 +137,12 @@ ff816697719a152d 0aae12782dc13be1 photoshop-text-point-auto-leading.psd
 e8b25f1100c4952d f0bc2cd0203e62a1 photoshop-text-point-fixed-leading.psd
 84826573a0d18355 70d3b3aea07a5ee5 photoshop-text-point-transformed.psd
 9f268ff43add0abb 2970b043cbe68d1f photoshop-text-rtl-hebrew.psd
+e13748be2fac3ee4 7d68e3bf711f3c2c photoshop-text-track-box-bold-shift-m8.psd
+d4be90ad4c541777 1dd8a90067f08d2b photoshop-text-track-box-center-m80.psd
+ca68cacc9894d66c 4cbeb2ed326c2a48 photoshop-text-track-box-center-p200.psd
+64c2e85e2b8ea156 ae713d203c412c1a photoshop-text-track-box-right-m80.psd
+fdc53e1211599c44 c3bf5965e92c0140 photoshop-text-track-box-right-p200.psd
+99f5c9160cb41e77 3ced5a33f7aea0eb photoshop-text-track-point-center-m80.psd
 38e72863eb93957d 3479c3a5ae371251 photoshop-text-tracking.psd
 1c89e216ca1581d5 5417b46e9aff2cfd photoshop-text-vertical-box.psd
 dfe519000d6a1f6b ca2850e3cb0c68c1 photoshop-text-vertical-point.psd

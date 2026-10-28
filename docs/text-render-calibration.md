@@ -13,8 +13,8 @@ Probe PSDs `photoshop-text-*.psd`. The rules apply when `kLayerMetadataTextLayou
 - **Style runs omit properties equal to their defaults**: a missing `/FontSize` is the paragraph style's (`/32`, [txt2.md](txt2.md)), else the normal sheet's, never a sibling's.
 - **Leading is per-character; a line's baseline advance = the max effective leading among the ENTERED line's characters.** Fixed leading applies only with `/AutoLeading false`; otherwise the recorded `/Leading` is stale and the effective value is the paragraph auto-leading fraction (default 1.2) x FontSize, sub-pixel exact. It may be smaller than the em.
 - **Point text anchors the FIRST baseline at the transform translation (tx, ty)**; justification decides whether tx is line start, middle, or end. No leading on the first line.
-- **Box text puts the first baseline at box top + OS/2 sTypoAscender x size** (largest run on line 1; capHeight and hhea/winAscent are wrong), read via QRawFont (`typographic_ascent_fraction`). Leading does not move it.
-- **Tracking = FontSize x tracking/1000 px per inter-glyph gap** (not after the last glyph), as absolute letter spacing.
+- **Box text puts the first baseline at box top + Ascent x size, rounded** (largest run on line 1; Ascent is the lowercase "d" height, "Tracking and alignment"). Leading does not move it.
+- **Tracking = FontSize x tracking/1000 px per inter-glyph gap** (not after the last glyph), as absolute letter spacing; centred and right lines align on the width without a trailing gap.
 - **VerticalScale/HorizontalScale scale glyphs only**; auto leading stays 1.2 x FontSize, unscaled.
 
 Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; v4 appends the faux-bold flag, v5 the face/style name, v6 the faux-italic flag, v7 the rotated-Roman flag of vertical type; paragraph v3 appends the auto-leading fraction, v4 the direction. Runs v8 adds baseline shift (engine pixels, positive raises glyphs) in column 15; both TySh and Txt2 preserve it. The snapped horizontal glyph renderer applies it before device rounding. Every column is read by INDEX, so the version token rises only when a run needs the new column and existing files stay byte-identical. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
@@ -73,9 +73,8 @@ into the glyph sizes only as far as the nearest whole pixel and leaves the remai
 the matrix rather than resampled after the fact. `dominant_text_run_size` picks the size that
 lands exactly (the largest run, vertical glyph scale included).
 
-Folding the whole scale would round the text off Photoshop's size for some layers only (Dungeon
-Scroll: 18 x 0.9 = 16.2 becomes 16 while 14.44444 x 0.9 = 13.0 does not move); the remainder in
-the matrix also agrees with the caret, which lays out at the raw size under the full transform.
+Folding the whole scale would round some layers off Photoshop's size (Dungeon Scroll: 18 x 0.9
+= 16.2 becomes 16, 14.44444 x 0.9 = 13.0 does not); the caret also lays out at the raw size.
 
 The fold runs for every Photoshop-layout render, scaling transform or not: a run's FontSize x
 VerticalScale is fractional on its own (issue 20: 1086.61 x 0.93 = 1010.55), and the width has
@@ -110,8 +109,8 @@ re-laid out through `textItem.contents`, ink bounds from the DOM) established th
 
 - **First baseline of box text = box top + OS/2 cap height x size**, measured on the same block
   with the font swapped to Arial (0.716 em), Times New Roman (0.662), Georgia (0.693) and
-  Verdana (0.727); the typo ascender the imported-PS model uses (Arial 0.728) is 3 px off at
-  268 px, Georgia's (0.756) 17 px. Qt's raster has it at winAscent (Arial 0.905, 47 px lower).
+  Verdana (0.727); the "d" Ascent Photoshop gives its own blocks (Georgia 0.756) is 17 px off
+  at 268 px. Qt's raster has it at winAscent (Arial 0.905, 47 px lower).
 - **A non-zero `/BoxBounds` top moves the text by TWICE its value** (+47.5 -> +95 px; the
   frame bottom is irrelevant), so the frame is never moved that way.
 - **The descriptor `bounds` top has no effect on layout** (-47.5 and +2.5 both render like 0),
@@ -143,8 +142,7 @@ transform re-renders included) and the Qt-free writer turns it into geometry:
   moves the origin back up by -top and shifts every rect along, storing the inset in the same
   key, so the frame Patchy edits reopens where it was, the GDI regeneration draws at the box top,
   and an unedited re-save writes the identical block. Photoshop-layout layers never carry it:
-  their blocks stay byte-stable (their first-baseline model, `typographic_ascent_fraction`, is
-  the typo ascender; whether Photoshop treats its own blocks like Patchy's is unverified).
+  their blocks stay byte-stable (their first-baseline model is Ascent, `photoshop_ascender_fraction`).
 - `patchy.text.auto_leading` (Qt-natural only): the baseline advance (line 2 minus line 1 of
   the first paragraph, else the first line's height) over `dominant_text_run_size`, written as the
   paragraph `/AutoLeading`, written with at most six decimals (`engine_short_fraction`):
@@ -212,6 +210,23 @@ without MS Gothic) and `psd_vertical_*captures*` in tests/core.
   `-305` and positive floats work
   (`psd_vertical_tracking_bug_file_resaves_with_integer_tracking_if_available`).
 
+## Tracking and alignment
+
+PS 2026 COM sweep (`scripts/dev/text-tracking/`; six captures in `test-fixtures/psd/
+photoshop-text-track-*.psd`): "TEXT", Arial 48 px, point/box, left/centre/right, tracking -80 to +200.
+
+- **Alignment uses the width without the trailing gap.** Qt's letter spacing follows the last
+  glyph too, so `photoshop_text_layout_plan` moves each centred or right left-to-right line by
+  its share of that tracking (point text: against its widest line); others never move.
+- **Box first baseline = round(box top + Ascent x size)**, halves up, Ascent being the top of
+  the lowercase "d" (`photoshop_ascender_fraction`; typo ascender only without a "d"): Arial 48
+  at top 40.10 lands on 74 and 40.15 on 75 ("d" 0.7158, typo 0.728). Calibri (0.678 vs typo
+  0.750), Segoe UI, Times, Verdana, Georgia, Courier New and Tahoma at 30 to 72 px all fit "d".
+  Baseline shift moves it by exactly its value. Patchy-written blocks get cap height (above).
+- Gaps: Qt's untracked "TEXT" advance is 122.66 px to Photoshop's 121.80 (right lines can sit a
+  column left); a fractional box top can land a row off. Pinned by
+  `ui_psd_centered_text_commit_rounds_line_start_like_photoshop` and two `_if_available` tests.
+
 ## Pixel grid and fractional anchors
 
 PS 27.9 COM captures: "Hg", Arial 48 px, Sharp, placed at x or y 100.0 / 100.3 /
@@ -224,40 +239,29 @@ PS 27.9 COM captures: "Hg", Arial 48 px, Sharp, placed at x or y 100.0 / 100.3 /
   document point, and integer moves add to them.
 - **Photoshop rasterizes with each LINE START rounded to a whole pixel, halves up**
   (`snap_to_pixel_grid`, core/pixel_grid.hpp: floor(v + 0.5)). The line start is the anchor minus
-  the justification offset in document space, so for left-aligned text it is the anchor: x 100.3
-  renders byte-identically to 100.0, and 100.5 and 100.7 identically to each other; y likewise
-  (100.5 is the 100.0 raster shifted one row), rotated and scaled layers included. Centered and
-  right-justified text does NOT round the anchor: the alignment sweep (`local-test-fixtures/
-  psd/ps2026_text_anchor_just/`, `capture_anchor_just.jsx`: left/center/right x 100.0/.3/.5/.7 x
-  scale 100%/90%, plus Bookman "Pause" replicas of the Dungeon Scroll buttons) puts the centered
-  "Hg" (advance box +-30.68) at column 72 for 100.0 but 73 for 100.3 (start 69.32 -> 69, 69.62 ->
-  70), scaled 90% at 75 then 76, and right-justified at 42 for all four (start 38.64..39.34 -> 39).
-  Every case, "Pause" at tx 305.35 included (column 286, the game file's own), fits
-  round(anchor + line offset) + left side bearing; none fits round(anchor) (rounding the anchor of
-  scaled centered text shifts the Dungeon Scroll buttons 2 px). Three places apply it. `build_text_render_plan` snaps dy and, for an axis-aligned transform,
+  the justification offset in document space, so left-aligned x 100.3 renders like 100.0 and
+  100.5 like 100.7; y likewise, rotated and scaled layers included. Centred and right text does
+  NOT round the anchor: the sweep (`local-test-fixtures/psd/ps2026_text_anchor_just/`,
+  `capture_anchor_just.jsx`: left/centre/right x 100.0/.3/.5/.7 x scale 100%/90%, plus Bookman
+  "Pause" replicas of the Dungeon Scroll buttons) puts the centred "Hg" (advance box +-30.68) at
+  column 72 for 100.0 but 73 for 100.3, scaled 90% at 75 then 76, right-justified at 42 for all
+  four. Every case fits round(anchor + line offset) + left side bearing, none round(anchor).
+  Three places apply it. `build_text_render_plan` snaps dy and, for an axis-aligned transform,
   keeps the fractional line start for the per-glyph rounding below (`round_line_starts` moves
-  whole lines only where glyphs are not aligned individually; rotated or sheared transforms and
-  the vertical/drawContents fallbacks keep the anchor snap). The session override that places an
-  imported layer's re-render puts Patchy's line start (local x 0) on Photoshop's start WITH its
-  fraction, so the first glyph rounds onto Photoshop's column and the rest round from the same
-  start: from the TySh advance box when the file has one
-  (`psd_point_text_local_bounds_transform_for_pixels`, scaled layers), else from Photoshop's own
-  ink column less this render's side bearing plus the anchor's fraction recorded at session entry
-  (`kTextEditorSourceLineStartFractionProperty`, anchor + advance-box left, or minus the
-  justification fraction of the visible width; `anchored_text_transform_for_pixels` for
-  translation-only layers, where the justification width correction is truncated to whole
-  pixels; `psd_point_text_document_bounds_transform_for_pixels` estimates the fraction from the
-  anchor for CS-era scaled layers such as Dungeon Scroll). A translation whose x is fractional
-  commits through the crisp re-render (`render_crisp_transformed_text_for_editor`), never a
-  half-pixel resample; a whole one still copies pixels. The editor's document point
-  (`set_text_editor_transform_override`, `rendered_text_bounds_for_editor`, session entry) rounds
-  the same way instead of flooring. Photoshop's own raster in the half fixture starts one column
-  later than the whole one (record rect 104 vs 103). Pinned by
-  `ui_text_transform_rerender_rounds_anchor_like_photoshop` (148.3 renders as 148.0, 148.5 as
-  149.0, the fraction survives in the stored transform), `ui_box_text_edit_keeps_fractional_anchor`,
-  `psd_text_anchor_captures_keep_fractional_transform`, and for centered text
-  `ui_psd_centered_text_commit_rounds_line_start_like_photoshop` on
-  `photoshop-text-anchor-center{,90}-{whole,third}.psd` plus the Dungeon Scroll probes.
+  whole lines only where glyphs are not aligned individually; rotated, sheared, vertical and
+  drawContents renders keep the anchor snap). The session override for an imported layer's
+  re-render puts Patchy's line start on Photoshop's WITH its fraction: from the TySh advance box
+  when the file has one (`psd_point_text_local_bounds_transform_for_pixels`), else from
+  Photoshop's ink column less this render's side bearing plus the anchor fraction recorded at
+  session entry (`kTextEditorSourceLineStartFractionProperty`; `anchored_text_transform_for_pixels`
+  truncates the justification width correction to whole pixels;
+  `psd_point_text_document_bounds_transform_for_pixels` estimates the fraction for CS-era scaled
+  layers). A fractional x translation commits through the crisp re-render
+  (`render_crisp_transformed_text_for_editor`), never a half-pixel resample. The editor's
+  document point (`set_text_editor_transform_override`, `rendered_text_bounds_for_editor`,
+  session entry) rounds the same way. Pinned by `ui_text_transform_rerender_rounds_anchor_like_photoshop`,
+  `ui_box_text_edit_keeps_fractional_anchor`, `psd_text_anchor_captures_keep_fractional_transform`
+  and `ui_psd_centered_text_commit_rounds_line_start_like_photoshop`.
 - **Glyph ink outside the advance box is kept, and the buffer grows around the origin.**
   Qt's line rect is the advance box; a negative left side bearing (script and italic faces: the
   Balmoral LET "é" starts 9 px left of the pen at 1011 px), ink past the last advance, or a swash
