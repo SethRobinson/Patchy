@@ -21,6 +21,7 @@
 #include "core/path_simplify.hpp"
 #include "core/shape_combine.hpp"
 #include "core/blend_math.hpp"
+#include "core/artboard.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
@@ -270,6 +271,22 @@ void MainWindow::commit_live_shape(LiveShapeParams params) {
 void MainWindow::handle_shape_create_requested(CanvasTool tool, QPointF document_point) {
   if (!has_active_document() || canvas_ == nullptr) {
     return;
+  }
+  // A click off the canvas (outside the document, or outside every artboard when it has
+  // artboards) deselects like Select > Deselect instead of asking for a size (Seth,
+  // October 28, 2026). Undo gets an entry only when a pixel selection went away.
+  {
+    const auto& doc = std::as_const(document());
+    const auto x = static_cast<std::int32_t>(std::floor(document_point.x()));
+    const auto y = static_cast<std::int32_t>(std::floor(document_point.y()));
+    const bool on_canvas = document_has_artboards(doc)
+                               ? artboard_at(doc, x, y) != nullptr
+                               : x >= 0 && y >= 0 && x < doc.width() && y < doc.height();
+    if (!on_canvas) {
+      canvas_->clear_path_anchor_selection();
+      canvas_->run_selection_command(tr("Deselect"), [this] { canvas_->clear_selection(); });
+      return;
+    }
   }
   auto& memory = shape_create_memory_[static_cast<int>(tool)];
   ShapeCreateRequest request;
