@@ -577,8 +577,12 @@ QWidget* preferences_current_page(QWidget& dialog);
 // A page's row by its title as listed ("Units & Grids"); -1 when missing. Pages get added
 // over time, so tests that want one page find it by name.
 int preferences_page_row(QWidget& dialog, const QString& title);
-// Selects that page as a click would and processes events; false when it is missing.
+// Selects that page as a click would and processes events until the page is built;
+// false when it is missing.
 bool select_preferences_page(QWidget& dialog, const QString& title);
+// Processes events until the page Preferences opened on is built: a Hotkeys or Colors and
+// Themes start page fills in after the dialog shows, under a preferencesLoadingNote.
+void wait_for_preferences_start_page(QWidget& dialog);
 // The Colors and Themes page's theme list, after selecting the page (its first visit
 // reads the themes). Rows carry their token in Qt::UserRole: "system", "dark", "light"
 // or "custom:" + theme id; section headers have none.

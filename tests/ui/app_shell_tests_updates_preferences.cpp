@@ -73,6 +73,7 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPushButton>
+#include <QListWidget>
 #include <QStringList>
 #include <QDateTime>
 #include <QScrollArea>
@@ -541,6 +542,10 @@ void ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts() {
     CHECK(child != nullptr && child->isVisible());
     QWindow* handle = dialog->windowHandle();
     CHECK(handle != nullptr && handle != window.windowHandle());
+    // Preferences keeps its wait cursor up until its first event-loop turn (local-022), and
+    // the fix leaves an application override cursor alone.
+    QApplication::processEvents();
+    CHECK(QApplication::overrideCursor() == nullptr);
     if (child != nullptr && handle != nullptr) {
       for (QWidget* widget : {static_cast<QWidget*>(dialog), child}) {
         QEnterEvent enter(QPointF(4, 4), QPointF(4, 4), QPointF(4, 4));
@@ -2149,6 +2154,60 @@ void ui_preferences_dialog_resizes_and_remembers_its_size() {
   run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) { CHECK(dialog.size() == target); });
 }
 
+// local-022: Preferences shows the wait cursor from the menu click until the dialog is up,
+// and a Hotkeys or Colors and Themes start page fills in after the dialog shows, under a
+// "Loading..." note, instead of holding the window back.
+void ui_preferences_open_shows_busy_cursor_and_fills_start_page_after_showing() {
+  SettingsValueRestorer restore_page(QStringLiteral("preferences/lastPage"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(QApplication::overrideCursor() == nullptr);
+  const auto loading_note = [](QDialog& dialog) {
+    return dialog.findChild<QLabel*>(QStringLiteral("preferencesLoadingNote"));
+  };
+
+  patchy::ui::set_stored_preferences_last_page(QStringLiteral("application"));
+  run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+    // Still up for the dialog's first turn of its event loop, then gone.
+    CHECK(QApplication::overrideCursor() != nullptr &&
+          QApplication::overrideCursor()->shape() == Qt::WaitCursor);
+    CHECK(loading_note(dialog) == nullptr);
+    QApplication::processEvents();
+    CHECK(QApplication::overrideCursor() == nullptr);
+  });
+  CHECK(QApplication::overrideCursor() == nullptr);
+
+  patchy::ui::set_stored_preferences_last_page(QStringLiteral("hotkeys"));
+  run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+    auto* note = loading_note(dialog);
+    CHECK(note != nullptr);
+    CHECK(note != nullptr && note->isVisible() && note->text() == QStringLiteral("Loading..."));
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) == nullptr);
+    save_widget_artifact("preferences_hotkeys_loading", dialog);
+    wait_for_preferences_start_page(dialog);
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) != nullptr);
+    CHECK(dialog.findChild<QPushButton*>(QStringLiteral("hotkeyChip.file.new.0")) != nullptr);
+    CHECK(QApplication::overrideCursor() == nullptr);
+  });
+  CHECK(QApplication::overrideCursor() == nullptr);
+
+  patchy::ui::set_stored_preferences_last_page(QStringLiteral("themes"));
+  run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+    auto* theme_list = dialog.findChild<QListWidget*>(QStringLiteral("preferencesThemeList"));
+    CHECK(theme_list != nullptr);
+    CHECK(loading_note(dialog) != nullptr);
+    wait_for_preferences_start_page(dialog);
+    CHECK(theme_list != nullptr && preferences_theme_row(*theme_list, QStringLiteral("dark")) >= 0);
+    CHECK(QApplication::overrideCursor() == nullptr);
+  });
+  CHECK(QApplication::overrideCursor() == nullptr);
+
+  // A dialog closed before its start page was built closes cleanly, cursor restored.
+  patchy::ui::set_stored_preferences_last_page(QStringLiteral("hotkeys"));
+  run_preferences_dialog(window, /*accept=*/true, [&](QDialog& dialog) { CHECK(loading_note(dialog) != nullptr); });
+  CHECK(QApplication::overrideCursor() == nullptr);
+}
+
 // GitHub issue 451: the pages are listed down the left, the arrow keys move through them,
 // and the dialog reopens on the page it was closed on (Hotkeys when asked for it).
 void ui_preferences_presets_page_opens_each_manager() {
@@ -3691,6 +3750,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_preferences_wheel_over_unfocused_control_scrolls_the_page", ui_preferences_wheel_over_unfocused_control_scrolls_the_page},
       {"ui_recent_filter_matches_file_names_and_extensions", ui_recent_filter_matches_file_names_and_extensions},
       {"ui_preferences_dialog_resizes_and_remembers_its_size", ui_preferences_dialog_resizes_and_remembers_its_size},
+      {"ui_preferences_open_shows_busy_cursor_and_fills_start_page_after_showing",
+       ui_preferences_open_shows_busy_cursor_and_fills_start_page_after_showing},
       {"ui_preferences_presets_page_opens_each_manager", ui_preferences_presets_page_opens_each_manager},
       {"ui_preferences_page_list_switches_pages_and_remembers_the_last",
        ui_preferences_page_list_switches_pages_and_remembers_the_last},

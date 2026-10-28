@@ -28095,6 +28095,10 @@ Fixiert: %1</translation>
         <source>Theme description:</source>
         <translation>Beschreibung des Themas:</translation>
     </message>
+    <message>
+        <source>Loading...</source>
+        <translation>Wird geladen...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

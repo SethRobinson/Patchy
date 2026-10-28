@@ -1133,13 +1133,30 @@ int preferences_page_row(QWidget& dialog, const QString& title) {
   return -1;
 }
 
+void wait_for_preferences_start_page(QWidget& dialog) {
+  // The note is hidden once its page is built, then deleted later.
+  const auto loading = [&dialog] {
+    const auto notes = dialog.findChildren<QLabel*>(QStringLiteral("preferencesLoadingNote"));
+    return std::any_of(notes.begin(), notes.end(), [](const QLabel* note) { return !note->isHidden(); });
+  };
+  QElapsedTimer timer;
+  timer.start();
+  QApplication::processEvents();
+  while (loading() && timer.elapsed() < 5000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  CHECK(!loading());
+  QApplication::processEvents();
+}
+
 bool select_preferences_page(QWidget& dialog, const QString& title) {
   const int row = preferences_page_row(dialog, title);
   if (row < 0) {
     return false;
   }
   preferences_page_list(dialog)->setCurrentRow(row);
-  QApplication::processEvents();
+  // The page the dialog opened on may still be filling in (wait_for_preferences_start_page).
+  wait_for_preferences_start_page(dialog);
   return true;
 }
 

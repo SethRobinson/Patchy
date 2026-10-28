@@ -28014,6 +28014,10 @@ Locked: %1</source>
         <source>Theme description:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Loading...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

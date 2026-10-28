@@ -28095,6 +28095,10 @@ Bloqueada: %1</translation>
         <source>Theme description:</source>
         <translation>Descripción del tema:</translation>
     </message>
+    <message>
+        <source>Loading...</source>
+        <translation>Cargando...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -28013,6 +28013,10 @@ Locked: %1</source>
         <source>Theme description:</source>
         <translation>佈景主題說明：</translation>
     </message>
+    <message>
+        <source>Loading...</source>
+        <translation>載入中...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 #include <system_error>
@@ -1149,6 +1150,42 @@ void set_working_cmyk_space(std::shared_ptr<const CmykWorkingSpace> space) {
 
 namespace {
 
+// What one profile file held when it was last read, kept for the session: Preferences lists
+// the installed profiles on every open, and opening and parsing each file again cost tens of
+// milliseconds per open (docs/cmyk.md, "Which profile"). A file whose size or write time
+// changed is read again.
+struct ProfileDescriptionCacheEntry {
+  std::uintmax_t size = 0;
+  std::filesystem::file_time_type written{};
+  std::optional<std::string> description;  // nullopt: not a wanted profile, or unreadable
+};
+
+std::optional<std::string> cached_profile_description(const std::filesystem::directory_entry& entry,
+                                                      bool (*is_wanted)(const std::filesystem::path&),
+                                                      cmsColorSpaceSignature space) {
+  static std::mutex mutex;
+  static std::map<std::pair<std::filesystem::path, cmsColorSpaceSignature>, ProfileDescriptionCacheEntry> cache;
+  std::error_code size_error;
+  std::error_code time_error;
+  const auto size = entry.file_size(size_error);
+  const auto written = entry.last_write_time(time_error);
+  const bool stamped = !size_error && !time_error;
+  const auto key = std::make_pair(entry.path(), space);
+  if (stamped) {
+    const std::lock_guard lock(mutex);
+    if (const auto found = cache.find(key);
+        found != cache.end() && found->second.size == size && found->second.written == written) {
+      return found->second.description;
+    }
+  }
+  auto description = is_wanted(entry.path()) ? profile_file_description(entry.path(), space) : std::nullopt;
+  if (stamped) {
+    const std::lock_guard lock(mutex);
+    cache[key] = ProfileDescriptionCacheEntry{size, written, description};
+  }
+  return description;
+}
+
 // Profiles of one color space in the operating system's and Adobe's profile folders, sorted
 // by description then path.
 std::vector<InstalledCmykProfile> installed_profiles(bool (*is_wanted)(const std::filesystem::path&),
@@ -1170,8 +1207,7 @@ std::vector<InstalledCmykProfile> installed_profiles(bool (*is_wanted)(const std
       }
       const auto path = entries->path();
       std::error_code file_error;
-      if (!has_profile_extension(path) || !entries->is_regular_file(file_error) || file_error ||
-          !is_wanted(path)) {
+      if (!has_profile_extension(path) || !entries->is_regular_file(file_error) || file_error) {
         continue;
       }
       if (std::any_of(profiles.begin(), profiles.end(), [&path](const auto& known) { return known.path == path; })) {
@@ -1180,7 +1216,7 @@ std::vector<InstalledCmykProfile> installed_profiles(bool (*is_wanted)(const std
       // Only the description is read: building a transform per profile took seconds with
       // Adobe's set installed, all of it while Preferences opened. A profile that turns
       // out unusable is refused when it is chosen.
-      auto description = profile_file_description(path, space);
+      auto description = cached_profile_description(*entries, is_wanted, space);
       if (!description.has_value()) {
         continue;
       }

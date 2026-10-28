@@ -70,7 +70,9 @@ operating system profile, so every machine without Adobe software, the Flatpak a
 browser show the same numbers.
 
 `installed_cmyk_profiles()` lists the CMYK profiles in the operating system's and Adobe's
-profile folders for the Preferences combo (bounded walk, header check first). Desktop
+profile folders for the Preferences combo (bounded walk, header check first). Each file's
+result is kept for the session and read again only when its size or write time changes,
+so reopening Preferences does not reparse every profile. Desktop
 builds also offer "Choose Profile File..."; the web build does not, because a picked file
 would not outlive the page.
 

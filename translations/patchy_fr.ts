@@ -28095,6 +28095,10 @@ Verrouillé : %1</translation>
         <source>Theme description:</source>
         <translation>Description du thème :</translation>
     </message>
+    <message>
+        <source>Loading...</source>
+        <translation>Chargement...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
