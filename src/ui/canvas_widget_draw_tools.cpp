@@ -501,7 +501,9 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
     }
 
     QRect document_rect;
-    if (editing_grayscale_target()) {
+    // The gradient covers the canvas unless transparency is locked (core draw_gradient grows
+    // the layer; GitHub issue 498), so the preview does too.
+    if (editing_grayscale_target() || !active_layer_locks_transparent_pixels()) {
       document_rect =
           QRect(0, 0, document_ != nullptr ? document_->width() : 0, document_ != nullptr ? document_->height() : 0);
     } else if (const auto layer_rect = active_layer_document_rect()) {

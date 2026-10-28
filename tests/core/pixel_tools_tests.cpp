@@ -912,6 +912,132 @@ void tool_fill_bucket_transparent_pixels_match_whatever_rgb_they_hold() {
   }
 }
 
+// GitHub issue 498, second cause: a rasterized text layer's buffer covers only the text, and
+// the rest of the canvas is that layer's transparency. The bucket floods the whole canvas
+// from a click inside or outside the buffer, reading outside as transparent, and grows the
+// layer to hold the fill (clipped to the selection's rect); the transparency lock keeps it
+// inside the buffer. 8, 16 and 32 bits; Contiguous on and off.
+void tool_fill_bucket_grows_a_layer_smaller_than_the_canvas() {
+  constexpr patchy::Rect kBuffer{20, 10, 16, 12};
+  const auto make = [&](patchy::BitDepth depth) {
+    patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer canvas_pixels(64, 48, patchy::PixelFormat::rgba8());
+    canvas_pixels.clear(0);
+    const auto id = document.add_pixel_layer("Type", std::move(canvas_pixels)).id();
+    patchy::PixelBuffer pixels(kBuffer.width, kBuffer.height, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    document.find_layer(id)->set_pixels(std::move(pixels));
+    document.find_layer(id)->set_bounds(kBuffer);
+    if (depth != patchy::BitDepth::UInt8) {
+      patchy::convert_document_depth(document, depth);
+    }
+    // An opaque "letter" at document (24..27, 14..17), inside the buffer.
+    auto& layer_pixels = document.find_layer(id)->pixels();
+    const auto format = layer_pixels.format();
+    for (std::int32_t y = 14; y < 18; ++y) {
+      for (std::int32_t x = 24; x < 28; ++x) {
+        patchy::store_pixel(format, layer_pixels.pixel(x - kBuffer.x, y - kBuffer.y), {40.0F, 40.0F, 40.0F, 255.0F});
+      }
+    }
+    return std::pair{std::move(document), id};
+  };
+  const auto alpha_at = [](const patchy::Document& document, patchy::LayerId id, std::int32_t x, std::int32_t y) {
+    const auto& layer = *document.find_layer(id);
+    const auto bounds = layer.bounds();
+    if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
+      return 0.0F;
+    }
+    return patchy::load_pixel(layer.pixels().format(), layer.pixels().pixel(x - bounds.x, y - bounds.y))[3];
+  };
+  const auto letter_kept = [](const patchy::Document& document, patchy::LayerId id) {
+    const auto& layer = *document.find_layer(id);
+    const auto bounds = layer.bounds();
+    const auto value = patchy::load_pixel(layer.pixels().format(), layer.pixels().pixel(25 - bounds.x, 15 - bounds.y));
+    return std::abs(value[1] - 40.0F) < 1.0F;
+  };
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    for (const bool contiguous : {true, false}) {
+      for (const auto [click_x, click_y] : {std::pair{2, 2}, std::pair{21, 11}}) {
+        auto [document, id] = make(depth);
+        auto options = tool_options(0, 180, 210);
+        options.flood_tolerance = 0;
+        options.flood_contiguous = contiguous;
+        const auto dirty = patchy::flood_fill(document, id, click_x, click_y, options);
+        CHECK(dirty.x == 0 && dirty.y == 0 && dirty.width == 64 && dirty.height == 48);
+        const auto& layer = *std::as_const(document).find_layer(id);
+        CHECK(layer.bounds().x == 0 && layer.bounds().y == 0 && layer.bounds().width == 64 &&
+              layer.bounds().height == 48);
+        CHECK(layer.pixels().format().bit_depth == depth);
+        for (const auto [x, y] : {std::pair{0, 0}, std::pair{63, 47}, std::pair{21, 11}, std::pair{35, 21},
+                                  std::pair{50, 5}}) {
+          CHECK(alpha_at(document, id, x, y) >= 254.0F);
+        }
+        CHECK(letter_kept(document, id));
+      }
+    }
+    // A selection clips the flood and the growth to its rect.
+    {
+      auto [document, id] = make(depth);
+      auto options = tool_options(0, 180, 210);
+      options.selection = patchy::Rect{0, 0, 30, 30};
+      CHECK(!patchy::flood_fill(document, id, 2, 2, options).empty());
+      const auto bounds = std::as_const(document).find_layer(id)->bounds();
+      CHECK(bounds.x == 0 && bounds.y == 0 && bounds.width == 36 && bounds.height == 30);
+      CHECK(alpha_at(document, id, 29, 29) >= 254.0F);
+      CHECK(alpha_at(document, id, 31, 12) <= 0.0F);
+      CHECK(letter_kept(document, id));
+    }
+    // The transparency lock: outside the buffer is not fillable and nothing grows.
+    {
+      auto [document, id] = make(depth);
+      auto options = tool_options(0, 180, 210);
+      options.lock_transparent_pixels = true;
+      CHECK(patchy::flood_fill(document, id, 2, 2, options).empty());
+      CHECK(patchy::flood_fill(document, id, 21, 11, options).empty());
+      const auto bounds = std::as_const(document).find_layer(id)->bounds();
+      CHECK(bounds.x == kBuffer.x && bounds.width == kBuffer.width);
+    }
+  }
+}
+
+// GitHub issue 498: Gradient and Fill (fill_rect) on a layer smaller than the canvas cover
+// the canvas, growing the layer; under the transparency lock they stay inside the buffer.
+void tool_gradient_and_fill_rect_grow_a_layer_smaller_than_the_canvas() {
+  constexpr patchy::Rect kBuffer{20, 10, 16, 12};
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16}) {
+    for (const bool locked : {false, true}) {
+      for (const bool gradient : {true, false}) {
+        patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+        patchy::PixelBuffer canvas_pixels(64, 48, patchy::PixelFormat::rgba8());
+        canvas_pixels.clear(0);
+        const auto id = document.add_pixel_layer("Type", std::move(canvas_pixels)).id();
+        patchy::PixelBuffer pixels(kBuffer.width, kBuffer.height, patchy::PixelFormat::rgba8());
+        pixels.clear(255);
+        document.find_layer(id)->set_pixels(std::move(pixels));
+        document.find_layer(id)->set_bounds(kBuffer);
+        if (depth != patchy::BitDepth::UInt8) {
+          patchy::convert_document_depth(document, depth);
+        }
+        auto options = tool_options(255, 0, 0);
+        options.secondary = patchy::EditColor{0, 0, 255, 255};
+        options.lock_transparent_pixels = locked;
+        const auto dirty = gradient ? patchy::draw_linear_gradient(document, id, 0, 0, 63, 0, options)
+                                    : patchy::fill_rect(document, id, patchy::Rect{0, 0, 64, 48}, options);
+        const auto bounds = std::as_const(document).find_layer(id)->bounds();
+        if (locked) {
+          CHECK(bounds.x == kBuffer.x && bounds.y == kBuffer.y && bounds.width == kBuffer.width);
+          CHECK(dirty.x == kBuffer.x && dirty.width == kBuffer.width);
+        } else {
+          CHECK(bounds.x == 0 && bounds.y == 0 && bounds.width == 64 && bounds.height == 48);
+          CHECK(dirty.x == 0 && dirty.width == 64 && dirty.height == 48);
+          const auto& layer_pixels = std::as_const(document).find_layer(id)->pixels();
+          CHECK(patchy::load_pixel(layer_pixels.format(), layer_pixels.pixel(1, 40))[3] >= 254.0F);
+        }
+      }
+    }
+  }
+}
+
 void tool_gradient_draws_foreground_to_background_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -1877,6 +2003,9 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
        tool_fill_bucket_transparency_lock_skips_transparent_pixels},
       {"tool_fill_bucket_transparent_pixels_match_whatever_rgb_they_hold",
        tool_fill_bucket_transparent_pixels_match_whatever_rgb_they_hold},
+      {"tool_fill_bucket_grows_a_layer_smaller_than_the_canvas", tool_fill_bucket_grows_a_layer_smaller_than_the_canvas},
+      {"tool_gradient_and_fill_rect_grow_a_layer_smaller_than_the_canvas",
+       tool_gradient_and_fill_rect_grow_a_layer_smaller_than_the_canvas},
       {"tool_gradient_draws_foreground_to_background_and_writes_artifact",
        tool_gradient_draws_foreground_to_background_and_writes_artifact},
       {"tool_gradient_supports_custom_stops_radial_reverse_and_alpha",

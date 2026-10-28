@@ -2649,30 +2649,53 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
     return {};
   }
 
-  auto& pixels = layer->pixels();
+  // A layer's buffer often covers only its content (rasterized text, a pasted piece), while
+  // the rest of the canvas is transparent pixels of the same layer (GitHub issue 498). With
+  // alpha and no transparency lock the flood runs over the whole canvas (clipped to the
+  // selection's rect), reads outside the buffer as transparent, and the layer grows to hold
+  // what it fills. Otherwise it stays inside the buffer.
   const auto bounds = layer->bounds();
-  const auto width = pixels.width();
-  const auto height = pixels.height();
-  const auto local_start_x = x - bounds.x;
-  const auto local_start_y = y - bounds.y;
-  if (local_start_x < 0 || local_start_y < 0 || local_start_x >= width || local_start_y >= height) {
+  const auto& source = std::as_const(*layer).pixels();
+  const auto format = source.empty() ? PixelFormat::rgba8() : source.format();
+  const auto channels = format.channels;
+  const auto has_alpha = channels >= 4;
+  const bool grows = has_alpha && !options.lock_transparent_pixels;
+  auto area = grows ? canvas_rect(document) : bounds;
+  if (grows && options.selection.has_value()) {
+    area = intersect_rect(area, *options.selection);
+  }
+  if (source.empty() && !grows) {
     return {};
   }
+  const auto in_buffer = [&](std::int32_t doc_x, std::int32_t doc_y) {
+    return !source.empty() && doc_x >= bounds.x && doc_y >= bounds.y && doc_x < bounds.x + bounds.width &&
+           doc_y < bounds.y + bounds.height;
+  };
+  const auto in_area = [&](std::int32_t doc_x, std::int32_t doc_y) {
+    return doc_x >= area.x && doc_y >= area.y && doc_x < area.x + area.width && doc_y < area.y + area.height;
+  };
+  if (!in_area(x, y) || (!grows && !in_buffer(x, y))) {
+    return {};
+  }
+  static constexpr std::array<std::uint8_t, 4> kTransparent{0, 0, 0, 0};
+  const auto source_pixel = [&](std::int32_t doc_x, std::int32_t doc_y) -> const std::uint8_t* {
+    return in_buffer(doc_x, doc_y) ? source.pixel(doc_x - bounds.x, doc_y - bounds.y) : nullptr;
+  };
 
-  const auto channels = pixels.format().channels;
-  const auto pixel_bytes = bytes_per_pixel(pixels.format());
-  const auto has_alpha = channels >= 4;
   std::array<std::uint8_t, 4> target{};
-  const auto* start_pixel = pixels.pixel(local_start_x, local_start_y);
-  for (std::uint16_t channel = 0; channel < channels && channel < target.size(); ++channel) {
+  const auto* start_pixel = source_pixel(x, y);
+  for (std::uint16_t channel = 0; start_pixel != nullptr && channel < channels && channel < target.size(); ++channel) {
     target[channel] = start_pixel[channel];
   }
   // 16/32-bit layers (docs/high-bit-depth.md) compare display-encoded values on the
   // deep scale, so the tolerance means the same as on an 8-bit layer.
-  const bool deep = pixels.format().bit_depth != BitDepth::UInt8;
-  const auto encoded_pixel = [&pixels](const std::uint8_t* px) {
-    auto values = load_pixel(pixels.format(), px);
-    if (pixels.format().bit_depth == BitDepth::Float32) {
+  const bool deep = format.bit_depth != BitDepth::UInt8;
+  const auto encoded_pixel = [format](const std::uint8_t* px) {
+    if (px == nullptr) {
+      return std::array<float, 4>{};  // outside the buffer: transparent
+    }
+    auto values = load_pixel(format, px);
+    if (format.bit_depth == BitDepth::Float32) {
       for (std::size_t c = 0; c < 3U; ++c) {
         values[c] = static_cast<float>(srgb_encode(static_cast<double>(values[c]) / 255.0) * 255.0);
       }
@@ -2680,8 +2703,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
     return values;
   };
   const auto deep_target = deep ? encoded_pixel(start_pixel) : std::array<float, 4>{};
-  const auto deep_start_alpha = deep ? load_pixel(pixels.format(), start_pixel)[3] : 0.0F;
-  if (options.lock_transparent_pixels && has_alpha && (deep ? deep_start_alpha <= 0.0F : target[3] == 0)) {
+  if (options.lock_transparent_pixels && has_alpha && (deep ? deep_target[3] <= 0.0F : target[3] == 0)) {
     return {};
   }
 
@@ -2690,11 +2712,11 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
   // Transparent pixels stay outside the region under the transparency lock, so the fill
   // neither paints nor travels through them.
   const auto tolerance = std::clamp(options.flood_tolerance, 0, 255);
-  const auto matches = [&](std::int32_t local_x, std::int32_t local_y) {
-    const auto* px = pixels.pixel(local_x, local_y);
+  const auto matches = [&](std::int32_t doc_x, std::int32_t doc_y) {
+    const auto* px = source_pixel(doc_x, doc_y);
     if (deep) {
       const auto value = encoded_pixel(px);
-      if (options.lock_transparent_pixels && has_alpha && load_pixel(pixels.format(), px)[3] <= 0.0F) {
+      if (options.lock_transparent_pixels && has_alpha && value[3] <= 0.0F) {
         return false;
       }
       const auto compared = std::min<std::size_t>(channels, 4U);
@@ -2716,56 +2738,56 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
       const auto limit = static_cast<double>(std::min(tolerance, 255));
       return distance_squared <= limit * limit * 4.0;
     }
+    if (px == nullptr) {
+      px = kTransparent.data();  // only reached with alpha (grows), so four channels
+    }
     if (options.lock_transparent_pixels && has_alpha && px[3] == 0) {
       return false;
     }
     return color_within_tolerance(px, target.data(), channels, tolerance);
   };
   enum : std::uint8_t { kUnvisited = 0, kInRegion = 1, kRejected = 2 };
-  std::vector<std::uint8_t> state(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), kUnvisited);
-  const auto state_at = [&](std::int32_t local_x, std::int32_t local_y) -> std::uint8_t& {
-    return state[static_cast<std::size_t>(local_y) * static_cast<std::size_t>(width) +
-                 static_cast<std::size_t>(local_x)];
+  std::vector<std::uint8_t> state(static_cast<std::size_t>(area.width) * static_cast<std::size_t>(area.height),
+                                  kUnvisited);
+  const auto state_at = [&](std::int32_t doc_x, std::int32_t doc_y) -> std::uint8_t& {
+    return state[static_cast<std::size_t>(doc_y - area.y) * static_cast<std::size_t>(area.width) +
+                 static_cast<std::size_t>(doc_x - area.x)];
   };
   Rect region_rect;
   std::size_t progress_counter = 0;
   if (options.flood_contiguous) {
     std::vector<std::pair<std::int32_t, std::int32_t>> stack;
-    stack.emplace_back(local_start_x, local_start_y);
+    stack.emplace_back(x, y);
     while (!stack.empty()) {
       report_edit_progress_periodically(options, progress_counter);
-      const auto [local_x, local_y] = stack.back();
+      const auto [doc_x, doc_y] = stack.back();
       stack.pop_back();
-      if (local_x < 0 || local_y < 0 || local_x >= width || local_y >= height) {
+      if (!in_area(doc_x, doc_y)) {
         continue;
       }
-      auto& cell = state_at(local_x, local_y);
+      auto& cell = state_at(doc_x, doc_y);
       if (cell != kUnvisited) {
         continue;
       }
-      const auto doc_x = local_x + bounds.x;
-      const auto doc_y = local_y + bounds.y;
-      if (!selection_allows(options, doc_x, doc_y) || !matches(local_x, local_y)) {
+      if (!selection_allows(options, doc_x, doc_y) || !matches(doc_x, doc_y)) {
         cell = kRejected;
         continue;
       }
       cell = kInRegion;
       region_rect = unite_rect(region_rect, Rect{doc_x, doc_y, 1, 1});
-      stack.emplace_back(local_x + 1, local_y);
-      stack.emplace_back(local_x - 1, local_y);
-      stack.emplace_back(local_x, local_y + 1);
-      stack.emplace_back(local_x, local_y - 1);
+      stack.emplace_back(doc_x + 1, doc_y);
+      stack.emplace_back(doc_x - 1, doc_y);
+      stack.emplace_back(doc_x, doc_y + 1);
+      stack.emplace_back(doc_x, doc_y - 1);
     }
   } else {
-    for (std::int32_t local_y = 0; local_y < height; ++local_y) {
-      for (std::int32_t local_x = 0; local_x < width; ++local_x) {
+    for (std::int32_t doc_y = area.y; doc_y < area.y + area.height; ++doc_y) {
+      for (std::int32_t doc_x = area.x; doc_x < area.x + area.width; ++doc_x) {
         report_edit_progress_periodically(options, progress_counter);
-        const auto doc_x = local_x + bounds.x;
-        const auto doc_y = local_y + bounds.y;
-        if (!selection_allows(options, doc_x, doc_y) || !matches(local_x, local_y)) {
+        if (!selection_allows(options, doc_x, doc_y) || !matches(doc_x, doc_y)) {
           continue;
         }
-        state_at(local_x, local_y) = kInRegion;
+        state_at(doc_x, doc_y) = kInRegion;
         region_rect = unite_rect(region_rect, Rect{doc_x, doc_y, 1, 1});
       }
     }
@@ -2786,10 +2808,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
     feather_rect = Rect{region_rect.x - pad, region_rect.y - pad, region_rect.width + 2 * pad,
                         region_rect.height + 2 * pad};
     const auto region_coverage = [&](std::int32_t doc_x, std::int32_t doc_y) -> float {
-      const auto local_x = doc_x - bounds.x;
-      const auto local_y = doc_y - bounds.y;
-      if (local_x < 0 || local_y < 0 || local_x >= width || local_y >= height ||
-          state_at(local_x, local_y) != kInRegion) {
+      if (!in_area(doc_x, doc_y) || state_at(doc_x, doc_y) != kInRegion) {
         return 0.0F;
       }
       return selection_coverage(options, doc_x, doc_y);
@@ -2797,13 +2816,17 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
     feather_factors = compute_fill_feather(region_coverage, feather_rect, band);
   }
 
+  if (grows) {
+    expand_layer_to_include_rect(*layer, region_rect);
+  }
+  auto& pixels = layer->pixels();
+  const auto written_bounds = layer->bounds();
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
   Rect dirty;
   for (std::int32_t doc_y = region_rect.y; doc_y < region_rect.y + region_rect.height; ++doc_y) {
-    const auto local_y = doc_y - bounds.y;
-    auto row = pixels.row(local_y);
+    auto row = pixels.row(doc_y - written_bounds.y);
     for (std::int32_t doc_x = region_rect.x; doc_x < region_rect.x + region_rect.width; ++doc_x) {
-      const auto local_x = doc_x - bounds.x;
-      if (state_at(local_x, local_y) != kInRegion) {
+      if (state_at(doc_x, doc_y) != kInRegion) {
         continue;
       }
       report_edit_progress_periodically(options, progress_counter);
@@ -2816,7 +2839,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
       if (coverage <= 0.0F) {
         continue;
       }
-      auto* px = row.data() + static_cast<std::size_t>(local_x) * pixel_bytes;
+      auto* px = row.data() + static_cast<std::size_t>(doc_x - written_bounds.x) * pixel_bytes;
       if (write_pixel(pixels, px, options, false, coverage)) {
         dirty = unite_rect(dirty, Rect{doc_x, doc_y, 1, 1});
       }
@@ -3043,6 +3066,15 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
     return {};
   }
 
+  // Like fill_rect: without the transparency lock the gradient covers the canvas (or the
+  // selection's rect), growing a layer whose buffer holds only its content (GitHub issue 498).
+  auto reach = canvas_rect(document);
+  if (options.selection.has_value()) {
+    reach = intersect_rect(reach, *options.selection);
+  }
+  if (!options.lock_transparent_pixels) {
+    expand_layer_to_include_rect(*layer, reach);
+  }
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto pixel_bytes = bytes_per_pixel(pixels.format());
@@ -3050,10 +3082,7 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
   // interpolate in linear light (docs/high-bit-depth.md).
   const bool deep = pixels.format().bit_depth != BitDepth::UInt8;
   const bool linear = pixels.format().bit_depth == BitDepth::Float32;
-  auto affected = intersect_rect(bounds, canvas_rect(document));
-  if (options.selection.has_value()) {
-    affected = intersect_rect(affected, *options.selection);
-  }
+  const auto affected = intersect_rect(bounds, reach);
   if (affected.empty()) {
     return {};
   }

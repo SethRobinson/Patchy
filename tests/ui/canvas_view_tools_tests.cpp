@@ -6753,6 +6753,78 @@ void ui_fill_opacity_accepts_zero_and_fills_nothing() {
   CHECK(filled[0] == 0 && filled[1] == 180 && filled[2] == 210);
 }
 
+// GitHub issue 498: rasterized text keeps a buffer the size of the text. The Fill tool,
+// clicked outside that rect, fills the whole canvas and Undo takes it back in one step;
+// the Magic Wand on that layer selects outside the rect too; Fill Layer with no selection
+// covers the canvas.
+void ui_fill_tool_wand_and_fill_command_reach_past_a_small_layer_buffer() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+  auto text_pixels = solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(text_pixels, QRect(10, 10, 12, 8), QColor(30, 30, 30, 255));
+  const auto layer_id =
+      document.add_pixel_layer("Type", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0))).id();
+  document.find_layer(layer_id)->set_pixels(std::move(text_pixels));
+  document.find_layer(layer_id)->set_bounds(patchy::Rect{60, 40, 40, 30});
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Small Layer Fill"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  const auto click = [&](QPoint point) {
+    const auto position = canvas->widget_position_for_document_point(point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const QColor fill_color(0, 180, 210);
+  const auto filled = [&](QPoint point) { return color_close(canvas_pixel(*canvas, point), fill_color, 8); };
+
+  canvas->set_tool(patchy::ui::CanvasTool::Fill);
+  canvas->set_primary_color(fill_color);
+  canvas->set_fill_tolerance(0);
+  canvas->set_fill_softness(0);
+  canvas->set_fill_opacity(100);
+  canvas->set_fill_contiguous(true);
+  // A click inside the old buffer fills through to the canvas edge.
+  click(QPoint(62, 42));
+  save_widget_artifact("issue498_fill_click_inside_small_layer", *canvas);
+  CHECK(filled(QPoint(5, 5)));
+  CHECK(filled(QPoint(155, 115)));
+  CHECK(!filled(QPoint(75, 55)));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  click(QPoint(5, 5));
+  CHECK(filled(QPoint(5, 5)));
+  CHECK(filled(QPoint(155, 115)));
+  CHECK(filled(QPoint(62, 42)));  // inside the old buffer
+  CHECK(!filled(QPoint(75, 55)));  // the letter
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(!filled(QPoint(5, 5)));
+  CHECK(!filled(QPoint(62, 42)));
+
+  canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  canvas->set_wand_tolerance(0);
+  canvas->set_wand_contiguous(false);
+  canvas->set_wand_sample_all_layers(false);
+  click(QPoint(5, 5));
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selected_document_region().contains(QPoint(5, 5)));
+  CHECK(canvas->selected_document_region().contains(QPoint(62, 42)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(75, 55)));
+  canvas->clear_selection();
+  QApplication::processEvents();
+
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(filled(QPoint(5, 5)));
+  CHECK(filled(QPoint(155, 115)));
+  CHECK(filled(QPoint(75, 55)));
+}
+
 void ui_fill_tool_tolerance_and_contiguous_persist_across_documents() {
   SettingsValueRestorer saved_tolerance(QStringLiteral("tools/fillTolerance"));
   SettingsValueRestorer saved_contiguous(QStringLiteral("tools/fillContiguous"));
@@ -10683,6 +10755,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_colors_survive_closing_last_document_and_carry_to_new_documents",
        ui_colors_survive_closing_last_document_and_carry_to_new_documents},
       {"ui_colors_restore_on_next_launch", ui_colors_restore_on_next_launch},
+      {"ui_fill_tool_wand_and_fill_command_reach_past_a_small_layer_buffer",
+       ui_fill_tool_wand_and_fill_command_reach_past_a_small_layer_buffer},
       {"ui_fill_tool_tolerance_and_contiguous_persist_across_documents",
        ui_fill_tool_tolerance_and_contiguous_persist_across_documents},
       {"ui_fill_opacity_accepts_zero_and_fills_nothing", ui_fill_opacity_accepts_zero_and_fills_nothing},

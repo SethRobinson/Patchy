@@ -4804,9 +4804,11 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
       continue;
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
+    // No selection fills the whole canvas: fill_rect grows a layer whose buffer covers only
+    // its content (GitHub issue 498); under the transparency lock it stays inside the buffer.
     const auto target = canvas_->has_selection() && canvas_->selected_document_rect().has_value()
                             ? to_core_rect(*canvas_->selected_document_rect())
-                            : layer->bounds();
+                            : Rect{0, 0, doc.width(), doc.height()};
     affected = unite_rect(affected, patchy::fill_rect(doc, id, target, options));
   }
   if (!affected.empty()) {
