@@ -13709,6 +13709,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>高度な描画: %1。クリックで描画オプションを開きます。</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>リスト</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>シェイプを名前付きのリストで表示</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>シェイプをサムネイルのグリッドで表示</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

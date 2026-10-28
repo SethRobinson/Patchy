@@ -3,16 +3,18 @@
 #include "ui/app_settings.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/preset_grid_widget.hpp"
 #include "ui/preset_tree_widget.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QFrame>
+#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSettings>
 #include <QTimer>
-#include <QTreeWidgetItemIterator>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -23,24 +25,18 @@ namespace patchy::ui {
 
 namespace {
 
-// Down or Enter in the search field reach the tree: the field keeps the focus for typing.
+// Down or Enter in the search field reach the list or grid: the field keeps the focus for typing.
 class PickerFilterKeys final : public QObject {
 public:
-  PickerFilterKeys(QTreeWidget* tree, std::function<void()> pick_first, QObject* parent)
-      : QObject(parent), tree_(tree), pick_first_(std::move(pick_first)) {}
+  PickerFilterKeys(PresetBrowserView* browser, std::function<void()> pick_first, QObject* parent)
+      : QObject(parent), browser_(browser), pick_first_(std::move(pick_first)) {}
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
     if (event->type() == QEvent::KeyPress) {
       const auto key = static_cast<QKeyEvent*>(event)->key();
       if (key == Qt::Key_Down) {
-        tree_->setFocus(Qt::TabFocusReason);
-        if (tree_->currentItem() == nullptr || tree_->currentItem()->isHidden()) {
-          for (QTreeWidgetItemIterator it(tree_, QTreeWidgetItemIterator::NotHidden); *it != nullptr; ++it) {
-            tree_->setCurrentItem(*it);
-            break;
-          }
-        }
+        browser_->focus_first_visible();
         return true;
       }
       if (key == Qt::Key_Return || key == Qt::Key_Enter) {
@@ -52,7 +48,7 @@ protected:
   }
 
 private:
-  QTreeWidget* tree_;
+  PresetBrowserView* browser_;
   std::function<void()> pick_first_;
 };
 
@@ -99,19 +95,40 @@ void CustomShapePickerCombo::showPopup() {
   layout->setContentsMargins(4, 4, 4, 4);
   layout->setSpacing(4);
 
+  auto* top_row = new QHBoxLayout();
+  top_row->setSpacing(2);
   auto* filter = new QLineEdit(popup);
   filter->setObjectName(QStringLiteral("customShapeComboFilter"));
   filter->setPlaceholderText(QObject::tr("Search shapes"));
   filter->setClearButtonEnabled(true);
-  layout->addWidget(filter);
+  top_row->addWidget(filter, 1);
+  auto* list_view_button = new QToolButton(popup);
+  list_view_button->setObjectName(QStringLiteral("customShapeComboListViewButton"));
+  list_view_button->setText(QObject::tr("List"));
+  list_view_button->setToolTip(QObject::tr("Show the shapes as a list with their names"));
+  auto* grid_view_button = new QToolButton(popup);
+  grid_view_button->setObjectName(QStringLiteral("customShapeComboGridViewButton"));
+  grid_view_button->setText(QObject::tr("Grid"));
+  grid_view_button->setToolTip(QObject::tr("Show the shapes as a grid of thumbnails"));
+  top_row->addWidget(list_view_button);
+  top_row->addWidget(grid_view_button);
+  layout->addLayout(top_row);
 
-  auto* tree = new PresetTreeWidget(popup);
-  tree->setObjectName(QStringLiteral("customShapeComboTree"));
-  tree->setSelectionMode(QAbstractItemView::SingleSelection);
+  // List (a row per shape with its name) or Grid (thumbnails, the name in the tooltip;
+  // GitHub issue 486 follow-up), remembered under kCustomShapePickerGridViewKey.
+  auto* tree = new PresetBrowserView(popup);
+  tree->tree()->setObjectName(QStringLiteral("customShapeComboTree"));
+  tree->tree()->setSelectionMode(QAbstractItemView::SingleSelection);
   // Enter or a double-click on a folder opens or closes it once (itemActivated below).
-  tree->setExpandsOnDoubleClick(false);
-  tree->setIconSize(QSize(32, 32));
-  tree->set_entry_row_height(38);
+  tree->tree()->setExpandsOnDoubleClick(false);
+  tree->tree()->setIconSize(QSize(32, 32));
+  tree->tree()->set_entry_row_height(38);
+  tree->grid()->setObjectName(QStringLiteral("customShapeComboGrid"));
+  tree->grid()->setSelectionMode(QAbstractItemView::SingleSelection);
+  tree->grid()->setIconSize(QSize(32, 32));
+  tree->grid()->set_cell_extent(40);
+  // A click on a header opens or closes it: choosing a folder means nothing here.
+  tree->grid()->set_folder_click_toggles(true);
   tree->set_folder_label_callback([](const QString& folder, int count) {
     return QObject::tr("%1 (%2)").arg(custom_shape_folder_display_name(folder)).arg(count);
   });
@@ -124,6 +141,10 @@ void CustomShapePickerCombo::showPopup() {
     return rows;
   });
   tree->set_collapsed_folders(app_settings().value(QLatin1String(kCustomShapePickerCollapsedFoldersKey)).toStringList());
+  tree->set_grid_view(app_settings().value(QLatin1String(kCustomShapePickerGridViewKey), true).toBool());
+  tree->connect_view_buttons(list_view_button, grid_view_button, [](bool grid) {
+    app_settings().setValue(QLatin1String(kCustomShapePickerGridViewKey), grid);
+  });
   QString current_storage_id;
   if (const auto* entry = library->find_entry_by_shape_id(currentData().toString()); entry != nullptr) {
     current_storage_id = entry->storage_id;
@@ -152,25 +173,23 @@ void CustomShapePickerCombo::showPopup() {
     }
   };
   tree->set_entry_clicked_callback(pick);
-  connect(tree, &QTreeWidget::itemActivated, popup, [pick](QTreeWidgetItem* item, int) {
+  connect(tree->tree(), &QTreeWidget::itemActivated, popup, [pick](QTreeWidgetItem* item, int) {
     if (const auto id = PresetTreeWidget::item_entry_id(item); !id.isEmpty()) {
       pick(id);
     } else if (item != nullptr) {
       item->setExpanded(!item->isExpanded());
     }
   });
-  connect(tree, &QTreeWidget::itemExpanded, popup, [save_collapsed](QTreeWidgetItem*) { save_collapsed(); });
-  connect(tree, &QTreeWidget::itemCollapsed, popup, [save_collapsed](QTreeWidgetItem*) { save_collapsed(); });
+  // Grid headers open and close inside the grid itself (a click, Enter).
+  connect(tree->grid(), &QListWidget::itemActivated, popup, [pick](QListWidgetItem* item) {
+    if (const auto id = PresetGridWidget::item_entry_id(item); !id.isEmpty()) {
+      pick(id);
+    }
+  });
+  tree->set_folder_toggled_callback(save_collapsed);
   connect(filter, &QLineEdit::textChanged, popup, [tree](const QString& text) { tree->set_filter_text(text); });
   filter->installEventFilter(new PickerFilterKeys(
-      tree,
-      [tree, pick] {
-        const auto current = PresetTreeWidget::item_entry_id(tree->currentItem());
-        const bool current_visible = !current.isEmpty() && !tree->currentItem()->isHidden() &&
-                                     (tree->currentItem()->parent() == nullptr || !tree->currentItem()->parent()->isHidden());
-        pick(current_visible ? current : tree->first_visible_entry_id());
-      },
-      filter));
+      tree, [tree, pick] { pick(tree->current_or_first_visible_entry_id()); }, filter));
   connect(manage, &QPushButton::clicked, popup, [this, popup] {
     popup->close();
     if (manage_) {

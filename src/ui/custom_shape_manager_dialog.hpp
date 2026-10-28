@@ -8,6 +8,10 @@ namespace patchy::ui {
 
 class CustomShapeLibrary;
 
+// Settings key of the Shapes Manager's view: true for the thumbnail grid (the default), false
+// for the list with names.
+inline constexpr char kCustomShapeManagerGridViewKey[] = "tools/customShapeManagerGridView";
+
 // Opens the modal Shapes Manager (Edit > Presets > Shapes Manager...),
 // the shape twin of the Pattern Manager: browse the library the options bar
 // Shape picker lists, rename, move into folders, duplicate, delete, import SVG

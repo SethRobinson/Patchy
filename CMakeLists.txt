@@ -1505,6 +1505,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/preset_library.cpp
       src/ui/preset_manager_scaffold.hpp
       src/ui/preset_manager_scaffold.cpp
+      src/ui/preset_grid_widget.hpp
+      src/ui/preset_grid_widget.cpp
       src/ui/preset_tree_widget.hpp
       src/ui/preset_tree_widget.cpp
       src/ui/psd_font_resolver.hpp

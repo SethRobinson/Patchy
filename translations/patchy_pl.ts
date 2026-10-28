@@ -13795,6 +13795,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>Zaawansowane mieszanie: %1. Kliknij, aby otworzyć opcje mieszania.</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>Lista</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>Pokaż kształty jako listę z nazwami</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>Pokaż kształty jako siatkę miniatur</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

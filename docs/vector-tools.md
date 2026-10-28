@@ -92,7 +92,7 @@ builtin's `introduced_version`), so a deleted default stays deleted.
 Edit > Presets > Shapes Manager (`request_custom_shape_manager`, GitHub
 issue 486; the hotkey id stays `edit.presets_custom_shapes`) is the Pattern
 Manager's shape twin: rename, folder, Move to New Folder, Rename Folder,
-drag shapes onto a folder row (`PresetTreeWidget::set_drop_callback`; the
+drag shapes onto a folder row (`set_drop_callback`; the
 rows never reorder, the library sorts by folder and name, so there is no
 manual order), duplicate, delete, Import of SVG files (`custom_shape_path_from_svg_file`, shared with
 Define Custom Shape from SVG File) and Photoshop `.csh` files
@@ -105,6 +105,16 @@ QComboBox for every caller, but its dropdown is a popup: a search field, the
 library as a folder tree (folders open and close; the closed ones persist in
 `tools/customShapePickerCollapsedFolders`, never rewritten while searching),
 and a Shapes Manager... button that opens the manager on the current shape.
+Both show the library through `PresetBrowserView` (preset_grid_widget.cpp):
+List is the `PresetTreeWidget`, Grid (the default) a `PresetGridWidget`,
+icon-only cells (name in the tooltip and accessible name) wrapping under
+full-width folder header rows that open and close from their arrow, a
+double-click, Enter or Left/Right (in the picker any click on a header). The
+grid matches the tree's selection (a selected header is its folder's shapes),
+filter, collapse memory and drop-onto-folder rules, and lists unfiled shapes
+before the folders. Switching keeps the current shape, the closed folders and
+the search; the view persists in `tools/customShapeManagerGridView` and
+`tools/customShapePickerGridView`.
 
 ### Photoshop .csh files
 
