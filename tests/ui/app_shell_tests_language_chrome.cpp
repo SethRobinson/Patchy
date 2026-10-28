@@ -800,12 +800,18 @@ void ui_main_window_persists_window_geometry() {
   CHECK(primary != nullptr);
   const QRect available = primary->availableGeometry();
   CHECK(available.isValid());
-  const QRect target = available.adjusted(20, 20, -120, -100);
+  QRect target = available.adjusted(20, 20, -120, -100);
   CHECK(target.width() > 0 && target.height() > 0);
   {
     patchy::ui::MainWindow window;
     window.show();
     QApplication::processEvents();
+    window.setGeometry(target);
+    QApplication::processEvents();
+    // The window's minimum height holds the Options bar wrapped at the target width
+    // (taller fonts wrap it further), so the target never asks for less than that.
+    target.setSize(target.size().expandedTo(window.minimumSize()));
+    CHECK(available.contains(target));
     window.setGeometry(target);
     QApplication::processEvents();
     // Closing a window with no modified documents accepts the close and persists geometry.

@@ -1654,8 +1654,11 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
         require_combo_data_index(*category, QStringLiteral("render")));
     search->setText(QStringLiteral("Clouds"));
     QApplication::processEvents();
-    CHECK(visible_gallery_filter_ids(*looks) ==
-          QStringList{QStringLiteral("patchy.filters.clouds")});
+    // Difference Clouds (GitHub issue 496) matches the search too.
+    auto visible_clouds = visible_gallery_filter_ids(*looks);
+    visible_clouds.sort();
+    CHECK(visible_clouds == QStringList({QStringLiteral("patchy.filters.clouds"),
+                                         QStringLiteral("patchy.filters.difference_clouds")}));
     auto* clouds = require_gallery_filter_item(
         *looks, QStringLiteral("patchy.filters.clouds"));
     bool ui_marker = false;

@@ -1263,10 +1263,13 @@ void ui_panel_collapse_and_close_leave_no_gap() {
 // issue 016): at 1044 px the Options bar wraps onto a second row, and its QSS
 // min-height hid that row from the window's minimum. Each section keeps its own
 // content's minimum, and the footer stays above the next section, at every height the
-// window takes, with sections open or not.
+// window takes, with sections open or not. The screen is tall enough for the column:
+// on a screen too short for it the fit takes a section under its content as a last
+// resort, which macOS's taller fonts reach on the 800 px offscreen screen.
 void ui_panel_column_short_window_keeps_sections_apart() {
   for (const bool with_document : {false, true}) {
     patchy::ui::MainWindow window;
+    patchy::ui::MainWindowTestAccess::set_available_window_height(window, 1200);
     if (with_document) {
       show_window(window);
     } else {
@@ -1306,8 +1309,7 @@ void ui_panel_column_short_window_keeps_sections_apart() {
                       qPrintable(context), window.width(), window.height(), window.minimumHeight(), column->height(),
                       column->minimumSizeHint().height(), options_bar != nullptr ? options_bar->height() : -1,
                       qPrintable(section->objectName()), top, section->height(), content_minimum,
-                      section->minimumHeight(), previous_bottom);
-        }
+                      section->minimumHeight(), previous_bottom);        }
         CHECK(top > previous_bottom);
         CHECK(section->height() >= content_minimum);
         previous_bottom = top + section->height() - 1;
