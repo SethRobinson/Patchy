@@ -301,9 +301,9 @@ QList<QGlyphRun> fragment_glyph_runs(const QTextBlock& block, const QTextLine& l
 
 }  // namespace
 
-// Photoshop's faux bold, applied to every run that carries kTextFauxBoldFormatProperty: stroke
-// the glyph outlines with a pen kFauxBoldEmFraction of the em wide and widen each advance by the
-// same amount. That is what Photoshop does -- it thickens the run's OWN face rather than
+// Photoshop's faux bold, applied to every run that carries kTextFauxBoldFormatProperty: widen
+// each advance by kFauxBoldAdvanceEmFraction of the em and stroke the glyph outlines with a pen
+// as wide, at most kFauxBoldMaxStrokePixels. That is what Photoshop does -- it thickens the run's OWN face rather than
 // switching to the family's real bold face, which is a different, wider typeface.
 //
 // Applied here rather than when the runs are parsed so it follows the format's current colour

@@ -1811,6 +1811,57 @@ void ui_la_methode_script_text_setter_matches_interactive_commit_if_available() 
   }
 }
 
+// psd-tools' layer_effects.psd (card local-018): eleven Arial Black 62.5px lines with FauxBold,
+// one layer style each, written by Photoshop CC 2017. The old 0.03 em faux bold ran the long
+// lines 2-6px past Photoshop's ink ("Gradient Overlay" to half-alpha column 703 against 698) and
+// 2px taller. With 0.027 em and the 1px stroke cap the lines end within 2px of the file's raster,
+// in both directions from line to line (Photoshop 2026's own faux bold captures are the exact
+// pin: ui_faux_bold_widening_matches_photoshop_captures).
+void ui_layer_effects_psd_faux_bold_commit_matches_photoshop_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("psd-tools/tests/psd_files", "layer_effects.psd");
+  patchy::test::skip_unless_exists(path);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  struct Probe {
+    const char* needle;
+    const char* artifact;
+  };
+  const std::array<Probe, 4> probes{{
+      {"Gradient Overlay", "ui_layer_effects_gradient_overlay_commit"},
+      {"Pattern Overlay", "ui_layer_effects_pattern_overlay_commit"},
+      {"Drop Shadow", "ui_layer_effects_drop_shadow_commit"},
+      {"Outer Glow", "ui_layer_effects_outer_glow_commit"},
+  }};
+  for (const auto& entry : probes) {
+    const auto probe = run_photoshop_text_commit_probe(path, entry.needle, 1.0, entry.artifact, "Arial Black");
+    if (!probe.has_value()) {
+      continue;
+    }
+    std::printf("  %-16s photoshop ink (%d,%d %dx%d) -> patchy ink (%d,%d %dx%d)\n", entry.needle,
+                probe->original_ink.x, probe->original_ink.y, probe->original_ink.width, probe->original_ink.height,
+                probe->committed_ink.x, probe->committed_ink.y, probe->committed_ink.width,
+                probe->committed_ink.height);
+    std::fflush(stdout);
+    CHECK(probe->original_layer.has_value() && probe->committed_layer.has_value());
+    if (probe->original_layer.has_value() && probe->committed_layer.has_value()) {
+      const auto photoshop_span = half_alpha_column_span(*probe->original_layer);
+      const auto committed_span = half_alpha_column_span(*probe->committed_layer);
+      CHECK(photoshop_span.has_value() && committed_span.has_value());
+      if (photoshop_span.has_value() && committed_span.has_value()) {
+        std::printf("  %-16s half-alpha columns photoshop %d..%d -> patchy %d..%d\n", entry.needle,
+                    photoshop_span->first, photoshop_span->second, committed_span->first, committed_span->second);
+        std::fflush(stdout);
+        CHECK(std::abs(committed_span->first - photoshop_span->first) <= 1);
+        CHECK(std::abs(committed_span->second - photoshop_span->second) <= 2);
+      }
+    }
+    CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 2);
+    CHECK(std::abs(probe->committed_ink.height - probe->original_ink.height) <= 1);
+    CHECK(std::abs(probe->committed_ink.x - probe->original_ink.x) <= 1);
+    CHECK(std::abs(probe->committed_ink.y - probe->original_ink.y) <= 1);
+  }
+}
+
 // The reported UI symptom on the same file: clicking into 'Dungeon:' came up Bold + Italic,
 // while Photoshop shows Italic with Faux Bold ticked in the Character panel.
 void ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available() {
@@ -3981,6 +4032,8 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_la_methode_psd_text_commit_scrolled_with_selection_if_available},
       {"ui_la_methode_script_text_setter_matches_interactive_commit_if_available",
        ui_la_methode_script_text_setter_matches_interactive_commit_if_available},
+      {"ui_layer_effects_psd_faux_bold_commit_matches_photoshop_if_available",
+       ui_layer_effects_psd_faux_bold_commit_matches_photoshop_if_available},
       {"ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available",
        ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available},
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",
