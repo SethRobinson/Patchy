@@ -2149,6 +2149,7 @@ void ui_preferences_dialog_resizes_and_remembers_its_size() {
 void ui_preferences_presets_page_opens_each_manager() {
   // Seth, October 28, 2026 (GitHub issue 485): a Presets page with one button per preset
   // manager, in Edit > Presets' order and groups, opening the same dialogs over Preferences.
+  SettingsValueRestorer restore_page(QStringLiteral("preferences/lastPage"));
   patchy::ui::MainWindow window;
   show_window(window);
   ColorSchemeRestorer restore_scheme;
@@ -2164,6 +2165,10 @@ void ui_preferences_presets_page_opens_each_manager() {
     ColorSchemeRestorer::apply(preference);
     const bool dark = preference == patchy::ui::ColorSchemePreference::Dark;
     run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+      // The last page of the list (Seth, October 28, 2026).
+      auto* list = preferences_page_list(dialog);
+      CHECK(list != nullptr && list->count() > 0 &&
+            list->item(list->count() - 1)->data(Qt::UserRole).toString() == QStringLiteral("presets"));
       CHECK(select_preferences_page(dialog, QStringLiteral("Presets")));
       QApplication::processEvents();
       auto* page = preferences_current_page(dialog);
@@ -2217,6 +2222,13 @@ void ui_preferences_presets_page_opens_each_manager() {
       }
     });
   }
+  // The remembered page is its id, so the move to the bottom reopens Presets.
+  CHECK(patchy::ui::stored_preferences_last_page() == QStringLiteral("presets"));
+  run_preferences_dialog(window, /*accept=*/false, [](QDialog& dialog) {
+    auto* list = preferences_page_list(dialog);
+    CHECK(list != nullptr && list->currentItem() != nullptr &&
+          list->currentItem()->text() == QStringLiteral("Presets"));
+  });
 }
 
 void ui_preferences_page_list_switches_pages_and_remembers_the_last() {
