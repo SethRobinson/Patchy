@@ -112,6 +112,9 @@ public:
   int lower_floors(int excess, int keep = 48);
   // Puts every section's floor back to its spec (Reset Panels, a taller screen).
   void restore_floors();
+  // Re-applies the expanded sections' floors after their content's minimum height
+  // changed (wrapped Layers rows): an unlowered floor is at least that minimum.
+  void refresh_floors();
   // The panel's preferred height changed (its preferred_content_height answers
   // differently). When the panel is open, expanded and in front, its section takes the
   // new height at once: a shorter one hands the difference to its neighbors, a taller
