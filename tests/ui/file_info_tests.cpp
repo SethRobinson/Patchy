@@ -31,6 +31,7 @@
 // the dialog viewing and editing it, undo, Strip All Metadata, and what each save and
 // export policy writes back.
 #include "formats/metadata/exif_tags.hpp"
+#include "formats/metadata/iptc_iim.hpp"
 #include "formats/metadata/metadata_containers.hpp"
 #include "formats/metadata/metadata_edit.hpp"
 #include "formats/metadata/metadata_inject.hpp"
@@ -58,7 +59,11 @@
 #include <QImageWriter>
 #include <QLabel>
 #include <QLineEdit>
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QListWidget>
+#include <QPlainTextEdit>
+#include <QTextCursor>
 #include <QMap>
 #include <QStringList>
 #include <QMessageBox>
@@ -514,6 +519,128 @@ void ui_psd_save_updates_exif_and_instance_id() {
   QApplication::processEvents();
 }
 
+
+// Issue 500: All Metadata shows EXIF dates as 2026-10-27 13:18:05 and IPTC DateCreated
+// and TimeCreated as 2026-10-27 and 13:18:05+02:00; Raw XMP and Copy XMP end at the
+// closing xpacket line without the packet padding. Saves file-info/readable-dates.png
+// (the EXIF IFD0, EXIF Exif and IPTC-IIM groups) and file-info/raw-xmp-end.png.
+void ui_file_info_shows_readable_dates_and_trims_xmp_padding() {
+  QImage image(16, 8, QImage::Format_RGB32);
+  image.fill(QColor(90, 160, 90));
+  QBuffer buffer;
+  buffer.open(QIODevice::WriteOnly);
+  QImageWriter writer(&buffer, "jpg");
+  CHECK(writer.write(image));
+  const auto& encoded = buffer.data();
+  std::vector<std::uint8_t> bytes(reinterpret_cast<const std::uint8_t*>(encoded.constData()),
+                                  reinterpret_cast<const std::uint8_t*>(encoded.constData()) + encoded.size());
+  md::TiffStream exif;
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kMake, "PatchyCam");
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kDateTime, "2026:10:27 13:18:05");
+  exif.set_ascii(md::IfdKind::Exif, md::exif_tag::kDateTimeOriginal, "2026:10:27 13:18:05");
+  exif.set_ascii(md::IfdKind::Exif, md::exif_tag::kDateTimeDigitized, "2026:10:27 13:18:05");
+  md::IimBlock iim;
+  iim.set_values(2, md::iim::kDateCreated, {"20261027"});
+  iim.set_values(2, md::iim::kTimeCreated, {"131805+0200"});
+  md::XmpPacket xmp;
+  xmp.set_lang_alt(md::xmp_ns::kDc, "title", "Dates");
+  md::SaveMetadata metadata;
+  metadata.exif = md::write_tiff(exif);
+  metadata.iptc = md::write_iim(iim);
+  metadata.xmp = md::serialize_xmp(xmp);
+  CHECK(metadata.xmp.find("    \n") != std::string::npos);  // the packet carries padding
+  bytes = md::inject_metadata(std::move(bytes), "jpg", metadata);
+  const auto path = artifact_dir() + QStringLiteral("/dates.jpg");
+  {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  // The driver runs inside Qt's event dispatch: failures are recorded, never thrown.
+  const auto expect = [](bool ok, const char* what) {
+    if (!ok) {
+      patchy::test::report_failure(std::string("readable-dates: ") + what);
+    }
+  };
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    expect(dialog != nullptr, "no File Info dialog");
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(std::max(dialog->width(), 900), std::max(dialog->height(), 640));
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
+    const auto show_page = [categories](const QString& page) {
+      for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+        if (categories->item(row)->data(Qt::UserRole).toString() == page) {
+          categories->setCurrentRow(row);
+        }
+      }
+      QApplication::processEvents();
+    };
+    show_page(QStringLiteral("fileInfoAllMetadataPage"));
+    auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("fileInfoAllMetadataTree"));
+    expect(tree != nullptr, "no All Metadata tree");
+    if (tree != nullptr) {
+      const auto value = [tree](const QString& name) {
+        const auto rows = tree->findItems(name, Qt::MatchExactly | Qt::MatchRecursive);
+        return rows.isEmpty() ? QString() : rows.front()->text(1);
+      };
+      expect(value(QStringLiteral("DateTime")) == QStringLiteral("2026-10-27 13:18:05"), "EXIF DateTime");
+      expect(value(QStringLiteral("DateTimeOriginal")) == QStringLiteral("2026-10-27 13:18:05"),
+             "EXIF DateTimeOriginal");
+      expect(value(QStringLiteral("DateTimeDigitized")) == QStringLiteral("2026-10-27 13:18:05"),
+             "EXIF DateTimeDigitized");
+      expect(value(QStringLiteral("DateCreated")) == QStringLiteral("2026-10-27"), "IPTC DateCreated");
+      expect(value(QStringLiteral("TimeCreated")) == QStringLiteral("13:18:05+02:00"), "IPTC TimeCreated");
+      for (int index = 0; index < tree->topLevelItemCount(); ++index) {
+        auto* group = tree->topLevelItem(index);
+        const auto name = group->text(0);
+        group->setHidden(name != QStringLiteral("EXIF IFD0") && name != QStringLiteral("EXIF Exif") &&
+                         name != QStringLiteral("IPTC-IIM"));
+        group->setExpanded(true);
+      }
+      tree->resizeColumnToContents(0);
+      tree->resizeColumnToContents(1);
+      tree->clearSelection();
+      tree->setCurrentItem(nullptr);
+      tree->scrollToTop();
+      QApplication::processEvents();
+      save_widget_artifact("file-info/readable-dates", *tree);
+    }
+
+    show_page(QStringLiteral("fileInfoRawXmpPage"));
+    auto* view = dialog->findChild<QPlainTextEdit*>(QStringLiteral("fileInfoRawXmpView"));
+    expect(view != nullptr, "no Raw XMP view");
+    if (view != nullptr) {
+      const auto text = view->toPlainText();
+      expect(text.endsWith(QStringLiteral("\n<?xpacket end=\"w\"?>")), "Raw XMP does not end at the xpacket line");
+      const auto trailer_at = text.lastIndexOf(QStringLiteral("<?xpacket end"));
+      expect(trailer_at >= 2 && !text.at(trailer_at - 2).isSpace(), "padding left before the xpacket line");
+      auto* copy = dialog->findChild<QPushButton*>(QStringLiteral("fileInfoCopyXmpButton"));
+      expect(copy != nullptr, "no Copy XMP button");
+      if (copy != nullptr) {
+        copy->click();
+        expect(QGuiApplication::clipboard()->text() == text, "Copy XMP differs from the view");
+      }
+      view->moveCursor(QTextCursor::End);
+      view->ensureCursorVisible();
+      QApplication::processEvents();
+      save_widget_artifact("file-info/raw-xmp-end", *view);
+    }
+    inspected = true;
+    dialog->reject();
+  });
+  require_action(window, "fileInfoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+}
 
 // Issue 219 captures: File Info after a PSD save shows the created and modified dates and
 // the creating application; a Photoshop file resaved by Patchy keeps its application and
@@ -1378,6 +1505,8 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_web_export_metadata_and_thumbnail_choices", ui_web_export_metadata_and_thumbnail_choices},
       {"ui_jpeg_save_as_stamps_a_new_document", ui_jpeg_save_as_stamps_a_new_document},
       {"ui_file_info_privacy_notice_can_be_hidden", ui_file_info_privacy_notice_can_be_hidden},
+      {"ui_file_info_shows_readable_dates_and_trims_xmp_padding",
+       ui_file_info_shows_readable_dates_and_trims_xmp_padding},
       {"ui_file_info_scans_for_watermarks", ui_file_info_scans_for_watermarks},
       {"ui_document_tab_scan_for_watermarks", ui_document_tab_scan_for_watermarks},
   };

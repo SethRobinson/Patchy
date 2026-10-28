@@ -1060,6 +1060,79 @@ void exif_dates_carry_their_time_offsets() {
   CHECK(fields.created == "2026-10-26T13:12:12");
 }
 
+// #500: File Info shows EXIF and IPTC dates with dashes and times with colons; the stored
+// values stay as the specifications write them, and malformed values are shown raw.
+void metadata_dates_display_readably() {
+  CHECK(md::exif_date_display("2026:10:27 13:18:05") == "2026-10-27 13:18:05");
+  CHECK(md::exif_date_display("2026:10:27") == "2026-10-27");
+  CHECK(md::exif_date_display("    :  :     :  :  ") == "    :  :     :  :  ");
+  CHECK(md::exif_date_display("2026:10:27 13:18") == "2026:10:27 13:18");
+  CHECK(md::exif_date_display("2026-10-27T13:18:05") == "2026-10-27T13:18:05");
+  CHECK(md::exif_date_display("").empty());
+
+  CHECK(md::iim_display_text(2, md::iim::kDateCreated, "20261027") == "2026-10-27");
+  CHECK(md::iim_display_text(2, md::iim::kTimeCreated, "131805+0200") == "13:18:05+02:00");
+  CHECK(md::iim_display_text(2, md::iim::kTimeCreated, "131805-0530") == "13:18:05-05:30");
+  CHECK(md::iim_display_text(2, md::iim::kTimeCreated, "131805") == "13:18:05");
+  CHECK(md::iim_display_text(2, 62, "20261027") == "2026-10-27");
+  CHECK(md::iim_display_text(2, 63, "131805+0000") == "13:18:05+00:00");
+  CHECK(md::iim_display_text(1, 70, "20261027") == "2026-10-27");
+  CHECK(md::iim_display_text(2, md::iim::kDateCreated, "2026102") == "2026102");
+  CHECK(md::iim_display_text(2, md::iim::kDateCreated, "2026-10-27") == "2026-10-27");
+  CHECK(md::iim_display_text(2, md::iim::kTimeCreated, "131805*0200") == "131805*0200");
+  CHECK(md::iim_display_text(2, md::iim::kTimeCreated, "13180") == "13180");
+  CHECK(md::iim_display_text(2, md::iim::kCity, "20261027") == "20261027");
+
+  md::TiffStream stream;
+  stream.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kDateTime, "2026:10:27 13:18:05");
+  stream.set_ascii(md::IfdKind::Exif, md::exif_tag::kDateTimeOriginal, "2026:10:26 08:00:00");
+  stream.set_ascii(md::IfdKind::Exif, md::exif_tag::kDateTimeDigitized, "not a date");
+  stream.set_ascii(md::IfdKind::Gps, 29, "2026:10:25");
+  md::IimBlock block;
+  block.set_values(2, md::iim::kDateCreated, {"20261027"});
+  block.set_values(2, md::iim::kTimeCreated, {"131805+0200"});
+  patchy::DocumentFileInfo info;
+  info.exif = patchy::make_metadata_bytes(md::write_tiff(stream));
+  info.iptc = patchy::make_metadata_bytes(md::write_iim(block));
+  const auto rows = md::describe_file_info(info, {});
+  const auto value = [&rows](std::string_view group, std::string_view name) {
+    for (const auto& row : rows) {
+      if (row.group == group && row.name == name) {
+        return row.value;
+      }
+    }
+    return std::string{"(missing)"};
+  };
+  CHECK(value("EXIF IFD0", "DateTime") == "2026-10-27 13:18:05");
+  CHECK(value("EXIF Exif", "DateTimeOriginal") == "2026-10-26 08:00:00");
+  CHECK(value("EXIF Exif", "DateTimeDigitized") == "not a date");
+  CHECK(value("EXIF GPS", "GPSDateStamp") == "2026-10-25");
+  CHECK(value("IPTC-IIM", "DateCreated") == "2026-10-27");
+  CHECK(value("IPTC-IIM", "TimeCreated") == "13:18:05+02:00");
+  CHECK(md::summarize_camera(info).date_original == "2026-10-26 08:00:00");
+  // The stored values are unchanged.
+  const auto parsed = md::parse_iim(*info.iptc);
+  CHECK(parsed && parsed->value(2, md::iim::kDateCreated) == "20261027");
+  const auto reread = md::parse_tiff(*info.exif);
+  const auto* ifd0 = reread ? reread->find(md::IfdKind::Ifd0) : nullptr;
+  const auto* date_time = ifd0 != nullptr ? ifd0->find(md::exif_tag::kDateTime) : nullptr;
+  CHECK(date_time != nullptr && reread->string_value(*date_time) == "2026:10:27 13:18:05");
+}
+
+// #500: Raw XMP drops the packet padding but keeps the closing processing instruction.
+void metadata_raw_xmp_display_drops_the_padding() {
+  const auto shown = [](const std::string& text) { return md::xmp_display_text(bytes_of(text)); };
+  const std::string head = "<?xpacket begin=\"\xEF\xBB\xBF\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n<x:xmpmeta/>";
+  const std::string padding = "\n" + std::string(2000, ' ') + "\n" + std::string(2000, ' ') + "\n";
+  CHECK(shown(head + padding + "<?xpacket end=\"w\"?>") == head + "\n<?xpacket end=\"w\"?>");
+  CHECK(shown(head + padding + "<?xpacket end='r'?>" + std::string(3, '\0') + "\r\n") ==
+        head + "\n<?xpacket end='r'?>");
+  CHECK(shown(head + padding) == head);
+  CHECK(shown("<x:xmpmeta/>") == "<x:xmpmeta/>");
+  CHECK(shown(head + "\n<?xpacket end=\"w\"?>") == head + "\n<?xpacket end=\"w\"?>");
+  CHECK(shown("   \n").empty());
+}
+
 void edit_fields_follow_mwg_and_mirror_legacy_blocks() {
   auto info = sample_info();
   const auto before = md::read_fields(info);
@@ -1774,6 +1847,8 @@ std::vector<patchy::test::TestCase> file_info_metadata_tests() {
       {"metadata_extract_file_info_from_unicode_paths", extract_file_info_from_unicode_paths},
       {"metadata_psd_round_trips_file_info_resources", psd_round_trips_file_info_resources},
       {"metadata_exif_dates_carry_their_time_offsets", exif_dates_carry_their_time_offsets},
+      {"metadata_dates_display_readably", metadata_dates_display_readably},
+      {"metadata_raw_xmp_display_drops_the_padding", metadata_raw_xmp_display_drops_the_padding},
       {"metadata_edit_fields_follow_mwg_and_mirror_legacy_blocks", edit_fields_follow_mwg_and_mirror_legacy_blocks},
       {"metadata_strip_and_targeted_removals", strip_and_targeted_removals},
       {"metadata_orientation_bakes_and_saves_as_normal", orientation_bakes_and_saves_as_normal},

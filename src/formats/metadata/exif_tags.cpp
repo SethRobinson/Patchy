@@ -663,6 +663,27 @@ std::string_view ifd_kind_label(IfdKind kind) noexcept {
   return "IFD";
 }
 
+std::string exif_date_display(std::string text) {
+  const auto digits = [&text](std::size_t from, std::size_t count) {
+    for (std::size_t i = from; i < from + count; ++i) {
+      if (text[i] < '0' || text[i] > '9') {
+        return false;
+      }
+    }
+    return true;
+  };
+  const bool date = text.size() >= 10 && digits(0, 4) && text[4] == ':' && digits(5, 2) && text[7] == ':' &&
+                    digits(8, 2);
+  const bool date_only = date && text.size() == 10;
+  const bool date_time = date && text.size() == 19 && text[10] == ' ' && digits(11, 2) && text[13] == ':' &&
+                         digits(14, 2) && text[16] == ':' && digits(17, 2);
+  if (date_only || date_time) {
+    text[4] = '-';
+    text[7] = '-';
+  }
+  return text;
+}
+
 std::string format_exif_value(const TiffStream& stream, IfdKind kind, const TiffEntry& entry) {
   const auto u = [&](std::uint32_t index = 0) { return stream.unsigned_value(entry, index); };
   const auto real = [&](std::uint32_t index = 0) { return stream.real_value(entry, index); };
@@ -700,6 +721,8 @@ std::string format_exif_value(const TiffStream& stream, IfdKind kind, const Tiff
       case 27:
       case 28:
         return prefixed_comment_text(entry.data);
+      case 29:
+        return exif_date_display(generic_value(stream, entry));
       default:
         break;
     }
@@ -726,6 +749,10 @@ std::string format_exif_value(const TiffStream& stream, IfdKind kind, const Tiff
       return enum_text(kResolutionUnit, u());
     case 531:
       return enum_text(kYCbCrPositioning, u());
+    case 306:
+    case 36867:
+    case 36868:
+      return exif_date_display(generic_value(stream, entry));
     case 700:
     case 33723:
     case 34377:
