@@ -13506,10 +13506,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13637,6 +13633,46 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -27863,10 +27899,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Define New Preset</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27896,6 +27928,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

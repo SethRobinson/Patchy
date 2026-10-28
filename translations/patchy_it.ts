@@ -13523,10 +13523,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Destinazione: ancora nessun piano</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>Forme personali</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>Cartella per le forme selezionate; lascia vuoto per rimuoverle dalle cartelle</translation>
     </message>
@@ -13655,6 +13651,46 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Photoshop Custom Shapes (*.csh)</source>
         <translation>Forme personali di Photoshop (*.csh)</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>Gestione forme</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>Sposta in una nuova cartella…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>Metti le forme selezionate in una nuova cartella</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>Rinomina cartella…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>Nome della cartella:</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>Sposta in una nuova cartella</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Nuova cartella</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>Rinomina cartella</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>Cerca forme</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Gestione forme...</translation>
     </message>
 </context>
 <context>
@@ -27944,10 +27980,6 @@ Bloccato: %1</translation>
         <translation>Gestione pattern...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>Forme personali...</translation>
-    </message>
-    <message>
         <source>Define New Preset</source>
         <translation>Definisci nuovo predefinito</translation>
     </message>
@@ -27978,6 +28010,10 @@ Bloccato: %1</translation>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>Importa forme .csh o SVG per lo strumento Forma personale.</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>Gestione forme...</translation>
     </message>
 </context>
 <context>

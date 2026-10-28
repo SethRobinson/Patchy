@@ -986,7 +986,7 @@ const std::vector<MainWindow::PresetManagerEntry>& MainWindow::preset_manager_en
       {QT_TR_NOOP("Pattern Manager..."), QT_TR_NOOP("Import .pat patterns or images and sort them into folders."),
        "editPresetsPatternsAction", "preferencesPresetsPatternsButton", "edit.presets_patterns",
        &MainWindow::open_pattern_manager, false},
-      {QT_TR_NOOP("Custom Shapes..."), QT_TR_NOOP("Import .csh or SVG shapes for the Custom Shape tool."),
+      {QT_TR_NOOP("Shapes Manager..."), QT_TR_NOOP("Import .csh or SVG shapes for the Custom Shape tool."),
        "editPresetsCustomShapesAction", "preferencesPresetsCustomShapesButton", "edit.presets_custom_shapes",
        &MainWindow::open_custom_shape_manager, true},
   };

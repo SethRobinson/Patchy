@@ -13486,10 +13486,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>目標：尚無平面</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>自訂形狀</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>所選形狀的資料夾，留空可將其從資料夾中移除</translation>
     </message>
@@ -13612,6 +13608,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Photoshop Custom Shapes (*.csh)</source>
         <translation>Photoshop 自訂形狀 (*.csh)</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>形狀管理員</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>移到新資料夾…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>將所選形狀放入新資料夾</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>重新命名資料夾…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>資料夾名稱:</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>移到新資料夾</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>新增資料夾</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>重新命名資料夾</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>搜尋形狀</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>形狀管理員...</translation>
     </message>
 </context>
 <context>
@@ -27862,10 +27898,6 @@ Locked: %1</source>
         <translation>圖樣管理員...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>自訂形狀...</translation>
-    </message>
-    <message>
         <source>Define New Preset</source>
         <translation>定義新預設集</translation>
     </message>
@@ -27896,6 +27928,10 @@ Locked: %1</source>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>為自訂形狀工具匯入 .csh 或 SVG 形狀。</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>形狀管理員...</translation>
     </message>
 </context>
 <context>

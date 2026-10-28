@@ -13486,10 +13486,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>対象: まだ平面がありません</translation>
     </message>
     <message>
-        <source>Custom Shapes</source>
-        <translation>カスタムシェイプ</translation>
-    </message>
-    <message>
         <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
         <translation>選択したシェイプのフォルダー。空欄にするとフォルダーから外します</translation>
     </message>
@@ -13612,6 +13608,46 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Photoshop Custom Shapes (*.csh)</source>
         <translation>Photoshop カスタムシェイプ (*.csh)</translation>
+    </message>
+    <message>
+        <source>Shapes Manager</source>
+        <translation>シェイプマネージャー</translation>
+    </message>
+    <message>
+        <source>Move to New Folder…</source>
+        <translation>新しいフォルダーに移動…</translation>
+    </message>
+    <message>
+        <source>Put the selected shapes in a new folder</source>
+        <translation>選択したシェイプを新しいフォルダーに入れます</translation>
+    </message>
+    <message>
+        <source>Rename Folder…</source>
+        <translation>フォルダー名を変更…</translation>
+    </message>
+    <message>
+        <source>Folder name:</source>
+        <translation>フォルダー名:</translation>
+    </message>
+    <message>
+        <source>Move to New Folder</source>
+        <translation>新しいフォルダーに移動</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>新しいフォルダー</translation>
+    </message>
+    <message>
+        <source>Rename Folder</source>
+        <translation>フォルダー名を変更</translation>
+    </message>
+    <message>
+        <source>Search shapes</source>
+        <translation>シェイプを検索</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>シェイプマネージャー...</translation>
     </message>
 </context>
 <context>
@@ -27862,10 +27898,6 @@ Locked: %1</source>
         <translation>パターンマネージャー...</translation>
     </message>
     <message>
-        <source>Custom Shapes...</source>
-        <translation>カスタムシェイプ...</translation>
-    </message>
-    <message>
         <source>Define New Preset</source>
         <translation>新規プリセットを定義</translation>
     </message>
@@ -27896,6 +27928,10 @@ Locked: %1</source>
     <message>
         <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
         <translation>カスタムシェイプツール用に .csh や SVG のシェイプを読み込みます。</translation>
+    </message>
+    <message>
+        <source>Shapes Manager...</source>
+        <translation>シェイプマネージャー...</translation>
     </message>
 </context>
 <context>

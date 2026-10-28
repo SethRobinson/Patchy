@@ -311,6 +311,41 @@ bool CustomShapeLibrary::set_shape_folder(const QString& storage_id, const QStri
                           [this](const CustomShapeLibraryEntry& entry) { return write_sidecar(entry); });
 }
 
+int CustomShapeLibrary::move_shapes_to_folder(const QStringList& storage_ids, const QString& folder) {
+  const auto target = folder.trimmed();
+  int moved = 0;
+  for (auto& entry : entries_) {
+    if (!storage_ids.contains(entry.storage_id) || entry.folder == target) {
+      continue;
+    }
+    auto updated = entry;
+    updated.folder = target;
+    if (write_sidecar(updated)) {
+      entry.folder = target;
+      ++moved;
+    }
+  }
+  if (moved > 0) {
+    sort_entries();
+    emit changed();
+  }
+  return moved;
+}
+
+int CustomShapeLibrary::rename_folder(const QString& from, const QString& to) {
+  const auto target = to.trimmed();
+  if (from.isEmpty() || target.isEmpty() || target == from) {
+    return 0;
+  }
+  QStringList ids;
+  for (const auto& entry : entries_) {
+    if (entry.folder == from) {
+      ids.append(entry.storage_id);
+    }
+  }
+  return move_shapes_to_folder(ids, target);
+}
+
 bool CustomShapeLibrary::remove_shape(const QString& storage_id) {
   return remove_shapes({storage_id}) == 1;
 }

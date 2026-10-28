@@ -7,6 +7,8 @@
 // order is load-bearing (see create_actions() for the phase order).
 
 #include "core/layer_alignment.hpp"
+#include "ui/custom_shape_library.hpp"
+#include "ui/custom_shape_picker.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/main_window.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -4249,7 +4251,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
 
   vector_vector_mode_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("Shape:"), {CanvasTool::CustomShape}));
-  custom_shape_combo_ = new QComboBox(toolbar);
+  // A folder-tree popup with search and a Shapes Manager... button (GitHub issue 486).
+  custom_shape_combo_ = new CustomShapePickerCombo(
+      [this]() -> const CustomShapeLibrary* { return &custom_shape_library(); },
+      [this] { open_custom_shape_manager(nullptr); }, toolbar);
   custom_shape_combo_->setObjectName(QStringLiteral("customShapeCombo"));
   custom_shape_combo_->setIconSize(QSize(24, 24));
   custom_shape_combo_->setFixedWidth(150);

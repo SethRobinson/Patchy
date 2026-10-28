@@ -6,6 +6,10 @@
 #include <QStringList>
 #include <QTreeWidget>
 
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
+
 #include <functional>
 #include <vector>
 
@@ -59,7 +63,25 @@ public:
   void set_special_row_clicked_callback(std::function<void(QTreeWidgetItem* item)> callback);
 
   void remember_collapsed_folders();
+  // The collapsed folder rows as the tree shows them now, and the set a reload starts from
+  // (the Custom Shape picker keeps it in settings).
+  [[nodiscard]] QStringList collapsed_folders() const;
+  void set_collapsed_folders(const QStringList& folders);
   void reload(const QString& select_id = {});
+
+  // Shows only the entries whose text contains `text` (case-insensitive), with their folders
+  // expanded; an empty text shows everything again with the folders as they were.
+  void set_filter_text(const QString& text);
+  // The first entry row the filter leaves visible, in tree order; empty when none.
+  [[nodiscard]] QString first_visible_entry_id() const;
+
+  // Turns on dragging entries onto folder rows: `moved` gets the selected entry ids and the
+  // target folder (a folder row, an entry's folder, or empty for the space below the rows,
+  // which ungroups them). Called after the drop returns, so it may reload the tree.
+  void set_drop_callback(std::function<void(const QStringList& ids, const QString& folder)> moved);
+  // What a drop of the selected rows onto `target` does (null: the space below the rows);
+  // dropEvent's whole effect, public so tests can drive it without a drag.
+  void drop_selected_on(const QTreeWidgetItem* target);
 
   // Entry id of the current row; empty for folder and special rows.
   [[nodiscard]] QString current_id() const;
@@ -68,7 +90,14 @@ public:
   [[nodiscard]] QStringList selected_ids() const;
   [[nodiscard]] static QString item_entry_id(const QTreeWidgetItem* item);
 
+protected:
+  void dragEnterEvent(QDragEnterEvent* event) override;
+  void dragMoveEvent(QDragMoveEvent* event) override;
+  void dropEvent(QDropEvent* event) override;
+
 private:
+  std::function<void(const QStringList&, const QString&)> drop_moved_;
+  QString filter_text_;
   std::function<std::vector<PresetTreeEntry>()> entries_;
   std::function<QString(const QString&, int)> folder_label_;
   std::function<void(QTreeWidget&)> prepend_rows_;

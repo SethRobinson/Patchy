@@ -50,6 +50,8 @@
 #include "ui/custom_shape_library.hpp"
 #include "ui/default_custom_shapes.hpp"
 #include "ui/preset_tree_widget.hpp"
+#include "ui/custom_shape_manager_dialog.hpp"
+#include "ui/custom_shape_picker.hpp"
 #include <QTreeWidgetItemIterator>
 #include "ui/blend_mode_ui.hpp"
 #include "ui/dialog_utils.hpp"
@@ -68,6 +70,7 @@
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QLabel>
+#include <QInputDialog>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -1387,7 +1390,7 @@ void ui_custom_shape_library_folders_duplicates_and_keeps_deleted_defaults() {
 }
 
 void ui_custom_shape_manager_edits_reach_the_shape_picker() {
-  // Edit > Presets > Custom Shapes... (GitHub issue 486): rename and
+  // Edit > Presets > Shapes Manager... (GitHub issue 486): rename and
   // duplicate show in the options bar Shape picker at once, and Use Shape
   // picks the shape for the Custom Shape tool.
   VectorSettingsGuard settings_guard;
@@ -1652,6 +1655,238 @@ void ui_edit_define_menu_holds_the_define_commands() {
   save_menu_with_open_submenu(*define_menu, "ui_edit_define_menu_open");
 }
 
+QTreeWidgetItem* shape_tree_folder_row(QTreeWidget& tree, const QString& folder) {
+  for (int index = 0; index < tree.topLevelItemCount(); ++index) {
+    auto* item = tree.topLevelItem(index);
+    if (item->data(0, patchy::ui::PresetTreeWidget::kFolderMarkerRole).toBool() &&
+        item->data(0, Qt::UserRole).toString() == folder) {
+      return item;
+    }
+  }
+  return nullptr;
+}
+
+QTreeWidgetItem* shape_tree_entry_row(QTreeWidget& tree, const QString& storage_id) {
+  for (QTreeWidgetItemIterator it(&tree); *it != nullptr; ++it) {
+    if (patchy::ui::PresetTreeWidget::item_entry_id(*it) == storage_id) {
+      return *it;
+    }
+  }
+  return nullptr;
+}
+
+void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
+  // GitHub issue 486 (Seth, October 28, 2026): the Shape picker's dropdown is a folder tree
+  // whose folders open and close (remembered), with search and a Shapes Manager... button.
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  SettingsValueRestorer saved_collapsed{QString::fromLatin1(patchy::ui::kCustomShapePickerCollapsedFoldersKey)};
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  auto* picker = dynamic_cast<patchy::ui::CustomShapePickerCombo*>(combo);
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return;
+  }
+  auto& library = patchy::ui::MainWindowTestAccess::custom_shape_library(window);
+  const auto heart_storage = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.heart"))->storage_id;
+  const auto star_storage = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.star"))->storage_id;
+  combo->setCurrentIndex(combo->findData(QStringLiteral("shape.builtin.heart")));
+  QApplication::processEvents();
+
+  const auto open_popup = [&]() -> patchy::ui::PresetTreeWidget* {
+    picker->showPopup();
+    QApplication::processEvents();
+    auto* popup = picker->picker_popup();
+    CHECK(popup != nullptr && popup->isVisible());
+    if (popup == nullptr) {
+      return nullptr;
+    }
+    return static_cast<patchy::ui::PresetTreeWidget*>(popup->findChild<QTreeWidget*>(QStringLiteral("customShapeComboTree")));
+  };
+  const auto close_popup = [&] {
+    if (auto* popup = picker->picker_popup(); popup != nullptr) {
+      popup->close();
+    }
+    QApplication::processEvents();
+    QTest::qWait(300);  // past the reopen guard
+  };
+
+  auto* tree = open_popup();
+  CHECK(tree != nullptr);
+  if (tree == nullptr) {
+    return;
+  }
+  // Folders with counts, both open at first, the current shape selected.
+  auto* arrows = shape_tree_folder_row(*tree, QStringLiteral("Arrows"));
+  auto* symbols = shape_tree_folder_row(*tree, QStringLiteral("Symbols"));
+  CHECK(arrows != nullptr && symbols != nullptr);
+  CHECK(arrows != nullptr && arrows->isExpanded() && arrows->text(0).startsWith(QStringLiteral("Arrows (")));
+  CHECK(tree->current_id() == heart_storage);
+  save_widget_artifact("ui_custom_shape_picker_popup", *picker->picker_popup());
+  // Closing a folder is remembered for the next opening.
+  if (arrows != nullptr) {
+    arrows->setExpanded(false);
+  }
+  QApplication::processEvents();
+  CHECK(patchy::ui::app_settings()
+            .value(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey))
+            .toStringList() == QStringList{QStringLiteral("Arrows")});
+  close_popup();
+  tree = open_popup();
+  CHECK(tree != nullptr);
+  if (tree == nullptr) {
+    return;
+  }
+  arrows = shape_tree_folder_row(*tree, QStringLiteral("Arrows"));
+  symbols = shape_tree_folder_row(*tree, QStringLiteral("Symbols"));
+  CHECK(arrows != nullptr && !arrows->isExpanded());
+  CHECK(symbols != nullptr && symbols->isExpanded());
+  tree->scrollToTop();
+  QApplication::processEvents();
+  save_widget_artifact("ui_custom_shape_picker_popup_folders", *picker->picker_popup());
+  // Search, then Enter picks the first match.
+  auto* filter = picker->picker_popup()->findChild<QLineEdit*>(QStringLiteral("customShapeComboFilter"));
+  CHECK(filter != nullptr);
+  if (filter != nullptr) {
+    filter->setText(QStringLiteral("sta"));
+    QApplication::processEvents();
+    CHECK(tree->first_visible_entry_id() == star_storage);
+    CHECK(arrows != nullptr && arrows->isHidden());
+    QTest::keyClick(filter, Qt::Key_Return);
+    QApplication::processEvents();
+  }
+  CHECK(combo->currentData().toString() == QStringLiteral("shape.builtin.star"));
+  CHECK(picker->picker_popup() == nullptr || !picker->picker_popup()->isVisible());
+  // Searching never overwrote the remembered folders.
+  CHECK(patchy::ui::app_settings()
+            .value(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey))
+            .toStringList() == QStringList{QStringLiteral("Arrows")});
+  close_popup();
+
+  // Shapes Manager... opens the manager on the current shape.
+  tree = open_popup();
+  QString manager_current;
+  bool saw_manager = false;
+  QTimer::singleShot(100, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
+    saw_manager = manager != nullptr;
+    if (manager == nullptr) {
+      return;
+    }
+    CHECK(manager->windowTitle() == QStringLiteral("Shapes Manager"));
+    auto* manager_tree =
+        static_cast<patchy::ui::PresetTreeWidget*>(manager->findChild<QTreeWidget*>(QStringLiteral("customShapeManagerTree")));
+    manager_current = manager_tree != nullptr ? manager_tree->current_id() : QString();
+    manager->reject();
+  });
+  auto* manage = picker->picker_popup() != nullptr
+                     ? picker->picker_popup()->findChild<QPushButton*>(QStringLiteral("customShapeComboManageButton"))
+                     : nullptr;
+  CHECK(manage != nullptr);
+  if (manage != nullptr) {
+    manage->click();
+  }
+  for (int pass = 0; pass < 20 && !saw_manager; ++pass) {
+    QTest::qWait(50);
+  }
+  CHECK(saw_manager);
+  CHECK(manager_current == star_storage);
+}
+
+void ui_custom_shape_manager_moves_and_renames_folders() {
+  // Organizing in the Shapes Manager (Seth, October 28, 2026): Move to New Folder...,
+  // Rename Folder..., and dropping shapes onto a folder row.
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::CustomShapeLibrary library(directory.filePath(QStringLiteral("shapes")));
+  CHECK(library.restore_default_shapes() > 0);
+  const auto heart = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.heart"))->storage_id;
+  const auto star = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.star"))->storage_id;
+  const auto plus = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.plus"))->storage_id;
+  const auto answer_folder_prompt = [](const QString& name) {
+    QTimer::singleShot(0, [name] {
+      auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerFolderNameDialog")));
+      CHECK(prompt != nullptr);
+      if (prompt != nullptr) {
+        prompt->setTextValue(name);
+        prompt->accept();
+      }
+    });
+  };
+  bool ran = false;
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
+    CHECK(manager != nullptr);
+    if (manager == nullptr) {
+      return;
+    }
+    auto* tree =
+        static_cast<patchy::ui::PresetTreeWidget*>(manager->findChild<QTreeWidget*>(QStringLiteral("customShapeManagerTree")));
+    auto* new_folder = manager->findChild<QPushButton*>(QStringLiteral("customShapeManagerNewFolderButton"));
+    auto* rename_folder = manager->findChild<QPushButton*>(QStringLiteral("customShapeManagerRenameFolderButton"));
+    CHECK(tree != nullptr && new_folder != nullptr && rename_folder != nullptr);
+    if (tree == nullptr || new_folder == nullptr || rename_folder == nullptr) {
+      return;
+    }
+    // Two shapes into a new folder.
+    tree->clearSelection();
+    shape_tree_entry_row(*tree, heart)->setSelected(true);
+    shape_tree_entry_row(*tree, star)->setSelected(true);
+    QApplication::processEvents();
+    CHECK(new_folder->isEnabled());
+    CHECK(!rename_folder->isEnabled());
+    answer_folder_prompt(QStringLiteral("Kit"));
+    new_folder->click();
+    QApplication::processEvents();
+    CHECK(library.find_entry(heart)->folder == QStringLiteral("Kit"));
+    CHECK(library.find_entry(star)->folder == QStringLiteral("Kit"));
+    // Rename the folder from its row.
+    auto* kit = shape_tree_folder_row(*tree, QStringLiteral("Kit"));
+    CHECK(kit != nullptr);
+    if (kit != nullptr) {
+      tree->setCurrentItem(kit);
+      QApplication::processEvents();
+      CHECK(rename_folder->isEnabled());
+      answer_folder_prompt(QStringLiteral("Kit 2"));
+      rename_folder->click();
+      QApplication::processEvents();
+    }
+    CHECK(library.find_entry(heart)->folder == QStringLiteral("Kit 2"));
+    CHECK(library.find_entry(star)->folder == QStringLiteral("Kit 2"));
+    // Drop Plus onto the renamed folder's row.
+    tree->clearSelection();
+    tree->setCurrentItem(shape_tree_entry_row(*tree, plus));
+    auto* kit2 = shape_tree_folder_row(*tree, QStringLiteral("Kit 2"));
+    CHECK(kit2 != nullptr);
+    tree->drop_selected_on(kit2);
+    QTest::qWait(20);
+    QApplication::processEvents();
+    CHECK(library.find_entry(plus)->folder == QStringLiteral("Kit 2"));
+    kit2 = shape_tree_folder_row(*tree, QStringLiteral("Kit 2"));
+    CHECK(kit2 != nullptr && kit2->childCount() == 3);
+    save_widget_artifact("ui_custom_shape_manager_folders", *manager);
+    // Dropping below the rows ungroups.
+    tree->clearSelection();
+    tree->setCurrentItem(shape_tree_entry_row(*tree, plus));
+    tree->drop_selected_on(nullptr);
+    QTest::qWait(20);
+    QApplication::processEvents();
+    CHECK(library.find_entry(plus)->folder.isEmpty());
+    ran = true;
+    manager->reject();
+  });
+  (void)patchy::ui::request_custom_shape_manager(nullptr, library, QStringLiteral("shape.builtin.heart"));
+  CHECK(ran);
+  // The moves reached the sidecars.
+  patchy::ui::CustomShapeLibrary reloaded(directory.filePath(QStringLiteral("shapes")));
+  CHECK(reloaded.find_entry(heart) != nullptr && reloaded.find_entry(heart)->folder == QStringLiteral("Kit 2"));
+  CHECK(reloaded.find_entry(plus) != nullptr && reloaded.find_entry(plus)->folder.isEmpty());
+}
+
 void ui_edit_presets_menu_lists_the_managers_in_order() {
   // GitHub issue 485: Edit > Presets gathers the preset managers.
   patchy::ui::MainWindow window;
@@ -1690,7 +1925,7 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
   }
   CHECK(texts == (QStringList{QStringLiteral("Styles Manager..."), QStringLiteral("Brush Tips..."),
                               QStringLiteral("Saved Brushes..."), QStringLiteral("Gradient Manager..."),
-                              QStringLiteral("Pattern Manager..."), QStringLiteral("Custom Shapes...")}));
+                              QStringLiteral("Pattern Manager..."), QStringLiteral("Shapes Manager...")}));
   // The menu is built from the list the Preferences Presets page reads.
   QStringList listed;
   for (const auto& entry : patchy::ui::MainWindow::preset_manager_entries()) {
@@ -6678,6 +6913,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_custom_shape_library_folders_duplicates_and_keeps_deleted_defaults},
       {"ui_custom_shape_manager_edits_reach_the_shape_picker", ui_custom_shape_manager_edits_reach_the_shape_picker},
       {"ui_edit_presets_menu_lists_the_managers_in_order", ui_edit_presets_menu_lists_the_managers_in_order},
+      {"ui_custom_shape_picker_groups_folders_and_opens_the_manager",
+       ui_custom_shape_picker_groups_folders_and_opens_the_manager},
+      {"ui_custom_shape_manager_moves_and_renames_folders", ui_custom_shape_manager_moves_and_renames_folders},
       {"ui_edit_define_menu_holds_the_define_commands", ui_edit_define_menu_holds_the_define_commands},
       {"ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes",
        ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes},
