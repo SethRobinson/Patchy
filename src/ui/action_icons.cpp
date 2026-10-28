@@ -476,9 +476,9 @@ QIcon themed_glyph_icon(QString name, qreal authored_size, QColor ThemePalette::
 }
 
 QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
-  // Two designs, chosen by the logical size (GitHub issue 484). The 22 px lock button icons draw
-  // on a 22 px grid where every glyph spans 1 to 21, leaving 2 px inside the button's border;
-  // smaller renders (the 14 px row badges) draw on a 16 px grid spanning 2 to 15. Painted as pixel
+  // Two designs on a 16 px grid, chosen by the logical size (GitHub issue 484). The 16 px lock
+  // button icons span 1 to 15, a 14 px glyph with 5 px to the button's border; smaller renders
+  // (the 14 px row badges) span 2 to 15 of the grid scaled to their size. Painted as pixel
   // art at the device size: straight edges round to whole pixels, and the pencil's diagonals, the
   // shackle's rounded top and the keyhole are decided pixel by pixel, so every pixel is fully
   // inked or empty at 100%, 150% and 200%.
@@ -490,10 +490,10 @@ QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
     const int side = std::min(device.width(), device.height());
     const int left = (device.width() - side) / 2;
     const int top = (device.height() - side) / 2;
-    const bool large = side >= qRound(20.0 * ratio);
-    const qreal grid = large ? 22.0 : 16.0;
+    const bool large = side >= qRound(16.0 * ratio);
+    constexpr qreal grid = 16.0;
     const qreal unit = side / grid;
-    // The large grid rounds from the nearer edge, so its glyphs stay mirror-symmetric at 150%.
+    // The button design rounds from the nearer edge, so its glyphs stay mirror-symmetric at 150%.
     const auto px = [unit, large, grid, side](qreal at) {
       if (large && at > grid / 2.0) {
         return side - qRound((grid - at) * unit);
@@ -602,29 +602,25 @@ QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
     painter.setBrush(ink);
     if (large) {
       if (kind == QStringLiteral("transparent")) {
-        // A framed 3x3 checkerboard of 6 px cells: the corners and the middle solid.
-        fill({cell(1, 1, 21, 2), cell(1, 20, 21, 21), cell(1, 1, 2, 21), cell(20, 1, 21, 21),
-              cell(1, 1, 8, 8), cell(14, 1, 21, 8), cell(8, 8, 14, 14), cell(1, 14, 8, 21),
-              cell(14, 14, 21, 21)});
+        // A framed 3x3 checkerboard of 4 px cells: the corners and the middle solid.
+        fill({cell(1, 1, 15, 2), cell(1, 14, 15, 15), cell(1, 1, 2, 15), cell(14, 1, 15, 15),
+              cell(1, 1, 6, 6), cell(10, 1, 15, 6), cell(6, 6, 10, 10), cell(1, 10, 6, 15),
+              cell(10, 10, 15, 15)});
       } else if (kind == QStringLiteral("pixels")) {
-        // A three-step outline, as heavy as the arrow's two-pixel stems.
-        pencil(cell(1, 1, 21, 21), 3.0);
+        // A two-step outline, as heavy as the arrow's two-pixel stems.
+        pencil(cell(1, 1, 15, 15), 3.0);
       } else if (kind == QStringLiteral("position")) {
         // Two-pixel stems; heads three rows deep.
-        arrow(cell(10, 1, 12, 21), cell(1, 10, 21, 12), std::max(1, px(4) - px(1)));
+        arrow(cell(7, 1, 9, 15), cell(1, 7, 15, 9), std::max(1, px(4) - px(1)));
       } else if (kind == QStringLiteral("autonest")) {
         // An artboard frame with crop ticks at two corners, holding a small solid layer.
-        fill({cell(6, 6, 16, 7), cell(6, 15, 16, 16), cell(6, 6, 7, 16), cell(15, 6, 16, 16),
-              cell(6, 1, 7, 6), cell(1, 6, 6, 7), cell(15, 16, 16, 21), cell(16, 15, 21, 16),
-              cell(9, 9, 13, 13)});
+        fill({cell(4, 4, 12, 5), cell(4, 11, 12, 12), cell(4, 4, 5, 12), cell(11, 4, 12, 12),
+              cell(4, 1, 5, 4), cell(1, 4, 4, 5), cell(11, 12, 12, 15), cell(12, 11, 15, 12),
+              cell(6, 6, 10, 10)});
       } else {
-        // "all": a two-pixel shackle over a 16x11 body with a round keyhole above a slot.
-        padlock(cell(5, 1, 17, 12), 4.0 * unit, cell(7, 3, 15, 13), 2.0 * unit, cell(3, 10, 19, 21));
-        const auto round_part = cell(9, 12, 13, 16);
-        clearing([&] {
-          plot(round_part, [&](int x, int y) { return in_rounded(round_part, round_part.width() / 2.0, x, y); });
-          fill({cell(10, 15, 12, 19)});
-        });
+        // "all": a two-pixel shackle over a 12x8 body with a keyhole slot.
+        padlock(cell(4, 1, 12, 9), 3.0 * unit, cell(6, 3, 10, 10), unit, cell(2, 7, 14, 15));
+        clearing([&] { fill({cell(7, 9, 9, 13)}); });
       }
     } else if (kind == QStringLiteral("transparent")) {
       // A framed 3x3 checkerboard: the corners and the middle solid.
