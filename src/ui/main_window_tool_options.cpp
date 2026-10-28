@@ -1468,7 +1468,7 @@ void MainWindow::set_active_layer_blend(int index) {
 
 // Photoshop's Shift+Plus / Shift+Minus for the layer mode (GitHub issue 476): one step down or
 // up the Layers panel's list with the closed combo's rules (separators, modes the document's
-// depth cannot use and Paint.NET's modes skipped, stopping at either end), committed through
+// depth cannot use and Paint.NET's modes skipped, wrapping around at either end), committed through
 // the combo, so a run of presses is one undo entry like a run of arrow-key steps.
 void MainWindow::step_layer_blend_mode(int direction) {
   if (!has_active_document() || blend_combo_ == nullptr || !blend_combo_->isEnabled() ||

@@ -404,7 +404,15 @@ bool blend_mode_combo_stepping(const QComboBox* combo) {
 }
 
 int blend_mode_step_index(const QComboBox* combo, int direction) {
-  return next_step_stop(combo, combo->currentIndex(), direction < 0 ? -1 : 1);
+  const auto step = direction < 0 ? -1 : 1;
+  const auto current = combo->currentIndex();
+  if (const auto next = next_step_stop(combo, current, step); next != current) {
+    return next;
+  }
+  // Past either end the step wraps to the other one, as Photoshop's does (#476).
+  const auto from = step > 0 ? -1 : combo->count();
+  const auto wrapped = next_step_stop(combo, from, step);
+  return wrapped == from ? current : wrapped;
 }
 
 void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
