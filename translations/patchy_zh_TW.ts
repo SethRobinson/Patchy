@@ -13916,6 +13916,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pick a new random seed</source>
         <translation>選擇新的隨機種子</translation>
     </message>
+    <message>
+        <source>No tool groups: every tool gets its own button</source>
+        <translation>不使用工具群組：每個工具都有自己的按鈕</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

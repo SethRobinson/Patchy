@@ -13959,6 +13959,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Pick a new random seed</source>
         <translation>Elegir una nueva semilla aleatoria</translation>
     </message>
+    <message>
+        <source>No tool groups: every tool gets its own button</source>
+        <translation>Sin grupos de herramientas: cada herramienta tiene su propio botón</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

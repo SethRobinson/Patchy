@@ -3956,6 +3956,7 @@ QJSValue ScriptEngineHost::tool_palette_state() {
   state.setProperty(QStringLiteral("layout"), QString::fromLatin1(customization.two_columns ? kScriptTwoColumnsLayout
                                                                                            : kScriptOneColumnLayout));
   state.setProperty(QStringLiteral("wheelScroll"), customization.wheel_scroll);
+  state.setProperty(QStringLiteral("ungroupTools"), customization.ungroup_tools);
   // The palette's gear was removed; the key stays and always reads false (a permanent identifier).
   state.setProperty(QStringLiteral("showGearButton"), false);
   state.setProperty(QStringLiteral("hiddenLayerButtons"), list(customization.hidden_layer_buttons));
@@ -4021,6 +4022,9 @@ void ScriptEngineHost::set_tool_palette_state(const QJSValue& state) {
   }
   if (state.hasProperty(QStringLiteral("wheelScroll"))) {
     customization.wheel_scroll = state.property(QStringLiteral("wheelScroll")).toBool();
+  }
+  if (state.hasProperty(QStringLiteral("ungroupTools"))) {
+    customization.ungroup_tools = state.property(QStringLiteral("ungroupTools")).toBool();
   }
   // showGearButton is accepted and ignored: the palette has no gear any more.
   window_.apply_tool_palette_customization(customization);

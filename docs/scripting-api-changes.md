@@ -14,6 +14,10 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-28 (additive): `patchy.ui.toolPalette.ungroupTools` (boolean, false by default): Customize
+Tool Palette's "No tool groups", every tool on its own button (GitHub issue 499,
+[tool-palette.md](tool-palette.md#customizing-the-palette)). Permanent identifier: the key. Pinned by
+`ui_script_tool_palette_reads_and_sets`.
 2026-10-28 (additive): `layer.resolvedTextFonts()`: per run of a text layer, `{text, font, family,
 style}`, the font the run names and the family and style the text engine really draws it in
 (`render_text_font_for_display_family` read back through `QFontInfo`). Permanent identifiers: the

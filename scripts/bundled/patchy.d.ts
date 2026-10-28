@@ -1656,6 +1656,8 @@ interface PatchyUi {
     hiddenTools?: string[];
     layout?: "oneColumn" | "twoColumns";
     wheelScroll?: boolean;
+    /** No tool groups: every tool on its own button, no flyouts (false by default). */
+    ungroupTools?: boolean;
     /** No longer used: the palette has no gear. Reads false; setting it does nothing. */
     showGearButton?: boolean;
     hiddenLayerButtons?: string[];

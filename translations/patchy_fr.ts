@@ -13959,6 +13959,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Pick a new random seed</source>
         <translation>Choisir une nouvelle graine aléatoire</translation>
     </message>
+    <message>
+        <source>No tool groups: every tool gets its own button</source>
+        <translation>Pas de groupes d&apos;outils : chaque outil a son propre bouton</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

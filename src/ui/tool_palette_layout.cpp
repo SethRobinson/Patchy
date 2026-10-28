@@ -18,6 +18,7 @@
 #include <QWidgetAction>
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace patchy::ui {
@@ -158,7 +159,7 @@ ToolPaletteLayout::ToolPaletteLayout(QToolBar* palette, QWidget* stash)
 }
 
 void ToolPaletteLayout::add_slot(int cluster, QToolButton* button, QMenu* menu, QList<QAction*> members,
-                                 QAction* cycle) {
+                                 QAction* cycle, QList<QToolButton*> member_buttons) {
   prepare_button(button);
   Slot slot;
   slot.cluster = cluster;
@@ -167,6 +168,14 @@ void ToolPaletteLayout::add_slot(int cluster, QToolButton* button, QMenu* menu, 
   slot.members = std::move(members);
   slot.cycle = cycle;
   slot.item = new ToolPaletteSlotAction(button, stash_, palette_);
+  // Member buttons pair with the members one to one, or the group never shows them.
+  if (menu != nullptr && member_buttons.size() == slot.members.size()) {
+    for (auto* member_button : member_buttons) {
+      prepare_button(member_button);
+      slot.member_buttons.push_back(member_button);
+      slot.member_items.push_back(new ToolPaletteSlotAction(member_button, stash_, palette_));
+    }
+  }
   slots_.push_back(std::move(slot));
 }
 
@@ -181,11 +190,6 @@ void ToolPaletteLayout::prepare_button(QToolButton* button) {
   button->setParent(stash_);
 }
 
-bool ToolPaletteLayout::slot_visible(const Slot& slot) const {
-  return std::any_of(slot.members.begin(), slot.members.end(),
-                     [this](const QAction* member) { return !tool_hidden(member); });
-}
-
 QList<QAction*> ToolPaletteLayout::visible_members(const Slot& slot) const {
   QList<QAction*> visible;
   for (auto* member : slot.members) {
@@ -194,6 +198,25 @@ QList<QAction*> ToolPaletteLayout::visible_members(const Slot& slot) const {
     }
   }
   return visible;
+}
+
+std::vector<std::pair<QToolButton*, QWidgetAction*>> ToolPaletteLayout::shown_buttons(const Slot& slot) const {
+  const auto visible = visible_members(slot);
+  if (visible.isEmpty()) {
+    return {};
+  }
+  // A group shows its own button while it holds two tools or more; with one left, or with no
+  // tool groups, each tool gets a plain button that opens no flyout (GitHub issue 499).
+  if (slot.member_buttons.isEmpty() || (!customization_.ungroup_tools && visible.size() > 1)) {
+    return {{slot.button, slot.item}};
+  }
+  std::vector<std::pair<QToolButton*, QWidgetAction*>> buttons;
+  for (qsizetype index = 0; index < slot.members.size(); ++index) {
+    if (visible.contains(slot.members[index])) {
+      buttons.emplace_back(slot.member_buttons[index], slot.member_items[index]);
+    }
+  }
+  return buttons;
 }
 
 bool ToolPaletteLayout::tool_hidden(const QAction* tool) const {
@@ -279,10 +302,11 @@ void ToolPaletteLayout::build_items() {
   const int spacing = palette_->layout() != nullptr ? palette_->layout()->spacing() : 1;
   bool first = true;
   for (int cluster = 0; cluster < clusters; ++cluster) {
-    std::vector<const Slot*> shown;
+    std::vector<std::pair<QToolButton*, QWidgetAction*>> shown;
     for (const auto& slot : slots_) {
-      if (slot.cluster == cluster && slot_visible(slot)) {
-        shown.push_back(&slot);
+      if (slot.cluster == cluster) {
+        const auto buttons = shown_buttons(slot);
+        shown.insert(shown.end(), buttons.begin(), buttons.end());
       }
     }
     if (shown.empty()) {
@@ -293,10 +317,10 @@ void ToolPaletteLayout::build_items() {
     }
     first = false;
     if (!customization_.two_columns) {
-      for (const auto* slot : shown) {
-        slot->item->setVisible(true);
-        palette_->addAction(slot->item);
-        items_.push_back({slot->item, false, nullptr});
+      for (const auto& [button, item] : shown) {
+        item->setVisible(true);
+        palette_->addAction(item);
+        items_.push_back({item, false, nullptr});
       }
       continue;
     }
@@ -309,7 +333,7 @@ void ToolPaletteLayout::build_items() {
       row_layout->setContentsMargins(0, 0, 0, 0);
       row_layout->setSpacing(spacing);
       for (std::size_t column = index; column < std::min(shown.size(), index + 2); ++column) {
-        auto* button = shown[column]->button;
+        auto* button = shown[column].first;
         button->setParent(row);
         row_layout->addWidget(button);
         button->show();
@@ -449,6 +473,9 @@ void ToolPaletteLayout::update_scroll_state() {
   }
   update_bottom_reserve();
   place_arrows();
+  if (on_footer_room_changed) {
+    on_footer_room_changed();
+  }
 }
 
 // The expand row is kept while the collapsed column hides anything: tools scrolled off the
@@ -463,10 +490,52 @@ void ToolPaletteLayout::update_bottom_reserve() {
     return;
   }
   bottom_reserve_ = wanted;
-  if (on_bottom_reserve_changed) {
-    on_bottom_reserve_changed();
+  if (on_footer_room_changed) {
+    on_footer_room_changed();
   }
   schedule_scroll_update();
+}
+
+double ToolPaletteLayout::footer_center_x() const {
+  if (palette_ == nullptr || !customization_.two_columns) {
+    return -1.0;
+  }
+  // The span of the first row holding two buttons: the two tool columns.
+  for (const auto& item : items_) {
+    if (item.row == nullptr || !item.action->isVisible()) {
+      continue;
+    }
+    const auto buttons = item.row->findChildren<QToolButton*>(Qt::FindDirectChildrenOnly);
+    if (buttons.size() < 2) {
+      continue;
+    }
+    int left = std::numeric_limits<int>::max();
+    int right = std::numeric_limits<int>::min();
+    for (const auto* button : buttons) {
+      const int x = button->mapTo(palette_.data(), QPoint(0, 0)).x();
+      left = std::min(left, x);
+      right = std::max(right, x + button->width());
+    }
+    return (left + right) / 2.0;
+  }
+  return -1.0;
+}
+
+int ToolPaletteLayout::tools_bottom() const {
+  if (palette_ == nullptr || !customization_.two_columns || expanded() || scroll_offset_ > 0 ||
+      bottom_reserve_ > 0 || (extension_ != nullptr && !extension_->isHidden())) {
+    return -1;
+  }
+  int bottom = -1;
+  for (const auto& item : items_) {
+    if (item.separator || !item.action->isVisible()) {
+      continue;
+    }
+    if (const auto* widget = palette_->widgetForAction(item.action); widget != nullptr && widget->isVisible()) {
+      bottom = std::max(bottom, widget->geometry().bottom() + 1);
+    }
+  }
+  return bottom;
 }
 
 void ToolPaletteLayout::place_arrows() {

@@ -14002,6 +14002,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pick a new random seed</source>
         <translation>Выбрать новое случайное начальное число</translation>
     </message>
+    <message>
+        <source>No tool groups: every tool gets its own button</source>
+        <translation>Без групп инструментов: у каждого инструмента своя кнопка</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

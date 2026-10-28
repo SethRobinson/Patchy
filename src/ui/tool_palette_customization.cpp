@@ -44,6 +44,8 @@ namespace {
 QString hidden_tools_key() { return QStringLiteral("toolPalette/hiddenTools"); }
 QString layout_key() { return QStringLiteral("toolPalette/layout"); }
 QString wheel_scroll_key() { return QStringLiteral("toolPalette/wheelScroll"); }
+// True when every tool shows on its own button (GitHub issue 499); absent for tool groups.
+QString ungroup_tools_key() { return QStringLiteral("toolPalette/ungroupTools"); }
 // toolPalette/showCustomizeButton belonged to the palette's gear, since removed: never reuse it.
 QString hidden_layer_buttons_key() { return QStringLiteral("layersPanel/hiddenFooterButtons"); }
 // The optional footer buttons the user showed (kLayerFooterButtonIdsHiddenByDefault).
@@ -78,7 +80,7 @@ public:
   void set_choice(const ToolPaletteDialogChoice& value) {
     choice_ = value;
     const QSize size = content_size();
-    const double factor = toolbar_icon_size_factor(choice_.icon_size);
+    const double factor = draw_factor();
     setFixedSize(qCeil(size.width() * factor), qCeil(size.height() * factor));
     update();
   }
@@ -93,7 +95,7 @@ protected:
     painter.setPen(colors.tool_palette_border);
     painter.drawLine(width() - 1, 0, width() - 1, height() - 1);
     // Laid out at the Normal size, drawn at the chosen one.
-    const double factor = toolbar_icon_size_factor(choice_.icon_size);
+    const double factor = draw_factor();
     painter.scale(factor, factor);
     const QSize size = content_size();
     const int columns = choice_.customization.two_columns ? 2 : 1;
@@ -164,23 +166,46 @@ private:
   static constexpr int kFooterRow = 17;
   static constexpr int kFooterGap = 6;
 
+  // Taller than this, the miniature is drawn smaller so it stays in the dialog: one column
+  // with no tool groups (GitHub issue 499) is about twice the grouped column.
+  static constexpr int kMaxHeight = 520;
+
   struct PreviewSlot {
     QIcon icon;
     bool flyout{false};
   };
 
+  // The chosen toolbar icon size, reduced when that would pass kMaxHeight.
+  [[nodiscard]] double draw_factor() const {
+    const double factor = toolbar_icon_size_factor(choice_.icon_size);
+    const int height = content_size().height();
+    return height * factor > kMaxHeight ? static_cast<double>(kMaxHeight) / height : factor;
+  }
+
   [[nodiscard]] bool shows(const char* footer_item) const {
     return !choice_.customization.hidden_footer_items.contains(QLatin1String(footer_item));
   }
 
+  // A group with one tool left shows as a plain button, and with no tool groups every tool
+  // gets its own (GitHub issue 499), as on the palette.
   [[nodiscard]] std::vector<PreviewSlot> visible_slots(const ToolPaletteCatalogCluster& cluster) const {
     std::vector<PreviewSlot> shown;
     for (const auto& entry : cluster.entries) {
+      std::vector<const ToolPaletteCatalogTool*> visible;
       for (const auto& member : entry.members) {
         if (!choice_.customization.hidden_tools.contains(member.id)) {
-          shown.push_back({member.icon, entry.flyout});
-          break;
+          visible.push_back(&member);
         }
+      }
+      if (visible.empty()) {
+        continue;
+      }
+      if (choice_.customization.ungroup_tools) {
+        for (const auto* member : visible) {
+          shown.push_back({member->icon, false});
+        }
+      } else {
+        shown.push_back({visible.front()->icon, entry.flyout && visible.size() > 1});
       }
     }
     return shown;
@@ -225,9 +250,10 @@ private:
 // The slot list. A cluster heading is bottom-aligned in a row taller than a tool's, and Qt
 // centers the expand/collapse sign in the row, above the name: the heading's sign is drawn in
 // the band of its text instead, so the sign and the name line up (GitHub issue 213 follow-up).
-// The shortcut column: its right-aligned keys end kGap px before the list's right edge, where
-// the scrollbar sits (GitHub issue 213 follow-up). An item-view QSS padding-right only widens
-// the column's size hint; the style still draws right-aligned text flush with the cell edge.
+// The shortcut column: its keys start together, left aligned (GitHub issue 499: right-aligned
+// letters of different widths looked ragged), and the widest ends kGap px before the list's
+// right edge, where the scrollbar sits (GitHub issue 213 follow-up). An item-view QSS
+// padding-right only widens the column's size hint; the style still draws to the cell edge.
 // The row's background is drawn across the whole cell, the text in the inset rect.
 class ShortcutColumnDelegate final : public QStyledItemDelegate {
 public:
@@ -429,6 +455,7 @@ ToolPaletteCustomization stored_tool_palette_customization() {
   value.hidden_tools = settings.value(hidden_tools_key()).toStringList();
   value.two_columns = settings.value(layout_key()).toString() == QLatin1String(kTwoColumnsToken);
   value.wheel_scroll = settings.value(wheel_scroll_key(), true).toBool();
+  value.ungroup_tools = settings.value(ungroup_tools_key(), false).toBool();
   value.hidden_layer_buttons = settings.value(hidden_layer_buttons_key()).toStringList();
   const auto shown_layer_buttons = settings.value(shown_layer_buttons_key()).toStringList();
   for (const auto* id : kLayerFooterButtonIdsHiddenByDefault) {
@@ -480,6 +507,11 @@ void set_stored_tool_palette_customization(const ToolPaletteCustomization& value
     settings.remove(wheel_scroll_key());
   } else {
     settings.setValue(wheel_scroll_key(), false);
+  }
+  if (normalized.ungroup_tools) {
+    settings.setValue(ungroup_tools_key(), true);
+  } else {
+    settings.remove(ungroup_tools_key());
   }
 }
 
@@ -570,6 +602,10 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   side->addWidget(one_column);
   side->addWidget(two_columns);
   side->addSpacing(6);
+  // GitHub issue 499: every tool on its own button, nothing hidden in a flyout.
+  auto* ungroup_tools = new QCheckBox(QObject::tr("No tool groups: every tool gets its own button"), tools_page);
+  ungroup_tools->setObjectName(QStringLiteral("toolPaletteUngroupToolsCheck"));
+  side->addWidget(ungroup_tools);
   auto* wheel_scroll = new QCheckBox(QObject::tr("Mouse wheel scrolls the palette when it overflows"), tools_page);
   wheel_scroll->setObjectName(QStringLiteral("toolPaletteWheelScrollCheck"));
   side->addWidget(wheel_scroll);
@@ -732,7 +768,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
       row->setText(0, entry.flyout ? entry.name : lead.name);
       row->setIcon(0, lead.icon);
       row->setText(1, entry.shortcut);
-      row->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
+      row->setTextAlignment(1, Qt::AlignLeft | Qt::AlignVCenter);
       row->setForeground(1, theme().text_secondary);
       if (entry.flyout) {
         row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
@@ -741,7 +777,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
           child->setText(0, member.name);
           child->setIcon(0, member.icon);
           child->setText(1, member.shortcut);
-          child->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
+          child->setTextAlignment(1, Qt::AlignLeft | Qt::AlignVCenter);
           child->setForeground(1, theme().text_secondary);
           child->setData(0, kIdRole, member.id);
           child->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
@@ -799,6 +835,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     keep_unlisted(current.customization.hidden_tools, listed_tools, value.hidden_tools);
     value.two_columns = two_columns->isChecked();
     value.wheel_scroll = wheel_scroll->isChecked();
+    value.ungroup_tools = ungroup_tools->isChecked();
     // The default choice already hides the optional buttons: start from the rows alone.
     value.hidden_layer_buttons.clear();
     for (int index = 0; index < layer_list->count(); ++index) {
@@ -890,6 +927,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     }
     (value.two_columns ? two_columns : one_column)->setChecked(true);
     wheel_scroll->setChecked(value.wheel_scroll);
+    ungroup_tools->setChecked(value.ungroup_tools);
     set_layer_rows(value);
     refresh_preset_combo();
     for (const auto& check : footer_checks) {
@@ -957,7 +995,11 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   QObject::connect(order_up, &QPushButton::clicked, &dialog, [&] { move_current_row(-1); });
   QObject::connect(order_down, &QPushButton::clicked, &dialog, [&] { move_current_row(1); });
   refresh_order_buttons();
-  std::vector<QAbstractButton*> toggles{two_columns, wheel_scroll};
+  std::vector<QAbstractButton*> toggles{two_columns, wheel_scroll, ungroup_tools};
+  // Without tool groups there is no flyout to open.
+  const auto refresh_flyout_open = [&] { flyout_open->setEnabled(!ungroup_tools->isChecked()); };
+  QObject::connect(ungroup_tools, &QAbstractButton::toggled, &dialog, [&](bool) { refresh_flyout_open(); });
+  refresh_flyout_open();
   for (const auto& check : footer_checks) {
     toggles.push_back(check.box);
   }

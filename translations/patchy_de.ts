@@ -13959,6 +13959,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Pick a new random seed</source>
         <translation>Einen neuen zufälligen Startwert wählen</translation>
     </message>
+    <message>
+        <source>No tool groups: every tool gets its own button</source>
+        <translation>Keine Werkzeuggruppen: jedes Werkzeug erhält eine eigene Schaltfläche</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

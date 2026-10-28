@@ -190,11 +190,6 @@ void ToolPaletteFooter::set_scale(double palette_factor) {
   background_->set_side(length(kSwatchSize));
   swap_->set_side(glyph_size_);
   default_->set_side(glyph_size_);
-  // Qt places the toolbar's extension button 2 px into the bottom margin, so
-  // the well starts 3 px down.
-  background_->move(length(17), length(19));
-  foreground_->move(length(4), length(7));
-  default_->move(1, length(30));
   quick_mask_->setIconSize(QSize(length(22), length(22)));
   if (screen_mode_ != nullptr) {
     screen_mode_->setIconSize(QSize(length(17), length(17)));
@@ -234,30 +229,50 @@ void ToolPaletteFooter::apply_rows() {
   }
 }
 
+void ToolPaletteFooter::set_center_x(double x) {
+  if (x == center_x_) {
+    return;
+  }
+  center_x_ = x;
+  place_controls();
+}
+
 void ToolPaletteFooter::place_controls() {
   if (quick_mask_ == nullptr || swap_ == nullptr) {
     return;
   }
+  const auto length = [this](int normal_px) { return tool_palette_length(normal_px, scale_); };
   // The well is laid out for the collapsed column, so an expanded palette keeps
   // these under the well rather than spread across the wider bar. The footer
   // spans the palette's full width, so its last column is the palette's 1 px
-  // right border.
-  const int cell = std::min(width(), cell_width_) - kPaletteBorder;
+  // right border. In two columns the column's cell is centered under the tools
+  // (GitHub issue 499); the collapsed column's own cell has the same center.
+  int left = 0;
+  int cell = std::min(width(), cell_width_) - kPaletteBorder;
+  if (center_x_ >= 0.0) {
+    left = std::clamp(qRound(center_x_ - cell_width_ / 2.0), 0, std::max(0, width() - cell_width_));
+    cell = cell_width_ - kPaletteBorder;
+  }
+  // Qt places the toolbar's extension button 2 px into the bottom margin, so
+  // the well starts 3 px down.
+  background_->move(left + length(17), length(19));
+  foreground_->move(left + length(4), length(7));
+  default_->move(left + 1, length(30));
   // The swap glyph stays 2 px clear of that border (GitHub issue 251: its arrow
   // ended in the column next to it and read as touching it), and sits as far
   // above the background swatch as it sits right of the foreground swatch.
-  swap_->move(cell - glyph_size_ - 2, tool_palette_length(5, scale_));
+  swap_->move(left + cell - glyph_size_ - 2, length(5));
   // Rows a customization hides take no height: the rows under them move up.
   const auto size = quick_mask_->size();
   const int quick_mask_top = shows_colors_ ? well_height_ : 0;
-  const int quick_mask_row = shows_quick_mask_ ? tool_palette_length(kQuickMaskRowHeight, scale_) : 0;
-  quick_mask_->move(std::max(0, (cell - size.width()) / 2),
+  const int quick_mask_row = shows_quick_mask_ ? length(kQuickMaskRowHeight) : 0;
+  quick_mask_->move(left + std::max(0, (cell - size.width()) / 2),
                     quick_mask_top + std::max(0, (quick_mask_row - size.height()) / 2));
   if (screen_mode_ != nullptr) {
     // The screen mode button's own row under Quick Mask, centered the same way.
     const auto mode_size = screen_mode_->size();
     const int row_top = quick_mask_top + quick_mask_row;
-    screen_mode_->move(std::max(0, (cell - mode_size.width()) / 2),
+    screen_mode_->move(left + std::max(0, (cell - mode_size.width()) / 2),
                        row_top + std::max(0, (height_ - row_top - mode_size.height()) / 2));
   }
 }

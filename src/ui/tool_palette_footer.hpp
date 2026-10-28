@@ -104,6 +104,9 @@ public:
   [[nodiscard]] bool shows_colors() const noexcept { return shows_colors_; }
   [[nodiscard]] bool shows_quick_mask() const noexcept { return shows_quick_mask_; }
   [[nodiscard]] bool shows_screen_mode() const noexcept { return shows_screen_mode_; }
+  // Two columns (GitHub issue 499): the x, in footer coordinates, the well and the buttons
+  // center on; negative lays them out in the collapsed column at the footer's left edge.
+  void set_center_x(double x);
   [[nodiscard]] int cell_width() const noexcept { return cell_width_; }
   [[nodiscard]] int well_height() const noexcept { return well_height_; }
   [[nodiscard]] int footer_height() const noexcept { return height_; }
@@ -113,9 +116,9 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-  // Places the controls measured from the palette's right border: the swap glyph
-  // 2 px clear of it (GitHub issue 251) and the Quick Mask button centered under
-  // the well (224).
+  // Places the controls in the column's cell, measured from the palette's right border: the
+  // swap glyph 2 px clear of it (GitHub issue 251) and the Quick Mask button centered under
+  // the well (224). Centered on set_center_x's x, the cell moves there whole (499).
   void place_controls();
   // The footer's height and the rows' visibility for the shown rows at the current scale.
   void apply_rows();
@@ -127,6 +130,7 @@ private:
   QToolButton* quick_mask_{nullptr};
   QToolButton* screen_mode_{nullptr};
   double scale_{1.0};
+  double center_x_{-1.0};
   int cell_width_{kWidth};
   int well_height_{kWellHeight};
   int height_{kHeight};
