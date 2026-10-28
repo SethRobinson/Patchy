@@ -886,7 +886,7 @@ private:
     if (merge_key != 0 && !undo_.empty() && undo_.back().merge_key == merge_key && redo_.empty()) {
       undo_.back().planes_after = planes_;
     } else {
-      push_history({before, planes_, {}, merge_key});
+      push_history({before, planes_, {}, merge_key, std::nullopt});
     }
     notify();
   }
@@ -1353,7 +1353,7 @@ private:
   void finish_stroke() {
     auto change = canvas_.end_stroke();
     if (!change.empty()) {
-      push_history({planes_, planes_, std::move(change), 0});
+      push_history({planes_, planes_, std::move(change), 0, std::nullopt});
     }
     notify();
   }
