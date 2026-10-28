@@ -1685,7 +1685,7 @@ void MainWindow::create_docks() {
     button->setCheckable(true);
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setIcon(layer_lock_icon(icon_key, &ThemePalette::icon_ink));
-    button->setIconSize(QSize(22, 22));
+    button->setIconSize(QSize(16, 16));
     button->setToolTip(tooltip);
     button->setFixedSize(24, 24);
     connect(button, &QToolButton::toggled, this, [this, flag](bool checked) {
@@ -1709,7 +1709,7 @@ void MainWindow::create_docks() {
   lock_all_button_->setCheckable(true);
   lock_all_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
   lock_all_button_->setIcon(layer_lock_icon(QStringLiteral("all"), &ThemePalette::icon_ink));
-  lock_all_button_->setIconSize(QSize(22, 22));
+  lock_all_button_->setIconSize(QSize(16, 16));
   bind_tooltip(lock_all_button_, QT_TR_NOOP("Lock all"));
   lock_all_button_->setFixedSize(24, 24);
   connect(lock_all_button_, &QToolButton::toggled, this, [this](bool checked) { set_active_layer_lock_all(checked); });
