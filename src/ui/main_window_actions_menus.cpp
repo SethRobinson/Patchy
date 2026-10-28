@@ -1460,7 +1460,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_smart_object_to_normal_action_->setIcon(simple_icon(QStringLiteral("RA"), QColor(220, 220, 160)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
   merge_visible_action->setIcon(simple_icon(QStringLiteral("merge")));
-  merge_down_action->setIcon(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)));
+  merge_down_action->setIcon(simple_icon(QStringLiteral("merge-down")));
   rename_layer_action->setIcon(simple_icon(QStringLiteral("RN")));
   delete_layer_action->setIcon(simple_icon(QStringLiteral("trash")));
   fill_layer_action->setIcon(simple_icon(QStringLiteral("fill")));

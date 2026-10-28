@@ -376,8 +376,10 @@ void apply_layer_footer_preset(ToolPaletteCustomization& value, LayerFooterPrese
                QStringLiteral("add_mask"),  QStringLiteral("delete")};
       break;
     case LayerFooterPreset::Krita:
-      shown = {QStringLiteral("new_layer"), QStringLiteral("duplicate"), QStringLiteral("move_down"),
-               QStringLiteral("move_up"), QStringLiteral("delete")};
+      // Krita's add button also offers groups, adjustment layers and masks (#471 follow-up).
+      shown = {QStringLiteral("new_layer"),      QStringLiteral("new_folder"), QStringLiteral("duplicate"),
+               QStringLiteral("new_adjustment"), QStringLiteral("add_mask"),   QStringLiteral("move_down"),
+               QStringLiteral("move_up"),        QStringLiteral("layer_styles"), QStringLiteral("delete")};
       break;
   }
   value.layer_button_order = shown;
@@ -514,7 +516,9 @@ QString tool_flyout_open_mode_label(ToolFlyoutOpenMode mode) {
 std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidget* parent,
                                                                            const ToolPaletteCatalog& catalog,
                                                                            const ToolPaletteDialogChoice& current,
-                                                                           ToolPaletteCustomizeTab tab) {
+                                                                           ToolPaletteCustomizeTab tab,
+                                                                           const std::function<void(ToolbarIconSize)>&
+                                                                               preview_layer_icon_size) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("toolPaletteCustomizeDialog"));
   auto* root = new QVBoxLayout(&dialog);
@@ -660,6 +664,21 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   preset_label->setBuddy(preset_combo);
   preset_row->addWidget(preset_label);
   preset_row->addWidget(preset_combo);
+  // The footer's own icon size (GitHub issue 213 follow-up): the toolbar icon size's steps,
+  // stored apart, shown on the footer as soon as it is picked.
+  preset_row->addSpacing(16);
+  auto* layer_icon_size_label = new QLabel(QObject::tr("Icon size:"), layers_page);
+  auto* layer_icon_size = new QComboBox(layers_page);
+  layer_icon_size->setObjectName(QStringLiteral("layerFooterIconSizeCombo"));
+  layer_icon_size->setToolTip(
+      QObject::tr("Size of the Layers panel's buttons, relative to the interface scale."));
+  for (const auto size : kToolbarIconSizes) {
+    layer_icon_size->addItem(toolbar_icon_size_label(size), toolbar_icon_size_token(size));
+  }
+  layer_icon_size->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  layer_icon_size_label->setBuddy(layer_icon_size);
+  preset_row->addWidget(layer_icon_size_label);
+  preset_row->addWidget(layer_icon_size);
   preset_row->addStretch(1);
   layers_layout->addLayout(preset_row);
   auto* layers_row = new QHBoxLayout();
@@ -801,6 +820,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     value = normalized_tool_palette_customization(std::move(value));
     choice.icon_size = toolbar_icon_size_from_token(icon_size->currentData().toString());
     choice.flyout_open_mode = tool_flyout_open_mode_from_token(flyout_open->currentData().toString());
+    choice.layer_icon_size = toolbar_icon_size_from_token(layer_icon_size->currentData().toString());
     return choice;
   };
   const auto refresh_preview = [&] {
@@ -878,6 +898,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     icon_size->setCurrentIndex(std::max(0, icon_size->findData(toolbar_icon_size_token(choice.icon_size))));
     flyout_open->setCurrentIndex(
         std::max(0, flyout_open->findData(tool_flyout_open_mode_token(choice.flyout_open_mode))));
+    layer_icon_size->setCurrentIndex(
+        std::max(0, layer_icon_size->findData(toolbar_icon_size_token(choice.layer_icon_size))));
     populating = false;
     refresh_preview();
   };
@@ -945,6 +967,11 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   for (auto* combo : {icon_size, flyout_open}) {
     QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { refresh_preview(); });
   }
+  if (preview_layer_icon_size) {
+    QObject::connect(layer_icon_size, &QComboBox::currentIndexChanged, &dialog, [&](int) {
+      preview_layer_icon_size(toolbar_icon_size_from_token(layer_icon_size->currentData().toString()));
+    });
+  }
 
   // Reset to Default on the left, OK and Cancel on the right.
   auto* footer = new QHBoxLayout();
@@ -964,6 +991,9 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
 
   tabs->setCurrentIndex(tab == ToolPaletteCustomizeTab::LayerButtons ? 1 : 0);
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    if (preview_layer_icon_size) {
+      preview_layer_icon_size(current.layer_icon_size);
+    }
     return std::nullopt;
   }
   return read_widgets();

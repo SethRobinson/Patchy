@@ -30,6 +30,7 @@ namespace {
 QString gui_scale_key() { return QStringLiteral("preferences/guiScalePercent"); }
 QString toolbar_icon_size_key() { return QStringLiteral("preferences/toolbarIconSize"); }
 QString tool_flyout_open_mode_key() { return QStringLiteral("preferences/toolFlyoutOpenMode"); }
+QString layer_footer_icon_size_key() { return QStringLiteral("layersPanel/footerIconSize"); }
 #ifndef Q_OS_WASM
 QString recovery_enabled_key() { return QStringLiteral("recovery/enabled"); }
 #endif
@@ -258,6 +259,19 @@ ToolbarIconSize stored_toolbar_icon_size() {
 void set_stored_toolbar_icon_size(ToolbarIconSize size) {
   auto settings = app_settings();
   settings.setValue(toolbar_icon_size_key(), toolbar_icon_size_token(size));
+}
+
+ToolbarIconSize stored_layer_footer_icon_size() {
+  return toolbar_icon_size_from_token(app_settings().value(layer_footer_icon_size_key()).toString());
+}
+
+void set_stored_layer_footer_icon_size(ToolbarIconSize size) {
+  auto settings = app_settings();
+  if (size == ToolbarIconSize::Normal) {
+    settings.remove(layer_footer_icon_size_key());
+  } else {
+    settings.setValue(layer_footer_icon_size_key(), toolbar_icon_size_token(size));
+  }
 }
 
 QString tool_flyout_open_mode_token(ToolFlyoutOpenMode mode) {

@@ -3788,7 +3788,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   }
   menu.addSeparator();
   auto* merge_down_action =
-      menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Down"));
+      menu.addAction(simple_icon(QStringLiteral("merge-down")), tr("Merge Down"));
   // Merge Down stays on top as the common one; the whole-document merges share a submenu.
   auto* merge_menu = menu.addMenu(tr("Merge"));
   merge_menu->setObjectName(QStringLiteral("layerContextMergeMenu"));

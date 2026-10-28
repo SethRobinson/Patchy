@@ -81,6 +81,13 @@ inline constexpr std::array<ToolbarIconSize, 5> kToolbarIconSizes{
 [[nodiscard]] ToolbarIconSize stored_toolbar_icon_size();
 void set_stored_toolbar_icon_size(ToolbarIconSize size);
 
+// The Layers panel footer buttons' size (GitHub issue 213 follow-up; docs/layer-panel.md),
+// set in Customize Tool Palette's Layers buttons tab: the same steps and tokens
+// as the toolbar icon size, stored apart under `layersPanel/footerIconSize` (a compatibility
+// contract). Normal is stored as no key; an unknown or missing token reads as Normal.
+[[nodiscard]] ToolbarIconSize stored_layer_footer_icon_size();
+void set_stored_layer_footer_icon_size(ToolbarIconSize size);
+
 // When a tool palette flyout (a tool group) opens (GitHub issue 459; docs/tool-palette.md):
 // press and hold the button (the default), a click on it, or the pointer resting on it.
 // Stored under `preferences/toolFlyoutOpenMode` as the token (`hold`, `click`, `hover`); the

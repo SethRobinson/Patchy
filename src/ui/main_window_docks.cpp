@@ -368,11 +368,13 @@ private:
   int stretch_minimum_{0};
 };
 
-// The Layers panel footer (GitHub issue 199). The buttons sit at their maximum
-// width in one row while it fits, the width the column opens at. Narrower, they
-// share the row evenly down to their minimum width (the theme's
-// layerActionButton rule sets both), then wrap into balanced rows (eight
-// buttons: four over four), so the footer never holds the column wider.
+// The Layers panel footer (GitHub issues 199 and 213). The buttons sit at their
+// maximum width in one row while it fits, the width the column opens at.
+// Narrower, they share the row evenly down to their minimum width (both set by
+// MainWindow::apply_layer_footer_icon_size), then wrap one button at a time:
+// each row holds as many minimum-width buttons as fit, the rest flow onto the
+// rows below in the same columns. One button per row is the narrowest, so the
+// footer never holds the column wider and never clips a button.
 class WrappingButtonRowLayout final : public WrappingPanelRowLayout {
 public:
   WrappingButtonRowLayout(int natural_spacing, int compact_spacing)
@@ -384,10 +386,8 @@ public:
     return rows_height(arrange(width - horizontal_margins()).rows) + vertical_margins();
   }
   [[nodiscard]] QSize minimumSize() const override {
-    // Two rows bound the narrowest width; the other panel rows are wider anyway.
-    const auto columns = (static_cast<int>(visible_items().size()) + 1) / 2;
-    const auto width = columns * compact_width() + std::max(0, columns - 1) * compact_spacing_;
-    return {width + horizontal_margins(), rows_height(laid_out_lines()) + vertical_margins()};
+    // One column bounds the narrowest width; the other panel rows are wider anyway.
+    return {compact_width() + horizontal_margins(), rows_height(laid_out_lines()) + vertical_margins()};
   }
   [[nodiscard]] QSize sizeHint() const override { return {comfortable_width(), rows_height(1) + vertical_margins()}; }
   [[nodiscard]] int comfortable_width() const override {
@@ -455,16 +455,14 @@ private:
     if (buttons * natural + (buttons - 1) * natural_spacing_ <= width) {
       return {buttons, 1, natural, natural_spacing_};
     }
-    // The fewest rows whose columns still fit at the compact width; one column
-    // at the compact width when nothing does (the panel scrolls sideways then).
-    for (int rows = 1; rows < buttons; ++rows) {
-      const auto columns = (buttons + rows - 1) / rows;
-      const auto button_width = (width - (columns - 1) * compact_spacing_) / columns;
-      if (button_width >= compact) {
-        return {columns, (buttons + columns - 1) / columns, std::min(button_width, natural), compact_spacing_};
-      }
+    // As many minimum-width buttons as fit on a row, at least one (the panel
+    // scrolls sideways below that). While all of them fit they share the row.
+    const auto columns = std::clamp((width + compact_spacing_) / (compact + compact_spacing_), 1, buttons);
+    if (columns == buttons) {
+      const auto shared = (width - (buttons - 1) * compact_spacing_) / buttons;
+      return {buttons, 1, std::clamp(shared, compact, natural), compact_spacing_};
     }
-    return {1, buttons, compact, compact_spacing_};
+    return {columns, (buttons + columns - 1) / columns, compact, compact_spacing_};
   }
 
   int natural_spacing_;
@@ -890,6 +888,30 @@ void MainWindow::apply_layer_footer_visibility() {
   for (const auto* footer : ordered) {
     // A hidden button leaves the footer's wrapping row, so the rest share the room.
     footer->button->setVisible(!hidden.contains(QLatin1String(footer->id)));
+  }
+  if (!layer_footer_buttons_.empty()) {
+    update_right_dock_minimum_width();
+  }
+}
+
+void MainWindow::apply_layer_footer_icon_size(ToolbarIconSize size) {
+  layer_footer_icon_size_ = size;
+  // The 24 px Normal icon times the toolbar icon size's factor, as the tool palette scales;
+  // the button lengths come from the window sheet's rule for the size's token
+  // (layer_footer_size_rules in main_window_theme.cpp; GitHub issue 213 follow-up).
+  const auto icon = tool_palette_length(24, toolbar_icon_size_factor(size));
+  const auto token = toolbar_icon_size_token(size);
+  for (const auto& footer : layer_footer_buttons_) {
+    auto* button = footer.button;
+    button->setIconSize(QSize(icon, icon));
+    if (button->property("layerFooterIconSize").toString() != token) {
+      button->setProperty("layerFooterIconSize", token);
+      button->style()->unpolish(button);
+      button->style()->polish(button);
+    }
+  }
+  if (layer_footer_layout_ != nullptr) {
+    layer_footer_layout_->invalidate();
   }
   if (!layer_footer_buttons_.empty()) {
     update_right_dock_minimum_width();
@@ -1677,8 +1699,8 @@ void MainWindow::create_docks() {
   layers_layout->addWidget(layer_list_, 1);
 
   // One row of full-width buttons at 5 px spacing is the row the column opens
-  // to fit. A narrower column narrows them at 3 px spacing, then wraps them four
-  // over four (GitHub issue 199).
+  // to fit. A narrower column narrows them at 3 px spacing, then wraps them one
+  // button at a time (GitHub issues 199 and 213).
   auto* layer_buttons = new WrappingButtonRowLayout(5, 3);
   auto* add_button = new QPushButton(layers_panel);
   auto* add_folder_button = new QPushButton(layers_panel);
@@ -1714,7 +1736,7 @@ void MainWindow::create_docks() {
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
   move_up_button->setIcon(simple_icon(QStringLiteral("layer-up")));
   move_down_button->setIcon(simple_icon(QStringLiteral("layer-down")));
-  merge_down_button->setIcon(simple_icon(QStringLiteral("merge")));
+  merge_down_button->setIcon(simple_icon(QStringLiteral("merge-down")));
   animation_button->setIcon(simple_icon(QStringLiteral("film")));
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
   const auto apply_new_layer_tooltip = [add_button] {
@@ -1921,6 +1943,7 @@ void MainWindow::create_docks() {
     connect(button, &QWidget::customContextMenuRequested, this,
             [this, button](const QPoint& position) { show_layer_footer_menu(button->mapToGlobal(position)); });
   }
+  apply_layer_footer_icon_size(stored_layer_footer_icon_size());
   apply_layer_footer_visibility();
 
   tab_specs.push_back(PanelSpec{.id = QStringLiteral("layersDock"),

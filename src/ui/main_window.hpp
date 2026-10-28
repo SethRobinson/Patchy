@@ -2638,6 +2638,9 @@ private:
   // Shows the Layers footer buttons the customization keeps (GitHub issue 199), in its order
   // (GitHub issue 471).
   void apply_layer_footer_visibility();
+  // Sizes the Layers footer buttons and their icons for an icon size (GitHub issue 213
+  // follow-up; layersPanel/footerIconSize). Does not store it.
+  void apply_layer_footer_icon_size(ToolbarIconSize size);
   // The Layers footer buttons' right-click menu: a tick per button, Show All Buttons and
   // Customize Tool Palette... on its Layers buttons tab.
   void show_layer_footer_menu(const QPoint& global_position);
@@ -2934,6 +2937,7 @@ private:
   std::vector<LayerFooterButton> layer_footer_buttons_;
   // The footer's wrapping row; apply_layer_footer_visibility re-adds the buttons in order.
   QLayout* layer_footer_layout_{nullptr};
+  ToolbarIconSize layer_footer_icon_size_{ToolbarIconSize::Normal};
   // The footer buttons in the customization's order (resolved_layer_footer_order).
   [[nodiscard]] std::vector<const LayerFooterButton*> ordered_layer_footer_buttons() const;
   // Layer > Arrange > Bring to Front / Send to Back (GitHub issue 468); the footer's Shift-click

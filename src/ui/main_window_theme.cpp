@@ -926,6 +926,7 @@ QString photoshop_style_template() {
       min-height: 22px;
       max-height: 22px;
     }
+    /* Normal; layer_footer_size_rules scales these for the footer's other icon sizes. */
     QPushButton[layerActionButton="true"], QToolButton[layerActionButton="true"] {
       padding: 0;
       /* The Layers footer narrows its buttons down to min-width before it wraps (issue 199). */
@@ -1208,6 +1209,29 @@ QString resolve_tool_palette_lengths(QString sheet, double factor) {
   return resolved;
 }
 
+// The Layers footer buttons' lengths at every icon size but Normal (GitHub issue 213
+// follow-up): the Normal rule's 30 to 38 px wide, 34 px tall content times the size's
+// factor, for the layerFooterIconSize property MainWindow::apply_layer_footer_icon_size sets.
+QString layer_footer_size_rules() {
+  QString rules;
+  for (const auto size : kToolbarIconSizes) {
+    if (size == ToolbarIconSize::Normal) {
+      continue;
+    }
+    const auto factor = toolbar_icon_size_factor(size);
+    const auto token = toolbar_icon_size_token(size);
+    rules += QStringLiteral(
+                 "QPushButton[layerActionButton=\"true\"][layerFooterIconSize=\"%1\"], "
+                 "QToolButton[layerActionButton=\"true\"][layerFooterIconSize=\"%1\"] {\n"
+                 "  min-width: %2px;\n  max-width: %3px;\n  min-height: %4px;\n  max-height: %4px;\n}\n")
+                 .arg(token)
+                 .arg(tool_palette_length(30, factor))
+                 .arg(tool_palette_length(38, factor))
+                 .arg(tool_palette_length(34, factor));
+  }
+  return rules;
+}
+
 }  // namespace
 
 QString photoshop_style(double tool_palette_factor) {
@@ -1229,6 +1253,7 @@ QString photoshop_style(double tool_palette_factor) {
   if (generation != cached_generation || tool_palette_factor != cached_factor ||
       panel_revision != cached_panel_revision) {
     auto sheet = resolve_tool_palette_lengths(photoshop_style_template(), tool_palette_factor);
+    sheet += layer_footer_size_rules();
     // Where the window server draws no shadow around the frameless main window
     // (X11, Wayland), widen its outline so the window still has a visible edge
     // against another window; see frameless_window_edge_width in dialog_utils.hpp.

@@ -4,12 +4,14 @@
 // show/hide menu, the dialog's OK, Cancel and Reset to Default, and the stored settings. Also
 // the palette's bottom items, the toolbar icon size and tool group opening shown in the dialog
 // (213 follow-up), and when tool groups open: click and hold, click or hover (459).
+#include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/tool_palette_customization.hpp"
 #include "ui/tool_palette_footer.hpp"
 #include "ui/tool_palette_layout.hpp"
+#include "ui/theme_palette.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -28,6 +30,7 @@
 #include <QLayout>
 #include <QListWidget>
 #include <QMenu>
+#include <QPainter>
 #include <QHeaderView>
 #include <QImage>
 #include <QPushButton>
@@ -46,6 +49,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <iostream>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
@@ -67,7 +71,7 @@ struct CustomizationSettingsGuard {
                             "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons",
                             "layersPanel/shownFooterButtons", "toolPalette/hiddenFooterItems",
                             "layersPanel/footerButtonOrder", "preferences/toolbarIconSize",
-                            "preferences/toolFlyoutOpenMode"}) {
+                            "preferences/toolFlyoutOpenMode", "layersPanel/footerIconSize"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
     }
@@ -1501,7 +1505,8 @@ QStringList preset_shown_buttons(patchy::ui::LayerFooterPreset preset) {
       return footer_ids(
           {"new_layer", "new_folder", "move_up", "move_down", "duplicate", "merge_down", "add_mask", "delete"});
     case LayerFooterPreset::Krita:
-      return footer_ids({"new_layer", "duplicate", "move_down", "move_up", "delete"});
+      return footer_ids({"new_layer", "new_folder", "duplicate", "new_adjustment", "add_mask", "move_down", "move_up",
+                         "layer_styles", "delete"});
   }
   return footer_ids(
       {"new_layer", "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "animation", "delete"});
@@ -1618,9 +1623,10 @@ void ui_tool_palette_dialog_layer_button_presets() {
   CHECK(ran);
   settle();
   CHECK(patchy::ui::matching_layer_footer_preset(window.tool_palette_customization()) == LayerFooterPreset::Krita);
-  // The footer: New Layer, Duplicate, Move Down, Move Up, Delete, in one row; the rest hidden.
+  // The footer: Krita's nine (#471 follow-up), in one row; the rest hidden.
   std::vector<QWidget*> shown;
-  for (const auto* name : {"layerNewButton", "layerDuplicateButton", "layerMoveDownButton", "layerMoveUpButton",
+  for (const auto* name : {"layerNewButton", "layerNewFolderButton", "layerDuplicateButton", "layerNewAdjustmentButton",
+                           "layerAddMaskButton", "layerMoveDownButton", "layerMoveUpButton", "layerStylesButton",
                            "layerDeleteButton"}) {
     auto* button = window.findChild<QWidget*>(QLatin1String(name));
     CHECK(button != nullptr && button->isVisible());
@@ -1631,7 +1637,7 @@ void ui_tool_palette_dialog_layer_button_presets() {
       CHECK(shown[index - 1]->y() == shown[index]->y() && shown[index - 1]->x() < shown[index]->x());
     }
   }
-  for (const auto* name : {"layerNewFolderButton", "layerAddMaskButton", "layerStylesButton", "layerAnimationButton"}) {
+  for (const auto* name : {"layerMergeDownButton", "layerAnimationButton"}) {
     auto* button = window.findChild<QWidget*>(QLatin1String(name));
     CHECK(button != nullptr && !button->isVisible());
   }
@@ -1660,6 +1666,271 @@ void ui_tool_palette_dialog_layer_button_presets() {
   CHECK(window.tool_palette_customization() == ToolPaletteCustomization{});
 }
 
+// GitHub issue 470 follow-up: Move Layer Up and Down are an arrow beside a layer stack and
+// Merge Down two layers joining into one, drawn in the icon ink and accent roles, so both
+// show at every footer icon size in Dark and Light. Saves the sheet the card shows.
+void ui_layer_footer_arrange_icons_draw_in_both_schemes() {
+  const char* const names[] = {"layer-up", "layer-down", "merge-down"};
+  constexpr int kCell = 44;
+  QImage sheet(QSize(kCell * 3 * static_cast<int>(patchy::ui::kToolbarIconSizes.size()), kCell * 2),
+               QImage::Format_ARGB32_Premultiplied);
+  int scheme_row = 0;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    const auto& palette = patchy::ui::theme();
+    QPainter sheet_painter(&sheet);
+    sheet_painter.fillRect(QRect(0, scheme_row * kCell, sheet.width(), kCell), palette.panel_bg);
+    int column = 0;
+    for (const auto size : patchy::ui::kToolbarIconSizes) {
+      const auto extent = patchy::ui::tool_palette_length(24, patchy::ui::toolbar_icon_size_factor(size));
+      for (const auto* name : names) {
+        const auto image =
+            patchy::ui::simple_icon(QString::fromLatin1(name)).pixmap(QSize(extent, extent), 1.0).toImage();
+        CHECK(image.width() == extent);
+        // Some pixels near the ink and some near the accent, at every size.
+        int ink = 0;
+        int accent = 0;
+        const auto near = [](const QColor& a, const QColor& b) {
+          return std::abs(a.red() - b.red()) + std::abs(a.green() - b.green()) + std::abs(a.blue() - b.blue()) < 60;
+        };
+        for (int y = 0; y < image.height(); ++y) {
+          for (int x = 0; x < image.width(); ++x) {
+            const auto color = image.pixelColor(x, y);
+            if (color.alpha() < 200) {
+              continue;
+            }
+            ink += near(color, palette.icon_ink) ? 1 : 0;
+            accent += near(color, palette.icon_accent) ? 1 : 0;
+          }
+        }
+        if (ink < 4 || accent < 2) {
+          std::cout << "[INFO] " << name << " at " << extent << " px: " << ink << " ink, " << accent
+                    << " accent pixels\n";
+        }
+        CHECK(ink >= 4);
+        CHECK(accent >= 2);
+        sheet_painter.drawImage(QPoint(column * kCell + (kCell - extent) / 2, scheme_row * kCell + (kCell - extent) / 2),
+                                image);
+        ++column;
+      }
+    }
+    ++scheme_row;
+  }
+  save_image_artifact("ui_layer_footer_arrange_icons", sheet);
+}
+
+// The visible Layers footer buttons in reading order, and each one's rect in the panel.
+struct FooterButtonRect {
+  QAbstractButton* button;
+  QRect rect;
+};
+
+std::vector<FooterButtonRect> visible_footer_buttons(QWidget& panel) {
+  std::vector<FooterButtonRect> buttons;
+  for (auto* button : panel.findChildren<QAbstractButton*>()) {
+    if (button->property("layerActionButton").toBool() && button->isVisible()) {
+      buttons.push_back({button, QRect(button->mapTo(&panel, QPoint()), button->size())});
+    }
+  }
+  // Reading order, which is footer order.
+  std::sort(buttons.begin(), buttons.end(), [](const auto& a, const auto& b) {
+    return a.rect.y() != b.rect.y() ? a.rect.y() < b.rect.y() : a.rect.x() < b.rect.x();
+  });
+  return buttons;
+}
+
+// GitHub issue 213 follow-up (replacing #199's balanced rows): at every icon size and with the
+// default eight or all eleven buttons, the footer keeps every button on one row while it fits;
+// as the column narrows, buttons move to the next row one at a time, every row but the last
+// full, in the same columns; nothing overlaps or leaves the panel, down to the compact width.
+void ui_layer_footer_wraps_one_button_at_a_time() {
+  CustomizationSettingsGuard settings_guard;
+  for (const auto size : patchy::ui::kToolbarIconSizes) {
+    patchy::ui::set_stored_layer_footer_icon_size(size);
+    for (const bool all_buttons : {false, true}) {
+      auto&& [window, canvas] = ShownWindowFixture{};
+      // Applying stores it, so the default is applied too.
+      ToolPaletteCustomization customization;
+      if (all_buttons) {
+        customization.hidden_layer_buttons.clear();
+      }
+      window.apply_tool_palette_customization(customization);
+      settle();
+      auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+      CHECK(panel != nullptr);
+      if (panel == nullptr) {
+        return;
+      }
+      const auto expected_count = all_buttons ? 11 : 8;
+      const auto opening = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
+      const auto compact = patchy::ui::MainWindowTestAccess::right_dock_compact_width(window);
+      int previous_first_row = expected_count;
+      int checked_widths = 0;
+      for (int width = opening; width >= compact; width -= 5) {
+        patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, width);
+        for (int pass = 0; pass < 3; ++pass) {
+          QApplication::processEvents();
+        }
+        const auto buttons = visible_footer_buttons(*panel);
+        CHECK(static_cast<int>(buttons.size()) == expected_count);
+        if (static_cast<int>(buttons.size()) != expected_count) {
+          return;
+        }
+        ++checked_widths;
+        // Rows by y: every row but the last as full as the first, columns lined up.
+        std::vector<int> row_counts;
+        int row_y = -1;
+        for (const auto& entry : buttons) {
+          CHECK(panel->rect().contains(entry.rect));
+          CHECK(entry.rect.width() >= entry.button->minimumWidth());
+          CHECK(entry.rect.width() >= entry.button->iconSize().width());
+          if (entry.rect.y() != row_y) {
+            row_counts.push_back(0);
+            row_y = entry.rect.y();
+          }
+          ++row_counts.back();
+        }
+        for (std::size_t index = 1; index < buttons.size(); ++index) {
+          CHECK(!buttons[index - 1].rect.intersects(buttons[index].rect));
+        }
+        for (std::size_t row = 0; row + 1 < row_counts.size(); ++row) {
+          CHECK(row_counts[row] == row_counts.front());
+        }
+        for (std::size_t index = static_cast<std::size_t>(row_counts.front()); index < buttons.size(); ++index) {
+          CHECK(buttons[index].rect.x() == buttons[index % static_cast<std::size_t>(row_counts.front())].rect.x());
+        }
+        if (width == opening) {
+          CHECK(row_counts.size() == 1);
+        }
+        // One button at a time: a 5 px step is narrower than any button.
+        CHECK(row_counts.front() <= previous_first_row);
+        CHECK(row_counts.front() >= previous_first_row - 1);
+        previous_first_row = row_counts.front();
+      }
+      CHECK(checked_widths > 3);
+      // At Normal the compact width wraps the footer (smaller buttons may still fit one row).
+      if (size == patchy::ui::ToolbarIconSize::Normal) {
+        CHECK(previous_first_row < expected_count);
+      }
+      std::cout << "[INFO] footer " << patchy::ui::toolbar_icon_size_token(size).toStdString() << ", "
+                << expected_count << " buttons: opens at " << opening << " px, compact " << compact << " px with "
+                << previous_first_row << " per row\n";
+      if (size == patchy::ui::ToolbarIconSize::Normal && all_buttons) {
+        (void)capture_widget_artifact("ui_layer_footer_wraps_at_compact_width", *panel);
+      }
+    }
+  }
+}
+
+// GitHub issue 213 follow-up: the Layers buttons tab's icon size combo offers the toolbar icon
+// size's steps, shows a pick on the footer at once, Cancel puts it back, OK stores it under its
+// own key (never the toolbar's) and a new window starts with it; Normal stores no key.
+void ui_layer_footer_icon_size_persists_and_applies() {
+  CustomizationSettingsGuard settings_guard;
+  using patchy::ui::ToolbarIconSize;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  settle();
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+  auto* styles_button = window.findChild<QToolButton*>(QStringLiteral("layerStylesButton"));
+  CHECK(new_button != nullptr && styles_button != nullptr);
+  if (new_button == nullptr || styles_button == nullptr) {
+    return;
+  }
+  CHECK(new_button->iconSize() == QSize(24, 24));
+  const auto normal_height = new_button->height();
+  const auto frame = normal_height - 34;
+  // The button lengths at a size: the Normal content lengths times its factor, plus the frame.
+  const auto check_size = [&](QAbstractButton& button, ToolbarIconSize size) {
+    const auto factor = patchy::ui::toolbar_icon_size_factor(size);
+    const auto icon = patchy::ui::tool_palette_length(24, factor);
+    CHECK(button.iconSize() == QSize(icon, icon));
+    CHECK(button.minimumHeight() == patchy::ui::tool_palette_length(34, factor) + frame);
+    CHECK(button.maximumHeight() == button.minimumHeight());
+    CHECK(button.minimumWidth() == patchy::ui::tool_palette_length(30, factor) + frame);
+    CHECK(button.maximumWidth() == patchy::ui::tool_palette_length(38, factor) + frame);
+  };
+  check_size(*new_button, ToolbarIconSize::Normal);
+  check_size(*styles_button, ToolbarIconSize::Normal);
+  const auto pick = [](QDialog& dialog, ToolbarIconSize size) {
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("layerFooterIconSizeCombo"));
+    CHECK(combo != nullptr);
+    if (combo != nullptr) {
+      combo->setCurrentIndex(combo->findData(patchy::ui::toolbar_icon_size_token(size)));
+    }
+    settle();
+  };
+  // Picked, it shows at once; Cancel restores Normal and stores nothing.
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("layerFooterIconSizeCombo"));
+    auto* palette_combo = dialog.findChild<QComboBox*>(QStringLiteral("toolPaletteIconSizeCombo"));
+    CHECK(combo != nullptr && palette_combo != nullptr);
+    if (combo != nullptr && palette_combo != nullptr) {
+      CHECK(combo->count() == palette_combo->count());
+      for (int index = 0; index < combo->count(); ++index) {
+        CHECK(combo->itemData(index) == palette_combo->itemData(index));
+        CHECK(combo->itemText(index) == palette_combo->itemText(index));
+      }
+      CHECK(combo->currentData().toString() == QStringLiteral("normal"));
+    }
+    pick(dialog, ToolbarIconSize::Biggest);
+    check_size(*new_button, ToolbarIconSize::Biggest);
+    check_size(*styles_button, ToolbarIconSize::Biggest);
+    (void)capture_widget_artifact("ui_layer_footer_icon_size_biggest", *new_button->parentWidget());
+    press_dialog_button(dialog, QDialogButtonBox::Cancel);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+  CHECK(ran);
+  settle();
+  check_size(*new_button, ToolbarIconSize::Normal);
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/footerIconSize")));
+  // OK stores it under its own key; the toolbar icon size stays.
+  ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    pick(dialog, ToolbarIconSize::Small);
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+  CHECK(ran);
+  settle();
+  check_size(*new_button, ToolbarIconSize::Small);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("layersPanel/footerIconSize")).toString() ==
+        QStringLiteral("small"));
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("preferences/toolbarIconSize")));
+  CHECK(patchy::ui::stored_toolbar_icon_size() == ToolbarIconSize::Normal);
+  {
+    patchy::ui::MainWindow second;
+    auto* second_button = second.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+    CHECK(second_button != nullptr);
+    if (second_button != nullptr) {
+      const auto icon = patchy::ui::tool_palette_length(24, patchy::ui::toolbar_icon_size_factor(ToolbarIconSize::Small));
+      CHECK(second_button->iconSize() == QSize(icon, icon));
+    }
+  }
+  // Reopened, the combo shows it; Reset to Default and OK go back to Normal and drop the key.
+  ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("layerFooterIconSizeCombo"));
+    CHECK(combo != nullptr && combo->currentData().toString() == QStringLiteral("small"));
+    auto* reset = dialog.findChild<QPushButton*>(QStringLiteral("toolPaletteCustomizeResetButton"));
+    CHECK(reset != nullptr);
+    if (reset != nullptr) {
+      reset->click();
+    }
+    settle();
+    CHECK(combo != nullptr && combo->currentData().toString() == QStringLiteral("normal"));
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+  CHECK(ran);
+  settle();
+  check_size(*new_button, ToolbarIconSize::Normal);
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/footerIconSize")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
@@ -1686,5 +1957,8 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_tool_palette_dialog_reorders_layer_buttons", ui_tool_palette_dialog_reorders_layer_buttons},
       {"ui_layer_footer_presets_set_order_and_shown_buttons", ui_layer_footer_presets_set_order_and_shown_buttons},
       {"ui_tool_palette_dialog_layer_button_presets", ui_tool_palette_dialog_layer_button_presets},
+      {"ui_layer_footer_wraps_one_button_at_a_time", ui_layer_footer_wraps_one_button_at_a_time},
+      {"ui_layer_footer_icon_size_persists_and_applies", ui_layer_footer_icon_size_persists_and_applies},
+      {"ui_layer_footer_arrange_icons_draw_in_both_schemes", ui_layer_footer_arrange_icons_draw_in_both_schemes},
   };
 }
