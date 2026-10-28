@@ -544,19 +544,33 @@ void MainWindow::fit_right_dock_floors_to_screen() {
   }
   // The Layers panel's own floors (the panel's 240 px, the list's 120 px) sit under
   // its section's; a couple of rows still show on the shortest screens.
-  const auto lower_explicit_floor = [](QWidget* widget, int by, int hard_floor) {
+  const auto lower_explicit_floor = [this](QWidget* widget, int by, int hard_floor) {
     if (widget == nullptr || widget->minimumHeight() <= 0 || by <= 0) {
       return;
     }
     const int layout_floor = widget->layout() != nullptr ? widget->layout()->minimumSize().height() : 0;
     widget->setMinimumHeight(std::max({hard_floor, layout_floor, widget->minimumHeight() - by}));
-    widget->updateGeometry();
+    // Every layout up to the column caches its children's minimums (the overflow area's
+    // only on a posted event), and the section floors below read them now.
+    for (auto* level = widget; level != nullptr && level != panel_column_; level = level->parentWidget()) {
+      level->updateGeometry();
+    }
   };
   if (const auto over = overflow(); over > 0) {
     lower_explicit_floor(findChild<QWidget*>(QStringLiteral("layerList")), over, 48);
   }
   if (const auto over = overflow(); over > 0) {
     lower_explicit_floor(findChild<QWidget*>(QStringLiteral("layersPanel")), over, 0);
+  }
+  // The section floors stop at their content's minimum, which the two floors above
+  // just lowered: the Layers group can follow it down now. Only a screen too short for
+  // even that takes the sections under their content, which then clips at the
+  // section's bottom edge (local issue 016).
+  if (const auto over = overflow(); over > 0) {
+    panel_column_->lower_floors(over);
+  }
+  if (const auto over = overflow(); over > 0) {
+    panel_column_->lower_floors(over, 48, false);
   }
   overflow();
   if (isVisible()) {

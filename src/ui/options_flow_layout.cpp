@@ -243,14 +243,22 @@ OptionsBarSeparator::OptionsBarSeparator(QWidget* parent) : QFrame(parent) {
   setFixedHeight(24);
 }
 
+// Until it is shown the container has no real width (an unshown child is 100 px wide),
+// and the wrapped height at that width (every control on its own row, about 470 px)
+// would hold the window that tall: the bar is Fixed vertically, so the window's layout
+// takes its size hint as its minimum. Both hints read one row then.
+bool OptionsFlowContainer::laid_out() const { return isVisible() && width() > 0; }
+
 QSize OptionsFlowContainer::sizeHint() const {
-  const int available = width() > 0 ? width() : 1200;
-  return QSize(available, height_for(available));
+  if (!laid_out()) {
+    return QSize(1200, kOneRowHeight);
+  }
+  return QSize(width(), height_for(width()));
 }
 
 QSize OptionsFlowContainer::minimumSizeHint() const {
-  const int available = width() > 0 ? width() : 0;
-  return QSize(layout() != nullptr ? layout()->minimumSize().width() : 0, height_for(std::max(available, 1)));
+  const int minimum_width = layout() != nullptr ? layout()->minimumSize().width() : 0;
+  return QSize(minimum_width, laid_out() ? height_for(width()) : kOneRowHeight);
 }
 
 bool OptionsFlowContainer::wants_collapse() const {
@@ -302,8 +310,12 @@ int OptionsFlowContainer::height_for(int width) const {
     return layout() != nullptr ? layout()->heightForWidth(width) : 0;
   }
   // The visible controls' wrapped height: the active tool's row, plus whatever a
-  // transform or text session adds.
-  const int live = flow->heightForWidth(width);
+  // transform or text session adds. Never below one row, so the strip keeps its
+  // height for a tool with no controls. The floor lives here, not in a QSS
+  // min-height on the bar: an explicit minimum hides the wrapped height from the
+  // window's layout, whose minimum then let a short window squeeze the panel column
+  // under its content (local issue 016).
+  const int live = std::max(kOneRowHeight, flow->heightForWidth(width));
   if (updating_) {
     return std::max(live, reserved_width_ == width ? reserved_height_ : 0);
   }
