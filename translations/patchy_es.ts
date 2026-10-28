@@ -3275,10 +3275,6 @@
         <translation>Redondo</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>Redondo suave</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>Redondo duro</translation>
     </message>

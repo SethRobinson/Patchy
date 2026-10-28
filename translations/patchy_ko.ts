@@ -3343,10 +3343,6 @@
         <translation>정사각형</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>부드러운 원형</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>선명한 원형</translation>
     </message>

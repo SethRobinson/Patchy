@@ -3275,10 +3275,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation type="unfinished"></translation>
     </message>

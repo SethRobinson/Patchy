@@ -1846,7 +1846,7 @@ void ui_closing_last_document_leaves_empty_workspace() {
   auto* canvas = require_canvas(window);
   auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
   CHECK(brush_preset != nullptr);
-  CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("hard_round"));
   CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
   CHECK(canvas->brush_softness() == 0);

@@ -1,4 +1,6 @@
 #include "ui/brush_automation.hpp"
+#include "ui/brush_presets.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/curved_slider.hpp"
 #include <QClipboard>
 #include <QMenu>
@@ -40,6 +42,8 @@
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include <QPainter>
+#include <QPixmap>
+#include <QAbstractItemView>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
@@ -1426,11 +1430,11 @@ void ui_square_brush_preset_paints_square_tip_and_round_presets_restore_round() 
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   canvas->set_primary_color(Qt::black);
 
-  // Square sits right under Round and selects the procedural Square tip: no bitmap, no
+  // Square sits right under Hard Round and selects the procedural Square tip: no bitmap, no
   // library entry, the picker face and the canvas footprint both say Square.
   const auto square_index = brush_preset->findData(QStringLiteral("square"));
   CHECK(square_index >= 0);
-  CHECK(square_index == brush_preset->findData(QStringLiteral("round")) + 1);
+  CHECK(square_index == brush_preset->findData(QStringLiteral("hard_round")) + 1);
   brush_preset->setCurrentIndex(square_index);
   QApplication::processEvents();
   CHECK(!canvas->has_brush_tip());
@@ -1485,6 +1489,88 @@ void ui_square_brush_preset_paints_square_tip_and_round_presets_restore_round() 
   const auto resolved = automation.resolve(QJsonObject{{"presetId", QStringLiteral("square")}});
   CHECK(resolved.tip == nullptr);
   CHECK(resolved.tip_id == patchy::ui::builtin_square_brush_tip_id());
+  clear_brush_tip_test_state();
+}
+
+// GitHub issue 482: the soft preset shows as Round and leads the list, Hard Round follows,
+// and the retired "round" id (a 25 px hard round, the startup brush) resolves to Hard Round
+// in the preset table, the settings store and scripting.
+void ui_brush_preset_list_leads_with_round_and_retired_round_id_resolves() {
+  clear_brush_tip_test_state();
+  QStringList table_ids;
+  for (const auto& preset : patchy::ui::builtin_brush_presets()) table_ids.append(preset.id);
+  CHECK(table_ids == (QStringList{"soft_round", "hard_round", "square", "pencil", "ink", "airbrush"}));
+  const auto* soft_round = patchy::ui::find_brush_preset(QStringLiteral("soft_round"));
+  CHECK(soft_round != nullptr);
+  CHECK(patchy::ui::brush_preset_display_name(*soft_round) == QStringLiteral("Round"));
+  CHECK(soft_round->softness == 75);
+  const auto* retired = patchy::ui::find_brush_preset(QStringLiteral("round"));
+  CHECK(retired != nullptr);
+  CHECK(retired->id == QStringLiteral("hard_round"));
+  CHECK(patchy::ui::brush_preset_display_name(*retired) == QStringLiteral("Hard Round"));
+  CHECK(retired->size == 25);
+  CHECK(retired->softness == 0);
+  CHECK(retired->tip_id.isEmpty());
+  CHECK(patchy::ui::default_startup_brush_preset_id() == QStringLiteral("hard_round"));
+
+  SettingsValueRestorer saved_brush_preset(QStringLiteral("tools/brushPreset"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/brushPreset"), QStringLiteral("round"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(brush_preset != nullptr);
+  QStringList combo_names;
+  for (int index = 0; index < static_cast<int>(table_ids.size()); ++index) {
+    CHECK(brush_preset->itemData(index).toString() == table_ids[index]);
+    combo_names.append(brush_preset->itemText(index));
+  }
+  CHECK(combo_names == (QStringList{"Round", "Hard Round", "Square", "Pencil", "Ink", "Airbrush"}));
+  CHECK(brush_preset->findData(QStringLiteral("round")) < 0);
+  // A settings store from an older release that names "round" comes back on Hard Round.
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("hard_round"));
+
+  // For review: the options bar around the combo with the open list drawn under it
+  // (test-artifacts/brush-preset-list.png).
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  brush_preset->showPopup();
+  QApplication::processEvents();
+  if (auto* popup = brush_preset->view() != nullptr ? brush_preset->view()->window() : nullptr; popup != nullptr) {
+    const auto popup_shot = popup->grab();
+    const auto combo_rect = QRect(brush_preset->mapTo(&window, QPoint(0, 0)), brush_preset->size());
+    const auto bar_rect = QRect(combo_rect.left() - 12, combo_rect.top() - 6,
+                                std::max(combo_rect.width(), popup_shot.width()) + 24, combo_rect.height() + 12)
+                              .intersected(window.rect());
+    QPixmap shot(bar_rect.width(), bar_rect.height() + popup_shot.height() + 6);
+    shot.fill(window.palette().window().color());
+    QPainter painter(&shot);
+    painter.drawPixmap(0, 0, window.grab(bar_rect));
+    painter.drawPixmap(combo_rect.left() - bar_rect.left(), bar_rect.height(), popup_shot);
+    painter.end();
+    ensure_artifact_dir();
+    shot.save(QStringLiteral("test-artifacts/brush-preset-list.png"));
+  }
+  brush_preset->hidePopup();
+  QApplication::processEvents();
+
+  auto& automation = window.brush_automation_library();
+  automation.refresh();
+  bool lists_retired = false;
+  for (const auto& value : automation.presets()) {
+    lists_retired = lists_retired || value.toObject()["id"].toString() == QStringLiteral("round");
+  }
+  CHECK(!lists_retired);
+  const auto by_old_id = automation.preset(QStringLiteral("round"));
+  CHECK(by_old_id["id"].toString() == QStringLiteral("hard_round"));
+  CHECK(by_old_id["name"].toString() == QStringLiteral("Hard Round"));
+  const auto resolved = automation.resolve(QJsonObject{{"presetId", QStringLiteral("round")}});
+  CHECK(resolved.preset_id == QStringLiteral("hard_round"));
+  CHECK(resolved.size == 25);
+  CHECK(automation.preset(QStringLiteral("soft_round"))["name"].toString() == QStringLiteral("Round"));
   clear_brush_tip_test_state();
 }
 
@@ -4089,6 +4175,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_deep_zoom_brush_repaint_stays_responsive},
       {"ui_square_brush_preset_paints_square_tip_and_round_presets_restore_round",
        ui_square_brush_preset_paints_square_tip_and_round_presets_restore_round},
+      {"ui_brush_preset_list_leads_with_round_and_retired_round_id_resolves",
+       ui_brush_preset_list_leads_with_round_and_retired_round_id_resolves},
       {"ui_airbrush_preset_builds_while_stationary",
        ui_airbrush_preset_builds_while_stationary},
       {"ui_brush_mode_strokes_blend_clear_behind_and_undo", ui_brush_mode_strokes_blend_clear_behind_and_undo},

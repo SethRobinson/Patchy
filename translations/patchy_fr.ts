@@ -3275,10 +3275,6 @@
         <translation>Rond</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>Rond flou</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>Rond net</translation>
     </message>

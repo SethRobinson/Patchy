@@ -3275,10 +3275,6 @@
         <translation>Rotonda</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>Rotonda sfumata</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>Rotonda netta</translation>
     </message>

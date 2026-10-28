@@ -3275,10 +3275,6 @@
         <translation>Rund</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>Weiche runde Spitze</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>Harte runde Spitze</translation>
     </message>

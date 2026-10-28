@@ -3343,10 +3343,6 @@
         <translation>Kwadrat</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>Miękki okrągły</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>Twardy okrągły</translation>
     </message>
