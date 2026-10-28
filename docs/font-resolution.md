@@ -44,10 +44,15 @@ The text engine's font lookup and the PSD reader's naming rules. The session mac
   `try_register_missing_system_font_family` registers installed fonts from the machine and
   per-user CurrentVersion\Fonts registry keys and retries. Desktop: the entries whose display
   name starts with the family (Qt's Windows database can miss registered fonts: Arial Narrow,
-  on disk and registered, fell to Tahoma). `--headless` (offscreen sees no system fonts): the
-  first miss loads EVERY installed font once, so requests resolve by real family and style
-  names; display names are full face names ("Futura Extra Black BT"), so prefix-matching a
-  family against them is guesswork. `append_missing_text_family` asks the same rescue before
+  on disk and registered, fell to Tahoma). `--headless` (offscreen sees no system fonts):
+  main.cpp loads EVERY installed font once at startup (`ensure_headless_system_fonts_loaded`,
+  phase `fonts.headless_system`, ~0.1-0.4 s; skipped for `--startup-benchmark`), before any
+  document opens, so a headless run resolves every name exactly as a window does. A lazy load on
+  the first miss was not enough: a PSD's "Arial Black" found a near match first and rendered in
+  another face (layer_effects.psd 65% against Photoshop headless, 91% windowed; card local-018,
+  pinned by `ui_headless_text_fonts_match_windowed_if_available`, which needs the built
+  `patchy` beside the suite). Display names are full face names ("Futura Extra Black BT"), so
+  prefix-matching a family against them is guesswork. `append_missing_text_family` asks the same rescue before
   calling a family missing. Attempted families are cached per run; application fonts are never
   removed (removeApplicationFont can crash live font users).
 - **A name the database lists neither as a family nor as family + face is asked of the

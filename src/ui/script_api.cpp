@@ -71,6 +71,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <QJSEngine>
 #include <QJSValueIterator>
 #include <QRegion>
@@ -1060,6 +1061,31 @@ void ScriptLayerObject::rerenderText() {
   if (!host_.rerender_text_layer(session_id_, layer_id_)) {
     host_.throw_js_error(ScriptEngineHost::tr("Could not edit the text layer."));
   }
+}
+
+QJSValue ScriptLayerObject::resolvedTextFonts() const {
+  const ScriptApiCall api_call(host_);
+  if (!host_.layer_is_text_layer(session_id_, layer_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("This layer is not a text layer."));
+    return {};
+  }
+  const auto runs = host_.text_layer_runs(session_id_, layer_id_);
+  auto array = host_.engine()->newArray(static_cast<quint32>(runs.size()));
+  quint32 index = 0;
+  for (const auto& run : runs) {
+    // The same resolution the renderer runs (render_text_font_for_display_family), read back
+    // through QFontInfo: what the font database matched, not what the run asked for.
+    const auto font = render_text_font_for_display_family(
+        run.family, std::max(1, static_cast<int>(std::lround(run.size))), run.bold, run.italic, 3, run.style);
+    const QFontInfo info(font);
+    auto object = host_.engine()->newObject();
+    object.setProperty(QStringLiteral("text"), run.text);
+    object.setProperty(QStringLiteral("font"), run.family);
+    object.setProperty(QStringLiteral("family"), info.family());
+    object.setProperty(QStringLiteral("style"), info.styleName());
+    array.setProperty(index++, object);
+  }
+  return array;
 }
 
 void ScriptLayerObject::set_text_direction(const QString& direction) {

@@ -416,6 +416,13 @@ interface PatchyLayer {
    * font warnings as the text setters. Throws on a layer that is not text or is locked.
    */
   rerenderText(): void;
+  /**
+   * Text layers: the face Patchy's text engine draws each run in on this machine. `font` is
+   * the font the run names (as in textRuns); `family` and `style` are what the font database
+   * really matched, so a missing font, a substitute or a face resolved differently shows up
+   * here. Throws on a layer that is not text.
+   */
+  resolvedTextFonts(): {text: string; font: string; family: string; style: string}[];
 
   /**
    * Finite signed 32-bit positions; throws if the position or resulting bounds overflow.

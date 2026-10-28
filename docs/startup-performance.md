@@ -25,6 +25,7 @@ Phases, in order (`mw.*` are children of `main_window.construct`):
 | `fonts.user_store` | user font store: SHA-256 and registration of every file, PSD font resolver |
 | `localization.load` | saved language and its translators, `--language` |
 | `fonts.ui_family` | `application_font()`: on Windows `QFontDatabase::families()` (full font enumeration in a real window) |
+| `fonts.headless_system` | `--headless` on Windows (not `--startup-benchmark`): every installed font registered, so headless text resolves as in a window |
 | `theme.load` | saved color scheme and custom theme |
 | `cli.parse` | option table and parse |
 | `single_instance.forward_probe` | connect attempt to a running instance |

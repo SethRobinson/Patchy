@@ -535,6 +535,7 @@ preview. PNG export may reserve one extra palette entry for transparency.
 | `layer.textOrientation` / `layer.textDirection` | Text layers: `"horizontal"` or `"vertical"`, and the paragraph direction `"auto"`, `"ltr"` or `"rtl"`. Setting either re-renders the layer. |
 | `layer.rerenderSmartObject()` | Embedded smart objects: renders the layer again from the file it stores, for every layer sharing that source, and returns how many were re-rendered. A smart object opened from a PSD shows the pixels saved in the file until then. Linked ones use `updateSmartObject()`. |
 | `layer.rerenderText()` | Text layers: renders the layer again from its stored text and formatting without changing them. A type layer opened from a PSD shows the pixels saved in the file until it is edited; this replaces them with Patchy's own render. |
+| `layer.resolvedTextFonts()` | Text layers: one `{text, font, family, style}` per run, where `font` is the font the run names and `family` and `style` are the face Patchy really draws it in on this machine. Use it to see a substituted or missing font, for example `layer.resolvedTextFonts()[0].style` is `"Black"` for a PSD run in Arial Black. |
 | `layer.textFont` | Text layers: the font family name the layer uses (read-only; `""` for other layers). |
 | `layer.duplicate(targetDocument?)` / `layer.remove()` | Copy above itself, or into another open document above its active layer; or delete. |
 | `layer.ungroup()` | Releases a folder's layers into its parent (top to bottom) and removes the folder. |
