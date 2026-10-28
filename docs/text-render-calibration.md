@@ -30,13 +30,14 @@ shows the same split, so clicking into such a layer must come up Italic, not Bol
 - `PsdTextStyleRun::faux_bold` carries it, `bold`/`italic` keep meaning the real face, and runs
   v4 serializes it in column 11. The Character panel's `textCharacterFauxBold` button edits it
   live per selection.
-- Rendering: `apply_faux_bold_to_document` strokes the glyph outlines with a pen
-  `kFauxBoldEmFraction` (0.03) of the em wide and adds the same amount to every advance, as
-  Photoshop does (its faux bold pushes the glyph out on both sides and pays for it in the
-  advance). Calibrated on Georgia-Italic at 12px against Photoshop's rasters: "Dungeon:" 58px and
-  "Fights Left:" 69px both land exactly anywhere in 0.025-0.030.
+- Rendering: `apply_faux_bold_to_document` adds `kFauxBoldAdvanceEmFraction` (0.027 em) to
+  every advance and strokes the outlines with a pen as wide, capped at `kFauxBoldMaxStrokePixels`
+  (1 document px). Fit to PS 2026 captures (four faces, any weight, 12-200px, 300 ppi) in
+  `local-test-fixtures/faux-bold-calibration`: ten H's grow 3.25 / 6.5 / 16.25 / 30.0px at
+  12 / 24 / 62.5 / 120px. Pins: `ui_faux_bold_widening_matches_photoshop_captures` and
+  `ui_layer_effects_psd_faux_bold_commit_matches_photoshop_if_available`.
 - Applied in `build_text_render_document`, not when the runs are parsed, so it follows later
-  colour and size edits and the raster pass and caret layout (which share that function) see
+  colour and size edits and the raster pass and caret layout (sharing that function) see
   identical advances. Apply it BEFORE the final `setTextWidth`: the widened advances have to be in
   place while the lines are laid out.
 - Export writes `/FauxBold` from `faux_bold` alone. The run's real weight already rides in the
@@ -90,7 +91,7 @@ both against Photoshop's rasters; both renderers put the raster at the anchor ro
 pixel (next section).
 
 - **Text renders UNHINTED**: PS never runs hinting; every antialiased `/AntiAlias` mode (1 Crisp, 2 Strong, 3 Smooth, 4 Sharp, 6 Windows LCD, 7 Windows: `kTextAntiAlias*`) gets `QFont::PreferNoHinting` (`configure_text_font_smoothing`); 0/None keeps `NoAntialias` + full hinting.
-- **Imported type layers keep Photoshop's raster until edited** (`should_regenerate_imported_text_preview`, psd_text_write.cpp): a missing font never changes appearance on open. Rasters are kept even under big effects; regenerate only when the stored preview is visibly NOT any run's declared fill color (baked-in effect pixels would corrupt the live outer-effect contour), or when the type block is Patchy-authored. Editing a kept raster warns before substituting fonts; `--append-text` substitutes silently. **Continuing past that warning really substitutes**: `substituted_text_family` (what `QFontInfo` resolves the missing family to, then the UI font, then the original when nothing installed can draw the text) moves the session's base family and `substitute_missing_document_font_families` every run, blank paragraphs' block char formats included. Otherwise the commit stores the missing name back over a raster drawn in the substitute and the layer stays badged. The editable PDF export is the one reader that re-lays-out a kept raster without an edit (real text placed on the raster's ink, missing fonts substituted unless asked for pixels; see [pdf.md](pdf.md)).
+- **Imported type layers keep Photoshop's raster until edited** (`should_regenerate_imported_text_preview`, psd_text_write.cpp): a missing font never changes appearance on open. Rasters are kept even under big effects; regenerate only when the stored preview is visibly NOT any run's declared fill color (baked-in effect pixels would corrupt the live outer-effect contour), or when the type block is Patchy-authored. Editing a kept raster warns before substituting fonts; `--append-text` substitutes silently. **Continuing past that warning really substitutes**: `substituted_text_family` (what `QFontInfo` resolves the missing family to, then the UI font, then the original when nothing installed can draw the text) moves the session's base family and `substitute_missing_document_font_families` every run, blank paragraphs' block char formats included. Otherwise the commit stores the missing name back over a raster drawn in the substitute and the layer stays badged. Only the editable PDF export re-lays-out a kept raster without an edit (text on the raster's ink; [pdf.md](pdf.md)).
 - **A type layer with no raster** (writer-made: ag-psd's `auto-lead/expected.psd`, issue 272) lays out at open
   (`lay_out_raster_less_imported_text`): line 1's baseline on ty, its justification point on tx, through the TySh
   transform, kept as `psd_raster_preview` so a save writes it under the file's own type block. PS 2026 relays out

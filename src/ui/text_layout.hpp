@@ -65,11 +65,13 @@ inline constexpr int kTextFauxBoldFormatProperty = QTextFormat::UserProperty + 3
 // HTML round trip the editor documents go through. Runs v5.
 inline constexpr int kTextStyleNameFormatProperty = QTextFormat::UserProperty + 40;
 
-// Photoshop's faux bold widens each glyph by this fraction of the em, in both the stroke it
-// paints and the advance it adds. Calibrated against Photoshop's own rasters for Georgia-Italic
-// at 12px ("Dungeon:" 58px, "Fights Left:" 69px in the Dungeon Scroll probe); both land exactly
-// anywhere in 0.025-0.030, and the real Bold Italic face they used to resolve to is 5-6px wider.
-inline constexpr double kFauxBoldEmFraction = 0.03;
+// Photoshop's faux bold adds this fraction of the em to every advance and strokes the glyph
+// outline with a pen of the same width, capped at kFauxBoldMaxStrokePixels: from about 37px up
+// the ink grows by one pixel (half a pixel per side) whatever the size, while the advances keep
+// growing with the em. Fitted to Photoshop 2026 captures of Arial, Arial Bold, Arial Black and
+// Georgia Italic at 12-200px (docs/text-render-calibration.md, "Faux bold is not the bold face").
+inline constexpr double kFauxBoldAdvanceEmFraction = 0.027;
+inline constexpr double kFauxBoldMaxStrokePixels = 1.0;
 
 // Photoshop's faux italic (runs v6): a synthetic slant of the run's own face. Unlike faux bold
 // it cannot be expressed through QFont at all -- setStyle(QFont::StyleOblique) resolves to the
