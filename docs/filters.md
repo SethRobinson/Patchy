@@ -8,7 +8,7 @@ The contract for Patchy's built-in pixel filters, the shared catalog, and ordere
 
 ## Stable identifiers and schemas
 
-Built-in filter IDs are `patchy.filters.` plus the 41 suffixes below, in canonical catalog order: persisted, append-only, never renamed or reused. The list doubles as the version-1 parameter keys and defaults (used when a known parameter is missing):
+Built-in filter IDs are `patchy.filters.` plus the 52 suffixes below, in canonical catalog order: persisted, append-only, never renamed or reused. The list doubles as the version-1 parameter keys and defaults (used when a known parameter is missing):
 
 ```text
 invert: amount=100
@@ -44,6 +44,16 @@ iris_blur: blur=15.0 center_x=50.0 center_y=50.0 angle=0 iris_width=50.0 iris_he
 tilt_shift_blur: blur=15.0 center_x=50.0 center_y=50.0 angle=0 focus_half_width=10.0 transition_width=20.0
 plastic_wrap: highlight_strength=9 detail=7 smoothness=5
 blur, blur_more, average, sharpen_more, sharpen_edges: none
+diffuse: mode=normal
+extrude: type=blocks size=30 depth=30 heights=random solid_front=false seed=1
+find_edges, solarize: none
+tiles: count=10 max_offset=10 fill=background seed=1
+trace_contour: level=128 edge=lower
+wind: method=wind direction=from_right length=40
+difference_clouds: scale=96 detail=6 contrast=40 seed=1
+fibers: variance=16 strength=4
+flame: colors=classic length=40 width=60 turbulence=50 seed=1 center_x=50.0 center_y=100.0
+lens_flare: lens=classic brightness=100 center_x=30.0 center_y=30.0
 ```
 
 A `FilterInvocation` stores filter ID, schema version, named parameters, and captured foreground/background colors. Parameter keys are stable within a schema; unknown keys are ignored. An unknown filter ID or schema version makes the invocation and its containing recipe unsupported; never run the newest schema instead or fall back to another filter. Values normalize through the catalog before execution: declared types kept, numerics clamped to range; a wrong-typed known key or unknown option token is invalid, not coerced.
@@ -52,7 +62,7 @@ A `FilterInvocation` stores filter ID, schema version, named parameters, and cap
 
 Nine catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale (no direct action yet), Desaturate, Auto Tone, Auto Contrast, Auto Color, Threshold, Posterize. Invert (Ctrl+I) applies at once with no dialog, like the three autos below (#411). The four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance) are not catalog filters; see [adjustments-calibration.md](adjustments-calibration.md).
 
-The gallery exposes the other 37 effects in the fixed catalog and category order below (labels translated, never locale-sorted). An effect's ID suffix is its lowercased label with underscores ("&" becomes "and"), except where given in parentheses:
+The gallery exposes the other 48 effects in the fixed catalog and category order below (labels translated, never locale-sorted). An effect's ID suffix is its lowercased label with underscores ("&" becomes "and"), except where given in parentheses:
 
 ```text
 photo_looks: Soft Glow, Punchy Color, Noir, Cinematic Matte, Vintage Fade, Vintage Sepia (sepia), Lens Vignette (vignette)
@@ -61,8 +71,8 @@ sharpen: Sharpen, Unsharp Mask, High Pass, Sharpen More, Sharpen Edges
 distort: Twirl, Wave, Pinch/Bloat (pinch_bloat)
 noise: Analog Grain (film_grain), Add Noise, Median, Dust & Scratches
 pixelate: Pixel Mosaic (pixelate), Color Halftone
-stylize: Edge Detect, Emboss, Glowing Edges
-render: Clouds
+stylize: Edge Detect, Emboss, Glowing Edges, Diffuse, Extrude, Find Edges, Solarize, Tiles, Trace Contour, Wind
+render: Clouds, Difference Clouds, Fibers, Flame, Lens Flare
 artistic: Plastic Wrap
 ```
 
@@ -75,6 +85,8 @@ The catalog generates dialog controls; existing Qt object names such as `filterA
 Only eight catalog filter IDs are hotkey command IDs: Invert, Desaturate, Auto Tone, Auto Contrast, Auto Color, Brightness/Contrast, Threshold, Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. Liquify uses `filter.liquify` (Ctrl+Shift+X), Camera Raw Filter `filter.camera_raw_filter` (Ctrl+Shift+A). A catalog refactor must not silently add or remove commands.
 
 Catalog names are canonical English translation sources (`QObject` context); submenu and status text keep the `MainWindow` context.
+
+The Filter > Stylize submenu is alphabetical; every other submenu keeps this order. What each issue-496 filter does: [stylize-render-filters.md](stylize-render-filters.md).
 
 Camera Raw Filter and Liquify (Filter menu, in that order below Filter Gallery) are outside this catalog ([camera-raw.md](camera-raw.md#camera-raw-filter), `docs/liquify.md`).
 
@@ -175,7 +187,7 @@ Selected by the center roles, default 50.0 centers included; never run a centere
 
 A soft selection (feather, Object Selection edge) blends each result pixel with the original by its coverage (`blend_by_selection_coverage`, `filter_workflows`), as in Photoshop; adjustments, Liquify, plug-ins and script `applyFilter`/`fill` do too, as do preview proxies (coverage box-averaged). The UI wrapper decides expansion: a selected operation stays inside the layer bounds; with no selection an RGBA layer may grow, then trims transparent borders. Preview, Cancel, Apply, Undo, and Redo restore pixels and document-space bounds.
 
-Canvas-filling filters are the one exception: the UI wrapper embeds the layer in a transparent buffer covering the union of layer bounds and canvas (never a canvas crop) and renders across it; with a selection, outside pixels restore as usual, so clouds can fill selected regions without layer content. The result is alpha-trimmed against the original bounds: a selected render grows the layer only to the union of old content and selection, and a fully transparent result returns to the original rectangle. No-alpha layers, effective transparent-pixel locks, and layers already covering the canvas skip the embed. Cancel restores the pristine pixels and bounds. Clouds has no native Smart Filter mapping: on a Smart Object its direct action and recipes reach the rasterize prompt, then this path.
+Canvas-filling filters (Clouds, Difference Clouds, Fibers, Lens Flare, Flame) are the one exception: the UI wrapper embeds the layer in a transparent buffer covering the union of layer bounds and canvas (never a canvas crop) and renders across it; with a selection, outside pixels restore as usual, so clouds can fill selected regions without layer content. The result is alpha-trimmed against the original bounds: a selected render grows the layer only to the union of old content and selection, and a fully transparent result returns to the original rectangle. No-alpha layers, effective transparent-pixel locks, and layers already covering the canvas skip the embed. Cancel restores the pristine pixels and bounds. Clouds has no native Smart Filter mapping: on a Smart Object its direct action and recipes reach the rasterize prompt, then this path.
 
 ## Captured colors
 

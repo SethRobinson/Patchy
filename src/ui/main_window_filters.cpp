@@ -1194,6 +1194,8 @@ bool filter_applies_without_settings_dialog(const std::string& identifier) {
          identifier == "patchy.filters.sharpen_more" ||
          identifier == "patchy.filters.average" ||
          identifier == "patchy.filters.sharpen_edges" ||
+         identifier == "patchy.filters.solarize" ||
+         identifier == "patchy.filters.find_edges" ||
          identifier == "patchy.filters.auto_tone" ||
          identifier == "patchy.filters.auto_contrast" ||
          identifier == "patchy.filters.auto_color";

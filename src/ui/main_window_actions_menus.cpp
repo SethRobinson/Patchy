@@ -2177,7 +2177,23 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     return filter_menu;
   };
 
+  // Catalog order everywhere, except Stylize, which grew in two batches and is
+  // listed alphabetically by its English names (GitHub issue 496).
+  std::vector<const FilterDefinition*> menu_filters;
   for (const auto& filter : filters_.filters()) {
+    menu_filters.push_back(&filter);
+  }
+  std::stable_sort(menu_filters.begin(), menu_filters.end(),
+                   [](const FilterDefinition* left, const FilterDefinition* right) {
+                     const auto left_stylize = left->catalog.category == FilterCategory::Stylize;
+                     const auto right_stylize = right->catalog.category == FilterCategory::Stylize;
+                     if (left_stylize != right_stylize) {
+                       return right_stylize;
+                     }
+                     return left_stylize && left->display_name < right->display_name;
+                   });
+  for (const auto* filter_pointer : menu_filters) {
+    const auto& filter = *filter_pointer;
     const auto identifier = QString::fromStdString(filter.identifier);
     if (is_adjustment_only_filter(filter)) {
       continue;

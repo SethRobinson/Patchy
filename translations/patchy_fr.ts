@@ -4156,6 +4156,30 @@
         <translation>Vignettage d&apos;objectif</translation>
     </message>
     <message>
+        <source>Extrude</source>
+        <translation>Extrusion</translation>
+    </message>
+    <message>
+        <source>Tiles</source>
+        <translation>Carreaux</translation>
+    </message>
+    <message>
+        <source>Wind</source>
+        <translation>Vent</translation>
+    </message>
+    <message>
+        <source>Difference Clouds</source>
+        <translation>Nuages par différence</translation>
+    </message>
+    <message>
+        <source>Flame</source>
+        <translation>Flamme</translation>
+    </message>
+    <message>
+        <source>Lens Flare</source>
+        <translation>Reflet de lentille</translation>
+    </message>
+    <message>
         <source>Other</source>
         <translation>Divers</translation>
     </message>
@@ -4314,6 +4338,114 @@
     <message>
         <source>Transition Width</source>
         <translation>Largeur de transition</translation>
+    </message>
+    <message>
+        <source>Blast</source>
+        <translation>Bourrasque</translation>
+    </message>
+    <message>
+        <source>Stagger</source>
+        <translation>Décalé</translation>
+    </message>
+    <message>
+        <source>From the Right</source>
+        <translation>De la droite</translation>
+    </message>
+    <message>
+        <source>From the Left</source>
+        <translation>De la gauche</translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation>Longueur</translation>
+    </message>
+    <message>
+        <source>Number of Tiles</source>
+        <translation>Nombre de carreaux</translation>
+    </message>
+    <message>
+        <source>Maximum Offset</source>
+        <translation>Décalage maximal</translation>
+    </message>
+    <message>
+        <source>Fill Gaps With</source>
+        <translation>Remplir les vides avec</translation>
+    </message>
+    <message>
+        <source>Foreground Color</source>
+        <translation>Couleur de premier plan</translation>
+    </message>
+    <message>
+        <source>Inverse Image</source>
+        <translation>Image inversée</translation>
+    </message>
+    <message>
+        <source>Unaltered Image</source>
+        <translation>Image inchangée</translation>
+    </message>
+    <message>
+        <source>Block Shape</source>
+        <translation>Forme des blocs</translation>
+    </message>
+    <message>
+        <source>Blocks</source>
+        <translation>Blocs</translation>
+    </message>
+    <message>
+        <source>Pyramids</source>
+        <translation>Pyramides</translation>
+    </message>
+    <message>
+        <source>Heights</source>
+        <translation>Hauteurs</translation>
+    </message>
+    <message>
+        <source>Random</source>
+        <translation>Aléatoire</translation>
+    </message>
+    <message>
+        <source>Level-Based</source>
+        <translation>Selon la luminosité</translation>
+    </message>
+    <message>
+        <source>Solid Front Faces</source>
+        <translation>Faces avant pleines</translation>
+    </message>
+    <message>
+        <source>Flare Type</source>
+        <translation>Type de reflet</translation>
+    </message>
+    <message>
+        <source>Halo Ring</source>
+        <translation>Anneau de halo</translation>
+    </message>
+    <message>
+        <source>Wide Streak</source>
+        <translation>Traînée large</translation>
+    </message>
+    <message>
+        <source>Colors</source>
+        <translation>Couleurs</translation>
+    </message>
+    <message>
+        <source>Classic Fire</source>
+        <translation>Feu classique</translation>
+    </message>
+    <message>
+        <source>Blue Gas</source>
+        <translation>Gaz bleu</translation>
+    </message>
+    <message>
+        <source>Turbulence</source>
+        <translation>Turbulence</translation>
+    </message>
+    <message>
+        <source>Base X</source>
+        <translation>Base X</translation>
+    </message>
+    <message>
+        <source>Base Y</source>
+        <translation>Base Y</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -23960,6 +24092,7 @@ Y : %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1 appliqué (%2 pour annuler)</translation>
     </message>
     <message>

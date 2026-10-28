@@ -381,6 +381,7 @@ int main(int argc, char* argv[]) {
            font_coverage_tests,
            missing_fonts_tests,
            filter_catalog_dialog_tests,
+           stylize_render_filters_ui_tests,
            layer_style_gradient_tests,
            destructive_filters_gallery_tests,
            pickers_notices_hotkeys_tests,

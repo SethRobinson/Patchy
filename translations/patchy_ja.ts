@@ -1585,6 +1585,30 @@ RGB: %2, %3, %4</translation>
         <translation>チルトシフトぼかし</translation>
     </message>
     <message>
+        <source>Extrude</source>
+        <translation>押し出し</translation>
+    </message>
+    <message>
+        <source>Tiles</source>
+        <translation>タイル</translation>
+    </message>
+    <message>
+        <source>Wind</source>
+        <translation>風</translation>
+    </message>
+    <message>
+        <source>Difference Clouds</source>
+        <translation>雲模様 (差の絶対値)</translation>
+    </message>
+    <message>
+        <source>Flame</source>
+        <translation>炎</translation>
+    </message>
+    <message>
+        <source>Lens Flare</source>
+        <translation>逆光</translation>
+    </message>
+    <message>
         <source>Blades</source>
         <translation>絞り羽根</translation>
     </message>
@@ -2147,6 +2171,114 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Blurring pixels</source>
         <translation>ピクセルをぼかしています</translation>
+    </message>
+    <message>
+        <source>Blast</source>
+        <translation>強風</translation>
+    </message>
+    <message>
+        <source>Stagger</source>
+        <translation>ずらし</translation>
+    </message>
+    <message>
+        <source>From the Right</source>
+        <translation>右から</translation>
+    </message>
+    <message>
+        <source>From the Left</source>
+        <translation>左から</translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation>長さ</translation>
+    </message>
+    <message>
+        <source>Number of Tiles</source>
+        <translation>タイルの数</translation>
+    </message>
+    <message>
+        <source>Maximum Offset</source>
+        <translation>最大オフセット</translation>
+    </message>
+    <message>
+        <source>Fill Gaps With</source>
+        <translation>すき間の塗りつぶし</translation>
+    </message>
+    <message>
+        <source>Foreground Color</source>
+        <translation>描画色</translation>
+    </message>
+    <message>
+        <source>Inverse Image</source>
+        <translation>反転した画像</translation>
+    </message>
+    <message>
+        <source>Unaltered Image</source>
+        <translation>元の画像</translation>
+    </message>
+    <message>
+        <source>Block Shape</source>
+        <translation>ブロックの形</translation>
+    </message>
+    <message>
+        <source>Blocks</source>
+        <translation>ブロック</translation>
+    </message>
+    <message>
+        <source>Pyramids</source>
+        <translation>ピラミッド</translation>
+    </message>
+    <message>
+        <source>Heights</source>
+        <translation>高さ</translation>
+    </message>
+    <message>
+        <source>Random</source>
+        <translation>ランダム</translation>
+    </message>
+    <message>
+        <source>Level-Based</source>
+        <translation>明るさに応じる</translation>
+    </message>
+    <message>
+        <source>Solid Front Faces</source>
+        <translation>前面を単色にする</translation>
+    </message>
+    <message>
+        <source>Flare Type</source>
+        <translation>フレアの種類</translation>
+    </message>
+    <message>
+        <source>Halo Ring</source>
+        <translation>光輪</translation>
+    </message>
+    <message>
+        <source>Wide Streak</source>
+        <translation>横長の光条</translation>
+    </message>
+    <message>
+        <source>Colors</source>
+        <translation>カラー</translation>
+    </message>
+    <message>
+        <source>Classic Fire</source>
+        <translation>標準の炎</translation>
+    </message>
+    <message>
+        <source>Blue Gas</source>
+        <translation>青いガス炎</translation>
+    </message>
+    <message>
+        <source>Turbulence</source>
+        <translation>乱流</translation>
+    </message>
+    <message>
+        <source>Base X</source>
+        <translation>基点 X</translation>
+    </message>
+    <message>
+        <source>Base Y</source>
+        <translation>基点 Y</translation>
     </message>
     <message>
         <source>Sharpening pixels</source>
@@ -23891,6 +24023,7 @@ Clipped to the layer below</source>
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1 を適用しました (%2 で取り消せます)</translation>
     </message>
     <message>

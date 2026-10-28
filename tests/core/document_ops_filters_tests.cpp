@@ -1599,7 +1599,38 @@ void filter_catalog_defines_stable_named_contracts() {
       {"patchy.filters.average", Category::Blur, false, {}},
       {"patchy.filters.sharpen_more", Category::Sharpen, false, {}},
       {"patchy.filters.sharpen_edges", Category::Sharpen, false, {}},
+      {"patchy.filters.diffuse", Category::Stylize, false, {}},
+      {"patchy.filters.extrude", Category::Stylize, false, {}},
+      {"patchy.filters.find_edges", Category::Stylize, false, {}},
+      {"patchy.filters.solarize", Category::Stylize, false, {}},
+      {"patchy.filters.tiles", Category::Stylize, false, {}},
+      {"patchy.filters.trace_contour", Category::Stylize, false, {}},
+      {"patchy.filters.wind", Category::Stylize, false, {}},
+      {"patchy.filters.difference_clouds", Category::Render, false, {}},
+      {"patchy.filters.fibers", Category::Render, false, {}},
+      {"patchy.filters.flame", Category::Render, false, {}},
+      {"patchy.filters.lens_flare", Category::Render, false, {}},
   };
+  // GitHub issue 496: parameter keys in order and the pixel-distance ones.
+  const std::vector<std::pair<std::string_view, std::vector<std::string_view>>>
+      issue_496_parameters = {
+          {"patchy.filters.diffuse", {"mode"}},
+          {"patchy.filters.extrude",
+           {"type", "size", "depth", "heights", "solid_front", "seed"}},
+          {"patchy.filters.find_edges", {}},
+          {"patchy.filters.solarize", {}},
+          {"patchy.filters.tiles", {"count", "max_offset", "fill", "seed"}},
+          {"patchy.filters.trace_contour", {"level", "edge"}},
+          {"patchy.filters.wind", {"method", "direction", "length"}},
+          {"patchy.filters.difference_clouds",
+           {"scale", "detail", "contrast", "seed"}},
+          {"patchy.filters.fibers", {"variance", "strength"}},
+          {"patchy.filters.flame",
+           {"colors", "length", "width", "turbulence", "seed", "center_x",
+            "center_y"}},
+          {"patchy.filters.lens_flare",
+           {"lens", "brightness", "center_x", "center_y"}},
+      };
 
   const auto has_center_parameters = [](std::string_view identifier) {
     return identifier == "patchy.filters.radial_blur" ||
@@ -1651,6 +1682,37 @@ void filter_catalog_defines_stable_named_contracts() {
     CHECK(actual.catalog.adjustment_only == wanted.adjustment_only);
     CHECK(actual.catalog.schema_version == 1);
     CHECK(static_cast<bool>(actual.catalog.execute));
+    if (const auto issue_496 = std::find_if(
+            issue_496_parameters.begin(), issue_496_parameters.end(),
+            [&](const auto& entry) { return entry.first == actual.identifier; });
+        issue_496 != issue_496_parameters.end()) {
+      const auto invocation = registry.default_invocation(actual.identifier);
+      CHECK(actual.catalog.parameters.size() == issue_496->second.size());
+      CHECK(invocation.parameters.size() == issue_496->second.size());
+      for (std::size_t index = 0;
+           index < std::min(actual.catalog.parameters.size(), issue_496->second.size());
+           ++index) {
+        const auto& parameter = actual.catalog.parameters[index];
+        CHECK(parameter.key == issue_496->second[index]);
+        CHECK(!parameter.display_name.empty());
+        CHECK(!parameter.control_object_name.empty());
+        CHECK(invocation.parameters.count(parameter.key) == 1U);
+        if (parameter.key == "center_x" || parameter.key == "center_y") {
+          CHECK(parameter.presentation ==
+                expected_presentation(actual.identifier, parameter.key));
+        }
+        if (parameter.spatial_scale == patchy::FilterSpatialScale::Pixels) {
+          spatial_parameters.insert(actual.identifier + "/" + parameter.key);
+          CHECK(parameter.unit == patchy::FilterParameterUnit::Pixels);
+        }
+      }
+      CHECK(actual.catalog.fills_entire_canvas ==
+            (actual.identifier == "patchy.filters.difference_clouds" ||
+             actual.identifier == "patchy.filters.fibers" ||
+             actual.identifier == "patchy.filters.flame" ||
+             actual.identifier == "patchy.filters.lens_flare"));
+      continue;
+    }
     if (actual.identifier == "patchy.filters.lens_blur") {
       using Kind = patchy::FilterParameterKind;
       using Presentation = patchy::FilterParameterPresentation;
@@ -1986,6 +2048,10 @@ void filter_catalog_defines_stable_named_contracts() {
       "patchy.filters.lens_blur/radius",
       "patchy.filters.iris_blur/blur",
       "patchy.filters.tilt_shift_blur/blur",
+      "patchy.filters.wind/length",
+      "patchy.filters.extrude/size",
+      "patchy.filters.extrude/depth",
+      "patchy.filters.difference_clouds/scale",
   };
   CHECK(spatial_parameters == expected_spatial);
 }

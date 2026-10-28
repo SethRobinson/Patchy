@@ -6,7 +6,12 @@
 #include "filters/filter_kernels.hpp"
 #include "filters/filter_support.hpp"
 #include "filters/rgba_filter_staging.hpp"
+#include "core/smart_filter_schema.hpp"
+#include "filters/smart_filter_distort_stylize.hpp"
+#include "filters/smart_filter_recipe_mapping.hpp"
 #include "filters/smart_filter_renderer.hpp"
+#include "filters/smart_filter_table_render.hpp"
+#include "filters/stylize_render_filters.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -14,6 +19,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <initializer_list>
 #include <limits>
 #include <stdexcept>
@@ -1143,6 +1149,108 @@ void apply_clouds_to_pixels(PixelBuffer &pixels, RgbColor foreground,
   }
   report_filter_progress(progress, pixels.height(), pixels.height(),
                          FilterProgressStage::GeneratingClouds);
+}
+
+// Difference Clouds: Clouds' own pixels blended with Difference over the
+// layer. Transparent pixels show the clouds unchanged, so the result is opaque
+// like Clouds; on an opaque black layer it equals Clouds byte for byte.
+void apply_difference_clouds_to_pixels(PixelBuffer &pixels, RgbColor foreground,
+                                       RgbColor background, int scale,
+                                       int detail, int contrast, int seed,
+                                       const FilterProgress *progress) {
+  const auto has_alpha = pixels.format().channels >= 4;
+  const std::array<int, 3> fore{foreground.red, foreground.green,
+                                foreground.blue};
+  const std::array<int, 3> back{background.red, background.green,
+                                background.blue};
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, y, pixels.height(),
+                           FilterProgressStage::GeneratingClouds);
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto amount =
+          filter_cloud_noise(x, y, scale, detail, contrast, seed);
+      auto *px = pixels.pixel(x, y);
+      const int alpha = has_alpha ? px[3] : 255;
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        const int cloud = filter_clamp_byte(
+            static_cast<double>(back[channel]) * (1.0 - amount) +
+            static_cast<double>(fore[channel]) * amount);
+        const auto difference = std::abs(static_cast<int>(px[channel]) - cloud);
+        px[channel] = static_cast<std::uint8_t>(
+            (difference * alpha + cloud * (255 - alpha) + 127) / 255);
+      }
+      if (has_alpha) {
+        px[3] = 255;
+      }
+    }
+  }
+  report_filter_progress(progress, pixels.height(), pixels.height(),
+                         FilterProgressStage::GeneratingClouds);
+}
+
+// Runs a native Smart Filter kernel with the whole buffer as its filter
+// canvas, so the direct command renders exactly what a Smart Filter of the
+// same kind renders over the same pixels. A kernel that trims its result
+// (Diffuse) is placed back into the full buffer.
+void apply_native_table_filter(PixelBuffer &pixels,
+                               const FilterInvocation &invocation,
+                               SmartFilterKind kind,
+                               const FilterProgress *progress) {
+  stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+    const auto canvas = Rect::from_size(rgba.width(), rgba.height());
+    FilterRenderResult rendered;
+    if (const auto *schema = find_smart_filter_schema(kind); schema != nullptr) {
+      rendered = render_schema_smart_filter(
+          FilterRenderResult{rgba, canvas}, canvas, kind,
+          schema_smart_filter_from_invocation(*schema, invocation), progress);
+    } else {
+      const auto *table = smart_filter_table_spec(kind);
+      if (table == nullptr) {
+        throw std::invalid_argument(PATCHY_TRANSLATE_NOOP(
+            "QObject", "Unknown catalogued filter identifier"));
+      }
+      SmartFilterEntry entry;
+      entry.kind = kind;
+      entry.foreground = invocation.foreground;
+      entry.background = invocation.background;
+      entry.parameters =
+          table_smart_filter_from_catalog_invocation(*table, invocation);
+      rendered = render_table_smart_filter(FilterRenderResult{rgba, canvas},
+                                           entry, progress);
+    }
+    if (rendered.bounds == canvas && rendered.pixels.width() == canvas.width &&
+        rendered.pixels.height() == canvas.height) {
+      return rendered;
+    }
+    FilterRenderResult placed{PixelBuffer(canvas.width, canvas.height,
+                                          PixelFormat::rgba8()),
+                              canvas};
+    for (std::int32_t y = 0; y < rendered.pixels.height(); ++y) {
+      const auto target_y = rendered.bounds.y - canvas.y + y;
+      if (target_y < 0 || target_y >= canvas.height) {
+        continue;
+      }
+      for (std::int32_t x = 0; x < rendered.pixels.width(); ++x) {
+        const auto target_x = rendered.bounds.x - canvas.x + x;
+        if (target_x >= 0 && target_x < canvas.width) {
+          const auto *source = rendered.pixels.pixel(x, y);
+          std::copy(source, source + 4, placed.pixels.pixel(target_x, target_y));
+        }
+      }
+    }
+    return placed;
+  });
+}
+
+// Patchy's own Stylize and Render kernels (stylize_render_filters.hpp) work on
+// an RGBA8 copy of the buffer.
+template <typename RenderFn>
+void apply_rgba_kernel(PixelBuffer &pixels, RenderFn &&render) {
+  stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+    FilterRenderResult result{rgba, Rect::from_size(rgba.width(), rgba.height())};
+    render(result.pixels);
+    return result;
+  });
 }
 
 void apply_twirl_to_pixels(PixelBuffer &pixels, const PixelBuffer &original,
@@ -2425,6 +2533,112 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
+  // GitHub issue 496: the table-described native kernels as direct commands,
+  // then Patchy's own Stylize and Render filters (docs/stylize-render-filters.md).
+  if (identifier == "patchy.filters.solarize" ||
+      identifier == "patchy.filters.find_edges" ||
+      identifier == "patchy.filters.trace_contour" ||
+      identifier == "patchy.filters.diffuse" ||
+      identifier == "patchy.filters.fibers") {
+    apply_native_table_filter(pixels, invocation,
+                              *native_smart_filter_kind_for(identifier),
+                              progress);
+    return;
+  }
+
+  if (identifier == "patchy.filters.difference_clouds") {
+    apply_difference_clouds_to_pixels(
+        pixels, invocation.foreground, invocation.background,
+        std::clamp(filter_value(invocation, "scale", 96), 12, 512),
+        std::clamp(filter_value(invocation, "detail", 6), 1, 8),
+        std::clamp(filter_value(invocation, "contrast", 40), 0, 100),
+        std::clamp(filter_value(invocation, "seed", 1), 1, 9999), progress);
+    return;
+  }
+
+  if (identifier == "patchy.filters.wind") {
+    const auto method = filter_option(invocation, "method", "wind");
+    const auto wind_method = method == "blast"     ? WindMethod::Blast
+                             : method == "stagger" ? WindMethod::Stagger
+                                                   : WindMethod::Wind;
+    const auto from_left =
+        filter_option(invocation, "direction", "from_right") == "from_left";
+    const auto length = std::clamp(filter_value(invocation, "length", 40), 1, 200);
+    apply_rgba_kernel(pixels, [&](PixelBuffer &rgba) {
+      render_wind(rgba, wind_method, from_left, length, progress);
+    });
+    return;
+  }
+
+  if (identifier == "patchy.filters.tiles") {
+    const auto fill = filter_option(invocation, "fill", "background");
+    const auto tiles_fill = fill == "foreground"    ? TilesFill::Foreground
+                            : fill == "inverse"     ? TilesFill::Inverse
+                            : fill == "unaltered"   ? TilesFill::Unaltered
+                            : fill == "transparent" ? TilesFill::Transparent
+                                                    : TilesFill::Background;
+    apply_rgba_kernel(pixels, [&](PixelBuffer &rgba) {
+      render_tiles(rgba, std::clamp(filter_value(invocation, "count", 10), 1, 99),
+                   std::clamp(filter_value(invocation, "max_offset", 10), 1, 99),
+                   tiles_fill, invocation.foreground, invocation.background,
+                   std::clamp(filter_value(invocation, "seed", 1), 1, 9999),
+                   progress);
+    });
+    return;
+  }
+
+  if (identifier == "patchy.filters.extrude") {
+    const auto pyramids =
+        filter_option(invocation, "type", "blocks") == "pyramids";
+    const auto level_based =
+        filter_option(invocation, "heights", "random") == "level_based";
+    apply_rgba_kernel(pixels, [&](PixelBuffer &rgba) {
+      render_extrude(rgba, pyramids,
+                     std::clamp(filter_value(invocation, "size", 30), 2, 255),
+                     std::clamp(filter_value(invocation, "depth", 30), 1, 255),
+                     level_based,
+                     filter_boolean(invocation, "solid_front", false),
+                     std::clamp(filter_value(invocation, "seed", 1), 1, 9999),
+                     progress);
+    });
+    return;
+  }
+
+  if (identifier == "patchy.filters.lens_flare") {
+    const auto lens = filter_option(invocation, "lens", "classic");
+    const auto style = lens == "star"         ? LensFlareStyle::Star
+                       : lens == "ring"       ? LensFlareStyle::Ring
+                       : lens == "anamorphic" ? LensFlareStyle::Anamorphic
+                                              : LensFlareStyle::Classic;
+    apply_rgba_kernel(pixels, [&](PixelBuffer &rgba) {
+      render_lens_flare(
+          rgba, std::clamp(filter_number(invocation, "center_x", 30.0), 0.0, 100.0),
+          std::clamp(filter_number(invocation, "center_y", 30.0), 0.0, 100.0),
+          std::clamp(filter_value(invocation, "brightness", 100), 10, 300),
+          style, progress);
+    });
+    return;
+  }
+
+  if (identifier == "patchy.filters.flame") {
+    const auto colors = filter_option(invocation, "colors", "classic");
+    const auto palette = colors == "blue"     ? FlamePalette::Blue
+                         : colors == "green"  ? FlamePalette::Green
+                         : colors == "colors" ? FlamePalette::Colors
+                                              : FlamePalette::Classic;
+    apply_rgba_kernel(pixels, [&](PixelBuffer &rgba) {
+      render_flame(
+          rgba, std::clamp(filter_number(invocation, "center_x", 50.0), 0.0, 100.0),
+          std::clamp(filter_number(invocation, "center_y", 100.0), 0.0, 100.0),
+          std::clamp(filter_value(invocation, "length", 40), 5, 100),
+          std::clamp(filter_value(invocation, "width", 60), 1, 100),
+          std::clamp(filter_value(invocation, "turbulence", 50), 0, 100),
+          palette, invocation.foreground, invocation.background,
+          std::clamp(filter_value(invocation, "seed", 1), 1, 9999), progress);
+    });
+    return;
+  }
+
   throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Unknown catalogued filter identifier"));
 }
 
@@ -3310,6 +3524,129 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                 Presentation::CenterXPercent),
          center("center_y", "Center Y", "filterCenterY",
                 Presentation::CenterYPercent)});
+  } else if (identifier == "patchy.filters.solarize" ||
+             identifier == "patchy.filters.find_edges") {
+    // The native Solarize and Find Edges kernels; no settings.
+    metadata = catalog_metadata(Category::Stylize, false, {});
+  } else if (identifier == "patchy.filters.trace_contour") {
+    // Keys and defaults are the native schema's (core/smart_filter_schema.cpp).
+    metadata = catalog_metadata(
+        Category::Stylize, false,
+        {integer_parameter("level", "Level", "filterLevel", 0, 255, 128),
+         option_parameter("edge", "Edge", "filterEdge",
+                          {{"lower", "Lower"}, {"upper", "Upper"}}, "lower")});
+  } else if (identifier == "patchy.filters.diffuse") {
+    metadata = catalog_metadata(
+        Category::Stylize, false,
+        {option_parameter("mode", "Mode", "filterMode",
+                          {{"normal", "Normal"},
+                           {"darken_only", "Darken Only"},
+                           {"lighten_only", "Lighten Only"}},
+                          "normal")});
+  } else if (identifier == "patchy.filters.wind") {
+    auto length = integer_parameter("length", "Length", "filterLength", 1, 200,
+                                    40, Unit::Pixels, Scale::Pixels);
+    metadata = catalog_metadata(
+        Category::Stylize, false,
+        {option_parameter("method", "Method", "filterMethod",
+                          {{"wind", "Wind"},
+                           {"blast", "Blast"},
+                           {"stagger", "Stagger"}},
+                          "wind"),
+         option_parameter("direction", "Direction", "filterDirection",
+                          {{"from_right", "From the Right"},
+                           {"from_left", "From the Left"}},
+                          "from_right"),
+         std::move(length)});
+  } else if (identifier == "patchy.filters.tiles") {
+    metadata = catalog_metadata(
+        Category::Stylize, false,
+        {integer_parameter("count", "Number of Tiles", "filterTileCount", 1, 99,
+                           10),
+         integer_parameter("max_offset", "Maximum Offset", "filterMaximumOffset",
+                           1, 99, 10, Unit::Percent),
+         option_parameter("fill", "Fill Gaps With", "filterFill",
+                          {{"background", "Background Color"},
+                           {"foreground", "Foreground Color"},
+                           {"inverse", "Inverse Image"},
+                           {"unaltered", "Unaltered Image"},
+                           {"transparent", "Transparency"}},
+                          "background"),
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1)});
+  } else if (identifier == "patchy.filters.extrude") {
+    metadata = catalog_metadata(
+        Category::Stylize, false,
+        {option_parameter("type", "Block Shape", "filterBlockShape",
+                          {{"blocks", "Blocks"}, {"pyramids", "Pyramids"}},
+                          "blocks"),
+         integer_parameter("size", "Size", "filterSize", 2, 255, 30,
+                           Unit::Pixels, Scale::Pixels),
+         integer_parameter("depth", "Depth", "filterDepth", 1, 255, 30,
+                           Unit::Pixels, Scale::Pixels),
+         option_parameter("heights", "Heights", "filterHeights",
+                          {{"random", "Random"}, {"level_based", "Level-Based"}},
+                          "random"),
+         boolean_parameter("solid_front", "Solid Front Faces",
+                           "filterSolidFront", false),
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1)});
+  } else if (identifier == "patchy.filters.fibers") {
+    // The native Fibers table entry's keys and ranges.
+    metadata = catalog_metadata(
+        Category::Render, false,
+        {integer_parameter("variance", "Variance", "filterVariance", 1, 64, 16),
+         integer_parameter("strength", "Strength", "filterStrength", 1, 64, 4)});
+    metadata.fills_entire_canvas = true;
+  } else if (identifier == "patchy.filters.difference_clouds") {
+    metadata = catalog_metadata(
+        Category::Render, false,
+        {integer_parameter("scale", "Scale", "filterScale", 12, 512, 96,
+                           Unit::Pixels, Scale::Pixels),
+         integer_parameter("detail", "Detail", "filterDetail", 1, 8, 6),
+         integer_parameter("contrast", "Contrast", "filterContrast", 0, 100, 40,
+                           Unit::Percent),
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1)});
+    metadata.fills_entire_canvas = true;
+  } else if (identifier == "patchy.filters.lens_flare") {
+    metadata = catalog_metadata(
+        Category::Render, false,
+        {option_parameter("lens", "Flare Type", "filterFlareType",
+                          {{"classic", "Classic"},
+                           {"star", "Star"},
+                           {"ring", "Halo Ring"},
+                           {"anamorphic", "Wide Streak"}},
+                          "classic"),
+         integer_parameter("brightness", "Brightness", "filterBrightness", 10,
+                           300, 100, Unit::Percent),
+         double_parameter("center_x", "Center X", "filterCenterX", 0.0, 100.0,
+                          30.0, 0.1, Unit::Percent, Scale::None,
+                          Presentation::CenterXPercent),
+         double_parameter("center_y", "Center Y", "filterCenterY", 0.0, 100.0,
+                          30.0, 0.1, Unit::Percent, Scale::None,
+                          Presentation::CenterYPercent)});
+    metadata.fills_entire_canvas = true;
+  } else if (identifier == "patchy.filters.flame") {
+    metadata = catalog_metadata(
+        Category::Render, false,
+        {option_parameter("colors", "Colors", "filterFlameColors",
+                          {{"classic", "Classic Fire"},
+                           {"blue", "Blue Gas"},
+                           {"green", "Green"},
+                           {"colors", "Foreground to Background"}},
+                          "classic"),
+         integer_parameter("length", "Length", "filterLength", 5, 100, 40,
+                           Unit::Percent),
+         integer_parameter("width", "Width", "filterWidth", 1, 100, 60,
+                           Unit::Percent),
+         integer_parameter("turbulence", "Turbulence", "filterTurbulence", 0,
+                           100, 50, Unit::Percent),
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1),
+         double_parameter("center_x", "Base X", "filterCenterX", 0.0, 100.0,
+                          50.0, 0.1, Unit::Percent, Scale::None,
+                          Presentation::CenterXPercent),
+         double_parameter("center_y", "Base Y", "filterCenterY", 0.0, 100.0,
+                          100.0, 0.1, Unit::Percent, Scale::None,
+                          Presentation::CenterYPercent)});
+    metadata.fills_entire_canvas = true;
   } else {
     return {};
   }
@@ -3419,7 +3756,9 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   } else if (identifier == "patchy.filters.sharpen" ||
              identifier == "patchy.filters.edge_detect" ||
              identifier == "patchy.filters.sharpen_more" ||
-             identifier == "patchy.filters.sharpen_edges") {
+             identifier == "patchy.filters.sharpen_edges" ||
+             identifier == "patchy.filters.find_edges" ||
+             identifier == "patchy.filters.trace_contour") {
     metadata.translation_support =
         [](const FilterInvocation &) -> std::optional<int> { return 1; };
   } else if (identifier == "patchy.filters.blur" ||

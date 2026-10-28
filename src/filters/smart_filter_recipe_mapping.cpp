@@ -1,5 +1,6 @@
 #include "filters/smart_filter_recipe_mapping.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <string>
@@ -63,7 +64,146 @@ std::optional<SmartFilterKind> native_smart_filter_kind_for(
   if (filter_id == "patchy.filters.sharpen_edges") {
     return SmartFilterKind::SharpenEdges;
   }
+  // Direct commands for table-described native filters (GitHub issue 496).
+  if (filter_id == "patchy.filters.solarize") {
+    return SmartFilterKind::Solarize;
+  }
+  if (filter_id == "patchy.filters.find_edges") {
+    return SmartFilterKind::FindEdges;
+  }
+  if (filter_id == "patchy.filters.trace_contour") {
+    return SmartFilterKind::TraceContour;
+  }
+  if (filter_id == "patchy.filters.diffuse") {
+    return SmartFilterKind::Diffuse;
+  }
+  if (filter_id == "patchy.filters.fibers") {
+    return SmartFilterKind::Fibers;
+  }
   return std::nullopt;
+}
+
+namespace {
+
+[[nodiscard]] std::optional<double> invocation_number(const FilterInvocation& invocation,
+                                                      std::string_view key) {
+  const auto found = invocation.parameters.find(key);
+  if (found == invocation.parameters.end()) {
+    return std::nullopt;
+  }
+  if (const auto* integer = std::get_if<std::int64_t>(&found->second); integer != nullptr) {
+    return static_cast<double>(*integer);
+  }
+  if (const auto* real = std::get_if<double>(&found->second);
+      real != nullptr && std::isfinite(*real)) {
+    return *real;
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] const std::string* invocation_option(const FilterInvocation& invocation,
+                                                   std::string_view key) {
+  const auto found = invocation.parameters.find(key);
+  return found == invocation.parameters.end() ? nullptr
+                                              : std::get_if<std::string>(&found->second);
+}
+
+[[nodiscard]] const bool* invocation_boolean(const FilterInvocation& invocation,
+                                             std::string_view key) {
+  const auto found = invocation.parameters.find(key);
+  return found == invocation.parameters.end() ? nullptr : std::get_if<bool>(&found->second);
+}
+
+}  // namespace
+
+SchemaSmartFilter schema_smart_filter_from_invocation(const SmartFilterSchema& schema,
+                                                      const FilterInvocation& invocation) {
+  auto settings = default_schema_settings(schema);
+  for (std::size_t index = 0; index < schema.fields.size() && index < settings.values.size();
+       ++index) {
+    const auto& field = schema.fields[index];
+    if (field.hidden || field.parameter_key == nullptr) {
+      continue;
+    }
+    auto& value = settings.values[index];
+    switch (field.type) {
+      case SmartFilterFieldType::Integer:
+        if (const auto number = invocation_number(invocation, field.parameter_key);
+            number.has_value()) {
+          value = static_cast<std::int32_t>(std::clamp(std::floor(*number + 0.5),
+                                                       static_cast<double>(field.minimum),
+                                                       static_cast<double>(field.maximum)));
+        }
+        break;
+      case SmartFilterFieldType::Boolean:
+        if (const auto* flag = invocation_boolean(invocation, field.parameter_key);
+            flag != nullptr) {
+          value = *flag ? 1 : 0;
+        }
+        break;
+      case SmartFilterFieldType::Enum:
+        if (const auto* option = invocation_option(invocation, field.parameter_key);
+            option != nullptr) {
+          for (std::size_t option_index = 0; option_index < field.options.size(); ++option_index) {
+            if (*option == field.options[option_index].parameter_value) {
+              value = static_cast<std::int32_t>(option_index);
+            }
+          }
+        }
+        break;
+      case SmartFilterFieldType::PointList:
+        break;
+    }
+  }
+  return settings;
+}
+
+TableSmartFilter table_smart_filter_from_catalog_invocation(const SmartFilterTableSpec& spec,
+                                                            const FilterInvocation& invocation) {
+  auto settings = default_table_smart_filter(spec);
+  for (std::size_t index = 0; index < spec.fields.size() && index < settings.values.size();
+       ++index) {
+    const auto& field = spec.fields[index];
+    if (field.parameter_key == nullptr || std::string_view(field.parameter_key).empty()) {
+      continue;
+    }
+    auto& value = settings.values[index];
+    switch (field.type) {
+      case SmartFilterTableFieldType::Integer:
+        if (const auto number = invocation_number(invocation, field.parameter_key);
+            number.has_value()) {
+          value = static_cast<std::int32_t>(
+              std::clamp(std::floor(*number + 0.5), field.minimum, field.maximum));
+        }
+        break;
+      case SmartFilterTableFieldType::UnitDouble:
+        if (const auto number = invocation_number(invocation, field.parameter_key);
+            number.has_value()) {
+          const auto clamped = std::clamp(*number, field.minimum, field.maximum);
+          value = field.whole_numbers ? std::floor(clamped + 0.5) : clamped;
+        }
+        break;
+      case SmartFilterTableFieldType::Enumerated:
+        if (const auto* option = invocation_option(invocation, field.parameter_key);
+            option != nullptr) {
+          for (const auto& candidate : field.options) {
+            if (*option == candidate.token) {
+              value = std::string(candidate.token);
+            }
+          }
+        }
+        break;
+      case SmartFilterTableFieldType::Boolean:
+        if (const auto* flag = invocation_boolean(invocation, field.parameter_key);
+            flag != nullptr) {
+          value = *flag;
+        }
+        break;
+      case SmartFilterTableFieldType::IntegerList:
+        break;
+    }
+  }
+  return settings;
 }
 
 bool native_smart_filter_kind_supported(SmartFilterKind kind) {
@@ -154,8 +294,32 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
     const auto radial_blur = normalized->filter_id == "patchy.filters.radial_blur";
     const auto add_noise = normalized->filter_id == "patchy.filters.add_noise";
     SmartFilterEntry entry;
-    if (const auto *classic = parameterless_smart_filter_native(
-            *native_smart_filter_kind_for(normalized->filter_id));
+    const auto native_kind = *native_smart_filter_kind_for(normalized->filter_id);
+    if (const auto* schema = find_smart_filter_schema(native_kind); schema != nullptr) {
+      entry.kind = native_kind;
+      entry.native_name = schema->entry_name;
+      entry.native_class_id = schema->class_id;
+      entry.native_filter_id = schema->filter_id;
+      entry.has_options = schema->has_filter_object;
+      entry.parameters = schema_smart_filter_from_invocation(*schema, *normalized);
+    } else if (const auto* table = smart_filter_table_spec(native_kind); table != nullptr) {
+      entry.kind = native_kind;
+      entry.native_name = table->entry_name;
+      entry.native_class_id = table->class_id != nullptr ? table->class_id : "";
+      entry.native_filter_id = table->filter_id;
+      entry.has_options = table->has_options;
+      entry.parameters = table_smart_filter_from_catalog_invocation(*table, *normalized);
+    }
+    if (entry.kind != SmartFilterKind::Unsupported) {
+      entry.enabled = recipe_entry.enabled;
+      entry.opacity = recipe_entry.opacity;
+      entry.blend_mode = recipe_entry.blend_mode;
+      entry.foreground = normalized->foreground;
+      entry.background = normalized->background;
+      mapped.push_back(std::move(entry));
+      continue;
+    }
+    if (const auto *classic = parameterless_smart_filter_native(native_kind);
         classic != nullptr) {
       // Photoshop's parameterless filters: no settings, no Fltr object.
       entry.kind = classic->kind;
