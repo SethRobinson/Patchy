@@ -85,6 +85,8 @@ curve before that conversion.
 - The floating selection opens as an ordinary layer above the layer it belongs to (notice);
   one attached to a channel or mask is dropped (notice).
 - GIMP 3.2 vector layers and link layers open as their pixels (notice).
+- GIMP's active layer stays active; when the import replaced it (an Erase or Split layer), its
+  group stands in, else the top layer (#487: such a file failed to open).
 
 ## Blend modes
 
@@ -104,7 +106,7 @@ Normal).
 | HSV Hue, HSV Saturation, HSL Color, HSV Value (11 to 14, 37 to 40) | the same GIMP modes |
 | LCh Hue, Chroma, Color, Lightness (24 to 27) | the same GIMP modes |
 | Luminance (56), Luma Darken/Lighten Only (54, 55) | the same GIMP modes |
-| Erase (58), Split (60) | the layers below in a group masked by its inverse coverage (notice) |
+| Erase (58), Split (60) | the layers below in a group masked by its inverse coverage (notice); Normal with nothing visible below it in the image or an isolated group, as GIMP draws it (#487) |
 | Pass Through (61) | Pass Through on a group |
 | Behind (2, 29), Color Erase (22, 57), Merge (59) | Normal, with a notice |
 
@@ -255,6 +257,14 @@ the same linear-light mixing of faded layers and soft edges, and random noise fi
 Found and fixed on the corpus: GIMP's own test files ending a tile list early, effect masks
 that are empty when no selection existed, and wrapped files that sniffed as damaged.
 
+Layer trees: `scripts/dev/xcf/dump_gimp_trees.py DIR` writes GIMP 3.2's view of every file's
+tree to `DIR/gimp-trees/` (one tab-separated line per layer: depth, kind, mode, visibility,
+opacity, bounds, mask, name). `xcf_layer_trees_match_gimp_if_available` opens every file in
+`local-test-fixtures/xcf`, `xcf-corpus`, `xcf-indexed`, `xcf-metadata` and `xcf-issue-487` that
+has a tree and compares names, nesting, order, visibility, opacity, modes, masks and bounds; files
+with a visible Erase or Split layer are skipped (their groups are deliberate). To refresh after
+adding files: `render_with_gimp.py DIR` and `dump_gimp_trees.py DIR` (both skip what exists).
+
 ## Tests
 
 Core (`tests/core/xcf_tests.cpp`, filter `xcf_`, files built by `tests/xcf_test_builder.hpp`):
@@ -262,6 +272,7 @@ structure, every tile compression and pointer size, every precision, gray and in
 every mode number, the text parasite forms and text metadata, the floating selection,
 channels, paths, guides and metadata, the wrappers, hostile input, the registry and
 open-by-content, a Unicode path, the committed GIMP files against GIMP's renders, the local
-fixture set and corpus when present; `blend_math_gimp_*` pin the GIMP mode kernels. UI
+fixture set and corpus when present, every local file's layer tree against GIMP's, the #487
+samples (Erase and Split layers, an active Split layer); `blend_math_gimp_*` pin the GIMP mode kernels. UI
 (`tests/ui/xcf_ui_tests.cpp`, filter `ui_xcf_`): opening by name, compressed name and content,
 GIMP modes in the Layers panel, editable text and its PSD save.

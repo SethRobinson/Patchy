@@ -1515,6 +1515,105 @@ Layer named(Layer layer, const char* name) {
   return layer;
 }
 
+// GitHub issue 475: Merge Selected to New Layer (Copy) (Ctrl+Alt+E) renders what the selected
+// layers draw into one new pixel layer above the topmost selected one, named after it. The
+// originals stay, hidden selected layers are skipped, and an unselected group around a selected
+// layer applies once (the copy lands inside it). One undo step; one layer is copied merged.
+void ui_merge_selected_to_new_layer_keeps_originals_and_undoes() {
+  {
+    // A clipped layer keeps its clip only when its base is merged too.
+    Document clip_doc(32, 32, PixelFormat::rgba8());
+    const auto base_id = clip_doc.add_layer(named(pixel_layer(clip_doc, 2, 2, {200, 0, 0}), "Base")).id();
+    auto clip = named(pixel_layer(clip_doc, 6, 6, {0, 0, 200}), "Clip");
+    clip.set_clipped(true);
+    const auto clip_id = clip_doc.add_layer(std::move(clip)).id();
+    const auto alone = selected_document_for_merge_copy(clip_doc, {clip_id});
+    CHECK(alone.layers().size() == 1U && !alone.layers().front().clipped());
+    const auto both = selected_document_for_merge_copy(clip_doc, {clip_id, base_id});
+    CHECK(both.layers().size() == 2U && both.layers().back().clipped());
+  }
+  MainWindow window;
+  show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = Document(48, 40, PixelFormat::rgba8());
+  const auto bottom_id = doc.add_layer(named(pixel_layer(doc, 2, 2, {180, 30, 60}), "Bottom")).id();
+  auto multiply = named(pixel_layer(doc, 8, 6, {20, 150, 90}), "Multiply");
+  multiply.set_blend_mode(BlendMode::Multiply);
+  multiply.set_opacity(0.5F);
+  const auto multiply_id = doc.add_layer(std::move(multiply)).id();
+  auto hidden = named(pixel_layer(doc, 20, 4, {0, 255, 0}), "Hidden");
+  hidden.set_visible(false);
+  const auto hidden_id = doc.add_layer(std::move(hidden)).id();
+  Layer group(doc.allocate_layer_id(), "Group", LayerKind::Group);
+  group.set_blend_mode(BlendMode::Normal);
+  group.set_opacity(0.75F);
+  const auto group_id = group.id();
+  auto inside = named(pixel_layer(doc, 12, 12, {30, 60, 220}), "Inside");
+  const auto inside_id = inside.id();
+  set_layer_locks_all(inside, true);  // locks never block a copy
+  group.add_child(std::move(inside));
+  group.add_child(named(pixel_layer(doc, 26, 20, {250, 200, 40}), "Other"));
+  doc.add_layer(std::move(group));
+  doc.add_layer(named(pixel_layer(doc, 6, 14, {90, 90, 90}), "Top"));
+  doc.set_active_layer(inside_id);
+  const Document original = doc;
+  // The merge draws the selected visible layers alone, the unselected group dissolved.
+  Document expected_doc = original;
+  expected_doc.layers() = {*original.find_layer(multiply_id), *original.find_layer(inside_id)};
+  const auto expected = qimage_from_document(expected_doc, true);
+  CHECK(expected.pixelColor(13, 13).alpha() > 0 && expected.pixelColor(3, 3).alpha() == 0);
+  auto* canvas = require_canvas(window);
+  canvas->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  MainWindowTestAccess::select_layers(window, {multiply_id, hidden_id, inside_id}, inside_id);
+  auto* action = require_hotkey_action(window, QStringLiteral("layer.merge_selected_to_new"));
+  CHECK(action == require_action(window, "layerMergeSelectedToNewAction"));
+  CHECK(action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_E));
+  const auto history = MainWindowTestAccess::active_session_undo_depth(window);
+
+  action->trigger();
+  CHECK(!canvas->processing_operation_active());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history + 1);
+  const auto* group_after = std::as_const(doc).find_layer(group_id);
+  CHECK(group_after != nullptr);
+  CHECK((layer_names(group_after->children()) == std::vector<std::string>{"Inside", "Inside (merged)", "Other"}));
+  const auto& copy = group_after->children()[1];
+  CHECK(doc.active_layer_id() == copy.id());
+  CHECK(copy.kind() == LayerKind::Pixel && copy.lock_flags() == kLayerLockNone);
+  CHECK(copy.opacity() == 1.0F && copy.blend_mode() == BlendMode::Normal && copy.visible());
+  check_close_images(expected, render_layer_isolated(doc, copy), 0);
+  CHECK(layer_names(std::as_const(doc).layers()) == layer_names(original.layers()));
+  for (const auto id : {bottom_id, multiply_id, hidden_id, inside_id}) {
+    const auto* now = std::as_const(doc).find_layer(id);
+    CHECK(now != nullptr && now->content_revision() == original.find_layer(id)->content_revision());
+    CHECK(now != nullptr && now->visible() == original.find_layer(id)->visible());
+  }
+  MainWindowTestAccess::undo(window);
+  CHECK(std::as_const(doc).find_layer(group_id)->children().size() == 2U);
+  MainWindowTestAccess::redo(window);
+  CHECK(std::as_const(doc).find_layer(group_id)->children().size() == 3U);
+
+  // One selected layer is copied merged, directly above it (Photoshop).
+  MainWindowTestAccess::undo(window);
+  MainWindowTestAccess::select_layers(window, {bottom_id}, bottom_id);
+  action->trigger();
+  CHECK((layer_names(std::as_const(doc).layers()) ==
+         std::vector<std::string>{"Bottom", "Bottom (merged)", "Multiply", "Hidden", "Group", "Top"}));
+  Document bottom_doc = original;
+  bottom_doc.layers() = {*original.find_layer(bottom_id)};
+  check_close_images(qimage_from_document(bottom_doc, true),
+                     render_layer_isolated(doc, std::as_const(doc).layers()[1]), 0);
+
+  // Only hidden layers selected: nothing to merge, no history entry.
+  MainWindowTestAccess::undo(window);
+  MainWindowTestAccess::select_layers(window, {hidden_id}, hidden_id);
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  action->trigger();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("No visible selected layers to merge"));
+  CHECK(layer_names(std::as_const(doc).layers()) == layer_names(original.layers()));
+}
+
 // GitHub issue 294: Merge Visible merges every layer that draws into one pixel layer in the
 // active layer's slot, as one undo step. Hidden layers stay, a visible group's hidden members
 // come out of it, and the composite does not change (Photoshop 2026 over COM, October 2026).
@@ -1871,6 +1970,7 @@ std::vector<patchy::test::TestCase> layer_merge_tests() {
       {"ui_layer_selection_count_includes_collapsed_descendants", ui_layer_selection_count_includes_collapsed_descendants},
       {"ui_layer_selection_count_little_everywhere_if_available", ui_layer_selection_count_little_everywhere_if_available},
       {"ui_merge_visible_copy_bitmap_preserves_alpha_and_history", ui_merge_visible_copy_bitmap_preserves_alpha_and_history},
+      {"ui_merge_selected_to_new_layer_keeps_originals_and_undoes", ui_merge_selected_to_new_layer_keeps_originals_and_undoes},
       {"ui_merge_visible_copy_explicit_vector_mode_keeps_originals", ui_merge_visible_copy_explicit_vector_mode_keeps_originals},
       {"ui_merge_visible_copy_bitmap_preserves_fully_transparent_canvas", ui_merge_visible_copy_bitmap_preserves_fully_transparent_canvas},
       {"ui_merge_visible_copy_dialog_preserves_sources_and_history", ui_merge_visible_copy_dialog_preserves_sources_and_history},

@@ -67,6 +67,13 @@ struct LayerMergePlan {
 [[nodiscard]] LayerMergePlan plan_layer_merge(const Document& document, const std::vector<LayerId>& ids,
                                              LayerMergeOptions options = {}, bool copy = false);
 [[nodiscard]] Document visible_document_for_merge_copy(const Document& document);
+// Merge Selected to New Layer (GitHub issue 475; docs/layer-merging.md): the document cut down
+// to what the selected layers draw. A selected group keeps its visible subtree; an unselected
+// group holding selected layers dissolves into its parent (the copy lands inside it, so its
+// opacity, mask and blending still apply once). Hidden layers and layers clipped to a hidden
+// base drop, as in visible_document_for_merge_copy; a clipped layer whose base is not part of
+// the merge is released. Locks are cleared on the copies. No layers when nothing selected draws.
+[[nodiscard]] Document selected_document_for_merge_copy(const Document& document, const std::vector<LayerId>& ids);
 // Merge Visible in place (docs/layer-merging.md, "Merge Visible"). A layer draws when it and
 // every ancestor are visible and it is not clipped to a hidden base.
 // Layers other than groups that draw; Merge Visible needs two, like Photoshop.

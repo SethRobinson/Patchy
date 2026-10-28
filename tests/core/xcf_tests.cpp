@@ -649,10 +649,9 @@ void xcf_indexed_samples_attach_their_colormap() {
   }
 }
 
-// Every PROP_MODE value maps (docs/xcf.md, "Blend modes"), with notices for the
-// approximated and missing ones.
-void xcf_maps_every_gimp_layer_mode() {
-  const std::map<std::uint32_t, BlendMode> expected{
+// PROP_MODE to Patchy's mode on a pixel layer (docs/xcf.md, "Blend modes").
+[[nodiscard]] const std::map<std::uint32_t, BlendMode>& gimp_mode_map() {
+  static const std::map<std::uint32_t, BlendMode> map{
       {0, BlendMode::Normal},        {1, BlendMode::Dissolve},     {3, BlendMode::Multiply},
       {4, BlendMode::Screen},        {6, BlendMode::Difference},   {7, BlendMode::LinearDodge},
       {8, BlendMode::Subtract},      {9, BlendMode::Darken},       {10, BlendMode::Lighten},
@@ -674,6 +673,13 @@ void xcf_maps_every_gimp_layer_mode() {
       {56, BlendMode::Luminance},   {57, BlendMode::Normal},      {59, BlendMode::Normal},
       {60, BlendMode::Normal},       {61, BlendMode::Normal},      {999, BlendMode::Normal},
   };
+  return map;
+}
+
+// Every PROP_MODE value maps (docs/xcf.md, "Blend modes"), with notices for the
+// approximated and missing ones.
+void xcf_maps_every_gimp_layer_mode() {
+  const auto& expected = gimp_mode_map();
   builder::Image image;
   image.width = 2;
   image.height = 2;
@@ -1289,6 +1295,322 @@ void xcf_corpus_opens_if_available() {
   CHECK(opened > 0);
 }
 
+// --- issue 487: Erase and Split layers --------------------------------------------------------
+
+[[nodiscard]] std::vector<std::string> top_level_names(const Document& document) {
+  std::vector<std::string> names;
+  for (auto it = document.layers().rbegin(); it != document.layers().rend(); ++it) {
+    names.push_back(it->name());
+  }
+  return names;
+}
+
+// The active layer GIMP saved can be one the import replaces (an Erase or Split layer):
+// the file still opens, with a layer that exists active (issue 487, "test 4").
+void xcf_active_erase_layer_still_opens() {
+  for (const std::uint32_t mode : {58U, 60U}) {
+    builder::Image image;
+    image.width = 4;
+    image.height = 4;
+    auto eraser = pixel_layer("Eraser", builder::solid(4, 4, {0, 0, 0, 255}));
+    eraser.properties.push_back(builder::prop_u32(builder::kMode, mode));
+    eraser.properties.push_back(builder::prop_empty(builder::kActiveLayer));
+    image.layers.push_back(eraser);
+    image.layers.push_back(pixel_layer("Middle", builder::solid(4, 4, {10, 200, 30, 255})));
+    image.layers.push_back(pixel_layer("Bottom", builder::solid(4, 4, {200, 10, 30, 255})));
+    const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+    const auto active = document.active_layer_id();
+    CHECK(active.has_value() && document.find_layer(*active) != nullptr);
+  }
+}
+
+// GIMP draws the bottom visible layer of a stack as Normal whatever its mode, Erase and
+// Split included (measured on GIMP 3.2): such a layer stays, as Normal.
+void xcf_bottom_erase_layer_draws_as_normal() {
+  builder::Image image;
+  image.width = 4;
+  image.height = 4;
+  auto eraser = pixel_layer("Eraser", builder::solid(4, 4, {20, 220, 120, 128}));
+  eraser.properties.push_back(builder::prop_u32(builder::kMode, 58));
+  image.layers.push_back(eraser);
+  auto hidden = pixel_layer("Hidden", builder::solid(4, 4, {200, 10, 30, 255}));
+  hidden.properties.push_back(builder::prop_u32(builder::kVisible, 0));
+  image.layers.push_back(hidden);
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+  CHECK((top_level_names(document) == std::vector<std::string>{"Eraser", "Hidden"}));
+  const auto* layer = find_named(document.layers(), "Eraser");
+  CHECK(layer != nullptr && layer->blend_mode() == BlendMode::Normal && layer->visible());
+  const auto composite = patchy::flatten_document_rgba8(document);
+  const auto* px = composite.pixel(1, 1);
+  CHECK(px[0] == 20 && px[1] == 220 && px[2] == 120 && std::abs(px[3] - 128) <= 1);
+}
+
+// philipzae's files from issue 487 (local-test-fixtures/xcf-issue-487, README.txt there):
+// both open, the active layer exists, and the composite matches GIMP's render.
+void xcf_issue_487_samples_open_like_gimp() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-487";
+  patchy::test::skip_unless_exists(dir / "README.txt");
+  for (const std::string stem : {"0203 - layer blend modes - test 3", "0203 - layer blend modes - test 4"}) {
+    std::vector<std::string> notices;
+    Document document;
+    try {
+      document = patchy::xcf::DocumentIo::read_file(dir / (stem + ".xcf"), &notices);
+    } catch (const std::exception& error) {
+      std::cout << "  " << stem << ": " << error.what() << "\n";
+      CHECK(false);
+      continue;
+    }
+    const auto active = document.active_layer_id();
+    CHECK(active.has_value() && document.find_layer(*active) != nullptr);
+    const auto composite = composite_rgba8(document);
+    write_png_artifact("xcf-issue-487", stem, composite);
+    const auto difference = compare_with_png(composite, dir / "gimp-renders" / (stem + ".xcf.png"));
+    CHECK(difference.has_value());
+    if (difference.has_value()) {
+      std::cout << "  " << stem << ": mean " << difference->mean << " worst " << difference->worst << "\n";
+      // Dissolve's noise is Patchy's own, and Color Erase and Merge open as Normal.
+      CHECK(difference->mean < 12.0);
+    }
+  }
+}
+
+// --- layer trees against GIMP ---------------------------------------------------------------
+
+struct TreeItem {
+  int depth{0};
+  std::string kind;  // group, text or layer
+  std::uint32_t mode{0};
+  bool visible{true};
+  int opacity{100};
+  patchy::Rect bounds;
+  bool mask{false};
+  std::string name;
+};
+
+struct GimpTree {
+  std::int32_t width{0};
+  std::int32_t height{0};
+  std::vector<TreeItem> items;
+};
+
+// A gimp-trees/*.tree.txt file (scripts/dev/xcf/dump_gimp_trees.py).
+[[nodiscard]] std::optional<GimpTree> read_gimp_tree(const std::filesystem::path& path) {
+  std::ifstream file(path, std::ios::binary);
+  std::string line;
+  if (!std::getline(file, line) || !line.starts_with("image ")) {
+    return std::nullopt;
+  }
+  GimpTree tree;
+  std::istringstream header(line.substr(6));
+  header >> tree.width >> tree.height;
+  while (std::getline(file, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    std::vector<std::string> fields;
+    std::size_t start = 0;
+    for (int i = 0; i < 10; ++i) {
+      const auto tab = line.find('\t', start);
+      if (tab == std::string::npos) {
+        return std::nullopt;
+      }
+      fields.push_back(line.substr(start, tab - start));
+      start = tab + 1;
+    }
+    TreeItem item;
+    item.depth = std::stoi(fields[0]);
+    item.kind = fields[1];
+    item.mode = static_cast<std::uint32_t>(std::stoul(fields[2]));
+    item.visible = fields[3] == "1";
+    item.opacity = std::stoi(fields[4]);
+    item.bounds = patchy::Rect{std::stoi(fields[5]), std::stoi(fields[6]), std::stoi(fields[7]), std::stoi(fields[8])};
+    item.mask = fields[9] == "1";
+    item.name = line.substr(start);
+    tree.items.push_back(item);
+  }
+  return tree;
+}
+
+// Patchy's tree in GIMP's order: top first, depth first.
+void flatten_patchy_tree(const std::vector<patchy::Layer>& layers, int depth,
+                         std::vector<std::pair<int, const patchy::Layer*>>& out) {
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    out.emplace_back(depth, &*it);
+    if (it->kind() == patchy::LayerKind::Group) {
+      flatten_patchy_tree(it->children(), depth + 1, out);
+    }
+  }
+}
+
+// Whether Patchy's mode is what PROP_MODE `mode` maps to: the linear-light modes open in
+// their plain form when the layer blends in another space (docs/xcf.md).
+[[nodiscard]] bool mode_matches(std::uint32_t mode, bool group, BlendMode actual) {
+  if (group && mode == 61) {
+    return actual == BlendMode::PassThrough;
+  }
+  const auto& map = gimp_mode_map();
+  const auto found = map.find(mode);
+  const auto expected = found == map.end() ? BlendMode::Normal : found->second;
+  if (actual == expected) {
+    return true;
+  }
+  const std::map<BlendMode, BlendMode> plain{{BlendMode::LinearMultiply, BlendMode::Multiply},
+                                             {BlendMode::LinearAddition, BlendMode::LinearDodge},
+                                             {BlendMode::LinearSubtract, BlendMode::Subtract},
+                                             {BlendMode::LinearDivide, BlendMode::Divide},
+                                             {BlendMode::Multiply, BlendMode::LinearMultiply},
+                                             {BlendMode::LinearDodge, BlendMode::LinearAddition},
+                                             {BlendMode::Subtract, BlendMode::LinearSubtract},
+                                             {BlendMode::Divide, BlendMode::LinearDivide}};
+  const auto other = plain.find(expected);
+  return other != plain.end() && other->second == actual;
+}
+
+// Compares one document with GIMP's tree; returns the differences (empty when they match).
+[[nodiscard]] std::vector<std::string> compare_tree(const Document& document, const GimpTree& tree,
+                                                    const std::vector<std::string>& notices) {
+  std::vector<std::string> problems;
+  if (document.width() != tree.width || document.height() != tree.height) {
+    problems.push_back("canvas " + std::to_string(document.width()) + "x" + std::to_string(document.height()));
+  }
+  std::vector<std::pair<int, const patchy::Layer*>> mine;
+  flatten_patchy_tree(document.layers(), 0, mine);
+  const bool floating = std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("floating selection opened") != std::string::npos;
+  });
+  const bool effects_applied = std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("layer effects Patchy can reproduce") != std::string::npos;
+  });
+  std::size_t at = 0;
+  bool skipped_floating = false;
+  for (const auto& item : tree.items) {
+    if (at < mine.size() && floating && !skipped_floating && mine[at].second->name() != item.name) {
+      ++at;  // the floating selection, which GIMP's list leaves out
+      skipped_floating = true;
+    }
+    if (at >= mine.size()) {
+      problems.push_back("missing '" + item.name + "'");
+      break;
+    }
+    const auto [depth, layer] = mine[at++];
+    const std::string where = "'" + item.name + "'";
+    if (layer->name() != item.name) {
+      problems.push_back(where + " opened as '" + layer->name() + "'");
+      break;  // the rest would only repeat the shift
+    }
+    const bool group = item.kind == "group";
+    if (depth != item.depth || group != (layer->kind() == patchy::LayerKind::Group)) {
+      problems.push_back(where + " depth or group differs");
+      break;
+    }
+    if (layer->visible() != item.visible) {
+      problems.push_back(where + " visibility");
+    }
+    if (std::abs(static_cast<int>(std::lround(layer->opacity() * 100.0F)) - item.opacity) > 1) {
+      problems.push_back(where + " opacity " + std::to_string(layer->opacity()));
+    }
+    if (item.mode != 58 && item.mode != 60 && !mode_matches(item.mode, group, layer->blend_mode())) {
+      problems.push_back(where + " mode " + std::to_string(item.mode) + " opened as " +
+                         std::to_string(static_cast<int>(layer->blend_mode())));
+    }
+    if (item.mask && !layer->mask().has_value()) {
+      problems.push_back(where + " lost its mask");
+    }
+    // A GIMP effect that grows the layer (Gaussian Blur with clip-extent off) grows Patchy's
+    // pixels too (docs/xcf.md, "Layer effects").
+    const auto& lb = layer->bounds();
+    const bool grown = effects_applied && lb.x <= item.bounds.x && lb.y <= item.bounds.y &&
+                       lb.x + lb.width >= item.bounds.x + item.bounds.width &&
+                       lb.y + lb.height >= item.bounds.y + item.bounds.height;
+    if (!group && layer->bounds() != item.bounds && !grown) {
+      const auto& b = layer->bounds();
+      problems.push_back(where + " bounds " + std::to_string(b.x) + "," + std::to_string(b.y) + " " +
+                         std::to_string(b.width) + "x" + std::to_string(b.height));
+    }
+  }
+  const std::size_t expected_count = at + (floating && !skipped_floating ? 1U : 0U);
+  if (problems.empty() && expected_count != mine.size()) {
+    problems.push_back(std::to_string(mine.size() - at) + " extra layers");
+  }
+  return problems;
+}
+
+// Every local .xcf with a GIMP tree beside it (gimp-trees/, from dump_gimp_trees.py) opens with
+// GIMP's layer tree: the same layers, names, nesting, order, visibility, opacity, modes, masks
+// and bounds. Files with a visible Erase or Split layer are listed and skipped: the import
+// emulates those modes with groups (docs/xcf.md, "Blend modes").
+void xcf_layer_trees_match_gimp_if_available() {
+  const auto root = patchy::test::source_root_path() / "local-test-fixtures";
+  std::vector<std::filesystem::path> dirs;
+  for (const char* name : {"xcf", "xcf-corpus", "xcf-indexed", "xcf-metadata", "xcf-issue-487"}) {
+    if (std::filesystem::exists(root / name / "gimp-trees")) {
+      dirs.push_back(root / name);
+    }
+  }
+  patchy::test::skip_unless_exists(dirs.empty() ? root / "xcf" / "gimp-trees" : dirs.front() / "gimp-trees");
+  patchy::set_deep_editing_override(true);
+  std::size_t compared = 0;
+  std::size_t skipped = 0;
+  std::vector<std::string> failures;
+  for (const auto& dir : dirs) {
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
+      if (!entry.is_regular_file()) {
+        continue;
+      }
+      std::string lower = entry.path().filename().string();
+      std::transform(lower.begin(), lower.end(), lower.begin(),
+                     [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+      if (!lower.ends_with(".xcf") && !lower.ends_with(".xcf.gz") && !lower.ends_with(".xcf.bz2") &&
+          !lower.ends_with(".xcf.xz") && !lower.ends_with(".xcfgz") && !lower.ends_with(".xcfbz2") &&
+          !lower.ends_with(".xcfxz")) {
+        continue;
+      }
+      // The tree's name is the path under `dir` with "/" as "__" (dump_gimp_trees.py).
+      const auto relative = entry.path().lexically_relative(dir).generic_string();
+      std::string tree_name;
+      for (const char c : relative) {
+        tree_name += c == '/' ? std::string("__") : std::string(1, c);
+      }
+      const auto tree_path = dir / "gimp-trees" / (tree_name + ".tree.txt");
+      if (!std::filesystem::exists(tree_path)) {
+        continue;  // GIMP refuses it, or it was added after the dump
+      }
+      const auto& source = entry.path();
+      const auto tree = read_gimp_tree(tree_path);
+      const auto label = dir.filename().string() + "/" + relative;
+      if (!tree.has_value()) {
+        failures.push_back(label + ": unreadable tree");
+        continue;
+      }
+      if (std::any_of(tree->items.begin(), tree->items.end(), [](const TreeItem& item) {
+            return item.visible && (item.mode == 58 || item.mode == 60);
+          })) {
+        ++skipped;
+        std::cout << "  skipped (Erase or Split groups): " << label << "\n";
+        continue;
+      }
+      std::vector<std::string> notices;
+      try {
+        const auto document = patchy::xcf::DocumentIo::read_file(source, &notices);
+        ++compared;
+        for (const auto& problem : compare_tree(document, *tree, notices)) {
+          failures.push_back(label + ": " + problem);
+        }
+      } catch (const std::exception& error) {
+        failures.push_back(label + ": " + error.what());
+      }
+    }
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+  for (const auto& failure : failures) {
+    std::cout << "  FAIL " << failure << "\n";
+  }
+  std::cout << "  trees: " << compared << " compared, " << skipped << " skipped, " << failures.size()
+            << " differences\n";
+  CHECK(compared > 0);
+  CHECK(failures.empty());
+}
+
 // --- GIMP's metadata tag list (gimp-image-metadata, issue 450) ------------------------------
 
 namespace md = patchy::metadata;
@@ -1704,5 +2026,9 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_committed_gimp_files_match_gimp_renders", xcf_committed_gimp_files_match_gimp_renders},
       {"xcf_gimp_fixtures_match_gimp_renders_if_available", xcf_gimp_fixtures_match_gimp_renders_if_available},
       {"xcf_corpus_opens_if_available", xcf_corpus_opens_if_available},
+      {"xcf_active_erase_layer_still_opens", xcf_active_erase_layer_still_opens},
+      {"xcf_bottom_erase_layer_draws_as_normal", xcf_bottom_erase_layer_draws_as_normal},
+      {"xcf_issue_487_samples_open_like_gimp", xcf_issue_487_samples_open_like_gimp},
+      {"xcf_layer_trees_match_gimp_if_available", xcf_layer_trees_match_gimp_if_available},
   };
 }

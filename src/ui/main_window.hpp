@@ -2027,6 +2027,8 @@ private:
                                    bool clicked_in_panel = false);
   // Select > Deselect Layers: no selected rows and no active layer.
   void deselect_all_layers();
+  // Select > All Layers (GitHub issue 479): every row of the Layers panel but the Background.
+  void select_all_layers();
   // For a command that needs a layer: with no active layer, a one-layer
   // document's only layer becomes the selection instead of the command
   // refusing. Call it right before the command reads its target. See
@@ -2075,6 +2077,10 @@ private:
   // floated, or a document tab): accepts it as a copy and defers the copy.
   bool handle_cross_document_layer_drag_event(QObject* watched, QEvent* event);
   void merge_visible_to_new_layer();
+  // Merge Selected to New Layer (Copy) (GitHub issue 475, docs/layer-merging.md): what the
+  // selected layers draw, as one new pixel layer above the topmost selected one; the
+  // originals stay. One undo step.
+  void merge_selected_to_new_layer();
   // Merge Visible in place (GitHub issue 294, docs/layer-merging.md): one undo step,
   // hidden layers stay; off while fewer than two visible layers draw.
   void merge_visible_layers();
@@ -2181,6 +2187,9 @@ private:
   void finish_pending_layer_fill_opacity_edit();
   void reset_pending_layer_fill_opacity_edit();
   void set_active_layer_blend(int index);
+  // Next (+1) or previous (-1) blend mode of the selected layers (GitHub issue 476): one step
+  // of the Layers panel's mode list, through set_active_layer_blend.
+  void step_layer_blend_mode(int direction);
   void finish_pending_layer_blend_edit();
   // Live blend preview while the panel's blend list is open (GitHub issue 367).
   void begin_layer_blend_preview();
@@ -2851,6 +2860,8 @@ private:
   QAction* layer_prevent_auto_nesting_action_{nullptr};
   // Layer > Merge Visible (refresh_merge_visible_action_state).
   QAction* layer_merge_visible_layers_action_{nullptr};
+  // Merge Selected to New Layer (Copy): the layer context menu's Merge submenu and the window.
+  QAction* layer_merge_selected_to_new_action_{nullptr};
   QAction* layer_align_to_selection_action_{nullptr};
   QAction* layer_align_to_canvas_action_{nullptr};
   // Align To: Canvas (true) or Selection (false). Not persisted: every launch

@@ -390,6 +390,10 @@ void install_blend_mode_arrow_keys(QComboBox* combo) {
 
 }  // namespace
 
+int blend_mode_step_index(const QComboBox* combo, int direction) {
+  return next_step_stop(combo, combo->currentIndex(), direction < 0 ? -1 : 1);
+}
+
 void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
   if (menu == BlendModeMenu::Folder) {
     combo->addItem(blend_mode_name(BlendMode::PassThrough), static_cast<int>(BlendMode::PassThrough));

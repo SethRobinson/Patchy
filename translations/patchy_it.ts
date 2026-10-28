@@ -27694,6 +27694,46 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <translation>Immagine o documento non supportato: %1</translation>
     </message>
     <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>Unisci selezionati in nuovo livello (copia)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>Metodo di fusione successivo</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>Metodo di fusione precedente</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>Nessun livello selezionato visibile da unire</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (unito)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>Impossibile unire i livelli selezionati. I livelli originali non sono stati modificati.</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>Unisci selezionati (copia)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>Livelli selezionati uniti in un nuovo livello</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>Nessun livello da selezionare</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>Metodo di fusione: %1</translation>
+    </message>
+    <message>
         <source>Zoom Thumbnails to Layer Content</source>
         <translation>Ingrandisci le miniature sul contenuto del livello</translation>
     </message>

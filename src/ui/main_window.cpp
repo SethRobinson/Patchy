@@ -5040,6 +5040,14 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         key_event->accept();
         return true;
       }
+      // AltGr arrives as Ctrl+Alt on Windows: a character it types (the euro sign on many
+      // layouts is AltGr+E) is text here, not Ctrl+Alt+E (#475) or another Ctrl+Alt hotkey.
+      const auto modifiers = key_event->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier);
+      if (modifiers == (Qt::ControlModifier | Qt::AltModifier) && !key_event->text().isEmpty() &&
+          key_event->text().front().isPrint()) {
+        key_event->accept();
+        return true;
+      }
     }
   }
 

@@ -3501,6 +3501,41 @@ void MainWindow::deselect_all_layers() {
   refresh_paths_panel();
 }
 
+// Photoshop's Select > All Layers (GitHub issue 479): every row the panel shows, collapsed
+// groups as their group row and the Background left out. The active layer stays when it is
+// one of them, else the topmost row takes it.
+void MainWindow::select_all_layers() {
+  if (!has_active_document() || layer_list_ == nullptr) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  finish_active_text_editor();
+  const auto* background = document_background_layer();
+  std::vector<LayerId> ids;
+  for (int row = 0; row < layer_list_->count(); ++row) {
+    const auto* item = layer_list_->item(row);
+    if (item == nullptr) {
+      continue;
+    }
+    const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    if (background == nullptr || background->id() != id) {
+      ids.push_back(id);
+    }
+  }
+  if (ids.empty()) {
+    statusBar()->showMessage(tr("No layers to select"));
+    return;
+  }
+  const auto active = std::as_const(document()).active_layer_id();
+  const auto active_id =
+      active.has_value() && std::find(ids.begin(), ids.end(), *active) != ids.end() ? *active : ids.front();
+  select_layers_in_layer_list(ids, active_id);
+  refresh_options_bar();
+}
+
 void MainWindow::select_only_layer_if_none_active() {
   if (!has_active_document() || layer_list_ == nullptr || preview_dialog_edit_locked()) {
     return;
