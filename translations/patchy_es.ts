@@ -13531,10 +13531,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Carpeta para las formas seleccionadas; déjela vacía para quitarlas de las carpetas</translation>
     </message>
     <message>
-        <source>Import SVG files as custom shapes</source>
-        <translation>Importar archivos SVG como formas personalizadas</translation>
-    </message>
-    <message>
         <source>Delete the selected shapes or folders (Del)</source>
         <translation>Eliminar las formas o carpetas seleccionadas (Supr)</translation>
     </message>
@@ -13627,6 +13623,38 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
             <numerusform>Se restableció %n forma predeterminada a los ajustes de fábrica.</numerusform>
             <numerusform>Se restablecieron %n formas predeterminadas a los ajustes de fábrica.</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Not a Photoshop custom shapes file</source>
+        <translation>No es un archivo de formas personalizadas de Photoshop</translation>
+    </message>
+    <message>
+        <source>Unsupported custom shapes file version</source>
+        <translation>Versión de archivo de formas no compatible</translation>
+    </message>
+    <message>
+        <source>Skipped a shape with damaged or empty geometry</source>
+        <translation>Se omitió una forma con geometría dañada o vacía</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded shape</source>
+        <translation>El archivo está dañado a partir de la última forma leída</translation>
+    </message>
+    <message>
+        <source>The file holds no usable shapes</source>
+        <translation>El archivo no contiene formas utilizables</translation>
+    </message>
+    <message>
+        <source>Import Photoshop .csh shape files or SVG files</source>
+        <translation>Importar archivos de formas .csh de Photoshop o archivos SVG</translation>
+    </message>
+    <message>
+        <source>Custom Shapes and SVG Files (*.csh *.svg *.svgz)</source>
+        <translation>Formas personalizadas y archivos SVG (*.csh *.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation>Formas personalizadas de Photoshop (*.csh)</translation>
     </message>
 </context>
 <context>
@@ -15906,6 +15934,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>%1 Copy</source>
         <translation>%1 copia</translation>
+    </message>
+    <message>
+        <source>Shape %1</source>
+        <translation>Forma %1</translation>
+    </message>
+    <message>
+        <source>Could not save the custom shape</source>
+        <translation>No se pudo guardar la forma personalizada</translation>
     </message>
 </context>
 <context>

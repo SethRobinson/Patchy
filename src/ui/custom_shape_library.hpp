@@ -52,6 +52,11 @@ public:
   int remove_shapes(const QStringList& storage_ids);
   // A user copy ("<name> copy", same folder, fresh ids); empty on failure.
   QString duplicate_shape(const QString& storage_id);
+  // Photoshop .csh import (GitHub issue 486, psd/csh_io.hpp): every decodable
+  // shape becomes a user entry in a folder named after the file, emitting
+  // changed() once. Returns the storage ids added; empty with a translated
+  // `error` when the file is unusable. `warnings` lists skipped shapes.
+  QStringList import_csh(const QString& path, QString& error, QStringList& warnings);
   [[nodiscard]] const CustomShapeLibraryEntry* find_entry_by_shape_id(const QString& shape_id) const;
 
   // Writes the missing builtin shapes introduced after newer_than_version
@@ -67,6 +72,8 @@ public:
 
 private:
   void reload();
+  QString add_shape_without_signal(const QString& name, const VectorPath& path, const QString& folder,
+                                   const QString& preferred_storage_id, const QString& shape_id);
   bool write_sidecar(const CustomShapeLibraryEntry& entry) const;
 };
 

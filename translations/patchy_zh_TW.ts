@@ -13494,10 +13494,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>所選形狀的資料夾，留空可將其從資料夾中移除</translation>
     </message>
     <message>
-        <source>Import SVG files as custom shapes</source>
-        <translation>將 SVG 檔案匯入為自訂形狀</translation>
-    </message>
-    <message>
         <source>Delete the selected shapes or folders (Del)</source>
         <translation>刪除所選的形狀或資料夾 (Del)</translation>
     </message>
@@ -13584,6 +13580,38 @@ Each item&apos;s own View setting still applies.</source>
         <translation>
             <numerusform>已將 %n 個預設形狀重設為原廠設定。</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Not a Photoshop custom shapes file</source>
+        <translation>不是 Photoshop 自訂形狀檔案</translation>
+    </message>
+    <message>
+        <source>Unsupported custom shapes file version</source>
+        <translation>不支援的形狀檔案版本</translation>
+    </message>
+    <message>
+        <source>Skipped a shape with damaged or empty geometry</source>
+        <translation>已略過一個幾何資料損壞或為空的形狀</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded shape</source>
+        <translation>檔案在最後讀取的形狀之後已損壞</translation>
+    </message>
+    <message>
+        <source>The file holds no usable shapes</source>
+        <translation>檔案中沒有可用的形狀</translation>
+    </message>
+    <message>
+        <source>Import Photoshop .csh shape files or SVG files</source>
+        <translation>匯入 Photoshop .csh 形狀檔案或 SVG 檔案</translation>
+    </message>
+    <message>
+        <source>Custom Shapes and SVG Files (*.csh *.svg *.svgz)</source>
+        <translation>自訂形狀和 SVG 檔案 (*.csh *.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation>Photoshop 自訂形狀 (*.csh)</translation>
     </message>
 </context>
 <context>
@@ -15863,6 +15891,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1 Copy</source>
         <translation>%1 拷貝</translation>
+    </message>
+    <message>
+        <source>Shape %1</source>
+        <translation>形狀 %1</translation>
+    </message>
+    <message>
+        <source>Could not save the custom shape</source>
+        <translation>無法儲存自訂形狀</translation>
     </message>
 </context>
 <context>

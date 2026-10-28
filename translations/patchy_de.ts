@@ -13531,10 +13531,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Ordner für die ausgewählten Formen. Leer lassen, um sie aus den Ordnern zu entfernen</translation>
     </message>
     <message>
-        <source>Import SVG files as custom shapes</source>
-        <translation>SVG-Dateien als eigene Formen importieren</translation>
-    </message>
-    <message>
         <source>Delete the selected shapes or folders (Del)</source>
         <translation>Die ausgewählten Formen oder Ordner löschen (Del)</translation>
     </message>
@@ -13627,6 +13623,38 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
             <numerusform>%n Standardform auf Werkseinstellungen zurückgesetzt.</numerusform>
             <numerusform>%n Standardformen auf Werkseinstellungen zurückgesetzt.</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Not a Photoshop custom shapes file</source>
+        <translation>Keine Photoshop-Datei mit eigenen Formen</translation>
+    </message>
+    <message>
+        <source>Unsupported custom shapes file version</source>
+        <translation>Nicht unterstützte Version der Formendatei</translation>
+    </message>
+    <message>
+        <source>Skipped a shape with damaged or empty geometry</source>
+        <translation>Eine Form mit beschädigter oder leerer Geometrie wurde übersprungen</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded shape</source>
+        <translation>Die Datei ist nach der letzten gelesenen Form beschädigt</translation>
+    </message>
+    <message>
+        <source>The file holds no usable shapes</source>
+        <translation>Die Datei enthält keine verwendbaren Formen</translation>
+    </message>
+    <message>
+        <source>Import Photoshop .csh shape files or SVG files</source>
+        <translation>Photoshop-Formdateien (.csh) oder SVG-Dateien importieren</translation>
+    </message>
+    <message>
+        <source>Custom Shapes and SVG Files (*.csh *.svg *.svgz)</source>
+        <translation>Eigene Formen und SVG-Dateien (*.csh *.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation>Photoshop-Formen (*.csh)</translation>
     </message>
 </context>
 <context>
@@ -15906,6 +15934,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>%1 Copy</source>
         <translation>%1 Kopie</translation>
+    </message>
+    <message>
+        <source>Shape %1</source>
+        <translation>Form %1</translation>
+    </message>
+    <message>
+        <source>Could not save the custom shape</source>
+        <translation>Die eigene Form konnte nicht gespeichert werden</translation>
     </message>
 </context>
 <context>

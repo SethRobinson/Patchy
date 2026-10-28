@@ -64,7 +64,7 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
 
   auto* import_button = new QPushButton(QObject::tr("Import…"), &dialog);
   import_button->setObjectName(QStringLiteral("customShapeManagerImportButton"));
-  import_button->setToolTip(QObject::tr("Import SVG files as custom shapes"));
+  import_button->setToolTip(QObject::tr("Import Photoshop .csh shape files or SVG files"));
   auto* duplicate_button = new QPushButton(QObject::tr("Duplicate"), &dialog);
   duplicate_button->setObjectName(QStringLiteral("customShapeManagerDuplicateButton"));
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
@@ -189,8 +189,11 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     }
   });
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
-    const auto filter = QStringLiteral("%1;;%2").arg(QObject::tr("SVG Files (*.svg *.svgz)"),
-                                                     QObject::tr("All Files (*.*)"));
+    const auto filter =
+        QStringLiteral("%1;;%2;;%3;;%4")
+            .arg(QObject::tr("Custom Shapes and SVG Files (*.csh *.svg *.svgz)"),
+                 QObject::tr("Photoshop Custom Shapes (*.csh)"), QObject::tr("SVG Files (*.svg *.svgz)"),
+                 QObject::tr("All Files (*.*)"));
     const auto paths = get_open_file_names(&dialog, QObject::tr("Import Shapes"), {}, filter, nullptr,
                                            QStringLiteral("customShapeManagerImportFileDialog"));
     if (paths.isEmpty()) {
@@ -201,6 +204,21 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     int imported = 0;
     for (const auto& path : paths) {
       QString error;
+      if (QFileInfo(path).suffix().compare(QStringLiteral("csh"), Qt::CaseInsensitive) == 0) {
+        QStringList warnings;
+        const auto added = library.import_csh(path, error, warnings);
+        for (const auto& warning : warnings) {
+          problems.append(QStringLiteral("%1: %2").arg(QFileInfo(path).fileName(), warning));
+        }
+        if (!error.isEmpty()) {
+          problems.append(QStringLiteral("%1: %2").arg(QFileInfo(path).fileName(), error));
+        }
+        imported += static_cast<int>(added.size());
+        if (first_storage_id.isEmpty() && !added.isEmpty()) {
+          first_storage_id = added.front();
+        }
+        continue;
+      }
       const auto shape = custom_shape_path_from_svg_file(path, error);
       if (!shape.has_value()) {
         problems.append(QStringLiteral("%1: %2").arg(QFileInfo(path).fileName(), error));

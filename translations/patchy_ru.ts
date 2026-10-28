@@ -13568,10 +13568,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Папка для выбранных фигур; оставьте пустым, чтобы убрать их из папок</translation>
     </message>
     <message>
-        <source>Import SVG files as custom shapes</source>
-        <translation>Импорт файлов SVG как произвольных фигур</translation>
-    </message>
-    <message>
         <source>Delete the selected shapes or folders (Del)</source>
         <translation>Удалить выбранные фигуры или папки (Del)</translation>
     </message>
@@ -13670,6 +13666,38 @@ Each item&apos;s own View setting still applies.</source>
             <numerusform>Сброшены настройки %n стандартных фигур.</numerusform>
             <numerusform>Сброшены настройки %n стандартных фигур.</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Not a Photoshop custom shapes file</source>
+        <translation>Это не файл произвольных фигур Photoshop</translation>
+    </message>
+    <message>
+        <source>Unsupported custom shapes file version</source>
+        <translation>Неподдерживаемая версия файла фигур</translation>
+    </message>
+    <message>
+        <source>Skipped a shape with damaged or empty geometry</source>
+        <translation>Пропущена фигура с повреждённой или пустой геометрией</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded shape</source>
+        <translation>Файл повреждён после последней прочитанной фигуры</translation>
+    </message>
+    <message>
+        <source>The file holds no usable shapes</source>
+        <translation>В файле нет пригодных фигур</translation>
+    </message>
+    <message>
+        <source>Import Photoshop .csh shape files or SVG files</source>
+        <translation>Импорт файлов фигур Photoshop .csh или файлов SVG</translation>
+    </message>
+    <message>
+        <source>Custom Shapes and SVG Files (*.csh *.svg *.svgz)</source>
+        <translation>Произвольные фигуры и файлы SVG (*.csh *.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation>Произвольные фигуры Photoshop (*.csh)</translation>
     </message>
 </context>
 <context>
@@ -15949,6 +15977,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1 Copy</source>
         <translation>%1 Копия</translation>
+    </message>
+    <message>
+        <source>Shape %1</source>
+        <translation>Фигура %1</translation>
+    </message>
+    <message>
+        <source>Could not save the custom shape</source>
+        <translation>Не удалось сохранить пользовательскую фигуру.</translation>
     </message>
 </context>
 <context>

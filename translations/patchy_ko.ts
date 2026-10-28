@@ -13494,10 +13494,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>선택한 모양에 대한 폴더입니다. 폴더에서 제거하려면 비워 두세요.</translation>
     </message>
     <message>
-        <source>Import SVG files as custom shapes</source>
-        <translation>SVG 파일을 사용자 지정 모양으로 가져오기</translation>
-    </message>
-    <message>
         <source>Delete the selected shapes or folders (Del)</source>
         <translation>선택한 모양이나 폴더 삭제(Del)</translation>
     </message>
@@ -13584,6 +13580,38 @@ Each item&apos;s own View setting still applies.</source>
         <translation>
             <numerusform>기본 모양 %n개를 초기 설정으로 되돌렸습니다.</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Not a Photoshop custom shapes file</source>
+        <translation>Photoshop 사용자 지정 모양 파일이 아닙니다</translation>
+    </message>
+    <message>
+        <source>Unsupported custom shapes file version</source>
+        <translation>지원되지 않는 모양 파일 버전입니다</translation>
+    </message>
+    <message>
+        <source>Skipped a shape with damaged or empty geometry</source>
+        <translation>기하학이 손상되었거나 비어 있는 모양을 건너뛰었습니다</translation>
+    </message>
+    <message>
+        <source>The file is damaged past the last decoded shape</source>
+        <translation>마지막으로 읽은 모양 이후로 파일이 손상되었습니다</translation>
+    </message>
+    <message>
+        <source>The file holds no usable shapes</source>
+        <translation>파일에 사용할 수 있는 모양이 없습니다</translation>
+    </message>
+    <message>
+        <source>Import Photoshop .csh shape files or SVG files</source>
+        <translation>Photoshop .csh 모양 파일 또는 SVG 파일 가져오기</translation>
+    </message>
+    <message>
+        <source>Custom Shapes and SVG Files (*.csh *.svg *.svgz)</source>
+        <translation>사용자 지정 모양 및 SVG 파일(*.csh *.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Photoshop Custom Shapes (*.csh)</source>
+        <translation>Photoshop 사용자 지정 모양(*.csh)</translation>
     </message>
 </context>
 <context>
@@ -15863,6 +15891,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1 Copy</source>
         <translation>%1 사본</translation>
+    </message>
+    <message>
+        <source>Shape %1</source>
+        <translation>모양 %1</translation>
+    </message>
+    <message>
+        <source>Could not save the custom shape</source>
+        <translation>맞춤 모양을 저장할 수 없습니다.</translation>
     </message>
 </context>
 <context>

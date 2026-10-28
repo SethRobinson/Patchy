@@ -410,6 +410,7 @@ add_library(patchy_psd
   src/formats/miniz/miniz.c
   src/psd/abr_reader.cpp
   src/psd/asl_io.cpp
+  src/psd/csh_io.cpp
   src/psd/grd_io.cpp
   src/psd/pat_reader.cpp
   src/psd/psd_adjustments.cpp

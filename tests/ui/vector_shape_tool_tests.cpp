@@ -58,6 +58,9 @@
 #include "ui/shape_appearance_dialog.hpp"
 #include "ui/unit_spin_box.hpp"
 #include "ui/qt_paths.hpp"
+#include "csh_test_builder.hpp"
+#include "local_psd_fixtures.hpp"
+#include "unicode_path_names.hpp"
 #include "psd/psd_document_io.hpp"
 #include <QAction>
 #include <QCheckBox>
@@ -1462,6 +1465,113 @@ void ui_custom_shape_manager_edits_reach_the_shape_picker() {
   CHECK(canvas->custom_shape_path() != nullptr && *canvas->custom_shape_path() == heart_path);
   CHECK(library.remove_shapes({storage_id, copy_storage_id}) == 2);  // keep repeated runs clean
   CHECK(combo->findData(shape_id) < 0);
+}
+
+void ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes() {
+  // Photoshop .csh import (GitHub issue 486): CustomShapeLibrary::import_csh
+  // behind the Custom Shapes manager's Import, then a stamp of the imported
+  // frame keeps its hole.
+  const auto bytes = patchy::test::make_test_csh(patchy::test::sample_test_csh_shapes());
+  const auto dir = std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"custom-shape-csh"));
+  QTemporaryDir library_dir;
+  CHECK(library_dir.isValid());
+  patchy::ui::CustomShapeLibrary scratch(library_dir.filePath(QStringLiteral("shapes")));
+  for (const auto stem : patchy::test::kUnicodePathStems) {
+    auto target = dir / patchy::test::unicode_path_piece(stem);
+    target += ".csh";
+    {
+      std::ofstream out(target, std::ios::binary);
+      out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    }
+    QString error;
+    QStringList warnings;
+    int changes = 0;
+    const auto connection =
+        QObject::connect(&scratch, &patchy::ui::CustomShapeLibrary::changed, [&changes] { ++changes; });
+    const auto added = scratch.import_csh(patchy::ui::to_qstring(target), error, warnings);
+    QObject::disconnect(connection);
+    CHECK(added.size() == 2);
+    CHECK(error.isEmpty() && warnings.isEmpty());
+    CHECK(changes == 1);  // one refresh of the Shape picker per file
+    const auto folder = QFileInfo(patchy::ui::to_qstring(target)).completeBaseName();
+    for (const auto& storage_id : added) {
+      const auto* entry = scratch.find_entry(storage_id);
+      CHECK(entry != nullptr && entry->folder == folder);
+      CHECK(entry != nullptr && entry->id.startsWith(QStringLiteral("shape.user.")));
+    }
+  }
+  {
+    QString error;
+    QStringList warnings;
+    CHECK(scratch.import_csh(patchy::ui::to_qstring(dir / "missing.csh"), error, warnings).isEmpty());
+    CHECK(!error.isEmpty());
+    auto garbage = dir / "garbage.csh";
+    std::ofstream(garbage, std::ios::binary) << "not a shape file";
+    error.clear();
+    CHECK(scratch.import_csh(patchy::ui::to_qstring(garbage), error, warnings).isEmpty());
+    CHECK(error == QStringLiteral("Not a Photoshop custom shapes file"));
+  }
+
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& library = patchy::ui::MainWindowTestAccess::custom_shape_library(window);
+  QString error;
+  QStringList warnings;
+  auto first_file = dir / patchy::test::unicode_path_piece(patchy::test::kUnicodePathStems[0]);
+  first_file += ".csh";
+  const auto added = library.import_csh(patchy::ui::to_qstring(first_file), error, warnings);
+  CHECK(added.size() == 2);
+  if (added.size() != 2) {
+    return;
+  }
+  const auto frame_id = library.find_entry(added.front())->name.startsWith(QStringLiteral("Frame"))
+                            ? library.find_entry(added.front())->id
+                            : library.find_entry(added.back())->id;
+  canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  CHECK(combo != nullptr);
+  const auto index = combo->findData(frame_id);
+  CHECK(index >= 0);
+  combo->setCurrentIndex(index);
+  QApplication::processEvents();
+  // The 2:1 frame lands on x 100..300, y 100..200; its hole on x 150..250, y 125..175.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(300, 300)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(115, 150)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(200, 112)), Qt::black, 8));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(200, 150)), Qt::black, 60));
+  save_widget_artifact("ui_custom_shape_csh_frame_stamp", *canvas);
+  CHECK(library.remove_shapes(added) == 2);  // keep repeated runs clean
+
+  // The CC0 zodiac pack in the manager, for the issue thread (local fixture).
+  const auto zodiac = patchy::test::local_format_fixture_path("csh", "zodiac-signs.csh");
+  if (std::filesystem::exists(zodiac)) {
+    const auto pack = library.import_csh(patchy::ui::to_qstring(zodiac), error, warnings);
+    CHECK(pack.size() == 12);
+    for (const auto& storage_id : pack) {
+      if (const auto* entry = library.find_entry(storage_id); entry != nullptr && entry->name == QStringLiteral("Leo")) {
+        combo->setCurrentIndex(combo->findData(entry->id));
+      }
+    }
+    QApplication::processEvents();
+    bool captured = false;
+    QTimer::singleShot(0, [&] {
+      auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
+      CHECK(manager != nullptr);
+      if (manager == nullptr) {
+        return;
+      }
+      save_widget_artifact("ui_custom_shape_manager_csh_import", *manager);
+      captured = true;
+      manager->reject();
+    });
+    require_action(window, "editPresetsCustomShapesAction")->trigger();
+    QApplication::processEvents();
+    CHECK(captured);
+    CHECK(library.remove_shapes(pack) == 12);
+  }
 }
 
 void ui_edit_presets_menu_lists_the_managers_in_order() {
@@ -6508,6 +6618,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_custom_shape_library_folders_duplicates_and_keeps_deleted_defaults},
       {"ui_custom_shape_manager_edits_reach_the_shape_picker", ui_custom_shape_manager_edits_reach_the_shape_picker},
       {"ui_edit_presets_menu_lists_the_managers_in_order", ui_edit_presets_menu_lists_the_managers_in_order},
+      {"ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes",
+       ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes},
       {"ui_line_arrowheads_extend_the_shape", ui_line_arrowheads_extend_the_shape},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},
