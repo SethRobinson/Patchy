@@ -28062,10 +28062,6 @@ Zablokowano: %1</translation>
         <translation>Menedżer wzorków...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>Powiększ do zawartości warstwy</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>Cały dokument</translation>
     </message>
@@ -28108,6 +28104,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Shapes Manager...</source>
         <translation>Menedżer kształtów...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>Zawartość warstwy</translation>
     </message>
 </context>
 <context>

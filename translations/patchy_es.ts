@@ -27980,10 +27980,6 @@ Bloqueada: %1</translation>
         <translation>Gestor de motivos...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>Ampliar al contenido de la capa</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>Documento completo</translation>
     </message>
@@ -28026,6 +28022,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Shapes Manager...</source>
         <translation>Gestor de formas...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>Contenido de la capa</translation>
     </message>
 </context>
 <context>

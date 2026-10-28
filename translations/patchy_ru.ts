@@ -28062,10 +28062,6 @@ Locked: %1</source>
         <translation>Менеджер узоров...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>Масштаб по содержимому слоя</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>Весь документ</translation>
     </message>
@@ -28108,6 +28104,10 @@ Locked: %1</source>
     <message>
         <source>Shapes Manager...</source>
         <translation>Менеджер фигур...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>Содержимое слоя</translation>
     </message>
 </context>
 <context>

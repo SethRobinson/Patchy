@@ -27980,10 +27980,6 @@ Bloccato: %1</translation>
         <translation>Gestione pattern...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>Ingrandisci al contenuto del livello</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>Intero documento</translation>
     </message>
@@ -28026,6 +28022,10 @@ Bloccato: %1</translation>
     <message>
         <source>Shapes Manager...</source>
         <translation>Gestione forme...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>Contenuto del livello</translation>
     </message>
 </context>
 <context>

@@ -27980,10 +27980,6 @@ Fixiert: %1</translation>
         <translation>Musterverwaltung...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>Auf Ebeneninhalt zoomen</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>Ganzes Dokument</translation>
     </message>
@@ -28026,6 +28022,10 @@ Fixiert: %1</translation>
     <message>
         <source>Shapes Manager...</source>
         <translation>Formenverwaltung...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>Ebeneninhalt</translation>
     </message>
 </context>
 <context>

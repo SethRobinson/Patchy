@@ -27898,10 +27898,6 @@ Locked: %1</source>
         <translation>パターンマネージャー...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>レイヤーの内容にズーム</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>ドキュメント全体</translation>
     </message>
@@ -27944,6 +27940,10 @@ Locked: %1</source>
     <message>
         <source>Shapes Manager...</source>
         <translation>シェイプマネージャー...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>レイヤーの内容</translation>
     </message>
 </context>
 <context>

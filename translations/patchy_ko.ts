@@ -27898,10 +27898,6 @@ Locked: %1</source>
         <translation>패턴 관리자...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>레이어 내용에 맞춰 확대</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>문서 전체</translation>
     </message>
@@ -27944,6 +27940,10 @@ Locked: %1</source>
     <message>
         <source>Shapes Manager...</source>
         <translation>모양 관리자...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>레이어 내용</translation>
     </message>
 </context>
 <context>

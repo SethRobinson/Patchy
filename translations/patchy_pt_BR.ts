@@ -27980,10 +27980,6 @@ Bloqueado: %1</translation>
         <translation>Gerenciador de padrões...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>Ampliar para o conteúdo da camada</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>Documento inteiro</translation>
     </message>
@@ -28026,6 +28022,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Shapes Manager...</source>
         <translation>Gerenciador de formas...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>Conteúdo da camada</translation>
     </message>
 </context>
 <context>
