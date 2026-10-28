@@ -21,6 +21,9 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPen>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSettings>
@@ -28,6 +31,7 @@
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
 #include <QTabWidget>
+#include <QTransform>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -70,8 +74,14 @@ constexpr int kIdRole = Qt::UserRole;
 // with the cluster separators and the flyout corner arrows, then the bottom items the choice
 // keeps (color well, Quick Mask, screen mode), drawn at the chosen toolbar icon size. It
 // repaints from the choice the dialog's controls hold, so it follows every tick.
+// It shows at most kMaxRows rows of tools, so a long layout keeps the dialog short (GitHub
+// issue 499 comment): the rows past them are cut off at a torn gap, two zigzag edges in the
+// separator color with the dialog showing through, and the footer follows. The "toolRows" and "shownToolRows"
+// properties carry the full and the drawn row counts.
 class ToolPalettePreview final : public QWidget {
 public:
+  static constexpr int kMaxRows = 10;
+
   explicit ToolPalettePreview(const ToolPaletteCatalog& catalog, QWidget* parent)
       : QWidget(parent), catalog_(catalog) {
     setObjectName(QStringLiteral("toolPaletteCustomizePreview"));
@@ -79,9 +89,11 @@ public:
 
   void set_choice(const ToolPaletteDialogChoice& value) {
     choice_ = value;
-    const QSize size = content_size();
-    const double factor = draw_factor();
-    setFixedSize(qCeil(size.width() * factor), qCeil(size.height() * factor));
+    const Metrics metrics = measure();
+    const double factor = toolbar_icon_size_factor(choice_.icon_size);
+    setFixedSize(qCeil(metrics.size.width() * factor), qCeil(metrics.size.height() * factor));
+    setProperty("toolRows", metrics.rows);
+    setProperty("shownToolRows", std::min(metrics.rows, kMaxRows));
     update();
   }
 
@@ -91,21 +103,34 @@ protected:
     const auto& colors = theme();
     QPainter painter(this);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    // Laid out at the Normal size, drawn at the chosen one.
+    const double factor = toolbar_icon_size_factor(choice_.icon_size);
+    const Metrics metrics = measure();
+    const QSize size = metrics.size;
+    const bool cut = metrics.rows > kMaxRows;
+    if (cut) {
+      // The strip is left unpainted inside the gap, so the dialog shows through it.
+      QPainterPath strip;
+      strip.addRect(QRectF(rect()));
+      painter.setClipPath(
+          strip.subtracted(QTransform::fromScale(factor, factor).map(tear_gap(metrics.tear_y, size.width()))));
+    }
     painter.fillRect(rect(), colors.tool_palette_bg);
     painter.setPen(colors.tool_palette_border);
     painter.drawLine(width() - 1, 0, width() - 1, height() - 1);
-    // Laid out at the Normal size, drawn at the chosen one.
-    const double factor = draw_factor();
     painter.scale(factor, factor);
-    const QSize size = content_size();
     const int columns = choice_.customization.two_columns ? 2 : 1;
     const QIcon corner = themed_svg_icon(QStringLiteral("tool-flyout-corner"));
     int y = kMargin;
+    int rows_left = kMaxRows;
     bool first = true;
     for (const auto& cluster : catalog_.clusters) {
       const auto shown = visible_slots(cluster);
       if (shown.empty()) {
         continue;
+      }
+      if (rows_left == 0) {
+        break;
       }
       if (!first) {
         painter.fillRect(QRect(kMargin, y + kSeparatorMargin, size.width() - 1 - 2 * kMargin, 1),
@@ -113,7 +138,8 @@ protected:
         y += kSeparatorExtent + kSpacing;
       }
       first = false;
-      for (std::size_t index = 0; index < shown.size(); ++index) {
+      const auto count = std::min(shown.size(), static_cast<std::size_t>(rows_left * columns));
+      for (std::size_t index = 0; index < count; ++index) {
         const int column = static_cast<int>(index) % columns;
         if (index > 0 && column == 0) {
           y += kCellHeight + kSpacing;
@@ -127,13 +153,28 @@ protected:
         }
       }
       y += kCellHeight + kSpacing;
+      rows_left -= (static_cast<int>(count) + columns - 1) / columns;
+    }
+    if (cut) {
+      painter.setClipping(false);
+      painter.setRenderHint(QPainter::Antialiasing, true);
+      QPen edge_pen(colors.tool_palette_separator, 1.0);
+      edge_pen.setCosmetic(true);
+      painter.setPen(edge_pen);
+      painter.setBrush(Qt::NoBrush);
+      painter.drawPolyline(tear_edge(metrics.tear_y, size.width()));
+      painter.drawPolyline(tear_edge(metrics.tear_y + kTearGap, size.width()));
+      painter.setRenderHint(QPainter::Antialiasing, false);
+      y = metrics.tear_y + kTearHeight;
     }
     y += kFooterGap;
+    // The footer sits centered under one or two columns, as on the palette.
+    const int footer_x = (size.width() - 1 - kCellWidth) / 2;
     if (shows(kToolPaletteColorsId)) {
       // The color well: background swatch lower right, foreground over it.
       painter.setPen(colors.tool_palette_border);
-      const QRect background(kMargin + 9, y + 7, kSwatch, kSwatch);
-      const QRect foreground(kMargin + 2, y, kSwatch, kSwatch);
+      const QRect background(footer_x + 9, y + 7, kSwatch, kSwatch);
+      const QRect foreground(footer_x + 2, y, kSwatch, kSwatch);
       painter.fillRect(background, catalog_.background);
       painter.drawRect(background.adjusted(0, 0, -1, -1));
       painter.fillRect(foreground, catalog_.foreground);
@@ -141,12 +182,12 @@ protected:
       y += kWellHeight;
     }
     if (shows(kToolPaletteQuickMaskId)) {
-      catalog_.quick_mask_icon.paint(&painter, QRect(kMargin + (kCellWidth - kFooterIcon) / 2,
+      catalog_.quick_mask_icon.paint(&painter, QRect(footer_x + (kCellWidth - kFooterIcon) / 2,
                                                      y + (kFooterRow - kFooterIcon) / 2, kFooterIcon, kFooterIcon));
       y += kFooterRow;
     }
     if (shows(kToolPaletteScreenModeId)) {
-      catalog_.screen_mode_icon.paint(&painter, QRect(kMargin + (kCellWidth - kFooterIcon) / 2,
+      catalog_.screen_mode_icon.paint(&painter, QRect(footer_x + (kCellWidth - kFooterIcon) / 2,
                                                       y + (kFooterRow - kFooterIcon) / 2, kFooterIcon, kFooterIcon));
     }
   }
@@ -165,25 +206,45 @@ private:
   static constexpr int kFooterIcon = 13;
   static constexpr int kFooterRow = 17;
   static constexpr int kFooterGap = 6;
-
-  // Taller than this, the miniature is drawn smaller so it stays in the dialog: one column
-  // with no tool groups (GitHub issue 499) is about twice the grouped column.
-  static constexpr int kMaxHeight = 520;
+  // The torn gap: two parallel zigzags kTearGap apart, teeth kTooth wide and kTeeth deep.
+  static constexpr int kTooth = 4;
+  static constexpr int kTeeth = 3;
+  static constexpr int kTearGap = 7;
+  static constexpr int kTearHeight = kTeeth + kTearGap + 1;
 
   struct PreviewSlot {
     QIcon icon;
     bool flyout{false};
   };
 
-  // The chosen toolbar icon size, reduced when that would pass kMaxHeight.
-  [[nodiscard]] double draw_factor() const {
-    const double factor = toolbar_icon_size_factor(choice_.icon_size);
-    const int height = content_size().height();
-    return height * factor > kMaxHeight ? static_cast<double>(kMaxHeight) / height : factor;
-  }
+  struct Metrics {
+    QSize size;       // at the Normal toolbar icon size
+    int rows{0};      // every row of tools, the cut ones included
+    int tear_y{0};    // the top of the torn gap, when rows pass kMaxRows
+  };
 
   [[nodiscard]] bool shows(const char* footer_item) const {
     return !choice_.customization.hidden_footer_items.contains(QLatin1String(footer_item));
+  }
+
+  // One zigzag edge of the gap, starting at a peak on the left and running past the right edge.
+  [[nodiscard]] static QPolygonF tear_edge(int top, int width) {
+    QPolygonF edge;
+    for (int x = 0, step = 0; x <= width + kTooth; x += kTooth, ++step) {
+      edge << QPointF(x + 0.5, top + (step % 2 == 0 ? 0 : kTeeth) + 0.5);
+    }
+    return edge;
+  }
+
+  // The area between the two edges.
+  [[nodiscard]] static QPainterPath tear_gap(int top, int width) {
+    const QPolygonF upper = tear_edge(top, width);
+    QPolygonF lower = tear_edge(top + kTearGap, width);
+    std::reverse(lower.begin(), lower.end());
+    QPainterPath gap;
+    gap.addPolygon(upper + lower);
+    gap.closeSubpath();
+    return gap;
   }
 
   // A group with one tool left shows as a plain button, and with no tool groups every tool
@@ -211,9 +272,11 @@ private:
     return shown;
   }
 
-  // The miniature's size at the Normal toolbar icon size.
-  [[nodiscard]] QSize content_size() const {
+  // The miniature's layout at the Normal toolbar icon size: the first kMaxRows rows, the gap
+  // when there are more, then the footer.
+  [[nodiscard]] Metrics measure() const {
     const int columns = choice_.customization.two_columns ? 2 : 1;
+    Metrics metrics;
     int height = kMargin;
     bool first = true;
     for (const auto& cluster : catalog_.clusters) {
@@ -221,12 +284,20 @@ private:
       if (count == 0) {
         continue;
       }
-      if (!first) {
-        height += kSeparatorExtent + kSpacing;
+      const int rows = (count + columns - 1) / columns;
+      const int drawn = std::clamp(kMaxRows - metrics.rows, 0, rows);
+      if (drawn > 0) {
+        if (!first) {
+          height += kSeparatorExtent + kSpacing;
+        }
+        height += drawn * (kCellHeight + kSpacing);
       }
       first = false;
-      const int rows = (count + columns - 1) / columns;
-      height += rows * (kCellHeight + kSpacing);
+      metrics.rows += rows;
+    }
+    if (metrics.rows > kMaxRows) {
+      metrics.tear_y = height;
+      height += kTearHeight;
     }
     height += kFooterGap;
     if (shows(kToolPaletteColorsId)) {
@@ -240,7 +311,8 @@ private:
     }
     height += kMargin;
     const int width = 2 * kMargin + columns * kCellWidth + (columns - 1) * kSpacing + 1;
-    return {width, height};
+    metrics.size = {width, height};
+    return metrics;
   }
 
   const ToolPaletteCatalog& catalog_;
