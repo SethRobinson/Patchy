@@ -2282,6 +2282,18 @@ class Runner:
         if result.get("fileRejected"):
             cell["fileRejected"] = True
 
+    @staticmethod
+    def _record_driver_failure(cell: dict, result: dict, default_error: str) -> None:
+        """A failed leg from a driver that judges its own failures. "opens": "fail" is
+        the editor not opening the file, a 0% in every average (refused_with_reference);
+        a driver that returns "opens": None failed on the harness side (a crash, a dead
+        browser, a connector that is off), so the cell carries no verdict on the file
+        and stays out of the averages. A driver that says nothing counts as "fail"."""
+        opens = result.get("opens", "fail")
+        cell.update({"state": "failed", "error": result.get("error", default_error)})
+        if opens:
+            cell["opens"] = opens
+
     def _drive_editor(
         self,
         editor_key: str,
@@ -2448,8 +2460,7 @@ class Runner:
                 text_fonts=self._text_fonts,
             )
             if not result["ok"]:
-                cell.update({"state": "failed", "opens": result.get("opens", "fail"),
-                             "error": result.get("error", "photopea failed")})
+                self._record_driver_failure(cell, result, "photopea failed")
                 return
             cell["opens"] = result.get("opens", "ok")
             if result.get("notes"):
@@ -2466,8 +2477,7 @@ class Runner:
             if result.get("notes"):
                 cell["driverNotes"] = result["notes"]
             if not result["ok"]:
-                cell.update({"state": "failed", "opens": result.get("opens", "fail"),
-                             "error": result.get("error", "automation failed")})
+                self._record_driver_failure(cell, result, "automation failed")
                 self._note_file_rejection(cell, result)
                 return
             cell["opens"] = result.get("opens", "ok")

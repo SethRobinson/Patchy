@@ -84,8 +84,8 @@ rows show their build/version and time, and the header identifies the batch as a
 partial refresh. These batches contain measurements from multiple builds.
 Existing batches get current controls when served by an updated Testy server;
 restart the server after updating Testy. Frozen reports have no rerun controls.
-Editor-free regressions: run `tests\testy_rerun_tests.py` and
-`tests\testy_shutdown_tests.py` through `scripts\run-throttled.bat python`.
+Editor-free regressions (via `scripts\run-throttled.bat python`): `tests\testy_rerun_tests.py`,
+`testy_shutdown_tests.py`, `testy_driver_failure_tests.py`.
 
 **Retest file** in the detail panel creates a separate one-file run, reusing
 caches and refreshing Patchy's build. Both controls require an idle Testy server.
@@ -101,7 +101,7 @@ refreshes the Patchy release build first (when configured), serves a live dashbo
 and leaves the frozen report + `results.json` in `testy/runs/<timestamp>/`. The
 server root is the same control panel. Clicking a file
 name in a report copies its full path to the clipboard; clicking a thumbnail opens
-the full-size image. The matrix header stays pinned while the page scrolls.
+the full-size image.
 Lost native data is called out: matrix cells get a red "lost: ..." line and a warn
 dot, and the detail panel's native-preservation banner separates objects GONE from
 the resaved file from ones converted to a different kind (e.g. text rasterized);

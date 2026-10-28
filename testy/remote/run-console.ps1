@@ -11,7 +11,8 @@ param(
 # (CO_E_SERVER_EXEC_FAILURE), only from the interactive desktop. Waits for the run, prints
 # its log, exits with its exit code and removes the task; -NoWait returns once it started
 # (run again with the same -TaskName later to wait; the task is removed by whoever waits).
-# Pass --no-serve --no-browser --exit-when-done in $Arguments: nobody can see a dashboard.
+# Pass --no-browser --exit-when-done in $Arguments: nobody can see a dashboard. Keep the server
+# (no --no-serve) when Photopea runs: it fetches staged files and uploads exports through it.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not (Test-Path -LiteralPath (Join-Path $repo 'testy\testy.py'))) { throw "no testy\testy.py under $repo" }
