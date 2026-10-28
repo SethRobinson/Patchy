@@ -3573,12 +3573,15 @@ bool draw_text_layer_to_painter(const Layer& layer, QPainter& painter, bool miss
                                                     layout_scale)
                        .value_or(1.0);
   }
-  const auto plan = build_text_render_plan(inputs->settings, inputs->color, inputs->max_width,
-                                           inputs->paragraph_runs, inputs->rich_text_runs, std::nullopt,
-                                           metric_scale, transform, 1.0);
+  auto plan = build_text_render_plan(inputs->settings, inputs->color, inputs->max_width,
+                                     inputs->paragraph_runs, inputs->rich_text_runs, std::nullopt,
+                                     metric_scale, transform, 1.0);
   if (plan.built.document == nullptr) {
     return false;
   }
+  // Strong anti-aliasing's extra weight is a raster effect: stroked glyph paths would turn the
+  // PDF's real text into outlines.
+  plan.strong_stroke = 0.0;
   painter.save();
   draw_text_render_plan(plan, painter);
   painter.restore();

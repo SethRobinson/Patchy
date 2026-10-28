@@ -61,6 +61,15 @@ struct TextDecorationMetrics {
 };
 TextDecorationMetrics text_decoration_metrics(const QFont& font);
 
+// Photoshop's Strong anti-aliasing (/AntiAlias 2) draws each glyph heavier than Smooth: its
+// rasters match the Smooth outline filled and stroked with a pen this many DOCUMENT pixels wide,
+// at every size from 8 to 72 px in Arial and Georgia (docs/text-anti-alias.md). Advances do not
+// change.
+inline constexpr double kStrongAntiAliasStrokePixels = 0.25;
+// Photoshop samples coverage on a 4 x 4 grid (alpha in sixteenths, edges on quarter pixels), so
+// an edge that covers less than 1/8 of a pixel misses every sample: such faint pixels are dropped.
+inline constexpr int kStrongAntiAliasMinimumAlpha = 32;
+
 struct TextRenderPlan {
   TextRenderDocument built;
   QRectF local_rect;
@@ -72,6 +81,10 @@ struct TextRenderPlan {
   // Photoshop layout through an axis-aligned transform: every glyph origin is moved onto
   // the document pixel grid as it is drawn (draw_line_glyphs_pixel_aligned).
   bool pixel_align_glyphs{false};
+  // Strong anti-aliasing: the extra outline pen in the plan's LOCAL units
+  // (kStrongAntiAliasStrokePixels over the transform's scale); 0 for every other mode. A
+  // raster-only weight: the editable PDF export clears it so its glyphs stay real text.
+  double strong_stroke{0.0};
   // Vertical type: the cell plan replaces the line items (which stay empty).
   bool vertical{false};
   bool area{false};
