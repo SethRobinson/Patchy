@@ -6309,11 +6309,11 @@ void ui_layer_lock_buttons_share_one_icon_height() {
   }
 }
 
-// GitHub issue 484 follow-up: the lock glyphs sit on whole device pixels. Each glyph's ink box
-// (any alpha) equals its fully opaque box, so no outer row or column is a half-covered fringe,
-// at 100%, 150% and 200% for the 22 px button icons and the 14 px row badges. The straight-edged
-// glyphs are 20 px tall in a 22 px button icon and 11 px in a 14 px badge. Saves every render, and a
-// 6x copy.
+// GitHub issue 484 follow-up: the lock glyphs are pixel art on whole device pixels. Every pixel
+// is fully inked or empty (no antialiased fringe, the pencil's diagonals and the shackle's
+// rounded top included) at 100%, 150% and 200% for the 22 px button icons and the 14 px row
+// badges. The glyphs are 20 px tall in a 22 px button icon and 11 px in a 14 px badge. Saves
+// every render, and a 6x copy.
 void ui_layer_lock_icons_land_on_whole_pixels() {
   ColorSchemeRestorer restore_scheme;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
@@ -6392,19 +6392,25 @@ void ui_layer_lock_icons_land_on_whole_pixels() {
     std::printf("[INFO] %s %d px at %.1fx: ink %dx%d at (%d,%d), opaque %dx%d at (%d,%d)\n",
                 qPrintable(render.kind), render.size, render.ratio, ink.width(), ink.height(), ink.x(), ink.y(),
                 solid.width(), solid.height(), solid.x(), solid.y());
-    // The pencil is a diagonal, so its point and corners are antialiased by design: its
-    // mostly covered pixels span the height instead.
-    const bool pencil = render.kind == QStringLiteral("pixels");
-    const auto measured = pencil ? bounds(render.image, 97) : ink;
-    if (!pencil) {
-      CHECK(!ink.isEmpty() && ink == solid);
+    int partial = 0;
+    for (int y = 0; y < render.image.height(); ++y) {
+      for (int x = 0; x < render.image.width(); ++x) {
+        const int alpha = qAlpha(render.image.pixel(x, y));
+        partial += alpha != 0 && alpha != 255 ? 1 : 0;
+      }
     }
+    if (partial != 0) {
+      std::printf("[INFO] %s %d px at %.1fx: %d partly covered pixels\n", qPrintable(render.kind), render.size,
+                  render.ratio, partial);
+    }
+    CHECK(partial == 0);
+    CHECK(!ink.isEmpty() && ink == solid);
     const int expected = render.size == 22 ? 20 : 11;
     if (render.ratio == 1.0) {
-      CHECK(measured.height() == expected);
+      CHECK(ink.height() == expected);
     }
     if (render.ratio == 2.0) {
-      CHECK(std::abs(measured.height() - 2 * expected) <= (pencil ? 1 : 0));
+      CHECK(ink.height() == 2 * expected);
     }
   }
 }
