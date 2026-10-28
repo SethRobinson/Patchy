@@ -17,6 +17,18 @@ inline constexpr char kCustomShapePickerCollapsedFoldersKey[] = "tools/customSha
 // Settings key of the Shape picker's view: true for the thumbnail grid (the default), false for
 // the list with names.
 inline constexpr char kCustomShapePickerGridViewKey[] = "tools/customShapePickerGridView";
+// Settings key of the Shape picker popup's size (a QSize), set by dragging its corner grip.
+inline constexpr char kCustomShapePickerSizeKey[] = "tools/customShapePickerSize";
+// The popup's size before the user resizes it, and the smallest it goes.
+inline constexpr int kCustomShapePickerDefaultWidth = 300;
+inline constexpr int kCustomShapePickerDefaultHeight = 440;
+inline constexpr int kCustomShapePickerMinimumWidth = 220;
+inline constexpr int kCustomShapePickerMinimumHeight = 200;
+
+// The size the popup opens at: `wanted` (the stored size, or the default when it is not
+// valid) within the minimum and within `available` (the screen's available geometry), so a
+// size stored on a larger screen never opens past the edges.
+[[nodiscard]] QSize custom_shape_picker_popup_size(QSize wanted, const QSize& available);
 
 // The options bar Shape picker of the Custom Shape tool (GitHub issue 486). It stays a
 // QComboBox, filled by populate_custom_shape_combo with the shape id as item data, so every
@@ -26,9 +38,11 @@ inline constexpr char kCustomShapePickerGridViewKey[] = "tools/customShapePicker
 // (PresetBrowserView; the view is remembered under kCustomShapePickerGridViewKey), whose folders
 // open and close (remembered under kCustomShapePickerCollapsedFoldersKey), and a Shapes
 // Manager... button. Picking a shape sets the combo's index; the button closes the popup
-// first, then calls `manage`. Child object names: customShapeComboPopup, customShapeComboFilter,
+// first, then calls `manage`. A size grip in the bottom-right corner resizes the popup (the
+// grid reflows to the width); the size persists under kCustomShapePickerSizeKey, clamped to
+// the screen on the next opening. Child object names: customShapeComboPopup, customShapeComboFilter,
 // customShapeComboListViewButton, customShapeComboGridViewButton, customShapeComboTree,
-// customShapeComboGrid, customShapeComboManageButton.
+// customShapeComboGrid, customShapeComboManageButton, customShapeComboSizeGrip.
 class CustomShapePickerCombo : public QComboBox {
 public:
   CustomShapePickerCombo(std::function<const CustomShapeLibrary*()> library, std::function<void()> manage,
