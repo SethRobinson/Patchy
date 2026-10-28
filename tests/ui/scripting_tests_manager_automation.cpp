@@ -16,6 +16,9 @@
 #include "ui/script_folders.hpp"
 #include "ui/sound_effects.hpp"
 #include "ui/theme_manager.hpp"
+#include "ui/qt_paths.hpp"
+#include "local_psd_fixtures.hpp"
+#include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
 #include "ui_test_support.hpp"
@@ -38,6 +41,9 @@
 #include <QPushButton>
 #include <QToolButton>
 #include <QTemporaryDir>
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <QCoreApplication>
 #include <QTest>
 #include <QTextBrowser>
 #include <QTimer>
@@ -47,6 +53,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
@@ -1172,6 +1179,127 @@ void ui_script_ui_expand_panel_in_cli_capture() {
   CHECK(failed.endsWith(QStringLiteral("[failed]\n")));
 }
 
+// Card local-018: a --headless run on Windows rendered layer_effects.psd's Arial Black in another
+// face (65% against Photoshop where a window scores 91%): the offscreen font database held only
+// the bundled fonts, and "Arial Black" found a near match before anything counted it missing.
+// main.cpp now loads the installed fonts before a headless run opens anything, and a headless
+// export then matches a windowed one (measured on This PC: the same faces, 347 of 512000 pixels
+// off by more than 2, from FreeType against DirectWrite antialiasing). Pinned against the
+// suite's own render (offscreen engine, Arial Black registered by hand): the headless app must
+// resolve the same face for every text layer and lay each one out the same. The suite's layer
+// bounds differ from the app's by up to 1px in y and width (a window and --headless agree), so
+// those get that pixel.
+void ui_headless_text_fonts_match_windowed_if_available() {
+  const auto psd = patchy::test::local_format_fixture_path("psd-tools/tests/psd_files", "layer_effects.psd");
+  patchy::test::skip_unless_exists(psd);
+  QString exe;
+  const QDir build_dir(QCoreApplication::applicationDirPath());
+  for (const auto& name : {QStringLiteral("patchy.exe"), QStringLiteral("patchy")}) {
+    if (QFileInfo(build_dir.filePath(name)).isExecutable()) {
+      exe = build_dir.filePath(name);
+      break;
+    }
+  }
+  if (exe.isEmpty()) {
+    patchy::test::skip("the patchy executable is not built beside the suite");
+  }
+  bool arial_black = false;
+  for (const auto& path : patchy::test::test_font_candidates(patchy::test::TestFontRole::ArialBlack)) {
+    arial_black = arial_black || QFileInfo::exists(path);
+  }
+  if (!arial_black) {
+    patchy::test::skip("Arial Black is not installed on this machine");
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto script_path = temp.filePath(QStringLiteral("fonts.js"));
+  {
+    QFile script(script_path);
+    CHECK(script.open(QIODevice::WriteOnly | QIODevice::Text));
+    // One line per text layer: name, resolved face, and the re-rendered layer's bounds.
+    script.write(R"JS(
+      var doc = app.open(patchy.args.input);
+      for (var i = 0; i < doc.layers.length; i++) {
+        var layer = doc.layers[i];
+        if (!layer.isText) continue;
+        var font = layer.resolvedTextFonts()[0];
+        layer.rerenderText();
+        var b = layer.bounds;
+        console.log('text\t' + layer.name + '\t' + font.family + '/' + font.style + '\t' +
+                    b.x + '\t' + b.y + '\t' + b.width + '\t' + b.height);
+      }
+    )JS");
+  }
+  const auto input_arg = QStringLiteral("input=") + patchy::ui::to_qstring(psd);
+  const auto text_lines = [](const QString& output_path) {
+    QStringList lines;
+    QFile output(output_path);
+    if (output.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      for (const auto& line : QString::fromUtf8(output.readAll()).split(QLatin1Char('\n'))) {
+        if (line.startsWith(QStringLiteral("text\t"))) {
+          lines.push_back(line);
+        }
+      }
+    }
+    return lines;
+  };
+
+  // The real headless app, in its own settings folder.
+  const auto headless_output = temp.filePath(QStringLiteral("headless.txt"));
+  QProcess process;
+  auto environment = QProcessEnvironment::systemEnvironment();
+  environment.insert(QStringLiteral("PATCHY_SETTINGS_DIR"), temp.filePath(QStringLiteral("settings")));
+  environment.remove(QStringLiteral("PATCHY_HEADLESS"));
+  process.setProcessEnvironment(environment);
+  process.start(exe, {QStringLiteral("--headless"), QStringLiteral("--run-script"), script_path,
+                      QStringLiteral("--script-output"), headless_output, QStringLiteral("--script-arg"), input_arg});
+  CHECK(process.waitForStarted(30000));
+  CHECK(process.waitForFinished(180000));
+  CHECK(process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0);
+  const auto headless = text_lines(headless_output);
+
+  // The suite's run of the same script.
+  const auto suite_output = temp.filePath(QStringLiteral("suite.txt"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.set_cli_automation_mode(true);
+    window.run_script_command(script_path, suite_output, {input_arg});
+    wait_for_run_end(window.script_engine_host(), 60000);
+    QElapsedTimer timer;
+    timer.start();
+    while (!QFile::exists(suite_output) && timer.elapsed() < 5000) {
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+    }
+  }
+  const auto suite = text_lines(suite_output);
+  for (int i = 0; i < std::max(headless.size(), suite.size()); ++i) {
+    std::printf("  headless %-60s | suite %s\n", i < headless.size() ? qPrintable(headless[i]) : "-",
+                i < suite.size() ? qPrintable(suite[i]) : "-");
+  }
+  std::fflush(stdout);
+  CHECK(suite.size() == 11);
+  CHECK(headless.size() == suite.size());
+  for (int i = 0; i < std::min(headless.size(), suite.size()); ++i) {
+    const auto a = headless[i].split(QLatin1Char('\t'));
+    const auto b = suite[i].split(QLatin1Char('\t'));
+    CHECK(a.size() == 7 && b.size() == 7);
+    if (a.size() != 7 || b.size() != 7) {
+      continue;
+    }
+    CHECK(a[1] == b[1]);                                  // layer
+    CHECK(a[2] == b[2]);                                  // resolved family/style
+    CHECK(b[2].contains(QStringLiteral("Black")));        // the real face, not a substitute
+    CHECK(a[3] == b[3]);                                  // x
+    CHECK(std::abs(a[5].toInt() - b[5].toInt()) <= 1);    // width (a substitute face is ~10% off)
+    CHECK(std::abs(a[4].toInt() - b[4].toInt()) <= 1);    // y
+    CHECK(std::abs(a[6].toInt() - b[6].toInt()) <= 1);    // height
+  }
+}
+
 void ui_script_active_layer_setter_reveals_row() {
   patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
   document.add_layer(patchy::Layer(document.allocate_layer_id(), "Base", patchy::PixelBuffer{}));
@@ -1593,6 +1721,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
       {"ui_script_ui_side_panels_expand_collapse_close", ui_script_ui_side_panels_expand_collapse_close},
       {"ui_script_ui_expand_panel_in_cli_capture", ui_script_ui_expand_panel_in_cli_capture},
+      {"ui_headless_text_fonts_match_windowed_if_available", ui_headless_text_fonts_match_windowed_if_available},
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},
       {"ui_script_webp_animation_export_preserves_document_and_validates_options", ui_script_webp_animation_export_preserves_document_and_validates_options},
       {"ui_script_apng_animation_export_preserves_document_and_validates_options", ui_script_apng_animation_export_preserves_document_and_validates_options},
