@@ -27899,10 +27899,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27944,6 +27940,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Shapes Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

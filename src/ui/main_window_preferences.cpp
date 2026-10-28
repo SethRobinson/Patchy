@@ -373,6 +373,8 @@ void keep_preferences_fields_compact(QWidget& pages) {
     combo->setMaximumWidth(combo->sizeAdjustPolicy() == QComboBox::AdjustToMinimumContentsLengthWithIcon
                                ? std::max(kPreferencesFieldMaxWidth, combo->minimumSizeHint().width())
                                : std::max(combo->sizeHint().width(), combo->minimumSizeHint().width()));
+    // The open list shows every entry whole, however compact the box (GitHub issue 489).
+    fit_combo_popup_to_entries(*combo);
   }
   for (auto* button : pages.findChildren<QPushButton*>()) {
     if (button->property(kPreferencesTextWidthButton).toBool()) {
@@ -1173,47 +1175,6 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   tools_layout->addStretch(1);
   add_page(tools_page, tr("Tools"), QStringLiteral("tools"));
 
-  // Presets (GitHub issue 485; Seth, October 28, 2026): one button per preset manager,
-  // read from preset_manager_entries() like Edit > Presets, so the labels, order and
-  // groups live in one place. Each button calls the menu's own open function with
-  // Preferences as the parent, so the manager opens over this dialog, its Use still
-  // applies to the tool, and library edits reach the options bar pickers at once. One
-  // grid keeps every button the width of the widest; a taller empty row starts a group.
-  auto [presets_page, presets_layout] = make_tab_page(page_stack);
-  auto* presets_group = new QFrame(presets_page);
-  presets_group->setObjectName(QStringLiteral("preferencesPresetsGroup"));
-  configure_panel(presets_group);
-  auto* presets_grid = new QGridLayout(presets_group);
-  presets_grid->setContentsMargins(12, 12, 12, 12);
-  presets_grid->setHorizontalSpacing(14);
-  presets_grid->setVerticalSpacing(8);
-  presets_grid->setColumnStretch(1, 1);
-  auto* presets_intro = new QLabel(
-      tr("Each button opens a preset manager, the same dialogs as Edit > Presets. Changes to a library "
-         "apply at once."),
-      presets_group);
-  presets_intro->setObjectName(QStringLiteral("preferencesPresetsIntro"));
-  presets_intro->setWordWrap(true);
-  int presets_row = 0;
-  presets_grid->addWidget(presets_intro, presets_row++, 0, 1, 2);
-  for (const auto& entry : preset_manager_entries()) {
-    if (entry.separator_before) {
-      presets_grid->setRowMinimumHeight(presets_row++, 4);
-    }
-    auto* button = new QPushButton(tr(entry.text), presets_group);
-    button->setObjectName(QLatin1String(entry.button_object_name));
-    button->setAutoDefault(false);
-    auto* description = new QLabel(tr(entry.description), presets_group);
-    description->setWordWrap(true);
-    presets_grid->addWidget(button, presets_row, 0);
-    presets_grid->addWidget(description, presets_row, 1, Qt::AlignVCenter);
-    ++presets_row;
-    connect(button, &QPushButton::clicked, &dialog, [this, &dialog, open = entry.open] { (this->*open)(&dialog); });
-  }
-  presets_layout->addWidget(presets_group);
-  presets_layout->addStretch(1);
-  add_page(presets_page, tr("Presets"), QStringLiteral("presets"));
-
   // Metadata and Watermarks: what saves add of Patchy's own and the user's (docs/file-info.md,
   // "Saved metadata preference"), then the TrustMark text saves add, when they add it, the
   // check on open, and the optional models (docs/watermarks.md, "Preferences").
@@ -1907,6 +1868,47 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   plugins_layout->addStretch(1);
   add_page(plugins_page, tr("Plug-ins"), QStringLiteral("plugins"));
 #endif
+
+  // Presets, the last page (GitHub issue 485; Seth, October 28, 2026): one button per preset manager,
+  // read from preset_manager_entries() like Edit > Presets, so the labels, order and
+  // groups live in one place. Each button calls the menu's own open function with
+  // Preferences as the parent, so the manager opens over this dialog, its Use still
+  // applies to the tool, and library edits reach the options bar pickers at once. One
+  // grid keeps every button the width of the widest; a taller empty row starts a group.
+  auto [presets_page, presets_layout] = make_tab_page(page_stack);
+  auto* presets_group = new QFrame(presets_page);
+  presets_group->setObjectName(QStringLiteral("preferencesPresetsGroup"));
+  configure_panel(presets_group);
+  auto* presets_grid = new QGridLayout(presets_group);
+  presets_grid->setContentsMargins(12, 12, 12, 12);
+  presets_grid->setHorizontalSpacing(14);
+  presets_grid->setVerticalSpacing(8);
+  presets_grid->setColumnStretch(1, 1);
+  auto* presets_intro = new QLabel(
+      tr("Each button opens a preset manager, the same dialogs as Edit > Presets. Changes to a library "
+         "apply at once."),
+      presets_group);
+  presets_intro->setObjectName(QStringLiteral("preferencesPresetsIntro"));
+  presets_intro->setWordWrap(true);
+  int presets_row = 0;
+  presets_grid->addWidget(presets_intro, presets_row++, 0, 1, 2);
+  for (const auto& entry : preset_manager_entries()) {
+    if (entry.separator_before) {
+      presets_grid->setRowMinimumHeight(presets_row++, 4);
+    }
+    auto* button = new QPushButton(tr(entry.text), presets_group);
+    button->setObjectName(QLatin1String(entry.button_object_name));
+    button->setAutoDefault(false);
+    auto* description = new QLabel(tr(entry.description), presets_group);
+    description->setWordWrap(true);
+    presets_grid->addWidget(button, presets_row, 0);
+    presets_grid->addWidget(description, presets_row, 1, Qt::AlignVCenter);
+    ++presets_row;
+    connect(button, &QPushButton::clicked, &dialog, [this, &dialog, open = entry.open] { (this->*open)(&dialog); });
+  }
+  presets_layout->addWidget(presets_group);
+  presets_layout->addStretch(1);
+  add_page(presets_page, tr("Presets"), QStringLiteral("presets"));
 
   auto* pages_row = new QHBoxLayout();
   pages_row->setContentsMargins(0, 0, 0, 0);

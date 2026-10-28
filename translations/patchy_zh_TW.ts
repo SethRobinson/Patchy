@@ -27898,10 +27898,6 @@ Locked: %1</source>
         <translation>圖樣管理員...</translation>
     </message>
     <message>
-        <source>Zoom to Layer Content</source>
-        <translation>縮放至圖層內容</translation>
-    </message>
-    <message>
         <source>Whole Document</source>
         <translation>整份文件</translation>
     </message>
@@ -27944,6 +27940,10 @@ Locked: %1</source>
     <message>
         <source>Shapes Manager...</source>
         <translation>形狀管理員...</translation>
+    </message>
+    <message>
+        <source>Layer Content</source>
+        <translation>圖層內容</translation>
     </message>
 </context>
 <context>

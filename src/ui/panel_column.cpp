@@ -85,11 +85,14 @@ protected:
   }
 
   bool viewportEvent(QEvent* event) override {
-    // The panel's minimum changed (a retranslated, restyled or rewrapped row), or a
-    // scroll bar came or went and resized the viewport.
-    const bool replace = event->type() == QEvent::LayoutRequest || event->type() == QEvent::Resize;
     const bool handled = QScrollArea::viewportEvent(event);
-    if (replace) {
+    if (event->type() == QEvent::LayoutRequest) {
+      // The panel's minimum changed (a retranslated, restyled or rewrapped row, a lowered
+      // floor). The section's layout caches this area's minimum, so say it changed too.
+      place_content();
+      updateGeometry();
+    } else if (event->type() == QEvent::Resize) {
+      // A scroll bar came or went and resized the viewport.
       place_content();
     }
     return handled;
@@ -850,7 +853,7 @@ void PanelColumn::apply_preferred_heights() {
   splitter_->setSizes(sizes);
 }
 
-int PanelColumn::lower_floors(int excess, int keep) {
+int PanelColumn::lower_floors(int excess, int keep, bool keep_content) {
   int lowered = 0;
   // Bottom up, the fill section (Layers) last wherever it sits.
   std::vector<Section*> order;
@@ -873,7 +876,13 @@ int PanelColumn::lower_floors(int excess, int keep) {
     if (spec.expanded_minimum_height <= 0) {
       continue;
     }
-    const auto lowest = collapsed_height(section) + keep;
+    // A floor under what the section's own content needs clips the panel's bottom row
+    // (the Layers footer) at the section's edge (local issue 016), so the window lowers the
+    // panel's own floors first and goes under the content only as a last resort.
+    const auto content = keep_content && section.widget->layout() != nullptr
+                             ? section.widget->layout()->minimumSize().height()
+                             : 0;
+    const auto lowest = std::max(collapsed_height(section) + keep, content);
     const auto current = spec.expanded_minimum_height - section.floor_reduction;
     const auto take = std::min(excess, std::max(0, current - lowest));
     if (take <= 0) {

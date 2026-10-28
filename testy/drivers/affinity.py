@@ -285,15 +285,17 @@ def export_all(
         return {"ok": True, "opens": "ok", "notes": notes,
                 "cacheable": bool(png.get("ok") and psd.get("ok")
                                   and resave_psd.exists())}
+    # A connector that is off and a driver bug say nothing about the file: no "opens"
+    # verdict, so the file stays out of Affinity's averages (refused_with_reference).
     except ConnectorOffError as error:
-        return {"ok": False, "opens": "fail",
+        return {"ok": False, "opens": None,
                 "error": f"Affinity connector unavailable: {error}",
                 "notes": log_lines}
     except AffinityJsError as error:
         return {"ok": False, "opens": "fail",
                 "error": _interpret_error(str(error)), "notes": log_lines}
     except Exception as error:  # never let the harness die on driver bugs
-        return {"ok": False, "opens": "fail",
+        return {"ok": False, "opens": None,
                 "error": f"driver crash: {error}", "notes": log_lines}
     finally:
         # Cleanup must never raise: an exception here would replace the cell's

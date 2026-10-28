@@ -328,7 +328,6 @@ QString photoshop_style_template() {
     }
     QToolBar#Options {
       background: @options_bar_bg;
-      min-height: 38px;
       border-top: 1px solid @options_bar_top_edge;
       border-bottom: 1px solid @toolbar_border;
       spacing: 5px;

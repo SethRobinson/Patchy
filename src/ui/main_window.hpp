@@ -608,6 +608,9 @@ private:
   void resync_native_frame_geometry();
   void restore_maximized_under_cursor(QPoint global_cursor);
   void restore_window_from_maximize();
+  // normalGeometry(), except after a return from full screen to maximized on Windows,
+  // where Qt reports the maximized size (maximized_return_normal_geometry_).
+  [[nodiscard]] QRect normal_bounds() const;
   // Screen modes (main_window_chrome.cpp). What Standard showed, captured on leaving it.
   struct StandardScreenChrome {
     bool maximized{false};
@@ -3412,6 +3415,13 @@ private:
   QWidget* screen_mode_hint_{nullptr};
   bool applying_screen_mode_{false};
   bool screen_mode_sync_pending_{false};
+  // Windows: set while set_screen_mode delivers the state reports of a return from full
+  // screen to maximized; changeEvent leaves the frame alone meanwhile (GitHub issue 491).
+  bool settling_maximized_return_{false};
+  // Windows: the normal bounds a window that came back maximized from full screen restores
+  // to (Qt's normalGeometry() reports the maximized size then); cleared once it leaves
+  // the maximized state.
+  QRect maximized_return_normal_geometry_;
   // Since the last screen-mode change: a window-state report inside the window
   // system's transition (macOS animates into full screen) is not a user's exit.
   QElapsedTimer screen_mode_changed_timer_;

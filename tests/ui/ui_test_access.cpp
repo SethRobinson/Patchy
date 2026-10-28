@@ -425,6 +425,10 @@ std::size_t MainWindowTestAccess::session_count(MainWindow& window) {
   return window.sessions_.size();
 }
 
+void MainWindowTestAccess::restore_window_from_maximize(MainWindow& window) {
+  window.restore_window_from_maximize();
+}
+
 bool MainWindowTestAccess::title_bar_drag_area_contains(const MainWindow& window, QPoint menu_bar_position) {
   return window.title_bar_drag_area_contains(menu_bar_position);
 }

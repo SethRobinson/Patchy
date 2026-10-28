@@ -56,6 +56,7 @@
 #include <QWidgetAction>
 #include <QAbstractButton>
 #include <QTabBar>
+#include <QLayout>
 #include <QToolBar>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -92,6 +93,13 @@
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 #include "app_shell_test_support.hpp"
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace {
 using namespace patchy::test::ui::app_shell_support;
@@ -1247,6 +1255,119 @@ void ui_panel_collapse_and_close_leave_no_gap() {
     check_filled(QStringLiteral("collapsed after reopen ") + id);
   }
   save_widget_artifact("ui_panel_collapse_and_close_leave_no_gap", *column);
+}
+
+// A short window never lets one right-column section paint over the next: with no
+// document open (the Home screen) a short window squeezed the Layers group below its
+// content, and the Properties title row covered the Layers footer buttons (local
+// issue 016): at 1044 px the Options bar wraps onto a second row, and its QSS
+// min-height hid that row from the window's minimum. Each section keeps its own
+// content's minimum, and the footer stays above the next section, at every height the
+// window takes, with sections open or not.
+void ui_panel_column_short_window_keeps_sections_apart() {
+  for (const bool with_document : {false, true}) {
+    patchy::ui::MainWindow window;
+    if (with_document) {
+      show_window(window);
+    } else {
+      show_window_empty(window);
+    }
+    auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+    CHECK(column != nullptr);
+    if (column == nullptr) {
+      return;
+    }
+    auto* splitter = column->splitter();
+    auto* footer_button = window.findChild<QWidget*>(QStringLiteral("layerDeleteButton"));
+    CHECK(footer_button != nullptr);
+    const auto check_apart = [&](const QString& context) {
+      QApplication::processEvents();
+      QApplication::processEvents();
+      int previous_bottom = -1;
+      QWidget* layers_section = nullptr;
+      QWidget* below_layers = nullptr;
+      for (int index = 0; index < splitter->count(); ++index) {
+        auto* section = splitter->widget(index);
+        if (section->isHidden()) {
+          continue;
+        }
+        if (layers_section != nullptr && below_layers == nullptr) {
+          below_layers = section;
+        }
+        if (footer_button != nullptr && section->isAncestorOf(footer_button)) {
+          layers_section = section;
+        }
+        const int top = section->mapTo(splitter, QPoint(0, 0)).y();
+        const int content_minimum = section->layout() != nullptr ? section->layout()->minimumSize().height() : 0;
+        if (top <= previous_bottom || section->height() < content_minimum) {
+          const auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+          std::printf("%s (window %dx%d, minimum %d, column %d of minimum %d, Options bar %d): section %s at y %d "
+                      "height %d, content minimum %d, explicit minimum %d, previous bottom %d\n",
+                      qPrintable(context), window.width(), window.height(), window.minimumHeight(), column->height(),
+                      column->minimumSizeHint().height(), options_bar != nullptr ? options_bar->height() : -1,
+                      qPrintable(section->objectName()), top, section->height(), content_minimum,
+                      section->minimumHeight(), previous_bottom);
+        }
+        CHECK(top > previous_bottom);
+        CHECK(section->height() >= content_minimum);
+        previous_bottom = top + section->height() - 1;
+      }
+      CHECK(previous_bottom <= splitter->height() - 1);
+      // The window's minimum holds the column's minimum under the chrome as it is laid out,
+      // the Options bar wrapped onto a second row included.
+      const int needed = window.height() - column->height() + column->minimumSizeHint().height();
+      if (window.minimumHeight() < needed) {
+        std::printf("%s: window minimum %d, needed %d\n", qPrintable(context), window.minimumHeight(), needed);
+      }
+      CHECK(window.minimumHeight() >= needed);
+      CHECK(layers_section != nullptr);
+      if (footer_button != nullptr && layers_section != nullptr) {
+        const int footer_bottom = footer_button->mapTo(splitter, QPoint(0, footer_button->height() - 1)).y();
+        const int layers_bottom = layers_section->mapTo(splitter, QPoint(0, layers_section->height() - 1)).y();
+        const int next_top = below_layers != nullptr ? below_layers->mapTo(splitter, QPoint(0, 0)).y()
+                                                     : splitter->height();
+        if (footer_bottom > layers_bottom || footer_bottom >= next_top) {
+          std::printf("%s (window %dx%d): footer bottom %d, Layers section bottom %d, next section top %d\n",
+                      qPrintable(context), window.width(), window.height(), footer_bottom, layers_bottom, next_top);
+        }
+        CHECK(footer_bottom <= layers_bottom);
+        CHECK(footer_bottom < next_top);
+      }
+    };
+    const auto sweep = [&](const QString& context) {
+      for (int height = 780; height >= 360; height -= 20) {
+        window.resize(1044, height);
+        check_apart(QStringLiteral("%1, asked %2").arg(context).arg(height));
+      }
+      window.resize(1044, 738);
+      check_apart(context + QStringLiteral(", 738"));
+    };
+    const QString prefix = with_document ? QStringLiteral("document") : QStringLiteral("home");
+    if (!with_document) {
+      // The reported layout: the Home screen at 1044x738 with Info open.
+      auto* info_toggle = column->collapse_button(QStringLiteral("infoDock"));
+      CHECK(info_toggle != nullptr);
+      if (info_toggle != nullptr) {
+        info_toggle->click();
+        window.resize(1044, 738);
+        QApplication::processEvents();
+        QApplication::processEvents();
+        save_widget_artifact("ui_panel_column_short_window_keeps_sections_apart", window);
+        check_apart(QStringLiteral("home + infoDock, reported size"));
+        info_toggle->click();
+      }
+    }
+    sweep(prefix);
+    for (const auto& id : {QStringLiteral("infoDock"), QStringLiteral("propertiesDock"), QStringLiteral("historyDock")}) {
+      auto* toggle = column->collapse_button(id);
+      CHECK(toggle != nullptr);
+      if (toggle == nullptr || column->panel_expanded(id)) {
+        continue;
+      }
+      toggle->click();
+      sweep(prefix + QStringLiteral(" + ") + id);
+    }
+  }
 }
 
 // With every section collapsed the title rows stack from the top of the column, the
@@ -2439,6 +2560,127 @@ void ui_screen_modes_cycle_hide_chrome_and_restore_standard() {
   CHECK(window.actions().contains(cycle) == cycle_carried_before);
   options_bar->show();
   QApplication::processEvents();
+}
+
+// A maximized window leaves either full-screen mode maximized again (GitHub issue 491):
+// the F cycle, Escape from Full Screen with Menus, and on a real Windows window also
+// after an OS maximize (a native zoom, as a snap or Win+Up makes).
+void ui_screen_modes_return_to_maximized() {
+  using patchy::ui::MainWindow;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* with_menus = require_action(window, "viewScreenModeFullWithMenusAction");
+  CHECK(with_menus != nullptr);
+  if (with_menus == nullptr) {
+    return;
+  }
+  window.showMaximized();
+  CHECK(process_events_until([&window] { return window.isMaximized(); }));
+  process_events_for(100);
+  const auto maximized_geometry = window.geometry();
+  const auto back_to_maximized = [&](const char* how) {
+    const bool back = process_events_until([&] {
+      return window.screen_mode() == MainWindow::ScreenMode::Standard && !window.isFullScreen() &&
+             window.isMaximized() && window.geometry() == maximized_geometry;
+    });
+    if (!back) {
+      patchy::test::report_failure(
+          QStringLiteral("%1: maximized %2, full screen %3, geometry %4,%5 %6x%7, expected %8,%9 %10x%11")
+              .arg(QString::fromLatin1(how))
+              .arg(window.isMaximized())
+              .arg(window.isFullScreen())
+              .arg(window.geometry().x())
+              .arg(window.geometry().y())
+              .arg(window.geometry().width())
+              .arg(window.geometry().height())
+              .arg(maximized_geometry.x())
+              .arg(maximized_geometry.y())
+              .arg(maximized_geometry.width())
+              .arg(maximized_geometry.height())
+              .toStdString());
+    }
+  };
+
+  // F through both full-screen modes and back.
+  for (int press = 0; press < 3; ++press) {
+    canvas = require_canvas(window);
+    canvas->setFocus();
+    QTest::keyClick(canvas, Qt::Key_F);
+    process_events_for(50);
+    if (press < 2) {
+      CHECK(window.isFullScreen());
+    }
+  }
+  back_to_maximized("F cycle");
+
+  // Escape out of Full Screen with Menus.
+  with_menus->trigger();
+  process_events_for(50);
+  CHECK(window.isFullScreen());
+  canvas = require_canvas(window);
+  canvas->setFocus();
+  send_key(*canvas, Qt::Key_Escape);
+  back_to_maximized("Escape");
+
+#ifdef Q_OS_WIN
+  if (QGuiApplication::platformName() == QStringLiteral("windows")) {
+    // An OS maximize (a native zoom, whose normal placement is the restored size): restore,
+    // give the window its own normal bounds, then let Windows zoom it.
+    patchy::ui::MainWindowTestAccess::restore_window_from_maximize(window);
+    CHECK(process_events_until([&window] { return !window.isMaximized(); }));
+    const QRect normal(maximized_geometry.topLeft() + QPoint(60, 50), QSize(940, 720));
+    window.setGeometry(normal);
+    process_events_for(100);
+    SendMessageW(reinterpret_cast<HWND>(window.winId()), WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+    CHECK(process_events_until([&window] { return window.isMaximized(); }));
+    process_events_for(100);
+    CHECK(window.geometry() == maximized_geometry);
+    for (int press = 0; press < 3; ++press) {
+      canvas = require_canvas(window);
+      canvas->setFocus();
+      QTest::keyClick(canvas, Qt::Key_F);
+      process_events_for(50);
+    }
+    back_to_maximized("F cycle after an OS maximize");
+    // Restoring afterwards still returns to the normal bounds.
+    patchy::ui::MainWindowTestAccess::restore_window_from_maximize(window);
+    CHECK(process_events_until([&window] { return !window.isMaximized(); }));
+    CHECK(window.geometry().size() == normal.size());
+
+    // The maximize control's maximize, back from full screen, then a Windows restore (as a
+    // title-bar double-click or Win+Down makes) or the maximize control's restore.
+    for (const bool windows_restore : {true, false}) {
+      window.showMaximized();
+      CHECK(process_events_until([&window] { return window.isMaximized(); }));
+      process_events_for(100);
+      // Twice before the control's restore: the second trip starts from a returned window.
+      for (int trip = 0; trip < (windows_restore ? 1 : 2); ++trip) {
+        for (int press = 0; press < 3; ++press) {
+          canvas = require_canvas(window);
+          canvas->setFocus();
+          QTest::keyClick(canvas, Qt::Key_F);
+          process_events_for(50);
+        }
+        back_to_maximized("F cycle after the maximize control");
+      }
+      if (windows_restore) {
+        SendMessageW(reinterpret_cast<HWND>(window.winId()), WM_SYSCOMMAND, SC_RESTORE, 0);
+      } else {
+        patchy::ui::MainWindowTestAccess::restore_window_from_maximize(window);
+      }
+      CHECK(process_events_until([&window] { return !window.isMaximized(); }));
+      process_events_for(100);
+      if (window.geometry().size() != normal.size()) {
+        patchy::test::report_failure(QStringLiteral("%1 restore: %2x%3, expected %4x%5")
+                                         .arg(windows_restore ? QStringLiteral("Windows") : QStringLiteral("Control"))
+                                         .arg(window.geometry().width())
+                                         .arg(window.geometry().height())
+                                         .arg(normal.width())
+                                         .arg(normal.height())
+                                         .toStdString());
+      }
+    }
+  }
+#endif
 }
 
 // In Full Screen with Menus the menu bar is still the custom title bar (Windows and Linux):
@@ -4881,6 +5123,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},
       {"ui_panel_collapse_and_close_leave_no_gap", ui_panel_collapse_and_close_leave_no_gap},
       {"ui_panel_all_collapsed_stack_at_top", ui_panel_all_collapsed_stack_at_top},
+      {"ui_panel_column_short_window_keeps_sections_apart", ui_panel_column_short_window_keeps_sections_apart},
       {"ui_panel_title_drag_reorders_sections", ui_panel_title_drag_reorders_sections},
       {"ui_panel_tab_drag_reorders_tabs", ui_panel_tab_drag_reorders_tabs},
       {"ui_panel_drag_onto_header_merges_into_tabs", ui_panel_drag_onto_header_merges_into_tabs},
@@ -4892,6 +5135,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_reset_panels_restores_first_launch_layout", ui_reset_panels_restores_first_launch_layout},
       {"ui_reset_panels_keeps_the_window_geometry", ui_reset_panels_keeps_the_window_geometry},
       {"ui_screen_modes_cycle_hide_chrome_and_restore_standard", ui_screen_modes_cycle_hide_chrome_and_restore_standard},
+      {"ui_screen_modes_return_to_maximized", ui_screen_modes_return_to_maximized},
       {"ui_screen_modes_escape_and_context_menu_return_to_standard", ui_screen_modes_escape_and_context_menu_return_to_standard},
       {"ui_screen_modes_title_bar_double_click_returns_to_standard", ui_screen_modes_title_bar_double_click_returns_to_standard},
       {"ui_screen_mode_button_cycles_and_lists_modes", ui_screen_mode_button_cycles_and_lists_modes},
