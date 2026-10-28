@@ -8,6 +8,7 @@
 #include <QLatin1String>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QPainterPath>
 #include <QRawFont>
 #include <QString>
 #include <QTextBlock>
@@ -28,9 +29,75 @@ namespace {
 
 constexpr qreal kLineGateTolerance = 0.01;
 
+// The char format of the line's last non-space character, whose tracking Qt adds after the
+// final glyph (Photoshop tracks only the gaps between glyphs).
+std::optional<QTextCharFormat> line_last_char_format(const QTextBlock& block, const QTextLine& line) {
+  const auto text = block.text();
+  auto last = line.textStart() + line.textLength() - 1;
+  while (last >= line.textStart() && last < text.size() && text.at(last).isSpace()) {
+    --last;
+  }
+  if (last < line.textStart() || last >= text.size()) {
+    return std::nullopt;
+  }
+  const auto position = block.position() + last;
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (fragment.isValid() && position >= fragment.position() && position < fragment.position() + fragment.length()) {
+      return fragment.charFormat();
+    }
+  }
+  return std::nullopt;
+}
+
+// Photoshop alignment of a left-to-right block as a fraction of the slack: 0.5 centred, 1 right,
+// 0 for left and justified text (and right-to-left blocks, whose trailing gap Qt places
+// elsewhere).
+double photoshop_alignment_fraction(const QTextBlock& block) {
+  if (block.textDirection() != Qt::LeftToRight) {
+    return 0.0;
+  }
+  const auto alignment = block.blockFormat().alignment();
+  if ((alignment & Qt::AlignJustify) != 0) {
+    return 0.0;
+  }
+  if ((alignment & Qt::AlignHCenter) != 0) {
+    return 0.5;
+  }
+  if ((alignment & Qt::AlignRight) != 0) {
+    return 1.0;
+  }
+  return 0.0;
+}
+
+// The Photoshop tracking Qt's absolute letter spacing adds after the line's last glyph (the
+// run's tracking/1000 x size x horizontal scale, as the document applies it), 0 for an
+// untracked run. Faux-bold or feature spacing in the same letter spacing is real advance and
+// stays.
+double photoshop_line_trailing_tracking(const QTextBlock& block, const QTextLine& line) {
+  const auto last = line_last_char_format(block, line);
+  if (!last.has_value() || !last->hasProperty(kTextTrackingFormatProperty) ||
+      last->font().letterSpacingType() != QFont::AbsoluteSpacing) {
+    return 0.0;
+  }
+  const auto tracking = last->property(kTextTrackingFormatProperty).toDouble();
+  if (!std::isfinite(tracking) || std::abs(tracking) <= 0.0001) {
+    return 0.0;
+  }
+  auto horizontal_scale = 1.0;
+  if (last->hasProperty(kTextHorizontalScaleFormatProperty)) {
+    const auto value = last->property(kTextHorizontalScaleFormatProperty).toDouble();
+    if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+      horizontal_scale = value;
+    }
+  }
+  const auto gap = tracking / 1000.0 * photoshop_char_exact_size(*last) * horizontal_scale;
+  return std::isfinite(gap) ? gap : 0.0;
+}
+
 }  // namespace
 
-double typographic_ascent_fraction(const QFont& font) {
+double photoshop_ascender_fraction(const QFont& font) {
   static QHash<QString, double> cache;
   static QMutex cache_mutex;
   const auto key = font.families().join(QLatin1Char('|')) + QLatin1Char('#') + font.styleName() +
@@ -42,8 +109,21 @@ double typographic_ascent_fraction(const QFont& font) {
     }
   }
   double fraction = 0.0;
-  const auto raw_font = QRawFont::fromFont(font);
-  if (raw_font.isValid()) {
+  auto raw_font = QRawFont::fromFont(font);
+  if (raw_font.isValid() && raw_font.unitsPerEm() > 0.0) {
+    // The top of the lowercase "d" outline, read at one unit per em (an unhinted outline).
+    const auto upem = raw_font.unitsPerEm();
+    if (const auto glyphs = raw_font.glyphIndexesForString(QStringLiteral("d"));
+        !glyphs.isEmpty() && glyphs.front() != 0) {
+      raw_font.setPixelSize(upem);
+      const auto bounds = raw_font.pathForGlyph(glyphs.front()).boundingRect();
+      if (bounds.isValid() && bounds.top() < 0.0) {
+        fraction = -bounds.top() / upem;
+      }
+    }
+  }
+  if ((fraction <= 0.0 || fraction > 2.0) && raw_font.isValid()) {
+    // No "d" (a symbol or CJK-only face): the OS/2 typographic ascender.
     const auto table = raw_font.fontTable("OS/2");
     const auto upem = raw_font.unitsPerEm();
     if (table.size() >= 70 && upem > 0.0) {
@@ -113,13 +193,13 @@ PhotoshopLineMetrics photoshop_line_metrics(const QTextBlock& block, const QText
     const auto format = fragment.charFormat();
     metrics.leading = std::max(metrics.leading, photoshop_char_leading(format, paragraph_fraction));
     metrics.first_baseline =
-        std::max(metrics.first_baseline, typographic_ascent_fraction(format.font()) * photoshop_char_exact_size(format));
+        std::max(metrics.first_baseline, photoshop_ascender_fraction(format.font()) * photoshop_char_exact_size(format));
     found_format = true;
   }
   if (!found_format) {
     const auto format = block.charFormat();
     metrics.leading = photoshop_char_leading(format, paragraph_fraction);
-    metrics.first_baseline = typographic_ascent_fraction(format.font()) * photoshop_char_exact_size(format);
+    metrics.first_baseline = photoshop_ascender_fraction(format.font()) * photoshop_char_exact_size(format);
   }
   return metrics;
 }
@@ -206,6 +286,12 @@ PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document
     return plan;
   }
 
+  struct LineWidths {
+    double natural{0.0};   // Qt's width, trailing letter spacing included
+    double trailing{0.0};  // the tracking Qt added after the line's last glyph
+    double fraction{0.0};  // 0.5 centred, 1 right, 0 otherwise (or no trailing gap)
+  };
+  std::vector<LineWidths> widths;
   bool first_line = true;
   double baseline = 0.0;
   double previous_space_after = 0.0;
@@ -252,9 +338,31 @@ PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document
       const auto offset_y = target_top - natural_rect.top();
       const auto block_origin = block_rect.topLeft() + QPointF(0.0, offset_y);
       plan.lines.push_back(BoxTextLineRenderItem{line, block_origin, QRectF(), block.position()});
-      plan.ink_rect = plan.ink_rect.isNull() ? natural_rect.translated(0.0, offset_y)
-                                             : plan.ink_rect.united(natural_rect.translated(0.0, offset_y));
+      const auto trailing = photoshop_line_trailing_tracking(block, line);
+      widths.push_back(LineWidths{line.naturalTextWidth(), trailing,
+                                  trailing != 0.0 ? photoshop_alignment_fraction(block) : 0.0});
     }
+  }
+  // Photoshop tracks only the gaps BETWEEN glyphs, while Qt's absolute letter spacing also
+  // follows the last glyph, so Qt centres and right-aligns a line one trailing gap too wide
+  // (tracking -80 at 48 px: the centred line sat 1.92 px right of Photoshop's; PS 2026 sweep,
+  // docs/text-render-calibration.md, "Tracking and alignment"). Move each centred or right
+  // line by its fraction of the trailing gap. Box text aligns in the fixed frame; point text
+  // aligns in its widest line, whose own trailing gap Qt counted as well.
+  double qt_width = 0.0;
+  double photoshop_width = 0.0;
+  for (const auto& entry : widths) {
+    qt_width = std::max(qt_width, entry.natural);
+    photoshop_width = std::max(photoshop_width, entry.natural - entry.trailing);
+  }
+  const auto frame_correction = boxed ? 0.0 : photoshop_width - qt_width;
+  for (std::size_t i = 0; i < plan.lines.size(); ++i) {
+    auto& item = plan.lines[i];
+    if (widths[i].fraction > 0.0) {
+      item.block_origin.rx() += widths[i].fraction * (frame_correction + widths[i].trailing);
+    }
+    const auto positioned = item.line.rect().translated(item.block_origin);
+    plan.ink_rect = plan.ink_rect.isNull() ? positioned : plan.ink_rect.united(positioned);
   }
   plan.valid = !plan.lines.empty();
   return plan;
@@ -334,27 +442,6 @@ void for_each_line_format(const QTextBlock& block, const QTextLine& line, Visit&
   if (!found) {
     visit(block.charFormat());
   }
-}
-
-// The char format of the line's last non-space character, whose tracking Qt adds after the
-// final glyph (Photoshop tracks only the gaps between glyphs).
-std::optional<QTextCharFormat> line_last_char_format(const QTextBlock& block, const QTextLine& line) {
-  const auto text = block.text();
-  auto last = line.textStart() + line.textLength() - 1;
-  while (last >= line.textStart() && last < text.size() && text.at(last).isSpace()) {
-    --last;
-  }
-  if (last < line.textStart() || last >= text.size()) {
-    return std::nullopt;
-  }
-  const auto position = block.position() + last;
-  for (auto it = block.begin(); !it.atEnd(); ++it) {
-    const auto fragment = it.fragment();
-    if (fragment.isValid() && position >= fragment.position() && position < fragment.position() + fragment.length()) {
-      return fragment.charFormat();
-    }
-  }
-  return std::nullopt;
 }
 
 }  // namespace
