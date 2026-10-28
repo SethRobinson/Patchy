@@ -2204,13 +2204,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     show_transform_drag_values_ = transform_values_check->isChecked();
     snap_transforms_to_pixel_grid_ = transform_snap_check->isChecked();
     escape_commits_text_ = escape_commits_text_check->isChecked();
-    if (zoom_layer_thumbnails_to_content_ != zoom_thumbnails_check->isChecked()) {
-      zoom_layer_thumbnails_to_content_ = zoom_thumbnails_check->isChecked();
-      // The mode is a shape input the revision-keyed cache does not track;
-      // drop the pixmaps and rebuild (the color-scheme precedent).
-      layer_thumbnail_cache_.clear();
-      refresh_layer_list();
-    }
+    // Also the layer thumbnail menu's bounds pair (#481), which this keeps in step.
+    set_zoom_layer_thumbnails_to_content(zoom_thumbnails_check->isChecked());
     view_rulers_visible_ = default_rulers_check->isChecked();
     view_vector_preview_action_->setChecked(vector_preview_check->isChecked());
     view_grid_visible_ = default_grid_check->isChecked();

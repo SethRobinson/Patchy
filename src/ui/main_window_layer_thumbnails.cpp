@@ -219,6 +219,7 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
                           QStringLiteral("layerThumbnailPixels"));
     add_export_menu();
     add_layer_thumbnail_size_menu(&menu);  // after its own separator
+    add_layer_thumbnail_bounds_actions(&menu);
   } else {
     menu.setObjectName(raster_mask ? QStringLiteral("layerMaskThumbnailMenu")
                                    : QStringLiteral("layerVectorMaskThumbnailMenu"));

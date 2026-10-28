@@ -19720,18 +19720,6 @@ Hidden by parent folder</source>
     </message>
     <message>
         <source>
-Locked</source>
-        <translation>
-ロック済み</translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
-        <translation>
-透明ピクセルをロック</translation>
-    </message>
-    <message>
-        <source>
 Layer mask</source>
         <translation>
 レイヤーマスク</translation>
@@ -20333,12 +20321,6 @@ Y: %2
     <message>
         <source>View Layer Mask</source>
         <translation>レイヤーマスクを表示</translation>
-    </message>
-    <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation>%1
-不透明度 %2%%3%4%5%6%7%8</translation>
     </message>
     <message>
         <source>
@@ -27674,6 +27656,47 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Blend mode: %1</source>
         <translation>描画モード: %1</translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation>サムネイルをレイヤーの内容にズーム</translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation>サムネイルにドキュメント全体を表示</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>すべて</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>画像</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation>自動ネスト</translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation>
+ロック: %1</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation>、</translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+不透明度 %2%%3%4%5%6%7</translation>
     </message>
 </context>
 <context>

@@ -20675,28 +20675,10 @@ Collapsed</source>
 Compressa</translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation>%1
-%2% di opacità%3%4%5%6%7%8</translation>
-    </message>
-    <message>
         <source>
 Hidden by parent folder</source>
         <translation>
 Nascosto dalla cartella principale</translation>
-    </message>
-    <message>
-        <source>
-Locked</source>
-        <translation>
-Bloccato</translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
-        <translation>
-Pixel trasparenti bloccati</translation>
     </message>
     <message>
         <source>
@@ -27750,6 +27732,47 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
     <message>
         <source>Blend mode: %1</source>
         <translation>Metodo di fusione: %1</translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation>Ingrandisci le miniature sul contenuto del livello</translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation>Mostra l&apos;intero documento nelle miniature</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Tutto</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>Immagine</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Posizione</translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation>Annidamento automatico</translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation>
+Bloccato: %1</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+%2% di opacità%3%4%5%6%7</translation>
     </message>
 </context>
 <context>

@@ -56,6 +56,12 @@ QIcon line_arrowhead_icon(bool at_end);
 // Italic, which share the row.
 QIcon text_character_style_icon(int style);
 
+// Layers panel lock glyphs (GitHub issue 484), shared by the panel's lock buttons and the
+// row badges: "transparent" (a checkerboard), "pixels" (a pencil), "position" (a four-way
+// arrow), "autonest" (an artboard frame holding a layer) and "all" (a padlock). Every glyph
+// spans the same height so the button row reads as one set.
+QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role);
+
 // A one-off procedural mark: a glyph outside the shared icon vocabulary, drawn by
 // the caller against an `authored_size` square area with the ink handed to it.
 // Use this rather than painting into a QPixmap and wrapping it in a QIcon. A

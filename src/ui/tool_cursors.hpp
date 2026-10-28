@@ -43,6 +43,12 @@ namespace patchy::ui {
 // it starts. The same arrow as move_pointer_cursor with a badge drawing the gesture's
 // shape: a slanted parallelogram (skew), an irregular four-sided shape (distort), a
 // trapezoid (perspective). Hotspot on the arrow tip. Built once and cached.
+// The Layers panel's selection-load hint (GitHub issue 480): over a layer or mask thumbnail
+// while Ctrl (Cmd on macOS) is held, where a click loads it as a selection. The same arrow
+// with a small dashed (marching-ants) box at its lower right. Hotspot on the arrow tip.
+// Built once and cached.
+[[nodiscard]] QCursor load_selection_pointer_cursor();
+
 enum class TransformGestureCursor { Skew, Distort, Perspective };
 [[nodiscard]] QCursor transform_gesture_cursor(TransformGestureCursor gesture);
 

@@ -2057,10 +2057,16 @@ private:
   // entries for `id` (#407), then the color labels (issue 276).
   void show_background_context_menu(QPoint global_position);
   void show_layer_eye_color_menu(LayerId id, QPoint global_position);
-  // Layers panel thumbnail size (GitHub issue 386): the Thumbnail Size submenu at the end of the
-  // layer context menus, its radio actions, and the setter that saves and rebuilds the rows.
+  // Layers panel thumbnail size (GitHub issue 386): the Thumbnail Size submenu on the pixel
+  // thumbnail menu (and the row menus only while the size is None, #481), its radio actions, and
+  // the setter that saves and rebuilds the rows.
   void add_layer_thumbnail_size_menu(QMenu* menu);
   void set_layer_thumbnail_size(LayerThumbnailSize size);
+  // The thumbnail bounds pair on the pixel thumbnail menu (#481): Preferences' "Zoom layer
+  // thumbnails to the layer content" as two radio actions. The setter saves, syncs both and
+  // rebuilds the rows.
+  void add_layer_thumbnail_bounds_actions(QMenu* menu);
+  void set_zoom_layer_thumbnails_to_content(bool zoom);
   // Layer export (#462, main_window_files.cpp): Quick Export as PNG (choose_format false) and
   // Export As... for the selected layers, each its own file named after the layer (a group as
   // its composite; a mask source writes each selected layer's mask of that kind instead).
@@ -3692,6 +3698,8 @@ private:
   // view/layerThumbnailSize (kLayerThumbnailSizeSettingsKey). Persisted identifier.
   LayerThumbnailSize layer_thumbnail_size_{kDefaultLayerThumbnailSize};
   std::array<QAction*, 4> layer_thumbnail_size_actions_{};
+  // layerThumbnailBoundsLayerAction, layerThumbnailBoundsDocumentAction (#481).
+  std::array<QAction*, 2> layer_thumbnail_bounds_actions_{};
   // The rows were built with the folder-arrow slot reserved (#386 follow-up).
   bool layer_list_arrow_column_{false};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;

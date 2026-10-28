@@ -21545,28 +21545,10 @@ Collapsed</source>
 Zwinięty</translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation>%1
-%2% krycie%3%4%5%6%7%8</translation>
-    </message>
-    <message>
         <source>
 Hidden by parent folder</source>
         <translation>
 Ukryta przez folder nadrzędny</translation>
-    </message>
-    <message>
-        <source>
-Locked</source>
-        <translation>
-Zablokowana</translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
-        <translation>
-Przezroczyste piksele zablokowane</translation>
     </message>
     <message>
         <source>
@@ -27826,6 +27808,47 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Blend mode: %1</source>
         <translation>Tryb mieszania: %1</translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation>Powiększ miniatury do zawartości warstwy</translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation>Pokaż cały dokument w miniaturach</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Wszystko</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>Obraz</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Pozycja</translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation>Automatyczne zagnieżdżanie</translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation>
+Zablokowano: %1</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+%2% krycie%3%4%5%6%7</translation>
     </message>
 </context>
 <context>

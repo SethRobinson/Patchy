@@ -12,6 +12,8 @@
 #include <QPainterPath>
 #include <QPixmap>
 #include <QPolygon>
+#include <QPolygonF>
+#include <QRectF>
 #include <QStyle>
 #include <QStyleOption>
 #include <QTransform>
@@ -449,6 +451,81 @@ QIcon themed_glyph_icon(QString name, qreal authored_size, QColor ThemePalette::
                         std::function<void(QPainter&, const QColor&)> glyph) {
   return QIcon(
       new ProceduralIconEngine(std::move(name), authored_size, ink_role, std::move(glyph)));
+}
+
+QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
+  // Authored in 32 units; every glyph spans y 4 to 28 so the set shares one height.
+  auto glyph = [kind](QPainter& painter, const QColor& ink) {
+    QPen pen(ink, 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    if (kind == QStringLiteral("transparent")) {
+      // A 3x3 checkerboard: the corners and the middle solid.
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(ink);
+      for (const auto& [x, y] : {std::pair{4.0, 4.0}, std::pair{20.0, 4.0}, std::pair{12.0, 12.0},
+                                 std::pair{4.0, 20.0}, std::pair{20.0, 20.0}}) {
+        painter.drawRect(QRectF(x, y, 8.0, 8.0));
+      }
+      painter.setPen(pen);
+      painter.setBrush(Qt::NoBrush);
+      painter.drawRect(QRectF(5.1, 5.1, 21.8, 21.8));
+    } else if (kind == QStringLiteral("pixels")) {
+      // A pencil from its point at the lower left up to a solid end cap at the upper right.
+      painter.save();
+      painter.translate(16.2, 16.6);
+      painter.rotate(-45.0);
+      QPainterPath body(QPointF(-15.0, 0.0));
+      body.lineTo(-8.0, -4.4);
+      body.lineTo(13.0, -4.4);
+      body.lineTo(13.0, 4.4);
+      body.lineTo(-8.0, 4.4);
+      body.closeSubpath();
+      painter.drawPath(body);
+      painter.drawLine(QPointF(-8.0, -4.4), QPointF(-8.0, 4.4));
+      painter.setBrush(ink);
+      painter.drawRect(QRectF(8.0, -4.4, 5.0, 8.8));
+      painter.drawPolygon(QPolygonF({QPointF(-15.0, 0.0), QPointF(-11.5, -2.2), QPointF(-11.5, 2.2)}));
+      painter.restore();
+    } else if (kind == QStringLiteral("position")) {
+      // A four-way move arrow.
+      painter.drawLine(QPointF(16.0, 8.0), QPointF(16.0, 24.0));
+      painter.drawLine(QPointF(8.0, 16.0), QPointF(24.0, 16.0));
+      painter.setPen(QPen(ink, 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+      painter.setBrush(ink);
+      painter.drawPolygon(QPolygonF({QPointF(16.0, 4.0), QPointF(11.5, 9.5), QPointF(20.5, 9.5)}));
+      painter.drawPolygon(QPolygonF({QPointF(16.0, 28.0), QPointF(11.5, 22.5), QPointF(20.5, 22.5)}));
+      painter.drawPolygon(QPolygonF({QPointF(4.0, 16.0), QPointF(9.5, 11.5), QPointF(9.5, 20.5)}));
+      painter.drawPolygon(QPolygonF({QPointF(28.0, 16.0), QPointF(22.5, 11.5), QPointF(22.5, 20.5)}));
+    } else if (kind == QStringLiteral("autonest")) {
+      // An artboard frame with crop ticks at two corners, holding a small solid layer.
+      painter.drawRect(QRectF(9.0, 9.0, 15.0, 15.0));
+      painter.drawLine(QPointF(9.0, 4.0), QPointF(9.0, 9.0));
+      painter.drawLine(QPointF(4.0, 9.0), QPointF(9.0, 9.0));
+      painter.drawLine(QPointF(24.0, 24.0), QPointF(24.0, 28.0));
+      painter.drawLine(QPointF(24.0, 24.0), QPointF(28.0, 24.0));
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(ink);
+      painter.drawRect(QRectF(13.0, 13.0, 7.0, 7.0));
+    } else {
+      // "all": a padlock with a solid body and a keyhole cut out of it.
+      QPainterPath shackle(QPointF(10.5, 14.0));
+      shackle.lineTo(10.5, 9.5);
+      shackle.cubicTo(10.5, 2.6, 21.5, 2.6, 21.5, 9.5);
+      shackle.lineTo(21.5, 14.0);
+      painter.drawPath(shackle);
+      QPainterPath body;
+      body.addRoundedRect(QRectF(6.0, 13.5, 20.0, 14.5), 2.5, 2.5);
+      QPainterPath keyhole;
+      keyhole.setFillRule(Qt::WindingFill);  // the stem and the round part as one shape
+      keyhole.addEllipse(QPointF(16.0, 19.5), 2.2, 2.2);
+      keyhole.addRect(QRectF(15.0, 19.5, 2.0, 5.0));
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(ink);
+      painter.drawPath(body.subtracted(keyhole.simplified()));
+    }
+  };
+  return themed_glyph_icon(QStringLiteral("layer-lock-%1").arg(kind), 32.0, ink_role, std::move(glyph));
 }
 
 QIcon window_chrome_icon(QString role) {

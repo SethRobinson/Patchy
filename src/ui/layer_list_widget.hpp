@@ -18,6 +18,7 @@
 #include <functional>
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 class QEvent;
@@ -182,6 +183,18 @@ private:
                                    Qt::KeyboardModifiers modifiers);
   bool handle_clip_boundary_press(QPoint viewport_position, Qt::KeyboardModifiers modifiers);
   void clear_clip_boundary_cursor();
+  // The selection-load cursor (GitHub issue 480): while Ctrl (Cmd on macOS) is held over a
+  // thumbnail that a Ctrl-click loads as a selection, that thumbnail shows
+  // load_selection_pointer_cursor. Updated on mouse moves and on Ctrl presses and releases,
+  // with the modifiers folded from that event.
+  void update_selection_load_cursor(QPoint global_position, Qt::KeyboardModifiers modifiers);
+  void clear_selection_load_cursor();
+  // Installs (or removes) the application-wide Ctrl watcher; on while the pointer is over the
+  // list's rows, so Ctrl presses aimed at the focused canvas still update the cursor.
+  void watch_modifier_keys(bool watch);
+  // The thumbnail widget of `item`'s row under `viewport_pos`, with its target.
+  [[nodiscard]] std::optional<std::pair<LayerCtrlClickTarget, QWidget*>> ctrl_click_hit(QListWidgetItem* item,
+                                                                                        QPoint viewport_pos) const;
   bool handle_visibility_eye_press(QWidget* eye_button, const QMouseEvent* event);
   bool handle_visibility_sweep_move(QPoint viewport_position, const QMouseEvent* event);
   void sweep_visibility_to(QPoint viewport_position);
@@ -284,6 +297,8 @@ private:
   std::function<void(LayerId)> visibility_isolate_callback_;
   std::function<void(LayerId, bool)> visibility_sweep_callback_;
   QPointer<QWidget> clip_cursor_widget_;
+  QPointer<QWidget> selection_cursor_widget_;
+  QObject* modifier_key_watcher_{nullptr};
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> ctrl_click_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;
   std::function<void(QListWidgetItem*)> item_double_click_callback_;

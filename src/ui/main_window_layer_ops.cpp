@@ -3995,7 +3995,11 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   apply_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value() &&
                                 active_layer->kind() == LayerKind::Pixel);
 
-  add_layer_thumbnail_size_menu(&menu);
+  // Thumbnail Size lives on the pixel thumbnail's own menu (#481); with no thumbnails there is
+  // none to right-click, so the row menu keeps it until a size is picked again.
+  if (layer_thumbnail_size_ == LayerThumbnailSize::None) {
+    add_layer_thumbnail_size_menu(&menu);
+  }
   hide_menu_action_icons(&menu);
   auto* chosen = menu.exec(layer_list_->viewport()->mapToGlobal(position));
   if (chosen == nullptr) {
@@ -4192,6 +4196,57 @@ void MainWindow::set_layer_thumbnail_size(LayerThumbnailSize size) {
   }
 }
 
+void MainWindow::add_layer_thumbnail_bounds_actions(QMenu* menu) {
+  if (layer_thumbnail_bounds_actions_.front() == nullptr) {
+    struct BoundsEntry {
+      const char* text;
+      const char* object_name;
+    };
+    // Index 0 zooms to the layer content, 1 shows the whole document.
+    const std::array<BoundsEntry, 2> entries{{
+        {QT_TR_NOOP("Zoom Thumbnails to Layer Content"), "layerThumbnailBoundsLayerAction"},
+        {QT_TR_NOOP("Show Whole Document in Thumbnails"), "layerThumbnailBoundsDocumentAction"},
+    }};
+    auto* group = new QActionGroup(this);
+    for (std::size_t index = 0; index < entries.size(); ++index) {
+      auto* action = new QAction(tr(entries[index].text), this);
+      action->setObjectName(QLatin1String(entries[index].object_name));
+      action->setCheckable(true);
+      action->setMenuRole(QAction::NoRole);
+      bind_action_text(action, entries[index].text);
+      group->addAction(action);
+      const bool zoom = index == 0;
+      connect(action, &QAction::triggered, this, [this, zoom] { set_zoom_layer_thumbnails_to_content(zoom); });
+      layer_thumbnail_bounds_actions_[index] = action;
+    }
+  }
+  // Preferences may have changed the setting since the menu last opened.
+  layer_thumbnail_bounds_actions_[zoom_layer_thumbnails_to_content_ ? 0 : 1]->setChecked(true);
+  if (menu == nullptr) {
+    return;
+  }
+  for (auto* action : layer_thumbnail_bounds_actions_) {
+    menu->addAction(action);
+  }
+}
+
+void MainWindow::set_zoom_layer_thumbnails_to_content(bool zoom) {
+  add_layer_thumbnail_bounds_actions(nullptr);
+  if (zoom == zoom_layer_thumbnails_to_content_) {
+    return;
+  }
+  zoom_layer_thumbnails_to_content_ = zoom;
+  layer_thumbnail_bounds_actions_[zoom ? 0 : 1]->setChecked(true);
+  auto settings = app_settings();
+  settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), zoom);
+  // The mode is a shape input the revision-keyed cache does not track; drop the pixmaps and
+  // rebuild (the color-scheme precedent).
+  layer_thumbnail_cache_.clear();
+  if (has_active_document()) {
+    refresh_layer_list();
+  }
+}
+
 void MainWindow::show_background_context_menu(QPoint global_position) {
   // Photoshop's shorter menu for its Background (GitHub issue 274): no layer styles, masks,
   // locks or stacking commands apply to it. Delete and the Merge Visible pair need another layer.
@@ -4222,7 +4277,11 @@ void MainWindow::show_background_context_menu(QPoint global_position) {
   if (image_flatten_action_ != nullptr) {
     menu.addAction(image_flatten_action_);
   }
-  add_layer_thumbnail_size_menu(&menu);
+  // Thumbnail Size lives on the pixel thumbnail's own menu (#481); with no thumbnails there is
+  // none to right-click, so the row menu keeps it until a size is picked again.
+  if (layer_thumbnail_size_ == LayerThumbnailSize::None) {
+    add_layer_thumbnail_size_menu(&menu);
+  }
   hide_menu_action_icons(&menu);
   auto* chosen = menu.exec(global_position);
   if (chosen == from_background_action) {

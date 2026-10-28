@@ -20675,28 +20675,10 @@ Collapsed</source>
 Réduit</translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation>%1
-%2 % d&apos;opacité%3%4%5%6%7%8</translation>
-    </message>
-    <message>
         <source>
 Hidden by parent folder</source>
         <translation>
 Masqué par le dossier parent</translation>
-    </message>
-    <message>
-        <source>
-Locked</source>
-        <translation>
-Verrouillé</translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
-        <translation>
-Pixels transparents verrouillés</translation>
     </message>
     <message>
         <source>
@@ -27750,6 +27732,47 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
     <message>
         <source>Blend mode: %1</source>
         <translation>Mode de fusion : %1</translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation>Zoomer les vignettes sur le contenu du calque</translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation>Afficher tout le document dans les vignettes</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Tout</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>Image</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Position</translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation>Imbrication auto</translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation>
+Verrouillé : %1</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+%2 % d&apos;opacité%3%4%5%6%7</translation>
     </message>
 </context>
 <context>

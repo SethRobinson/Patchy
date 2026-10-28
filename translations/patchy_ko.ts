@@ -21439,28 +21439,10 @@ Collapsed</source>
 축소됨</translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5%6%7%8</source>
-        <translation>%1
-%2% 불투명도 %3%4%5%6%7%8</translation>
-    </message>
-    <message>
         <source>
 Hidden by parent folder</source>
         <translation>
 상위 폴더에 의해 숨겨짐</translation>
-    </message>
-    <message>
-        <source>
-Locked</source>
-        <translation>
-잠김</translation>
-    </message>
-    <message>
-        <source>
-Transparent pixels locked</source>
-        <translation>
-투명 픽셀이 잠겼습니다.</translation>
     </message>
     <message>
         <source>
@@ -27674,6 +27656,47 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Blend mode: %1</source>
         <translation>혼합 모드: %1</translation>
+    </message>
+    <message>
+        <source>Zoom Thumbnails to Layer Content</source>
+        <translation>축소판을 레이어 내용에 맞춰 확대</translation>
+    </message>
+    <message>
+        <source>Show Whole Document in Thumbnails</source>
+        <translation>축소판에 문서 전체 표시</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>모두</translation>
+    </message>
+    <message>
+        <source>Image</source>
+        <translation>이미지</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>위치</translation>
+    </message>
+    <message>
+        <source>Auto-nesting</source>
+        <translation>자동 중첩</translation>
+    </message>
+    <message>
+        <source>
+Locked: %1</source>
+        <translation>
+잠김: %1</translation>
+    </message>
+    <message>
+        <source>, </source>
+        <comment>separator between lock names</comment>
+        <translation>, </translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+%2% 불투명도 %3%4%5%6%7</translation>
     </message>
 </context>
 <context>

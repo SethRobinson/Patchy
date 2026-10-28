@@ -39,6 +39,9 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QContextMenuEvent>
+#include <QCursor>
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QDir>
 #include <QFile>
 #include <QMenu>
@@ -66,6 +69,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <cstring>
 #include <exception>
@@ -1598,9 +1602,10 @@ void ui_layer_thumbnails_preview_the_whole_document() {
         QSize(28, 28));
 }
 
-// GitHub issue 386: the layer context menus' Thumbnail Size submenu (None, Small, Medium,
-// Large) resizes every row's content and mask tiles and the row height, redraws folder and
-// adjustment glyphs at the new size, and is remembered for the next window.
+// GitHub issue 386: the Thumbnail Size submenu (None, Small, Medium, Large) resizes every row's
+// content and mask tiles and the row height, redraws folder and adjustment glyphs at the new
+// size, and is remembered for the next window. Since #481 the row menu offers it only at None,
+// where no thumbnail is left to right-click.
 void ui_layer_thumbnail_size_menu_resizes_rows_and_persists() {
   SettingsValueRestorer restore_size{QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey)};
   SettingsValueRestorer restore_zoom(QStringLiteral("view/zoomLayerThumbnailsToContent"));
@@ -1688,35 +1693,39 @@ void ui_layer_thumbnail_size_menu_resizes_rows_and_persists() {
     CHECK(require_layer_item(*layer_list, QStringLiteral("Sky"))->sizeHint().height() == 44);
     save_widget_artifact("issue386_layers_default", *layers_dock);
 
-    // The row menu ends with the submenu, Medium checked.
-    QStringList size_entries;
-    bool medium_checked = false;
-    QTimer::singleShot(0, [&] {
-      for (auto* widget : QApplication::topLevelWidgets()) {
-        auto* menu = qobject_cast<QMenu*>(widget);
-        if (menu == nullptr || !menu->isVisible() || menu->objectName() != QStringLiteral("layerContextMenu")) {
-          continue;
-        }
-        if (auto* size_menu = menu->findChild<QMenu*>(QStringLiteral("layerThumbnailSizeMenu"));
-            size_menu != nullptr && menu->actions().back() == size_menu->menuAction()) {
-          for (auto* action : size_menu->actions()) {
-            size_entries << action->text().remove(QLatin1Char('&'));
-            if (action->objectName() == QStringLiteral("layerThumbnailSizeMediumAction")) {
-              medium_checked = action->isChecked();
+    // The row menu's sizes, if it ends with the submenu, and the checked one.
+    const auto read_row_menu_sizes = [&] {
+      std::pair<QStringList, QString> seen;
+      QTimer::singleShot(0, [&] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+          auto* menu = qobject_cast<QMenu*>(widget);
+          if (menu == nullptr || !menu->isVisible()) {
+            continue;
+          }
+          CHECK(menu->objectName() == QStringLiteral("layerContextMenu"));
+          if (auto* size_menu = menu->findChild<QMenu*>(QStringLiteral("layerThumbnailSizeMenu"));
+              size_menu != nullptr && menu->actions().contains(size_menu->menuAction())) {
+            CHECK(menu->actions().back() == size_menu->menuAction());
+            for (auto* action : size_menu->actions()) {
+              seen.first << action->text().remove(QLatin1Char('&'));
+              if (action->isChecked()) {
+                seen.second = action->objectName();
+              }
             }
           }
+          menu->close();
+          return;
         }
-        menu->close();
-        return;
-      }
-    });
-    const auto point = layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Sun"))).center();
-    QContextMenuEvent context_event(QContextMenuEvent::Mouse, point, layer_list->viewport()->mapToGlobal(point));
-    QApplication::sendEvent(layer_list->viewport(), &context_event);
-    QApplication::processEvents();
-    CHECK(size_entries == (QStringList{QStringLiteral("None"), QStringLiteral("Small"), QStringLiteral("Medium"),
-                                       QStringLiteral("Large")}));
-    CHECK(medium_checked);
+      });
+      // Sky has no mask, so at None its row center stays off every thumbnail.
+      const auto point = layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Sky"))).center();
+      QContextMenuEvent context_event(QContextMenuEvent::Mouse, point, layer_list->viewport()->mapToGlobal(point));
+      QApplication::sendEvent(layer_list->viewport(), &context_event);
+      QApplication::processEvents();
+      return seen;
+    };
+    // Medium: the row menu leaves Thumbnail Size to the thumbnail's own menu (#481).
+    CHECK(read_row_menu_sizes().first.isEmpty());
 
     for (const auto& expected : sizes) {
       auto* action = require_action(window, expected.action);
@@ -1739,6 +1748,15 @@ void ui_layer_thumbnail_size_menu_resizes_rows_and_persists() {
         CHECK(pixmap_size("Levels", "layerContentThumbnail") == QSize(expected.tile, expected.tile));
       }
       CHECK(pixmap_size("Sun", "layerMaskThumbnail") == QSize(expected.mask_tile, expected.mask_tile));
+      // With no thumbnails the row menu ends with the submenu, so a size can be picked again.
+      const auto row_menu = read_row_menu_sizes();
+      if (expected.tile == 0) {
+        CHECK(row_menu.first == (QStringList{QStringLiteral("None"), QStringLiteral("Small"),
+                                             QStringLiteral("Medium"), QStringLiteral("Large")}));
+        CHECK(row_menu.second == QLatin1String(expected.action));
+      } else {
+        CHECK(row_menu.first.isEmpty());
+      }
       for (const auto* name : {"Sky", "Sun", "Hills", "Levels"}) {
         auto* item = require_layer_item(*layer_list, QString::fromLatin1(name));
         CHECK(item->sizeHint().height() == expected.row_height);
@@ -1876,6 +1894,38 @@ void ui_layer_thumbnails_zoom_to_content_preference() {
         QSize(28, 7));
   auto settings = patchy::ui::app_settings();
   CHECK(!settings.value(QStringLiteral("view/zoomLayerThumbnailsToContent"), true).toBool());
+
+  // The thumbnail menu's bounds pair (#481) follows the preference and sets it back: the
+  // layer-content entry zooms again, saves, and the Preferences check shows it.
+  auto* zoom_action = require_action(window, "layerThumbnailBoundsLayerAction");
+  auto* document_action = require_action(window, "layerThumbnailBoundsDocumentAction");
+  CHECK(document_action->isChecked() && !zoom_action->isChecked());
+  zoom_action->trigger();
+  QApplication::processEvents();
+  CHECK(zoom_action->isChecked() && !document_action->isChecked());
+  CHECK(thumbnail_pixmap(QStringLiteral("Badge"), QStringLiteral("layerContentThumbnail")).size() ==
+        QSize(28, 21));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("view/zoomLayerThumbnailsToContent"), false).toBool());
+  bool saw_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* check = dialog != nullptr
+                      ? dialog->findChild<QCheckBox*>(QStringLiteral("preferencesZoomLayerThumbnailsCheck"))
+                      : nullptr;
+    saw_checked = check != nullptr && check->isChecked();
+    if (dialog != nullptr) {
+      dialog->reject();
+    }
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_checked);
+  document_action->trigger();
+  QApplication::processEvents();
+  CHECK(thumbnail_pixmap(QStringLiteral("Badge"), QStringLiteral("layerContentThumbnail")).size() ==
+        QSize(28, 7));
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("view/zoomLayerThumbnailsToContent"), true).toBool());
 }
 
 void ui_layer_drag_drops_child_above_parent_folder() {
@@ -6105,6 +6155,222 @@ void ui_layer_list_row_masks_map_scroll_bars_without_warnings() {
   }
 }
 
+// A document with one layer per lock (GitHub issues 483, 484), above a Background.
+patchy::Document make_lock_rows_document() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+  auto& background = document.add_pixel_layer(
+      "Background", solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  patchy::set_layer_lock_flags(background, patchy::kLayerLockTransparentPixels | patchy::kLayerLockPosition);
+  const auto add = [&document](const char* name, patchy::LayerLockFlags flags, QColor color) -> patchy::Layer& {
+    auto& layer = document.add_pixel_layer(name, solid_pixels(64, 48, patchy::PixelFormat::rgba8(), color));
+    patchy::set_layer_lock_flags(layer, flags);
+    return layer;
+  };
+  add("Plain", patchy::kLayerLockNone, QColor(200, 60, 60));
+  add("Transparent", patchy::kLayerLockTransparentPixels, QColor(60, 160, 60));
+  add("Image", patchy::kLayerLockImagePixels, QColor(60, 90, 200));
+  add("Position", patchy::kLayerLockPosition, QColor(220, 180, 40));
+  add("Two", patchy::kLayerLockTransparentPixels | patchy::kLayerLockPosition, QColor(160, 60, 200));
+  add("Nesting", patchy::kLayerLockArtboardAutonest, QColor(40, 180, 200));
+  add("Everything", patchy::kLayerLockAll, QColor(120, 120, 120));
+  patchy::Layer folder(document.allocate_layer_id(), "Locked Folder", patchy::LayerKind::Group);
+  patchy::set_layer_lock_flags(folder, patchy::kLayerLockAll);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Inside",
+                                 solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(240, 120, 40))));
+  document.add_layer(std::move(folder));
+  return document;
+}
+
+// GitHub issue 483: a row's tooltip names its locks on one line, "Locked: ...", for every lock
+// (the folder's locks pass to its children), and the old per-lock lines are gone.
+void ui_layer_row_tooltip_names_every_lock() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.add_document_session(make_lock_rows_document(), QStringLiteral("Lock Tooltips"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  const auto tip = [layer_list](const char* name) {
+    return require_layer_item(*layer_list, QLatin1String(name))->toolTip();
+  };
+  const auto lock_lines = [&tip](const char* name) {
+    // Every line after the name that mentions a lock.
+    QStringList lines = tip(name).split(QLatin1Char('\n')).mid(1);
+    lines.removeIf([](const QString& line) { return !line.contains(QStringLiteral("ock")); });
+    return lines;
+  };
+  CHECK(lock_lines("Plain").isEmpty());
+  CHECK(lock_lines("Transparent") == QStringList{QStringLiteral("Locked: Transparent")});
+  CHECK(lock_lines("Image") == QStringList{QStringLiteral("Locked: Image")});
+  CHECK(lock_lines("Position") == QStringList{QStringLiteral("Locked: Position")});
+  CHECK(lock_lines("Two") == QStringList{QStringLiteral("Locked: Transparent, Position")});
+  CHECK(lock_lines("Nesting") == QStringList{QStringLiteral("Locked: Auto-nesting")});
+  CHECK(lock_lines("Everything") == QStringList{QStringLiteral("Locked: All")});
+  CHECK(lock_lines("Background") == QStringList{QStringLiteral("Locked: Transparent, Position")});
+  // A folder's lock reaches the rows inside it.
+  CHECK(lock_lines("Locked Folder") == QStringList{QStringLiteral("Locked: All")});
+  for (int index = 0; index < layer_list->count(); ++index) {
+    if (layer_list->item(index)->text() == QStringLiteral("Inside")) {
+      CHECK(lock_lines("Inside") == QStringList{QStringLiteral("Locked: All")});
+    }
+  }
+  CHECK(tip("Everything").startsWith(QStringLiteral("Everything\n100% opacity\nLocked: All")));
+}
+
+// GitHub issue 484: the lock buttons' icons share one height and fill most of it, in Dark and
+// Light. Saves the lock row and the panel (badges included) in both schemes.
+void ui_layer_lock_buttons_share_one_icon_height() {
+  ColorSchemeRestorer restore_scheme;
+  // Checked once both schemes are saved, so a failure still leaves both shots.
+  std::vector<int> heights;
+  for (const auto& [preference, label] :
+       {std::pair{patchy::ui::ColorSchemePreference::Dark, "dark"},
+        std::pair{patchy::ui::ColorSchemePreference::Light, "light"}}) {
+    ColorSchemeRestorer::apply(preference);
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.add_document_session(make_lock_rows_document(), QStringLiteral("Lock Icons"));
+    QApplication::processEvents();
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+    CHECK(layer_list != nullptr && panel != nullptr);
+    if (layer_list == nullptr || panel == nullptr) {
+      return;
+    }
+    // Select a partly locked row so one button shows checked.
+    auto* two = require_layer_item(*layer_list, QStringLiteral("Two"));
+    layer_list->clearSelection();
+    layer_list->setCurrentItem(two);
+    two->setSelected(true);
+    QApplication::processEvents();
+    const std::array<const char*, 4> names{"layerLockTransparentButton", "layerLockPixelsButton",
+                                           "layerLockPositionButton", "layerLockAllButton"};
+    QRect row_rect;
+    for (const auto* name : names) {
+      auto* button = window.findChild<QToolButton*>(QLatin1String(name));
+      CHECK(button != nullptr);
+      if (button != nullptr) {
+        row_rect = row_rect.united(QRect(button->mapTo(panel, QPoint(0, 0)), button->size()));
+      }
+    }
+    row_rect = QRect(0, row_rect.top() - 4, row_rect.right() + 12, row_rect.height() + 8);
+    const auto panel_shot = panel->grab();
+    const auto scale = panel_shot.devicePixelRatio();
+    const QRect scaled(QPoint(qRound(row_rect.left() * scale), qRound(row_rect.top() * scale)),
+                       QSize(qRound(row_rect.width() * scale), qRound(row_rect.height() * scale)));
+    save_image_artifact(std::string("issue484_lock_row_") + label, panel_shot.copy(scaled).toImage());
+    save_widget_artifact(std::string("issue484_layers_panel_") + label, *panel);
+
+    // Every icon's ink spans the same rows of its render, at least 11 of them.
+    for (const auto* name : names) {
+      auto* button = window.findChild<QToolButton*>(QLatin1String(name));
+      if (button == nullptr) {
+        continue;
+      }
+      const auto image = button->icon().pixmap(button->iconSize(), 1.0).toImage();
+      int top = image.height();
+      int bottom = -1;
+      for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+          if (image.pixelColor(x, y).alpha() > 96) {
+            top = std::min(top, y);
+            bottom = std::max(bottom, y);
+          }
+        }
+      }
+      heights.push_back(bottom - top + 1);
+      std::printf("[INFO] %s icon: %d px of %d\n", name, bottom - top + 1, image.height());
+    }
+  }
+  CHECK(heights.size() == 8U);
+  for (const auto height : heights) {
+    CHECK(height >= 11 && std::abs(height - heights.front()) <= 1);
+  }
+}
+
+// GitHub issue 480: with Ctrl (Cmd on macOS) held over a thumbnail that a Ctrl-click loads as a
+// selection, the thumbnail shows the selection cursor; it follows Ctrl presses and releases
+// while the pointer rests there, and nothing else in the row takes it.
+void ui_layer_thumbnail_ctrl_hover_shows_selection_cursor() {
+  patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paper", solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer spot(document.allocate_layer_id(), "Spot",
+                     solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(200, 40, 40)));
+  spot.set_bounds(patchy::Rect{10, 10, 20, 20});
+  patchy::PixelBuffer mask(20, 20, patchy::PixelFormat::gray8());
+  mask.clear(255);
+  spot.set_mask(patchy::LayerMask{patchy::Rect{10, 10, 20, 20}, std::move(mask), 0, false});
+  document.add_layer(std::move(spot));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(document), QStringLiteral("Selection Cursor"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Spot")));
+  auto* content = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerContentThumbnail")) : nullptr;
+  auto* mask_thumbnail = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerMaskThumbnail")) : nullptr;
+  auto* name = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowName")) : nullptr;
+  CHECK(content != nullptr && mask_thumbnail != nullptr && name != nullptr);
+  if (content == nullptr || mask_thumbnail == nullptr || name == nullptr) {
+    return;
+  }
+  const auto has_selection_cursor = [](const QWidget* widget) {
+    return widget->testAttribute(Qt::WA_SetCursor) && widget->cursor().shape() == Qt::BitmapCursor;
+  };
+  const auto hover = [](QWidget* widget, Qt::KeyboardModifiers modifiers) {
+    const QPointF local = QRectF(widget->rect()).center();
+    QMouseEvent move(QEvent::MouseMove, local, widget->mapToGlobal(local), Qt::NoButton, Qt::NoButton, modifiers);
+    QApplication::sendEvent(widget, &move);
+    QApplication::processEvents();
+  };
+  const auto key = [&window](QEvent::Type type, Qt::KeyboardModifiers modifiers) {
+    QKeyEvent event(type, Qt::Key_Control, modifiers);
+    QApplication::sendEvent(&window, &event);
+    QApplication::processEvents();
+  };
+
+  // A plain hover leaves the pointer alone; Ctrl turns it into the selection cursor.
+  hover(content, Qt::NoModifier);
+  CHECK(!has_selection_cursor(content));
+  hover(content, Qt::ControlModifier);
+  CHECK(has_selection_cursor(content));
+  // The panel with the cursor drawn where it rests (its hotspot on the thumbnail's center).
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel")); panel != nullptr) {
+    auto shot = panel->grab().toImage();
+    const auto cursor = content->cursor();
+    const auto at = content->mapTo(panel, content->rect().center()) - cursor.hotSpot();
+    {
+      QPainter painter(&shot);
+      painter.drawPixmap(at, cursor.pixmap());
+    }
+    const QRect crop(0, std::max(0, at.y() - 60), shot.width(), std::min(shot.height(), 150));
+    save_image_artifact("issue480_selection_cursor", shot.copy(crop));
+  }
+  // Releasing Ctrl with the pointer still there restores the normal cursor, pressing it again
+  // brings the hint back, without a mouse move.
+  QCursor::setPos(content->mapToGlobal(content->rect().center()));
+  QApplication::processEvents();  // the platform's own move, with no modifiers
+  key(QEvent::KeyRelease, Qt::NoModifier);
+  CHECK(!has_selection_cursor(content));
+  key(QEvent::KeyPress, Qt::ControlModifier);
+  CHECK(has_selection_cursor(content));
+  // The mask thumbnail loads too; the name does not.
+  hover(mask_thumbnail, Qt::ControlModifier);
+  CHECK(has_selection_cursor(mask_thumbnail) && !has_selection_cursor(content));
+  hover(name, Qt::ControlModifier);
+  CHECK(!has_selection_cursor(name) && !has_selection_cursor(mask_thumbnail));
+  // Ctrl pressed away from the thumbnails changes nothing.
+  QCursor::setPos(name->mapToGlobal(name->rect().center()));
+  QApplication::processEvents();
+  key(QEvent::KeyPress, Qt::ControlModifier);
+  CHECK(!has_selection_cursor(content) && !has_selection_cursor(name));
+  key(QEvent::KeyRelease, Qt::NoModifier);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_part();
@@ -6238,6 +6504,10 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_move_auto_select_click_keeps_existing_layer_rows},
       {"ui_layer_list_row_masks_map_scroll_bars_without_warnings",
        ui_layer_list_row_masks_map_scroll_bars_without_warnings},
+      {"ui_layer_row_tooltip_names_every_lock", ui_layer_row_tooltip_names_every_lock},
+      {"ui_layer_lock_buttons_share_one_icon_height", ui_layer_lock_buttons_share_one_icon_height},
+      {"ui_layer_thumbnail_ctrl_hover_shows_selection_cursor",
+       ui_layer_thumbnail_ctrl_hover_shows_selection_cursor},
   };
   auto animation_part = layer_panel_organization_tests_animation_part();
   tests.insert(tests.end(), animation_part.begin(), animation_part.end());
