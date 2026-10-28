@@ -141,10 +141,11 @@ void parse_package_options(const QJsonObject& object, ThemePackageOptions& optio
   return QStringLiteral("tile");
 }
 
-// "version", "author" and "minPatchyVersion": text, trimmed and capped so a list row
-// stays readable; a bad value is a warning and the key stays empty.
+// "version", "author", "minPatchyVersion" and "description": text, trimmed and capped so
+// a list row stays readable; a bad value is a warning and the key stays empty. Only the
+// description keeps its line breaks (the details panel wraps it).
 void parse_theme_info(const QJsonObject& object, ThemeInfo& info, QStringList& warnings) {
-  const auto text = [&object, &warnings](const QString& key, qsizetype limit) {
+  const auto text = [&object, &warnings](const QString& key, qsizetype limit, bool multiline = false) {
     const auto value = object.value(key);
     if (value.isUndefined()) {
       return QString();
@@ -153,10 +154,18 @@ void parse_theme_info(const QJsonObject& object, ThemeInfo& info, QStringList& w
       warnings.push_back(QCoreApplication::translate("ThemeFile", "\"%1\" must be text (ignored).").arg(key));
       return QString();
     }
+    if (multiline) {
+      auto lines = value.toString().replace(QStringLiteral("\r\n"), QStringLiteral("\n")).split(QLatin1Char('\n'));
+      for (auto& line : lines) {
+        line = line.simplified();
+      }
+      return lines.join(QLatin1Char('\n')).trimmed().left(limit).trimmed();
+    }
     return value.toString().simplified().left(limit);
   };
   info.version = text(QStringLiteral("version"), 32);
   info.author = text(QStringLiteral("author"), 100);
+  info.description = text(QStringLiteral("description"), kThemeDescriptionMaxLength, true);
   const auto minimum = text(QStringLiteral("minPatchyVersion"), 32);
   static const QRegularExpression dotted(QStringLiteral("^\\d{1,4}(\\.\\d{1,4}){0,3}$"));
   if (dotted.match(minimum).hasMatch()) {
@@ -279,7 +288,8 @@ QByteArray serialize_theme_to_json(const ThemePalette& palette, ColorScheme base
   if (info != nullptr) {
     for (const auto& [key, value] : {std::pair{QStringLiteral("version"), info->version},
                                      std::pair{QStringLiteral("author"), info->author},
-                                     std::pair{QStringLiteral("minPatchyVersion"), info->min_patchy_version}}) {
+                                     std::pair{QStringLiteral("minPatchyVersion"), info->min_patchy_version},
+                                     std::pair{QStringLiteral("description"), info->description}}) {
       if (!value.isEmpty()) {
         object.insert(key, value);
       }

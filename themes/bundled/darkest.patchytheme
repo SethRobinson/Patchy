@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "Darkest",
+  "description": "A near-black take on the Dark scheme, for dim rooms.",
   "base": "dark",
   "roles": {
     "window_bg": "#1a1a1a",

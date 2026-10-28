@@ -28091,6 +28091,10 @@ Bloqueada: %1</translation>
         <source>Layer Content</source>
         <translation>Contenido de la capa</translation>
     </message>
+    <message>
+        <source>Theme description:</source>
+        <translation>Descripción del tema:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

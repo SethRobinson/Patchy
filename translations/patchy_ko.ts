@@ -28009,6 +28009,10 @@ Locked: %1</source>
         <source>Layer Content</source>
         <translation>레이어 내용</translation>
     </message>
+    <message>
+        <source>Theme description:</source>
+        <translation>테마 설명:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

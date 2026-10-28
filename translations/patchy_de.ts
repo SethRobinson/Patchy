@@ -28091,6 +28091,10 @@ Fixiert: %1</translation>
         <source>Layer Content</source>
         <translation>Ebeneninhalt</translation>
     </message>
+    <message>
+        <source>Theme description:</source>
+        <translation>Beschreibung des Themas:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "Dracula",
+  "description": "Patchy in the purple-tinted Dracula colors.",
   "base": "dark",
   "roles": {
     "window_bg": "#282a36",

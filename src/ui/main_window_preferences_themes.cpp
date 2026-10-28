@@ -299,6 +299,8 @@ class ThemesPage final {
   QLabel* compatibility_ = nullptr;
   QCheckBox* scripts_check_ = nullptr;
   QLabel* scripts_note_ = nullptr;
+  QLabel* description_heading_ = nullptr;
+  QLabel* description_ = nullptr;
   QCheckBox* sounds_check_ = nullptr;
   QCheckBox* effects_check_ = nullptr;
   QPushButton* delete_button_ = nullptr;
@@ -376,6 +378,23 @@ void ThemesPage::build(QVBoxLayout* layout, const std::function<void(QFrame*)>& 
   set_themed_style(*scripts_note_, QStringLiteral("color: @text_secondary;"));
   scripts_note_->hide();
   details_layout->addWidget(scripts_note_);
+  // The theme's own "description", last; both hidden when it has none.
+  description_heading_ = new QLabel(MainWindow::tr("Theme description:"), details);
+  description_heading_->setObjectName(QStringLiteral("preferencesThemeDescriptionHeading"));
+  description_heading_->setTextFormat(Qt::PlainText);
+  description_heading_->setWordWrap(true);
+  auto heading_font = description_heading_->font();
+  heading_font.setBold(true);
+  description_heading_->setFont(heading_font);
+  description_heading_->hide();
+  details_layout->addSpacing(4);
+  details_layout->addWidget(description_heading_);
+  description_ = new QLabel(details);
+  description_->setObjectName(QStringLiteral("preferencesThemeDescription"));
+  description_->setTextFormat(Qt::PlainText);
+  description_->setWordWrap(true);
+  description_->hide();
+  details_layout->addWidget(description_);
   details_layout->addStretch(1);
   columns->addWidget(details, 4);
   group_layout->addLayout(columns, 1);
@@ -764,6 +783,10 @@ void ThemesPage::refresh_details() {
     compatibility_->hide();
   }
   meta_->setText(lines.join(QLatin1Char('\n')));
+  const auto description = custom != nullptr ? custom->info.description : QString();
+  description_->setText(description);
+  description_heading_->setVisible(!description.isEmpty());
+  description_->setVisible(!description.isEmpty());
   if (delete_button_ != nullptr) {
     // A built-in scheme and a bundled theme cannot be deleted.
     delete_button_->setEnabled(custom != nullptr && !is_bundled_theme_id(current_custom_id()));

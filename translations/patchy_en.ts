@@ -28010,6 +28010,10 @@ Locked: %1</source>
         <source>Layer Content</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Theme description:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

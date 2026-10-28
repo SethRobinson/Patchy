@@ -70,6 +70,17 @@ THEMES = [
       (0.90, "#ffffff"), (1.00, "#ffffff")], 41.0, 1.0),
 ]
 
+# The "description" each theme shows in Preferences (docs/theme-files.md, "Format").
+DESCRIPTIONS = {
+    "darkest": "A near-black take on the Dark scheme, for dim rooms.",
+    "medium-gray": "A mid-gray interface, between Dark and Light.",
+    "solarized-dark": "Patchy in the Solarized Dark colors.",
+    "nord": "Patchy in the cool blue-gray Nord colors.",
+    "dracula": "Patchy in the purple-tinted Dracula colors.",
+    "gruvbox-dark": "Patchy in the warm Gruvbox Dark colors.",
+    "high-contrast": "Black panels, white text and amber highlights, for the most contrast.",
+}
+
 
 def parse_dark_palette() -> dict[str, tuple[int, int, int, int]]:
     text = PALETTE.read_text(encoding="utf-8")
@@ -142,7 +153,7 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for stem, name, anchors, accent_hue, sat_scale in THEMES:
         roles = {role: color_hex(transform(value, anchors, accent_hue, sat_scale)) for role, value in dark.items()}
-        document = {"format": 1, "name": name, "base": "dark", "roles": roles}
+        document = {"format": 1, "name": name, "description": DESCRIPTIONS[stem], "base": "dark", "roles": roles}
         path = OUT / f"{stem}.patchytheme"
         path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8", newline="\n")
         print(f"wrote {path.relative_to(ROOT)} ({len(roles)} roles)")

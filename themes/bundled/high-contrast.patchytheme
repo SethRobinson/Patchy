@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "High Contrast",
+  "description": "Black panels, white text and amber highlights, for the most contrast.",
   "base": "dark",
   "roles": {
     "window_bg": "#0a0a0a",

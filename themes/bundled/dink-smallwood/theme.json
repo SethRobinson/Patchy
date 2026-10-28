@@ -3,6 +3,7 @@
   "name": "Dink Smallwood",
   "version": "1.1",
   "author": "Seth A. Robinson",
+  "description": "This unholy eyesore is not a theme a mere mortal should use, it's Seth's carefully crafted assault on good taste and the senses in general. The goal is just to test the more esoteric and strange theme features that Patchy supports. Don't use this except as a prank on friends.",
   "base": "dark",
   "recolorIcons": true,
   "iconScaling": "smooth",
