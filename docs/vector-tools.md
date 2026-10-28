@@ -40,6 +40,10 @@ both go back to the bar. It commits like a drag (mode routing, Combine,
 vector-mask target, naming); values persist per tool for the session.
 A click releases on the press's document pixel. Line has no dialog, a
 Fixed Size click places its W x H, and Pixels mode keeps its legacy click.
+A click off the canvas (outside the document, or outside every artboard
+when it has them) opens no dialog: it deselects like Select > Deselect
+(selected path anchors too; one undo step only when a pixel selection
+went away). Drags that start there still draw.
 
 The options-bar W / H spins (`vectorShapeWidthSpin`/`vectorShapeHeightSpin`,
 link button for proportional edits) mirror the active shape layer's bounds:

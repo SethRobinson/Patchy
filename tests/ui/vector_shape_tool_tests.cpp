@@ -5031,6 +5031,60 @@ void ui_shape_tiny_drag_commits_without_create_dialog() {
   }
 }
 
+void ui_shape_click_off_canvas_deselects_instead_of_asking_for_a_size() {
+  // Seth, October 28, 2026 (GitHub issue 486 follow-up): a bare click on the pasteboard with
+  // a shape tool deselects (one undo step) instead of opening Create <Shape>; on the canvas
+  // the dialog still opens.
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_zoom_centered(0.25);
+  QApplication::processEvents();
+  const QPoint off_canvas(-40, -40);
+  CHECK(canvas->rect().contains(canvas->widget_position_for_document_point(off_canvas)));
+  for (const auto tool : {patchy::ui::CanvasTool::Rectangle, patchy::ui::CanvasTool::Ellipse,
+                          patchy::ui::CanvasTool::Polygon, patchy::ui::CanvasTool::CustomShape}) {
+    canvas->set_tool(tool);
+    QApplication::processEvents();
+    canvas->run_selection_command(QStringLiteral("Select All"), [canvas = canvas] { canvas->select_all(); });
+    CHECK(canvas->has_selection());
+    const auto layers = document.layers().size();
+    bool dialog_seen = false;
+    shape_tap(*canvas, off_canvas, [&dialog_seen] {
+      if (auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+          dialog != nullptr) {
+        dialog_seen = true;
+        dialog->reject();
+      }
+    });
+    CHECK(!dialog_seen);
+    CHECK(!canvas->has_selection());
+    CHECK(document.layers().size() == layers);
+    // One undo step brings the selection back.
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->has_selection());
+  }
+  // With nothing selected the click does nothing at all.
+  canvas->run_selection_command(QStringLiteral("Deselect"), [canvas = canvas] { canvas->clear_selection(); });
+  bool dialog_seen = false;
+  shape_tap(*canvas, off_canvas, [&dialog_seen] {
+    dialog_seen = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog")) != nullptr;
+  });
+  CHECK(!dialog_seen);
+  // On the canvas the dialog still opens.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  bool seen = false;
+  shape_tap(*canvas, QPoint(100, 100), [&seen] {
+    if (auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeCreateDialog"));
+        dialog != nullptr) {
+      seen = true;
+      dialog->reject();
+    }
+  });
+  CHECK(seen);
+}
+
 void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -6976,6 +7030,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_tap_line_fixed_size_and_path_mode", ui_shape_tap_line_fixed_size_and_path_mode},
       {"ui_shape_create_dialog_captures", ui_shape_create_dialog_captures},
       {"ui_shape_create_dialog_layout", ui_shape_create_dialog_layout},
+      {"ui_shape_click_off_canvas_deselects_instead_of_asking_for_a_size",
+       ui_shape_click_off_canvas_deselects_instead_of_asking_for_a_size},
       {"ui_shape_create_rectangle_radius_link", ui_shape_create_rectangle_radius_link},
       {"ui_shape_size_spins_reflect_and_resize_active_shape",
        ui_shape_size_spins_reflect_and_resize_active_shape},

@@ -974,6 +974,17 @@ void CanvasWidget::drop_point_selection_if_target_changed() {
   update();
 }
 
+bool CanvasWidget::clear_path_anchor_selection() {
+  if (path_selected_anchors_.empty() && extra_selected_anchors_.empty()) {
+    return false;
+  }
+  path_selected_anchors_.clear();
+  extra_selected_anchors_.clear();
+  notify_path_selection_changed();
+  update();
+  return true;
+}
+
 void CanvasWidget::expand_path_selection_to_groups() {
   bool changed = false;
   const auto expand = [&changed](const VectorPath& path, std::set<std::pair<int, int>>& keys) {

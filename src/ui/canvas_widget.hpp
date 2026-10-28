@@ -1215,6 +1215,9 @@ public:
   void select_all();
   void invert_selection();
   void clear_selection();
+  // Drops every selected path anchor (the active path's and other layers'); true when
+  // anything was selected. A shape tool's click off the canvas calls it.
+  bool clear_path_anchor_selection();
   void reselect();
   [[nodiscard]] bool quick_mask_active() const noexcept;
   void set_quick_mask_active(bool active);
