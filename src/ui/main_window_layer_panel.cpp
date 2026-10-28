@@ -21,6 +21,7 @@
 #include <QComboBox>
 #include <QLayout>
 #include <QMimeData>
+#include <QResizeEvent>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QStatusBar>
@@ -293,9 +294,34 @@ protected:
 // icon, so the paint path reads the property itself.
 constexpr char kLayerRowBadgeDimmedProperty[] = "layerRowBadgeDimmed";
 
+// Style-sheet polish writes its min-width and min-height into a row button's minimum size,
+// replacing what setFixedSize set: the generic QToolButton minimum made the badges 28 px wide
+// and tall (the vector badge 34 px square), and the "min-width: 0" that undoes it left a 2 px
+// minimum, so a crowded row squashed the buttons (the #494 follow-up). Each polish and style
+// change puts the fixed size back.
+void restore_layer_row_button_size(QToolButton& button, const QEvent* event, QSize size) {
+  if (event->type() == QEvent::Polish || event->type() == QEvent::StyleChange) {
+    button.setMinimumSize(size);
+    button.setMaximumSize(size);
+  }
+}
+
 class LayerRowBadgeButton final : public QToolButton {
 public:
-  using QToolButton::QToolButton;
+  static constexpr int kSide = 20;
+
+  explicit LayerRowBadgeButton(QWidget* parent) : QToolButton(parent) {
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  }
+  [[nodiscard]] QSize sizeHint() const override { return {kSide, kSide}; }
+  [[nodiscard]] QSize minimumSizeHint() const override { return {kSide, kSide}; }
+
+protected:
+  bool event(QEvent* event) override {
+    const bool handled = QToolButton::event(event);
+    restore_layer_row_button_size(*this, event, QSize(kSide, kSide));
+    return handled;
+  }
 
 protected:
   void paintEvent(QPaintEvent* /*event*/) override {
@@ -311,13 +337,22 @@ protected:
 
 // A row button narrower than the generic QToolButton minimum: the clipping badge (#397), as
 // wide as the content thumbnail so it centers on the base row's thumbnail, and the mask link.
-// The size lives in the hints because style-sheet polish resets the minimum that setFixedSize
-// sets (the QSS gives these min-width 0 so they can be narrower than 28 px).
+// The size lives in the hints and is put back after each polish (restore_layer_row_button_size).
 class LayerRowFixedSizeButton final : public QToolButton {
 public:
-  LayerRowFixedSizeButton(QSize size, QWidget* parent) : QToolButton(parent), size_(size) { setFixedSize(size); }
+  LayerRowFixedSizeButton(QSize size, QWidget* parent) : QToolButton(parent), size_(size) {
+    setFixedSize(size);
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  }
   [[nodiscard]] QSize sizeHint() const override { return size_; }
   [[nodiscard]] QSize minimumSizeHint() const override { return size_; }
+
+protected:
+  bool event(QEvent* event) override {
+    const bool handled = QToolButton::event(event);
+    restore_layer_row_button_size(*this, event, size_);
+    return handled;
+  }
 
 private:
   QSize size_;
@@ -399,6 +434,99 @@ QLabel* make_layer_lock_badge(LayerLockFlags flag, bool inherited, QWidget* pare
   }
   return badge;
 }
+
+// The row's lock badges, one per lock while they fit; a row out of room (every badge at once
+// in a narrow panel, the #494 follow-up) folds them into one padlock whose tooltip lists the
+// locks. The strip's minimum is the folded padlock, so the list sizes rows to fit folded
+// (LayerListWidget::refresh_row_widths); it unfolds whenever the main row has room for every
+// badge beside the name's minimum. Children are placed by hand: a layout would tie the hints
+// to what is shown.
+class LayerRowLockStrip final : public QWidget {
+public:
+  explicit LayerRowLockStrip(QWidget* main_row) : QWidget(main_row) {
+    setObjectName(QStringLiteral("layerLockStrip"));
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    main_row->installEventFilter(this);
+  }
+
+  void add_badge(QLabel* badge) {
+    badge->setParent(this);
+    badges_.push_back(badge);
+    updateGeometry();
+  }
+
+  // Shown instead of the badges when they do not fit; only rows with two or more locks get one.
+  void set_summary(QLabel* summary) {
+    summary_ = summary;
+    summary_->setParent(this);
+    summary_->setObjectName(QStringLiteral("layerLockSummaryBadge"));
+    summary_->hide();
+    updateGeometry();
+  }
+
+  [[nodiscard]] bool empty() const noexcept { return badges_.empty(); }
+
+  [[nodiscard]] QSize sizeHint() const override {
+    return {folded_ ? kBadge : unfolded_width(), kBadge};
+  }
+  [[nodiscard]] QSize minimumSizeHint() const override {
+    return {summary_ != nullptr ? kBadge : unfolded_width(), kBadge};
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == parentWidget() && event->type() == QEvent::Resize) {
+      update_folding();
+    }
+    return QWidget::eventFilter(watched, event);
+  }
+
+  void resizeEvent(QResizeEvent* event) override {
+    QWidget::resizeEvent(event);
+    place_badges();
+  }
+
+private:
+  [[nodiscard]] int unfolded_width() const {
+    const auto count = static_cast<int>(badges_.size());
+    return count == 0 ? 0 : count * kBadge + (count - 1) * kGap;
+  }
+
+  void update_folding() {
+    auto* row_layout = parentWidget() != nullptr ? parentWidget()->layout() : nullptr;
+    if (summary_ == nullptr || row_layout == nullptr) {
+      return;
+    }
+    // The row's minimum already counts this strip folded.
+    const int unfolded_need = row_layout->minimumSize().width() - kBadge + unfolded_width();
+    const bool folded = parentWidget()->width() < unfolded_need;
+    if (folded != folded_) {
+      folded_ = folded;
+      updateGeometry();
+      place_badges();
+    }
+  }
+
+  void place_badges() {
+    const int top = (height() - kBadge) / 2;
+    int left = 0;
+    for (auto* badge : badges_) {
+      badge->setGeometry(left, top, kBadge, kBadge);
+      badge->setVisible(!folded_);
+      left += kBadge + kGap;
+    }
+    if (summary_ != nullptr) {
+      summary_->setGeometry(width() - kBadge, top, kBadge, kBadge);
+      summary_->setVisible(folded_);
+    }
+  }
+
+  static constexpr int kBadge = 18;
+  static constexpr int kGap = 2;
+  std::vector<QLabel*> badges_;
+  QLabel* summary_{nullptr};
+  bool folded_{false};
+};
 
 void set_layer_lock_control_state(QToolButton* button, bool checked, bool mixed, const QString& tooltip) {
   if (button == nullptr) {
@@ -1955,6 +2083,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* name = new LayerRowElidingLabel(display_name, row);
   name->setObjectName(QStringLiteral("layerRowName"));
   name->setTextFormat(Qt::PlainText);
+  // A few characters stay readable however many badges the row carries: past this the lock
+  // badges fold into one (LayerRowLockStrip).
+  name->setMinimumWidth(name->fontMetrics().horizontalAdvance(QStringLiteral("Www…")));
   name->setEnabled(ancestors_visible && layer.visible());
   if (list_parent != nullptr) {
     name->installEventFilter(list_parent);
@@ -1989,7 +2120,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
     badge->setIcon(simple_icon(icon_key));
     badge->setIconSize(QSize(16, 16));
-    badge->setFixedSize(20, 20);
+    badge->setFixedSize(LayerRowBadgeButton::kSide, LayerRowBadgeButton::kSide);
     badge->setFocusPolicy(Qt::NoFocus);
     badge->setToolTip(tooltip);
     badge->setProperty(kLayerRowBadgeDimmedProperty, !(ancestors_visible && layer.visible()));
@@ -2042,9 +2173,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
   const auto direct_lock_flags = layer_lock_flags(layer);
   const auto effective_lock_flags = ancestor_lock_flags | direct_lock_flags;
-  auto* lock_badges = new QHBoxLayout();
-  lock_badges->setContentsMargins(0, 0, 0, 0);
-  lock_badges->setSpacing(2);
+  auto* lock_badges = new LayerRowLockStrip(main_row);
+  QStringList lock_tooltips;
+  bool every_lock_inherited = true;
   if (background_row) {
     // The Background's mark (GitHub issue 274): one padlock, like Photoshop's, that names the
     // layer; its transparency, position and auto-nest locks (lspf 0xd) need no badges of their own.
@@ -2053,7 +2184,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     badge->setToolTip(QObject::tr("Background: it stays at the bottom of the stack, with no transparency or "
                                   "layer styles. Right-click it and choose Layer from Background to make it an "
                                   "ordinary layer."));
-    lock_badges->addWidget(badge, 0, Qt::AlignVCenter);
+    lock_badges->add_badge(badge);
   }
   for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition,
                           kLayerLockArtboardAutonest}) {
@@ -2065,9 +2196,20 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     }
     const bool inherited = (ancestor_lock_flags & flag) != kLayerLockNone &&
                            (direct_lock_flags & flag) == kLayerLockNone;
-    lock_badges->addWidget(make_layer_lock_badge(flag, inherited, row, list_parent), 0, Qt::AlignVCenter);
+    lock_badges->add_badge(make_layer_lock_badge(flag, inherited, row, list_parent));
+    lock_tooltips << layer_lock_flag_tooltip(flag, inherited);
+    every_lock_inherited = every_lock_inherited && inherited;
   }
-  layout->addLayout(lock_badges, 0);
+  if (lock_tooltips.size() > 1) {
+    auto* summary = make_layer_lock_badge(kLayerLockAll, every_lock_inherited, row, list_parent);
+    summary->setToolTip(lock_tooltips.join(QLatin1Char('\n')));
+    lock_badges->set_summary(summary);
+  }
+  if (lock_badges->empty()) {
+    delete lock_badges;
+  } else {
+    layout->addWidget(lock_badges, 0, Qt::AlignVCenter);
+  }
 
   QObject::connect(visibility, &QToolButton::toggled, row, [item, visibility](bool checked) {
     update_layer_visibility_button(visibility, checked);
