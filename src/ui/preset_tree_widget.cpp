@@ -93,6 +93,10 @@ QStringList PresetTreeWidget::collapsed_folders() const {
   return folders;
 }
 
+QStringList PresetTreeWidget::remembered_collapsed_folders() const {
+  return QStringList(collapsed_folders_.begin(), collapsed_folders_.end());
+}
+
 void PresetTreeWidget::set_collapsed_folders(const QStringList& folders) {
   collapsed_folders_ = QSet<QString>(folders.begin(), folders.end());
 }
@@ -274,6 +278,12 @@ void PresetTreeWidget::reload(const QString& select_id) {
 
 QString PresetTreeWidget::current_id() const {
   return item_entry_id(currentItem());
+}
+
+QString PresetTreeWidget::current_folder() const {
+  const auto* item = currentItem();
+  return item != nullptr && item->data(0, kFolderMarkerRole).toBool() ? item->data(0, Qt::UserRole).toString()
+                                                                       : QString();
 }
 
 QStringList PresetTreeWidget::selected_ids() const {

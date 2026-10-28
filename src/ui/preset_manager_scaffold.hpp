@@ -9,7 +9,7 @@
 class QDialog;
 class QHBoxLayout;
 class QPushButton;
-class QTreeWidget;
+class QWidget;
 class QVBoxLayout;
 
 namespace patchy::ui {
@@ -29,8 +29,9 @@ public:
   PresetManagerScaffold(QDialog& dialog, const QString& object_name, const QString& title);
 
   // Adds the tree (stretch 1) and creates the right-hand details column
-  // (stretch 2). Must be called before any right-column helper.
-  void add_tree(QTreeWidget* tree, int minimum_width);
+  // (stretch 2). Must be called before any right-column helper. The Shapes
+  // Manager passes a container holding its List/Grid PresetBrowserView.
+  void add_tree(QWidget* tree, int minimum_width);
   [[nodiscard]] QVBoxLayout* right() const { return right_; }
 
   // {leading..., stretch, trailing...}; the caller attaches the returned row.
@@ -44,6 +45,7 @@ public:
   QPushButton* add_dialog_buttons(const QString& use_label, const QString& use_object_name,
                                   std::function<void()> use);
 
+  // QTreeWidget trees only; other browsers report selection changes themselves.
   void connect_selection_changed(std::function<void()> refresh);
   // The delete button and a Del shortcut scoped to the tree both run delete_selected.
   void add_delete_plumbing(QPushButton* delete_button, std::function<void()> delete_selected);
@@ -59,7 +61,7 @@ private:
   QDialog& dialog_;
   QHBoxLayout* main_layout_{nullptr};
   QVBoxLayout* right_{nullptr};
-  QTreeWidget* tree_{nullptr};
+  QWidget* tree_{nullptr};
 };
 
 }  // namespace patchy::ui

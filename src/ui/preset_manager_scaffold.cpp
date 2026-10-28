@@ -21,7 +21,7 @@ PresetManagerScaffold::PresetManagerScaffold(QDialog& dialog, const QString& obj
   main_layout_ = new QHBoxLayout(&dialog_);
 }
 
-void PresetManagerScaffold::add_tree(QTreeWidget* tree, int minimum_width) {
+void PresetManagerScaffold::add_tree(QWidget* tree, int minimum_width) {
   tree_ = tree;
   tree_->setMinimumWidth(minimum_width);
   main_layout_->addWidget(tree_, 1);
@@ -64,7 +64,9 @@ QPushButton* PresetManagerScaffold::add_dialog_buttons(const QString& use_label,
 }
 
 void PresetManagerScaffold::connect_selection_changed(std::function<void()> refresh) {
-  QObject::connect(tree_, &QTreeWidget::itemSelectionChanged, &dialog_, std::move(refresh));
+  if (auto* tree = qobject_cast<QTreeWidget*>(tree_); tree != nullptr) {
+    QObject::connect(tree, &QTreeWidget::itemSelectionChanged, &dialog_, std::move(refresh));
+  }
 }
 
 void PresetManagerScaffold::add_delete_plumbing(QPushButton* delete_button,

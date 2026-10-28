@@ -1,19 +1,24 @@
 #include "ui/custom_shape_manager_dialog.hpp"
 
+#include "ui/app_settings.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/preset_grid_widget.hpp"
 #include "ui/preset_manager_scaffold.hpp"
 #include "ui/preset_tree_widget.hpp"
 
 #include <QDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSettings>
 #include <QSignalBlocker>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -27,10 +32,33 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
   PresetManagerScaffold scaffold(dialog, QStringLiteral("customShapeManagerDialog"),
                                  QObject::tr("Shapes Manager"));
 
-  auto* tree = new PresetTreeWidget(&dialog);
-  tree->setObjectName(QStringLiteral("customShapeManagerTree"));
-  tree->setIconSize(QSize(40, 40));
-  tree->set_entry_row_height(46);
+  // List (a row per shape with its name) or Grid (thumbnails, the name in the tooltip;
+  // GitHub issue 486 follow-up), remembered under kCustomShapeManagerGridViewKey.
+  auto* browser_column = new QWidget(&dialog);
+  auto* browser_layout = new QVBoxLayout(browser_column);
+  browser_layout->setContentsMargins(0, 0, 0, 0);
+  browser_layout->setSpacing(4);
+  auto* view_row = new QHBoxLayout();
+  view_row->setSpacing(2);
+  auto* list_view_button = new QToolButton(browser_column);
+  list_view_button->setObjectName(QStringLiteral("customShapeManagerListViewButton"));
+  list_view_button->setText(QObject::tr("List"));
+  list_view_button->setToolTip(QObject::tr("Show the shapes as a list with their names"));
+  auto* grid_view_button = new QToolButton(browser_column);
+  grid_view_button->setObjectName(QStringLiteral("customShapeManagerGridViewButton"));
+  grid_view_button->setText(QObject::tr("Grid"));
+  grid_view_button->setToolTip(QObject::tr("Show the shapes as a grid of thumbnails"));
+  view_row->addWidget(list_view_button);
+  view_row->addWidget(grid_view_button);
+  view_row->addStretch(1);
+  browser_layout->addLayout(view_row);
+  auto* tree = new PresetBrowserView(browser_column);
+  tree->tree()->setObjectName(QStringLiteral("customShapeManagerTree"));
+  tree->tree()->setIconSize(QSize(40, 40));
+  tree->tree()->set_entry_row_height(46);
+  tree->grid()->setObjectName(QStringLiteral("customShapeManagerGrid"));
+  tree->grid()->setIconSize(QSize(40, 40));
+  tree->grid()->set_cell_extent(48);
   tree->set_reload_fallback(PresetTreeWidget::ReloadFallback::first_entry_expanding);
   tree->set_folder_label_callback([](const QString& folder, int count) {
     return QObject::tr("%1 (%2)").arg(custom_shape_folder_display_name(folder)).arg(count);
@@ -43,7 +71,12 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     }
     return rows;
   });
-  scaffold.add_tree(tree, 280);
+  tree->set_grid_view(app_settings().value(QLatin1String(kCustomShapeManagerGridViewKey), true).toBool());
+  tree->connect_view_buttons(list_view_button, grid_view_button, [](bool grid) {
+    app_settings().setValue(QLatin1String(kCustomShapeManagerGridViewKey), grid);
+  });
+  browser_layout->addWidget(tree, 1);
+  scaffold.add_tree(browser_column, 280);
 
   auto* preview = new QLabel(&dialog);
   preview->setObjectName(QStringLiteral("customShapeManagerPreview"));
@@ -107,9 +140,7 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     name_edit->setEnabled(single);
     folder_edit->setEnabled(any);
     new_folder_button->setEnabled(any);
-    const auto* current = tree->currentItem();
-    rename_folder_button->setEnabled(current != nullptr &&
-                                     current->data(0, PresetTreeWidget::kFolderMarkerRole).toBool());
+    rename_folder_button->setEnabled(!tree->current_folder().isEmpty());
     duplicate_button->setEnabled(single);
     delete_button->setEnabled(any);
     use_button->setEnabled(single);
@@ -167,7 +198,7 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     }
   };
 
-  scaffold.connect_selection_changed(refresh_details);
+  tree->set_selection_changed_callback(refresh_details);
   tree->set_entry_double_clicked_callback([use_selected](const QString&) { use_selected(); });
   scaffold.add_delete_plumbing(delete_button, delete_selected);
 
@@ -228,11 +259,10 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     }
   });
   QObject::connect(rename_folder_button, &QPushButton::clicked, &dialog, [&] {
-    const auto* current = tree->currentItem();
-    if (current == nullptr || !current->data(0, PresetTreeWidget::kFolderMarkerRole).toBool()) {
+    const auto folder = tree->current_folder();
+    if (folder.isEmpty()) {
       return;
     }
-    const auto folder = current->data(0, Qt::UserRole).toString();
     const auto shown = custom_shape_folder_display_name(folder);
     const auto name = ask_folder_name(QObject::tr("Rename Folder"), shown);
     if (name.isEmpty() || name == shown || name == folder) {

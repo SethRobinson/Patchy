@@ -13752,6 +13752,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>Erweiterte Fülloptionen: %1. Klicken, um die Fülloptionen zu öffnen.</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>Liste</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>Formen als Liste mit Namen anzeigen</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>Formen als Raster aus Miniaturen anzeigen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

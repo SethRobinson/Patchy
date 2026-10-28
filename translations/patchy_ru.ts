@@ -13795,6 +13795,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>Расширенное наложение: %1. Нажмите, чтобы открыть параметры наложения.</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>Список</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>Показывать фигуры списком с названиями</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>Показывать фигуры сеткой миниатюр</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

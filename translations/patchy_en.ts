@@ -13735,6 +13735,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

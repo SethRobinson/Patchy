@@ -66,6 +66,8 @@ public:
   // The collapsed folder rows as the tree shows them now, and the set a reload starts from
   // (the Custom Shape picker keeps it in settings).
   [[nodiscard]] QStringList collapsed_folders() const;
+  // The set the last remember_collapsed_folders() (or a filter starting) recorded.
+  [[nodiscard]] QStringList remembered_collapsed_folders() const;
   void set_collapsed_folders(const QStringList& folders);
   void reload(const QString& select_id = {});
 
@@ -85,6 +87,8 @@ public:
 
   // Entry id of the current row; empty for folder and special rows.
   [[nodiscard]] QString current_id() const;
+  // Folder of the current row when it is a folder row; empty otherwise.
+  [[nodiscard]] QString current_folder() const;
   // Selected entry ids with folder rows expanded to their children, deduped,
   // in tree order.
   [[nodiscard]] QStringList selected_ids() const;

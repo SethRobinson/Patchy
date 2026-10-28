@@ -49,6 +49,7 @@
 #include "core/vector_raster.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/default_custom_shapes.hpp"
+#include "ui/preset_grid_widget.hpp"
 #include "ui/preset_tree_widget.hpp"
 #include "ui/custom_shape_manager_dialog.hpp"
 #include "ui/custom_shape_picker.hpp"
@@ -68,6 +69,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QFrame>
 #include <QDoubleSpinBox>
 #include <QLabel>
 #include <QInputDialog>
@@ -1392,9 +1394,11 @@ void ui_custom_shape_library_folders_duplicates_and_keeps_deleted_defaults() {
 void ui_custom_shape_manager_edits_reach_the_shape_picker() {
   // Edit > Presets > Shapes Manager... (GitHub issue 486): rename and
   // duplicate show in the options bar Shape picker at once, and Use Shape
-  // picks the shape for the Custom Shape tool.
+  // picks the shape for the Custom Shape tool. The List view (the grid has its own test).
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  SettingsValueRestorer saved_manager_view{QString::fromLatin1(patchy::ui::kCustomShapeManagerGridViewKey)};
+  patchy::ui::app_settings().setValue(QLatin1String(patchy::ui::kCustomShapeManagerGridViewKey), false);
   auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
   QApplication::processEvents();
@@ -1682,6 +1686,11 @@ void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
   SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
   SettingsValueRestorer saved_collapsed{QString::fromLatin1(patchy::ui::kCustomShapePickerCollapsedFoldersKey)};
   patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey));
+  // The List views (the grids have their own tests).
+  SettingsValueRestorer saved_picker_view{QString::fromLatin1(patchy::ui::kCustomShapePickerGridViewKey)};
+  SettingsValueRestorer saved_manager_view{QString::fromLatin1(patchy::ui::kCustomShapeManagerGridViewKey)};
+  patchy::ui::app_settings().setValue(QLatin1String(patchy::ui::kCustomShapePickerGridViewKey), false);
+  patchy::ui::app_settings().setValue(QLatin1String(patchy::ui::kCustomShapeManagerGridViewKey), false);
   auto&& [window, canvas] = ShownWindowFixture{};
   canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
   QApplication::processEvents();
@@ -1799,7 +1808,9 @@ void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
 
 void ui_custom_shape_manager_moves_and_renames_folders() {
   // Organizing in the Shapes Manager (Seth, October 28, 2026): Move to New Folder...,
-  // Rename Folder..., and dropping shapes onto a folder row.
+  // Rename Folder..., and dropping shapes onto a folder row, in the List view.
+  SettingsValueRestorer saved_manager_view{QString::fromLatin1(patchy::ui::kCustomShapeManagerGridViewKey)};
+  patchy::ui::app_settings().setValue(QLatin1String(patchy::ui::kCustomShapeManagerGridViewKey), false);
   QTemporaryDir directory;
   CHECK(directory.isValid());
   patchy::ui::CustomShapeLibrary library(directory.filePath(QStringLiteral("shapes")));
@@ -1885,6 +1896,289 @@ void ui_custom_shape_manager_moves_and_renames_folders() {
   patchy::ui::CustomShapeLibrary reloaded(directory.filePath(QStringLiteral("shapes")));
   CHECK(reloaded.find_entry(heart) != nullptr && reloaded.find_entry(heart)->folder == QStringLiteral("Kit 2"));
   CHECK(reloaded.find_entry(plus) != nullptr && reloaded.find_entry(plus)->folder.isEmpty());
+}
+
+// The cells of `folder` in a Shapes grid, in grid order.
+std::vector<QListWidgetItem*> shape_grid_folder_cells(patchy::ui::PresetGridWidget& grid, const QString& folder) {
+  std::vector<QListWidgetItem*> cells;
+  for (int row = 0; row < grid.count(); ++row) {
+    auto* item = grid.item(row);
+    if (!patchy::ui::PresetGridWidget::is_folder_item(item) &&
+        item->data(patchy::ui::PresetGridWidget::kFolderRole).toString() == folder) {
+      cells.push_back(item);
+    }
+  }
+  return cells;
+}
+
+void ui_custom_shape_manager_grid_view_toggles_and_organizes() {
+  // GitHub issue 486 follow-up (philipzae, October 28, 2026): the Shapes Manager shows a
+  // thumbnail grid by default (names in the tooltips) whose folder headers still open and
+  // close, organizing works there as in the list, and List / Grid switch views and are kept.
+  SettingsValueRestorer saved_view{QString::fromLatin1(patchy::ui::kCustomShapeManagerGridViewKey)};
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapeManagerGridViewKey));
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::CustomShapeLibrary library(directory.filePath(QStringLiteral("shapes")));
+  CHECK(library.restore_default_shapes() > 0);
+  const auto heart = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.heart"))->storage_id;
+  const auto star = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.star"))->storage_id;
+  const auto plus = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.plus"))->storage_id;
+  const auto arrow_right = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.arrow-right"))->storage_id;
+  const auto answer_folder_prompt = [](const QString& name) {
+    QTimer::singleShot(0, [name] {
+      auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerFolderNameDialog")));
+      CHECK(prompt != nullptr);
+      if (prompt != nullptr) {
+        prompt->setTextValue(name);
+        prompt->accept();
+      }
+    });
+  };
+  bool ran = false;
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
+    CHECK(manager != nullptr);
+    if (manager == nullptr) {
+      return;
+    }
+    auto* grid =
+        static_cast<patchy::ui::PresetGridWidget*>(manager->findChild<QListWidget*>(QStringLiteral("customShapeManagerGrid")));
+    auto* tree =
+        static_cast<patchy::ui::PresetTreeWidget*>(manager->findChild<QTreeWidget*>(QStringLiteral("customShapeManagerTree")));
+    auto* list_button = manager->findChild<QToolButton*>(QStringLiteral("customShapeManagerListViewButton"));
+    auto* grid_button = manager->findChild<QToolButton*>(QStringLiteral("customShapeManagerGridViewButton"));
+    auto* name_edit = manager->findChild<QLineEdit*>(QStringLiteral("customShapeManagerNameEdit"));
+    auto* new_folder = manager->findChild<QPushButton*>(QStringLiteral("customShapeManagerNewFolderButton"));
+    auto* rename_folder = manager->findChild<QPushButton*>(QStringLiteral("customShapeManagerRenameFolderButton"));
+    CHECK(grid != nullptr && tree != nullptr && list_button != nullptr && grid_button != nullptr &&
+          name_edit != nullptr && new_folder != nullptr && rename_folder != nullptr);
+    if (grid == nullptr || tree == nullptr || list_button == nullptr || grid_button == nullptr ||
+        name_edit == nullptr || new_folder == nullptr || rename_folder == nullptr) {
+      return;
+    }
+    // Grid by default with the requested shape current; the name is in the tooltip only.
+    CHECK(grid->isVisible() && !tree->isVisible());
+    CHECK(grid_button->isChecked() && !list_button->isChecked());
+    CHECK(grid->current_id() == heart);
+    auto* heart_cell = grid->entry_item(heart);
+    CHECK(heart_cell != nullptr);
+    if (heart_cell == nullptr) {
+      return;
+    }
+    CHECK(heart_cell->text().isEmpty());
+    CHECK(heart_cell->toolTip() == QStringLiteral("Heart"));
+    CHECK(heart_cell->data(Qt::AccessibleTextRole).toString() == QStringLiteral("Heart"));
+    CHECK(name_edit->text() == QStringLiteral("Heart"));
+    // Several cells to a row, under their folder's header.
+    auto* symbols = grid->folder_item(QStringLiteral("Symbols"));
+    auto* arrows = grid->folder_item(QStringLiteral("Arrows"));
+    CHECK(symbols != nullptr && arrows != nullptr);
+    if (symbols == nullptr || arrows == nullptr) {
+      return;
+    }
+    CHECK(symbols->text().startsWith(QStringLiteral("Symbols (")));
+    const auto symbol_cells = shape_grid_folder_cells(*grid, QStringLiteral("Symbols"));
+    CHECK(symbol_cells.size() >= 3);
+    if (symbol_cells.size() >= 3) {
+      const auto first = grid->visualItemRect(symbol_cells[0]);
+      const auto second = grid->visualItemRect(symbol_cells[1]);
+      CHECK(first.top() == second.top() && second.left() > first.left());
+      CHECK(first.top() >= grid->visualItemRect(symbols).bottom());
+      CHECK(grid->visualItemRect(symbols).width() > 3 * first.width());
+    }
+    // The header's arrow closes the folder: its cells go, the header stays.
+    const auto arrows_rect = grid->visualItemRect(arrows);
+    QTest::mouseClick(grid->viewport(), Qt::LeftButton, {}, QPoint(arrows_rect.left() + 8, arrows_rect.center().y()));
+    QApplication::processEvents();
+    CHECK(!patchy::ui::PresetGridWidget::is_folder_expanded(arrows));
+    CHECK(!arrows->isHidden());
+    CHECK(grid->entry_item(arrow_right) != nullptr && grid->entry_item(arrow_right)->isHidden());
+    CHECK(grid->collapsed_folders() == QStringList{QStringLiteral("Arrows")});
+    // Two cells into a new folder.
+    grid->clearSelection();
+    grid->entry_item(heart)->setSelected(true);
+    grid->entry_item(star)->setSelected(true);
+    QApplication::processEvents();
+    CHECK(grid->selected_ids().size() == 2);
+    CHECK(new_folder->isEnabled());
+    CHECK(!rename_folder->isEnabled());
+    answer_folder_prompt(QStringLiteral("Kit"));
+    new_folder->click();
+    QApplication::processEvents();
+    CHECK(library.find_entry(heart)->folder == QStringLiteral("Kit"));
+    CHECK(library.find_entry(star)->folder == QStringLiteral("Kit"));
+    CHECK(grid->folder_item(QStringLiteral("Kit")) != nullptr);
+    // Arrows stayed closed across the reload.
+    CHECK(grid->folder_item(QStringLiteral("Arrows")) != nullptr &&
+          !patchy::ui::PresetGridWidget::is_folder_expanded(grid->folder_item(QStringLiteral("Arrows"))));
+    // Rename the folder from its header.
+    grid->setCurrentItem(grid->folder_item(QStringLiteral("Kit")));
+    QApplication::processEvents();
+    CHECK(rename_folder->isEnabled());
+    answer_folder_prompt(QStringLiteral("Kit 2"));
+    rename_folder->click();
+    QApplication::processEvents();
+    CHECK(library.find_entry(heart)->folder == QStringLiteral("Kit 2"));
+    // Drop Plus onto the renamed folder's header.
+    grid->clearSelection();
+    grid->setCurrentItem(grid->entry_item(plus));
+    grid->drop_selected_on(grid->folder_item(QStringLiteral("Kit 2")));
+    QTest::qWait(20);
+    QApplication::processEvents();
+    CHECK(library.find_entry(plus)->folder == QStringLiteral("Kit 2"));
+    CHECK(shape_grid_folder_cells(*grid, QStringLiteral("Kit 2")).size() == 3);
+    // A selected header stands for its folder's shapes.
+    grid->setCurrentItem(grid->folder_item(QStringLiteral("Kit 2")));
+    QApplication::processEvents();
+    CHECK(grid->selected_ids().size() == 3);
+    grid->setCurrentItem(grid->entry_item(heart));
+    grid->scrollToTop();
+    QApplication::processEvents();
+    save_widget_artifact("ui_custom_shape_manager_grid", *manager);
+    // List keeps the current shape and the closed folder, and is remembered.
+    list_button->click();
+    QApplication::processEvents();
+    CHECK(tree->isVisible() && !grid->isVisible());
+    CHECK(list_button->isChecked());
+    CHECK(tree->current_id() == heart);
+    CHECK(name_edit->text() == QStringLiteral("Heart"));
+    auto* arrows_row = shape_tree_folder_row(*tree, QStringLiteral("Arrows"));
+    CHECK(arrows_row != nullptr && !arrows_row->isExpanded());
+    CHECK(!patchy::ui::app_settings().value(QLatin1String(patchy::ui::kCustomShapeManagerGridViewKey), true).toBool());
+    grid_button->click();
+    QApplication::processEvents();
+    CHECK(grid->isVisible() && grid->current_id() == heart);
+    CHECK(patchy::ui::app_settings().value(QLatin1String(patchy::ui::kCustomShapeManagerGridViewKey), false).toBool());
+    ran = true;
+    manager->reject();
+  });
+  (void)patchy::ui::request_custom_shape_manager(nullptr, library, QStringLiteral("shape.builtin.heart"));
+  CHECK(ran);
+}
+
+void ui_custom_shape_picker_grid_view_picks_and_folds() {
+  // GitHub issue 486 follow-up: the Shape picker's dropdown is a thumbnail grid by default;
+  // a click on a folder header opens or closes it (remembered), search still filters, a click
+  // on a cell picks the shape, and the List button brings the named list back (remembered).
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  SettingsValueRestorer saved_collapsed{QString::fromLatin1(patchy::ui::kCustomShapePickerCollapsedFoldersKey)};
+  SettingsValueRestorer saved_view{QString::fromLatin1(patchy::ui::kCustomShapePickerGridViewKey)};
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey));
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerGridViewKey));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  auto* picker = dynamic_cast<patchy::ui::CustomShapePickerCombo*>(combo);
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return;
+  }
+  auto& library = patchy::ui::MainWindowTestAccess::custom_shape_library(window);
+  const auto heart_storage = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.heart"))->storage_id;
+  const auto star_storage = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.star"))->storage_id;
+  combo->setCurrentIndex(combo->findData(QStringLiteral("shape.builtin.heart")));
+  QApplication::processEvents();
+  const auto open_popup = [&]() -> QFrame* {
+    picker->showPopup();
+    QApplication::processEvents();
+    auto* popup = picker->picker_popup();
+    CHECK(popup != nullptr && popup->isVisible());
+    return popup;
+  };
+  const auto close_popup = [&] {
+    if (auto* popup = picker->picker_popup(); popup != nullptr) {
+      popup->close();
+    }
+    QApplication::processEvents();
+    QTest::qWait(300);  // past the reopen guard
+  };
+  const auto grid_of = [](QFrame* popup) {
+    return static_cast<patchy::ui::PresetGridWidget*>(popup->findChild<QListWidget*>(QStringLiteral("customShapeComboGrid")));
+  };
+  const auto tree_of = [](QFrame* popup) {
+    return static_cast<patchy::ui::PresetTreeWidget*>(popup->findChild<QTreeWidget*>(QStringLiteral("customShapeComboTree")));
+  };
+
+  auto* popup = open_popup();
+  if (popup == nullptr) {
+    return;
+  }
+  auto* grid = grid_of(popup);
+  auto* tree = tree_of(popup);
+  auto* filter = popup->findChild<QLineEdit*>(QStringLiteral("customShapeComboFilter"));
+  CHECK(grid != nullptr && tree != nullptr && filter != nullptr);
+  if (grid == nullptr || tree == nullptr || filter == nullptr) {
+    return;
+  }
+  CHECK(grid->isVisible() && !tree->isVisible());
+  CHECK(grid->current_id() == heart_storage);
+  CHECK(grid->entry_item(heart_storage) != nullptr && grid->entry_item(heart_storage)->toolTip() == QStringLiteral("Heart"));
+  CHECK(grid->entry_item(heart_storage) != nullptr && grid->entry_item(heart_storage)->text().isEmpty());
+  // A click anywhere on a header closes the folder, remembered for the next opening.
+  auto* arrows = grid->folder_item(QStringLiteral("Arrows"));
+  CHECK(arrows != nullptr && patchy::ui::PresetGridWidget::is_folder_expanded(arrows));
+  if (arrows == nullptr) {
+    return;
+  }
+  QTest::mouseClick(grid->viewport(), Qt::LeftButton, {}, grid->visualItemRect(arrows).center());
+  QApplication::processEvents();
+  CHECK(!patchy::ui::PresetGridWidget::is_folder_expanded(arrows));
+  CHECK(shape_grid_folder_cells(*grid, QStringLiteral("Arrows")).front()->isHidden());
+  CHECK(patchy::ui::app_settings()
+            .value(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey))
+            .toStringList() == QStringList{QStringLiteral("Arrows")});
+  grid->scrollToTop();
+  QApplication::processEvents();
+  save_widget_artifact("ui_custom_shape_picker_grid", *popup);
+  // Search shows the matches with their folders open; clearing it restores the closed one.
+  filter->setText(QStringLiteral("sta"));
+  QApplication::processEvents();
+  CHECK(grid->first_visible_entry_id() == star_storage);
+  CHECK(arrows->isHidden());
+  filter->clear();
+  QApplication::processEvents();
+  CHECK(!arrows->isHidden() && !patchy::ui::PresetGridWidget::is_folder_expanded(arrows));
+  // A click on a cell picks it.
+  auto* star_cell = grid->entry_item(star_storage);
+  CHECK(star_cell != nullptr);
+  if (star_cell != nullptr) {
+    grid->scrollToItem(star_cell);
+    QApplication::processEvents();
+    QTest::mouseClick(grid->viewport(), Qt::LeftButton, {}, grid->visualItemRect(star_cell).center());
+    QApplication::processEvents();
+  }
+  CHECK(combo->currentData().toString() == QStringLiteral("shape.builtin.star"));
+  CHECK(picker->picker_popup() == nullptr || !picker->picker_popup()->isVisible());
+  close_popup();
+
+  // List brings the named rows back with the same closed folder, and stays for the next opening.
+  popup = open_popup();
+  if (popup == nullptr) {
+    return;
+  }
+  auto* list_button = popup->findChild<QToolButton*>(QStringLiteral("customShapeComboListViewButton"));
+  CHECK(list_button != nullptr);
+  if (list_button == nullptr) {
+    return;
+  }
+  list_button->click();
+  QApplication::processEvents();
+  tree = tree_of(popup);
+  CHECK(tree != nullptr && tree->isVisible() && !grid_of(popup)->isVisible());
+  CHECK(tree != nullptr && tree->current_id() == star_storage);
+  auto* arrows_row = tree != nullptr ? shape_tree_folder_row(*tree, QStringLiteral("Arrows")) : nullptr;
+  CHECK(arrows_row != nullptr && !arrows_row->isExpanded());
+  CHECK(!patchy::ui::app_settings().value(QLatin1String(patchy::ui::kCustomShapePickerGridViewKey), true).toBool());
+  close_popup();
+  popup = open_popup();
+  if (popup == nullptr) {
+    return;
+  }
+  CHECK(tree_of(popup)->isVisible() && !grid_of(popup)->isVisible());
+  close_popup();
 }
 
 void ui_edit_presets_menu_lists_the_managers_in_order() {
@@ -6970,6 +7264,9 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_custom_shape_picker_groups_folders_and_opens_the_manager",
        ui_custom_shape_picker_groups_folders_and_opens_the_manager},
       {"ui_custom_shape_manager_moves_and_renames_folders", ui_custom_shape_manager_moves_and_renames_folders},
+      {"ui_custom_shape_manager_grid_view_toggles_and_organizes",
+       ui_custom_shape_manager_grid_view_toggles_and_organizes},
+      {"ui_custom_shape_picker_grid_view_picks_and_folds", ui_custom_shape_picker_grid_view_picks_and_folds},
       {"ui_edit_define_menu_holds_the_define_commands", ui_edit_define_menu_holds_the_define_commands},
       {"ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes",
        ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes},

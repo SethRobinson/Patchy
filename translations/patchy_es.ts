@@ -13752,6 +13752,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>Fusión avanzada: %1. Haga clic para abrir las opciones de fusión.</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>Lista</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>Mostrar las formas como lista con sus nombres</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>Mostrar las formas como cuadrícula de miniaturas</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

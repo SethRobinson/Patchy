@@ -13752,6 +13752,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>Mesclagem avançada: %1. Clique para abrir as opções de mesclagem.</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>Lista</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>Mostrar as formas como lista com seus nomes</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>Mostrar as formas como grade de miniaturas</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

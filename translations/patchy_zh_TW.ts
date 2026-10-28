@@ -13709,6 +13709,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>進階混合：%1。按一下即可開啟混合選項。</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>清單</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>以含名稱的清單顯示形狀</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>以縮圖格線顯示形狀</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

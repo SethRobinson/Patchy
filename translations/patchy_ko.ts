@@ -13709,6 +13709,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>고급 혼합: %1. 혼합 옵션을 열려면 클릭하세요.</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>목록</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>모양을 이름과 함께 목록으로 표시</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>모양을 축소판 격자로 표시</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -13752,6 +13752,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>Fusion avancée : %1. Cliquez pour ouvrir les options de fusion.</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>Liste</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>Afficher les formes en liste avec leurs noms</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>Afficher les formes en grille de vignettes</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

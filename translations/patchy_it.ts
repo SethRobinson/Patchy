@@ -13752,6 +13752,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Advanced blending: %1. Click to open Blending Options.</source>
         <translation>Fusione avanzata: %1. Fai clic per aprire le opzioni di fusione.</translation>
     </message>
+    <message>
+        <source>List</source>
+        <translation>Elenco</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a list with their names</source>
+        <translation>Mostra le forme come elenco con i loro nomi</translation>
+    </message>
+    <message>
+        <source>Show the shapes as a grid of thumbnails</source>
+        <translation>Mostra le forme come griglia di miniature</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
