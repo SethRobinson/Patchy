@@ -8802,6 +8802,14 @@ void ui_blend_mode_combos_step_past_paint_dot_net_modes() {
   CHECK(activated == 1);
   QTest::keyClick(&combo, Qt::Key_Home);
   CHECK(combo.currentIndex() == 0);
+  // Next/Previous Blend Mode wrap at the ends (#476), past the Paint.NET rows too.
+  CHECK(patchy::ui::blend_mode_step_index(&combo, -1) == luminosity);
+  combo.setCurrentIndex(luminosity);
+  CHECK(patchy::ui::blend_mode_step_index(&combo, 1) == 0);
+  combo.setCurrentIndex(xor_row);
+  CHECK(patchy::ui::blend_mode_step_index(&combo, 1) == 0);
+  CHECK(patchy::ui::blend_mode_step_index(&combo, -1) == luminosity);
+  combo.setCurrentIndex(0);
   // The offer follows the layer: nothing in use, nothing shown.
   patchy::ui::set_non_photoshop_blend_modes_offered(&combo, {patchy::BlendMode::Multiply});
   CHECK(combo.findData(static_cast<int>(patchy::BlendMode::Xor)) < 0);
@@ -9129,8 +9137,8 @@ void ui_layer_blend_mode_steps_coalesce_into_one_undo_entry() {
 }
 
 // GitHub issue 476: Next / Previous Blend Mode (Photoshop's Shift+Plus / Shift+Minus) step the
-// selected layers' mode down and up the Layers panel's list, past its separators, stopping at
-// either end; a run of steps is one undo entry, like the combo's arrow keys.
+// selected layers' mode down and up the Layers panel's list, past its separators, wrapping from
+// the last mode to the first and back; a run of steps is one undo entry, like the combo's arrow keys.
 void ui_layer_blend_mode_next_previous_commands_step_the_list() {
   patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -9165,10 +9173,12 @@ void ui_layer_blend_mode_next_previous_commands_step_the_list() {
   QApplication::processEvents();
   const auto depth_before = Access::active_session_undo_depth(window);
 
-  // Up from the top of the list stays on Normal.
+  // Up from the top of the list wraps to the last mode, and Down from there back to Normal.
   previous->trigger();
-  CHECK(blend_of(ids.back()) == patchy::BlendMode::Normal);
-  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  CHECK(blend_combo->currentText() == QStringLiteral("Luminosity"));
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Luminosity && blend_of(ids.back()) == patchy::BlendMode::Luminosity);
+  next->trigger();
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Normal && blend_of(ids.back()) == patchy::BlendMode::Normal);
   next->trigger();
   CHECK(blend_of(ids.front()) == patchy::BlendMode::Dissolve && blend_of(ids.back()) == patchy::BlendMode::Dissolve);
   next->trigger();  // past the separator after Dissolve
@@ -9179,12 +9189,21 @@ void ui_layer_blend_mode_next_previous_commands_step_the_list() {
   CHECK(blend_of(ids.back()) == patchy::BlendMode::Dissolve);
   CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
 
-  // Down to the end of the list, where it stops.
-  for (int i = 0; i < 40; ++i) {
+  // Down to the end of the list, then past it to the first mode and back.
+  int steps = 0;
+  while (blend_of(ids.back()) != patchy::BlendMode::Luminosity && steps < 40) {
     next->trigger();
+    ++steps;
   }
-  CHECK(blend_of(ids.back()) == patchy::BlendMode::Luminosity);
+  CHECK(steps > 20 && steps < 40);
   CHECK(blend_of(ids.front()) == patchy::BlendMode::Luminosity);
+  next->trigger();
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Normal && blend_of(ids.back()) == patchy::BlendMode::Normal);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Blend mode: Normal"));
+  previous->trigger();
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Luminosity && blend_of(ids.back()) == patchy::BlendMode::Luminosity);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
   Access::undo(window);
   QApplication::processEvents();
   CHECK(blend_of(ids.front()) == patchy::BlendMode::Normal && blend_of(ids.back()) == patchy::BlendMode::Normal);

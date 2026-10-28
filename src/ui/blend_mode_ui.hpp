@@ -37,7 +37,8 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu = BlendModeMenu::
 [[nodiscard]] bool is_blend_mode_separator(const QComboBox* combo, int index);
 // The row one step of `direction` (+1 down the list, -1 up) from the current row lands on,
 // with the closed combo's stepping rules (separators, disabled rows and Paint.NET's modes
-// skipped); the current row itself at either end.
+// skipped), wrapping from the last stop to the first and back (#476); the current row itself
+// when no other row is a stop.
 [[nodiscard]] int blend_mode_step_index(const QComboBox* combo, int direction);
 // Moves the combo to `index` as one keyboard or wheel step (the closed combo's arrows, Home/End,
 // Page Up/Down and wheel, Next/Previous Blend Mode). A currentIndexChanged handler can ask
