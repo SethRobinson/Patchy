@@ -57,6 +57,7 @@ Relevant public records:
 - `ui_liquify_dialog_exposes_manual_tools_and_brush_controls`
 - `ui_liquify_action_applies_selection_as_one_undo_step`
 - `ui_liquify_fragmented_selection_preview_and_apply`
+- `ui_liquify_preview_shows_transparency_checkerboard` (transparent pixels over the canvas checkerboard, the theme backdrop around the image)
 - `ui_liquify_preview_selection_preserves_sample_mapping` (offset layers, clipped
   regions, downsampled proxies, and one-pixel axes compared with scalar sampling)
 

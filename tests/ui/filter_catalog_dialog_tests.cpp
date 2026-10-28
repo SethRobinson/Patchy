@@ -8,6 +8,8 @@
 #include "ui/image_document_io.hpp"
 #include "ui/liquify_dialog.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/theme_palette.hpp"
+#include "ui/transparency_checkerboard.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/main_window.hpp"
 #include "ui/zoomable_image_preview.hpp"
@@ -15,6 +17,9 @@
 #include "test_harness.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QBrush>
+#include <QPixmap>
+#include <QTransform>
 #include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -33,6 +38,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QWidget>
+#include <set>
 #include <algorithm>
 #include <atomic>
 #include <array>
@@ -1103,6 +1109,83 @@ void ui_liquify_dialog_captures_in_both_schemes() {
   }
 }
 
+// A layer's transparent pixels show the transparency checkerboard in the preview, not the
+// workspace's dark backdrop, which stays only around the image (Seth, October 28, 2026).
+void ui_liquify_preview_shows_transparency_checkerboard() {
+  patchy::PixelBuffer source(64, 48, patchy::PixelFormat::rgba8());
+  for (int y = 10; y < 30; ++y) {
+    for (int x = 20; x < 40; ++x) {
+      auto* pixel = source.pixel(x, y);
+      pixel[0] = 200;
+      pixel[1] = 30;
+      pixel[2] = 30;
+      pixel[3] = 255;
+    }
+  }
+  QImage shot;
+  (void)drive_liquify(
+      [&](QDialog& dialog, QWidget& preview) {
+        QApplication::processEvents();
+        shot = preview.grab().toImage();
+        dialog.reject();
+      },
+      /*fixed_preview=*/true, source);
+  CHECK(!shot.isNull());
+  if (shot.isNull()) {
+    return;
+  }
+  std::filesystem::create_directories("test-artifacts/liquify");
+  save_image_artifact("liquify/transparency-preview", shot);
+  // At 1:1 the image starts 12 px in (liquify_widget_point); squares are 8 px.
+  const auto at = [&shot](int x, int y) { return shot.pixelColor(QPoint(x, y) * shot.devicePixelRatio()); };
+  const auto is_checker_gray = [](const QColor& color) {
+    return color.red() == color.green() && color.green() == color.blue() &&
+           (color.red() == 188 || color.red() == 236);
+  };
+  const auto first = at(12 + 3, 12 + 3);
+  const auto next = at(12 + 8 + 3, 12 + 3);
+  CHECK(is_checker_gray(first));
+  CHECK(is_checker_gray(next));
+  CHECK(first != next);
+  CHECK(is_checker_gray(at(12 + 60, 12 + 44)));
+  CHECK(at(12 + 30, 12 + 20) == QColor(200, 30, 30));
+  CHECK(at(4, 4) == patchy::ui::theme().canvas_backdrop);
+}
+
+// Dialog previews (the Filter Gallery, filter dialogs, Develop Raw) show transparency with
+// the canvas's light checkerboard in both schemes; Dark once drew darkened squares.
+void ui_dialog_preview_checkerboard_matches_the_canvas_in_both_schemes() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restorer(scheme);
+    patchy::ui::ZoomableImagePreview preview;
+    preview.resize(200, 160);
+    QImage clear(96, 64, QImage::Format_ARGB32_Premultiplied);
+    clear.fill(Qt::transparent);
+    {
+      QPainter ink(&clear);
+      ink.fillRect(QRect(4, 8, 20, 48), Qt::black);  // a stroke, clear of the sampled center
+    }
+    preview.set_image(clear);
+    preview.show();
+    QApplication::processEvents();
+    const auto shot = preview.grab().toImage();
+    std::filesystem::create_directories("test-artifacts/liquify");
+    save_image_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "liquify/dialog-preview-dark"
+                                                                          : "liquify/dialog-preview-light",
+                        shot);
+    const auto center = QPoint(shot.width() / 2, shot.height() / 2);
+    std::set<QRgb> squares;
+    for (int dx = -12; dx <= 12; dx += 12) {
+      const auto color = shot.pixelColor(center + QPoint(dx, 0));
+      CHECK(color.red() == color.green() && color.green() == color.blue());
+      CHECK(color.red() == 188 || color.red() == 236);
+      squares.insert(color.rgb());
+    }
+    CHECK(squares.size() == 2U);
+    CHECK(shot.pixelColor(2, 2) == patchy::ui::theme().canvas_backdrop);
+  }
+}
+
 void ui_liquify_preview_selection_preserves_sample_mapping() {
   for (const auto size : {QSize(83, 61), QSize(1001, 773), QSize(1024, 1), QSize(1, 1024)}) {
     auto proxy_size = size;
@@ -1177,16 +1260,26 @@ void ui_liquify_preview_selection_preserves_sample_mapping() {
     }
     QImage expected(actual.size(), actual.format());
     expected.setDevicePixelRatio(actual.devicePixelRatio());
-    expected.fill(QColor(35, 35, 35));
+    expected.fill(patchy::ui::theme().canvas_backdrop);
     const double scale = std::min((widget_size.width() - 24.0) / proxy_size.width(),
                                   (widget_size.height() - 24.0) / proxy_size.height());
     const QSizeF drawn_size(proxy_size.width() * scale, proxy_size.height() * scale);
     const QRectF target(QPointF((widget_size.width() - drawn_size.width()) * 0.5,
                                 (widget_size.height() - drawn_size.height()) * 0.5), drawn_size);
     QPainter painter(&expected);
+    QPixmap tile(16, 16);
+    tile.fill(patchy::ui::checkerboard_light_square());
+    {
+      QPainter tile_painter(&tile);
+      tile_painter.fillRect(0, 0, 8, 8, patchy::ui::checkerboard_dark_square());
+      tile_painter.fillRect(8, 8, 8, 8, patchy::ui::checkerboard_dark_square());
+    }
+    QBrush checkerboard(tile);
+    checkerboard.setTransform(QTransform::fromTranslate(target.x(), target.y()));
+    painter.fillRect(target, checkerboard);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, target.width() < proxy_size.width());
     painter.drawImage(target, expected_preview);
-    painter.setPen(QPen(QColor(105, 105, 105), 1));
+    painter.setPen(QPen(patchy::ui::theme().canvas_document_border, 1));
     painter.drawRect(target.adjusted(0, 0, -1, -1));
     painter.end();
     if (actual != expected) {
@@ -2036,5 +2129,8 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
       {"ui_liquify_rate_and_pen_pressure", ui_liquify_rate_and_pen_pressure},
       {"ui_liquify_mesh_preview_toggle_and_reconstruct_amount", ui_liquify_mesh_preview_toggle_and_reconstruct_amount},
       {"ui_liquify_dialog_captures_in_both_schemes", ui_liquify_dialog_captures_in_both_schemes},
+      {"ui_liquify_preview_shows_transparency_checkerboard", ui_liquify_preview_shows_transparency_checkerboard},
+      {"ui_dialog_preview_checkerboard_matches_the_canvas_in_both_schemes",
+       ui_dialog_preview_checkerboard_matches_the_canvas_in_both_schemes},
   };
 }

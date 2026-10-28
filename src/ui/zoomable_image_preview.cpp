@@ -1,5 +1,6 @@
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/transparency_checkerboard.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/modifier_names.hpp"
 
@@ -306,7 +307,7 @@ void ZoomableImagePreview::paintEvent(QPaintEvent*) {
 }
 
 void ZoomableImagePreview::paint_backdrop(QPainter& painter) {
-  painter.fillRect(rect(), QColor(31, 33, 37));
+  painter.fillRect(rect(), theme().canvas_backdrop);
 }
 
 void ZoomableImagePreview::paint_content(QPainter& painter, const QRectF& target) {
@@ -326,11 +327,13 @@ void ZoomableImagePreview::paint_content(QPainter& painter, const QRectF& target
       static_cast<int>(std::floor(visible_target.top() / tile)) * tile;
   const auto right = static_cast<int>(std::ceil(visible_target.right()));
   const auto bottom = static_cast<int>(std::ceil(visible_target.bottom()));
+  // The canvas's light transparency checkerboard in every color scheme (it depicts
+  // alpha, not chrome), never a darkened copy for Dark.
   for (int y = top; y < bottom; y += tile) {
     for (int x = left; x < right; x += tile) {
       const auto light = ((x / tile) + (y / tile)) % 2 == 0;
       painter.fillRect(QRect(x, y, tile, tile),
-                       light ? QColor(104, 106, 110) : QColor(78, 80, 84));
+                       light ? checkerboard_light_square() : checkerboard_dark_square());
     }
   }
   painter.setRenderHint(QPainter::SmoothPixmapTransform, zoom() < 1.0);
@@ -338,7 +341,7 @@ void ZoomableImagePreview::paint_content(QPainter& painter, const QRectF& target
   if (!reduced) painter.drawImage(target, image_);
   else if (!scaled_image_.isNull()) painter.drawImage(target, scaled_image_);
   painter.restore();
-  painter.setPen(QColor(18, 20, 23));
+  painter.setPen(theme().canvas_document_border);
   painter.drawRect(target.adjusted(-1.0, -1.0, 0.0, 0.0));
 }
 

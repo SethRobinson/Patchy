@@ -3,6 +3,7 @@
 #include "core/palette_presets.hpp"
 #include "formats/palette_io.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/localization.hpp"
@@ -101,7 +102,7 @@ public:
   }
 
 protected:
-  void paint_backdrop(QPainter& painter) override { painter.fillRect(rect(), QColor(34, 36, 40)); }
+  void paint_backdrop(QPainter& painter) override { painter.fillRect(rect(), theme().canvas_backdrop); }
 
   void paint_content(QPainter& painter, const QRectF& image_rect) override {
     if (full_.isNull() || fit_converted_.isNull()) {

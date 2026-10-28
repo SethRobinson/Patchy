@@ -6,11 +6,14 @@
 #include "ui/image_document_io.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/transparency_checkerboard.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
 
 #include <QButtonGroup>
+#include <QBrush>
 #include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -21,6 +24,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPixmap>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -29,6 +33,7 @@
 #include <QSpinBox>
 #include <QTabletEvent>
 #include <QTimer>
+#include <QTransform>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -190,12 +195,25 @@ protected:
       render_preview();
     }
     QPainter painter(this);
-    painter.fillRect(rect(), QColor(35, 35, 35));
+    painter.fillRect(rect(), theme().canvas_backdrop);
     const auto target = displayed_rect();
+    // Transparent pixels show the transparency checkerboard, as on the canvas, never the
+    // backdrop's dark gray.
+    constexpr int square = 8;
+    QPixmap tile(square * 2, square * 2);
+    tile.fill(checkerboard_light_square());
+    {
+      QPainter tile_painter(&tile);
+      tile_painter.fillRect(0, 0, square, square, checkerboard_dark_square());
+      tile_painter.fillRect(square, square, square, square, checkerboard_dark_square());
+    }
+    QBrush checkerboard(tile);
+    checkerboard.setTransform(QTransform::fromTranslate(target.x(), target.y()));
+    painter.fillRect(target, checkerboard);
     painter.setRenderHint(QPainter::SmoothPixmapTransform,
                           target.width() < preview_image_.width());
     painter.drawImage(target, show_result_ ? preview_image_ : original_display_);
-    painter.setPen(QPen(QColor(105, 105, 105), 1));
+    painter.setPen(QPen(theme().canvas_document_border, 1));
     painter.drawRect(target.adjusted(0, 0, -1, -1));
     if (show_mesh_) {
       paint_mesh(painter, target);

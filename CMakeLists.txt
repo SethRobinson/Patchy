@@ -1593,6 +1593,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/theme_palette.cpp
       src/ui/theme_qss.hpp
       src/ui/theme_qss.cpp
+      src/ui/transparency_checkerboard.hpp
       src/ui/text_layout.hpp
       src/ui/text_layout.cpp
       src/ui/text_font_service.cpp
