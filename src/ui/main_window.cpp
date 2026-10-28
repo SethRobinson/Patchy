@@ -5595,7 +5595,9 @@ void MainWindow::changeEvent(QEvent* event) {
     // bit keeps WM_NCCALCSIZE in its maximized branch and makes the next startSystemMove()
     // run DefWindowProc's restore-on-drag against Windows' stale placement, teleporting
     // the window far from the cursor. Strip the bit in place without touching geometry.
-    if (!isMaximized() && !isFullScreen() && !isMinimized()) {
+    // Not while a return from full screen to maximized settles: its restored report is
+    // stale and the window stays zoomed (set_screen_mode, GitHub issue 491).
+    if (!settling_maximized_return_ && !isMaximized() && !isFullScreen() && !isMinimized()) {
       HWND hwnd = reinterpret_cast<HWND>(winId());
       const LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
       if ((style & WS_MAXIMIZE) != 0) {
@@ -5604,8 +5606,13 @@ void MainWindow::changeEvent(QEvent* event) {
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
       }
     }
+    if (!settling_maximized_return_ && !isMaximized()) {
+      maximized_return_normal_geometry_ = QRect();
+    }
 #endif
-    resync_native_frame_geometry();
+    if (!settling_maximized_return_) {
+      resync_native_frame_geometry();
+    }
     // The window system or the maximize control left full screen on its own (macOS's
     // green button, a compositor): Standard takes the chrome back (screen modes).
     schedule_screen_mode_window_state_sync();

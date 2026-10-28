@@ -246,6 +246,35 @@ void apply_windows_pen_feedback_suppression(WId window_id) {
     ::GlobalDeleteAtom(atom);
   }
 }
+
+// Sets the normal placement Windows keeps for a zoomed window (where its own restore,
+// a title-bar double-click or Win+Down, goes) to `normal`, a Qt geometry. The zoomed
+// window's Qt and native rects give the scale and origin on its monitor;
+// rcNormalPosition counts from the monitor's work area.
+void set_windows_normal_placement(HWND hwnd, const QRect& window_geometry, qreal ratio, const QRect& normal) {
+  WINDOWPLACEMENT placement{};
+  placement.length = sizeof(placement);
+  RECT window_rect{};
+  MONITORINFO monitor_info{};
+  monitor_info.cbSize = sizeof(monitor_info);
+  HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+  if (!normal.isValid() || ratio <= 0 || GetWindowPlacement(hwnd, &placement) == 0 ||
+      GetWindowRect(hwnd, &window_rect) == 0 || monitor == nullptr || GetMonitorInfoW(monitor, &monitor_info) == 0) {
+    return;
+  }
+  const auto physical = [ratio](int logical) { return static_cast<LONG>(qRound(logical * ratio)); };
+  const LONG left = window_rect.left + physical(normal.x() - window_geometry.x()) -
+                    (monitor_info.rcWork.left - monitor_info.rcMonitor.left);
+  const LONG top = window_rect.top + physical(normal.y() - window_geometry.y()) -
+                   (monitor_info.rcWork.top - monitor_info.rcMonitor.top);
+  const RECT rect{left, top, left + physical(normal.width()), top + physical(normal.height())};
+  if (EqualRect(&rect, &placement.rcNormalPosition) != 0) {
+    return;
+  }
+  placement.rcNormalPosition = rect;
+  placement.flags = 0;
+  SetWindowPlacement(hwnd, &placement);
+}
 #endif
 
 }  // namespace
@@ -711,7 +740,7 @@ void MainWindow::restore_maximized_under_cursor(QPoint global_cursor) {
     return;
   }
   const QRect maximized = geometry();
-  const QRect restored = normalGeometry().isValid() ? normalGeometry() : QRect(maximized.topLeft(), maximized.size() / 2);
+  const QRect restored = normal_bounds().isValid() ? normal_bounds() : QRect(maximized.topLeft(), maximized.size() / 2);
   // Keep the cursor at the same fractional X along the title bar after restoring, and place
   // the (shorter) restored title bar under the cursor vertically.
   const double x_fraction = maximized.width() > 0
@@ -723,6 +752,10 @@ void MainWindow::restore_maximized_under_cursor(QPoint global_cursor) {
   move(new_left, new_top);
 }
 
+QRect MainWindow::normal_bounds() const {
+  return maximized_return_normal_geometry_.isValid() ? maximized_return_normal_geometry_ : normalGeometry();
+}
+
 void MainWindow::restore_window_from_maximize() {
 #ifdef Q_OS_WIN
   // After an OS snap maximize (a real native zoom), Qt's showNormal() is a plain resize
@@ -730,7 +763,7 @@ void MainWindow::restore_window_from_maximize() {
   // the maximized size (changeEvent strips the leftover WS_MAXIMIZE bit, but Qt reapplies
   // its own geometry after that event, so the fix must happen once showNormal() returns).
   // Capture the remembered normal geometry up front and enforce it afterwards.
-  const QRect restored = normalGeometry();
+  const QRect restored = normal_bounds();
   showNormal();
   if (restored.isValid() && geometry().size() != restored.size()) {
     setGeometry(restored);
@@ -863,12 +896,12 @@ void MainWindow::clamp_window_to_available_screen() {
 
 void MainWindow::save_window_geometry() const {
   auto settings = app_settings();
-  // normalGeometry() reports the restored (non-maximized) bounds, so the window returns to a sensible
+  // normal_bounds() reports the restored (non-maximized) bounds, so the window returns to a sensible
   // size and position when the user un-maximizes after relaunch.
   // A full-screen screen mode is never restored at the next start: Standard's state is kept.
   const auto& standard = standard_screen_chrome_;
   const QRect normal = standard.has_value() && standard->normal_geometry.isValid() ? standard->normal_geometry
-                                                                                   : normalGeometry();
+                                                                                   : normal_bounds();
   if (normal.isValid() && normal.width() > 0 && normal.height() > 0) {
     settings.setValue(QStringLiteral("window/normalGeometry"), normal);
   }
@@ -1165,7 +1198,7 @@ void MainWindow::set_screen_mode(ScreenMode mode) {
   if (screen_mode_ == ScreenMode::Standard) {
     StandardScreenChrome chrome;
     chrome.maximized = isMaximized();
-    chrome.normal_geometry = normalGeometry().isValid() ? normalGeometry() : geometry();
+    chrome.normal_geometry = normal_bounds().isValid() ? normal_bounds() : geometry();
     chrome.menu_bar = !menuBar()->isHidden();
     if (panel_column_ != nullptr) {
       chrome.panel_column = !panel_column_->isHidden();
@@ -1188,6 +1221,23 @@ void MainWindow::set_screen_mode(ScreenMode mode) {
     standard_screen_chrome_.reset();
     if (chrome.maximized) {
       showMaximized();
+#ifdef Q_OS_WIN
+      // Qt leaves full screen for maximized by first putting the window at its saved normal
+      // placement, which it queues as a restored state, and then zooming it. Delivered
+      // later, that stale report made changeEvent strip the zoom and shrink the window to
+      // its normal size while Qt still called it maximized (GitHub issue 491). Deliver the
+      // reports now, with changeEvent's frame fixups off, so the zoom stands.
+      const QScopedValueRollback settling(settling_maximized_return_, true);
+      QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+      // Windows keeps the placement Qt saved as the normal one: after the maximize control
+      // (Qt's own resize to the work area, no zoom) that is the maximized size, so a
+      // Windows restore would stay full size. Give it the window's normal bounds.
+      if (auto* hwnd = reinterpret_cast<HWND>(winId()); hwnd != nullptr && IsZoomed(hwnd) != 0) {
+        set_windows_normal_placement(hwnd, geometry(), devicePixelRatioF(), chrome.normal_geometry);
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+      }
+      maximized_return_normal_geometry_ = isMaximized() ? chrome.normal_geometry : QRect();
+#endif
     } else {
       showNormal();
 #ifdef Q_OS_WIN

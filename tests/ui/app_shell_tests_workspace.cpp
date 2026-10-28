@@ -93,6 +93,13 @@
 #include "ui_test_support.hpp"
 #include "app_shell_test_support.hpp"
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace {
 using namespace patchy::test::ui::app_shell_support;
 
@@ -2439,6 +2446,127 @@ void ui_screen_modes_cycle_hide_chrome_and_restore_standard() {
   CHECK(window.actions().contains(cycle) == cycle_carried_before);
   options_bar->show();
   QApplication::processEvents();
+}
+
+// A maximized window leaves either full-screen mode maximized again (GitHub issue 491):
+// the F cycle, Escape from Full Screen with Menus, and on a real Windows window also
+// after an OS maximize (a native zoom, as a snap or Win+Up makes).
+void ui_screen_modes_return_to_maximized() {
+  using patchy::ui::MainWindow;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* with_menus = require_action(window, "viewScreenModeFullWithMenusAction");
+  CHECK(with_menus != nullptr);
+  if (with_menus == nullptr) {
+    return;
+  }
+  window.showMaximized();
+  CHECK(process_events_until([&window] { return window.isMaximized(); }));
+  process_events_for(100);
+  const auto maximized_geometry = window.geometry();
+  const auto back_to_maximized = [&](const char* how) {
+    const bool back = process_events_until([&] {
+      return window.screen_mode() == MainWindow::ScreenMode::Standard && !window.isFullScreen() &&
+             window.isMaximized() && window.geometry() == maximized_geometry;
+    });
+    if (!back) {
+      patchy::test::report_failure(
+          QStringLiteral("%1: maximized %2, full screen %3, geometry %4,%5 %6x%7, expected %8,%9 %10x%11")
+              .arg(QString::fromLatin1(how))
+              .arg(window.isMaximized())
+              .arg(window.isFullScreen())
+              .arg(window.geometry().x())
+              .arg(window.geometry().y())
+              .arg(window.geometry().width())
+              .arg(window.geometry().height())
+              .arg(maximized_geometry.x())
+              .arg(maximized_geometry.y())
+              .arg(maximized_geometry.width())
+              .arg(maximized_geometry.height())
+              .toStdString());
+    }
+  };
+
+  // F through both full-screen modes and back.
+  for (int press = 0; press < 3; ++press) {
+    canvas = require_canvas(window);
+    canvas->setFocus();
+    QTest::keyClick(canvas, Qt::Key_F);
+    process_events_for(50);
+    if (press < 2) {
+      CHECK(window.isFullScreen());
+    }
+  }
+  back_to_maximized("F cycle");
+
+  // Escape out of Full Screen with Menus.
+  with_menus->trigger();
+  process_events_for(50);
+  CHECK(window.isFullScreen());
+  canvas = require_canvas(window);
+  canvas->setFocus();
+  send_key(*canvas, Qt::Key_Escape);
+  back_to_maximized("Escape");
+
+#ifdef Q_OS_WIN
+  if (QGuiApplication::platformName() == QStringLiteral("windows")) {
+    // An OS maximize (a native zoom, whose normal placement is the restored size): restore,
+    // give the window its own normal bounds, then let Windows zoom it.
+    patchy::ui::MainWindowTestAccess::restore_window_from_maximize(window);
+    CHECK(process_events_until([&window] { return !window.isMaximized(); }));
+    const QRect normal(maximized_geometry.topLeft() + QPoint(60, 50), QSize(940, 720));
+    window.setGeometry(normal);
+    process_events_for(100);
+    SendMessageW(reinterpret_cast<HWND>(window.winId()), WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+    CHECK(process_events_until([&window] { return window.isMaximized(); }));
+    process_events_for(100);
+    CHECK(window.geometry() == maximized_geometry);
+    for (int press = 0; press < 3; ++press) {
+      canvas = require_canvas(window);
+      canvas->setFocus();
+      QTest::keyClick(canvas, Qt::Key_F);
+      process_events_for(50);
+    }
+    back_to_maximized("F cycle after an OS maximize");
+    // Restoring afterwards still returns to the normal bounds.
+    patchy::ui::MainWindowTestAccess::restore_window_from_maximize(window);
+    CHECK(process_events_until([&window] { return !window.isMaximized(); }));
+    CHECK(window.geometry().size() == normal.size());
+
+    // The maximize control's maximize, back from full screen, then a Windows restore (as a
+    // title-bar double-click or Win+Down makes) or the maximize control's restore.
+    for (const bool windows_restore : {true, false}) {
+      window.showMaximized();
+      CHECK(process_events_until([&window] { return window.isMaximized(); }));
+      process_events_for(100);
+      // Twice before the control's restore: the second trip starts from a returned window.
+      for (int trip = 0; trip < (windows_restore ? 1 : 2); ++trip) {
+        for (int press = 0; press < 3; ++press) {
+          canvas = require_canvas(window);
+          canvas->setFocus();
+          QTest::keyClick(canvas, Qt::Key_F);
+          process_events_for(50);
+        }
+        back_to_maximized("F cycle after the maximize control");
+      }
+      if (windows_restore) {
+        SendMessageW(reinterpret_cast<HWND>(window.winId()), WM_SYSCOMMAND, SC_RESTORE, 0);
+      } else {
+        patchy::ui::MainWindowTestAccess::restore_window_from_maximize(window);
+      }
+      CHECK(process_events_until([&window] { return !window.isMaximized(); }));
+      process_events_for(100);
+      if (window.geometry().size() != normal.size()) {
+        patchy::test::report_failure(QStringLiteral("%1 restore: %2x%3, expected %4x%5")
+                                         .arg(windows_restore ? QStringLiteral("Windows") : QStringLiteral("Control"))
+                                         .arg(window.geometry().width())
+                                         .arg(window.geometry().height())
+                                         .arg(normal.width())
+                                         .arg(normal.height())
+                                         .toStdString());
+      }
+    }
+  }
+#endif
 }
 
 // In Full Screen with Menus the menu bar is still the custom title bar (Windows and Linux):
@@ -4892,6 +5020,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_reset_panels_restores_first_launch_layout", ui_reset_panels_restores_first_launch_layout},
       {"ui_reset_panels_keeps_the_window_geometry", ui_reset_panels_keeps_the_window_geometry},
       {"ui_screen_modes_cycle_hide_chrome_and_restore_standard", ui_screen_modes_cycle_hide_chrome_and_restore_standard},
+      {"ui_screen_modes_return_to_maximized", ui_screen_modes_return_to_maximized},
       {"ui_screen_modes_escape_and_context_menu_return_to_standard", ui_screen_modes_escape_and_context_menu_return_to_standard},
       {"ui_screen_modes_title_bar_double_click_returns_to_standard", ui_screen_modes_title_bar_double_click_returns_to_standard},
       {"ui_screen_mode_button_cycles_and_lists_modes", ui_screen_mode_button_cycles_and_lists_modes},
