@@ -478,9 +478,10 @@ QIcon themed_glyph_icon(QString name, qreal authored_size, QColor ThemePalette::
 QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
   // Two designs, chosen by the logical size (GitHub issue 484). The 22 px lock button icons draw
   // on a 22 px grid where every glyph spans 1 to 21, leaving 2 px inside the button's border;
-  // smaller renders (the 14 px row badges) draw on a 16 px grid spanning 2 to 15. Painted in
-  // device pixels with every straight edge rounded to a whole pixel, so the glyphs stay sharp at
-  // 100%, 150% and 200%; only curves and the pencil's diagonals are antialiased.
+  // smaller renders (the 14 px row badges) draw on a 16 px grid spanning 2 to 15. Painted as pixel
+  // art at the device size: straight edges round to whole pixels, and the pencil's diagonals, the
+  // shackle's rounded top and the keyhole are decided pixel by pixel, so every pixel is fully
+  // inked or empty at 100%, 150% and 200%.
   auto glyph = [kind](QPainter& painter, const QColor& theme_ink, const QSize& device, qreal ratio) {
     // Overlapping parts are painted opaque and the ink's alpha applied once at the end, so a
     // translucent theme color stays even where they meet.
@@ -503,77 +504,99 @@ QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
     const auto cell = [&](qreal x0, qreal y0, qreal x1, qreal y1) {
       const int x = px(x0);
       const int y = px(y0);
-      return QRectF(left + x, top + y, std::max(1, px(x1) - x), std::max(1, px(y1) - y));
+      return QRect(left + x, top + y, std::max(1, px(x1) - x), std::max(1, px(y1) - y));
     };
-    const auto fill = [&painter, &ink](std::initializer_list<QRectF> rects) {
+    const auto fill = [&painter, &ink](std::initializer_list<QRect> rects) {
       for (const auto& rect : rects) {
         painter.fillRect(rect, ink);
       }
     };
-    const auto cut = [&painter](const QPainterPath& path) {
+    // Inks every pixel of box for which inside(x, y) holds, one run of pixels at a time.
+    const auto plot = [&painter, &ink](const QRect& box, const auto& inside) {
+      for (int y = box.top(); y <= box.bottom(); ++y) {
+        int run = -1;
+        for (int x = box.left(); x <= box.right() + 1; ++x) {
+          const bool on = x <= box.right() && inside(x, y);
+          if (on && run < 0) {
+            run = x;
+          } else if (!on && run >= 0) {
+            painter.fillRect(QRect(run, y, x - run, 1), ink);
+            run = -1;
+          }
+        }
+      }
+    };
+    // Whether a pixel's center lies in a rounded rect, so rounded corners come out stepped.
+    const auto in_rounded = [](const QRect& rect, qreal radius, int x, int y) {
+      const qreal cx = x + 0.5;
+      const qreal cy = y + 0.5;
+      const qreal x0 = rect.left();
+      const qreal y0 = rect.top();
+      const qreal x1 = rect.left() + rect.width();
+      const qreal y1 = rect.top() + rect.height();
+      if (cx < x0 || cx > x1 || cy < y0 || cy > y1) {
+        return false;
+      }
+      const qreal r = std::min({radius, (x1 - x0) / 2.0, (y1 - y0) / 2.0});
+      const qreal nx = std::clamp(cx, x0 + r, x1 - r);
+      const qreal ny = std::clamp(cy, y0 + r, y1 - r);
+      return (cx - nx) * (cx - nx) + (cy - ny) * (cy - ny) <= r * r;
+    };
+    const auto clearing = [&painter](auto&& paint) {
       painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
-      painter.drawPath(path);
+      paint();
       painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     };
-    // A four-way move arrow: full-length stems and heads depth pixels deep that reach wing
-    // pixels past the stem on each side.
-    const auto arrow = [&](const QRectF& stem_v, const QRectF& stem_h, int depth, int wing) {
+    // A four-way move arrow: full-length stems and stepped heads depth rows deep, each row one
+    // pixel wider on both sides than the row nearer the point.
+    const auto arrow = [&](const QRect& stem_v, const QRect& stem_h, int depth) {
       fill({stem_v, stem_h});
-      if (unit < 1.25) {
-        // Small renders step the heads, each row one pixel wider on both sides than the row
-        // nearer the point, so they stay sharp.
-        for (int row = 0; row < depth; ++row) {
-          const int grow = std::min(row, wing);
-          fill({QRectF(stem_v.left() - grow, stem_v.top() + row, stem_v.width() + 2 * grow, 1),
-                QRectF(stem_v.left() - grow, stem_v.bottom() - 1 - row, stem_v.width() + 2 * grow, 1),
-                QRectF(stem_h.left() + row, stem_h.top() - grow, 1, stem_h.height() + 2 * grow),
-                QRectF(stem_h.right() - 1 - row, stem_h.top() - grow, 1, stem_h.height() + 2 * grow)});
-        }
-        return;
+      const int v_bottom = stem_v.top() + stem_v.height();
+      const int h_right = stem_h.left() + stem_h.width();
+      for (int row = 0; row < depth; ++row) {
+        fill({QRect(stem_v.left() - row, stem_v.top() + row, stem_v.width() + 2 * row, 1),
+              QRect(stem_v.left() - row, v_bottom - 1 - row, stem_v.width() + 2 * row, 1),
+              QRect(stem_h.left() + row, stem_h.top() - row, 1, stem_h.height() + 2 * row),
+              QRect(h_right - 1 - row, stem_h.top() - row, 1, stem_h.height() + 2 * row)});
       }
-      // Larger ones get smooth heads, flat at the point.
-      const qreal l = stem_v.left();
-      const qreal r = stem_v.right();
-      const qreal t = stem_v.top();
-      const qreal b = stem_v.bottom();
-      const qreal hl = stem_h.left();
-      const qreal hr = stem_h.right();
-      const qreal ht = stem_h.top();
-      const qreal hb = stem_h.bottom();
-      painter.drawPolygon(QPolygonF({QPointF(l, t), QPointF(r, t), QPointF(r + wing, t + depth),
-                                     QPointF(l - wing, t + depth)}));
-      painter.drawPolygon(QPolygonF({QPointF(l, b), QPointF(r, b), QPointF(r + wing, b - depth),
-                                     QPointF(l - wing, b - depth)}));
-      painter.drawPolygon(QPolygonF({QPointF(hl, ht), QPointF(hl, hb), QPointF(hl + depth, hb + wing),
-                                     QPointF(hl + depth, ht - wing)}));
-      painter.drawPolygon(QPolygonF({QPointF(hr, ht), QPointF(hr, hb), QPointF(hr - depth, hb + wing),
-                                     QPointF(hr - depth, ht - wing)}));
     };
-    // A pencil from its point at the lower left up to a solid end cap at the upper right,
-    // authored in 32 units across 4 to 28 and fitted so its solid part spans first to last,
-    // shifted shift pixels sideways.
-    const auto pencil = [&](qreal first, qreal last, qreal shift) {
-      const qreal span = px(last) - px(first) - 1;
-      painter.save();
-      painter.translate(left + (px(first) + px(last)) / 2.0 + shift, top + (px(first) + px(last)) / 2.0);
-      painter.scale(span / 24.0, span / 24.0);
-      painter.translate(-16.0, -16.0);
-      painter.setPen(QPen(ink, 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      painter.setBrush(Qt::NoBrush);
-      painter.translate(16.2, 16.6);
-      painter.rotate(-45.0);
-      QPainterPath body(QPointF(-15.0, 0.0));
-      body.lineTo(-8.0, -4.4);
-      body.lineTo(13.0, -4.4);
-      body.lineTo(13.0, 4.4);
-      body.lineTo(-8.0, 4.4);
-      body.closeSubpath();
-      painter.drawPath(body);
-      painter.drawLine(QPointF(-8.0, -4.4), QPointF(-8.0, 4.4));
-      painter.setBrush(ink);
-      painter.drawRect(QRectF(8.0, -4.4, 5.0, 8.8));
-      painter.drawPolygon(QPolygonF({QPointF(-15.0, 0.0), QPointF(-11.5, -2.2), QPointF(-11.5, 2.2)}));
-      painter.restore();
+    // A pencil filling box from its point at the lower left to a solid end cap at the upper right,
+    // as pixel art in diagonal coordinates: p = x - y runs along it and q = x + y across it, so
+    // its sides are exact 45 degree stairs and the point is a square corner. Sized for a 20 px
+    // box and scaled with it; line is the outline's thickness across, in steps at that size.
+    const auto pencil = [&](const QRect& box, qreal line_steps) {
+      const int span = box.width();
+      const qreal scale = span / 20.0;
+      const int axis = span - 1;
+      const int half = std::max(2, qRound(5.0 * scale));
+      const int line = std::max(1, qRound(line_steps * scale));
+      const int cap = std::max(1, qRound(4.0 * scale));
+      const int lead = std::max(1, qRound(2.5 * scale));
+      const int point = -axis;
+      const int end = axis - half;
+      plot(box, [&](int x, int y) {
+        const int p = (x - box.left()) - (y - box.top());
+        const int across = std::abs((x - box.left()) + (y - box.top()) - axis);
+        if (p < point || p > end) {
+          return false;
+        }
+        if (p < point + half) {
+          // The cone widens one step per step along, so its two edges run straight down and
+          // straight across; solid lead at the point, an outline behind it.
+          const int width = p - point;
+          return across <= width && (p < point + lead || across > width - line);
+        }
+        // The body: outline sides, a band where it meets the cone, and the solid end cap.
+        return across <= half && (across > half - line || p < point + half + line || p > end - cap);
+      });
+    };
+    // A padlock: a shackle with a stepped round top over a solid body, then the keyhole cleared.
+    const auto padlock = [&](const QRect& outer, qreal outer_radius, const QRect& opening, qreal opening_radius,
+                             const QRect& body) {
+      plot(outer, [&](int x, int y) {
+        return in_rounded(outer, outer_radius, x, y) && !in_rounded(opening, opening_radius, x, y);
+      });
+      fill({body});
     };
     painter.setPen(Qt::NoPen);
     painter.setBrush(ink);
@@ -584,32 +607,24 @@ QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
               cell(1, 1, 8, 8), cell(14, 1, 21, 8), cell(8, 8, 14, 14), cell(1, 14, 8, 21),
               cell(14, 14, 21, 21)});
       } else if (kind == QStringLiteral("pixels")) {
-        // One pixel left, so its mostly covered pixels sit centered in the button.
-        pencil(1, 21, -1.0);
+        // A three-step outline, as heavy as the arrow's two-pixel stems.
+        pencil(cell(1, 1, 21, 21), 3.0);
       } else if (kind == QStringLiteral("position")) {
-        // Two-pixel stems; heads three rows deep, two pixels past the stem on each side.
-        arrow(cell(10, 1, 12, 21), cell(1, 10, 21, 12), std::max(1, px(4) - px(1)),
-              std::max(1, px(3) - px(1)));
+        // Two-pixel stems; heads three rows deep.
+        arrow(cell(10, 1, 12, 21), cell(1, 10, 21, 12), std::max(1, px(4) - px(1)));
       } else if (kind == QStringLiteral("autonest")) {
         // An artboard frame with crop ticks at two corners, holding a small solid layer.
         fill({cell(6, 6, 16, 7), cell(6, 15, 16, 16), cell(6, 6, 7, 16), cell(15, 6, 16, 16),
               cell(6, 1, 7, 6), cell(1, 6, 6, 7), cell(15, 16, 16, 21), cell(16, 15, 21, 16),
               cell(9, 9, 13, 13)});
       } else {
-        // "all": a padlock, a two-pixel shackle with a rounded top over a 16x11 body with a
-        // round keyhole. The shackle's opening and the keyhole clear what was painted under them.
-        QPainterPath shackle;
-        shackle.addRoundedRect(cell(5, 1, 17, 12), 4.0 * unit, 4.0 * unit);
-        painter.drawPath(shackle);
-        QPainterPath opening;
-        opening.addRoundedRect(cell(7, 3, 15, 13), 2.0 * unit, 2.0 * unit);
-        cut(opening);
-        fill({cell(3, 10, 19, 21)});
-        QPainterPath keyhole;
-        keyhole.setFillRule(Qt::WindingFill);
-        keyhole.addEllipse(cell(9, 12, 13, 16));
-        keyhole.addRect(cell(10, 15, 12, 19));
-        cut(keyhole);
+        // "all": a two-pixel shackle over a 16x11 body with a round keyhole above a slot.
+        padlock(cell(5, 1, 17, 12), 4.0 * unit, cell(7, 3, 15, 13), 2.0 * unit, cell(3, 10, 19, 21));
+        const auto round_part = cell(9, 12, 13, 16);
+        clearing([&] {
+          plot(round_part, [&](int x, int y) { return in_rounded(round_part, round_part.width() / 2.0, x, y); });
+          fill({cell(10, 15, 12, 19)});
+        });
       }
     } else if (kind == QStringLiteral("transparent")) {
       // A framed 3x3 checkerboard: the corners and the middle solid.
@@ -617,26 +632,18 @@ QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
             cell(2, 2, 7, 7), cell(10, 2, 15, 7), cell(2, 10, 7, 15), cell(10, 10, 15, 15),
             cell(7, 7, 10, 10)});
     } else if (kind == QStringLiteral("pixels")) {
-      pencil(2, 15, 0.0);
+      pencil(cell(2, 2, 15, 15), 2.0);
     } else if (kind == QStringLiteral("position")) {
-      // One-unit stems; heads three units deep, two units past the stem on each side.
-      arrow(cell(8, 2, 9, 15), cell(2, 8, 15, 9), std::max(1, px(5) - px(2)), px(2));
+      // One-unit stems; heads three units deep.
+      arrow(cell(8, 2, 9, 15), cell(2, 8, 15, 9), std::max(1, px(5) - px(2)));
     } else if (kind == QStringLiteral("autonest")) {
       fill({cell(4, 4, 13, 5), cell(4, 12, 13, 13), cell(4, 4, 5, 13), cell(12, 4, 13, 13),
             cell(4, 2, 5, 4), cell(2, 4, 4, 5), cell(12, 13, 13, 15), cell(13, 12, 15, 13),
             cell(6, 6, 11, 11)});
     } else {
       // "all": a two-unit shackle over a solid body with a keyhole slot.
-      QPainterPath shackle;
-      shackle.addRoundedRect(cell(4, 2, 13, 10), 3.0 * unit, 3.0 * unit);
-      painter.drawPath(shackle);
-      QPainterPath opening;
-      opening.addRoundedRect(cell(6, 4, 11, 11), unit, unit);
-      cut(opening);
-      fill({cell(3, 8, 14, 15)});
-      QPainterPath slot;
-      slot.addRect(cell(8, 10, 9, 13));
-      cut(slot);
+      padlock(cell(4, 2, 13, 10), 3.0 * unit, cell(6, 4, 11, 11), unit, cell(3, 8, 14, 15));
+      clearing([&] { fill({cell(8, 10, 9, 13)}); });
     }
     if (theme_ink.alpha() < 255) {
       painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
