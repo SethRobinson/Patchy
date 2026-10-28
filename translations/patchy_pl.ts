@@ -27911,6 +27911,46 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Nieobsługiwany obraz lub dokument: %1</translation>
     </message>
     <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>Scal zaznaczone w nową warstwę (kopia)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>Następny tryb mieszania</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>Poprzedni tryb mieszania</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>Brak widocznych zaznaczonych warstw do scalenia</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (scalona)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>Nie można scalić zaznaczonych warstw. Oryginalne warstwy pozostają niezmienione.</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>Scal zaznaczone (kopia)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>Scalono zaznaczone warstwy w nową warstwę</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>Brak warstw do zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>Tryb mieszania: %1</translation>
+    </message>
+    <message>
         <source>Styles Manager...</source>
         <translation>Menedżer stylów...</translation>
     </message>

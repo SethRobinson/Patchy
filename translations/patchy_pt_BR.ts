@@ -27829,6 +27829,46 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>Imagem ou documento não compatível: %1</translation>
     </message>
     <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>Mesclar selecionadas para nova camada (Cópia)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>Próximo modo de mesclagem</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>Modo de mesclagem anterior</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>Nenhuma camada selecionada visível para mesclar</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (mesclada)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>Não foi possível mesclar as camadas selecionadas. As camadas originais permanecem inalteradas.</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>Mesclar selecionadas (cópia)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>As camadas selecionadas foram mescladas em uma nova camada</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>Nenhuma camada para selecionar</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>Modo de mesclagem: %1</translation>
+    </message>
+    <message>
         <source>Styles Manager...</source>
         <translation>Gerenciador de estilos...</translation>
     </message>

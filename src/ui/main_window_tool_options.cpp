@@ -1435,6 +1435,30 @@ void MainWindow::set_active_layer_blend(int index) {
   set_non_photoshop_blend_modes_offered(blend_combo_, in_use);
 }
 
+// Photoshop's Shift+Plus / Shift+Minus for the layer mode (GitHub issue 476): one step down or
+// up the Layers panel's list with the closed combo's rules (separators, modes the document's
+// depth cannot use and Paint.NET's modes skipped, stopping at either end), committed through
+// the combo, so a run of presses is one undo entry like a run of arrow-key steps.
+void MainWindow::step_layer_blend_mode(int direction) {
+  if (!has_active_document() || blend_combo_ == nullptr || !blend_combo_->isEnabled() ||
+      blend_combo_->view()->isVisible()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (selected_or_active_layer_ids().empty()) {
+    return;
+  }
+  const auto index = blend_mode_step_index(blend_combo_, direction);
+  if (index < 0 || index == blend_combo_->currentIndex()) {
+    return;
+  }
+  blend_combo_->setCurrentIndex(index);
+  statusBar()->showMessage(tr("Blend mode: %1").arg(blend_combo_->itemText(index)));
+}
+
 void MainWindow::finish_pending_layer_blend_edit() {
   if (layer_blend_idle_timer_ != nullptr) {
     layer_blend_idle_timer_->stop();
@@ -1918,7 +1942,7 @@ void MainWindow::refresh_color_buttons() {
         named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
   }
   refresh_text_color_button();
-  if (color_dock_panel_ != nullptr && color_dock_panel_->picking()) {
+  if (color_drag_in_progress()) {
     gradient_controls_refresh_pending_ = true;
   } else {
     refresh_gradient_controls_from_canvas();
@@ -3016,7 +3040,7 @@ void MainWindow::stash_active_colors() {
   if (!changed) {
     return;
   }
-  if (color_dock_panel_ != nullptr && color_dock_panel_->picking()) {
+  if (color_drag_in_progress()) {
     color_settings_save_pending_ = true;
   } else {
     color_settings_save_pending_ = false;
@@ -3055,6 +3079,14 @@ void MainWindow::load_color_settings() {
   };
   foreground_color_ = stored(kForegroundColorSettingsKey, QColor(Qt::black));
   background_color_ = stored(kBackgroundColorSettingsKey, QColor(Qt::white));
+}
+
+bool MainWindow::color_drag_in_progress() const {
+  // A drag through the Color panel's picker or a held canvas pick (GitHub #478) reports a
+  // color per move; the settings write (a file flush) and the gradient refresh wait for
+  // its end (finish_color_panel_drag).
+  return (color_dock_panel_ != nullptr && color_dock_panel_->picking()) ||
+         (canvas_ != nullptr && canvas_->color_pick_active());
 }
 
 void MainWindow::save_color_settings() const {

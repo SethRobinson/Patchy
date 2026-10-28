@@ -27747,6 +27747,46 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Styles Manager...</source>
         <translation type="unfinished"></translation>
     </message>

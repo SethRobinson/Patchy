@@ -81,6 +81,7 @@
 #include <memory>
 #include <optional>
 #include <qlatin1stringview.h>
+#include <tuple>
 #include <utility>
 
 
@@ -725,6 +726,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(deselect_layers_action, "select.deselect_layers");
   connect(deselect_layers_action, &QAction::triggered, this, [this] { deselect_all_layers(); });
   register_document_action(deselect_layers_action);
+  // Select > All Layers (GitHub issue 479): Photoshop's Ctrl+Alt+A (Cmd+Option+A).
+  auto* select_all_layers_action = new QAction(tr("All Layers"), this);
+  select_all_layers_action->setObjectName(QStringLiteral("selectAllLayersAction"));
+  bind_action_text(select_all_layers_action, QT_TR_NOOP("All Layers"));
+  select_all_layers_action->setMenuRole(QAction::NoRole);
+  register_hotkey(select_all_layers_action, "select.all_layers", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_A));
+  connect(select_all_layers_action, &QAction::triggered, this, [this] { select_all_layers(); });
+  register_document_action(select_all_layers_action);
   // Select Subject / Select Background / Remove Background: automatic selection of the main
   // subject (main_window_ai_selection.cpp). Builds without the subject model leave them out:
   // wasm, a dev tree without scripts/setup-ai-deps, and every build while
@@ -951,6 +960,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   select_menu->addAction(clear_selection_action);
   select_menu->addAction(reselect_action);
   select_menu->addAction(inverse_selection_action);
+  select_menu->addAction(select_all_layers_action);
   select_menu->addAction(deselect_layers_action);
   select_menu->addSeparator();
   select_menu->addAction(select_subject_action_);
@@ -1591,6 +1601,40 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
           [this](bool checked) { set_active_layer_lock_flag(kLayerLockArtboardAutonest, checked); });
   addAction(layer_prevent_auto_nesting_action_);
   register_document_action(layer_prevent_auto_nesting_action_);
+  // Merge Selected to New Layer (Copy) (GitHub issue 475): Photoshop's Ctrl+Alt+E. In the layer
+  // context menu's Merge submenu and on the window (the Layer menu's row count is pinned).
+  layer_merge_selected_to_new_action_ = new QAction(tr("Merge Selected to New Layer (Copy)"), this);
+  layer_merge_selected_to_new_action_->setObjectName(QStringLiteral("layerMergeSelectedToNewAction"));
+  bind_action_text(layer_merge_selected_to_new_action_, QT_TR_NOOP("Merge Selected to New Layer (Copy)"));
+  layer_merge_selected_to_new_action_->setIcon(simple_icon(QStringLiteral("merge")));
+  layer_merge_selected_to_new_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(layer_merge_selected_to_new_action_, "layer.merge_selected_to_new",
+                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_E));
+  connect(layer_merge_selected_to_new_action_, &QAction::triggered, this, [this] { merge_selected_to_new_layer(); });
+  addAction(layer_merge_selected_to_new_action_);
+  register_document_action(layer_merge_selected_to_new_action_);
+  // Next / Previous Blend Mode (GitHub issue 476): Photoshop's Shift+Plus and Shift+Minus step
+  // the selected layers' mode down and up the Layers panel's list. Window-only, like the
+  // actions above. Shift+= is the main keyboard's plus on US layouts: Qt matches that press
+  // as Shift+= or as an unshifted +, never as Shift++, which the keypad and layouts with a
+  // plain + key send.
+  for (const auto& [object_name, text, hotkey_id, direction] :
+       {std::tuple{"layerNextBlendModeAction", QT_TR_NOOP("Next Blend Mode"), "layer.blend_mode_next", 1},
+        std::tuple{"layerPreviousBlendModeAction", QT_TR_NOOP("Previous Blend Mode"), "layer.blend_mode_previous",
+                   -1}}) {
+    auto* action = new QAction(tr(text), this);
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QLatin1String(hotkey_id),
+                    direction > 0 ? QList<QKeySequence>{QKeySequence(Qt::SHIFT | Qt::Key_Plus),
+                                                        QKeySequence(Qt::SHIFT | Qt::Key_Equal)}
+                                  : QList<QKeySequence>{QKeySequence(Qt::SHIFT | Qt::Key_Minus)});
+    const int step = direction;
+    connect(action, &QAction::triggered, this, [this, step] { step_layer_blend_mode(step); });
+    addAction(action);
+    register_document_action(action);
+  }
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
   connect(merge_down_action, &QAction::triggered, this, [this] { merge_down(); });
   connect(rename_layer_action, &QAction::triggered, this, [this] { rename_active_layer(); });

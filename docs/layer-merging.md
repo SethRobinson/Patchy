@@ -78,6 +78,28 @@ preparation and resource duplication finish before undo and document mutation.
 In 16/32-bit documents raster merges and bitmap copies render at the document's
 depth (`ScopedDocumentDepthRender`; [high-bit-depth.md](high-bit-depth.md)).
 
+## Merge Selected to New Layer
+
+**Merge Selected to New Layer (Copy)** (`layerMergeSelectedToNewAction`, hotkey id
+`layer.merge_selected_to_new`, Ctrl+Alt+E, Cmd+Option+E on macOS; #475) is Photoshop's
+Ctrl+Alt+E with layers selected. It has no Layer menu row (the menu is at its 23-row bound):
+it sits in the layer context menu's Merge submenu and on the window for the hotkey.
+`MainWindow::merge_selected_to_new_layer` renders `selected_document_for_merge_copy` (layer_merge.cpp)
+on a worker at the document depth, like the bitmap copy above, and inserts one full-canvas
+pixel layer named "<top layer> (merged)" directly above the topmost selected layer (the first
+selected panel row), one undo step. It never opens the vector dialog; the originals keep
+their content, visibility and ids. One selected layer is copied merged (Photoshop does too).
+
+- A selected group keeps its visible subtree. An unselected group holding selected layers
+  dissolves into its parent for the render; the copy then lands inside that group, so its
+  opacity, mask and blending apply once.
+- Hidden layers and layers clipped to a hidden base drop, as in Merge Visible to New Layer.
+  A clipped layer whose base is not part of the merge is released for the render.
+- Locks never block it. With nothing selected that draws, the context-menu entry is off
+  and the hotkey reports "No visible selected layers to merge".
+
+Test: `ui_merge_selected_to_new_layer_keeps_originals_and_undoes`.
+
 ## Merge Visible
 
 **Layer > Merge Visible** (`layerMergeVisibleLayersAction`, hotkey id

@@ -27747,6 +27747,46 @@ The open document keeps its blend modes either way.</source>
         <translation>不支持的图像或文档：%1</translation>
     </message>
     <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>合并所选图层到新图层(拷贝)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>下一个混合模式</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>上一个混合模式</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>没有可合并的可见所选图层</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (合并)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>无法合并所选图层。原始图层未更改。</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>复制并合并所选图层</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>已将所选图层合并到新图层</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>没有可选择的图层</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>混合模式：%1</translation>
+    </message>
+    <message>
         <source>Styles Manager...</source>
         <translation>样式管理器...</translation>
     </message>

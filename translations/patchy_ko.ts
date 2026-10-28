@@ -27747,6 +27747,46 @@ The open document keeps its blend modes either way.</source>
         <translation>지원되지 않는 이미지 또는 문서입니다: %1</translation>
     </message>
     <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>선택한 레이어를 새 레이어로 병합(복사)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>다음 혼합 모드</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>이전 혼합 모드</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>병합할 보이는 선택 레이어가 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1(병합됨)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>선택한 레이어를 병합할 수 없습니다. 원본 레이어는 변경되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>선택한 레이어 병합(복사)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>선택한 레이어를 새 레이어로 병합했습니다.</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>선택할 레이어가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>혼합 모드: %1</translation>
+    </message>
+    <message>
         <source>Styles Manager...</source>
         <translation>스타일 관리자...</translation>
     </message>

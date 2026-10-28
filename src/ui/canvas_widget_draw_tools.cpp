@@ -1435,6 +1435,7 @@ std::optional<QColor> average_sample_color(const QImage& image) {
 void CanvasWidget::begin_color_pick(QPoint widget_position, QPoint global_position) {
   color_picking_ = true;
   color_pick_layer_warned_ = false;
+  color_pick_reported_ = false;
   // The loupe's bottom arc: the color this pick replaces, before any live update.
   sample_loupe_previous_color_ = color_pick_to_background_ ? secondary_color_ : primary_color_;
   grabMouse();
@@ -1466,6 +1467,9 @@ void CanvasWidget::end_color_pick() {
     releaseMouse();
   }
   update_tool_cursor();
+  if (color_pick_finished_callback_) {
+    color_pick_finished_callback_();
+  }
 }
 
 void CanvasWidget::set_picked_color(QColor picked) {
@@ -1473,6 +1477,13 @@ void CanvasWidget::set_picked_color(QColor picked) {
     return;
   }
   picked.setAlpha(255);
+  // A drag over flat color samples the same color move after move: the first report of
+  // the gesture always goes out, repeats of the color it already set do not (GitHub #478).
+  const auto current = color_pick_to_background_ ? secondary_color_ : primary_color_;
+  if (color_picking_ && color_pick_reported_ && picked == current) {
+    return;
+  }
+  color_pick_reported_ = true;
   if (color_pick_to_background_) {
     secondary_color_ = picked;
     if (background_color_picked_callback_) {

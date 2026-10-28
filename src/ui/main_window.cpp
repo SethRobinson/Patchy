@@ -5040,6 +5040,14 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         key_event->accept();
         return true;
       }
+      // AltGr arrives as Ctrl+Alt on Windows: a character it types (the euro sign on many
+      // layouts is AltGr+E) is text here, not Ctrl+Alt+E (#475) or another Ctrl+Alt hotkey.
+      const auto modifiers = key_event->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier);
+      if (modifiers == (Qt::ControlModifier | Qt::AltModifier) && !key_event->text().isEmpty() &&
+          key_event->text().front().isPrint()) {
+        key_event->accept();
+        return true;
+      }
     }
   }
 
@@ -5796,6 +5804,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     statusBar()->showMessage(message);
   });
+  // The pick's colors were reported per move; they are saved once it ends (GitHub #478).
+  canvas->set_color_pick_finished_callback([this] { finish_color_panel_drag(); });
   // The Eyedropper's Alt+click (GitHub issue 150): the canvas already holds the
   // new background color; mirror it into the color well and say so.
   canvas->set_background_color_picked_callback([this, canvas](QColor color) {

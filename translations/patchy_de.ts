@@ -27829,6 +27829,46 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Kein unterstütztes Bild oder Dokument: %1</translation>
     </message>
     <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>Ausgewählte auf eine neue Ebene reduzieren (Kopie)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>Nächste Füllmethode</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>Vorherige Füllmethode</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>Keine sichtbaren ausgewählten Ebenen zum Zusammenfügen</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (zusammengefügt)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>Die ausgewählten Ebenen konnten nicht zusammengefügt werden. Die ursprünglichen Ebenen sind unverändert.</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>Ausgewählte zusammenfügen (Kopie)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>Die ausgewählten Ebenen wurden in eine neue Ebene zusammengefügt</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>Keine Ebenen zum Auswählen</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>Füllmethode: %1</translation>
+    </message>
+    <message>
         <source>Styles Manager...</source>
         <translation>Stilverwaltung...</translation>
     </message>

@@ -34,6 +34,8 @@
 #include <QItemSelectionModel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
+#include <QMenuBar>
 #include <QMouseEvent>
 #include <QThread>
 #include <QPaintEvent>
@@ -1553,6 +1555,78 @@ void ui_move_deselect_layers_clears_panel_rows_and_active_layer() {
   CHECK(doc.find_layer(red_id)->bounds().x == 18);
   CHECK(doc.find_layer(blue_id)->bounds().x == 48);
   CHECK(history->count() == history_count);
+}
+
+// GitHub issue 479: Select > All Layers (Ctrl+Alt+A), above Deselect Layers, selects every
+// Layers panel row but the Background (Photoshop) and keeps the active layer. No history entry.
+void ui_select_all_layers_selects_every_row_but_the_background() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
+  auto& background = document.add_pixel_layer("Background",
+      solid_pixels(120, 90, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+  patchy::set_layer_locks_position(background, true);
+  const auto background_id = background.id();
+  patchy::Layer red(document.allocate_layer_id(), "Red",
+                    solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
+  red.set_bounds(patchy::Rect{18, 18, 12, 12});
+  const auto red_id = document.add_layer(std::move(red)).id();
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::Layer inside(document.allocate_layer_id(), "Inside",
+                       solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 200, 40, 255)));
+  inside.set_bounds(patchy::Rect{30, 40, 12, 12});
+  folder.add_child(std::move(inside));
+  document.add_layer(std::move(folder));
+  patchy::Layer blue(document.allocate_layer_id(), "Blue",
+                     solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+  blue.set_bounds(patchy::Rect{48, 18, 12, 12});
+  const auto blue_id = document.add_layer(std::move(blue)).id();
+  document.set_active_layer(red_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Select All Layers"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(layer_list != nullptr && history != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  auto* action = require_hotkey_action(window, QStringLiteral("select.all_layers"));
+  CHECK(action->objectName() == QStringLiteral("selectAllLayersAction"));
+  CHECK(action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_A));
+  auto* deselect_action = require_hotkey_action(window, QStringLiteral("select.deselect_layers"));
+  QMenu* select_menu = nullptr;
+  for (auto* entry : window.menuBar()->actions()) {
+    if (entry->menu() != nullptr && entry->menu()->actions().contains(deselect_action)) {
+      select_menu = entry->menu();
+    }
+  }
+  CHECK(select_menu != nullptr);
+  if (select_menu != nullptr) {
+    CHECK(select_menu->actions().indexOf(action) + 1 == select_menu->actions().indexOf(deselect_action));
+  }
+  const auto history_count = history->count();
+
+  action->trigger();
+  QApplication::processEvents();
+  const auto selected = patchy::ui::MainWindowTestAccess::selected_layer_ids(window);
+  const auto has = [&selected](patchy::LayerId id) {
+    return std::find(selected.begin(), selected.end(), id) != selected.end();
+  };
+  CHECK(has(red_id) && has(folder_id) && has(blue_id));
+  CHECK(!has(background_id));
+  CHECK(static_cast<int>(selected.size()) == layer_list->count() - 1);
+  CHECK(doc.active_layer_id() == red_id);
+  CHECK(history->count() == history_count);
+
+  // Deselect Layers undoes it; with nothing active the topmost row becomes active.
+  deselect_action->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::selected_layer_ids(window).empty());
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(static_cast<int>(patchy::ui::MainWindowTestAccess::selected_layer_ids(window).size()) ==
+        layer_list->count() - 1);
+  CHECK(doc.active_layer_id() == blue_id);
 }
 
 // A one-layer document leaves a layer command only one possible target, so a
@@ -5435,6 +5509,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_layer_panel_blank_click_deselects_and_hides_transform_box},
       {"ui_move_deselect_layers_clears_panel_rows_and_active_layer",
        ui_move_deselect_layers_clears_panel_rows_and_active_layer},
+      {"ui_select_all_layers_selects_every_row_but_the_background",
+       ui_select_all_layers_selects_every_row_but_the_background},
       {"ui_move_deselected_only_layer_is_selected_on_demand",
        ui_move_deselected_only_layer_is_selected_on_demand},
       {"ui_move_rectangle_reveals_collapsed_and_filtered_layers", ui_move_rectangle_reveals_collapsed_and_filtered_layers},
