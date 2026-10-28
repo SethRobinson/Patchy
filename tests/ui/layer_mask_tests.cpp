@@ -5,6 +5,8 @@
 #include "formats/aseprite_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
+#include "ui/app_settings.hpp"
+#include "ui/layer_thumbnail_size.hpp"
 #include "ui/main_window.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
@@ -749,8 +751,9 @@ struct SeenMenu {
   QStringList texts;
 };
 
-// Right-clicks `widget_name` in `row_name`'s row and picks `pick` (an action objectName, or empty
-// to close); returns the menu that opened. `artifact` saves the open menu.
+// Right-clicks `widget_name` in `row_name`'s row and picks `pick` (an action objectName, also one
+// inside a submenu, or empty to close); returns the menu that opened, submenus listed by their
+// object names. `artifact` saves the open menu.
 SeenMenu right_click_layer_row_part(QListWidget& layers, const QString& row_name, const QString& widget_name,
                                     const QString& pick, const std::string& artifact = {}) {
   SeenMenu seen;
@@ -762,17 +765,30 @@ SeenMenu right_click_layer_row_part(QListWidget& layers, const QString& row_name
       }
       seen.name = menu->objectName();
       QAction* chosen = nullptr;
+      QAction* chosen_in_submenu = nullptr;
       for (auto* action : menu->actions()) {
-        seen.actions.push_back(action->isSeparator() ? QStringLiteral("-") : action->objectName());
+        seen.actions.push_back(action->isSeparator() ? QStringLiteral("-")
+                               : action->menu() != nullptr ? action->menu()->objectName()
+                                                           : action->objectName());
         seen.texts.push_back(action->text());
         if (!pick.isEmpty() && action->objectName() == pick) {
           chosen = action;
+        }
+        if (action->menu() != nullptr && !pick.isEmpty()) {
+          for (auto* entry : action->menu()->actions()) {
+            if (entry->objectName() == pick) {
+              chosen_in_submenu = entry;
+            }
+          }
         }
       }
       if (!artifact.empty()) {
         save_widget_artifact(artifact, *menu);
       }
-      if (chosen != nullptr) {
+      if (chosen_in_submenu != nullptr) {
+        menu->close();
+        chosen_in_submenu->trigger();
+      } else if (chosen != nullptr) {
         menu->setActiveAction(chosen);
         QTest::keyClick(menu, Qt::Key_Return);
       } else {
@@ -904,9 +920,31 @@ void ui_layer_mask_thumbnail_right_click_opens_mask_menu() {
                      QStringLiteral("layerDeleteMaskAction"), QStringLiteral("layerApplyMaskAction"),
                      QStringLiteral("-"), QStringLiteral("layerMaskThumbnailSelectAction"),
                      QStringLiteral("layerMaskThumbnailAddAction"), QStringLiteral("layerMaskThumbnailSubtractAction"),
-                     QStringLiteral("layerMaskThumbnailIntersectAction"), QStringLiteral("-"), QString()}));
+                     QStringLiteral("layerMaskThumbnailIntersectAction"), QStringLiteral("-"),
+                     QStringLiteral("layerThumbnailExportMenu"), QStringLiteral("-"),
+                     QStringLiteral("layerThumbnailSizeMenu"), QStringLiteral("layerThumbnailDisplayMenu")}));
   CHECK(seen.texts.value(0) == QStringLiteral("Disable Layer Mask"));
   CHECK(seen.texts.value(11) == QStringLiteral("Export"));  // the layer export submenu (#462)
+  // Then how thumbnails are drawn, the same submenus as the pixel thumbnail's (#481): picking
+  // there changes the shared settings.
+  CHECK(seen.texts.mid(13) == (QStringList{QStringLiteral("Thumbnail Size"), QStringLiteral("Thumbnail Display")}));
+  {
+    SettingsValueRestorer restore_size{QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey)};
+    SettingsValueRestorer restore_zoom(QStringLiteral("view/zoomLayerThumbnailsToContent"));
+    const bool zoomed = require_action(window, "layerThumbnailBoundsLayerAction")->isChecked();
+    mask_menu(zoomed ? "layerThumbnailBoundsDocumentAction" : "layerThumbnailBoundsLayerAction");
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("view/zoomLayerThumbnailsToContent")).toBool() == !zoomed);
+    CHECK(require_action(window, zoomed ? "layerThumbnailBoundsDocumentAction" : "layerThumbnailBoundsLayerAction")
+              ->isChecked());
+    mask_menu("layerThumbnailSizeLargeAction", "issue481_mask_thumbnail_menu");
+    CHECK(patchy::ui::app_settings().value(QLatin1String(patchy::ui::kLayerThumbnailSizeSettingsKey)).toString() ==
+          QStringLiteral("large"));
+    // Back to the defaults the rest of this test was written against.
+    require_action(window, "layerThumbnailSizeMediumAction")->trigger();
+    require_action(window, zoomed ? "layerThumbnailBoundsLayerAction" : "layerThumbnailBoundsDocumentAction")
+        ->trigger();
+    QApplication::processEvents();
+  }
   const auto* masked = find_named_layer(window, "Masked");
   CHECK(masked != nullptr && masked->mask().has_value() && masked->mask()->disabled);
   seen = mask_menu("layerMaskThumbnailToggleAction");

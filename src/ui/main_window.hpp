@@ -2062,11 +2062,13 @@ private:
   // the setter that saves and rebuilds the rows.
   void add_layer_thumbnail_size_menu(QMenu* menu);
   void set_layer_thumbnail_size(LayerThumbnailSize size);
-  // The Thumbnail Display submenu on the pixel thumbnail menu (#481): Preferences' "Zoom layer
-  // thumbnails to the layer content" as two radio actions. The setter saves, syncs both and
-  // rebuilds the rows.
+  // The Thumbnail Display submenu (#481): Preferences' "Zoom layer thumbnails to the layer
+  // content" as two radio actions. The setter saves, syncs both and rebuilds the rows.
   void add_layer_thumbnail_bounds_actions(QMenu* menu);
   void set_zoom_layer_thumbnails_to_content(bool zoom);
+  // Ends a thumbnail's own right-click menu (pixel, layer mask and vector mask thumbnails) with the
+  // Thumbnail Size and Thumbnail Display submenus, after a separator (#481).
+  void add_layer_thumbnail_view_menus(QMenu* menu);
   // Layer export (#462, main_window_files.cpp): Quick Export as PNG (choose_format false) and
   // Export As... for the selected layers, each its own file named after the layer (a group as
   // its composite; a mask source writes each selected layer's mask of that kind instead).

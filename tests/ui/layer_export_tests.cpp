@@ -315,8 +315,7 @@ ThumbnailMenuSeen read_thumbnail_menu(patchy::ui::MainWindow& window, QListWidge
 }
 
 // The pixel, layer mask and vector mask thumbnails' own menus carry the same Export submenu
-// (#462): before Thumbnail Size and the thumbnail bounds pair (#481) on a pixel thumbnail, last
-// on a mask thumbnail.
+// (#462), before the Thumbnail Size and Thumbnail Display submenus (#481) on every one.
 void ui_layer_thumbnail_menu_offers_layer_export() {
   patchy::ui::MainWindow window;
   patchy::Document built(80, 60, patchy::PixelFormat::rgba8());
@@ -344,6 +343,9 @@ void ui_layer_thumbnail_menu_offers_layer_export() {
   // A mask thumbnail's entries export the mask itself: the menu's own actions.
   const QStringList mask_actions{QStringLiteral("layerMaskQuickExportPngAction"),
                                  QStringLiteral("layerMaskExportAsAction")};
+  // A mask thumbnail's menu ends with Export, then the thumbnail view submenus (#481).
+  const QStringList mask_tail{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu"), QStringLiteral("-"),
+                              QStringLiteral("layerThumbnailSizeMenu"), QStringLiteral("layerThumbnailDisplayMenu")};
 
   auto seen = read_thumbnail_menu(window, *layers, QStringLiteral("Spot"), QStringLiteral("layerContentThumbnail"),
                                   "issue462_thumbnail_menu");
@@ -364,15 +366,13 @@ void ui_layer_thumbnail_menu_offers_layer_export() {
   seen = read_thumbnail_menu(window, *layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),
                              "issue462_mask_thumbnail_menu");
   CHECK(seen.name == QStringLiteral("layerMaskThumbnailMenu"));
-  CHECK(seen.entries.size() >= 2 && seen.entries.mid(seen.entries.size() - 2) ==
-                                        (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu")}));
+  CHECK(seen.entries.size() >= 5 && seen.entries.mid(seen.entries.size() - 5) == mask_tail);
   CHECK(seen.export_entries == mask_actions);
 
   seen = read_thumbnail_menu(window, *layers, QStringLiteral("Vector Masked"),
                              QStringLiteral("layerVectorMaskThumbnail"));
   CHECK(seen.name == QStringLiteral("layerVectorMaskThumbnailMenu"));
-  CHECK(seen.entries.size() >= 2 && seen.entries.mid(seen.entries.size() - 2) ==
-                                        (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu")}));
+  CHECK(seen.entries.size() >= 5 && seen.entries.mid(seen.entries.size() - 5) == mask_tail);
   CHECK(seen.export_entries == mask_actions);
 }
 
