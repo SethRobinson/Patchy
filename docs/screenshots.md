@@ -110,6 +110,16 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 </tr>
 <tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/web_export.png"><img src="images/screenshots/web_export.png" width="430" alt="Export for Web making an animated GIF of San Francisco going from afternoon to blue hour, paused on frame 4 of 8, with a split view comparing the original and the 16-color dithered result and the encoded size of every format"></a>
+      <br><sub>Export for Web: eight layers become an animated GIF that plays in the preview, a draggable split compares the original with a 16-color dithered result, and every format lists its real encoded size</sub>
+    </td>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/perspective_planes.png"><img src="images/screenshots/perspective_planes.png" width="430" alt="Perspective Planes workspace on a photo of a brick wall seen from below: one plane follows the brick courses, with San Francisco and Havana posters pasted onto it and a Sunset poster still floating with its handles"></a>
+      <br><sub>Perspective Planes: posters pasted onto a brick wall follow its perspective, and the Sunset poster is still movable with its handles</sub>
+    </td>
+</tr>
+<tr>
 <td align="center" valign="top" colspan="2"><a href="images/screenshots/layered_import.png"><img src="images/screenshots/layered_import.png" width="860" alt="Why settle for only .psd? An introduction above eight labeled artboards in a 4 by 2 grid: Photoshop game artwork, Affinity game tips, a Krita character painting, a GIMP planet illustration, an OpenRaster city poster, a Paint.NET landscape, a layered TIFF print design, and Aseprite pixel art"></a><br><sub>Eight formats, one document: PSD/PSB, Affinity, Krita, GIMP, OpenRaster, Paint.NET, layered TIFF, and Aseprite, each with different artwork and its own imported layer stack. Editable SVG and PDF imports are also supported.</sub></td>
 </tr>
 </table>

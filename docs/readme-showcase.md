@@ -43,6 +43,8 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `warp_text.png` | `shot_readme_warp_text` | Generated editable type; Japanese-capable font required |
 | `tilt_shift.png` | `shot_readme_tilt_shift` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg` |
 | `gmic.png` | `shot_readme_gmic` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped around the car; needs a build with the G'MIC engine |
+| `web_export.png` (gallery only) | `shot_readme_web_export` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg`, graded into eight frame layers in the scene |
+| `perspective_planes.png` (gallery only) | `shot_readme_perspective_planes` | `test-fixtures/readme/brick_wall_new_brunswick_cc0.jpg` (CC0), with posters made from the San Francisco, Havana and sunset images |
 | `long_shadow.png` (gallery only) | `shot_readme_long_shadow` | Generated editable type and live continuous shadows; no external artwork |
 
 Offscreen recipes live in `tests/ui/readme_screenshot_tests_*.cpp`. They create
@@ -127,6 +129,21 @@ preview to land on the layer, and checks that the left half is untouched, so the
 the original beside the result. The photo stays under the 1.5 megapixel draft threshold, so
 the first preview is the final one. The right dock is widened under the dialog so the whole
 photo stays in view beside it. Builds without the engine report a skip.
+
+The Export for Web scene (`tests/ui/readme_screenshot_tests_showcase.cpp`, with Perspective
+Planes) builds an eight-layer day-to-blue-hour time-lapse from the San Francisco photo (graded,
+a slow push in, lit windows at night; the last layer's name holds it for a second), presets GIF
+at 16 colors with diffusion (few enough that the dither shows in the split) and Split compare through the exportForWeb settings (restored
+afterward), waits for all eight decoded frames and pauses on frame 4.
+
+The Perspective Planes scene drives the real workspace on the CC0 brick wall photo, scaled to
+1400 x 1050. Its one plane is built from the photo's own lines: the top and bottom edges run to
+the vanishing point of the right window sill and the sign's lower edge, the sides to that of
+the drainpipe and the sign's left edge, so the grid follows the brick courses. Three posters
+(San Francisco, Havana, Sunset) are pasted at one scale and spaced from the plane's width; the
+first two are placed and the last is left floating. Keep the plane at a gentle angle: a
+steeply foreshortened plane samples a coarse mip level and blurs the art (a first version on
+the Havana street's right-hand wall did). Use real CC0 photos here, never generated ones.
 
 The text showcase combines a live Warp Text preview with three warped words,
 a single boxed paragraph containing bold, italic, colored, and mixed-font runs,

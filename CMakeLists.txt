@@ -2536,6 +2536,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp
       tests/ui/readme_screenshot_tests_scripting.cpp
+      tests/ui/readme_screenshot_tests_showcase.cpp
     )
     # The split TUs live in tests/ui/ but repeat the historical monolith include
     # block ("test_harness.hpp" etc.), so tests/ must be on the include path.

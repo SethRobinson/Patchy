@@ -360,14 +360,21 @@ not part of any release package.
   Commons original was downloaded on 2026-07-15 from
   https://commons.wikimedia.org/wiki/File:Cityscape_of_San_Francisco.jpg
   (SHA-256 `8B09FA97853316DC4C548C7A1631D4C0955148338DF7CA2E75BAA5BC576DDE0D`).
-  It is used only to regenerate the README Tilt-Shift Blur screenshot.
+  It is used only to regenerate the README and gallery screenshots.
 - `test-fixtures/readme/havana_vintage_car_cc0.jpg`: "Vintage car driving in Centro
   Havana," photographed by Eva Blue (Unsplash, https://unsplash.com/photos/ppuYl-1noKc) and
   published under the Creative Commons CC0 1.0 Universal Public Domain Dedication. The
   exact Wikimedia Commons original was downloaded on 2026-10-12 from
   https://commons.wikimedia.org/wiki/File:Vintage_car_driving_in_Centro_Havana_(Unsplash).jpg
   (SHA-256 `90D61080598A430F12615282014CA47138CD04BDE3AE8185333E0530480A35D8`).
-  It is used only to regenerate the README Object Selection screenshot.
+  It is used only to regenerate the README and gallery screenshots.
+- `test-fixtures/readme/brick_wall_new_brunswick_cc0.jpg`: "Brick wall in New Brunswick,
+  NJ" (behind the College Avenue Gymnasium), photographed by Siddharth Patil and published
+  under the Creative Commons CC0 1.0 Universal Public Domain Dedication. The exact
+  Wikimedia Commons original was downloaded on 2026-10-28 from
+  https://commons.wikimedia.org/wiki/File:Brick_wall_in_New_Brunswick,_NJ.jpg
+  (SHA-256 `0AD3042939C2F01E8D4C9DBC0009B8FED1085E2914583742FA6CEB64C4E2EF25`).
+  It is used only to regenerate the gallery Perspective Planes screenshot.
 - `test-fixtures/svg/hot_air_balloons_cc0.svg`: "Hot Air Balloon Scene," a
   vector illustration published under the Creative Commons CC0 1.0 Universal
   Public Domain Dedication (uploader OpenClipart). The exact file was
@@ -384,7 +391,7 @@ not part of any release package.
   and rasterized unmodified at its native 1920x1200 with Patchy's own SVG
   import (`patchy.exe <svg> --export <png>`); the committed PNG's SHA-256 is
   `770AB5D6CAA07150F3FE075C3E5F14EC78FF95B44FAD87BDA91C7FA7C9348BD8`.
-  It is used only to regenerate the README Trace Image to Shapes screenshot.
+  It is used only to regenerate the README and gallery screenshots.
 - `test-fixtures/ico/cpython-py.ico`: the CPython `py.ico` application icon
   from https://github.com/python/cpython (`PC/icons/py.ico`), included under the
   Python Software Foundation License 2.0 as a real-world multi-size icon sample.
