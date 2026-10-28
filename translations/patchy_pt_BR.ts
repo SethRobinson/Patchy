@@ -27847,14 +27847,6 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>Modo de mesclagem: %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>Ampliar miniaturas para o conteúdo da camada</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>Mostrar o documento inteiro nas miniaturas</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>Tudo</translation>
     </message>
@@ -27910,6 +27902,18 @@ Bloqueado: %1</translation>
     <message>
         <source>Custom Shapes...</source>
         <translation>Formas personalizadas...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>Ampliar para o conteúdo da camada</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>Documento inteiro</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>Exibição de miniaturas</translation>
     </message>
 </context>
 <context>

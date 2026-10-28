@@ -238,12 +238,15 @@ struct ThumbnailMenuSeen {
   QString name;
   QStringList entries;  // separators as "-", submenus by their object name
   QStringList export_entries;
+  QStringList display_entries;  // the Thumbnail Display submenu's actions, checked ones marked "*"
 };
 
 // Right-clicks `part` of the named row and reads the short thumbnail menu. With `artifact`
-// it saves the menu with its Export submenu open over the window.
+// it saves the menu with the `open_submenu` submenu (Export by default) open over the window.
 ThumbnailMenuSeen read_thumbnail_menu(patchy::ui::MainWindow& window, QListWidget& layers, const QString& row_name,
-                                      const QString& part, const std::string& artifact = std::string()) {
+                                      const QString& part, const std::string& artifact = std::string(),
+                                      const QString& open_submenu = QStringLiteral("layerThumbnailExportMenu"),
+                                      const std::string& open_suffix = "_export_open") {
   ThumbnailMenuSeen seen;
   QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -259,6 +262,13 @@ ThumbnailMenuSeen read_thumbnail_menu(patchy::ui::MainWindow& window, QListWidge
                                                                                   : action->objectName()));
         if (action->menu() != nullptr && action->menu()->objectName() == QStringLiteral("layerThumbnailExportMenu")) {
           seen.export_entries = action_names(*action->menu());
+        }
+        if (action->menu() != nullptr && action->menu()->objectName() == QStringLiteral("layerThumbnailDisplayMenu")) {
+          for (auto* entry : action->menu()->actions()) {
+            seen.display_entries << entry->objectName() + (entry->isChecked() ? QStringLiteral("*") : QString());
+          }
+        }
+        if (action->menu() != nullptr && action->menu()->objectName() == open_submenu) {
           export_entry = action;
         }
       }
@@ -284,7 +294,7 @@ ThumbnailMenuSeen read_thumbnail_menu(patchy::ui::MainWindow& window, QListWidge
               painter.drawPixmap(popup->mapToGlobal(QPoint(0, 0)) - origin - crop.topLeft(), popup->grab());
             }
           }
-          save_image_artifact(artifact + "_export_open", shot);
+          save_image_artifact(artifact + open_suffix, shot);
           submenu->close();
         }
       }
@@ -340,9 +350,16 @@ void ui_layer_thumbnail_menu_offers_layer_export() {
   CHECK(seen.name == QStringLiteral("layerThumbnailMenu"));
   CHECK(seen.entries.mid(4) == (QStringList{QStringLiteral("-"), QStringLiteral("layerThumbnailExportMenu"),
                                             QStringLiteral("-"), QStringLiteral("layerThumbnailSizeMenu"),
-                                            QStringLiteral("layerThumbnailBoundsLayerAction"),
-                                            QStringLiteral("layerThumbnailBoundsDocumentAction")}));
+                                            QStringLiteral("layerThumbnailDisplayMenu")}));
   CHECK(seen.export_entries == both_actions);
+  // The thumbnail bounds pair sits in its own submenu under Thumbnail Size (#481), the current
+  // setting checked.
+  seen = read_thumbnail_menu(window, *layers, QStringLiteral("Spot"), QStringLiteral("layerContentThumbnail"),
+                             "issue481_thumbnail_menu", QStringLiteral("layerThumbnailDisplayMenu"), "_display_open");
+  const auto zoomed = patchy::ui::app_settings().value(QStringLiteral("view/zoomLayerThumbnailsToContent"), true).toBool();
+  CHECK(seen.display_entries ==
+        (QStringList{QStringLiteral("layerThumbnailBoundsLayerAction") + (zoomed ? QStringLiteral("*") : QString()),
+                     QStringLiteral("layerThumbnailBoundsDocumentAction") + (zoomed ? QString() : QStringLiteral("*"))}));
 
   seen = read_thumbnail_menu(window, *layers, QStringLiteral("Masked"), QStringLiteral("layerMaskThumbnail"),
                              "issue462_mask_thumbnail_menu");

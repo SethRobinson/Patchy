@@ -27765,14 +27765,6 @@ The open document keeps its blend modes either way.</source>
         <translation>혼합 모드: %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>축소판을 레이어 내용에 맞춰 확대</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>축소판에 문서 전체 표시</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>모두</translation>
     </message>
@@ -27828,6 +27820,18 @@ Locked: %1</source>
     <message>
         <source>Custom Shapes...</source>
         <translation>사용자 지정 모양...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>레이어 내용에 맞춰 확대</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>문서 전체</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>축소판 표시</translation>
     </message>
 </context>
 <context>

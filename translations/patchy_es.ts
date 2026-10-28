@@ -27847,14 +27847,6 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>Modo de fusión: %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>Ampliar miniaturas al contenido de la capa</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>Mostrar el documento completo en las miniaturas</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>Todo</translation>
     </message>
@@ -27910,6 +27902,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Custom Shapes...</source>
         <translation>Formas personalizadas...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>Ampliar al contenido de la capa</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>Documento completo</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>Visualización de miniaturas</translation>
     </message>
 </context>
 <context>

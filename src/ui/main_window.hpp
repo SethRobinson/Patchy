@@ -2062,7 +2062,7 @@ private:
   // the setter that saves and rebuilds the rows.
   void add_layer_thumbnail_size_menu(QMenu* menu);
   void set_layer_thumbnail_size(LayerThumbnailSize size);
-  // The thumbnail bounds pair on the pixel thumbnail menu (#481): Preferences' "Zoom layer
+  // The Thumbnail Display submenu on the pixel thumbnail menu (#481): Preferences' "Zoom layer
   // thumbnails to the layer content" as two radio actions. The setter saves, syncs both and
   // rebuilds the rows.
   void add_layer_thumbnail_bounds_actions(QMenu* menu);

@@ -27929,14 +27929,6 @@ The open document keeps its blend modes either way.</source>
         <translation>Режим наложения: %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>Масштабировать миниатюры по содержимому слоя</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>Показывать весь документ в миниатюрах</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>Всё</translation>
     </message>
@@ -27992,6 +27984,18 @@ Locked: %1</source>
     <message>
         <source>Custom Shapes...</source>
         <translation>Произвольные фигуры...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>Масштаб по содержимому слоя</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>Весь документ</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>Отображение миниатюр</translation>
     </message>
 </context>
 <context>

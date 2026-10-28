@@ -27765,14 +27765,6 @@ The open document keeps its blend modes either way.</source>
         <translation>混合模式：%1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>縮圖縮放至圖層內容</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>縮圖顯示整份文件</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>全部</translation>
     </message>
@@ -27828,6 +27820,18 @@ Locked: %1</source>
     <message>
         <source>Custom Shapes...</source>
         <translation>自訂形狀...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>縮放至圖層內容</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>整份文件</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>縮圖顯示</translation>
     </message>
 </context>
 <context>

@@ -27768,14 +27768,6 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>All</source>
         <translation type="unfinished"></translation>
     </message>
@@ -27828,6 +27820,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>Custom Shapes...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

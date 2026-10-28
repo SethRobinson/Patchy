@@ -27929,14 +27929,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>Tryb mieszania: %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>Powiększ miniatury do zawartości warstwy</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>Pokaż cały dokument w miniaturach</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>Wszystko</translation>
     </message>
@@ -27992,6 +27984,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Custom Shapes...</source>
         <translation>Niestandardowe kształty...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>Powiększ do zawartości warstwy</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>Cały dokument</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>Wyświetlanie miniatur</translation>
     </message>
 </context>
 <context>

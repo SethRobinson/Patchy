@@ -27847,14 +27847,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>Mode de fusion : %1</translation>
     </message>
     <message>
-        <source>Zoom Thumbnails to Layer Content</source>
-        <translation>Zoomer les vignettes sur le contenu du calque</translation>
-    </message>
-    <message>
-        <source>Show Whole Document in Thumbnails</source>
-        <translation>Afficher tout le document dans les vignettes</translation>
-    </message>
-    <message>
         <source>All</source>
         <translation>Tout</translation>
     </message>
@@ -27910,6 +27902,18 @@ Verrouillé : %1</translation>
     <message>
         <source>Custom Shapes...</source>
         <translation>Formes personnalisées...</translation>
+    </message>
+    <message>
+        <source>Zoom to Layer Content</source>
+        <translation>Zoomer sur le contenu du calque</translation>
+    </message>
+    <message>
+        <source>Whole Document</source>
+        <translation>Document entier</translation>
+    </message>
+    <message>
+        <source>Thumbnail Display</source>
+        <translation>Affichage des vignettes</translation>
     </message>
 </context>
 <context>
