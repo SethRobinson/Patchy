@@ -6219,8 +6219,9 @@ void ui_layer_row_tooltip_names_every_lock() {
   CHECK(tip("Everything").startsWith(QStringLiteral("Everything\n100% opacity\nLocked: All")));
 }
 
-// GitHub issue 484: the lock buttons' icons share one height and fill most of it, in Dark and
-// Light. Saves the lock row and the panel (badges included) in both schemes.
+// GitHub issue 484: the lock buttons' icons share one height and fill the button, leaving at most
+// 2 px between the glyph and the 1 px border, in Dark and Light. Saves the lock row at 100% and
+// 200% and the panel (badges included) in both schemes.
 void ui_layer_lock_buttons_share_one_icon_height() {
   ColorSchemeRestorer restore_scheme;
   // Checked once both schemes are saved, so a failure still leaves both shots.
@@ -6260,45 +6261,65 @@ void ui_layer_lock_buttons_share_one_icon_height() {
     const QRect scaled(QPoint(qRound(row_rect.left() * scale), qRound(row_rect.top() * scale)),
                        QSize(qRound(row_rect.width() * scale), qRound(row_rect.height() * scale)));
     save_image_artifact(std::string("issue484_lock_row_") + label, panel_shot.copy(scaled).toImage());
+    // The same row painted at 200%, as a 2x screen shows it.
+    QPixmap row_200(row_rect.size() * 2);
+    row_200.setDevicePixelRatio(2.0);
+    row_200.fill(Qt::transparent);
+    panel->render(&row_200, QPoint(), QRegion(row_rect));
+    save_image_artifact(std::string("issue484_lock_row_200_") + label, row_200.toImage());
     save_widget_artifact(std::string("issue484_layers_panel_") + label, *panel);
 
-    // Every icon's ink spans 13 rows of its 16 px render (the pencil's point may add one).
+    // Every icon's ink spans 20 rows of its 22 px render (the pencil's point may add one), and
+    // the icon sits centered in the 26 px button (24 inside its border), so the glyph is 2 px
+    // from the border.
     for (const auto* name : names) {
       auto* button = window.findChild<QToolButton*>(QLatin1String(name));
       if (button == nullptr) {
         continue;
       }
+      CHECK(button->iconSize() == QSize(22, 22));
       const auto image = button->icon().pixmap(button->iconSize(), 1.0).toImage();
-      int top = image.height();
-      int bottom = -1;
+      QRect ink;
       for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
           if (image.pixelColor(x, y).alpha() > 96) {
-            top = std::min(top, y);
-            bottom = std::max(bottom, y);
+            ink = ink.united(QRect(x, y, 1, 1));
           }
         }
       }
-      heights.push_back(bottom - top + 1);
-      std::printf("[INFO] %s icon: %d px of %d\n", name, bottom - top + 1, image.height());
+      constexpr int kBorder = 1;
+      const int offset = (button->height() - button->iconSize().height()) / 2;
+      const int pad_top = offset + ink.top() - kBorder;
+      const int pad_bottom = button->height() - kBorder - (offset + ink.bottom() + 1);
+      const int pad_left = offset + ink.left() - kBorder;
+      const int pad_right = button->width() - kBorder - (offset + ink.right() + 1);
+      heights.push_back(ink.height());
+      std::printf("[INFO] %s icon: %d x %d px of %d, padding %d/%d/%d/%d\n", name, ink.width(), ink.height(),
+                  image.height(), pad_top, pad_right, pad_bottom, pad_left);
+      CHECK(pad_top >= 1 && pad_top <= 2 && pad_bottom >= 1 && pad_bottom <= 2);
+      // The square glyphs fill the width too; the padlock is narrower than it is tall.
+      if (QLatin1String(name) != QLatin1String("layerLockAllButton")) {
+        CHECK(pad_left >= 1 && pad_left <= 2 && pad_right >= 1 && pad_right <= 2);
+      }
     }
   }
   CHECK(heights.size() == 8U);
   for (const auto height : heights) {
-    CHECK(std::abs(height - 13) <= 1);
+    CHECK(std::abs(height - 20) <= 1);
   }
 }
 
 // GitHub issue 484 follow-up: the lock glyphs sit on whole device pixels. Each glyph's ink box
 // (any alpha) equals its fully opaque box, so no outer row or column is a half-covered fringe,
-// at 100%, 150% and 200% for the 16 px buttons and the 14 px row badges. The padlock and the
-// straight-edged glyphs are 13 px tall in a 16 px button. Saves every render, and a 6x copy.
+// at 100%, 150% and 200% for the 22 px button icons and the 14 px row badges. The straight-edged
+// glyphs are 20 px tall in a 22 px button icon and 11 px in a 14 px badge. Saves every render, and a
+// 6x copy.
 void ui_layer_lock_icons_land_on_whole_pixels() {
   ColorSchemeRestorer restore_scheme;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
   const std::array<const char*, 5> kinds{"transparent", "pixels", "position", "autonest", "all"};
   const std::array<qreal, 3> ratios{1.0, 1.5, 2.0};
-  const std::array<int, 2> sizes{16, 14};
+  const std::array<int, 2> sizes{22, 14};
   struct Render {
     QString kind;
     int size = 0;
@@ -6378,11 +6399,12 @@ void ui_layer_lock_icons_land_on_whole_pixels() {
     if (!pencil) {
       CHECK(!ink.isEmpty() && ink == solid);
     }
-    if (render.size == 16 && render.ratio == 1.0) {
-      CHECK(measured.height() == 13);
+    const int expected = render.size == 22 ? 20 : 11;
+    if (render.ratio == 1.0) {
+      CHECK(measured.height() == expected);
     }
-    if (render.size == 16 && render.ratio == 2.0) {
-      CHECK(std::abs(measured.height() - 26) <= (pencil ? 1 : 0));
+    if (render.ratio == 2.0) {
+      CHECK(std::abs(measured.height() - 2 * expected) <= (pencil ? 1 : 0));
     }
   }
 }

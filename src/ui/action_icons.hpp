@@ -59,7 +59,8 @@ QIcon text_character_style_icon(int style);
 // Layers panel lock glyphs (GitHub issue 484), shared by the panel's lock buttons and the
 // row badges: "transparent" (a checkerboard), "pixels" (a pencil), "position" (a four-way
 // arrow), "autonest" (an artboard frame holding a layer) and "all" (a padlock). Every glyph
-// spans the same 13 of 16 px, drawn on whole device pixels at any screen scale.
+// spans 20 of 22 px in the lock buttons and 11 of 14 px in the row badges, drawn on whole
+// device pixels at any screen scale.
 QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role);
 
 // A one-off procedural mark: a glyph outside the shared icon vocabulary, drawn by
