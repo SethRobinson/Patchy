@@ -915,6 +915,12 @@ void cmyk_working_space_reads_profile_from_unicode_path() {
   CHECK(std::is_sorted(profiles.begin(), profiles.end(), [](const auto& left, const auto& right) {
     return left.description < right.description;
   }));
+  // A second scan answers from the session cache of unchanged files, with the same list.
+  const auto again = patchy::installed_cmyk_profiles();
+  CHECK(std::equal(profiles.begin(), profiles.end(), again.begin(), again.end(),
+                   [](const auto& left, const auto& right) {
+                     return left.path == right.path && left.description == right.description;
+                   }));
 }
 
 // The canvas proof view (docs/cmyk.md), on the bundled ISO Coated v2 profile.

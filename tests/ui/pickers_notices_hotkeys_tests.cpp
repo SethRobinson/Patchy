@@ -3106,6 +3106,7 @@ void ui_selection_commands_live_only_in_select_menu() {
     if (dialog == nullptr) {
       return;
     }
+    wait_for_preferences_start_page(*dialog);  // opened on Hotkeys: built once it shows
     for (const auto* id : {"select.all", "select.deselect", "select.reselect", "select.inverse"}) {
       auto* row = dialog->findChild<QWidget*>(QStringLiteral("hotkeyRow.") + QLatin1String(id));
       CHECK(row != nullptr);
@@ -4218,9 +4219,13 @@ void ui_hotkey_editor_lists_scripts_category() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
     auto* list = preferences_page_list(*dialog);
     CHECK(list != nullptr && list->currentItem() != nullptr);
     CHECK(list->currentItem()->text() == QStringLiteral("Hotkeys"));
+    wait_for_preferences_start_page(*dialog);  // opened on Hotkeys: built once it shows
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) != nullptr);
     auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
     CHECK(search != nullptr);

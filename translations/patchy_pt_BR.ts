@@ -28211,6 +28211,10 @@ Bloqueado: %1</translation>
         <source>Theme description:</source>
         <translation>Descrição do tema:</translation>
     </message>
+    <message>
+        <source>Loading...</source>
+        <translation>Carregando...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

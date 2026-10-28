@@ -6,7 +6,8 @@
 ## Pages
 
 In order: Application, Colors and Themes, Tools, Metadata and Watermarks, Pen, Units & Grids,
-Snapping, Hotkeys, and Plug-ins (Windows only, [plugins.md](plugins.md)). Tool and canvas-input
+Snapping, Hotkeys, Plug-ins (Windows only, [plugins.md](plugins.md)) and Presets (one button per
+preset manager, issue 485). Tool and canvas-input
 behavior (the mouse wheel, Free Transform options) goes on Tools; Pen holds only pen and tablet
 settings; Application holds app-level settings (language, updates, recovery, open/save
 policies); Colors and Themes the color scheme and themes ([theme-files.md](theme-files.md#preferences-ui)).
@@ -54,10 +55,35 @@ vertical-only `preferencesTabScroll`.
 - **Colors and Themes page.** Its widgets are built with the dialog, but the themes are read on
   the first visit (the same `currentChanged`), because loading every theme package is slow.
 
+## Opening speed
+
+The dialog is rebuilt on every open, so its build cost is what the user waits for (local-022:
+a slow open looked like a hang). Measured offscreen on an i9-11900KF, it went from about 190 ms
+per open (650 ms when opening on Hotkeys) to about 95 ms (140 ms on the first open of a session).
+
+- **One sheet change.** Every `setStyleSheet` on the dialog restyles every widget on every page
+  (about 45 ms each), so the preferences rules and `dialog_spinbox_button_style()` go in as one
+  `append_themed_style`, after the pages exist. Never add a second append.
+- **Built in place.** The page list, page stack, buttons and size grip are created inside the
+  chrome's content widget. Reparenting the filled stack there afterwards re-resolved every
+  page's style (27 ms).
+- **CMYK profiles.** `installed_cmyk_profiles()` keeps each file's result for the session
+  ([cmyk.md](cmyk.md#which-profile)); the first open still reads them.
+- **Lazy start page.** When the dialog opens on Hotkeys or Colors and Themes, it shows first
+  with a `preferencesLoadingNote` ("Loading...") on that page; the page is built once the note
+  has painted (a 250 ms fallback covers a dialog that never paints), then the note goes. While
+  the start page is chosen, `choosing_start_page` keeps the `currentChanged` handlers from
+  building it. Switching to either page later builds it at once under the wait cursor.
+- **Wait cursor.** `show_preferences` sets `Qt::WaitCursor` from the menu click and restores it
+  on the dialog's first event-loop turn (a guard restores it on every other way out); the
+  Hotkeys build sets it again. The Hotkeys panel itself (about 200 ms to build, 200 ms to show
+  its widgets) is the remaining slow part.
+
 ## Remembered state
 
 - Each list row carries a page id in `Qt::UserRole`: `application`, `themes`, `tools`, `metadata`,
-  `pen`, `unitsAndGrids`, `snapping`, `hotkeys`, `plugins`. They are persisted; never rename one.
+  `pen`, `unitsAndGrids`, `snapping`, `hotkeys`, `plugins`, `presets`. They are persisted; never
+  rename one.
 - The dialog reopens on the page it was closed on (OK or Cancel): key `preferences/lastPage`
   (`stored_preferences_last_page`), read when the dialog opens with `PreferencesPage::Last`,
   the default. An unknown id opens Application. `show_hotkey_preferences` opens Hotkeys with
@@ -71,4 +97,7 @@ Tests pick a page by its listed title through `select_preferences_page` and
 per-test cleanup clears `preferences/lastPage`, so every test opens on Application.
 `ui_canvas_aid_preferences_and_guide_dialogs_work` pins the order;
 `ui_preferences_page_list_switches_pages_and_remembers_the_last` the list, keys and memory;
-`ui_preferences_dialog_shows_every_tab` that every title shows whole.
+`ui_preferences_dialog_shows_every_tab` that every title shows whole;
+`ui_preferences_open_shows_busy_cursor_and_fills_start_page_after_showing` the wait cursor and
+the lazy start page. A test that opens the dialog on Hotkeys or Colors and Themes calls
+`wait_for_preferences_start_page` before looking at that page (`select_preferences_page` does).

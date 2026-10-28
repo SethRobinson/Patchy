@@ -72,6 +72,8 @@
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QApplication>
+#include <QEvent>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -437,9 +439,76 @@ class GuiScaleSpinBox final : public QSpinBox {
   }
 };
 
+// The wait cursor while Preferences builds, from the menu click until the dialog is up
+// (docs/preferences-dialog.md, "Opening speed"). restore() takes it down once; the
+// destructor does it on every other way out.
+class PreferencesWaitCursor {
+ public:
+  PreferencesWaitCursor() { QApplication::setOverrideCursor(Qt::WaitCursor); }
+  ~PreferencesWaitCursor() { restore(); }
+  PreferencesWaitCursor(const PreferencesWaitCursor&) = delete;
+  PreferencesWaitCursor& operator=(const PreferencesWaitCursor&) = delete;
+  void restore() {
+    if (active_) {
+      active_ = false;
+      QApplication::restoreOverrideCursor();
+    }
+  }
+
+ private:
+  bool active_ = true;
+};
+
+// Runs a page's build once its "Loading..." note has painted (or after a short wait if it
+// never paints), then removes the note. Owned by the note, so a dialog closed first cancels it.
+class LoadingNoteWatch final : public QObject {
+ public:
+  LoadingNoteWatch(QLabel& note, std::function<void()> build)
+      : QObject(&note), note_(note), build_(std::move(build)) {
+    note.installEventFilter(this);
+    QTimer::singleShot(250, this, [this] { run(); });
+  }
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == &note_ && event->type() == QEvent::Paint && !queued_) {
+      queued_ = true;
+      QTimer::singleShot(0, this, [this] { run(); });
+    }
+    return false;
+  }
+
+ private:
+  void run() {
+    if (ran_) {
+      return;
+    }
+    ran_ = true;
+    build_();
+    note_.hide();
+    note_.deleteLater();  // takes this watch with it
+  }
+
+  QLabel& note_;
+  std::function<void()> build_;
+  bool queued_ = false;
+  bool ran_ = false;
+};
+
+// The page Preferences opens on, when it is one built on its first visit (Hotkeys, Colors
+// and Themes), is built after the dialog shows with a "Loading..." note on it: the window
+// is up at once and the note says why the page is still empty. `build` must do nothing
+// when the page was built meanwhile.
+void build_after_loading_note(QVBoxLayout& layout, std::function<void()> build) {
+  auto* note = new QLabel(MainWindow::tr("Loading..."), layout.parentWidget());
+  note->setObjectName(QStringLiteral("preferencesLoadingNote"));
+  layout.insertWidget(0, note);
+  new LoadingNoteWatch(*note, std::move(build));
+}
+
 }  // namespace
 
 void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_search) {
+  PreferencesWaitCursor wait_cursor;
   QDialog dialog(this);
   dialog.setObjectName(QStringLiteral("patchyPreferencesDialog"));
   auto* root = new QVBoxLayout(&dialog);
@@ -494,14 +563,24 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // The pages are listed down the left (GitHub issue 451): a tab row made the dialog wider
   // with every page added. Each row carries its page's id, which preferences/lastPage
   // stores, so a page added later never shifts the remembered one.
-  auto* page_list = new QListWidget(&dialog);
+  // Both are created inside the content area, where they stay: moving the filled page
+  // stack there afterwards re-resolved the style of every widget on every page
+  // (about 27 ms of each open; docs/preferences-dialog.md, "Opening speed").
+  auto* pages_host = content->parentWidget();
+  auto* page_list = new QListWidget(pages_host);
   page_list->setObjectName(QStringLiteral("preferencesPageList"));
   page_list->setSelectionMode(QAbstractItemView::SingleSelection);
   page_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   page_list->setTextElideMode(Qt::ElideNone);
   page_list->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
-  auto* page_stack = new QStackedWidget(&dialog);
+  auto* page_stack = new QStackedWidget(pages_host);
   page_stack->setObjectName(QStringLiteral("preferencesPageStack"));
+  auto* pages_row = new QHBoxLayout();
+  pages_row->setContentsMargins(0, 0, 0, 0);
+  pages_row->setSpacing(8);
+  pages_row->addWidget(page_list);
+  pages_row->addWidget(page_stack, 1);
+  content->addLayout(pages_row, 1);
   const auto add_page = [page_list, page_stack](QWidget* page, const QString& title, const QString& id) {
     const int index = page_stack->addWidget(page);
     auto* item = new QListWidgetItem(preferences_page_list_text(title), page_list);
@@ -1049,11 +1128,15 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto [themes_page_widget, themes_layout] = make_tab_page(page_stack);
   const auto themes_page = build_preferences_themes_page(dialog, themes_layout, configure_panel);
   const int themes_tab_index = add_page(themes_page_widget, tr("Colors and Themes"), QStringLiteral("themes"));
-  connect(page_stack, &QStackedWidget::currentChanged, &dialog, [themes_page, themes_tab_index](int index) {
-    if (index == themes_tab_index) {
-      themes_page.populate();
-    }
-  });
+  // True until the dialog has picked its start page: a lazily built start page is filled
+  // after the dialog shows (build_after_loading_note), not while it is being set up.
+  bool choosing_start_page = true;
+  connect(page_stack, &QStackedWidget::currentChanged, &dialog,
+          [themes_page, themes_tab_index, &choosing_start_page](int index) {
+            if (index == themes_tab_index && !choosing_start_page) {
+              themes_page.populate();
+            }
+          });
   // The theme list previews live, so every path out of the dialog that is not Accept
   // has to put the entry theme back. The chrome X and Esc both reject, and
   // run_stress_test_interactive runs past the accept branch, so a scope guard is safer
@@ -1753,18 +1836,32 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // Sets the dialog's minimum width from the pages built so far (defined below, once the
   // dialog sheet is set); the Hotkeys panel, built later, runs it again.
   std::function<void()> fit_minimum_width_to_pages;
+  // Builds the panel once (about 400 ms): on the first switch to the page, or after the
+  // dialog shows when it opens on Hotkeys, with the search it was opened for.
+  const auto build_hotkey_editor = [this, page, &hotkey_search, hotkeys_page, hotkeys_layout, &hotkey_editor,
+                                    &fit_minimum_width_to_pages] {
+    if (hotkey_editor != nullptr) {
+      return;
+    }
+    const PreferencesWaitCursor busy;
+    // A script added since startup gets its row too.
+    refresh_script_commands(scan_scripts(bundled_scripts_directory(), user_scripts_directory()));
+    hotkey_editor = new HotkeyEditorPanel(hotkey_registry_, menuBar(), hotkeys_page);
+    hotkeys_layout->insertWidget(0, hotkey_editor);
+    // Shown now: a widget added to a page already on screen otherwise shows one event later,
+    // after the "Loading..." note has gone.
+    hotkey_editor->show();
+    if (page == PreferencesPage::Hotkeys) {
+      hotkey_editor->set_search_text(hotkey_search);
+    }
+    if (fit_minimum_width_to_pages) {
+      fit_minimum_width_to_pages();
+    }
+  };
   connect(page_stack, &QStackedWidget::currentChanged, &dialog,
-          [this, hotkeys_page, hotkeys_layout, hotkeys_tab_index, &hotkey_editor,
-           &fit_minimum_width_to_pages](int index) {
-            if (index != hotkeys_tab_index || hotkey_editor != nullptr) {
-              return;
-            }
-            // A script added since startup gets its row too.
-            refresh_script_commands(scan_scripts(bundled_scripts_directory(), user_scripts_directory()));
-            hotkey_editor = new HotkeyEditorPanel(hotkey_registry_, menuBar(), hotkeys_page);
-            hotkeys_layout->insertWidget(0, hotkey_editor);
-            if (fit_minimum_width_to_pages) {
-              fit_minimum_width_to_pages();
+          [hotkeys_tab_index, build_hotkey_editor, &choosing_start_page](int index) {
+            if (index == hotkeys_tab_index && !choosing_start_page) {
+              build_hotkey_editor();
             }
           });
 #ifdef Q_OS_WIN
@@ -1910,14 +2007,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   presets_layout->addStretch(1);
   add_page(presets_page, tr("Presets"), QStringLiteral("presets"));
 
-  auto* pages_row = new QHBoxLayout();
-  pages_row->setContentsMargins(0, 0, 0, 0);
-  pages_row->setSpacing(8);
-  pages_row->addWidget(page_list);
-  pages_row->addWidget(page_stack, 1);
-  content->addLayout(pages_row, 1);
-
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, pages_host);
   buttons->setObjectName(QStringLiteral("preferencesButtonBox"));
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   // Frameless chrome has no native resize border; the corner grip is the resize handle
@@ -1925,7 +2015,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* button_row = new QHBoxLayout();
   button_row->setContentsMargins(0, 0, 0, 0);
   button_row->addWidget(buttons, 1);
-  auto* size_grip = new VisibleSizeGrip(&dialog);
+  auto* size_grip = new VisibleSizeGrip(pages_host);
   size_grip->setObjectName(QStringLiteral("preferencesSizeGrip"));
   button_row->addWidget(size_grip, 0, Qt::AlignBottom);
   content->addLayout(button_row);
@@ -1935,8 +2025,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // pages after the stylesheet was set. The Hotkeys panel is the one
   // exception, built on demand above: it has no spin box and none of the IDs
   // below, and creating it after this sheet is what keeps its rows from being
-  // repolished.
-  append_themed_style(dialog, QStringLiteral(R"(
+  // repolished. One append: each sheet change restyles every widget on every page
+  // (about 45 ms apiece; docs/preferences-dialog.md, "Opening speed"). The spin
+  // sub-control rules go last, the final word (see docs/ui-conventions.md).
+  append_themed_style(dialog, ThemedQss(QStringLiteral(R"(
     QDialog#patchyPreferencesDialog QStackedWidget#preferencesPageStack {
       border: 1px solid @dialog_tab_border;
       background: @dialog_tab_bg;
@@ -2049,10 +2141,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       image: none;
       width: 0;
     }
-  )"));
-  // Appended last, after the block above: the spin sub-control rules must be the
-  // final word (see docs/ui-conventions.md).
-  append_themed_style(dialog, dialog_spinbox_button_style());
+  )")) + dialog_spinbox_button_style());
   keep_preferences_fields_compact(*page_stack);
   move_form_gaps_into_labels(*page_stack);
 
@@ -2074,9 +2163,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       }
     }
   }
-  page_list->setCurrentRow(start_row);  // builds the Hotkeys panel through the connection above
-  if (page == PreferencesPage::Hotkeys && hotkey_editor != nullptr) {
-    hotkey_editor->set_search_text(hotkey_search);
+  page_list->setCurrentRow(start_row);
+  choosing_start_page = false;
+  if (start_row == hotkeys_tab_index) {
+    build_after_loading_note(*hotkeys_layout, build_hotkey_editor);
+  } else if (start_row == themes_tab_index) {
+    build_after_loading_note(*themes_layout, themes_page.populate);
   }
   page_list->setFocus();
 
@@ -2128,6 +2220,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   const auto entry_size = dialog.size();
 
   install_wheel_scroll_guard(dialog);
+  // The wait cursor stays up until the dialog's event loop runs, that is once it shows.
+  QTimer::singleShot(0, &dialog, [&wait_cursor] { wait_cursor.restore(); });
 
   const int dialog_result = exec_dialog(dialog);
   if (dialog.size() != entry_size) {

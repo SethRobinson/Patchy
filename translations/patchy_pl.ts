@@ -28293,6 +28293,10 @@ Zablokowano: %1</translation>
         <source>Theme description:</source>
         <translation>Opis motywu:</translation>
     </message>
+    <message>
+        <source>Loading...</source>
+        <translation>Wczytywanie...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

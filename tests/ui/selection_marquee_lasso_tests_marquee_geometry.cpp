@@ -2400,13 +2400,14 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
     CHECK(dialog != nullptr);
     auto* pages = preferences_page_list(*dialog);
     CHECK(pages != nullptr);
-    // Windows appends a Plug-ins page for the legacy 8BF host (docs/plugins.md).
+    // Windows adds a Plug-ins page for the legacy 8BF host (docs/plugins.md); Presets is last.
 #ifdef Q_OS_WIN
-    CHECK(pages->count() == 9);
+    CHECK(pages->count() == 10);
     CHECK(pages->item(8)->text() == QStringLiteral("Plug-ins"));
 #else
-    CHECK(pages->count() == 8);
+    CHECK(pages->count() == 9);
 #endif
+    CHECK(pages->item(pages->count() - 1)->text() == QStringLiteral("Presets"));
     CHECK(pages->item(0)->text() == QStringLiteral("Application"));
     CHECK(pages->item(1)->text() == QStringLiteral("Colors and Themes"));
     CHECK(pages->item(2)->text() == QStringLiteral("Tools"));
