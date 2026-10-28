@@ -155,6 +155,8 @@ Preview pipeline:
 
 The preview reuses the gallery machinery: `src/ui/filter_preview_proxy.{hpp,cpp}` (the bounded proxy, `render_filter_proxy`, the latest-generation worker) and `src/ui/filter_overlay_sync.{hpp,cpp}` (overlay geometry). The invocation renders as a debounced one-entry recipe; the traced input rectangle drives the same crosshair, radius circle, tilt-shift handle dots, and iris controls as the gallery. Overlay DRAWING stays solely in `zoomable_image_preview.cpp` (the handle-only tilt-shift overlay is a reviewed design; never duplicate or alter that rendering).
 
+A filter with `kFilterDialogTwoColumnControls` (12) or more controls (Flame) puts the preview on the left and the controls in two columns on the right (`FilterParameterPanelOptions::two_columns_from`), to fit 720 logical pixels; others keep the preview above one column. A `RandomSeed` control shows its spin box and Randomize, no slider.
+
 Object names: `filterDialogPreview` (a `ZoomableImagePreview`; `filterDialogRenderedFilterId` mirrors the gallery's) and the `filterDialogZoomFit/100/Out/In/Label` zoom row. `filterPreviewCheck` gates only the live canvas preview; the in-dialog proxy always renders, display-only. Apply renders the unscaled invocation at full resolution.
 
 ## Spatial scaling and bounds

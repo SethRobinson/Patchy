@@ -14,6 +14,7 @@
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QRandomGenerator>
+#include <QSizePolicy>
 #include <QSpinBox>
 #include <QToolButton>
 
@@ -73,8 +74,8 @@ void FilterParameterPanel::delete_generated_children() {
 }
 
 QFormLayout* FilterParameterPanel::make_form(
-    const FilterParameterPanelOptions& options) {
-  auto* form = new QFormLayout(this);
+    const FilterParameterPanelOptions& options, bool owned) {
+  auto* form = owned ? new QFormLayout(this) : new QFormLayout();
   if (options.form_margins.left() >= 0) {
     form->setContentsMargins(options.form_margins);
   }
@@ -111,7 +112,23 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
                                    const FilterInvocation& values,
                                    const FilterParameterPanelOptions& options) {
   delete_generated_children();
-  auto* form = make_form(options);
+  const auto two_columns = options.two_columns_from > 0 &&
+                           spec.controls.size() >= options.two_columns_from;
+  QFormLayout* form = nullptr;
+  QFormLayout* right_form = nullptr;
+  if (two_columns) {
+    auto* columns = new QHBoxLayout(this);
+    columns->setContentsMargins(0, 0, 0, 0);
+    columns->setSpacing(24);
+    form = make_form(options, false);
+    right_form = make_form(options, false);
+    columns->addLayout(form, 1);
+    columns->addLayout(right_form, 1);
+  } else {
+    form = make_form(options);
+  }
+  const auto first_column_count = (spec.controls.size() + 1U) / 2U;
+  auto* column_form = form;
   bindings_.reserve(spec.controls.size());
 
   const auto initial_value_for =
@@ -129,6 +146,9 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
   };
 
   for (const auto& control : spec.controls) {
+    if (right_form != nullptr && bindings_.size() >= first_column_count) {
+      column_form = right_form;
+    }
     ControlBinding binding;
     binding.spec = control;
     binding.key = stable_key_for(control);
@@ -143,7 +163,7 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
       check->setObjectName(control.object_name + QStringLiteral("Check"));
       const auto* checked = std::get_if<bool>(&initial_value);
       check->setChecked(checked != nullptr && *checked);
-      form->addRow(control.label, check);
+      column_form->addRow(control.label, check);
       QObject::connect(check, &QCheckBox::toggled, this,
                        [this, key](bool value) {
                          fire({{key, FilterParameterValue{value}}});
@@ -170,7 +190,7 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
                              : combo->findData(QString::fromStdString(*selected));
       combo->setCurrentIndex(index >= 0 ? index
                                         : (combo->count() > 0 ? 0 : -1));
-      form->addRow(control.label, combo);
+      column_form->addRow(control.label, combo);
       QObject::connect(combo, qOverload<int>(&QComboBox::currentIndexChanged),
                        this, [this, key, combo](int) {
                          fire({{key, FilterParameterValue{combo->currentData()
@@ -312,10 +332,16 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
                        });
       row->addWidget(spin);
       if (control.presentation == FilterParameterPresentation::RandomSeed) {
+        // A seed has no meaningful order to slide through: the spin box and
+        // Randomize replace the slider (kept, hidden, for the bindings).
+        slider->hide();
         auto* randomize = new QToolButton(container);
         randomize->setObjectName(control.object_name + QStringLiteral("Randomize"));
         randomize->setText(QObject::tr("Randomize"));
         randomize->setToolTip(QObject::tr("Pick a new random seed"));
+        // Never squeezed to an elided label in a narrow column.
+        randomize->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        randomize->setMinimumWidth(randomize->sizeHint().width());
         QObject::connect(randomize, &QToolButton::clicked, spin, [spin] {
           // A different value from the current one, so a click always changes the result.
           const auto span = spin->maximum() - spin->minimum();
@@ -326,6 +352,7 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
           spin->setValue(spin->minimum() + (spin->value() - spin->minimum() + step) % (span + 1));
         });
         row->addWidget(randomize);
+        row->addStretch(1);
       }
       binding.int_spin = spin;
       binding.slider_minimum = static_cast<double>(control.minimum);
@@ -339,12 +366,12 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
             std::lround(numeric_filter_value(reset_value, legacy_default))));
       };
     }
-    form->addRow(control.label, container);
+    column_form->addRow(control.label, container);
     bindings_.push_back(std::move(binding));
   }
 
   if (options.build_companions) {
-    build_companion_rows(spec, form);
+    build_companion_rows(spec, column_form);
   }
   // The Filter Gallery rebuilds these rows while its dialog is already open, after
   // the exec_dialog scrub install ran, so every rebuild pairs its own labels.
