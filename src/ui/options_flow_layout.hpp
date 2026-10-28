@@ -153,6 +153,10 @@ protected:
   void resizeEvent(QResizeEvent* event) override;
 
 private:
+  // One 26 px row with the flow's 4 px margins above and below.
+  static constexpr int kOneRowHeight = 34;
+
+  [[nodiscard]] bool laid_out() const;
   [[nodiscard]] int height_for(int width) const;
 
   bool collapse_applied_ = false;

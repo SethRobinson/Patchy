@@ -56,6 +56,7 @@
 #include <QWidgetAction>
 #include <QAbstractButton>
 #include <QTabBar>
+#include <QLayout>
 #include <QToolBar>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -1254,6 +1255,119 @@ void ui_panel_collapse_and_close_leave_no_gap() {
     check_filled(QStringLiteral("collapsed after reopen ") + id);
   }
   save_widget_artifact("ui_panel_collapse_and_close_leave_no_gap", *column);
+}
+
+// A short window never lets one right-column section paint over the next: with no
+// document open (the Home screen) a short window squeezed the Layers group below its
+// content, and the Properties title row covered the Layers footer buttons (local
+// issue 016): at 1044 px the Options bar wraps onto a second row, and its QSS
+// min-height hid that row from the window's minimum. Each section keeps its own
+// content's minimum, and the footer stays above the next section, at every height the
+// window takes, with sections open or not.
+void ui_panel_column_short_window_keeps_sections_apart() {
+  for (const bool with_document : {false, true}) {
+    patchy::ui::MainWindow window;
+    if (with_document) {
+      show_window(window);
+    } else {
+      show_window_empty(window);
+    }
+    auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+    CHECK(column != nullptr);
+    if (column == nullptr) {
+      return;
+    }
+    auto* splitter = column->splitter();
+    auto* footer_button = window.findChild<QWidget*>(QStringLiteral("layerDeleteButton"));
+    CHECK(footer_button != nullptr);
+    const auto check_apart = [&](const QString& context) {
+      QApplication::processEvents();
+      QApplication::processEvents();
+      int previous_bottom = -1;
+      QWidget* layers_section = nullptr;
+      QWidget* below_layers = nullptr;
+      for (int index = 0; index < splitter->count(); ++index) {
+        auto* section = splitter->widget(index);
+        if (section->isHidden()) {
+          continue;
+        }
+        if (layers_section != nullptr && below_layers == nullptr) {
+          below_layers = section;
+        }
+        if (footer_button != nullptr && section->isAncestorOf(footer_button)) {
+          layers_section = section;
+        }
+        const int top = section->mapTo(splitter, QPoint(0, 0)).y();
+        const int content_minimum = section->layout() != nullptr ? section->layout()->minimumSize().height() : 0;
+        if (top <= previous_bottom || section->height() < content_minimum) {
+          const auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+          std::printf("%s (window %dx%d, minimum %d, column %d of minimum %d, Options bar %d): section %s at y %d "
+                      "height %d, content minimum %d, explicit minimum %d, previous bottom %d\n",
+                      qPrintable(context), window.width(), window.height(), window.minimumHeight(), column->height(),
+                      column->minimumSizeHint().height(), options_bar != nullptr ? options_bar->height() : -1,
+                      qPrintable(section->objectName()), top, section->height(), content_minimum,
+                      section->minimumHeight(), previous_bottom);
+        }
+        CHECK(top > previous_bottom);
+        CHECK(section->height() >= content_minimum);
+        previous_bottom = top + section->height() - 1;
+      }
+      CHECK(previous_bottom <= splitter->height() - 1);
+      // The window's minimum holds the column's minimum under the chrome as it is laid out,
+      // the Options bar wrapped onto a second row included.
+      const int needed = window.height() - column->height() + column->minimumSizeHint().height();
+      if (window.minimumHeight() < needed) {
+        std::printf("%s: window minimum %d, needed %d\n", qPrintable(context), window.minimumHeight(), needed);
+      }
+      CHECK(window.minimumHeight() >= needed);
+      CHECK(layers_section != nullptr);
+      if (footer_button != nullptr && layers_section != nullptr) {
+        const int footer_bottom = footer_button->mapTo(splitter, QPoint(0, footer_button->height() - 1)).y();
+        const int layers_bottom = layers_section->mapTo(splitter, QPoint(0, layers_section->height() - 1)).y();
+        const int next_top = below_layers != nullptr ? below_layers->mapTo(splitter, QPoint(0, 0)).y()
+                                                     : splitter->height();
+        if (footer_bottom > layers_bottom || footer_bottom >= next_top) {
+          std::printf("%s (window %dx%d): footer bottom %d, Layers section bottom %d, next section top %d\n",
+                      qPrintable(context), window.width(), window.height(), footer_bottom, layers_bottom, next_top);
+        }
+        CHECK(footer_bottom <= layers_bottom);
+        CHECK(footer_bottom < next_top);
+      }
+    };
+    const auto sweep = [&](const QString& context) {
+      for (int height = 780; height >= 360; height -= 20) {
+        window.resize(1044, height);
+        check_apart(QStringLiteral("%1, asked %2").arg(context).arg(height));
+      }
+      window.resize(1044, 738);
+      check_apart(context + QStringLiteral(", 738"));
+    };
+    const QString prefix = with_document ? QStringLiteral("document") : QStringLiteral("home");
+    if (!with_document) {
+      // The reported layout: the Home screen at 1044x738 with Info open.
+      auto* info_toggle = column->collapse_button(QStringLiteral("infoDock"));
+      CHECK(info_toggle != nullptr);
+      if (info_toggle != nullptr) {
+        info_toggle->click();
+        window.resize(1044, 738);
+        QApplication::processEvents();
+        QApplication::processEvents();
+        save_widget_artifact("ui_panel_column_short_window_keeps_sections_apart", window);
+        check_apart(QStringLiteral("home + infoDock, reported size"));
+        info_toggle->click();
+      }
+    }
+    sweep(prefix);
+    for (const auto& id : {QStringLiteral("infoDock"), QStringLiteral("propertiesDock"), QStringLiteral("historyDock")}) {
+      auto* toggle = column->collapse_button(id);
+      CHECK(toggle != nullptr);
+      if (toggle == nullptr || column->panel_expanded(id)) {
+        continue;
+      }
+      toggle->click();
+      sweep(prefix + QStringLiteral(" + ") + id);
+    }
+  }
 }
 
 // With every section collapsed the title rows stack from the top of the column, the
@@ -5009,6 +5123,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},
       {"ui_panel_collapse_and_close_leave_no_gap", ui_panel_collapse_and_close_leave_no_gap},
       {"ui_panel_all_collapsed_stack_at_top", ui_panel_all_collapsed_stack_at_top},
+      {"ui_panel_column_short_window_keeps_sections_apart", ui_panel_column_short_window_keeps_sections_apart},
       {"ui_panel_title_drag_reorders_sections", ui_panel_title_drag_reorders_sections},
       {"ui_panel_tab_drag_reorders_tabs", ui_panel_tab_drag_reorders_tabs},
       {"ui_panel_drag_onto_header_merges_into_tabs", ui_panel_drag_onto_header_merges_into_tabs},

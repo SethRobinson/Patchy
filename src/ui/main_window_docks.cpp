@@ -519,17 +519,8 @@ void MainWindow::fit_right_dock_floors_to_screen() {
   if (budget <= 0 || layout() == nullptr || panel_column_ == nullptr) {
     return;
   }
-  // The Layers panel's fixed 240 px floor overrides its layout's minimum, so on
-  // font metrics where the content needs more (241 px on macOS) the panel could be
-  // squeezed below its own controls. Keep the floor at least that minimum.
-  if (auto* layers_panel = findChild<QWidget*>(QStringLiteral("layersPanel"));
-      layers_panel != nullptr && layers_panel->layout() != nullptr && layers_panel->minimumHeight() > 0) {
-    const int content_floor = layers_panel->layout()->minimumSize().height();
-    if (layers_panel->minimumHeight() < content_floor) {
-      layers_panel->setMinimumHeight(content_floor);
-      layers_panel->updateGeometry();
-    }
-  }
+  refresh_layers_panel_floor();
+  panel_column_->refresh_floors();
   // The workspace splitter does not pass the column's size changes on to the window's
   // layout by itself; without this the minimum read below (and the activation at the
   // end) would use a stale column size.
@@ -544,19 +535,34 @@ void MainWindow::fit_right_dock_floors_to_screen() {
   }
   // The Layers panel's own floors (the panel's 240 px, the list's 120 px) sit under
   // its section's; a couple of rows still show on the shortest screens.
-  const auto lower_explicit_floor = [](QWidget* widget, int by, int hard_floor) {
+  const auto lower_explicit_floor = [this](QWidget* widget, int by, int hard_floor) {
     if (widget == nullptr || widget->minimumHeight() <= 0 || by <= 0) {
       return;
     }
     const int layout_floor = widget->layout() != nullptr ? widget->layout()->minimumSize().height() : 0;
     widget->setMinimumHeight(std::max({hard_floor, layout_floor, widget->minimumHeight() - by}));
-    widget->updateGeometry();
+    // Every layout up to the column caches its children's minimums (the overflow area's
+    // only on a posted event), and the section floors below read them now.
+    for (auto* level = widget; level != nullptr && level != panel_column_; level = level->parentWidget()) {
+      level->updateGeometry();
+    }
   };
   if (const auto over = overflow(); over > 0) {
     lower_explicit_floor(findChild<QWidget*>(QStringLiteral("layerList")), over, 48);
   }
   if (const auto over = overflow(); over > 0) {
-    lower_explicit_floor(findChild<QWidget*>(QStringLiteral("layersPanel")), over, 0);
+    layers_panel_floor_ = std::max(0, layers_panel_floor_ - over);
+    refresh_layers_panel_floor();
+  }
+  // The section floors stop at their content's minimum, which the two floors above
+  // just lowered: the Layers group can follow it down now. Only a screen too short for
+  // even that takes the sections under their content, which then clips at the
+  // section's bottom edge (local issue 016).
+  if (const auto over = overflow(); over > 0) {
+    panel_column_->lower_floors(over);
+  }
+  if (const auto over = overflow(); over > 0) {
+    panel_column_->lower_floors(over, 48, false);
   }
   overflow();
   if (isVisible()) {
@@ -565,6 +571,23 @@ void MainWindow::fit_right_dock_floors_to_screen() {
     // shown: an activation before the stylesheet lands would pin an unstyled,
     // taller minimum on the window.
     layout()->activate();
+  }
+}
+
+void MainWindow::refresh_layers_panel_floor() {
+  // The panel's explicit floor overrides its layout's minimum, so on font metrics where
+  // the content needs more (241 px on macOS), or with wrapped rows, the panel could be
+  // squeezed below its own controls. The floor is the larger of the two, and comes back
+  // down when the rows unwrap: a floor left at the wrapped height would make the
+  // overflow area scroll a panel that fits (#213 follow-up).
+  auto* layers_panel = findChild<QWidget*>(QStringLiteral("layersPanel"));
+  if (layers_panel == nullptr || layers_panel->layout() == nullptr) {
+    return;
+  }
+  const int floor = std::max(layers_panel_floor_, layers_panel->layout()->minimumSize().height());
+  if (layers_panel->minimumHeight() != floor) {
+    layers_panel->setMinimumHeight(floor);
+    layers_panel->updateGeometry();
   }
 }
 
@@ -641,9 +664,23 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
     const auto* panel_layout = layer_list_->parentWidget()->layout();
     const auto height = panel_layout != nullptr ? panel_layout->minimumSize().height() : 0;
     const auto grew = height > layers_panel_minimum_height_;
+    const auto shrank = height < layers_panel_minimum_height_;
     layers_panel_minimum_height_ = height;
     if (grew && isVisible()) {
+      // The section's floor takes the new minimum now (the overflow area waits a pass
+      // before it scrolls); the full fit, which may lower floors, follows.
+      refresh_layers_panel_floor();
+      if (panel_column_ != nullptr) {
+        panel_column_->refresh_floors();
+      }
       QTimer::singleShot(0, this, [this] { fit_right_dock_floors_to_screen(); });
+    } else if (shrank) {
+      // Unwrapped rows: the floors follow the content back down, in this pass, so the
+      // overflow area places the panel for it right after.
+      refresh_layers_panel_floor();
+      if (panel_column_ != nullptr) {
+        panel_column_->refresh_floors();
+      }
     }
     return false;
   }
@@ -1265,7 +1302,7 @@ void MainWindow::create_docks() {
   std::vector<PanelSpec> panel_specs;
   auto* layers_panel = new QWidget(this);
   layers_panel->setObjectName(QStringLiteral("layersPanel"));
-  layers_panel->setMinimumHeight(240);
+  layers_panel->setMinimumHeight(layers_panel_floor_);
   // Its layout requests tell handle_right_dock_resize_event when wrapped rows
   // raise the panel's minimum height (GitHub issue 199).
   layers_panel->installEventFilter(this);

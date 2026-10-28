@@ -21,6 +21,7 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTabBar>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -39,19 +40,24 @@ namespace {
 constexpr int kSectionHandleWidth = 5;
 
 // Hosts a panel so the column can be narrower than the panel's minimum width: the
-// panel keeps that width and scrolls horizontally, with the bar at the bottom. It
-// never scrolls vertically: the panel always gets the viewport's full height, and
-// the minimum height grows by the bar while it shows, so the bar never eats the
-// panel's own floor. The panel is placed by hand rather than with widgetResizable,
-// which would size a height-for-width panel (Layers) to its preferred height and clip
-// its bottom row (GitHub issue 96).
+// panel keeps that width and scrolls horizontally, with the bar at the bottom. The
+// panel gets the viewport's full height, never less than its minimum height (the
+// wrapped rows' current line count), and the area's minimum height grows by the bar
+// while it shows. Only
+// when the screen fit has lowered the section under that minimum (a short screen,
+// GitHub issue 108) is the panel taller than the viewport; then the area scrolls
+// vertically, so no row or footer button is ever clipped or left under a bar (#213
+// follow-up). The panel is placed by hand rather than with widgetResizable, which
+// would size a height-for-width panel (Layers) to its preferred height and clip its
+// bottom row (GitHub issue 96).
 class RightDockOverflowArea final : public QScrollArea {
 public:
   explicit RightDockOverflowArea(QWidget* parent) : QScrollArea(parent) {
     setObjectName(QStringLiteral("rightDockOverflowScroll"));
     setFrameShape(QFrame::NoFrame);
     setWidgetResizable(false);
-    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // place_content switches both bars on and off.
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   }
 
@@ -79,11 +85,17 @@ protected:
   }
 
   bool viewportEvent(QEvent* event) override {
+    const bool handled = QScrollArea::viewportEvent(event);
     if (event->type() == QEvent::LayoutRequest) {
-      // The panel's minimum changed (a retranslated or restyled row).
+      // The panel's minimum changed (a retranslated, restyled or rewrapped row, a lowered
+      // floor). The section's layout caches this area's minimum, so say it changed too.
+      place_content();
+      updateGeometry();
+    } else if (event->type() == QEvent::Resize) {
+      // A scroll bar came or went and resized the viewport.
       place_content();
     }
-    return QScrollArea::viewportEvent(event);
+    return handled;
   }
 
 private:
@@ -94,13 +106,49 @@ private:
 
   void place_content() {
     auto* content = widget();
-    if (content == nullptr) {
+    if (content == nullptr || placing_) {
       return;
     }
+    // The bars are decided here, from the panel's minimum and the area's size, and
+    // switched on or off at once: Qt's as-needed bars follow a range change only on a
+    // later event pass, which left a needless bar narrowing the panel for a while.
+    // Switching a bar resizes the viewport and lands back here; the guard ignores that.
+    placing_ = true;
     const auto minimum = content_minimum();
-    const auto overflowing = minimum.width() > width() - frameWidth() * 2;
+    const auto frame = frameWidth() * 2;
+    const auto bar_height = horizontalScrollBar()->sizeHint().height();
+    const auto bar_width = verticalScrollBar()->sizeHint().width();
+    // Each bar takes room from the other direction, so a bar can bring the other one.
+    auto overflowing = minimum.width() > width() - frame;
+    auto vertical = minimum.height() > height() - frame - (overflowing ? bar_height : 0);
+    vertical = vertical || (overflowing && minimum.height() > height() - frame - bar_height);
+    // A minimum that just grew (a row wrapped while the column narrows) usually gets
+    // its height from the column a moment later: the vertical bar comes on only if
+    // the panel still does not fit on the next pass, so it never flickers during a
+    // drag. It goes off at once.
+    if (vertical && verticalScrollBarPolicy() != Qt::ScrollBarAlwaysOn && !vertical_confirmed_) {
+      if (!vertical_check_queued_) {
+        vertical_check_queued_ = true;
+        QTimer::singleShot(0, this, [this] {
+          vertical_check_queued_ = false;
+          vertical_confirmed_ = true;
+          place_content();
+          vertical_confirmed_ = false;
+        });
+      }
+      vertical = false;
+    }
+    overflowing = overflowing || (vertical && minimum.width() > width() - frame - bar_width);
+    const auto policy = [](bool on) { return on ? Qt::ScrollBarAlwaysOn : Qt::ScrollBarAlwaysOff; };
+    if (horizontalScrollBarPolicy() != policy(overflowing)) {
+      setHorizontalScrollBarPolicy(policy(overflowing));
+    }
+    if (verticalScrollBarPolicy() != policy(vertical)) {
+      setVerticalScrollBarPolicy(policy(vertical));
+    }
     const auto viewport_size = viewport()->size();
-    content->resize(std::max(viewport_size.width(), minimum.width()), viewport_size.height());
+    content->resize(std::max(viewport_size.width(), minimum.width()), std::max(viewport_size.height(), minimum.height()));
+    placing_ = false;
     if (overflowing != overflowing_) {
       overflowing_ = overflowing;
       updateGeometry();
@@ -108,6 +156,9 @@ private:
   }
 
   bool overflowing_{false};
+  bool placing_{false};
+  bool vertical_check_queued_{false};
+  bool vertical_confirmed_{false};
 };
 
 // The smallest height a section's widget accepts: its explicit minimum, else its
@@ -564,7 +615,29 @@ int PanelColumn::section_floor(const Section& section) const {
   if (spec.expanded_minimum_height <= 0) {
     return 0;
   }
-  return std::max(collapsed_height(section), spec.expanded_minimum_height - section.floor_reduction);
+  const auto floor = std::max(collapsed_height(section), spec.expanded_minimum_height - section.floor_reduction);
+  // The explicit floor hides the content's own minimum from the splitter, so a panel
+  // that needs more (the Layers panel with its footer wrapped) would be clipped. While
+  // the screen fit has not lowered it, the floor is at least that minimum; a lowered
+  // floor lets the section go under it and its overflow area scrolls (#213 follow-up).
+  // Read from the bodies, not the section's layout, whose cached item sizes lag a
+  // change inside a body.
+  if (section.floor_reduction == 0) {
+    int body = 0;
+    for (const auto& page : section.pages) {
+      body = std::max(body, page->body->minimumSizeHint().height());
+    }
+    return std::max(floor, collapsed_height(section) + body);
+  }
+  return floor;
+}
+
+void PanelColumn::refresh_floors() {
+  for (const auto& section : sections_) {
+    if (section->expanded && section->widget->minimumHeight() != section_floor(*section)) {
+      apply_section_state(*section);
+    }
+  }
 }
 
 int PanelColumn::section_preferred(const Section& section) const {
@@ -780,7 +853,7 @@ void PanelColumn::apply_preferred_heights() {
   splitter_->setSizes(sizes);
 }
 
-int PanelColumn::lower_floors(int excess, int keep) {
+int PanelColumn::lower_floors(int excess, int keep, bool keep_content) {
   int lowered = 0;
   // Bottom up, the fill section (Layers) last wherever it sits.
   std::vector<Section*> order;
@@ -803,7 +876,13 @@ int PanelColumn::lower_floors(int excess, int keep) {
     if (spec.expanded_minimum_height <= 0) {
       continue;
     }
-    const auto lowest = collapsed_height(section) + keep;
+    // A floor under what the section's own content needs clips the panel's bottom row
+    // (the Layers footer) at the section's edge (local issue 016), so the window lowers the
+    // panel's own floors first and goes under the content only as a last resort.
+    const auto content = keep_content && section.widget->layout() != nullptr
+                             ? section.widget->layout()->minimumSize().height()
+                             : 0;
+    const auto lowest = std::max(collapsed_height(section) + keep, content);
     const auto current = spec.expanded_minimum_height - section.floor_reduction;
     const auto take = std::min(excess, std::max(0, current - lowest));
     if (take <= 0) {
