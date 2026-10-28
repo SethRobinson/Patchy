@@ -13942,6 +13942,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pick a new random seed</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No tool groups: every tool gets its own button</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

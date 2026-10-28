@@ -13959,6 +13959,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Pick a new random seed</source>
         <translation>Escolher uma nova semente aleatória</translation>
     </message>
+    <message>
+        <source>No tool groups: every tool gets its own button</source>
+        <translation>Sem grupos de ferramentas: cada ferramenta tem seu próprio botão</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

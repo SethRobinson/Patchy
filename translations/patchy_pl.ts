@@ -14002,6 +14002,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Pick a new random seed</source>
         <translation>Wybierz nowe ziarno losowe</translation>
     </message>
+    <message>
+        <source>No tool groups: every tool gets its own button</source>
+        <translation>Bez grup narzędzi: każde narzędzie ma własny przycisk</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

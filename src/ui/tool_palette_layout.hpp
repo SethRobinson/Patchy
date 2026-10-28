@@ -6,7 +6,9 @@
 // and its Shift+letter cycle membership are decided here, not by QAction visibility (a hidden
 // QAction drops its shortcut). In wheel-scroll mode the leading items of an overflowing
 // column scroll off the top, small arrows scroll it, and an expand row of the palette's own
-// stands in for the overflow extension (GitHub issue 488).
+// stands in for the overflow extension (GitHub issue 488). A tool group with one tool left, or
+// every group when the customization asks for no tool groups, shows its tools on plain buttons
+// of their own (GitHub issue 499).
 
 #include "ui/tool_palette_customization.hpp"
 
@@ -16,6 +18,7 @@
 #include <QWidget>
 
 #include <functional>
+#include <utility>
 #include <vector>
 
 class QAction;
@@ -60,13 +63,18 @@ public:
     QAction* cycle{nullptr};
     // The slot's own toolbar item (one-column layout), created by add_slot.
     QWidgetAction* item{nullptr};
+    // Flyouts only: a plain button per member, in member order, and its toolbar item. They
+    // stand in for the group button when it would show one tool, or with no tool groups.
+    QList<QToolButton*> member_buttons;
+    QList<QWidgetAction*> member_items;
   };
 
   // `stash` (hidden) keeps the buttons of slots that are not on the palette.
   ToolPaletteLayout(QToolBar* palette, QWidget* stash);
 
   // Slots in palette order; `cluster` counts from 0 (select, paint, retouch, draw/type, view).
-  void add_slot(int cluster, QToolButton* button, QMenu* menu, QList<QAction*> members, QAction* cycle);
+  void add_slot(int cluster, QToolButton* button, QMenu* menu, QList<QAction*> members, QAction* cycle,
+                QList<QToolButton*> member_buttons = {});
   // Rebuilds the palette's items, the flyout menus and the buttons' shown tools.
   void apply(const ToolPaletteCustomization& customization);
 
@@ -85,11 +93,20 @@ public:
   bool scroll_by(int steps);
   // Wheel-scroll mode (GitHub issue 488): the height of the expand row kept clear directly
   // above the footer, 0 when nothing is hidden or the columns are open. The footer placer
-  // adds it to the bar's bottom margin and is told through on_bottom_reserve_changed.
+  // adds it to the bar's bottom margin and is told through on_footer_room_changed.
   [[nodiscard]] int bottom_reserve() const noexcept { return bottom_reserve_; }
-  std::function<void()> on_bottom_reserve_changed;
   // Scrolls back to the top and opens the overflow columns with every tool.
   void expand();
+  // Two columns (GitHub issue 499): the x, in palette coordinates, the footer centers on (the
+  // middle of the two tool columns), or a negative value in one column.
+  [[nodiscard]] double footer_center_x() const;
+  // Two columns with every tool showing (nothing overflows, scrolls or expands): the bottom
+  // of the last tool row, so the footer sits under the tools; -1 otherwise (it stays at the
+  // bottom of the bar).
+  [[nodiscard]] int tools_bottom() const;
+  // The footer placer re-reads bottom_reserve, footer_center_x and tools_bottom: called after
+  // every layout pass and whenever the expand row comes or goes.
+  std::function<void()> on_footer_room_changed;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -102,8 +119,9 @@ private:
     QWidget* row{nullptr};
   };
 
-  [[nodiscard]] bool slot_visible(const Slot& slot) const;
   [[nodiscard]] QList<QAction*> visible_members(const Slot& slot) const;
+  // The buttons a visible slot puts on the palette, each with its one-column toolbar item.
+  [[nodiscard]] std::vector<std::pair<QToolButton*, QWidgetAction*>> shown_buttons(const Slot& slot) const;
   void refresh_flyout(const Slot& slot);
   void prepare_button(QToolButton* button);
   void clear_items();

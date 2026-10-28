@@ -3,7 +3,9 @@
 // cycle, the two-column layout, wheel scrolling in a short window, the Layers footer's
 // show/hide menu, the dialog's OK, Cancel and Reset to Default, and the stored settings. Also
 // the palette's bottom items, the toolbar icon size and tool group opening shown in the dialog
-// (213 follow-up), and when tool groups open: click and hold, click or hover (459).
+// (213 follow-up), and when tool groups open: click and hold, click or hover (459). Groups with
+// one tool, no tool groups, clicks handed on from an open flyout, the two-column footer and
+// the shortcut key column (499).
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
@@ -46,6 +48,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
@@ -71,7 +74,8 @@ struct CustomizationSettingsGuard {
                             "toolPalette/showCustomizeButton", "layersPanel/hiddenFooterButtons",
                             "layersPanel/shownFooterButtons", "toolPalette/hiddenFooterItems",
                             "layersPanel/footerButtonOrder", "preferences/toolbarIconSize",
-                            "preferences/toolFlyoutOpenMode", "layersPanel/footerIconSize"}) {
+                            "preferences/toolFlyoutOpenMode", "layersPanel/footerIconSize",
+                            "toolPalette/ungroupTools"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
     }
@@ -810,9 +814,13 @@ void ui_tool_palette_settings_from_an_older_version_show_new_tools() {
   window.resize(window.width(), 1400);
   settle();
   auto* pick_button = button_named(window, "pickToolButton");
+  auto* ruler_button = button_named(window, "rulerMemberButton");
   auto* ruler = require_action(window, "toolRulerAction");
   auto* pick = require_action(window, "toolPickAction");
-  CHECK(on_palette(*palette, pick_button));
+  // The group has one tool left, so its plain button stands in for it (GitHub issue 499).
+  CHECK(!on_palette(*palette, pick_button));
+  CHECK(on_palette(*palette, ruler_button));
+  CHECK(ruler_button->defaultAction() == ruler);
   CHECK(pick_button->defaultAction() == ruler);
   CHECK(pick_button->menu() != nullptr && pick_button->menu()->actions().contains(ruler));
   CHECK(!pick_button->menu()->actions().contains(pick));
@@ -827,7 +835,7 @@ void ui_tool_palette_settings_from_an_older_version_show_new_tools() {
   CHECK(layout != nullptr);
   if (layout != nullptr) {
     for (const auto& slot : layout->entries()) {
-      if (slot.button != button_named(window, "handToolButton")) {
+      if (slot.button != button_named(window, "handToolButton") && slot.button != pick_button) {
         CHECK(on_palette(*palette, slot.button));
       }
     }
@@ -1247,6 +1255,14 @@ void ui_script_tool_palette_reads_and_sets() {
   // A partial assignment keeps the other keys.
   CHECK(run_script(window, QStringLiteral("patchy.ui.toolPalette = {wheelScroll: false};")));
   expected.wheel_scroll = false;
+  CHECK(window.tool_palette_customization() == expected);
+  // No tool groups (GitHub issue 499).
+  CHECK(run_script(window, QStringLiteral("console.log('ungroup before=' + patchy.ui.toolPalette.ungroupTools);"
+                                          "patchy.ui.toolPalette = {ungroupTools: true};"
+                                          "console.log('ungroup after=' + patchy.ui.toolPalette.ungroupTools);")));
+  CHECK(backlog_contains(window, QStringLiteral("ungroup before=false")));
+  CHECK(backlog_contains(window, QStringLiteral("ungroup after=true")));
+  expected.ungroup_tools = true;
   CHECK(window.tool_palette_customization() == expected);
   // Unknown values throw and change nothing.
   CHECK(run_script(window, QStringLiteral("try { patchy.ui.toolPalette = {hiddenTools: ['tools.nope']}; }"
@@ -2114,6 +2130,389 @@ void ui_layer_footer_icon_size_persists_and_applies() {
   CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/footerIconSize")));
 }
 
+// The leftmost inked x (image pixels) of the last run of ink in `band`, scanning right to left:
+// the shortcut key at a row's right end. Runs closer than `max_gap` px belong together.
+int key_ink_left(const QImage& image, const QRect& band, int max_gap) {
+  const QColor background = image.pixelColor(band.right(), band.center().y());
+  const auto inked = [&](int x) {
+    for (int y = std::max(0, band.top()); y <= std::min(band.bottom(), image.height() - 1); ++y) {
+      const QColor color = image.pixelColor(x, y);
+      if (std::abs(color.red() - background.red()) + std::abs(color.green() - background.green()) +
+              std::abs(color.blue() - background.blue()) >
+          90) {
+        return true;
+      }
+    }
+    return false;
+  };
+  int left = -1;
+  int gap = 0;
+  for (int x = std::min(band.right(), image.width() - 1); x >= std::max(0, band.left()); --x) {
+    if (inked(x)) {
+      left = x;
+      gap = 0;
+    } else if (left >= 0 && ++gap > max_gap) {
+      break;
+    }
+  }
+  return left;
+}
+
+// GitHub issue 499: a tool group with one tool left shows that tool on a plain button: no
+// flyout arrow, no flyout, and a click or a right-click selects the tool. A second member back
+// brings the group button back.
+void ui_tool_palette_single_tool_group_is_a_plain_button() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* palette = tool_palette(window);
+  if (palette == nullptr) {
+    return;
+  }
+  window.resize(window.width(), 1400);
+  settle();
+  auto* group = button_named(window, "moveToolButton");
+  auto* member = button_named(window, "moveMemberButton");
+  auto* artboard_member = button_named(window, "artboardMemberButton");
+  auto* move = require_action(window, "toolMoveAction");
+  auto* brush = require_action(window, "toolBrushAction");
+  CHECK(on_palette(*palette, group));
+  CHECK(!on_palette(*palette, member));
+  CHECK(!on_palette(*palette, artboard_member));
+  const auto group_rect = geometry_in_palette(*palette, *group);
+
+  ToolPaletteCustomization customization;
+  customization.hidden_tools = {QStringLiteral("tools.artboard")};
+  window.apply_tool_palette_customization(customization);
+  settle();
+  CHECK(!on_palette(*palette, group));
+  CHECK(on_palette(*palette, member));
+  CHECK(!on_palette(*palette, artboard_member));
+  CHECK(geometry_in_palette(*palette, *member) == group_rect);
+  CHECK(member->defaultAction() == move);
+  CHECK(member->menu() == nullptr);
+  CHECK(!member->property("toolFlyout").toBool());
+  brush->trigger();
+  settle();
+  member->click();
+  settle();
+  CHECK(move->isChecked());
+  brush->trigger();
+  settle();
+  const QPoint center = member->rect().center();
+  send_mouse(*member, QEvent::MouseButtonPress, center, Qt::RightButton, Qt::RightButton);
+  send_mouse(*member, QEvent::MouseButtonRelease, center, Qt::RightButton, Qt::NoButton);
+  settle();
+  CHECK(move->isChecked());
+  CHECK(QApplication::activePopupWidget() == nullptr);
+  // Its key still works.
+  brush->trigger();
+  QTest::keyClick(canvas, Qt::Key_V);
+  QApplication::processEvents();
+  CHECK(move->isChecked());
+
+  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  settle();
+  CHECK(on_palette(*palette, group));
+  CHECK(!on_palette(*palette, member));
+}
+
+// GitHub issue 499: "No tool groups" in Customize Tool Palette gives every tool a plain button
+// of its own (hidden tools stay off), opens no flyout, is stored under
+// toolPalette/ungroupTools, and turns the dialog's group opening choice off.
+void ui_tool_palette_no_tool_groups_shows_every_tool() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* palette = tool_palette(window);
+  auto* layout = window.tool_palette_layout();
+  auto* footer = window.findChild<patchy::ui::ToolPaletteFooter*>(QStringLiteral("toolPaletteFooter"));
+  CHECK(layout != nullptr && footer != nullptr);
+  if (palette == nullptr || layout == nullptr || footer == nullptr) {
+    return;
+  }
+  window.resize(window.width(), 1400);
+  settle();
+  (void)capture_widget_artifact("ui_tool_palette_tool_groups_one_column", *palette);
+
+  // The dialog's check box, OK applies it.
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* ungroup = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteUngroupToolsCheck"));
+    auto* flyout_open = dialog.findChild<QComboBox*>(QStringLiteral("toolPaletteFlyoutOpenCombo"));
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("toolPaletteCustomizePreview"));
+    CHECK(ungroup != nullptr && flyout_open != nullptr && preview != nullptr);
+    if (ungroup == nullptr || flyout_open == nullptr || preview == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(!ungroup->isChecked());
+    CHECK(flyout_open->isEnabled());
+    const int grouped_height = preview->height();
+    ungroup->setChecked(true);
+    QApplication::processEvents();
+    CHECK(!flyout_open->isEnabled());
+    // Every tool has a cell of its own in the preview, drawn smaller to stay in the dialog.
+    CHECK(preview->height() > grouped_height);
+    CHECK(preview->mapTo(&dialog, QPoint(0, preview->height())).y() <= dialog.height());
+    (void)capture_widget_artifact("ui_tool_palette_customize_no_tool_groups", dialog);
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::Tools);
+  CHECK(ran);
+  settle();
+  CHECK(window.tool_palette_customization().ungroup_tools);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/ungroupTools")).toBool());
+  (void)capture_widget_artifact("ui_tool_palette_no_tool_groups_one_column", *palette);
+
+  // Two columns hold every tool in the window; Ruler hidden stays off.
+  ToolPaletteCustomization customization = window.tool_palette_customization();
+  customization.two_columns = true;
+  customization.hidden_tools = {QStringLiteral("tools.ruler")};
+  window.apply_tool_palette_customization(customization);
+  settle();
+  const auto palette_buttons = palette->findChildren<QToolButton*>();
+  const auto shown_for = [&](const QAction* action) {
+    return std::any_of(palette_buttons.begin(), palette_buttons.end(), [&](QToolButton* button) {
+      return on_palette(*palette, button) && button->defaultAction() == action;
+    });
+  };
+  int tools = 0;
+  for (const auto& slot : layout->entries()) {
+    for (const auto* member : slot.members) {
+      const bool hidden = member->property(patchy::ui::kToolPaletteToolIdProperty).toString() == QLatin1String("tools.ruler");
+      CHECK(shown_for(member) == !hidden);
+      ++tools;
+    }
+  }
+  CHECK(tools > 40);
+  // No tool button outside the footer opens a menu.
+  for (auto* button : palette_buttons) {
+    if (on_palette(*palette, button) && !footer->isAncestorOf(button) &&
+        button->objectName() != QLatin1String("qt_toolbar_ext_button")) {
+      CHECK(button->menu() == nullptr);
+    }
+  }
+  (void)capture_widget_artifact("ui_tool_palette_no_tool_groups_two_columns", *palette);
+  // The Shift+M cycle still walks the Marquee tools.
+  require_action(window, "toolMarqueeAction")->trigger();
+  require_action(window, "toolCycleMarqueeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(require_action(window, "toolEllipticalMarqueeAction")->isChecked());
+  {
+    patchy::ui::MainWindow second;
+    CHECK(second.tool_palette_customization().ungroup_tools);
+  }
+  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  settle();
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("toolPalette/ungroupTools")));
+  CHECK(on_palette(*palette, button_named(window, "marqueeToolButton")));
+}
+
+// GitHub issue 499: with tool groups set to open on click, a press on another tool while a
+// flyout is open closes the flyout and acts there: a plain tool is selected, a group opens
+// its own flyout. A press elsewhere only closes the flyout.
+void ui_tool_flyout_click_mode_hands_the_click_on() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.activateWindow();
+  window.resize(window.width(), 1400);
+  settle();
+  window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Click);
+  auto* marquee_button = button_named(window, "marqueeToolButton");
+  auto* lasso_button = button_named(window, "lassoToolButton");
+  auto* brush_button = button_named(window, "brushToolButton");
+  auto* marquee = require_action(window, "toolMarqueeAction");
+  auto* lasso = require_action(window, "toolLassoAction");
+  auto* brush = require_action(window, "toolBrushAction");
+  auto* hand = require_action(window, "toolHandAction");
+  // Clicks the Marquee group, then presses at `global` while its flyout is open.
+  const auto open_and_press_at = [&](QPoint global) {
+    auto* menu = marquee_button->menu();
+    bool pressed = false;
+    const auto connection = QObject::connect(menu, &QMenu::aboutToShow, menu, [&] {
+      QTimer::singleShot(0, menu, [&] {
+        process_events_until([&] { return menu->isVisible(); }, 1000);
+        send_mouse(*menu, QEvent::MouseButtonPress, menu->mapFromGlobal(global), Qt::LeftButton, Qt::LeftButton);
+        pressed = true;
+        if (menu->isVisible()) {
+          menu->close();
+        }
+      });
+    });
+    const QPoint center = marquee_button->rect().center();
+    send_mouse(*marquee_button, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    process_events_until([&] { return pressed && !menu->isVisible(); }, 2000);
+    send_mouse(*marquee_button, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    QObject::disconnect(connection);
+    CHECK(pressed);
+  };
+
+  // A plain tool: the Brush.
+  hand->trigger();
+  settle();
+  open_and_press_at(brush_button->mapToGlobal(brush_button->rect().center()));
+  settle();
+  CHECK(brush->isChecked());
+  CHECK(QApplication::activePopupWidget() == nullptr);
+
+  // Another group: its flyout opens and selects the tool it shows.
+  {
+    auto* lasso_menu = lasso_button->menu();
+    int lasso_shows = 0;
+    const auto connection = QObject::connect(lasso_menu, &QMenu::aboutToShow, lasso_menu, [&] {
+      ++lasso_shows;
+      QTimer::singleShot(0, lasso_menu, [&] {
+        process_events_until([&] { return lasso_menu->isVisible(); }, 1000);
+        lasso_menu->close();
+      });
+    });
+    open_and_press_at(lasso_button->mapToGlobal(lasso_button->rect().center()));
+    process_events_until([&] { return lasso_shows > 0 && !lasso_menu->isVisible(); }, 2000);
+    settle();
+    CHECK(lasso_shows == 1);
+    CHECK(lasso->isChecked());
+    QObject::disconnect(connection);
+  }
+
+  // Off the palette (the canvas): the flyout only closes; the Marquee it selected stays.
+  hand->trigger();
+  settle();
+  open_and_press_at(canvas->mapToGlobal(canvas->rect().center()));
+  settle();
+  CHECK(marquee->isChecked());
+  CHECK(QApplication::activePopupWidget() == nullptr);
+  window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Normal, patchy::ui::ToolFlyoutOpenMode::Hold);
+}
+
+// GitHub issue 499: in two columns the footer (color well, Quick Mask, screen mode) is
+// centered under the two tool columns and sits right under the last tool row; one column
+// keeps it at the bottom of the bar, at the column's left.
+void ui_tool_palette_two_column_footer_sits_centered_under_the_tools() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* palette = tool_palette(window);
+  auto* footer = window.findChild<patchy::ui::ToolPaletteFooter*>(QStringLiteral("toolPaletteFooter"));
+  CHECK(footer != nullptr);
+  if (palette == nullptr || footer == nullptr) {
+    return;
+  }
+  window.resize(window.width(), 1200);
+  settle();
+  const auto bar_bottom = [&] { return palette->height() - palette->layout()->contentsMargins().top(); };
+  CHECK(footer->geometry().bottom() + 1 == bar_bottom());
+  CHECK(footer->foreground()->x() == 4);
+  const int one_column_quick_mask_x = footer->quick_mask_button()->x();
+
+  ToolPaletteCustomization customization;
+  customization.two_columns = true;
+  window.apply_tool_palette_customization(customization);
+  window.resize(window.width(), 1200);
+  settle();
+  const auto move_rect = geometry_in_palette(*palette, *button_named(window, "moveToolButton"));
+  const auto marquee_rect = geometry_in_palette(*palette, *button_named(window, "marqueeToolButton"));
+  const double tools_center = (move_rect.left() + marquee_rect.right() + 1) / 2.0;
+  const auto foreground_rect = geometry_in_palette(*palette, *footer->foreground());
+  const auto background_rect = geometry_in_palette(*palette, *footer->background());
+  const double well_center = (foreground_rect.left() + background_rect.right() + 1) / 2.0;
+  const auto quick_mask_rect = geometry_in_palette(*palette, *footer->quick_mask_button());
+  const double quick_mask_center = (quick_mask_rect.left() + quick_mask_rect.right() + 1) / 2.0;
+  std::printf("[INFO] tools center %.1f, well center %.1f, Quick Mask center %.1f\n", tools_center, well_center,
+              quick_mask_center);
+  CHECK(std::abs(well_center - tools_center) <= 1.0);
+  CHECK(std::abs(quick_mask_center - tools_center) <= 1.5);
+  if (auto* screen_mode = footer->screen_mode_button(); screen_mode != nullptr) {
+    const auto mode_rect = geometry_in_palette(*palette, *screen_mode);
+    CHECK(std::abs((mode_rect.left() + mode_rect.right() + 1) / 2.0 - tools_center) <= 1.5);
+  }
+  int tools_bottom = 0;
+  for (auto* button : palette->findChildren<QToolButton*>()) {
+    if (on_palette(*palette, button) && !footer->isAncestorOf(button) && button->defaultAction() != nullptr &&
+        button->defaultAction()->property(patchy::ui::kToolPaletteToolIdProperty).isValid()) {
+      tools_bottom = std::max(tools_bottom, geometry_in_palette(*palette, *button).bottom() + 1);
+    }
+  }
+  const int gap = footer->geometry().top() - tools_bottom;
+  std::printf("[INFO] footer starts %d px under the last tool row\n", gap);
+  CHECK(gap >= 0 && gap <= 12);
+  CHECK(footer->geometry().bottom() + 1 < bar_bottom());
+  (void)capture_widget_artifact("ui_tool_palette_two_column_footer", *palette);
+
+  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  window.resize(window.width(), 1200);
+  settle();
+  CHECK(footer->geometry().bottom() + 1 == bar_bottom());
+  CHECK(footer->foreground()->x() == 4);
+  CHECK(footer->quick_mask_button()->x() == one_column_quick_mask_x);
+}
+
+// GitHub issue 499: shortcut keys start together, left aligned, in a flyout (Lasso's L and
+// its cycle's Shift+L) and in Customize Tool Palette's list (Marquee's M and Healing's J).
+void ui_tool_flyout_shortcut_keys_start_in_one_column() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.resize(window.width(), 1400);
+  settle();
+  auto* button = button_named(window, "lassoToolButton");
+  auto* menu = button->menu();
+  auto* lasso = require_action(window, "toolLassoAction");
+  auto* cycle = require_action(window, "toolCycleLassoAction");
+  CHECK(!lasso->shortcut().isEmpty() && !cycle->shortcut().isEmpty());
+  menu->popup(button->mapToGlobal(QPoint(button->width() + 2, 0)));
+  process_events_until([&] { return menu->isVisible(); }, 1000);
+  settle();
+  const QImage image = menu->grab().toImage();
+  const double scale = static_cast<double>(image.width()) / menu->width();
+  (void)capture_widget_artifact("ui_tool_flyout_shortcut_column", *menu);
+  const auto key_left = [&](QAction* action) {
+    const QRect row = menu->actionGeometry(action);
+    const QRect band(qRound(row.left() * scale), qRound(row.top() * scale), qRound(row.width() * scale) - 1,
+                     qRound(row.height() * scale));
+    return key_ink_left(image, band, qRound(6 * scale));
+  };
+  const int lasso_key = key_left(lasso);
+  const int cycle_key = key_left(cycle);
+  std::printf("[INFO] flyout keys start at %d (L) and %d (Shift+L)\n", lasso_key, cycle_key);
+  CHECK(lasso_key > 0 && cycle_key > 0);
+  CHECK(std::abs(lasso_key - cycle_key) <= qRound(2 * scale));
+  menu->close();
+  settle();
+
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("toolPaletteCustomizeTree"));
+    CHECK(tree != nullptr);
+    if (tree == nullptr) {
+      dialog.reject();
+      return;
+    }
+    settle();
+    auto* viewport = tree->viewport();
+    const QImage list = viewport->grab().toImage();
+    const double list_scale = static_cast<double>(list.width()) / viewport->width();
+    const int column = qRound(tree->header()->sectionViewportPosition(1) * list_scale);
+    const auto row_key_left = [&](const char* name) {
+      auto* row = tree_row(*tree, QLatin1String(name));
+      if (row == nullptr) {
+        return -1;
+      }
+      const QRect band = tree->visualItemRect(row);
+      return key_ink_left(list, QRect(column, qRound(band.top() * list_scale), list.width() - column,
+                                      qRound(band.height() * list_scale)),
+                          list.width());
+    };
+    const int marquee_key = row_key_left("Marquee Tools");
+    const int healing_key = row_key_left("Healing Tools");
+    std::printf("[INFO] list keys start at %d (M) and %d (J)\n", marquee_key, healing_key);
+    CHECK(marquee_key > 0 && healing_key > 0);
+    CHECK(std::abs(marquee_key - healing_key) <= qRound(2 * list_scale));
+    (void)capture_widget_artifact("ui_tool_palette_customize_shortcut_column", *tree);
+    dialog.reject();
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::Tools);
+  CHECK(ran);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
@@ -2145,5 +2544,11 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_layer_footer_wraps_one_button_at_a_time", ui_layer_footer_wraps_one_button_at_a_time},
       {"ui_layer_footer_icon_size_persists_and_applies", ui_layer_footer_icon_size_persists_and_applies},
       {"ui_layer_footer_arrange_icons_draw_in_both_schemes", ui_layer_footer_arrange_icons_draw_in_both_schemes},
+      {"ui_tool_palette_single_tool_group_is_a_plain_button", ui_tool_palette_single_tool_group_is_a_plain_button},
+      {"ui_tool_palette_no_tool_groups_shows_every_tool", ui_tool_palette_no_tool_groups_shows_every_tool},
+      {"ui_tool_flyout_click_mode_hands_the_click_on", ui_tool_flyout_click_mode_hands_the_click_on},
+      {"ui_tool_palette_two_column_footer_sits_centered_under_the_tools",
+       ui_tool_palette_two_column_footer_sits_centered_under_the_tools},
+      {"ui_tool_flyout_shortcut_keys_start_in_one_column", ui_tool_flyout_shortcut_keys_start_in_one_column},
   };
 }
