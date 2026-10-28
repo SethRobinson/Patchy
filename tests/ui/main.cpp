@@ -462,6 +462,7 @@ int main(int argc, char* argv[]) {
            new_document_options_ui_tests,
            watermark_tests,
            watermark_preferences_tests,
+           ui_text_size_tests,
            save_metadata_tests,
            layered_tiff_ui_tests,
            perspective_planes_ui_tests,

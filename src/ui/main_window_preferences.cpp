@@ -696,6 +696,33 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* gui_scale_label = new QLabel(tr("Interface scale:"), application_group);
   gui_scale_label->setBuddy(gui_scale_spin);
   application_form->addRow(gui_scale_label, scale_row);
+  // The interface's text alone, on top of the interface scale (GitHub issue 495): a percent
+  // of the default text size, typed or stepped like the scale field. Read at startup, so it
+  // applies on the next launch with the same notice. kMin/kMaxUiTextSizePercent is the range
+  // every dialog was checked at (docs/ui-text-size.md).
+  auto* ui_text_size_row = new QWidget(application_group);
+  ui_text_size_row->setObjectName(QStringLiteral("preferencesUiTextSizeRow"));
+  auto* ui_text_size_layout = new QHBoxLayout(ui_text_size_row);
+  ui_text_size_layout->setContentsMargins(0, 0, 0, 0);
+  auto* ui_text_size_spin = new GuiScaleSpinBox(ui_text_size_row);
+  ui_text_size_spin->setObjectName(QStringLiteral("preferencesUiTextSizeSpin"));
+  ui_text_size_spin->setRange(kMinUiTextSizePercent, kMaxUiTextSizePercent);
+  ui_text_size_spin->setSingleStep(kUiTextSizeStepPercent);
+  ui_text_size_spin->setSuffix(percent_suffix());
+  ui_text_size_spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  ui_text_size_spin->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  const int entry_ui_text_size = stored_ui_text_size_percent();
+  ui_text_size_spin->setValue(entry_ui_text_size);
+  ui_text_size_spin->setToolTip(
+      tr("Size of the interface's text, from %1 to %2 of the default. The interface scale above "
+         "sizes everything; this sizes only the text. Takes effect the next time Patchy starts.")
+          .arg(gui_scale_text(kMinUiTextSizePercent), gui_scale_text(kMaxUiTextSizePercent)));
+  auto* ui_text_size_label = new QLabel(tr("Text size:"), application_group);
+  ui_text_size_label->setBuddy(ui_text_size_spin);
+  // In a row of its own with a stretch, so it keeps the scale field's width.
+  ui_text_size_layout->addWidget(ui_text_size_spin);
+  ui_text_size_layout->addStretch(1);
+  application_form->addRow(ui_text_size_label, ui_text_size_row);
   // When a tool group's flyout opens (GitHub issue 459): press and hold (the default), a
   // click, or the pointer resting on the button. The customize dialog shows it too.
   auto* tool_flyout_open_combo = new QComboBox(application_group);
@@ -2089,6 +2116,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     /* Plain-QWidget field containers inherit the global QWidget background, which
        shows as a mismatched band against the panel_card_bg panels. */
     QDialog#patchyPreferencesDialog QWidget#preferencesInterfaceScaleRow,
+    QDialog#patchyPreferencesDialog QWidget#preferencesUiTextSizeRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesCustomizeToolPaletteRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesUpdateCheckRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesRecoveryRow,
@@ -2119,7 +2147,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     /* The interface-scale field is only as wide as its widest value (the row is tight in the
        longer languages): its edit area already stops at the + button, so the right padding
        only has to clear the - button. */
-    QDialog#patchyPreferencesDialog QSpinBox#preferencesGuiScaleSpin {
+    QDialog#patchyPreferencesDialog QSpinBox#preferencesGuiScaleSpin,
+    QDialog#patchyPreferencesDialog QSpinBox#preferencesUiTextSizeSpin {
       padding-right: 30px;
     }
     /* The interface-scale presets drop-down: a field-faced chevron button as tall as the
@@ -2307,15 +2336,34 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     // an emptied field keeps its last value.
     gui_scale_spin->interpretText();
     const int selected_gui_scale = gui_scale_spin->value();
+    ui_text_size_spin->interpretText();
+    const int selected_ui_text_size = ui_text_size_spin->value();
+    const bool ui_text_size_changed = selected_ui_text_size != entry_ui_text_size;
+    if (ui_text_size_changed) {
+      set_stored_ui_text_size_percent(selected_ui_text_size);
+    }
     if (selected_gui_scale != entry_gui_scale) {
       set_stored_gui_scale_percent(selected_gui_scale);
+      // One notice when both changed.
       show_information_message(this, tr("Interface Scale"),
 #ifdef Q_OS_WASM
-                               tr("Reload the page for the new interface scale to take effect."),
+                               ui_text_size_changed
+                                   ? tr("Reload the page for the new interface scale and text size to take effect.")
+                                   : tr("Reload the page for the new interface scale to take effect."),
 #else
-                               tr("Restart Patchy for the new interface scale to take effect."),
+                               ui_text_size_changed
+                                   ? tr("Restart Patchy for the new interface scale and text size to take effect.")
+                                   : tr("Restart Patchy for the new interface scale to take effect."),
 #endif
                                QStringLiteral("preferencesInterfaceScaleMessageBox"));
+    } else if (ui_text_size_changed) {
+      show_information_message(this, tr("Text Size"),
+#ifdef Q_OS_WASM
+                               tr("Reload the page for the new text size to take effect."),
+#else
+                               tr("Restart Patchy for the new text size to take effect."),
+#endif
+                               QStringLiteral("preferencesUiTextSizeMessageBox"));
     }
     // Compared with what is stored now, not at entry: the customize dialog, opened from here,
     // may have changed both meanwhile (and moved these combos to match).

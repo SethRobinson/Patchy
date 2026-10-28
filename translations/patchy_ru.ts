@@ -28396,6 +28396,34 @@ Locked: %1</source>
         <source>Download Installer</source>
         <translation>Скачать установщик</translation>
     </message>
+    <message>
+        <source>Size of the interface&apos;s text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
+        <translation>Размер текста интерфейса, от %1 до %2 от стандартного. Масштаб интерфейса выше меняет размер всего, а этот параметр меняет только текст. Вступает в силу при следующем запуске Patchy.</translation>
+    </message>
+    <message>
+        <source>Text size:</source>
+        <translation>Размер текста:</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new interface scale and text size to take effect.</source>
+        <translation>Перезагрузите страницу, чтобы новый масштаб интерфейса и размер текста вступили в силу.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new interface scale and text size to take effect.</source>
+        <translation>Перезапустите Patchy, чтобы новый масштаб интерфейса и размер текста вступили в силу.</translation>
+    </message>
+    <message>
+        <source>Text Size</source>
+        <translation>Размер текста</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new text size to take effect.</source>
+        <translation>Перезагрузите страницу, чтобы новый размер текста вступил в силу.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new text size to take effect.</source>
+        <translation>Перезапустите Patchy, чтобы новый размер текста вступил в силу.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

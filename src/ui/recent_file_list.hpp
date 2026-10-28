@@ -19,6 +19,8 @@ namespace patchy::ui {
 // row an empty path.
 inline constexpr int kRecentPathRole = Qt::UserRole + 1;
 inline constexpr int kRecentRowHeight = 40;
+// kRecentRowHeight grown with the interface text size (two text lines; docs/ui-text-size.md).
+[[nodiscard]] int recent_row_height();
 inline constexpr int kRecentListChrome = 14;  // the list's own frame and padding
 
 // The shared filter rule: every whitespace-separated token of `filter_text`, anywhere in

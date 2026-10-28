@@ -2,6 +2,7 @@
 
 #include "core/pixel_depth.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QFocusEvent>
 #include <QHBoxLayout>
@@ -287,12 +288,16 @@ protected:
     painter.drawRect(graph.adjusted(0, 0, -1, -1));
 
     painter.setPen(QColor(181, 186, 197));
-    painter.drawText(QRect(graph.left(), graph.bottom() + 5, 40, 18), Qt::AlignLeft | Qt::AlignTop,
+    // The axis labels' boxes, and the margins graph_rect() leaves for them, grow with the
+    // interface text size (GitHub issue 495).
+    const int label_height = ui_text_length(18);
+    const int side_label_width = ui_text_length(24);
+    painter.drawText(QRect(graph.left(), graph.bottom() + 5, 40, label_height), Qt::AlignLeft | Qt::AlignTop,
                      QStringLiteral("0"));
-    painter.drawText(QRect(graph.right() - 40, graph.bottom() + 5, 40, 18), Qt::AlignRight | Qt::AlignTop,
-                     QStringLiteral("255"));
-    painter.drawText(QRect(graph.left() - 27, graph.top() - 2, 24, 18), Qt::AlignRight | Qt::AlignTop,
-                     QStringLiteral("255"));
+    painter.drawText(QRect(graph.right() - 40, graph.bottom() + 5, 40, label_height),
+                     Qt::AlignRight | Qt::AlignTop, QStringLiteral("255"));
+    painter.drawText(QRect(graph.left() - side_label_width - 3, graph.top() - 2, side_label_width, label_height),
+                     Qt::AlignRight | Qt::AlignTop, QStringLiteral("255"));
   }
 
   void focusInEvent(QFocusEvent* event) override {
@@ -397,7 +402,7 @@ protected:
 
 private:
   [[nodiscard]] QRect graph_rect() const {
-    const auto available = rect().adjusted(31, 10, -10, -28);
+    const auto available = rect().adjusted(ui_text_length(31), 10, -10, -ui_text_length(28));
     const auto side = std::max(1, std::min(available.width(), available.height()));
     const auto left = available.left() + (available.width() - side) / 2;
     const auto top = available.top() + (available.height() - side) / 2;

@@ -57,6 +57,7 @@
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui/zoom_status_bar.hpp"
 
 #include <QAction>
@@ -926,7 +927,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   move_auto_select_target_combo_ = new QComboBox(toolbar);
   move_auto_select_target_combo_->setObjectName(QStringLiteral("moveAutoSelectTargetCombo"));
   move_auto_select_target_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-  move_auto_select_target_combo_->setMinimumWidth(72);
+  move_auto_select_target_combo_->setMinimumWidth(ui_text_length(72));
   move_auto_select_target_combo_->addItem(tr("Layer"), move_auto_select_target_token(MoveAutoSelectTarget::Layer));
   move_auto_select_target_combo_->addItem(tr("Group"), move_auto_select_target_token(MoveAutoSelectTarget::Group));
   move_auto_select_target_combo_->setCurrentIndex(
@@ -1115,7 +1116,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   transform_reference_combo_ = new QComboBox(toolbar);
   transform_reference_combo_->setObjectName(QStringLiteral("freeTransformReferenceCombo"));
   bind_tooltip(transform_reference_combo_, QT_TR_NOOP("Reference point"));
-  transform_reference_combo_->setMinimumWidth(96);
+  transform_reference_combo_->setMinimumWidth(ui_text_length(96));
   add_transform_option_widget(transform_reference_combo_);
   register_retranslation([this] {
     if (transform_reference_combo_ == nullptr) {
@@ -1167,7 +1168,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     spin->setRange(minimum, maximum);
     spin->setDecimals(decimals);
     spin->setKeyboardTracking(false);
-    spin->setMinimumWidth(82);
+    spin->setMinimumWidth(ui_text_length(82));
     configure_dialog_spinbox(spin, 82);
     add_transform_option_widget(spin);
     return spin;
@@ -1261,7 +1262,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   transform_interpolation_combo_ = new QComboBox(toolbar);
   transform_interpolation_combo_->setObjectName(QStringLiteral("freeTransformInterpolationCombo"));
   bind_tooltip(transform_interpolation_combo_, QT_TR_NOOP("Interpolation"));
-  transform_interpolation_combo_->setMinimumWidth(132);
+  transform_interpolation_combo_->setMinimumWidth(ui_text_length(132));
   add_transform_option_widget(transform_interpolation_combo_);
   register_retranslation([this] {
     if (transform_interpolation_combo_ == nullptr) {
@@ -1338,7 +1339,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   warp_style_combo_ = new QComboBox(toolbar);
   warp_style_combo_->setObjectName(QStringLiteral("warpStyleCombo"));
   bind_tooltip(warp_style_combo_, QT_TR_NOOP("Warp style"));
-  warp_style_combo_->setMinimumWidth(110);
+  warp_style_combo_->setMinimumWidth(ui_text_length(110));
   add_warp_option_widget(warp_style_combo_);
   register_retranslation([this] {
     if (warp_style_combo_ == nullptr) {
@@ -1643,7 +1644,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   style_combo->setObjectName(QStringLiteral("selectionStyleCombo"));
   style_combo->addItems({tr("Normal"), tr("Fixed Ratio"), tr("Fixed Size")});
   style_combo->setCurrentText(tr("Normal"));
-  style_combo->setFixedWidth(92);
+  style_combo->setFixedWidth(ui_text_length(92));
   QPointer<QComboBox> selection_style_combo(style_combo);
   register_retranslation([selection_style_combo] {
     if (selection_style_combo == nullptr || selection_style_combo->count() < 3) {
@@ -1793,7 +1794,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   crop_style_combo_ = new QComboBox(toolbar);
   crop_style_combo_->setObjectName(QStringLiteral("cropStyleCombo"));
   crop_style_combo_->addItems({tr("Ratio"), tr("Size")});
-  crop_style_combo_->setFixedWidth(72);
+  crop_style_combo_->setFixedWidth(ui_text_length(72));
   QPointer<QComboBox> crop_style_combo(crop_style_combo_);
   register_retranslation([crop_style_combo] {
     if (crop_style_combo == nullptr || crop_style_combo->count() < 2) {
@@ -1809,7 +1810,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   crop_ratio_option_widgets_.push_back(add_option_label(QT_TR_NOOP("Ratio:"), {CanvasTool::Crop}));
   crop_ratio_preset_combo_ = new QComboBox(toolbar);
   crop_ratio_preset_combo_->setObjectName(QStringLiteral("cropRatioPresetCombo"));
-  crop_ratio_preset_combo_->setMinimumWidth(118);
+  crop_ratio_preset_combo_->setMinimumWidth(ui_text_length(118));
   // Index 0 "None" and the last index "Custom" are fixed anchors: the preset
   // handler and sync_crop_ratio_preset_combo key on them. "Original Ratio"
   // (index 1) reads the active document at selection time.
@@ -1911,7 +1912,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     crop_overlay_combo_->addItem(tr(source), QString::fromLatin1(token));
   }
   crop_overlay_combo_->setCurrentIndex(current_crop_overlay_);
-  crop_overlay_combo_->setFixedWidth(112);
+  crop_overlay_combo_->setFixedWidth(ui_text_length(112));
   QPointer<QComboBox> crop_overlay_combo(crop_overlay_combo_);
   register_retranslation([crop_overlay_combo] {
     if (crop_overlay_combo == nullptr || crop_overlay_combo->count() != static_cast<int>(kCropOverlayItems.size())) {
@@ -2450,7 +2451,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_preset_combo_->setObjectName(QStringLiteral("brushPresetCombo"));
   // 112 (was 132): reclaims room for the labeled Smoothing controls on the
   // one-line Brush row (ui_brush_tip_picker_keeps_options_bar_height).
-  brush_preset_combo_->setMinimumWidth(112);
+  brush_preset_combo_->setMinimumWidth(ui_text_length(112));
   brush_preset_combo_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
   brush_preset_combo_->setMinimumContentsLength(8);
   for (const auto& preset : builtin_brush_presets()) {
@@ -2559,7 +2560,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_mode_combo_->setObjectName(QStringLiteral("vectorModeCombo"));
   vector_mode_combo_->addItems({tr("Shape"), tr("Path"), tr("Pixels")});
   vector_mode_combo_->setCurrentIndex(0);
-  vector_mode_combo_->setFixedWidth(76);
+  vector_mode_combo_->setFixedWidth(ui_text_length(76));
   bind_tooltip(vector_mode_combo_, QT_TR_NOOP("What the shape tools create: a shape layer, work-path subpaths, or raster pixels"));
   QPointer<QComboBox> vector_mode_combo_pointer(vector_mode_combo_);
   register_retranslation([vector_mode_combo_pointer] {
@@ -3066,7 +3067,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   pattern_stamp_pattern_combo_ = new QComboBox(toolbar);
   pattern_stamp_pattern_combo_->setObjectName(QStringLiteral("patternStampPatternCombo"));
   pattern_stamp_pattern_combo_->setIconSize(QSize(18, 18));
-  pattern_stamp_pattern_combo_->setMinimumWidth(150);
+  pattern_stamp_pattern_combo_->setMinimumWidth(ui_text_length(150));
   use_scrolling_list_popup(*pattern_stamp_pattern_combo_);
   register_retranslation([this] { refresh_pattern_stamp_pattern_combo(); });
   // The list fills when the startup pattern preload lands; using it before then loads it now.
@@ -3108,7 +3109,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   gradient_method_combo_->setObjectName(QStringLiteral("gradientMethodCombo"));
   gradient_method_combo_->addItem(tr("Linear"), static_cast<int>(GradientMethod::Linear));
   gradient_method_combo_->addItem(tr("Radial"), static_cast<int>(GradientMethod::Radial));
-  gradient_method_combo_->setFixedWidth(86);
+  gradient_method_combo_->setFixedWidth(ui_text_length(86));
   add_option_widget(gradient_method_combo_, {CanvasTool::Gradient});
   add_option_separator({CanvasTool::Gradient});
   QPointer<QComboBox> gradient_method_combo(gradient_method_combo_);
@@ -3265,7 +3266,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   patch_mode_combo_->addItem(tr("Destination"), static_cast<int>(CanvasWidget::PatchToolMode::Destination));
   patch_mode_combo_->setCurrentIndex(std::max(
       0, patch_mode_combo_->findData(static_cast<int>(canvas_defaults->patch_tool_mode()))));
-  patch_mode_combo_->setFixedWidth(104);
+  patch_mode_combo_->setFixedWidth(ui_text_length(104));
   bind_tooltip(patch_mode_combo_, QT_TR_NOOP("Source heals the dragged-from region; Destination copies it onto the drop point"));
   {
     QPointer<QComboBox> patch_mode_combo(patch_mode_combo_);
@@ -3451,7 +3452,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   local_tone_range_combo_->addItem(tr("Highlights"), static_cast<int>(CanvasWidget::LocalToneRange::Highlights));
   local_tone_range_combo_->setCurrentIndex(
       std::max(0, local_tone_range_combo_->findData(static_cast<int>(current_local_tone_range_))));
-  local_tone_range_combo_->setFixedWidth(92);
+  local_tone_range_combo_->setFixedWidth(ui_text_length(92));
   add_option_widget(local_tone_range_combo_, {CanvasTool::Dodge, CanvasTool::Burn});
   connect(local_tone_range_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (index < 0 || local_tone_range_combo_ == nullptr) {
@@ -3501,7 +3502,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   sponge_mode_combo_->addItem(tr("Desaturate"), static_cast<int>(CanvasWidget::SpongeMode::Desaturate));
   sponge_mode_combo_->setCurrentIndex(
       std::max(0, sponge_mode_combo_->findData(static_cast<int>(current_sponge_mode_))));
-  sponge_mode_combo_->setFixedWidth(94);
+  sponge_mode_combo_->setFixedWidth(ui_text_length(94));
   add_option_widget(sponge_mode_combo_, {CanvasTool::Sponge});
   connect(sponge_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (index < 0 || sponge_mode_combo_ == nullptr) {
@@ -4138,7 +4139,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_combine_combo->addItems(
       {tr("New Layer"), tr("Add"), tr("Subtract"), tr("Intersect"), tr("Exclude")});
   vector_combine_combo->setCurrentIndex(0);
-  vector_combine_combo->setFixedWidth(88);
+  vector_combine_combo->setFixedWidth(ui_text_length(88));
   widen_combo_popup_to_items(vector_combine_combo);
   bind_tooltip(vector_combine_combo, QT_TR_NOOP("How the next shape combines with the active shape layer or work path"));
   QPointer<QComboBox> vector_combine_combo_pointer(vector_combine_combo);
@@ -4257,7 +4258,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       [this] { open_custom_shape_manager(nullptr); }, toolbar);
   custom_shape_combo_->setObjectName(QStringLiteral("customShapeCombo"));
   custom_shape_combo_->setIconSize(QSize(24, 24));
-  custom_shape_combo_->setFixedWidth(150);
+  custom_shape_combo_->setFixedWidth(ui_text_length(150));
   register_retranslation([this] { refresh_custom_shape_combo(); });
   add_option_widget(custom_shape_combo_, {CanvasTool::CustomShape});
   vector_vector_mode_option_widgets_.push_back(custom_shape_combo_);
@@ -4340,7 +4341,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   shape_style_combo->setObjectName(QStringLiteral("shapeStyleCombo"));
   shape_style_combo->addItems({tr("Normal"), tr("Fixed Ratio"), tr("Fixed Size")});
   shape_style_combo->setCurrentText(tr("Normal"));
-  shape_style_combo->setFixedWidth(92);
+  shape_style_combo->setFixedWidth(ui_text_length(92));
   QPointer<QComboBox> shape_style_combo_pointer(shape_style_combo);
   register_retranslation([shape_style_combo_pointer] {
     if (shape_style_combo_pointer == nullptr || shape_style_combo_pointer->count() < 3) {
@@ -4592,7 +4593,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_font_combo_->setCurrentFont(QFont(default_text_family()));
   // GitHub issue 91: narrower closed controls keep the Text row on one line at
   // 1366 px; the family popup sizes itself, and the style list opens wider.
-  text_font_combo_->setFixedWidth(160);
+  text_font_combo_->setFixedWidth(ui_text_length(160));
   add_option_widget(text_font_combo_, {CanvasTool::Text});
   // Photoshop's style picker: the family's OWN face list, and the only face control in the bar
   // (no B/I buttons, like Photoshop). A family with no italic simply does not offer one, and
@@ -4601,8 +4602,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_style_combo_ = new QComboBox(toolbar);
   text_style_combo_->setObjectName(QStringLiteral("textStyleCombo"));
   bind_tooltip(text_style_combo_, QT_TR_NOOP("Font style"));
-  text_style_combo_->setFixedWidth(104);
-  text_style_combo_->view()->setMinimumWidth(170);
+  text_style_combo_->setFixedWidth(ui_text_length(104));
+  text_style_combo_->view()->setMinimumWidth(ui_text_length(170));
   refresh_text_style_combo(text_font_combo_->currentFont().family(), QString());
   add_option_widget(text_style_combo_, {CanvasTool::Text});
   // Font and style | Size and Smoothing (GitHub issue 343).
@@ -4651,7 +4652,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                              QT_TR_NOOP("Strong"), QT_TR_NOOP("Smooth"), QT_TR_NOOP("Windows LCD"), QT_TR_NOOP("Windows")};
     for (int index = 0; index < 7; ++index) text_smoothing_combo_->setItemText(index, tr(sources[index]));
   });
-  text_smoothing_combo_->setFixedWidth(104);
+  text_smoothing_combo_->setFixedWidth(ui_text_length(104));
   set_text_smoothing_combo_value(
       text_smoothing_combo_,
       app_settings().value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt());

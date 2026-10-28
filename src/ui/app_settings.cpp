@@ -28,6 +28,7 @@ namespace {
 
 // Persisted identifiers: never rename them (see AGENTS.md).
 QString gui_scale_key() { return QStringLiteral("preferences/guiScalePercent"); }
+QString ui_text_size_key() { return QStringLiteral("preferences/uiTextSizePercent"); }
 QString toolbar_icon_size_key() { return QStringLiteral("preferences/toolbarIconSize"); }
 QString tool_flyout_open_mode_key() { return QStringLiteral("preferences/toolFlyoutOpenMode"); }
 QString layer_footer_icon_size_key() { return QStringLiteral("layersPanel/footerIconSize"); }
@@ -209,6 +210,28 @@ int stored_gui_scale_percent() {
 void set_stored_gui_scale_percent(int percent) {
   auto settings = app_settings();
   settings.setValue(gui_scale_key(), normalize_gui_scale_percent(percent));
+}
+
+int normalize_ui_text_size_percent(int stored) {
+  if (stored <= 0) {
+    return kDefaultUiTextSizePercent;
+  }
+  return std::clamp(stored, kMinUiTextSizePercent, kMaxUiTextSizePercent);
+}
+
+int stored_ui_text_size_percent() {
+  return normalize_ui_text_size_percent(
+      app_settings().value(ui_text_size_key(), kDefaultUiTextSizePercent).toInt());
+}
+
+void set_stored_ui_text_size_percent(int percent) {
+  auto settings = app_settings();
+  const int normalized = normalize_ui_text_size_percent(percent);
+  if (normalized == kDefaultUiTextSizePercent) {
+    settings.remove(ui_text_size_key());
+  } else {
+    settings.setValue(ui_text_size_key(), normalized);
+  }
 }
 
 QString toolbar_icon_size_token(ToolbarIconSize size) {

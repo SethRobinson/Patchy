@@ -206,9 +206,10 @@ AiSetupDialog::AiSetupDialog(const AiControlPaths& paths, QWidget* parent)
   content->addLayout(buttons);
 
   // MainWindow's inherited QWidget rule pins text to 12px. A local font rule
-  // must override it; setFont alone is overridden when the dialog is polished.
+  // must override it; setFont alone is overridden when the dialog is polished. The sizes
+  // come from the live font, which already carries the interface text size.
   const auto css_size = [](const QFont& font) {
-    return font.pixelSize() > 0 ? QStringLiteral("%1px").arg(font.pixelSize())
+    return font.pixelSize() > 0 ? QStringLiteral("%1px /* scaled */").arg(font.pixelSize())
                                : QStringLiteral("%1pt").arg(font.pointSizeF(), 0, 'f', 2);
   };
   append_themed_style(*this, QStringLiteral(

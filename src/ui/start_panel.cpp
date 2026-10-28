@@ -8,6 +8,7 @@
 #include "ui/splash_artwork.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/recent_file_list.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QEvent>
 #include <QPaintEvent>
@@ -75,7 +76,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
 
   auto* column = new QWidget(this);
   column->setObjectName(QStringLiteral("startPanelColumn"));
-  column->setMaximumWidth(460);
+  column->setMaximumWidth(ui_text_length(460));
   auto* column_layout = new QVBoxLayout(column);
   column_layout->setContentsMargins(0, 0, 0, 0);
   column_layout->setSpacing(14);
@@ -106,7 +107,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   bind_translated_text(tagline, QT_TR_NOOP("Open source photo editing. Free forever, no subscriptions."), "patchy::ui::StartPanel");
   tagline->setObjectName(QStringLiteral("startPanelTagline"));
   tagline->setWordWrap(true);
-  tagline->setMaximumWidth(240);
+  tagline->setMaximumWidth(ui_text_length(240));
   header_text->addStretch(1);
   header_text->addWidget(title);
   header_text->addWidget(tagline);
@@ -196,9 +197,9 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   recent_filter_edit_->setClearButtonEnabled(true);
   recent_filter_edit_->setPlaceholderText(tr("Filter recent files..."));
   bind_translated_text(recent_filter_edit_, QT_TR_NOOP("Filter recent files..."), "patchy::ui::StartPanel");
-  recent_filter_edit_->setFixedHeight(24);
-  recent_filter_edit_->setMinimumWidth(140);
-  recent_filter_edit_->setMaximumWidth(230);
+  recent_filter_edit_->setFixedHeight(ui_text_length(24));
+  recent_filter_edit_->setMinimumWidth(ui_text_length(140));
+  recent_filter_edit_->setMaximumWidth(ui_text_length(230));
   recent_header->addWidget(recent_filter_edit_, 1);
   column_layout->addLayout(recent_header);
 

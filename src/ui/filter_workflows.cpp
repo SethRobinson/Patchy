@@ -21,6 +21,7 @@
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/localization.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
@@ -566,7 +567,7 @@ std::optional<FilterInvocation> request_filter_settings(
                                      QObject::tr("Zoom in"));
     auto* zoom_label = new QLabel(&dialog);
     zoom_label->setObjectName(QStringLiteral("filterDialogZoomLabel"));
-    zoom_label->setMinimumWidth(78);
+    zoom_label->setMinimumWidth(ui_text_length(78));
     zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     zoom_row->addWidget(zoom_fit);
     zoom_row->addWidget(zoom_100);

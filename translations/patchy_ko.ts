@@ -28232,6 +28232,34 @@ Locked: %1</source>
         <source>Download Installer</source>
         <translation>설치 프로그램 다운로드</translation>
     </message>
+    <message>
+        <source>Size of the interface&apos;s text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
+        <translation>인터페이스 텍스트의 크기로, 기본 크기의 %1에서 %2까지 지정합니다. 위의 인터페이스 배율은 모든 것의 크기를 바꾸고, 이 설정은 텍스트만 바꿉니다. 다음에 Patchy를 시작할 때 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>Text size:</source>
+        <translation>텍스트 크기:</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new interface scale and text size to take effect.</source>
+        <translation>새 인터페이스 배율과 텍스트 크기를 적용하려면 페이지를 다시 로드하세요.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new interface scale and text size to take effect.</source>
+        <translation>새 인터페이스 배율과 텍스트 크기를 적용하려면 Patchy를 다시 시작하세요.</translation>
+    </message>
+    <message>
+        <source>Text Size</source>
+        <translation>텍스트 크기</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new text size to take effect.</source>
+        <translation>새 텍스트 크기를 적용하려면 페이지를 다시 로드하세요.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new text size to take effect.</source>
+        <translation>새 텍스트 크기를 적용하려면 Patchy를 다시 시작하세요.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

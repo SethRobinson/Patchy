@@ -5,6 +5,7 @@
 #include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/ui_font.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/cli_exit.hpp"
 #include "ui/document_recovery.hpp"
@@ -559,7 +560,11 @@ int main(int argc, char* argv[]) {
   localization_phase.end();
   // After the language: on wasm the app font's CJK fallback order depends on it.
   patchy::startup_trace::Scope ui_font_phase("fonts.ui_family");
-  app.setFont(application_font());
+  // The interface text size (GitHub issue 495) before the first stylesheet is built: the
+  // application font and every themed sheet's font sizes follow it. Read once; a change in
+  // Preferences applies on the next start.
+  patchy::ui::set_ui_text_size_percent(patchy::ui::stored_ui_text_size_percent());
+  app.setFont(patchy::ui::ui_text_scaled_font(application_font()));
   ui_font_phase.end();
   patchy::startup_trace::Scope theme_phase("theme.load");
   patchy::ui::ThemeManager::instance().load_saved_preference();

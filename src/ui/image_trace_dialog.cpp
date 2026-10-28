@@ -6,6 +6,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/localization.hpp"
 
@@ -559,6 +560,11 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   info_row->addWidget(busy);
   auto* preview_info = new QLabel(&dialog);
   preview_info->setObjectName(QStringLiteral("imageTracePreviewInfo"));
+  // At a larger interface text size the status wraps instead of pushing the zoom controls
+  // out of the row (GitHub issue 495).
+  if (ui_text_size_percent() > 100) {
+    preview_info->setWordWrap(true);
+  }
   info_row->addWidget(preview_info, 1);
   const auto make_zoom_button = [&dialog](const char* object_name, const QString& text, const QString& tooltip) {
     auto* button = new QToolButton(&dialog);
@@ -577,7 +583,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   auto* zoom_in = make_zoom_button("imageTraceZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
   auto* zoom_label = new QLabel(&dialog);
   zoom_label->setObjectName(QStringLiteral("imageTraceZoomLabel"));
-  zoom_label->setMinimumWidth(72);
+  zoom_label->setMinimumWidth(ui_text_length(72));
   zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   info_row->addWidget(zoom_fit);
   info_row->addWidget(zoom_100);

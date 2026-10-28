@@ -14,6 +14,7 @@
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/tool_palette_footer.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QApplication>
 #include <QListWidget>
@@ -1251,11 +1252,15 @@ QString photoshop_style(double tool_palette_factor) {
   static int cached_generation = -1;
   static double cached_factor = 0.0;
   static int cached_panel_revision = -1;
+  // And on the interface text size, which sets for the process at startup but which
+  // tests change around a sweep (ui_text_size.hpp).
+  static int cached_text_size = -1;
   static QString cached;
   const auto generation = theme_generation();
   const auto panel_revision = theme_panel_background_revision();
+  const auto text_size = ui_text_size_percent();
   if (generation != cached_generation || tool_palette_factor != cached_factor ||
-      panel_revision != cached_panel_revision) {
+      panel_revision != cached_panel_revision || text_size != cached_text_size) {
     auto sheet = resolve_tool_palette_lengths(photoshop_style_template(), tool_palette_factor);
     sheet += layer_footer_size_rules();
     // Where the window server draws no shadow around the frameless main window
@@ -1269,6 +1274,7 @@ QString photoshop_style(double tool_palette_factor) {
     cached_generation = generation;
     cached_factor = tool_palette_factor;
     cached_panel_revision = panel_revision;
+    cached_text_size = text_size;
   }
   return cached;
 }

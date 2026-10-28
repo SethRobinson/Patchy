@@ -28314,6 +28314,34 @@ Verrouillé : %1</translation>
         <source>Download Installer</source>
         <translation>Télécharger le programme d&apos;installation</translation>
     </message>
+    <message>
+        <source>Size of the interface&apos;s text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
+        <translation>Taille du texte de l&apos;interface, de %1 à %2 de la taille par défaut. L&apos;échelle de l&apos;interface ci-dessus agrandit tout ; ce réglage, seulement le texte. Prend effet au prochain démarrage de Patchy.</translation>
+    </message>
+    <message>
+        <source>Text size:</source>
+        <translation>Taille du texte :</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new interface scale and text size to take effect.</source>
+        <translation>Rechargez la page pour que la nouvelle échelle de l&apos;interface et la nouvelle taille du texte prennent effet.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new interface scale and text size to take effect.</source>
+        <translation>Redémarrez Patchy pour que la nouvelle échelle de l&apos;interface et la nouvelle taille du texte prennent effet.</translation>
+    </message>
+    <message>
+        <source>Text Size</source>
+        <translation>Taille du texte</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new text size to take effect.</source>
+        <translation>Rechargez la page pour que la nouvelle taille du texte prenne effet.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new text size to take effect.</source>
+        <translation>Redémarrez Patchy pour que la nouvelle taille du texte prenne effet.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

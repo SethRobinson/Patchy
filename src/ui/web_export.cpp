@@ -20,6 +20,7 @@
 #include "ui/measurement_units.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui/unit_spin_box.hpp"
 #include "ui/zoomable_image_preview.hpp"
 
@@ -1351,7 +1352,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   controls_scroll->setFrameShape(QFrame::NoFrame);
   controls_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   controls_scroll->setWidgetResizable(true);
-  controls_scroll->setFixedWidth(410);
+  controls_scroll->setFixedWidth(ui_text_length(410));
   auto* controls_widget = new QWidget(controls_scroll);
   controls_widget->setObjectName(QStringLiteral("webExportControls"));
   controls_scroll->setWidget(controls_widget);
@@ -1743,7 +1744,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* zoom_in = make_zoom_button("webExportZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
   auto* zoom_label = new QLabel(&dialog);
   zoom_label->setObjectName(QStringLiteral("webExportZoomLabel"));
-  zoom_label->setMinimumWidth(72);
+  zoom_label->setMinimumWidth(ui_text_length(72));
   zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   view_row->addWidget(zoom_fit);
   view_row->addWidget(zoom_100);
@@ -1762,7 +1763,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* play_button = new QPushButton(QObject::tr("Pause"), playback_row);
   play_button->setObjectName(QStringLiteral("webExportPlayButton"));
   play_button->setFocusPolicy(Qt::NoFocus);
-  play_button->setMinimumWidth(72);
+  play_button->setMinimumWidth(ui_text_length(72));
   auto* previous_frame = make_zoom_button("webExportPreviousFrameButton", QStringLiteral("<"),
                                           QObject::tr("Previous frame"));
   auto* next_frame = make_zoom_button("webExportNextFrameButton", QStringLiteral(">"), QObject::tr("Next frame"));

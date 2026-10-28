@@ -1604,6 +1604,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/theme_palette.cpp
       src/ui/theme_qss.hpp
       src/ui/theme_qss.cpp
+      src/ui/ui_text_size.cpp
       src/ui/transparency_checkerboard.hpp
       src/ui/text_layout.hpp
       src/ui/text_layout.cpp
@@ -2538,6 +2539,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/new_document_options_tests.cpp
       tests/ui/watermark_tests.cpp
       tests/ui/watermark_preferences_tests.cpp
+      tests/ui/ui_text_size_tests.cpp
       tests/ui/save_metadata_tests.cpp
       tests/ui/layered_tiff_tests.cpp
       tests/ui/perspective_planes_ui_tests.cpp

@@ -3,6 +3,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/image_sequence_dialog.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -698,7 +699,7 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
   side_layout->setContentsMargins(0, 0, 0, 0);
   side_layout->setSpacing(10);
   root->addWidget(side, 0);
-  side->setFixedWidth(250);
+  side->setFixedWidth(ui_text_length(250));
 
   auto* detection_group = new QGroupBox(QObject::tr("Detection"), side);
   auto* detection_form = new QFormLayout(detection_group);
@@ -884,6 +885,16 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
   // the QObject translation context.
   buttons->button(QDialogButtonBox::Ok)->setText(QObject::tr("Divide Photos"));
   side_layout->addWidget(buttons);
+  // At another interface text size the column is as wide as its content asks, never less
+  // than the default (GitHub issue 495): at 80% the output form stopped wrapping its rows
+  // under their labels, and the fixed width left the fields short of their text.
+  if (ui_text_size_percent() != 100) {
+    side->ensurePolished();
+    for (auto* child : side->findChildren<QWidget*>()) {
+      child->ensurePolished();
+    }
+    side->setFixedWidth(std::max(ui_text_length(250), side->sizeHint().width()));
+  }
   // Validating accept: in a save mode the folder must exist (or be creatable)
   // before the dialog closes; on failure it stays open for a correction.
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, folder_edit, save_selected] {
