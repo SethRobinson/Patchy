@@ -16,7 +16,6 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/modifier_names.hpp"
-#include "ui/options_flow_layout.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QApplication>
@@ -851,6 +850,10 @@ ThemedQss new_document_dialog_style() {
       color: @nd_field_disabled_text;
       border-color: @nd_field_disabled_border;
     }
+    QDialog#patchyNewDocumentDialog QPushButton#newDocumentSavePresetButton {
+      min-width: 0;
+      padding: 0 8px;
+    }
     QDialog#patchyNewDocumentDialog QPushButton#newDocumentCreateButton {
       background: @primary_bg;
       border: 1px solid @primary_border;
@@ -922,7 +925,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   root->setSpacing(10);
 
   // The top row across the whole dialog (GitHub issue 342): the search field, then the group
-  // chips, which wrap to another row when they do not fit (a longer translation).
+  // chips on one row. The search field gives up width first (GitHub issue 497); chips that still
+  // do not fit (a longer translation, a large font) widen the dialog rather than wrap.
   auto* top = new QHBoxLayout();
   top->setSpacing(12);
   root->addLayout(top);
@@ -942,13 +946,16 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   search->setPlaceholderText(QObject::tr("Search all templates"));
   search->setToolTip(resolve_modifier_names(QObject::tr("Search every template group by name or size (%CTRL%+F)")));
   search->setClearButtonEnabled(true);
-  search->setFixedWidth(400);
-  top->addWidget(search, 0, Qt::AlignTop);
+  search->setMinimumWidth(160);
+  search->setMaximumWidth(400);
+  top->addWidget(search, 1, Qt::AlignVCenter);
 
   auto* chips = new QWidget(&dialog);
   chips->setObjectName(QStringLiteral("newDocumentChipRow"));
-  auto* chips_row = new FlowLayout(chips, 6, 6);
+  chips->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+  auto* chips_row = new QHBoxLayout(chips);
   chips_row->setContentsMargins(0, 0, 0, 0);
+  chips_row->setSpacing(6);
   auto* chip_group = new QButtonGroup(&dialog);
   chip_group->setExclusive(true);
   for (const auto category : kPresetCategories) {
@@ -962,7 +969,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     chip_group->addButton(chip, static_cast<int>(category));
     chips_row->addWidget(chip);
   }
-  top->addWidget(chips, 1);
+  top->addWidget(chips, 0);
+  top->addStretch(1);
 
   // One framed list area (GitHub issue 342): the Recent row on top, a divider, then the
   // group's cards under a caption naming the group, or the search.
@@ -1126,28 +1134,29 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   color_profile->setWordWrap(true);
   color_profile->setFixedWidth(kFieldWidth + 8 + kUnitWidth);
 
+  // Labels end in a colon and sit left aligned, like Patchy's other dialogs (GitHub issue 497).
   const auto add_row_label = [&dialog, grid](const QString& text, int row) {
-    grid->addWidget(new QLabel(text, &dialog), row, 0, Qt::AlignRight | Qt::AlignVCenter);
+    grid->addWidget(new QLabel(text, &dialog), row, 0, Qt::AlignLeft | Qt::AlignVCenter);
   };
-  add_row_label(QObject::tr("Name", "new document name field"), 0);
+  add_row_label(QObject::tr("Name:"), 0);
   grid->addWidget(name, 0, 1, 1, 2);
-  add_row_label(QObject::tr("Width"), 1);
+  add_row_label(QObject::tr("Width:"), 1);
   grid->addWidget(width, 1, 1);
   grid->addWidget(unit, 1, 2, Qt::AlignLeft);
-  add_row_label(QObject::tr("Height"), 2);
+  add_row_label(QObject::tr("Height:"), 2);
   grid->addWidget(height, 2, 1);
   grid->addWidget(swap_dimensions, 2, 2, Qt::AlignLeft);
-  add_row_label(QObject::tr("Resolution"), 3);
+  add_row_label(QObject::tr("Resolution:"), 3);
   grid->addWidget(resolution, 3, 1);
   grid->addWidget(resolution_unit, 3, 2, Qt::AlignLeft);
-  add_row_label(QObject::tr("Background"), 4);
+  add_row_label(QObject::tr("Background:"), 4);
   auto* background_row = new QHBoxLayout();
   background_row->setContentsMargins(0, 0, 0, 0);
   background_row->setSpacing(8);
   background_row->addWidget(background, 1);
   background_row->addWidget(background_swatch, 0);
   grid->addLayout(background_row, 4, 1, 1, 2);
-  add_row_label(QObject::tr("Color Mode"), 5);
+  add_row_label(QObject::tr("Color Mode:"), 5);
   grid->addWidget(color_mode, 5, 1, 1, 2);
   // Bits per channel, while deep editing is on (docs/high-bit-depth.md).
   auto* bit_depth = new QComboBox(&dialog);
@@ -1158,7 +1167,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     bit_depth->addItem(QObject::tr("32 Bits/Channel"), 32);
   }
   if (deep_editing_enabled()) {
-    add_row_label(QObject::tr("Bit Depth"), 6);
+    add_row_label(QObject::tr("Bit Depth:"), 6);
     grid->addWidget(bit_depth, 6, 1, 1, 2);
     // 8 bits, as in Photoshop's presets; only the Last Used card brings back another depth.
     bit_depth->setCurrentIndex(0);
@@ -1176,29 +1185,33 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   empty_layer->setToolTip(QObject::tr("Add an empty layer above the Background. The default comes from "
                                       "Preferences; changing it here affects only this document."));
   empty_layer->setChecked(app_settings().value(QStringLiteral("newDocument/addEmptyLayer"), true).toBool());
-  add_row_label(QObject::tr("Color Profile"), 7);
+  add_row_label(QObject::tr("Color Profile:"), 7);
   grid->addWidget(color_profile, 7, 1, 1, 2);
   grid->addWidget(empty_layer, 8, 1, 1, 2);
   grid->addWidget(artboards, 9, 1, 1, 2);
 
+  // The template name, size and memory lines start at the fields' left edge, with Save to
+  // their left in the label column (GitHub issue 497), so the button row never makes the
+  // column wider than its fields.
   auto* summary = new QLabel(&dialog);
   summary->setObjectName(QStringLiteral("newDocumentSummaryLabel"));
   summary->setTextFormat(Qt::PlainText);
   summary->setMinimumHeight(52);
   summary->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-  right->addSpacing(4);
-  right->addWidget(summary);
+  // Saves the settings as a card in the Saved group (GitHub issue 374); enabled only while
+  // no template or saved preset already holds them.
+  auto* save_preset = new QPushButton(QObject::tr("Save..."), &dialog);
+  save_preset->setObjectName(QStringLiteral("newDocumentSavePresetButton"));
+  save_preset->setAccessibleName(QObject::tr("Save Preset"));
+  save_preset->setToolTip(QObject::tr("Save these settings as a preset in the Saved group"));
+  save_preset->setAutoDefault(false);
+  grid->setRowMinimumHeight(10, 4);
+  grid->addWidget(save_preset, 11, 0, Qt::AlignTop);
+  grid->addWidget(summary, 11, 1, 1, 2);
   right->addStretch(1);
 
   auto* buttons_row = new QHBoxLayout();
   buttons_row->setSpacing(8);
-  // Saves the settings as a card in the Saved group (GitHub issue 374); enabled only while
-  // no template or saved preset already holds them.
-  auto* save_preset = new QPushButton(QObject::tr("Save Preset..."), &dialog);
-  save_preset->setObjectName(QStringLiteral("newDocumentSavePresetButton"));
-  save_preset->setToolTip(QObject::tr("Save these settings as a preset in the Saved group"));
-  save_preset->setAutoDefault(false);
-  buttons_row->addWidget(save_preset);
   buttons_row->addStretch(1);
   auto* create = new QPushButton(QObject::tr("Create"), &dialog);
   create->setObjectName(QStringLiteral("newDocumentCreateButton"));

@@ -19,11 +19,17 @@ for presets) and the `colorMode` tokens `rgb` and `cmykProof` are contracts too;
 
 ## Templates, Recent row and search
 
-Layout (GitHub issue 342): one row across the top holds the search field (400 px fixed) and
-the group chips (a `FlowLayout` in `newDocumentChipRow`, wrapping to another row when a
-translation does not fit); below it the template list frame and the settings pane start at
-the same top. `ui_new_document_dialog_fits_short_screens` pins the top row, the five columns,
-every group unscrolled and the dialog's height.
+Layout (GitHub issues 342 and 497): one row across the top holds the search field (160 to
+400 px, it gives up width first) and the group chips (a fixed-size `QHBoxLayout` row in
+`newDocumentChipRow` that never wraps: chips that do not fit beside the narrowest search field,
+a longer translation or a larger font, widen the dialog); below it the template list frame and
+the settings pane start at the same top. The settings labels are left aligned and end in a
+colon; the summary (template name, size, memory) starts at the fields' left edge, with Save
+in the label column to its left, so the Create/Cancel row never widens the column.
+`ui_new_document_dialog_fits_short_screens` pins the top row, the five columns, every group
+unscrolled and the dialog's height; `ui_new_document_layout_lines_up_labels_fields_and_summary`
+pins the one-row chips (Saved chip shown) at the opening and minimum widths, the label edge,
+the summary and Save placement.
 
 A Recent row (`newDocumentRecentList`) is the top section of the framed list area
 (`newDocumentListFrame`, GitHub issue 342), above a divider, a caption naming the group or
@@ -98,7 +104,7 @@ conversion.
 
 ## Saved presets (GitHub issue 374)
 
-Save Preset... (`newDocumentSavePresetButton`, left of Create) is enabled only while no
+Save... (`newDocumentSavePresetButton`, accessible name "Save Preset", left of the summary) is enabled only while no
 template and no saved preset holds the current settings: a template holds its size and
 resolution with the plain settings (white background, 8 bits, RGB, no Artboards); a saved
 preset holds everything but the units (`RecentDocumentSettings::same_document`). The Clipboard

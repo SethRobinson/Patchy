@@ -6987,14 +6987,6 @@ Flow: %6
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Resolution</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Background</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Create</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9210,10 +9202,6 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>32 Bits/Channel</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Bit Depth</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12298,23 +12286,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Name</source>
-        <comment>new document name field</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Color Mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Color Profile</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Save Preset...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Save these settings as a preset in the Saved group</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13877,6 +13848,18 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Show the shapes as a grid of thumbnails</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bit Depth:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Profile:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

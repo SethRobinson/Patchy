@@ -6982,14 +6982,6 @@ Flow: %6
         <translation>透明</translation>
     </message>
     <message>
-        <source>Resolution</source>
-        <translation>解析度</translation>
-    </message>
-    <message>
-        <source>Background</source>
-        <translation>背景</translation>
-    </message>
-    <message>
         <source>Create</source>
         <translation>建立</translation>
     </message>
@@ -9191,10 +9183,6 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>32 Bits/Channel</source>
         <translation>32 位元/色版</translation>
-    </message>
-    <message>
-        <source>Bit Depth</source>
-        <translation>位元深度</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
@@ -12280,23 +12268,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>CMYK 校樣需要 CMYK 描述檔。請在偏好設定中選擇。</translation>
     </message>
     <message>
-        <source>Name</source>
-        <comment>new document name field</comment>
-        <translation>名稱</translation>
-    </message>
-    <message>
-        <source>Color Mode</source>
-        <translation>色彩模式</translation>
-    </message>
-    <message>
-        <source>Color Profile</source>
-        <translation>色彩描述檔</translation>
-    </message>
-    <message>
-        <source>Save Preset...</source>
-        <translation>儲存預設集...</translation>
-    </message>
-    <message>
         <source>Save these settings as a preset in the Saved group</source>
         <translation>將這些設定儲存為「已儲存」群組中的預設集</translation>
     </message>
@@ -13852,6 +13823,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>以縮圖格線顯示形狀</translation>
+    </message>
+    <message>
+        <source>Color Mode:</source>
+        <translation>色彩模式:</translation>
+    </message>
+    <message>
+        <source>Bit Depth:</source>
+        <translation>位元深度:</translation>
+    </message>
+    <message>
+        <source>Color Profile:</source>
+        <translation>色彩描述檔:</translation>
     </message>
 </context>
 <context>

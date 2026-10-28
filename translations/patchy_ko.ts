@@ -7272,14 +7272,6 @@ Flow: %6
         <translation>투명</translation>
     </message>
     <message>
-        <source>Resolution</source>
-        <translation>해상도</translation>
-    </message>
-    <message>
-        <source>Background</source>
-        <translation>배경</translation>
-    </message>
-    <message>
         <source>Create</source>
         <translation>만들기</translation>
     </message>
@@ -9191,10 +9183,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>32 Bits/Channel</source>
         <translation>32비트/채널</translation>
-    </message>
-    <message>
-        <source>Bit Depth</source>
-        <translation>비트 심도</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
@@ -12280,23 +12268,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>CMYK 교정에는 CMYK 프로파일이 필요합니다. 환경설정에서 선택하세요.</translation>
     </message>
     <message>
-        <source>Name</source>
-        <comment>new document name field</comment>
-        <translation>이름</translation>
-    </message>
-    <message>
-        <source>Color Mode</source>
-        <translation>색상 모드</translation>
-    </message>
-    <message>
-        <source>Color Profile</source>
-        <translation>색상 프로파일</translation>
-    </message>
-    <message>
-        <source>Save Preset...</source>
-        <translation>사전 설정 저장...</translation>
-    </message>
-    <message>
         <source>Save these settings as a preset in the Saved group</source>
         <translation>이 설정을 저장됨 그룹의 사전 설정으로 저장</translation>
     </message>
@@ -13852,6 +13823,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>모양을 축소판 격자로 표시</translation>
+    </message>
+    <message>
+        <source>Color Mode:</source>
+        <translation>색상 모드:</translation>
+    </message>
+    <message>
+        <source>Bit Depth:</source>
+        <translation>비트 심도:</translation>
+    </message>
+    <message>
+        <source>Color Profile:</source>
+        <translation>색상 프로파일:</translation>
     </message>
 </context>
 <context>

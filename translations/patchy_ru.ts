@@ -7298,14 +7298,6 @@ Flow: %6
         <translation>Прозрачный</translation>
     </message>
     <message>
-        <source>Resolution</source>
-        <translation>Разрешение</translation>
-    </message>
-    <message>
-        <source>Background</source>
-        <translation>Фон</translation>
-    </message>
-    <message>
         <source>Create</source>
         <translation>Создать</translation>
     </message>
@@ -9251,10 +9243,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>32 Bits/Channel</source>
         <translation>32 бит/канал</translation>
-    </message>
-    <message>
-        <source>Bit Depth</source>
-        <translation>Битовая глубина</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
@@ -12348,23 +12336,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Для CMYK-цветопробы нужен профиль CMYK. Выберите его в настройках.</translation>
     </message>
     <message>
-        <source>Name</source>
-        <comment>new document name field</comment>
-        <translation>Имя</translation>
-    </message>
-    <message>
-        <source>Color Mode</source>
-        <translation>Цветовой режим</translation>
-    </message>
-    <message>
-        <source>Color Profile</source>
-        <translation>Цветовой профиль</translation>
-    </message>
-    <message>
-        <source>Save Preset...</source>
-        <translation>Сохранить предустановку...</translation>
-    </message>
-    <message>
         <source>Save these settings as a preset in the Saved group</source>
         <translation>Сохранить эти параметры как предустановку в группе «Сохранённые»</translation>
     </message>
@@ -13938,6 +13909,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>Показывать фигуры сеткой миниатюр</translation>
+    </message>
+    <message>
+        <source>Color Mode:</source>
+        <translation>Цветовой режим:</translation>
+    </message>
+    <message>
+        <source>Bit Depth:</source>
+        <translation>Битовая глубина:</translation>
+    </message>
+    <message>
+        <source>Color Profile:</source>
+        <translation>Цветовой профиль:</translation>
     </message>
 </context>
 <context>
