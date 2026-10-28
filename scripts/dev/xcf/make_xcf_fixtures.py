@@ -5,9 +5,11 @@ tested against what GIMP writes. Nothing here reads GIMP's source: GIMP runs onl
 its batch Python console.
 
 Usage (Windows, GIMP 3 installed in its default per-user place):
-    python -I scripts/dev/xcf/make_xcf_fixtures.py [out_dir]
+    python -I scripts/dev/xcf/make_xcf_fixtures.py [out_dir] [--only NAME,NAME]
 
-out_dir defaults to local-test-fixtures/xcf. Every NAME.xcf gets NAME.png beside it:
+out_dir defaults to local-test-fixtures/xcf. --only makes just the named sets (the names
+after want() at the end of GIMP_SCRIPT, for example "edits") and updates their manifest
+lines. Every NAME.xcf gets NAME.png beside it:
 GIMP's merge of the visible layers clipped to the canvas, with alpha (16-bit PNG for
 documents above 8 bits). manifest.txt lists what each file covers.
 """
@@ -98,6 +100,7 @@ OUT = {out!r}
 DEFAULT_MODES = {default_modes!r}
 LEGACY_MODES = {legacy_modes!r}
 PRECISIONS = {precisions!r}
+ONLY = {only!r}
 TILE = {tile}
 COLUMNS = {columns}
 manifest = []
@@ -418,6 +421,64 @@ def precision_files():
                        "the structure scene at " + p)
 
 
+def tile_layer(image, name, parent, x, y, mode="NORMAL"):
+    layer = load(image, "big-tile.png")
+    layer.set_name(name)
+    image.insert_layer(layer, parent, 0)
+    layer.set_offsets(x, y)
+    layer.set_mode(getattr(Gimp.LayerMode, mode))
+    return layer
+
+
+def edits_files():
+    # Files edited the way people edit them: layers and groups created, then deleted, moved
+    # between groups and reordered, so the saved tree is not the order things were made in.
+    image = Gimp.Image.new(160, 120, Gimp.ImageBaseType.RGB)
+    image.insert_layer(load(image, "backdrop160.png"), None, 0)
+    outer = Gimp.GroupLayer.new(image, "Outer")
+    image.insert_layer(outer, None, 0)
+    middle = Gimp.GroupLayer.new(image, "Middle")
+    image.insert_layer(middle, outer, 0)
+    inner = Gimp.GroupLayer.new(image, "Inner")
+    image.insert_layer(inner, middle, 0)
+    doomed_group = Gimp.GroupLayer.new(image, "Deleted group")
+    image.insert_layer(doomed_group, outer, 0)
+    tile_layer(image, "In deleted group", doomed_group, 0, 0)
+    layers = []
+    for i, mode in enumerate(["NORMAL", "MULTIPLY", "SCREEN", "OVERLAY", "DIFFERENCE", "GRAIN_MERGE", "HSV_HUE",
+                              "LCH_COLOR"]):
+        parent = (None, outer, middle, inner)[i % 4]
+        layers.append(tile_layer(image, "%02d %s" % (i + 1, mode.lower()), parent, 8 + 16 * i, 6 + 12 * i, mode))
+    image.remove_layer(layers[6])
+    image.remove_layer(layers[1])
+    image.remove_layer(doomed_group)
+    image.reorder_item(layers[0], middle, 0)
+    image.raise_item_to_top(layers[3])
+    image.lower_item(layers[2])
+    layers[4].set_visible(False)
+    empty = Gimp.GroupLayer.new(image, "Empty group")
+    image.insert_layer(empty, None, 0)
+    image.set_selected_layers([layers[5]])
+    save(image, "edits.xcf", "layers and groups created, deleted, moved between groups and reordered; nested groups")
+    image.delete()
+
+    # GIMP's coverage modes after deletes, with the active layer one Patchy replaces (issue 487).
+    image = Gimp.Image.new(160, 120, Gimp.ImageBaseType.RGB)
+    image.insert_layer(load(image, "backdrop160.png"), None, 0)
+    group = Gimp.GroupLayer.new(image, "Isolated group")
+    image.insert_layer(group, None, 0)
+    tile_layer(image, "Erase at group bottom", group, 20, 20, "ERASE")
+    tile_layer(image, "Group child", group, 40, 30)
+    made = []
+    for i, mode in enumerate(["NORMAL", "ERASE", "SCREEN", "SPLIT", "MULTIPLY", "SPLIT"]):
+        made.append(tile_layer(image, "%02d %s" % (i + 1, mode.lower()), None, 10 + 18 * i, 10 + 10 * i, mode))
+    made[1].set_opacity(60.0)
+    image.remove_layer(made[4])
+    image.set_selected_layers([made[5]])
+    save(image, "edits-erase.xcf", "Erase and Split layers after deletes, one at a group's bottom, a Split layer active")
+    image.delete()
+
+
 def plain_file():
     image = Gimp.Image.new(64, 48, Gimp.ImageBaseType.RGB)
     bg = load(image, "backdrop64.png")
@@ -426,26 +487,38 @@ def plain_file():
     image.delete()
 
 
-plain_file()
-modes_file("modes.xcf", DEFAULT_MODES, "backdrop-modes.png", "one tile per GIMP 2.10+ layer mode over an opaque backdrop")
-modes_file("modes-legacy.xcf", LEGACY_MODES, "backdrop-legacy.png", "one tile per legacy layer mode over an opaque backdrop")
-modes_file("modes-linear-16.xcf", DEFAULT_MODES, "backdrop-modes.png", "the default modes in a 16-bit linear image", Gimp.Precision.U16_LINEAR)
-alpha_backdrop_file("modes-alpha.xcf", DEFAULT_MODES, "the default modes over a half-transparent backdrop (composite modes)")
-alpha_backdrop_file("modes-legacy-alpha.xcf", LEGACY_MODES, "the legacy modes over a half-transparent backdrop")
-structure_file("structure.xcf", Gimp.Precision.U8_NON_LINEAR, "groups, pass-through, offsets, opacity, masks, hidden, locks, Unicode name, empty layer")
-structure_file("structure-gray.xcf", Gimp.Precision.U8_NON_LINEAR, "the structure scene in grayscale", Gimp.ImageBaseType.GRAY)
-structure_file("structure-gray-16.xcf", Gimp.Precision.U16_NON_LINEAR, "the structure scene in 16-bit grayscale", Gimp.ImageBaseType.GRAY)
-precision_files()
-group_file()
-text_file()
-paths_file()
-floating_file()
-indexed_file()
-blur_file()
-effects_file()
-compressed_files()
-with open(OUT + "/manifest.txt", "w", encoding="utf-8") as handle:
-    handle.write("\n".join(manifest) + "\n")
+def want(name):
+    return not ONLY or name in ONLY
+
+
+if want("plain"): plain_file()
+if want("modes"): modes_file("modes.xcf", DEFAULT_MODES, "backdrop-modes.png", "one tile per GIMP 2.10+ layer mode over an opaque backdrop")
+if want("modes"): modes_file("modes-legacy.xcf", LEGACY_MODES, "backdrop-legacy.png", "one tile per legacy layer mode over an opaque backdrop")
+if want("modes"): modes_file("modes-linear-16.xcf", DEFAULT_MODES, "backdrop-modes.png", "the default modes in a 16-bit linear image", Gimp.Precision.U16_LINEAR)
+if want("alpha_backdrop"): alpha_backdrop_file("modes-alpha.xcf", DEFAULT_MODES, "the default modes over a half-transparent backdrop (composite modes)")
+if want("alpha_backdrop"): alpha_backdrop_file("modes-legacy-alpha.xcf", LEGACY_MODES, "the legacy modes over a half-transparent backdrop")
+if want("structure"): structure_file("structure.xcf", Gimp.Precision.U8_NON_LINEAR, "groups, pass-through, offsets, opacity, masks, hidden, locks, Unicode name, empty layer")
+if want("structure"): structure_file("structure-gray.xcf", Gimp.Precision.U8_NON_LINEAR, "the structure scene in grayscale", Gimp.ImageBaseType.GRAY)
+if want("structure"): structure_file("structure-gray-16.xcf", Gimp.Precision.U16_NON_LINEAR, "the structure scene in 16-bit grayscale", Gimp.ImageBaseType.GRAY)
+if want("precision"): precision_files()
+if want("group"): group_file()
+if want("text"): text_file()
+if want("paths"): paths_file()
+if want("floating"): floating_file()
+if want("indexed"): indexed_file()
+if want("blur"): blur_file()
+if want("effects"): effects_file()
+if want("compressed"): compressed_files()
+if want("edits"): edits_files()
+import os as _os
+_path = OUT + "/manifest.txt"
+_kept = []
+if ONLY and _os.path.exists(_path):
+    _made = set(line.split(":", 1)[0] for line in manifest)
+    with open(_path, encoding="utf-8") as handle:
+        _kept = [line.rstrip("\n") for line in handle if line.strip() and line.split(":", 1)[0] not in _made]
+with open(_path, "w", encoding="utf-8") as handle:
+    handle.write("\n".join(_kept + manifest) + "\n")
 '''
 
 
@@ -456,7 +529,13 @@ def write(path, data):
 
 def main():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    out = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(root, "local-test-fixtures", "xcf")
+    args = sys.argv[1:]
+    only = []
+    if "--only" in args:
+        at = args.index("--only")
+        only = [name for name in args[at + 1].split(",") if name]
+        del args[at:at + 2]
+    out = os.path.abspath(args[0]) if args else os.path.join(root, "local-test-fixtures", "xcf")
     os.makedirs(out, exist_ok=True)
     work = tempfile.mkdtemp(prefix="patchy-xcf-fixtures-")
     try:
@@ -480,7 +559,7 @@ def main():
         with open(script, "w", encoding="utf-8") as handle:
             handle.write(GIMP_SCRIPT.format(work=work.replace("\\", "/"), out=out.replace("\\", "/"),
                                             default_modes=DEFAULT_MODES, legacy_modes=LEGACY_MODES,
-                                            precisions=PRECISIONS, tile=TILE, columns=COLUMNS))
+                                            precisions=PRECISIONS, tile=TILE, columns=COLUMNS, only=only))
         result = subprocess.run([GIMP, "-i", "--batch-interpreter=python-fu-eval",
                                  "-b", f"exec(open(r'{script}', encoding='utf-8').read())",
                                  "-b", "Gimp.get_pdb().lookup_procedure('gimp-quit').run(None)"],

@@ -2901,10 +2901,12 @@ void clip_pass(ClipPass& pass, std::vector<Layer>& layers, AlphaPlane& backdrop,
 // has no such blend mode, so the import puts the layers below it (in its list) into a group
 // whose mask is the inverse of the layer's coverage, and drops the layer (docs/xcf.md,
 // "Blend modes"). Split equals Erase over an opaque backdrop and is treated the same.
-void convert_erase_layers(Build& build, std::vector<Layer>& layers) {
+// GIMP renders the bottom visible layer of a stack (the image or an isolated group) as
+// Normal, so an eraser with nothing visible below it in such a stack stays a Normal layer.
+void convert_erase_layers(Build& build, std::vector<Layer>& layers, bool stack_root) {
   for (auto& layer : layers) {
     if (layer.kind() == LayerKind::Group) {
-      convert_erase_layers(build, layer.children());
+      convert_erase_layers(build, layer.children(), layer.blend_mode() != BlendMode::PassThrough);
     }
   }
   const auto width = build.document.width();
@@ -2913,8 +2915,18 @@ void convert_erase_layers(Build& build, std::vector<Layer>& layers) {
     if (!build.erasers.contains(layers[i].id())) {
       continue;
     }
+    const bool visible_below =
+        std::any_of(layers.begin(), layers.begin() + static_cast<std::ptrdiff_t>(i),
+                    [](const Layer& below) { return below.visible(); });
+    if (!visible_below && stack_root) {
+      layers[i].set_blend_mode(BlendMode::Normal);  // GIMP draws it as Normal
+      continue;
+    }
     build.notices.insert(Notice::EraseAsMask);
     if (i == 0) {
+      if (build.active == layers[i].id()) {
+        build.active.reset();
+      }
       layers.erase(layers.begin());  // nothing below it to erase
       i = static_cast<std::size_t>(-1);
       continue;
@@ -2938,6 +2950,9 @@ void convert_erase_layers(Build& build, std::vector<Layer>& layers) {
     }
     group.set_mask(std::move(mask));
     set_layer_group_expanded(group, false);
+    if (build.active == eraser.id()) {
+      build.active = group.id();  // the eraser is gone; its group stands in for it
+    }
     layers.erase(layers.begin(), layers.begin() + static_cast<std::ptrdiff_t>(i) + 1);
     layers.insert(layers.begin(), std::move(group));
     i = 0;
@@ -3251,7 +3266,7 @@ private:
   }
 
   if (!build.erasers.empty()) {
-    convert_erase_layers(build, document.layers());
+    convert_erase_layers(build, document.layers(), true);
   }
   timer.mark("floating selection and erase");
   // Clip-to-backdrop layers over transparency get masks from what lies below them.
@@ -3395,7 +3410,7 @@ private:
     document.add_pixel_layer("Layer 1", PixelBuffer(document.width(), document.height(),
                                                     with_bit_depth(PixelFormat::rgba8(), depth)));
   }
-  if (build.active.has_value()) {
+  if (build.active.has_value() && std::as_const(document).find_layer(*build.active) != nullptr) {
     document.set_active_layer(*build.active);
   } else {
     document.set_active_layer(document.layers().back().id());
