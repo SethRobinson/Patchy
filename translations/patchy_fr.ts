@@ -27711,6 +27711,46 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <source>Not a supported image or document: %1</source>
         <translation>Image ou document non pris en charge : %1</translation>
     </message>
+    <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>Fusionner les calques sélectionnés dans un nouveau calque (copie)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>Mode de fusion suivant</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>Mode de fusion précédent</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>Aucun calque sélectionné visible à fusionner</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (fusionné)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>Impossible de fusionner les calques sélectionnés. Les calques d&apos;origine sont inchangés.</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>Fusionner les calques sélectionnés (copie)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>Calques sélectionnés fusionnés dans un nouveau calque</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>Aucun calque à sélectionner</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>Mode de fusion : %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

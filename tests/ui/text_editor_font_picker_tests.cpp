@@ -48,6 +48,7 @@
 #include <QMouseEvent>
 #include <QMimeData>
 #include <QIODevice>
+#include <QKeyEvent>
 #include <QPointer>
 #include <QRawFont>
 #include <QProcess>
@@ -326,6 +327,36 @@ void ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting() {
   CHECK(format.font().bold());
   CHECK(format.font().italic());
   CHECK(picker_face.compare(QStringLiteral("Bold Italic"), Qt::CaseInsensitive) == 0);
+}
+
+// AltGr arrives as Ctrl+Alt on Windows: while text is edited, a character it types (the euro
+// sign on AltGr+E) stays text instead of firing Ctrl+Alt+E (#475); a bare Ctrl+Alt+E still
+// reaches the hotkeys.
+void ui_text_editor_altgr_characters_are_not_hotkeys() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto text_widget_point = canvas->widget_position_for_document_point(QPoint(100, 105));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QPointer<QTextEdit> editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setFocus(Qt::OtherFocusReason);
+  const auto overridden = [&editor](const QString& text) {
+    QKeyEvent event(QEvent::ShortcutOverride, Qt::Key_E, Qt::ControlModifier | Qt::AltModifier, text);
+    event.ignore();
+    QApplication::sendEvent(editor.data(), &event);
+    return event.isAccepted();
+  };
+  CHECK(overridden(QString(QChar(0x20AC))));
+  CHECK(!overridden(QString()));
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
 }
 
 void ui_text_tool_outside_click_commits_without_new_text_editor() {
@@ -3439,6 +3470,7 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting",
        ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting},
+      {"ui_text_editor_altgr_characters_are_not_hotkeys", ui_text_editor_altgr_characters_are_not_hotkeys},
       {"ui_text_tool_outside_click_commits_without_new_text_editor",
        ui_text_tool_outside_click_commits_without_new_text_editor},
       {"ui_text_session_survives_app_switch", ui_text_session_survives_app_switch},

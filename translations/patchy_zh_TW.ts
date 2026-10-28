@@ -27635,6 +27635,46 @@ The open document keeps its blend modes either way.</source>
         <source>Not a supported image or document: %1</source>
         <translation>不支援的影像或文件：%1</translation>
     </message>
+    <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>合併所選圖層至新圖層（拷貝）</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>下一個混合模式</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>上一個混合模式</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>沒有可合併的可見所選圖層</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (合併)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>無法合併所選圖層。原始圖層並未變更。</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>合併所選圖層 (拷貝)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>已將所選圖層合併至新圖層</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>沒有可選取的圖層</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>混合模式：%1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

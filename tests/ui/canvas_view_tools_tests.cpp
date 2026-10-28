@@ -9128,6 +9128,69 @@ void ui_layer_blend_mode_steps_coalesce_into_one_undo_entry() {
   CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
 }
 
+// GitHub issue 476: Next / Previous Blend Mode (Photoshop's Shift+Plus / Shift+Minus) step the
+// selected layers' mode down and up the Layers panel's list, past its separators, stopping at
+// either end; a run of steps is one undo entry, like the combo's arrow keys.
+void ui_layer_blend_mode_next_previous_commands_step_the_list() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  std::vector<patchy::LayerId> ids;
+  for (const char* name : {"Lower", "Upper"}) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+                        solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+    layer.set_bounds(patchy::Rect{20, 20, 60, 40});
+    ids.push_back(document.add_layer(std::move(layer)).id());
+  }
+  document.set_active_layer(ids.back());
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Blend Shortcuts"));
+  show_window(window);
+  QApplication::processEvents();
+
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto* next = require_hotkey_action(window, QStringLiteral("layer.blend_mode_next"));
+  auto* previous = require_hotkey_action(window, QStringLiteral("layer.blend_mode_previous"));
+  CHECK(next->shortcuts().contains(QKeySequence(Qt::SHIFT | Qt::Key_Plus)));
+  CHECK(next->shortcuts().contains(QKeySequence(Qt::SHIFT | Qt::Key_Equal)));
+  CHECK(previous->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_Minus));
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  const auto blend_of = [&window](patchy::LayerId id) {
+    const auto* layer = std::as_const(Access::document(window)).find_layer(id);
+    CHECK(layer != nullptr);
+    return layer != nullptr ? layer->blend_mode() : patchy::BlendMode::Normal;
+  };
+  Access::select_layers(window, ids, ids.back());
+  QApplication::processEvents();
+  const auto depth_before = Access::active_session_undo_depth(window);
+
+  // Up from the top of the list stays on Normal.
+  previous->trigger();
+  CHECK(blend_of(ids.back()) == patchy::BlendMode::Normal);
+  CHECK(Access::active_session_undo_depth(window) == depth_before);
+  next->trigger();
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Dissolve && blend_of(ids.back()) == patchy::BlendMode::Dissolve);
+  next->trigger();  // past the separator after Dissolve
+  CHECK(blend_combo->currentText() == QStringLiteral("Darken"));
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Darken && blend_of(ids.back()) == patchy::BlendMode::Darken);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Blend mode: Darken"));
+  previous->trigger();
+  CHECK(blend_of(ids.back()) == patchy::BlendMode::Dissolve);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
+
+  // Down to the end of the list, where it stops.
+  for (int i = 0; i < 40; ++i) {
+    next->trigger();
+  }
+  CHECK(blend_of(ids.back()) == patchy::BlendMode::Luminosity);
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Luminosity);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Normal && blend_of(ids.back()) == patchy::BlendMode::Normal);
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+}
+
 namespace blend_preview {
 
 struct PreviewDocument {
@@ -10338,6 +10401,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_blend_mode_combos_step_past_paint_dot_net_modes", ui_blend_mode_combos_step_past_paint_dot_net_modes},
       {"ui_layer_blend_mode_steps_coalesce_into_one_undo_entry",
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
+      {"ui_layer_blend_mode_next_previous_commands_step_the_list",
+       ui_layer_blend_mode_next_previous_commands_step_the_list},
       {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",
        ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close},
       {"ui_layer_blend_list_choice_after_preview_is_one_undo_entry",

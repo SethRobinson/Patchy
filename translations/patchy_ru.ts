@@ -27787,6 +27787,46 @@ The open document keeps its blend modes either way.</source>
         <source>Not a supported image or document: %1</source>
         <translation>Неподдерживаемое изображение или документ: %1</translation>
     </message>
+    <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>Объединить выделенные в новый слой (копия)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>Следующий режим наложения</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>Предыдущий режим наложения</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>Нет видимых выделенных слоев для объединения</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (объединено)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>Не удалось объединить выделенные слои. Исходные слои не изменяются.</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>Объединить выделенные (копия)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>Выделенные слои объединены в новый слой</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>Нет слоев для выделения</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>Режим наложения: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -470,23 +471,64 @@ LayerMergePlan plan_layer_merge(const Document& document, const std::vector<Laye
   return Planner(document, ids, options, copy).run();
 }
 
+namespace {
+
+std::vector<Layer> visible_layer_copies(const std::vector<Layer>& siblings) {
+  std::vector<Layer> copies;
+  bool base_visible = true;
+  for (const auto& layer : siblings) {
+    if (!layer.clipped()) { base_visible = layer.visible(); }
+    if (!layer.visible() || (layer.clipped() && !base_visible)) { continue; }
+    auto copy = layer;
+    // A copy can merge locked sources without modifying those originals.
+    copy.set_lock_flags(kLayerLockNone);
+    if (layer.kind() == LayerKind::Group) { copy.children() = visible_layer_copies(layer.children()); }
+    copies.push_back(std::move(copy));
+  }
+  return copies;
+}
+
+std::vector<Layer> selected_layer_copies(const std::vector<Layer>& siblings, const std::set<LayerId>& selected) {
+  std::vector<Layer> copies;
+  bool base_visible = true;
+  bool base_kept = false;
+  for (const auto& layer : siblings) {
+    if (!layer.clipped()) { base_visible = layer.visible(); }
+    if (!layer.visible() || (layer.clipped() && !base_visible)) {
+      if (!layer.clipped()) { base_kept = false; }
+      continue;
+    }
+    if (selected.contains(layer.id())) {
+      auto copy = layer;
+      copy.set_lock_flags(kLayerLockNone);
+      if (layer.kind() == LayerKind::Group) { copy.children() = visible_layer_copies(layer.children()); }
+      if (copy.clipped() && !base_kept) { copy.set_clipped(false); }
+      if (!layer.clipped()) { base_kept = true; }
+      copies.push_back(std::move(copy));
+      continue;
+    }
+    if (layer.kind() == LayerKind::Group) {
+      // Its first kept child is never clipped: the nested call released it.
+      auto children = selected_layer_copies(layer.children(), selected);
+      std::move(children.begin(), children.end(), std::back_inserter(copies));
+    }
+    if (!layer.clipped()) { base_kept = false; }
+  }
+  return copies;
+}
+
+}  // namespace
+
 Document visible_document_for_merge_copy(const Document& document) {
   Document result = document;
-  const auto visible = [&](const auto& self, const std::vector<Layer>& siblings) -> std::vector<Layer> {
-    std::vector<Layer> copies;
-    bool base_visible = true;
-    for (const auto& layer : siblings) {
-      if (!layer.clipped()) { base_visible = layer.visible(); }
-      if (!layer.visible() || (layer.clipped() && !base_visible)) { continue; }
-      auto copy = layer;
-      // A copy can merge locked sources without modifying those originals.
-      copy.set_lock_flags(kLayerLockNone);
-      if (layer.kind() == LayerKind::Group) { copy.children() = self(self, layer.children()); }
-      copies.push_back(std::move(copy));
-    }
-    return copies;
-  };
-  result.layers() = visible(visible, document.layers());
+  result.layers() = visible_layer_copies(document.layers());
+  result.clear_active_layer();
+  return result;
+}
+
+Document selected_document_for_merge_copy(const Document& document, const std::vector<LayerId>& ids) {
+  Document result = document;
+  result.layers() = selected_layer_copies(document.layers(), std::set<LayerId>(ids.begin(), ids.end()));
   result.clear_active_layer();
   return result;
 }

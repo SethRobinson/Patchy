@@ -27635,6 +27635,46 @@ The open document keeps its blend modes either way.</source>
         <source>Not a supported image or document: %1</source>
         <translation>対応していない画像またはドキュメントです: %1</translation>
     </message>
+    <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>選択レイヤーを新規レイヤーに結合（コピー）</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>次の描画モード</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>前の描画モード</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>結合する表示中の選択レイヤーがありません</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1（結合）</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>選択レイヤーを結合できませんでした。元のレイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>選択レイヤーを結合（コピー）</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>選択レイヤーを新規レイヤーに結合しました</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>選択するレイヤーがありません</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>描画モード: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

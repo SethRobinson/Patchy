@@ -1401,6 +1401,30 @@ void MainWindow::set_active_layer_blend(int index) {
   set_non_photoshop_blend_modes_offered(blend_combo_, in_use);
 }
 
+// Photoshop's Shift+Plus / Shift+Minus for the layer mode (GitHub issue 476): one step down or
+// up the Layers panel's list with the closed combo's rules (separators, modes the document's
+// depth cannot use and Paint.NET's modes skipped, stopping at either end), committed through
+// the combo, so a run of presses is one undo entry like a run of arrow-key steps.
+void MainWindow::step_layer_blend_mode(int direction) {
+  if (!has_active_document() || blend_combo_ == nullptr || !blend_combo_->isEnabled() ||
+      blend_combo_->view()->isVisible()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (selected_or_active_layer_ids().empty()) {
+    return;
+  }
+  const auto index = blend_mode_step_index(blend_combo_, direction);
+  if (index < 0 || index == blend_combo_->currentIndex()) {
+    return;
+  }
+  blend_combo_->setCurrentIndex(index);
+  statusBar()->showMessage(tr("Blend mode: %1").arg(blend_combo_->itemText(index)));
+}
+
 void MainWindow::finish_pending_layer_blend_edit() {
   if (layer_blend_idle_timer_ != nullptr) {
     layer_blend_idle_timer_->stop();

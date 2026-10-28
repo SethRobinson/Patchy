@@ -35,6 +35,10 @@ inline constexpr int kBlendModeListPopupRows = 40;
 // read a row's mode through findData or skip is_blend_mode_separator rows.
 void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu = BlendModeMenu::Layer);
 [[nodiscard]] bool is_blend_mode_separator(const QComboBox* combo, int index);
+// The row one step of `direction` (+1 down the list, -1 up) from the current row lands on,
+// with the closed combo's stepping rules (separators, disabled rows and Paint.NET's modes
+// skipped); the current row itself at either end.
+[[nodiscard]] int blend_mode_step_index(const QComboBox* combo, int direction);
 // Renames a blend mode list's rows in the current language, separators left alone.
 void retranslate_blend_mode_items(QComboBox* combo);
 // For a combo that serves layers and folders in turn (the Layers panel's): adds Pass

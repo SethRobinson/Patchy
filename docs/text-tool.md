@@ -141,7 +141,7 @@ the session mid-call (`configure()` runs on every cursor move). Real-click tests
 - **A popup pick must apply even when its row is already current.** A family the database lacks has no row, so a control set to one parks on another family while `currentFont()` names the missing one; the commit sets the index, then pushes the family through `setCurrentFont` when `currentFont().families().value(0)` still disagrees.
 - New UI that must coexist with an open text session needs the same `is_text_option_widget` exemption (`textCharacterDialog`, `textParagraphDialog` and their buttons have it).
 - **The keyboard returns to the session** (issue 175), so the next key replaces a selected "Type" placeholder: color, alignment and Warp buttons are `Qt::NoFocus`; a combo pick (`activated`, emitted by the font popup too), Enter in the size field, closing its slider popup or the text color panel, and Enter, checkbox or combo edits in the Character/Paragraph panels call `return_keyboard_to_text_editor`. Warp Text commits for its dialog, then reopens the session with its selection (`ui_text_placeholder_survives_*`).
-- The inline editor claims Bold and Italic in `ShortcutOverride` before the app-level Ctrl+B (Color Balance) and Ctrl+I (Invert) take them; the press routes to `toggle_text_bold_face` / `toggle_text_italic_face` (style picker, below).
+- The inline editor claims Bold, Italic and printable Ctrl+Alt (AltGr) text in `ShortcutOverride` before app hotkeys (Ctrl+B Color Balance, Ctrl+I Invert, Ctrl+Alt+E) take them; Bold and Italic route to `toggle_text_bold_face` / `toggle_text_italic_face`.
 
 ## Boxed-text render clipping
 

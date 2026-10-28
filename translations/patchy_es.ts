@@ -27711,6 +27711,46 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <source>Not a supported image or document: %1</source>
         <translation>No es una imagen ni un documento compatible: %1</translation>
     </message>
+    <message>
+        <source>Merge Selected to New Layer (Copy)</source>
+        <translation>Combinar seleccionadas en capa nueva (copia)</translation>
+    </message>
+    <message>
+        <source>Next Blend Mode</source>
+        <translation>Modo de fusión siguiente</translation>
+    </message>
+    <message>
+        <source>Previous Blend Mode</source>
+        <translation>Modo de fusión anterior</translation>
+    </message>
+    <message>
+        <source>No visible selected layers to merge</source>
+        <translation>No hay capas seleccionadas visibles que combinar</translation>
+    </message>
+    <message>
+        <source>%1 (merged)</source>
+        <translation>%1 (combinada)</translation>
+    </message>
+    <message>
+        <source>Could not merge the selected layers. The original layers are unchanged.</source>
+        <translation>No se pudieron combinar las capas seleccionadas. Las capas originales no han cambiado.</translation>
+    </message>
+    <message>
+        <source>Merge selected (copy)</source>
+        <translation>Combinar seleccionadas (copia)</translation>
+    </message>
+    <message>
+        <source>Merged the selected layers into a new layer</source>
+        <translation>Se han combinado las capas seleccionadas en una capa nueva</translation>
+    </message>
+    <message>
+        <source>No layers to select</source>
+        <translation>No hay capas que seleccionar</translation>
+    </message>
+    <message>
+        <source>Blend mode: %1</source>
+        <translation>Modo de fusión: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

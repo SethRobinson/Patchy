@@ -3797,6 +3797,15 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   merge_visible_layers_action->setEnabled(merge_visible_layer_count(std::as_const(document())) >= 2U);
   auto* merge_visible_action =
       merge_menu->addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer (Copy)"));
+  // Off here when nothing selected draws; the window's hotkey stays live (the command reports it).
+  const auto reenable_merge_selected = qScopeGuard([this] {
+    if (layer_merge_selected_to_new_action_ != nullptr) { layer_merge_selected_to_new_action_->setEnabled(has_active_document()); }
+  });
+  if (layer_merge_selected_to_new_action_ != nullptr) {
+    layer_merge_selected_to_new_action_->setEnabled(
+        !selected_document_for_merge_copy(std::as_const(document()), selected_or_active_layer_ids()).layers().empty());
+    merge_menu->addAction(layer_merge_selected_to_new_action_);
+  }
   if (image_flatten_action_ != nullptr) {
     merge_menu->addAction(image_flatten_action_);
   }
@@ -4309,6 +4318,71 @@ void MainWindow::merge_visible_to_new_layer() {
   refresh_paths_panel();
   if (canvas_ != nullptr) { canvas_->document_changed(); }
   statusBar()->showMessage(tr("Created a merged copy of the visible layers"));
+}
+
+// Photoshop's Ctrl+Alt+E with layers selected (GitHub issue 475; docs/layer-merging.md): what
+// the selected layers draw, rendered like a bitmap merge, as one new pixel layer named after the
+// topmost selected layer and placed directly above it. The originals stay as they are.
+void MainWindow::merge_selected_to_new_layer() {
+  if (canvas_ != nullptr) { canvas_->finish_free_transform(); }
+  finish_active_text_editor();
+  if (active_session() == nullptr) { return; }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto session_id = active_session()->session_id;
+  // Panel rows run top to bottom, so the first id is the topmost selected layer.
+  const auto ids = selected_or_active_layer_ids();
+  const Document source = std::as_const(document());
+  const auto* top = ids.empty() ? nullptr : source.find_layer(ids.front());
+  auto selected = top != nullptr ? selected_document_for_merge_copy(source, ids) : Document{};
+  if (top == nullptr || std::as_const(selected).layers().empty()) {
+    statusBar()->showMessage(tr("No visible selected layers to merge"));
+    return;
+  }
+  const auto anchor_id = top->id();
+  const auto name = tr("%1 (merged)").arg(QString::fromStdString(top->name())).toStdString();
+  auto edit_lock = lock_preview_dialog_edits();
+  const QPointer<CanvasWidget> target(canvas_);
+  if (target) { target->begin_processing_operation(tr("Merging layers...")); }
+  const auto finish_processing = qScopeGuard([target] { if (target) { target->end_processing_operation(); } });
+  PixelBuffer pixels;
+  try {
+    auto future = launch_async([selected = std::move(selected)] {
+      const ScopedDocumentDepthRender depth_render;
+      return pixels_from_image_at_depth(qimage_from_document(selected, true), selected.color_state().bit_depth);
+    });
+    if (target) {
+      target->wait_for_processing_operation([&future] {
+        return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+      });
+    }
+    pixels = future.get();
+  } catch (const std::exception&) {
+    show_status_error(tr("Could not merge the selected layers. The original layers are unchanged."));
+    return;
+  }
+  if (active_session() == nullptr || active_session()->session_id != session_id) { return; }
+  Document prepared = source;
+  const auto copy_id = prepared.allocate_layer_id();
+  insert_layer_after_anchor(prepared, Layer(copy_id, name, std::move(pixels)), anchor_id);
+  prepared.set_active_layer(copy_id);
+  edit_lock.release();
+  push_undo_snapshot(tr("Merge selected (copy)"));
+  document() = std::move(prepared);
+  if (canvas_ != nullptr) {
+    canvas_->clear_path_edit_selection();
+    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+    canvas_->set_selected_layer_ids({copy_id});
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  path_row_hidden_for_layer_.reset();
+  refresh_paths_panel();
+  if (canvas_ != nullptr) { canvas_->document_changed(); }
+  statusBar()->showMessage(tr("Merged the selected layers into a new layer"));
 }
 
 // Layer > Smart Objects and the layer context menu share these actions: Convert takes any
