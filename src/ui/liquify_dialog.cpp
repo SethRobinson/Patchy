@@ -11,6 +11,7 @@
 #include "ui/transparency_checkerboard.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QButtonGroup>
 #include <QBrush>
@@ -693,7 +694,7 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
       &dialog);
   note->setObjectName(QStringLiteral("liquifyRasterNote"));
   note->setWordWrap(true);
-  note->setMaximumWidth(190);
+  note->setMaximumWidth(ui_text_length(190));
   controls->addWidget(note);
   controls->addStretch(1);
   content->addLayout(controls);

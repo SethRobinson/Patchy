@@ -1,6 +1,7 @@
 #include "ui/theme_qss.hpp"
 
 #include "ui/icon_theme.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QHash>
 #include <QLabel>
@@ -50,22 +51,26 @@ QString apply_theme_tokens(const QString& qss, const ThemePalette& palette) {
   QString resolved;
   resolved.reserve(qss.size());
 
-  // Icon paths first. These follow the active scheme rather than `palette`,
+  // The interface text size first (ui_text_size.hpp): font sizes and @tx(n) lengths, so
+  // an @tx token is never read as a color role.
+  const QString sized = resolve_ui_text_sizes(qss);
+
+  // Icon paths next. These follow the active scheme rather than `palette`,
   // which is harmless because the only caller that passes a palette explicitly
   // passes the active one.
-  QString with_icons = qss;
+  QString with_icons = sized;
   {
     QString rewritten;
-    rewritten.reserve(qss.size());
+    rewritten.reserve(sized.size());
     qsizetype copied = 0;
-    auto icons = icon_token_pattern().globalMatch(qss);
+    auto icons = icon_token_pattern().globalMatch(sized);
     while (icons.hasNext()) {
       const auto match = icons.next();
-      rewritten.append(QStringView(qss).sliced(copied, match.capturedStart() - copied));
+      rewritten.append(QStringView(sized).sliced(copied, match.capturedStart() - copied));
       rewritten.append(themed_icon_url(match.captured(1)));
       copied = match.capturedEnd();
     }
-    rewritten.append(QStringView(qss).sliced(copied));
+    rewritten.append(QStringView(sized).sliced(copied));
     with_icons = rewritten;
   }
   const QString& source = with_icons;

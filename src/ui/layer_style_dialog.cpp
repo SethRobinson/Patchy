@@ -25,6 +25,7 @@
 #include "ui/theme_qss.hpp"
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -1005,8 +1006,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto* categories = new QListWidget(&dialog);
   categories->setObjectName(QStringLiteral("layerStyleCategoryList"));
-  categories->setMinimumWidth(210);
-  categories->setMaximumWidth(230);
+  // Both bounds grow by what the text size adds to the widest row (GitHub issue 495), so a
+  // list at its minimum still fits the longest effect name.
+  const int category_growth = ui_text_length(230) - 230;
+  categories->setMinimumWidth(210 + category_growth);
+  categories->setMaximumWidth(230 + category_growth);
   auto* category_pane = new QWidget(&dialog);
   auto* category_layout = new QVBoxLayout(category_pane);
   category_layout->setContentsMargins(0, 0, 0, 0);

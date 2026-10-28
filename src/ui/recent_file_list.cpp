@@ -2,6 +2,7 @@
 
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QDir>
 #include <QListWidget>
@@ -78,11 +79,11 @@ void RecentFileList::set_fixed_rows(int rows) {
 
 QSize RecentFileList::sizeHint() const {
   const auto rows = fixed_rows_ > 0 ? fixed_rows_ : count();
-  return {QListWidget::sizeHint().width(), std::clamp(rows, 1, visible_rows_) * kRecentRowHeight + kRecentListChrome};
+  return {QListWidget::sizeHint().width(), std::clamp(rows, 1, visible_rows_) * recent_row_height() + kRecentListChrome};
 }
 
 QSize RecentFileList::minimumSizeHint() const {
-  return {QListWidget::minimumSizeHint().width(), kRecentRowHeight + kRecentListChrome};
+  return {QListWidget::minimumSizeHint().width(), recent_row_height() + kRecentListChrome};
 }
 
 void RecentFileList::set_remove_handler(std::function<void(const QString&)> handler, const QString& tooltip) {
@@ -170,8 +171,10 @@ bool RecentFileList::viewportEvent(QEvent* event) {
   return QListWidget::viewportEvent(event);
 }
 
+int recent_row_height() { return ui_text_length(kRecentRowHeight); }
+
 QSize RecentFileDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex&) const {
-  return QSize(option.rect.width(), kRecentRowHeight);
+  return QSize(option.rect.width(), recent_row_height());
 }
 
 void RecentFileDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {

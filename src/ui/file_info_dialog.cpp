@@ -13,6 +13,7 @@
 #include "ui/watermark_scan_report.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QCheckBox>
 #include <QClipboard>
@@ -480,8 +481,12 @@ std::optional<bool> confirm_strip_metadata(QWidget* parent) {
   box.addButton(QMessageBox::Cancel);
   box.setDefaultButton(strip_button);
   box.setEscapeButton(QMessageBox::Cancel);
-  auto* drop_profile = new QCheckBox(
-      QObject::tr("Also remove the color profile (colors may look different in color-managed apps)"), &box);
+  // At a larger interface text size the long option wraps: a message box is never wider
+  // than the screen allows, and the longer languages cut it off there (GitHub issue 495).
+  const auto drop_profile_text =
+      QObject::tr("Also remove the color profile (colors may look different in color-managed apps)");
+  auto* drop_profile = ui_text_size_percent() > 100 ? new WrappingCheckBox(drop_profile_text, &box)
+                                                    : new QCheckBox(drop_profile_text, &box);
   drop_profile->setObjectName(QStringLiteral("fileInfoStripDropProfileCheck"));
   box.setCheckBox(drop_profile);
   exec_dialog(box);

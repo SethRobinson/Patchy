@@ -28232,6 +28232,34 @@ Locked: %1</source>
         <source>Download Installer</source>
         <translation>下載安裝程式</translation>
     </message>
+    <message>
+        <source>Size of the interface&apos;s text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
+        <translation>介面文字的大小，可設為預設大小的 %1 到 %2。上方的介面縮放會縮放所有內容，此設定只縮放文字。下次啟動 Patchy 時生效。</translation>
+    </message>
+    <message>
+        <source>Text size:</source>
+        <translation>文字大小:</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new interface scale and text size to take effect.</source>
+        <translation>請重新載入頁面，新的介面縮放和文字大小才會生效。</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new interface scale and text size to take effect.</source>
+        <translation>請重新啟動 Patchy，新的介面縮放和文字大小才會生效。</translation>
+    </message>
+    <message>
+        <source>Text Size</source>
+        <translation>文字大小</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new text size to take effect.</source>
+        <translation>請重新載入頁面，新的文字大小才會生效。</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new text size to take effect.</source>
+        <translation>請重新啟動 Patchy，新的文字大小才會生效。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

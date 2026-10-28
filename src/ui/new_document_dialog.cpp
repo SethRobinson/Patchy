@@ -17,6 +17,7 @@
 #include "ui/measurement_units.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QApplication>
 #include <QBoxLayout>
@@ -87,12 +88,24 @@ constexpr int kPresetSizeTextRole = kNewDocumentPresetSizeTextRole;
 // The unit a card shows its size in and a template switches the Width/Height unit to.
 constexpr int kPresetUnitRole = Qt::UserRole + 8;
 
-constexpr QSize kPresetCardCell(116, 100);
+// A card's three text lines (name, size, resolution) at the default text size; they and the
+// card grow with the interface text size (GitHub issue 495, docs/ui-text-size.md).
+constexpr int kPresetCardNameHeight = 16;
+constexpr int kPresetCardSizeHeight = 14;
+constexpr int kPresetCardPpiHeight = 13;
+QSize preset_card_cell() {
+  const int text_growth = ui_text_length(kPresetCardNameHeight) + ui_text_length(kPresetCardSizeHeight) +
+                          ui_text_length(kPresetCardPpiHeight) -
+                          (kPresetCardNameHeight + kPresetCardSizeHeight + kPresetCardPpiHeight);
+  return {ui_text_length(116), 100 + text_growth};
+}
 // The group grid's smallest size: three rows of five cards (every group fits unscrolled;
 // GitHub issue 342), with room for the scroll bar search results bring so they keep five
 // columns. The Recent row is one card tall.
-constexpr QSize kPresetGridMinimum(5 * kPresetCardCell.width() + 22, 3 * kPresetCardCell.height() + 4);
-constexpr int kRecentRowHeight = kPresetCardCell.height() + 2;
+QSize preset_grid_minimum() {
+  return {5 * preset_card_cell().width() + 22, 3 * preset_card_cell().height() + 4};
+}
+int recent_row_height() { return preset_card_cell().height() + 2; }
 
 // The Last Used card's id (item data only, never written to settings) - never rename.
 // The Recent row's newest card carries it; the older ones are "recent-1" and up.
@@ -657,7 +670,7 @@ class PresetCardDelegate final : public QStyledItemDelegate {
  public:
   explicit PresetCardDelegate(QObject* parent = nullptr) : QStyledItemDelegate(parent) {}
 
-  QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override { return kPresetCardCell; }
+  QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override { return preset_card_cell(); }
 
   void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
     painter->save();
@@ -716,7 +729,7 @@ class PresetCardDelegate final : public QStyledItemDelegate {
     const auto name_font = offset_font(option.font, 0, true);
     painter->setFont(name_font);
     painter->setPen(enabled ? theme().nd_card_title_text : theme().nd_card_title_disabled_text);
-    const QRect name_rect(card.left() + 4, card.top() + 41, card.width() - 8, 16);
+    const QRect name_rect(card.left() + 4, card.top() + 41, card.width() - 8, ui_text_length(kPresetCardNameHeight));
     painter->drawText(name_rect, Qt::AlignHCenter | Qt::AlignVCenter,
                       QFontMetrics(name_font).elidedText(index.data(Qt::DisplayRole).toString(),
                                                          Qt::ElideRight, name_rect.width()));
@@ -724,13 +737,15 @@ class PresetCardDelegate final : public QStyledItemDelegate {
     const auto detail_font = offset_font(option.font, -1, false);
     painter->setFont(detail_font);
     painter->setPen(enabled ? theme().nd_card_detail_text : theme().nd_card_detail_disabled_text);
-    const QRect dims_rect(card.left() + 4, card.top() + 57, card.width() - 8, 14);
+    const QRect dims_rect(card.left() + 4, name_rect.bottom() + 1, card.width() - 8,
+                          ui_text_length(kPresetCardSizeHeight));
     painter->drawText(dims_rect, Qt::AlignHCenter | Qt::AlignVCenter,
                       QFontMetrics(detail_font)
                           .elidedText(index.data(kPresetSizeTextRole).toString(), Qt::ElideRight, dims_rect.width()));
 
     painter->setPen(enabled ? theme().nd_card_meta_text : theme().nd_card_meta_disabled_text);
-    const QRect ppi_rect(card.left() + 4, card.top() + 71, card.width() - 8, 13);
+    const QRect ppi_rect(card.left() + 4, dims_rect.bottom() + 1, card.width() - 8,
+                         ui_text_length(kPresetCardPpiHeight));
     painter->drawText(ppi_rect, Qt::AlignHCenter | Qt::AlignVCenter,
                       QObject::tr("%1 ppi").arg(QString::number(index.data(kPresetPpiRole).toDouble())));
     painter->restore();
@@ -892,9 +907,9 @@ ThemedQss new_document_dialog_style() {
       max-height: %3px;
     }
   )")
-                       .arg(kPresetGridMinimum.width())
-                       .arg(kPresetGridMinimum.height())
-                       .arg(kRecentRowHeight));
+                       .arg(preset_grid_minimum().width())
+                       .arg(preset_grid_minimum().height())
+                       .arg(recent_row_height()));
 }
 
 }  // namespace
@@ -995,13 +1010,13 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   recent_list->setMovement(QListView::Static);
   recent_list->setSelectionMode(QAbstractItemView::SingleSelection);
   recent_list->setUniformItemSizes(true);
-  recent_list->setGridSize(kPresetCardCell);
+  recent_list->setGridSize(preset_card_cell());
   recent_list->setMouseTracking(true);
   recent_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   recent_list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   recent_list->setItemDelegate(new PresetCardDelegate(recent_list));
   recent_list->setFrameShape(QFrame::NoFrame);
-  recent_list->setFixedHeight(kRecentRowHeight);
+  recent_list->setFixedHeight(recent_row_height());
   list_area->addWidget(recent_list);
 
   auto* divider = new QFrame(list_frame);
@@ -1027,12 +1042,12 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   preset_list->setResizeMode(QListView::Adjust);
   preset_list->setSelectionMode(QAbstractItemView::SingleSelection);
   preset_list->setUniformItemSizes(true);
-  preset_list->setGridSize(kPresetCardCell);
+  preset_list->setGridSize(preset_card_cell());
   preset_list->setMouseTracking(true);
   preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   preset_list->setItemDelegate(new PresetCardDelegate(preset_list));
   preset_list->setFrameShape(QFrame::NoFrame);
-  preset_list->setMinimumSize(kPresetGridMinimum);
+  preset_list->setMinimumSize(preset_grid_minimum());
   list_area->addWidget(no_matches);
   list_area->addWidget(preset_list, 1);
 
@@ -1042,8 +1057,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   right->setSpacing(10);
   body->addLayout(right, 0);
 
-  constexpr int kFieldWidth = 96;
-  constexpr int kUnitWidth = 128;
+  // Grown with the interface text size (GitHub issue 495).
+  const int field_width = ui_text_length(96);
+  const int unit_width = ui_text_length(128);
 
   auto* grid = new QGridLayout();
   grid->setContentsMargins(0, 2, 0, 0);
@@ -1053,12 +1069,12 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   auto* width = new QDoubleSpinBox(&dialog);
   width->setObjectName(QStringLiteral("newDocumentWidthSpin"));
-  configure_dialog_spinbox(width, kFieldWidth);
-  width->setFixedWidth(kFieldWidth);
+  configure_dialog_spinbox(width, field_width);
+  width->setFixedWidth(field_width);
   auto* height = new QDoubleSpinBox(&dialog);
   height->setObjectName(QStringLiteral("newDocumentHeightSpin"));
-  configure_dialog_spinbox(height, kFieldWidth);
-  height->setFixedWidth(kFieldWidth);
+  configure_dialog_spinbox(height, field_width);
+  height->setFixedWidth(field_width);
 
   auto* unit = new QComboBox(&dialog);
   unit->setObjectName(QStringLiteral("newDocumentUnitCombo"));
@@ -1066,7 +1082,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
                                     MeasurementUnit::Centimeters, MeasurementUnit::Millimeters}) {
     unit->addItem(measurement_unit_name(dimension_unit), static_cast<int>(dimension_unit));
   }
-  unit->setFixedWidth(kUnitWidth);
+  unit->setFixedWidth(unit_width);
 
   auto* swap_dimensions = new QToolButton(&dialog);
   swap_dimensions->setObjectName(QStringLiteral("newDocumentSwapDimensionsButton"));
@@ -1080,13 +1096,13 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   resolution->setObjectName(QStringLiteral("newDocumentResolutionSpin"));
   resolution->setDecimals(2);
   resolution->setRange(0.01, 9999.0);
-  configure_dialog_spinbox(resolution, kFieldWidth);
-  resolution->setFixedWidth(kFieldWidth);
+  configure_dialog_spinbox(resolution, field_width);
+  resolution->setFixedWidth(field_width);
   auto* resolution_unit = new QComboBox(&dialog);
   resolution_unit->setObjectName(QStringLiteral("newDocumentResolutionUnitCombo"));
   resolution_unit->addItem(QObject::tr("Pixels/Inch"), 1.0);
   resolution_unit->addItem(QObject::tr("Pixels/Centimeter"), 2.54);
-  resolution_unit->setFixedWidth(kUnitWidth);
+  resolution_unit->setFixedWidth(unit_width);
 
   auto* background = new QComboBox(&dialog);
   background->setObjectName(QStringLiteral("newDocumentBackgroundCombo"));
@@ -1107,7 +1123,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   auto* name = new QLineEdit(fallback_name, &dialog);
   name->setObjectName(QStringLiteral("newDocumentNameEdit"));
   name->setToolTip(QObject::tr("The document's tab title and the file name Save As suggests"));
-  name->setFixedWidth(kFieldWidth + 8 + kUnitWidth);
+  name->setFixedWidth(field_width + 8 + unit_width);
 
   // RGB Color or CMYK Proof (GitHub issue 360), the two modes Image > Mode can start from.
   // CMYK Proof needs a CMYK profile in Preferences, so it is greyed under the formula.
@@ -1132,7 +1148,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   color_profile->setObjectName(QStringLiteral("newDocumentColorProfileLabel"));
   color_profile->setTextFormat(Qt::PlainText);
   color_profile->setWordWrap(true);
-  color_profile->setFixedWidth(kFieldWidth + 8 + kUnitWidth);
+  color_profile->setFixedWidth(field_width + 8 + unit_width);
 
   // Labels end in a colon and sit left aligned, like Patchy's other dialogs (GitHub issue 497).
   const auto add_row_label = [&dialog, grid](const QString& text, int row) {
@@ -1445,7 +1461,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     recent_list->clear();
     // Until the row is laid out its width means nothing: build every card (so the opening
     // selection exists and applies), and the first resize trims the row to what fits.
-    const auto fit = recent_list->isVisible() ? std::max(1, recent_list->viewport()->width() / kPresetCardCell.width())
+    const auto fit = recent_list->isVisible() ? std::max(1, recent_list->viewport()->width() / preset_card_cell().width())
                                               : kMaxRecentDocuments + 1;
     if (!clipboard_image.isNull()) {
       auto* item = new QListWidgetItem(QObject::tr("Clipboard"), recent_list);

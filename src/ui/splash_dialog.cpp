@@ -9,6 +9,7 @@
 #include "ui/splash_artwork.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui/window_effects.hpp"
 
 #include <QDesktopServices>
@@ -96,7 +97,7 @@ public:
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     apply_frameless_window_effects_on_show(*this, WindowCornerRadius::Standard);
     setModal(true);
-    setFixedWidth(kDialogWidth);
+    setFixedWidth(ui_text_length(kDialogWidth));
     set_themed_style(*this, QStringLiteral(R"(
       QDialog#patchySplashScreen {
         background: @splash_bg;
@@ -373,8 +374,16 @@ public:
     // The height follows the content at the fixed width: the folder rows wrap their
     // paths and the memory row only exists on platforms with a probe, so a fixed
     // height compressed the column on Windows until a move forced a relayout.
+    // At a non-default interface text size the sheet's font sizes differ more from the
+    // inherited font, so the labels are polished first to measure with them (GitHub issue
+    // 495); the default size keeps its measured height.
+    if (ui_text_size_percent() != 100) {
+      for (auto* child : findChildren<QWidget*>()) {
+        child->ensurePolished();
+      }
+    }
     layout->activate();
-    setFixedHeight(std::max(kMinimumDialogHeight, layout->totalHeightForWidth(kDialogWidth)));
+    setFixedHeight(std::max(kMinimumDialogHeight, layout->totalHeightForWidth(ui_text_length(kDialogWidth))));
 
     // The X every chrome dialog has in its upper right, so About closes the
     // same way as the other Help dialogs (GitHub issue 107). It floats over

@@ -3,6 +3,7 @@
 #include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QAction>
 #include <QCoreApplication>
@@ -154,7 +155,7 @@ void ArtboardPresetPicker::rebuild() {
   for (const auto& preset : presets_) {
     widest = std::max(widest, metrics.horizontalAdvance(preset.name));
   }
-  preferred_width_ = std::clamp(widest + kTextInset + kChevronRoom + 2, 120, 200);
+  preferred_width_ = std::clamp(widest + kTextInset + kChevronRoom + 2, 120, ui_text_length(200));
   updateGeometry();
   show_current();
 }

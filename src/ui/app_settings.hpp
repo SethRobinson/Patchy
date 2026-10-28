@@ -65,6 +65,22 @@ inline constexpr int kDefaultGuiScalePercent = 100;
 // a compatibility contract, lives in exactly one place.
 void set_stored_gui_scale_percent(int percent);
 
+// Interface text size (GitHub issue 495; docs/ui-text-size.md):
+// the size of the interface's text alone, as a percent of the default, on top of the
+// interface scale. Stored under `preferences/uiTextSizePercent` (a compatibility
+// contract); 100 is the default and is stored as no key. Applies on the next start.
+// The range is what every dialog and panel was checked at in English, German, French,
+// Russian and Japanese; widen it only after the same sweep (ui_text_size_*).
+inline constexpr int kMinUiTextSizePercent = 80;
+inline constexpr int kMaxUiTextSizePercent = 125;
+inline constexpr int kDefaultUiTextSizePercent = 100;
+inline constexpr int kUiTextSizeStepPercent = 5;
+// Returns the stored percent clamped to the range; zero or below (missing or not a number)
+// reads as the default.
+[[nodiscard]] int normalize_ui_text_size_percent(int stored);
+[[nodiscard]] int stored_ui_text_size_percent();
+void set_stored_ui_text_size_percent(int percent);
+
 // Toolbar icon size (Preferences, beside the interface scale): a multiplier on top of the
 // interface scale for the tool palette's icons, buttons and footer (docs/tool-palette.md).
 // Named steps rather than percentages, because the interface scale already is one. Stored

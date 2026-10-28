@@ -28314,6 +28314,34 @@ Bloqueada: %1</translation>
         <source>Download Installer</source>
         <translation>Descargar instalador</translation>
     </message>
+    <message>
+        <source>Size of the interface&apos;s text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
+        <translation>Tamaño del texto de la interfaz, del %1 al %2 del predeterminado. La escala de la interfaz de arriba cambia el tamaño de todo; esta opción, solo el del texto. Tiene efecto la próxima vez que se inicie Patchy.</translation>
+    </message>
+    <message>
+        <source>Text size:</source>
+        <translation>Tamaño del texto:</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new interface scale and text size to take effect.</source>
+        <translation>Recargue la página para que la nueva escala de la interfaz y el nuevo tamaño del texto tengan efecto.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new interface scale and text size to take effect.</source>
+        <translation>Reinicie Patchy para que la nueva escala de la interfaz y el nuevo tamaño del texto tengan efecto.</translation>
+    </message>
+    <message>
+        <source>Text Size</source>
+        <translation>Tamaño del texto</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new text size to take effect.</source>
+        <translation>Recargue la página para que el nuevo tamaño del texto tenga efecto.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new text size to take effect.</source>
+        <translation>Reinicie Patchy para que el nuevo tamaño del texto tenga efecto.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -16,6 +16,7 @@
 #include "ui/localization.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QCheckBox>
 #include <QAbstractItemModel>
@@ -354,8 +355,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   auto* looks = new QListWidget(&dialog);
   looks->setObjectName(QStringLiteral("filterGalleryLooksList"));
   looks->setIconSize(QSize(128, 78));
-  looks->setMinimumWidth(260);
-  looks->setMaximumWidth(280);
+  looks->setMinimumWidth(ui_text_length(260));
+  looks->setMaximumWidth(ui_text_length(280));
   looks->setSpacing(3);
   looks_column->addWidget(looks, 1);
   auto* empty_label = new QLabel(QObject::tr("No filters match this view."),
@@ -387,7 +388,16 @@ VisualFilterGalleryResult request_visual_filter_gallery(
       QStringLiteral("filterGalleryCanvasPreviewCheck"));
   canvas_preview->setChecked(
       settings.value(QLatin1String(kGalleryLivePreviewKey), true).toBool());
-  preview_controls->addWidget(canvas_preview);
+  // At a larger interface text size the check box takes a line of its own under the zoom
+  // controls: beside them the longer languages left no room for the buttons (GitHub issue 495).
+  QHBoxLayout* canvas_preview_row = nullptr;
+  if (ui_text_size_percent() > 100) {
+    canvas_preview_row = new QHBoxLayout();
+    canvas_preview_row->addWidget(canvas_preview);
+    canvas_preview_row->addStretch(1);
+  } else {
+    preview_controls->addWidget(canvas_preview);
+  }
   preview_controls->addStretch(1);
 
   const auto make_zoom_button = [&dialog](const char* object_name,
@@ -413,7 +423,7 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                                    QObject::tr("Zoom in"));
   auto* zoom_label = new QLabel(&dialog);
   zoom_label->setObjectName(QStringLiteral("filterGalleryZoomLabel"));
-  zoom_label->setMinimumWidth(78);
+  zoom_label->setMinimumWidth(ui_text_length(78));
   zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   preview_controls->addWidget(zoom_fit);
   preview_controls->addWidget(zoom_100);
@@ -421,13 +431,16 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   preview_controls->addWidget(zoom_in);
   preview_controls->addWidget(zoom_label);
   center->addLayout(preview_controls);
+  if (canvas_preview_row != nullptr) {
+    center->addLayout(canvas_preview_row);
+  }
   content->addLayout(center, 1);
 
   auto* parameters = new QWidget(&dialog);
   parameters->setObjectName(QStringLiteral("filterGalleryParameters"));
   // Leave enough room for the longer spatial-control labels without
   // collapsing their sliders to a handle-sized sliver.
-  parameters->setFixedWidth(340);
+  parameters->setFixedWidth(ui_text_length(340));
   auto* parameter_layout = new QVBoxLayout(parameters);
   parameter_layout->setContentsMargins(10, 8, 10, 8);
 

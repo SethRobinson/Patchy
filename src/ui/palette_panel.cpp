@@ -8,6 +8,7 @@
 #include "ui/qt_paths.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QEvent>
 #include <QDialog>
@@ -375,6 +376,7 @@ PalettePanel::PalettePanel(QWidget* parent) : QWidget(parent) {
   bind_translated_text(empty_hint_, QT_TR_NOOP("No palette. Pick a preset, load a palette file, or extract one from the image."), "patchy::ui::PalettePanel");
   empty_hint_->setObjectName(QStringLiteral("paletteEmptyHint"));
   empty_hint_->setWordWrap(true);
+  keep_wrapped_label_height(*empty_hint_);
   // Stretch 1 like the scroll well: exactly one of the two is visible, and
   // whichever it is absorbs the dock's slack.
   layout->addWidget(empty_hint_, 1, Qt::AlignTop);

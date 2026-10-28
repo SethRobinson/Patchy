@@ -9,8 +9,8 @@ In order: Application, Colors and Themes, Tools, Metadata and Watermarks, Pen, U
 Snapping, Hotkeys, Plug-ins (Windows only, [plugins.md](plugins.md)) and Presets (one button per
 preset manager, issue 485). Tool and canvas-input
 behavior (the mouse wheel, Free Transform options) goes on Tools; Pen holds only pen and tablet
-settings; Application holds app-level settings (language, updates, recovery, open/save
-policies); Colors and Themes the color scheme and themes ([theme-files.md](theme-files.md#preferences-ui)).
+settings; Application holds app-level settings (language, interface scale and text size
+([ui-text-size.md](ui-text-size.md)), updates, recovery, open/save policies); Colors and Themes the color scheme and themes ([theme-files.md](theme-files.md#preferences-ui)).
 
 The pages are listed down the left (issue 451): `preferencesPageList`, a QListWidget, drives
 `preferencesPageStack`, a QStackedWidget, so a new page adds a row instead of widening the

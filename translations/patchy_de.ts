@@ -28314,6 +28314,34 @@ Fixiert: %1</translation>
         <source>Download Installer</source>
         <translation>Installationsprogramm herunterladen</translation>
     </message>
+    <message>
+        <source>Size of the interface&apos;s text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
+        <translation>Größe der Texte der Oberfläche, von %1 bis %2 der Standardgröße. Die Oberflächenskalierung darüber vergrößert alles, diese Einstellung nur den Text. Wird beim nächsten Start von Patchy wirksam.</translation>
+    </message>
+    <message>
+        <source>Text size:</source>
+        <translation>Textgröße:</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new interface scale and text size to take effect.</source>
+        <translation>Laden Sie die Seite neu, damit die neue Oberflächenskalierung und Textgröße wirksam werden.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new interface scale and text size to take effect.</source>
+        <translation>Starten Sie Patchy neu, damit die neue Oberflächenskalierung und Textgröße wirksam werden.</translation>
+    </message>
+    <message>
+        <source>Text Size</source>
+        <translation>Textgröße</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new text size to take effect.</source>
+        <translation>Laden Sie die Seite neu, damit die neue Textgröße wirksam wird.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new text size to take effect.</source>
+        <translation>Starten Sie Patchy neu, damit die neue Textgröße wirksam wird.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

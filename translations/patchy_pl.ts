@@ -28396,6 +28396,34 @@ Zablokowano: %1</translation>
         <source>Download Installer</source>
         <translation>Pobierz instalator</translation>
     </message>
+    <message>
+        <source>Size of the interface&apos;s text, from %1 to %2 of the default. The interface scale above sizes everything; this sizes only the text. Takes effect the next time Patchy starts.</source>
+        <translation>Rozmiar tekstu interfejsu, od %1 do %2 rozmiaru domyślnego. Skala interfejsu powyżej zmienia rozmiar wszystkiego, to ustawienie tylko tekstu. Zacznie obowiązywać przy następnym uruchomieniu Patchy.</translation>
+    </message>
+    <message>
+        <source>Text size:</source>
+        <translation>Rozmiar tekstu:</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new interface scale and text size to take effect.</source>
+        <translation>Załaduj ponownie stronę, aby nowa skala interfejsu i nowy rozmiar tekstu zaczęły obowiązywać.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new interface scale and text size to take effect.</source>
+        <translation>Uruchom ponownie Patchy, aby nowa skala interfejsu i nowy rozmiar tekstu zaczęły obowiązywać.</translation>
+    </message>
+    <message>
+        <source>Text Size</source>
+        <translation>Rozmiar tekstu</translation>
+    </message>
+    <message>
+        <source>Reload the page for the new text size to take effect.</source>
+        <translation>Załaduj ponownie stronę, aby nowy rozmiar tekstu zaczął obowiązywać.</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new text size to take effect.</source>
+        <translation>Uruchom ponownie Patchy, aby nowy rozmiar tekstu zaczął obowiązywać.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

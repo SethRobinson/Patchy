@@ -6,6 +6,7 @@
 
 #include "ui/action_icons.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui/window_effects.hpp"
 
 #ifdef Q_OS_WASM
@@ -1447,9 +1448,48 @@ void clamp_dialog_to_screen(QDialog& dialog) {
 }
 #endif
 
+// A dialog sized for the default text by a resize() call, or one whose word-wrapped text
+// needs more height than its first layout pass gave it, is grown to what its content asks
+// for when the interface text size is not the default (GitHub issue 495;
+// docs/ui-text-size.md), up to the screen. At the default text size nothing changes.
+// After the first placement (`initial` false) only the height word-wrapped text needs is
+// restored, so a dialog the user made smaller keeps its size until its text changes.
+#ifndef Q_OS_WASM
+static void grow_dialog_for_text_size(QDialog& dialog, bool initial = true) {
+  if (ui_text_size_percent() == 100 || qobject_cast<QMessageBox*>(&dialog) != nullptr ||
+      qobject_cast<QProgressDialog*>(&dialog) != nullptr || dialog.isMaximized() || dialog.isFullScreen()) {
+    return;
+  }
+  auto* layout = dialog.layout();
+  if (layout == nullptr || layout->sizeConstraint() == QLayout::SetFixedSize) {
+    return;
+  }
+  const auto* screen =
+      dialog.parentWidget() != nullptr ? dialog.parentWidget()->screen() : QGuiApplication::primaryScreen();
+  QSize bound(16777215, 16777215);
+  if (screen != nullptr) {
+    bound = screen->availableGeometry().size() - (dialog.frameGeometry().size() - dialog.size());
+  }
+  // Once shown, the real size: the size hint can have grown since (fonts the sheet applied
+  // at polish) without the window following.
+  const auto current = dialog.isVisible() ? dialog.size() : dialog_placement_size(dialog);
+  auto wanted = initial ? current.expandedTo(dialog.sizeHint()).boundedTo(dialog.maximumSize()) : current;
+  if (layout->hasHeightForWidth()) {
+    wanted.setHeight(std::max(wanted.height(), layout->totalHeightForWidth(wanted.width())));
+  }
+  // Never smaller than it is: a dialog already past the screen keeps its size.
+  wanted = wanted.boundedTo(bound).boundedTo(dialog.maximumSize()).expandedTo(current);
+  if (wanted != current) {
+    dialog.resize(wanted);
+  }
+}
+#endif
+
 void place_dialog(QDialog& dialog, bool remember_position) {
 #ifdef Q_OS_WASM
   clamp_dialog_to_screen(dialog);
+#else
+  grow_dialog_for_text_size(dialog);
 #endif
   if (!remember_position || !restore_dialog_position(dialog)) {
     dialog.move(centered_dialog_position(dialog));
@@ -1512,6 +1552,22 @@ protected:
           schedule_placement();
         }
         break;
+#ifndef Q_OS_WASM
+      // Text set after the dialog showed (a status line, an error) can need more height
+      // than the dialog has; at a larger interface text size that cut rows off (GitHub
+      // issue 495), so the dialog grows to fit once the layout settles.
+      case QEvent::LayoutRequest:
+        if (shown_ && ui_text_size_percent() != 100 && !grow_scheduled_) {
+          grow_scheduled_ = true;
+          QTimer::singleShot(0, this, [this] {
+            grow_scheduled_ = false;
+            if (dialog_.isVisible()) {
+              grow_dialog_for_text_size(dialog_, /*initial=*/false);
+            }
+          });
+        }
+        break;
+#endif
       case QEvent::Move:
         if (shown_ && !initial_placement_pending_ && !placing_ &&
             (dialog_.pos() - placement_position_).manhattanLength() > 2) {
@@ -1570,6 +1626,9 @@ private:
   bool user_moved_{false};
   bool initial_placement_pending_{false};
   bool placement_scheduled_{false};
+#ifndef Q_OS_WASM
+  bool grow_scheduled_{false};
+#endif
   bool placing_{false};
   QPoint placement_position_;
 };
@@ -1961,15 +2020,15 @@ void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width) {
 void configure_dialog_spinbox(QSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  spin->setMinimumWidth(width);
-  spin->setMinimumHeight(24);
+  spin->setMinimumWidth(ui_text_length(width));
+  spin->setMinimumHeight(ui_text_length(24));
 }
 
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  spin->setMinimumWidth(width);
-  spin->setMinimumHeight(24);
+  spin->setMinimumWidth(ui_text_length(width));
+  spin->setMinimumHeight(ui_text_length(24));
 }
 
 namespace {
