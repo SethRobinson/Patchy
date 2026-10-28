@@ -1,6 +1,7 @@
 #include "ui/theme_manager.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/theme_apply_trace.hpp"
 #include "ui/theme_package.hpp"
 #include "ui/theme_script_host.hpp"
 #include "ui/theme_sounds.hpp"
@@ -154,13 +155,20 @@ void ThemeManager::apply_resolved_scheme() {
     apply_tooltip_palette();
     return;
   }
+  const ThemeApplyScope apply("built-in scheme (system)");
   set_active_color_scheme(scheme);
+  theme_apply_phase("palette");
   emit color_scheme_changed(scheme);
 }
 
 void ThemeManager::set_preference(ColorSchemePreference preference, bool persist) {
   const bool had_custom_theme = active_custom_id_.has_value();
   preference_ = preference;
+  // Only a change the user will see is an apply (busy cursor, trace).
+  std::optional<ThemeApplyScope> apply;
+  if (had_custom_theme || resolved_scheme() != active_color_scheme()) {
+    apply.emplace("built-in scheme");
+  }
   if (persist) {
     auto settings = app_settings();
     settings.setValue(color_scheme_key(), color_scheme_preference_to_token(preference));
@@ -179,6 +187,7 @@ void ThemeManager::set_preference(ColorSchemePreference preference, bool persist
   // Mirroring first can already re-resolve us through colorSchemeChanged; the
   // apply below is then a no-op rather than a second restyle.
   mirror_scheme_onto_qt();
+  theme_apply_phase("Qt color scheme");
   apply_resolved_scheme();
 }
 
@@ -188,18 +197,23 @@ void ThemeManager::set_custom_theme(const QString& id, const CustomTheme& theme,
   // entirely different palette, so that function's equal-scheme guard must
   // not suppress this apply.
   Q_ASSERT(theme.assets == nullptr || !theme.assets->summary);  // a list summary: load it in full first
+  const ThemeApplyScope apply("custom theme");
   active_custom_id_ = id;
   // The assets go in first: set_active_custom_palette moves theme_generation(),
   // which is what the icon engine and the backdrop cache key on.
   set_active_theme_assets(theme.assets);
   set_active_custom_palette(theme.palette, theme.base);
+  theme_apply_phase("assets and palette");
   refresh_long_operation_sound_watcher();
   watch_active_package();
+  theme_apply_phase("sound and package watchers");
   ThemeScriptHost::instance().theme_changed(id, theme.assets);
+  theme_apply_phase("theme scripts");
   if (!system_scheme_override_.has_value()) {
     QGuiApplication::styleHints()->setColorScheme(theme.base == ColorScheme::Light ? Qt::ColorScheme::Light
                                                                                     : Qt::ColorScheme::Dark);
   }
+  theme_apply_phase("Qt color scheme");
   if (persist) {
     auto settings = app_settings();
     settings.setValue(custom_theme_id_key(), id);
@@ -207,10 +221,20 @@ void ThemeManager::set_custom_theme(const QString& id, const CustomTheme& theme,
   emit color_scheme_changed(theme.base);
 }
 
+bool ThemeManager::persist_active_custom_theme() {
+  if (!active_custom_id_) {
+    return false;
+  }
+  auto settings = app_settings();
+  settings.setValue(custom_theme_id_key(), *active_custom_id_);
+  return true;
+}
+
 void ThemeManager::clear_custom_theme(bool persist) {
   if (!active_custom_id_) {
     return;
   }
+  const ThemeApplyScope apply("built-in scheme");
   active_custom_id_.reset();
   set_active_theme_assets(nullptr);
   clear_active_custom_palette();
@@ -223,7 +247,9 @@ void ThemeManager::clear_custom_theme(bool persist) {
     auto settings = app_settings();
     settings.setValue(custom_theme_id_key(), QString());
   }
+  theme_apply_phase("assets, palette, watchers, scripts");
   mirror_scheme_onto_qt();
+  theme_apply_phase("Qt color scheme");
   // Same guard, in reverse: the built-in scheme being reverted to can share
   // the label the custom theme was pinning, so force the apply and emit
   // instead of going through apply_resolved_scheme().

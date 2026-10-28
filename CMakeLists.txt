@@ -1594,6 +1594,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/theme_script_host.cpp
       src/ui/theme_manager.hpp
       src/ui/theme_manager.cpp
+      src/ui/theme_apply_trace.hpp
+      src/ui/theme_apply_trace.cpp
       src/ui/theme_palette.hpp
       src/ui/theme_palette.cpp
       src/ui/theme_qss.hpp

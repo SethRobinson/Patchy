@@ -10,6 +10,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
+#include "ui/theme_apply_trace.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/tool_palette_footer.hpp"
@@ -1277,12 +1278,15 @@ void MainWindow::apply_color_scheme() {
   //    which covers every dock, panel, and parented dialog, plus
   //    DocumentFloatWindow (stylesheet propagation follows the QObject parent
   //    chain, and a float window is a child of this window).
+  theme_apply_phase("signal handlers before the window");
   setStyleSheet(photoshop_style(tool_palette_factor_));
+  theme_apply_phase("window stylesheet");
 
   // 2. Top-level windows that are not in this window's child tree, plus any
   //    widget deeper in the tree that carries its own themed template (the
   //    chromed dialogs, per-instance color swatches, the start panel).
   rebuild_themed_styles_in(*this);
+  theme_apply_phase("themed child stylesheets");
   for (auto* top_level : QApplication::topLevelWidgets()) {
     if (top_level == nullptr || top_level == this) {
       continue;
@@ -1292,11 +1296,26 @@ void MainWindow::apply_color_scheme() {
     if (top_level->testAttribute(Qt::WA_TranslucentBackground)) {
       continue;
     }
+    // A window parented into this one (Preferences, the float windows) took the
+    // window's sheet and had its templates rebuilt above; doing it again restyled
+    // the open Preferences dialog a second time (GitHub issue 490).
+    // (QWidget::isAncestorOf stops at a window boundary, so walk the parents.)
+    bool parented_here = false;
+    for (auto* parent = top_level->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+      if (parent == this) {
+        parented_here = true;
+        break;
+      }
+    }
+    if (parented_here) {
+      continue;
+    }
     rebuild_themed_styles_in(*top_level);
     top_level->style()->unpolish(top_level);
     top_level->style()->polish(top_level);
     top_level->update();
   }
+  theme_apply_phase("other top-level windows");
 
   // 3. Pixmaps built from theme colors. Qt sends no event for a palette-struct
   //    change, so anything cached has to be dropped by hand or it keeps
@@ -1312,6 +1331,7 @@ void MainWindow::apply_color_scheme() {
   refresh_paths_panel();
   // Future-state rows stamp theme().history_future_text as a foreground brush.
   refresh_history_panel();
+  theme_apply_phase("thumbnails and panels");
 
   // 4. Canvas chrome is painted, not styled, so it needs an explicit repaint.
   for (const auto& session : sessions_) {
@@ -1326,6 +1346,7 @@ void MainWindow::apply_color_scheme() {
     }
   }
   update();
+  theme_apply_phase("canvas repaint requests");
 }
 
 }  // namespace patchy::ui

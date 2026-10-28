@@ -10,6 +10,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/options_flow_layout.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/theme_apply_trace.hpp"
 #include "ui/theme_effects.hpp"
 #include "ui/theme_file.hpp"
 #include "ui/theme_manager.hpp"
@@ -664,14 +665,22 @@ void ThemesPage::apply_selection() {
   if (token.isEmpty()) {
     return;
   }
+  // One busy cursor from the click to the redrawn details, the package load included.
+  std::optional<ThemeApplyScope> apply;
+  apply.emplace("Preferences theme choice");
   if (token.startsWith(kCustomPrefix)) {
-    if (const auto* custom = ensure_full_theme(current_custom_id()); custom != nullptr) {
+    const auto* custom = ensure_full_theme(current_custom_id());
+    theme_apply_phase("load theme");
+    if (custom != nullptr) {
       ThemeManager::instance().set_custom_theme(current_custom_id(), *custom, /*persist=*/false);
     }
   } else {
     ThemeManager::instance().set_preference(color_scheme_preference_from_token(token), /*persist=*/false);
   }
   refresh_details();
+  theme_apply_phase("theme details");
+  // Before the warning, which can open a message box.
+  apply.reset();
   warn_if_needs_newer_patchy();
 }
 
@@ -981,8 +990,14 @@ void ThemesPage::commit() {
     // No restart notice: the scheme is already applied, unlike interface scale.
     const auto token = current_token();
     if (token.startsWith(kCustomPrefix)) {
-      if (const auto* custom = current_custom_theme(); custom != nullptr) {
-        ThemeManager::instance().set_custom_theme(current_custom_id(), *custom, /*persist=*/true);
+      // The list already previewed it: save the choice rather than restyle again,
+      // unless its scripts answer changed here (the apply restarts the script host).
+      auto& manager = ThemeManager::instance();
+      if (manager.active_custom_theme_id() == current_custom_id() &&
+          !script_choices_.contains(current_custom_id())) {
+        manager.persist_active_custom_theme();
+      } else if (const auto* custom = current_custom_theme(); custom != nullptr) {
+        manager.set_custom_theme(current_custom_id(), *custom, /*persist=*/true);
       }
     } else if (!token.isEmpty()) {
       ThemeManager::instance().set_preference(color_scheme_preference_from_token(token), /*persist=*/true);

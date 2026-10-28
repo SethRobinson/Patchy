@@ -73,6 +73,12 @@ class ThemeManager : public QObject {
   // set_preference.
   void set_custom_theme(const QString& id, const CustomTheme& theme, bool persist);
 
+  // Saves the active custom theme as the user's choice without applying it again
+  // (Preferences OK after the list already previewed it; a second apply would
+  // restyle every widget once more, GitHub issue 490). False when no custom
+  // theme is active.
+  bool persist_active_custom_theme();
+
   // Reverts to the built-in scheme selected by the current preference(). A
   // no-op when no custom theme is active.
   void clear_custom_theme(bool persist);

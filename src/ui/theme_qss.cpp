@@ -116,7 +116,10 @@ void set_themed_label_text(QLabel& label, const QString& text_template) {
 
 void rebuild_themed_style(QWidget& widget) {
   if (const auto stored = widget.property(kThemedStyleTemplateProperty); stored.isValid()) {
-    widget.setStyleSheet(apply_theme_tokens(stored.toString()));
+    // Setting even the same sheet repolishes the widget's whole subtree.
+    if (auto resolved = apply_theme_tokens(stored.toString()); resolved != widget.styleSheet()) {
+      widget.setStyleSheet(resolved);
+    }
   }
   if (const auto text = widget.property(kThemedTextTemplateProperty); text.isValid()) {
     if (auto* label = qobject_cast<QLabel*>(&widget); label != nullptr) {

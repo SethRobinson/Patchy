@@ -9,7 +9,9 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/icon_theme.hpp"
+#include "ui/theme_apply_trace.hpp"
 #include "ui/theme_file.hpp"
+#include "ui/theme_manager.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/app_data_migration.hpp"
@@ -24,6 +26,7 @@
 #include <QByteArray>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCursor>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QCoreApplication>
@@ -604,6 +607,111 @@ void ui_color_scheme_switch_updates_existing_window() {
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
   QApplication::processEvents();
   CHECK(window.styleSheet() == dark_sheet);
+}
+
+// GitHub issue 490: a theme apply shows a busy cursor for its whole length and
+// reports its phases under PATCHY_THEME_TRACE. Run with the trace on in the
+// environment to read each apply's timings (built-in and custom) on stderr.
+void ui_theme_apply_shows_busy_cursor_and_traces_phases() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  const bool trace_was_on = patchy::ui::theme_apply_trace_enabled();
+  patchy::ui::set_theme_apply_trace_enabled_for_testing(true);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QApplication::processEvents();
+
+  int applies = 0;
+  bool busy_every_time = true;
+  const auto connection = QObject::connect(&patchy::ui::ThemeManager::instance(),
+                                           &patchy::ui::ThemeManager::color_scheme_changed, [&] {
+                                             ++applies;
+                                             const auto* cursor = QGuiApplication::overrideCursor();
+                                             busy_every_time = busy_every_time && cursor != nullptr &&
+                                                               cursor->shape() == Qt::WaitCursor;
+                                           });
+  const auto has_phase = [](const QString& name) {
+    for (const auto& phase : patchy::ui::last_theme_apply_phases()) {
+      if (phase.name == name) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+  // A real loop wait: queued platform theme changes and the repaint land here, and
+  // the trace reports them when the loop goes idle.
+  process_events_for(300);
+  CHECK(has_phase(QStringLiteral("window stylesheet")));
+  CHECK(has_phase(QStringLiteral("themed child stylesheets")));
+  CHECK(QGuiApplication::overrideCursor() == nullptr);
+
+  patchy::ui::CustomTheme custom;
+  custom.base = patchy::ui::ColorScheme::Dark;
+  custom.palette = patchy::ui::dark_palette();
+  custom.palette.window_bg = QColor(20, 40, 60);
+  patchy::ui::ThemeManager::instance().set_custom_theme(QStringLiteral("trace.patchytheme"), custom,
+                                                        /*persist=*/false);
+  process_events_for(300);
+  CHECK(has_phase(QStringLiteral("assets and palette")));
+  CHECK(has_phase(QStringLiteral("window stylesheet")));
+  CHECK(QGuiApplication::overrideCursor() == nullptr);
+
+  // Back to a built-in scheme through the preference, as the Preferences list does.
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  process_events_for(300);
+  CHECK(!patchy::ui::has_active_custom_palette());
+  // Choosing the scheme already showing is not an apply.
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+
+  QObject::disconnect(connection);
+  CHECK(applies == 3);
+  CHECK(busy_every_time);
+  CHECK(QGuiApplication::overrideCursor() == nullptr);
+  patchy::ui::set_theme_apply_trace_enabled_for_testing(trace_was_on);
+}
+
+// GitHub issue 490: OK in Preferences after the list previewed a custom theme saves it
+// without restyling every widget a second time.
+void ui_preferences_ok_saves_a_previewed_theme_without_applying_it_again() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom_id(QStringLiteral("preferences/customThemeId"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  ThemesDirEnvGuard themes_dir;
+  write_theme_file(QDir(themes_dir.path()).filePath(QStringLiteral("once.patchytheme")), QColor(10, 20, 30),
+                   QStringLiteral("Once"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  int applies = 0;
+  const auto connection = QObject::connect(&patchy::ui::ThemeManager::instance(),
+                                           &patchy::ui::ThemeManager::color_scheme_changed, [&] { ++applies; });
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:once.patchytheme")));
+    CHECK(patchy::ui::theme().window_bg == QColor(10, 20, 30));
+    CHECK(applies == 1);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  QObject::disconnect(connection);
+  CHECK(saw_dialog);
+  CHECK(applies == 1);
+  CHECK(patchy::ui::theme().window_bg == QColor(10, 20, 30));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("preferences/customThemeId")).toString() ==
+        QStringLiteral("once.patchytheme"));
+  patchy::ui::ThemeManager::instance().clear_custom_theme(/*persist=*/false);
 }
 
 // Icons resolve their colors when painted, so the SAME QIcon a QAction was given
@@ -2550,6 +2658,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_preferences_export_defaults_to_themes_folder_and_lists_the_copy", ui_preferences_export_defaults_to_themes_folder_and_lists_the_copy},
       {"ui_bundled_theme_id_persists_and_reapplies_like_a_restart", ui_bundled_theme_id_persists_and_reapplies_like_a_restart},
       {"ui_color_scheme_switch_updates_existing_window", ui_color_scheme_switch_updates_existing_window},
+      {"ui_theme_apply_shows_busy_cursor_and_traces_phases", ui_theme_apply_shows_busy_cursor_and_traces_phases},
+      {"ui_preferences_ok_saves_a_previewed_theme_without_applying_it_again", ui_preferences_ok_saves_a_previewed_theme_without_applying_it_again},
       {"ui_themed_icons_recolor_between_schemes", ui_themed_icons_recolor_between_schemes},
       {"ui_main_window_persists_window_geometry", ui_main_window_persists_window_geometry},
       {"ui_psd_import_warning_preference_defaults_to_hidden", ui_psd_import_warning_preference_defaults_to_hidden},
