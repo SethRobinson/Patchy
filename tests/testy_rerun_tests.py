@@ -965,8 +965,9 @@ assert.equal(knownLimit({}), '');
 assert.equal(knownLimit({traits:{depth:8,mode:3}}), '');
 assert.equal(knownLimit({traits:{depth:1,mode:0}}), '');
 assert.equal(knownLimit({traits:{depth:16,mode:3}}), '16-bit');
-assert.equal(knownLimit({traits:{depth:32,mode:3,artboards:true}}), '32-bit, artboards');
-assert.equal(knownLimit({traits:{depth:8,mode:3,artboards:true}}), 'artboards');
+// Artboards render since docs/artboards.md, so they are no longer a known limitation.
+assert.equal(knownLimit({traits:{depth:32,mode:3,artboards:true}}), '32-bit');
+assert.equal(knownLimit({traits:{depth:8,mode:3,artboards:true}}), '');
 """
         scoring = script.split('function refusedWithReference', 1)[1].split('let groupFilter', 1)[0]
         test_js += 'function refusedWithReference' + scoring + """
