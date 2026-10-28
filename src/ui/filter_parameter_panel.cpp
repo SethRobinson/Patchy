@@ -13,7 +13,9 @@
 #include <QLabel>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QRandomGenerator>
 #include <QSpinBox>
+#include <QToolButton>
 
 #include <algorithm>
 #include <cmath>
@@ -309,6 +311,22 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
                                          static_cast<std::int64_t>(value)}}});
                        });
       row->addWidget(spin);
+      if (control.presentation == FilterParameterPresentation::RandomSeed) {
+        auto* randomize = new QToolButton(container);
+        randomize->setObjectName(control.object_name + QStringLiteral("Randomize"));
+        randomize->setText(QObject::tr("Randomize"));
+        randomize->setToolTip(QObject::tr("Pick a new random seed"));
+        QObject::connect(randomize, &QToolButton::clicked, spin, [spin] {
+          // A different value from the current one, so a click always changes the result.
+          const auto span = spin->maximum() - spin->minimum();
+          if (span <= 0) {
+            return;
+          }
+          const auto step = 1 + static_cast<int>(QRandomGenerator::global()->bounded(span));
+          spin->setValue(spin->minimum() + (spin->value() - spin->minimum() + step) % (span + 1));
+        });
+        row->addWidget(randomize);
+      }
       binding.int_spin = spin;
       binding.slider_minimum = static_cast<double>(control.minimum);
       binding.slider_step = 1.0;

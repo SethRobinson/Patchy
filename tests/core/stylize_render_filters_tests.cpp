@@ -16,6 +16,7 @@
 #include "test_groups.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -325,10 +326,6 @@ void filter_issue_496_outputs_are_deterministic_and_pinned() {
        {{"lens", std::string("star")}, {"center_x", 70.0}, {"brightness", std::int64_t{150}}}, 0x86ed0e4a49c387c3ULL},
       {"patchy.filters.lens_flare", {{"lens", std::string("ring")}}, 0x37e60b34269eccd3ULL},
       {"patchy.filters.lens_flare", {{"lens", std::string("anamorphic")}, {"center_y", 50.0}}, 0xa2e0558fcfaf26d1ULL},
-      {"patchy.filters.flame", {}, 0x7b92624c69bb9547ULL},
-      {"patchy.filters.flame", {{"colors", std::string("blue")}, {"turbulence", std::int64_t{90}}}, 0x7fb52edda7bc800aULL},
-      {"patchy.filters.flame",
-       {{"colors", std::string("colors")}, {"length", std::int64_t{80}}, {"center_x", 30.0}}, 0xad1f34f02637b612ULL},
   };
   std::size_t mismatches = 0;
   for (std::size_t index = 0; index < pins.size(); ++index) {
@@ -357,6 +354,134 @@ void filter_issue_496_outputs_are_deterministic_and_pinned() {
   }
 }
 
+// Wind at any angle (the old From the Right and From the Left are 180 and 0
+// degrees byte for byte) and the Flame presets, Base Line and Follow Path,
+// pinned (docs/stylize-render-filters.md).
+void filter_issue_496_wind_angles_and_flame_presets_are_pinned() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto source = make_probe();
+  const auto wind = [&](const patchy::FilterParameterMap& settings) {
+    return applied(registry, invocation_for(registry, "patchy.filters.wind", settings), source);
+  };
+  CHECK(same_pixels(wind({{"direction", std::string("from_right")}}),
+                    wind({{"direction", std::string("angle")}, {"angle", std::int64_t{180}}})));
+  CHECK(same_pixels(wind({{"direction", std::string("from_left")}, {"method", std::string("blast")}}),
+                    wind({{"angle", std::int64_t{0}}, {"method", std::string("blast")}})));
+  CHECK(same_pixels(wind({{"angle", std::int64_t{0}}}), wind({{"angle", std::int64_t{360}}})));
+
+  // A soft-edged dot on transparency: Wind at 90 degrees streaks it upward only.
+  auto dot = patchy::test::solid_rgba(32, 32, 0, 0, 0, 0);
+  for (std::int32_t y = 14; y <= 17; ++y) {
+    for (std::int32_t x = 14; x <= 17; ++x) {
+      auto* px = dot.pixel(x, y);
+      px[0] = px[1] = px[2] = px[3] = 255;
+    }
+  }
+  const auto up = applied(registry,
+                          invocation_for(registry, "patchy.filters.wind",
+                                         {{"angle", std::int64_t{90}}, {"method", std::string("blast")}}),
+                          dot);
+  CHECK(up.pixel(15, 10)[3] > 0);
+  CHECK(up.pixel(15, 22)[3] == 0);
+  CHECK(up.pixel(9, 15)[3] == 0 && up.pixel(22, 15)[3] == 0);
+
+  struct Pin {
+    const char* id;
+    patchy::FilterParameterMap overrides;
+    std::uint64_t digest;
+    bool on_empty;
+  };
+  const std::vector<Pin> pins{
+      {"patchy.filters.wind", {{"angle", std::int64_t{45}}}, 0x1d223fc166dc5176ULL, false},
+      {"patchy.filters.wind", {{"angle", std::int64_t{90}}, {"method", std::string("blast")}}, 0x745fd96c0826db06ULL, false},
+      {"patchy.filters.wind", {{"angle", std::int64_t{200}}, {"method", std::string("stagger")}}, 0xeb0a041ff604dae5ULL, false},
+      {"patchy.filters.wind", {{"angle", std::int64_t{315}}, {"length", std::int64_t{9}}}, 0x1090b165e0eef785ULL, false},
+      {"patchy.filters.flame", {{"colors", std::string("classic")}}, 0x26e4940eb7aa6613ULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("candle")}}, 0xf01f1db4fab16e5eULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("torch")}}, 0x8cd88bf6fbb2aabaULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("wildfire")}}, 0x7c951ee6d6a6b8a8ULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("fire_wall")}}, 0x01e471f9e98e4f1cULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("fire_line")}}, 0xf6a0b2b30e854a79ULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("embers")}}, 0x9c7700f04d9086d7ULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("smoky_fire")}}, 0x543559d216c9decfULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("soft_glow")}}, 0x3b5af7bd4c57e87dULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("blue")}}, 0xf568f8d04a35be28ULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("green")}}, 0x8095756a6b99b00fULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("purple_spirit")}}, 0xab2dc647fe8a232dULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("cold_flame")}}, 0xac6e00364575717aULL, true},
+      {"patchy.filters.flame", {{"colors", std::string("colors")}}, 0xb57332d101112e74ULL, true},
+      {"patchy.filters.flame",
+       {{"turbulence", std::int64_t{90}},
+        {"lean", std::int64_t{25}},
+        {"flicker", std::int64_t{180}},
+        {"density", std::int64_t{250}},
+        {"glow", std::int64_t{0}},
+        {"seed", std::int64_t{77}}},
+       0xe7e4f93cbbd56548ULL, false},
+  };
+  // 96x72: big enough for every preset's tongues, sparks and smoke.
+  const auto empty = patchy::test::solid_rgba(96, 72, 0, 0, 0, 0);
+  auto backdrop = patchy::test::solid_rgba(96, 72, 0, 0, 0, 255);
+  for (std::int32_t y = 0; y < backdrop.height(); ++y) {
+    for (std::int32_t x = 0; x < backdrop.width(); ++x) {
+      auto* px = backdrop.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 2);
+      px[1] = static_cast<std::uint8_t>(y * 3);
+      px[2] = 90;
+    }
+  }
+  std::size_t mismatches = 0;
+  for (std::size_t index = 0; index < pins.size(); ++index) {
+    const auto& pin = pins[index];
+    const auto& input = std::string_view(pin.id) == "patchy.filters.wind"
+                            ? source
+                            : (pin.on_empty ? empty : backdrop);
+    const auto invocation = invocation_for(registry, pin.id, pin.overrides);
+    const auto first = applied(registry, invocation, input);
+    CHECK(same_pixels(first, applied(registry, invocation, input)));
+    CHECK(!same_pixels(first, input));
+    const auto digest = patchy::test::fnv1a_hash_bytes(first.data());
+    if (digest != pin.digest) {
+      std::printf("[PIN2] %zu %s 0x%016llxULL\n", index, pin.id, static_cast<unsigned long long>(digest));
+      ++mismatches;
+    }
+  }
+
+  // Follow Path on a fixed square path, straight up and away from the path;
+  // without a path it changes nothing.
+  auto follow = invocation_for(registry, "patchy.filters.flame",
+                               {{"mode", std::string("follow_path")}, {"length", std::int64_t{25}}});
+  CHECK(same_pixels(applied(registry, follow, empty), empty));
+  follow.guide_paths = {{{30.0, 30.0}, {66.0, 30.0}, {66.0, 60.0}, {30.0, 60.0}, {30.0, 30.0}}};
+  const auto straight = applied(registry, follow, empty);
+  auto away = follow;
+  away.parameters["rise"] = std::string("from_path");
+  const auto outward = applied(registry, away, empty);
+  CHECK(!same_pixels(straight, empty) && !same_pixels(outward, straight));
+  // Flames sit on the path: the base of the top edge lights up, far corners stay clear.
+  CHECK(straight.pixel(48, 29)[3] > 0);
+  CHECK(straight.pixel(2, 70)[3] == 0 && straight.pixel(93, 70)[3] == 0);
+  // The guide scales with the proxy: half the buffer, half the path.
+  const auto scaled = registry.scale(follow, 0.5);
+  CHECK(scaled.has_value() && scaled->guide_paths.size() == 1U &&
+        scaled->guide_paths.front()[1].x == 33.0 && scaled->guide_paths.front()[2].y == 30.0);
+  const std::array<std::pair<const char*, std::uint64_t>, 2> path_pins{{
+      {"straight up", 0x82f131b84ede4b65ULL},
+      {"away from the path", 0xad583c7fe12aea07ULL},
+  }};
+  const std::array<const patchy::PixelBuffer*, 2> path_results{&straight, &outward};
+  for (std::size_t index = 0; index < path_pins.size(); ++index) {
+    const auto digest = patchy::test::fnv1a_hash_bytes(path_results[index]->data());
+    if (digest != path_pins[index].second) {
+      std::printf("[PIN2] path %s 0x%016llxULL\n", path_pins[index].first,
+                  static_cast<unsigned long long>(digest));
+      ++mismatches;
+    }
+  }
+  CHECK(mismatches == 0U);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> stylize_render_filters_tests() {
@@ -368,5 +493,7 @@ std::vector<patchy::test::TestCase> stylize_render_filters_tests() {
       {"filter_issue_496_own_filters_shape_their_output", filter_issue_496_own_filters_shape_their_output},
       {"filter_issue_496_outputs_are_deterministic_and_pinned",
        filter_issue_496_outputs_are_deterministic_and_pinned},
+      {"filter_issue_496_wind_angles_and_flame_presets_are_pinned",
+       filter_issue_496_wind_angles_and_flame_presets_are_pinned},
   };
 }

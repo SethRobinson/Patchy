@@ -4591,10 +4591,6 @@
         <translation>Цвета</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>Классический огонь</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>Синий газ</translation>
     </message>
@@ -4609,6 +4605,82 @@
     <message>
         <source>Base Y</source>
         <translation>Основание Y</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>Костёр</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>Свеча</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>Факел</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>Лесной пожар</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>Стена огня</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>Линия огня</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>Угли</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>Дымный огонь</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>Зелёная магия</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>Фиолетовый дух</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>Холодное пламя</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>Базовая линия</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>Вдоль контура</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>Прямо вверх</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>От контура</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>Размер мерцания</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>Наклон</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>Яркость сердцевины</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>Искры</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -13939,6 +14011,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>Показывать фигуры сеткой миниатюр</translation>
     </message>
+    <message>
+        <source>Randomize</source>
+        <translation>Случайно</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>Выбрать новое случайное начальное число</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20976,8 +21056,16 @@ Save your work and close Patchy before running the installer.</source>
         <translation>%1 не имеет редактируемого сопоставления смарт-фильтра Photoshop. Растрировать смарт-объект и деструктивно применить фильтр?</translation>
     </message>
     <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>Для режима «Вдоль контура» нужен контур. Выберите его на панели «Контуры» (или создайте командой «Создать рабочий контур из выделения») и снова выберите «Пламя».</translation>
+    </message>
+    <message>
         <source>Filter preview failed: %1</source>
         <translation>Не удалось просмотреть фильтр: %1</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>Для режима «Вдоль контура» нужен выбранный контур</translation>
     </message>
     <message>
         <source>Filter: %1</source>

@@ -4428,10 +4428,6 @@
         <translation>Farben</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>Klassisches Feuer</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>Blaues Gas</translation>
     </message>
@@ -4446,6 +4442,82 @@
     <message>
         <source>Base Y</source>
         <translation>Basis Y</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>Lagerfeuer</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>Kerze</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>Fackel</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>Flächenbrand</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>Feuerwand</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>Feuerlinie</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>Glut</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>Rauchiges Feuer</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>Grüne Magie</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>Violetter Geist</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>Kalte Flamme</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>Grundlinie</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>Pfad folgen</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>Senkrecht nach oben</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>Vom Pfad weg</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>Flackergröße</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>Neigung</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>Kernhelligkeit</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>Funken</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -13896,6 +13968,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>Formen als Raster aus Miniaturen anzeigen</translation>
     </message>
+    <message>
+        <source>Randomize</source>
+        <translation>Zufällig</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>Einen neuen zufälligen Startwert wählen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20231,8 +20311,16 @@ Speichern Sie Ihre Arbeit und schließen Sie Patchy, bevor Sie das Installations
         <translation>%1 hat keine bearbeitbare Zuordnung zu einem Photoshop-Smartfilter. Smartobjekt rastern und den Filter destruktiv anwenden?</translation>
     </message>
     <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>Pfad folgen braucht einen Pfad. Wählen Sie einen im Pfade-Bedienfeld aus (oder erstellen Sie einen mit „Arbeitspfad aus Auswahl erstellen“) und wählen Sie dann erneut Flamme.</translation>
+    </message>
+    <message>
         <source>Filter preview failed: %1</source>
         <translation>Filtervorschau fehlgeschlagen: %1</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>Pfad folgen braucht einen ausgewählten Pfad</translation>
     </message>
     <message>
         <source>Filter: %1</source>

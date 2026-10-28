@@ -4575,10 +4575,6 @@
         <translation>색상</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>기본 불꽃</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>푸른 가스</translation>
     </message>
@@ -4593,6 +4589,82 @@
     <message>
         <source>Base Y</source>
         <translation>기준점 Y</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>모닥불</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>촛불</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>횃불</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>산불</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>불의 벽</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>불의 선</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>잔불</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>연기 나는 불</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>녹색 마법</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>보라색 영혼</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>차가운 불꽃</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>기준선</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>패스 따라가기</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>똑바로 위로</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>패스에서 바깥쪽으로</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>일렁임 크기</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>기울기</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>중심 밝기</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>불티</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -13853,6 +13925,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>모양을 축소판 격자로 표시</translation>
     </message>
+    <message>
+        <source>Randomize</source>
+        <translation>무작위</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>새 무작위 시드 선택</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20868,8 +20948,16 @@ Save your work and close Patchy before running the installer.</source>
         <translation>%1에는 편집 가능한 Photoshop 스마트 필터 매핑이 없습니다. 스마트 개체를 래스터화하고 필터를 파괴적으로 적용하시겠습니까?</translation>
     </message>
     <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>패스 따라가기에는 패스가 필요합니다. 패스 패널에서 패스를 선택하거나(선택 영역으로 작업 패스 만들기로 만들 수도 있음) 불꽃을 다시 선택하세요.</translation>
+    </message>
+    <message>
         <source>Filter preview failed: %1</source>
         <translation>필터 미리 보기 실패: %1</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>패스 따라가기에는 선택한 패스가 필요합니다</translation>
     </message>
     <message>
         <source>Filter: %1</source>

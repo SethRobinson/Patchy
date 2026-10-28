@@ -32,7 +32,7 @@
 - View > Extras (Ctrl+H) toggles selection edges, paths, guides, grids, alignment lines and artboard names at once; Show Extras Options picks which
 - G'MIC Filter Library on desktop: nearly 400 standard G'MIC filters, with controls built from each filter's own description, live preview on the layer, multi-layer input and output, draggable point markers on the canvas, and script access
 - Filter > Last Filter (Ctrl+Alt+F) repeats the last filter with its settings on the current layer and selection, for built-in filters, Filter Gallery looks, G'MIC filters, and plug-ins
-- Filter Gallery with live full-resolution preview, effect stacks, favorites and Saved Looks; Stylize and Render add Wind, Tiles, Extrude, Solarize, Find Edges, Trace Contour, Diffuse, Fibers, Difference Clouds, Lens Flare and Flame; manual Liquify with warp, twirl, pucker, bloat and freeze brushes
+- Filter Gallery with live full-resolution preview, stacks, favorites and Saved Looks; Stylize and Render add angled Wind, Tiles, Extrude, Solarize, Find Edges, Trace Contour, Diffuse, Fibers, Difference Clouds, Lens Flare and Flame (14 presets, path mode); Liquify with warp, twirl, pucker, bloat and freeze brushes
 - Perspective Planes: put layers, pastes, and paint on flat surfaces in perspective
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), and command line options

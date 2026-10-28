@@ -2561,11 +2561,16 @@ void execute_builtin_filter(const FilterRegistry &registry,
     const auto wind_method = method == "blast"     ? WindMethod::Blast
                              : method == "stagger" ? WindMethod::Stagger
                                                    : WindMethod::Wind;
-    const auto from_left =
-        filter_option(invocation, "direction", "from_right") == "from_left";
+    // "direction" is the version-1 key: From the Right and From the Left stay
+    // 180 and 0 degrees exactly; Angle (the default) reads "angle".
+    const auto direction = filter_option(invocation, "direction", "angle");
+    const auto angle = direction == "from_right" ? 180
+                       : direction == "from_left"
+                           ? 0
+                           : std::clamp(filter_value(invocation, "angle", 180), 0, 360);
     const auto length = std::clamp(filter_value(invocation, "length", 40), 1, 200);
     apply_rgba_kernel(pixels, [&](PixelBuffer &rgba) {
-      render_wind(rgba, wind_method, from_left, length, progress);
+      render_wind(rgba, wind_method, angle, length, progress);
     });
     return;
   }
@@ -2621,20 +2626,55 @@ void execute_builtin_filter(const FilterRegistry &registry,
   }
 
   if (identifier == "patchy.filters.flame") {
-    const auto colors = filter_option(invocation, "colors", "classic");
-    const auto palette = colors == "blue"     ? FlamePalette::Blue
-                         : colors == "green"  ? FlamePalette::Green
-                         : colors == "colors" ? FlamePalette::Colors
-                                              : FlamePalette::Classic;
+    // "colors" is the version-1 key: its original four values keep their
+    // tokens (classic is Campfire, blue Blue Gas, green Green Magic).
+    static constexpr std::array<std::pair<std::string_view, FlamePreset>, 14>
+        kPresets{{{"classic", FlamePreset::Campfire},
+                  {"candle", FlamePreset::Candle},
+                  {"torch", FlamePreset::Torch},
+                  {"wildfire", FlamePreset::Wildfire},
+                  {"fire_wall", FlamePreset::FireWall},
+                  {"fire_line", FlamePreset::FireLine},
+                  {"embers", FlamePreset::Embers},
+                  {"smoky_fire", FlamePreset::SmokyFire},
+                  {"soft_glow", FlamePreset::SoftGlow},
+                  {"blue", FlamePreset::BlueGas},
+                  {"green", FlamePreset::GreenMagic},
+                  {"purple_spirit", FlamePreset::PurpleSpirit},
+                  {"cold_flame", FlamePreset::ColdFlame},
+                  {"colors", FlamePreset::Colors}}};
+    FlameSettings flame;
+    const auto preset = filter_option(invocation, "colors", "classic");
+    for (const auto &[token, value] : kPresets) {
+      if (preset == token) {
+        flame.preset = value;
+      }
+    }
+    flame.follow_path =
+        filter_option(invocation, "mode", "base_line") == "follow_path";
+    flame.rise_from_path =
+        filter_option(invocation, "rise", "up") == "from_path";
+    flame.base_x_percent =
+        std::clamp(filter_number(invocation, "center_x", 50.0), 0.0, 100.0);
+    flame.base_y_percent =
+        std::clamp(filter_number(invocation, "center_y", 100.0), 0.0, 100.0);
+    flame.length_percent = filter_value(invocation, "length", 40);
+    flame.width_percent = filter_value(invocation, "width", 60);
+    flame.turbulence = filter_value(invocation, "turbulence", 50);
+    flame.flicker_percent = filter_value(invocation, "flicker", 100);
+    flame.density_percent = filter_value(invocation, "density", 100);
+    flame.lean_degrees = filter_value(invocation, "lean", 0);
+    flame.core_percent = filter_value(invocation, "core", 100);
+    flame.glow_percent = filter_value(invocation, "glow", 100);
+    flame.smoke_percent = filter_value(invocation, "smoke", 100);
+    flame.sparks_percent = filter_value(invocation, "sparks", 100);
+    flame.opacity_percent = filter_value(invocation, "opacity", 100);
+    flame.seed = filter_value(invocation, "seed", 1);
+    flame.foreground = invocation.foreground;
+    flame.background = invocation.background;
+    flame.guides = invocation.guide_paths;
     apply_rgba_kernel(pixels, [&](PixelBuffer &rgba) {
-      render_flame(
-          rgba, std::clamp(filter_number(invocation, "center_x", 50.0), 0.0, 100.0),
-          std::clamp(filter_number(invocation, "center_y", 100.0), 0.0, 100.0),
-          std::clamp(filter_value(invocation, "length", 40), 5, 100),
-          std::clamp(filter_value(invocation, "width", 60), 1, 100),
-          std::clamp(filter_value(invocation, "turbulence", 50), 0, 100),
-          palette, invocation.foreground, invocation.background,
-          std::clamp(filter_value(invocation, "seed", 1), 1, 9999), progress);
+      render_flame(rgba, flame, progress);
     });
     return;
   }
@@ -3483,7 +3523,8 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
          integer_parameter("detail", "Detail", "filterDetail", 1, 8, 6),
          integer_parameter("contrast", "Contrast", "filterContrast", 0, 100, 40,
                            Unit::Percent),
-         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1)});
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1,
+                           Unit::None, Scale::None, Presentation::RandomSeed)});
     metadata.fills_entire_canvas = true;
   } else if (identifier == "patchy.filters.pixelate") {
     metadata = catalog_metadata(
@@ -3512,7 +3553,8 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                           "uniform"),
          boolean_parameter("monochromatic", "Monochromatic",
                            "filterMonochromatic", false),
-         integer_parameter("seed", "Seed", "filterSeed", 0, 999999999, 1)});
+         integer_parameter("seed", "Seed", "filterSeed", 0, 999999999, 1,
+                           Unit::None, Scale::None, Presentation::RandomSeed)});
   } else if (identifier == "patchy.filters.film_grain") {
     metadata = catalog_metadata(Category::Noise, false, {amount("Amount", 50)});
   } else if (identifier == "patchy.filters.vignette") {
@@ -3554,9 +3596,12 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                            {"stagger", "Stagger"}},
                           "wind"),
          option_parameter("direction", "Direction", "filterDirection",
-                          {{"from_right", "From the Right"},
+                          {{"angle", "Angle"},
+                           {"from_right", "From the Right"},
                            {"from_left", "From the Left"}},
-                          "from_right"),
+                          "angle"),
+         integer_parameter("angle", "Angle", "filterAngle", 0, 360, 180,
+                           Unit::Degrees, Scale::None, Presentation::Angle),
          std::move(length)});
   } else if (identifier == "patchy.filters.tiles") {
     metadata = catalog_metadata(
@@ -3572,7 +3617,8 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                            {"unaltered", "Unaltered Image"},
                            {"transparent", "Transparency"}},
                           "background"),
-         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1)});
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1,
+                           Unit::None, Scale::None, Presentation::RandomSeed)});
   } else if (identifier == "patchy.filters.extrude") {
     metadata = catalog_metadata(
         Category::Stylize, false,
@@ -3588,7 +3634,8 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                           "random"),
          boolean_parameter("solid_front", "Solid Front Faces",
                            "filterSolidFront", false),
-         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1)});
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1,
+                           Unit::None, Scale::None, Presentation::RandomSeed)});
   } else if (identifier == "patchy.filters.fibers") {
     // The native Fibers table entry's keys and ranges.
     metadata = catalog_metadata(
@@ -3604,7 +3651,8 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
          integer_parameter("detail", "Detail", "filterDetail", 1, 8, 6),
          integer_parameter("contrast", "Contrast", "filterContrast", 0, 100, 40,
                            Unit::Percent),
-         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1)});
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1,
+                           Unit::None, Scale::None, Presentation::RandomSeed)});
     metadata.fills_entire_canvas = true;
   } else if (identifier == "patchy.filters.lens_flare") {
     metadata = catalog_metadata(
@@ -3625,21 +3673,59 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                           Presentation::CenterYPercent)});
     metadata.fills_entire_canvas = true;
   } else if (identifier == "patchy.filters.flame") {
+    // colors (the preset), length, width, turbulence, seed and the base
+    // center are the version-1 keys; docs/stylize-render-filters.md.
+    auto percent_control = [](std::string key, std::string label,
+                              std::string object_name, int maximum) {
+      return integer_parameter(std::move(key), std::move(label),
+                               std::move(object_name), 0, maximum, 100,
+                               Unit::Percent);
+    };
     metadata = catalog_metadata(
         Category::Render, false,
-        {option_parameter("colors", "Colors", "filterFlameColors",
-                          {{"classic", "Classic Fire"},
+        {option_parameter("colors", "Preset", "filterFlameColors",
+                          {{"classic", "Campfire"},
+                           {"candle", "Candle"},
+                           {"torch", "Torch"},
+                           {"wildfire", "Wildfire"},
+                           {"fire_wall", "Fire Wall"},
+                           {"fire_line", "Fire Line"},
+                           {"embers", "Embers"},
+                           {"smoky_fire", "Smoky Fire"},
+                           {"soft_glow", "Soft Glow"},
                            {"blue", "Blue Gas"},
-                           {"green", "Green"},
+                           {"green", "Green Magic"},
+                           {"purple_spirit", "Purple Spirit"},
+                           {"cold_flame", "Cold Flame"},
                            {"colors", "Foreground to Background"}},
                           "classic"),
+         option_parameter("mode", "Mode", "filterFlameMode",
+                          {{"base_line", "Base Line"},
+                           {"follow_path", "Follow Path"}},
+                          "base_line"),
+         option_parameter("rise", "Rise", "filterFlameRise",
+                          {{"up", "Straight Up"},
+                           {"from_path", "Away from the Path"}},
+                          "up"),
          integer_parameter("length", "Length", "filterLength", 5, 100, 40,
                            Unit::Percent),
          integer_parameter("width", "Width", "filterWidth", 1, 100, 60,
                            Unit::Percent),
          integer_parameter("turbulence", "Turbulence", "filterTurbulence", 0,
                            100, 50, Unit::Percent),
-         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1),
+         integer_parameter("flicker", "Flicker Size", "filterFlicker", 10, 400,
+                           100, Unit::Percent),
+         integer_parameter("density", "Density", "filterDensity", 10, 400, 100,
+                           Unit::Percent),
+         integer_parameter("lean", "Lean", "filterLean", -60, 60, 0,
+                           Unit::Degrees),
+         percent_control("core", "Core Brightness", "filterCore", 200),
+         percent_control("glow", "Glow", "filterGlow", 200),
+         percent_control("smoke", "Smoke", "filterSmoke", 200),
+         percent_control("sparks", "Sparks", "filterSparks", 200),
+         percent_control("opacity", "Opacity", "filterOpacity", 100),
+         integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1,
+                           Unit::None, Scale::None, Presentation::RandomSeed),
          double_parameter("center_x", "Base X", "filterCenterX", 0.0, 100.0,
                           50.0, 0.1, Unit::Percent, Scale::None,
                           Presentation::CenterXPercent),

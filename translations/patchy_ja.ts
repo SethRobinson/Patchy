@@ -2261,10 +2261,6 @@ RGB: %2, %3, %4</translation>
         <translation>カラー</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>標準の炎</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>青いガス炎</translation>
     </message>
@@ -2279,6 +2275,82 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Base Y</source>
         <translation>基点 Y</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>キャンプファイヤー</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>ろうそく</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>たいまつ</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>山火事</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>炎の壁</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>炎のライン</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>残り火</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>煙の多い炎</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>緑の魔法</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>紫の霊火</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>冷たい炎</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>ベースライン</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>パスに沿う</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>真上へ</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>パスから外へ</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>揺らぎのサイズ</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>傾き</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>芯の明るさ</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>火の粉</translation>
     </message>
     <message>
         <source>Sharpening pixels</source>
@@ -13853,6 +13925,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>シェイプをサムネイルのグリッドで表示</translation>
     </message>
+    <message>
+        <source>Randomize</source>
+        <translation>ランダム</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>新しいランダムシードを選ぶ</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21278,6 +21358,14 @@ Clipped to the layer below</source>
     <message>
         <source>%1 has no editable Photoshop Smart Filter mapping. Rasterize the Smart Object and apply the filter destructively?</source>
         <translation>%1 には編集可能な Photoshop スマートフィルターの対応がありません。スマートオブジェクトをラスタライズして、フィルターを破壊的に適用しますか？</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>「パスに沿う」にはパスが必要です。パスパネルでパスを選択するか (「選択範囲から作業用パスを作成」でも作成できます)、もう一度「炎」を選んでください。</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>「パスに沿う」には選択したパスが必要です</translation>
     </message>
     <message>
         <source>Add Smart Filter Stack</source>

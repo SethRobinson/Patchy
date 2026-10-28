@@ -3,7 +3,9 @@
 #include "core/layer.hpp"
 #include "filters/filter_registry.hpp"
 
+#include <array>
 #include <cstdint>
+#include <vector>
 
 namespace patchy {
 
@@ -17,10 +19,15 @@ namespace patchy {
 
 enum class WindMethod : std::uint8_t { Wind, Blast, Stagger };
 
-// Streaks bright and opaque content downwind along each row. `from_left`
-// blows toward the right; `length` is the longest streak in pixels.
-void render_wind(PixelBuffer& rgba, WindMethod method, bool from_left, int length,
+// Streaks bright and opaque content downwind. The wind blows toward
+// `angle_degrees` (0 to the right, 90 up; 180 is the old "from the right",
+// 0 "from the left", both byte for byte); `length` is the longest streak in
+// pixels.
+void render_wind(PixelBuffer& rgba, WindMethod method, int angle_degrees, int length,
                  const FilterProgress* progress = nullptr);
+
+// cos and sin of whole degrees by fixed series (no libm), the same everywhere.
+[[nodiscard]] std::array<double, 2> degrees_unit_vector(int degrees) noexcept;
 
 enum class TilesFill : std::uint8_t { Background, Foreground, Inverse, Unaltered, Transparent };
 
@@ -44,14 +51,56 @@ void render_lens_flare(PixelBuffer& rgba, double center_x_percent, double center
                        int brightness_percent, LensFlareStyle style,
                        const FilterProgress* progress = nullptr);
 
-enum class FlamePalette : std::uint8_t { Classic, Blue, Green, Colors };
+// Flame's looks (docs/stylize-render-filters.md); each sets the colors, the
+// tongue shape and the glow, smoke and spark amounts the dialog scales.
+enum class FlamePreset : std::uint8_t {
+  Campfire,
+  Candle,
+  Torch,
+  Wildfire,
+  FireWall,
+  FireLine,
+  Embers,
+  SmokyFire,
+  SoftGlow,
+  BlueGas,
+  GreenMagic,
+  PurpleSpirit,
+  ColdFlame,
+  Colors,
+};
 
-// Procedural flames rising from a base line centered on (base_x, base_y)
-// percent, `width_percent` of the buffer wide, `length_percent` of its height
-// tall, composited over the buffer.
-void render_flame(PixelBuffer& rgba, double base_x_percent, double base_y_percent,
-                  int length_percent, int width_percent, int turbulence, FlamePalette palette,
-                  RgbColor foreground, RgbColor background, int seed,
+struct FlameSettings {
+  FlamePreset preset{FlamePreset::Campfire};
+  // Follow Path: tongues root along `guides` instead of the base line.
+  bool follow_path{false};
+  // Follow Path only: rise away from the path instead of straight up.
+  bool rise_from_path{false};
+  double base_x_percent{50.0};
+  double base_y_percent{100.0};
+  int length_percent{40};
+  int width_percent{60};
+  int turbulence{50};
+  int flicker_percent{100};
+  int density_percent{100};
+  int lean_degrees{0};
+  int core_percent{100};
+  int glow_percent{100};
+  int smoke_percent{100};
+  int sparks_percent{100};
+  int opacity_percent{100};
+  int seed{1};
+  RgbColor foreground{};
+  RgbColor background{255, 255, 255};
+  std::vector<FilterGuidePolyline> guides;
+};
+
+// Procedural flames: tongues rooted along a base line (centered on base x/y
+// percent, `width_percent` of the buffer wide) or along guide polylines, each
+// a teardrop heat field broken up by shared domain-warped noise, colored by
+// the preset's ramp with a hot core, over soft glow and smoke, with sparks;
+// composited over the buffer (an empty buffer gets the fire with its alpha).
+void render_flame(PixelBuffer& rgba, const FlameSettings& settings,
                   const FilterProgress* progress = nullptr);
 
 }  // namespace patchy

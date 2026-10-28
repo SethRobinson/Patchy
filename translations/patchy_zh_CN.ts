@@ -4421,10 +4421,6 @@
         <translation>颜色</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>经典火焰</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>蓝色燃气</translation>
     </message>
@@ -4439,6 +4435,82 @@
     <message>
         <source>Base Y</source>
         <translation>基点 Y</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>篝火</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>蜡烛</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>火把</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>野火</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>火墙</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>火线</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>余烬</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>浓烟火</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>绿色魔法</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>紫色灵火</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>冷焰</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>基线</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>沿路径</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>竖直向上</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>离开路径</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>闪烁大小</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>倾斜</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>焰心亮度</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>火星</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -13853,6 +13925,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>以缩略图网格显示形状</translation>
     </message>
+    <message>
+        <source>Randomize</source>
+        <translation>随机</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>选择新的随机种子</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20182,8 +20262,16 @@ Save your work and close Patchy before running the installer.</source>
         <translation>%1 没有可编辑的 Photoshop 智能滤镜映射。是否栅格化智能对象并以破坏性方式应用该滤镜？</translation>
     </message>
     <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>“沿路径”需要路径。请在“路径”面板中选择一条路径（或用“从选区建立工作路径”创建一条），然后再次选择“火焰”。</translation>
+    </message>
+    <message>
         <source>Filter preview failed: %1</source>
         <translation>滤镜预览失败：%1</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>“沿路径”需要选择一条路径</translation>
     </message>
     <message>
         <source>Filter: %1</source>

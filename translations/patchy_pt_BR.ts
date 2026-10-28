@@ -4583,10 +4583,6 @@
         <translation>Cores</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>Fogo clássico</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>Gás azul</translation>
     </message>
@@ -4601,6 +4597,82 @@
     <message>
         <source>Base Y</source>
         <translation>Base Y</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>Fogueira</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>Vela</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>Tocha</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>Incêndio florestal</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>Muro de fogo</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>Linha de fogo</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>Brasas</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>Fogo com fumaça</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>Magia verde</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>Espírito roxo</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>Chama fria</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>Linha de base</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>Seguir demarcador</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>Para cima</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>Para fora do demarcador</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>Tamanho da cintilação</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>Inclinação</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>Brilho do núcleo</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>Faíscas</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -13896,6 +13968,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>Mostrar as formas como grade de miniaturas</translation>
     </message>
+    <message>
+        <source>Randomize</source>
+        <translation>Aleatório</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>Escolher uma nova semente aleatória</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20922,8 +21002,16 @@ Salve seu trabalho e feche o Patchy antes de executar o instalador.</translation
         <translation>%1 não possui mapeamento editável do Filtro Inteligente do Photoshop. Rasterizar o Objeto Inteligente e aplicar o filtro de forma destrutiva?</translation>
     </message>
     <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>Seguir demarcador precisa de um demarcador. Selecione um no painel Demarcadores (ou crie um com Crie um demarcador de trabalho a partir da seleção) e escolha Chama novamente.</translation>
+    </message>
+    <message>
         <source>Filter preview failed: %1</source>
         <translation>A pré-visualização do filtro falhou: %1</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>Seguir demarcador precisa de um demarcador selecionado</translation>
     </message>
     <message>
         <source>Filter: %1</source>

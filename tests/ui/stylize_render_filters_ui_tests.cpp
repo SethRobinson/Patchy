@@ -3,6 +3,9 @@
 // Flame dialogs with their live preview and draggable center, each as one undo
 // step. Captures (test-artifacts/issue_496_*.png) are the review shots.
 
+#include "core/document.hpp"
+#include "core/document_path.hpp"
+#include "core/vector_shape.hpp"
 #include "filters/builtin_filters.hpp"
 #include "filters/filter_registry.hpp"
 #include "local_psd_fixtures.hpp"
@@ -23,6 +26,11 @@
 #include <QDoubleSpinBox>
 #include <QImage>
 #include <QMenu>
+#include <QFont>
+#include <QSpinBox>
+#include <QPainterPath>
+#include <QListWidget>
+#include <QLabel>
 #include <QPainter>
 #include <QTimer>
 
@@ -231,11 +239,264 @@ void ui_issue_496_new_filters_contact_sheet() {
   save_image_artifact("issue_496_new_filters_sheet", sheet);
 }
 
+
+patchy::PixelBuffer photo_pixels(int width) {
+  QImage photo(patchy::ui::to_qstring(
+      patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg")));
+  CHECK(!photo.isNull());
+  if (photo.isNull()) {
+    return {};
+  }
+  photo = photo.scaledToWidth(width, Qt::SmoothTransformation).convertToFormat(QImage::Format_RGBA8888);
+  patchy::PixelBuffer pixels(photo.width(), photo.height(), patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < photo.height(); ++y) {
+    std::memcpy(pixels.pixel(0, y), photo.constScanLine(y), static_cast<std::size_t>(photo.width()) * 4U);
+  }
+  return pixels;
+}
+
+// A transparent result shown over a dark backdrop, as it sits on a dark layer.
+QImage over_dark(const patchy::PixelBuffer& pixels) {
+  QImage shown(pixels.width(), pixels.height(), QImage::Format_RGB32);
+  shown.fill(QColor(22, 22, 26));
+  QPainter painter(&shown);
+  painter.drawImage(0, 0, patchy::ui::display_qimage_from_pixel_buffer(pixels));
+  return shown;
+}
+
+// Labeled cells, `columns` wide, for review sheets.
+QImage labeled_sheet(const std::vector<std::pair<QString, QImage>>& cells, int columns) {
+  if (cells.empty()) {
+    return {};
+  }
+  const int cell_width = cells.front().second.width() + 16;
+  const int cell_height = cells.front().second.height() + 40;
+  const int count = static_cast<int>(cells.size());
+  QImage sheet(columns * cell_width, ((count + columns - 1) / columns) * cell_height, QImage::Format_RGB32);
+  sheet.fill(QColor(30, 32, 36));
+  QPainter painter(&sheet);
+  painter.setFont(visual_test_font());
+  painter.setPen(QColor(225, 230, 238));
+  for (int index = 0; index < count; ++index) {
+    const QPoint origin((index % columns) * cell_width + 8, (index / columns) * cell_height + 8);
+    painter.drawText(QRect(origin, QSize(cell_width - 16, 24)), Qt::AlignLeft | Qt::AlignVCenter,
+                     cells[static_cast<std::size_t>(index)].first);
+    painter.drawImage(origin + QPoint(0, 28), cells[static_cast<std::size_t>(index)].second);
+  }
+  return sheet;
+}
+
+const std::vector<std::pair<const char*, const char*>>& flame_presets() {
+  static const std::vector<std::pair<const char*, const char*>> presets{
+      {"classic", "Campfire"},     {"candle", "Candle"},         {"torch", "Torch"},
+      {"wildfire", "Wildfire"},    {"fire_wall", "Fire Wall"},   {"fire_line", "Fire Line"},
+      {"embers", "Embers"},        {"smoky_fire", "Smoky Fire"}, {"soft_glow", "Soft Glow"},
+      {"blue", "Blue Gas"},        {"green", "Green Magic"},     {"purple_spirit", "Purple Spirit"},
+      {"cold_flame", "Cold Flame"}, {"colors", "Foreground to Background"}};
+  return presets;
+}
+
+// Every Flame preset at its defaults, on an empty layer and on the photo.
+void ui_issue_496_flame_presets_sheets() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto photo = photo_pixels(320);
+  if (photo.empty()) {
+    return;
+  }
+  const patchy::PixelBuffer empty(photo.width(), photo.height(), patchy::PixelFormat::rgba8());
+  std::vector<std::pair<QString, QImage>> on_empty;
+  std::vector<std::pair<QString, QImage>> on_photo;
+  for (const auto& [token, name] : flame_presets()) {
+    auto invocation = registry.default_invocation("patchy.filters.flame", patchy::RgbColor{40, 120, 255},
+                                                  patchy::RgbColor{255, 255, 255});
+    invocation.parameters["colors"] = std::string(token);
+    auto over_empty = empty;
+    registry.apply(invocation, over_empty);
+    auto over_photo = photo;
+    registry.apply(invocation, over_photo);
+    CHECK(!over_empty.empty());
+    on_empty.push_back({QString::fromLatin1(name), over_dark(over_empty)});
+    on_photo.push_back({QString::fromLatin1(name), patchy::ui::display_qimage_from_pixel_buffer(over_photo)});
+  }
+  save_image_artifact("issue_496_flame_presets_empty", labeled_sheet(on_empty, 5));
+  save_image_artifact("issue_496_flame_presets_photo", labeled_sheet(on_photo, 5));
+}
+
+// Fire tracing text: the letters' outlines as the guide, rising away from them.
+void ui_issue_496_flame_follows_text_outlines() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  QFont font = visual_test_font();
+  font.setPixelSize(200);
+  font.setBold(true);
+  QPainterPath text;
+  text.addText(QPointF(40.0, 300.0), font, QStringLiteral("FIRE"));
+  patchy::PixelBuffer canvas(760, 380, patchy::PixelFormat::rgba8());
+  auto invocation = registry.default_invocation("patchy.filters.flame");
+  invocation.parameters["mode"] = std::string("follow_path");
+  invocation.parameters["rise"] = std::string("from_path");
+  invocation.parameters["length"] = std::int64_t{16};
+  for (const auto& polygon : text.toSubpathPolygons()) {
+    patchy::FilterGuidePolyline polyline;
+    for (const auto& point : polygon) {
+      polyline.push_back({point.x(), point.y()});
+    }
+    if (polyline.size() >= 2U) {
+      invocation.guide_paths.push_back(std::move(polyline));
+    }
+  }
+  CHECK(!invocation.guide_paths.empty());
+  auto fire = canvas;
+  registry.apply(invocation, fire);
+  CHECK(!same_pixels(fire, canvas));
+  // The fire sits on the letters: inside the F's stem and away from them stays clear.
+  CHECK(fire.pixel(5, 5)[3] == 0);
+  save_image_artifact("issue_496_flame_text_path", over_dark(fire));
+  invocation.parameters["colors"] = std::string("blue");
+  invocation.parameters["rise"] = std::string("up");
+  auto blue = canvas;
+  registry.apply(invocation, blue);
+  save_image_artifact("issue_496_flame_text_path_blue_up", over_dark(blue));
+}
+
+// Follow Path without a path says so in the dialog; with the Paths panel's
+// path selected the flames follow it. Wind's dialog shows its angle dial.
+void ui_issue_496_flame_follow_path_and_wind_angle_dialogs() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(photo));
+  const auto* layer = active_layer(window);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto original = std::as_const(*layer).pixels();
+
+  // Wind: the angle has the dial.
+  bool wind_seen = false;
+  QTimer::singleShot(50, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("filterAngleSpin"));
+    CHECK(angle != nullptr && dialog->findChild<QWidget*>(QStringLiteral("filterAngleDial")) != nullptr);
+    if (angle != nullptr) {
+      CHECK(angle->value() == 180);
+      angle->setValue(30);
+    }
+    static_cast<void>(process_events_until([] { return false; }, 900));
+    save_widget_artifact("issue_496_wind_dialog", *dialog);
+    wind_seen = true;
+    dialog->reject();
+  });
+  require_action(window, "filterAction_patchy_filters_wind")->trigger();
+  QApplication::processEvents();
+  CHECK(wind_seen);
+
+  // Flame with no path: Follow Path shows the notice, and OK changes nothing.
+  bool notice_seen = false;
+  QTimer::singleShot(50, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* notice = dialog->findChild<QLabel*>(QStringLiteral("filterDialogNotice"));
+    auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameModeCombo"));
+    CHECK(notice != nullptr && mode != nullptr);
+    if (notice == nullptr || mode == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(!notice->isVisibleTo(dialog));
+    mode->setCurrentIndex(mode->findData(QStringLiteral("follow_path")));
+    QApplication::processEvents();
+    CHECK(notice->isVisibleTo(dialog));
+    CHECK(notice->text().contains(QStringLiteral("Follow Path needs a path")));
+    static_cast<void>(process_events_until([] { return false; }, 600));
+    save_widget_artifact("issue_496_flame_follow_path_notice", *dialog);
+    notice_seen = true;
+    dialog->accept();
+  });
+  require_action(window, "filterAction_patchy_filters_flame")->trigger();
+  QApplication::processEvents();
+  CHECK(notice_seen);
+  layer = active_layer(window);
+  CHECK(layer != nullptr && same_pixels(std::as_const(*layer).pixels(), original));
+
+  // A path selected in the Paths panel: Follow Path burns along it.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::VectorPath path;
+  patchy::PathSubpath line;
+  line.closed = false;
+  for (const auto& [x, y] : {std::pair{300.0, 1500.0}, std::pair{1500.0, 1100.0}, std::pair{2700.0, 1500.0}}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    line.anchors.push_back(anchor);
+  }
+  path.subpaths.push_back(line);
+  patchy::DocumentPath work(document.allocate_path_id(), "Work Path", patchy::DocumentPathKind::Work,
+                            std::move(path));
+  work.mark_dirty();
+  document.add_path(std::move(work));
+  patchy::ui::MainWindowTestAccess::refresh_paths_panel(window);
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr);
+  if (paths_list == nullptr) {
+    return;
+  }
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+  bool followed = false;
+  QTimer::singleShot(50, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* notice = dialog->findChild<QLabel*>(QStringLiteral("filterDialogNotice"));
+    auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameModeCombo"));
+    auto* length = dialog->findChild<QSpinBox*>(QStringLiteral("filterLengthSpin"));
+    CHECK(notice != nullptr && mode != nullptr && length != nullptr);
+    if (notice == nullptr || mode == nullptr || length == nullptr) {
+      dialog->reject();
+      return;
+    }
+    mode->setCurrentIndex(mode->findData(QStringLiteral("follow_path")));
+    length->setValue(15);
+    QApplication::processEvents();
+    CHECK(!notice->isVisibleTo(dialog));
+    static_cast<void>(process_events_until([] { return false; }, 1500));
+    save_widget_artifact("issue_496_flame_dialog", *dialog);
+    followed = true;
+    dialog->accept();
+  });
+  require_action(window, "filterAction_patchy_filters_flame")->trigger();
+  QApplication::processEvents();
+  CHECK(followed);
+  layer = active_layer(window);
+  CHECK(layer != nullptr);
+  if (layer != nullptr) {
+    const auto& burned = std::as_const(*layer).pixels();
+    CHECK(!same_pixels(burned, original));
+    save_image_artifact("issue_496_flame_follow_path_result", patchy::ui::display_qimage_from_pixel_buffer(burned));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> stylize_render_filters_ui_tests() {
   return {
       {"ui_issue_496_stylize_and_render_filters_in_the_window", ui_issue_496_stylize_and_render_filters_in_the_window},
       {"ui_issue_496_new_filters_contact_sheet", ui_issue_496_new_filters_contact_sheet},
+      {"ui_issue_496_flame_presets_sheets", ui_issue_496_flame_presets_sheets},
+      {"ui_issue_496_flame_follows_text_outlines", ui_issue_496_flame_follows_text_outlines},
+      {"ui_issue_496_flame_follow_path_and_wind_angle_dialogs",
+       ui_issue_496_flame_follow_path_and_wind_angle_dialogs},
   };
 }

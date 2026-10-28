@@ -4591,10 +4591,6 @@
         <translation>Kolory</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>Klasyczny ogień</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>Niebieski gaz</translation>
     </message>
@@ -4609,6 +4605,82 @@
     <message>
         <source>Base Y</source>
         <translation>Podstawa Y</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>Ognisko</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>Świeca</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>Pochodnia</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>Pożar</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>Ściana ognia</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>Linia ognia</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>Żar</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>Dymiący ogień</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>Zielona magia</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>Fioletowy duch</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>Zimny płomień</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>Linia bazowa</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>Podążaj za ścieżką</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>Prosto w górę</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>Od ścieżki</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>Rozmiar migotania</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>Pochylenie</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>Jasność rdzenia</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>Iskry</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -13939,6 +14011,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>Pokaż kształty jako siatkę miniatur</translation>
     </message>
+    <message>
+        <source>Randomize</source>
+        <translation>Losuj</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>Wybierz nowe ziarno losowe</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20976,8 +21056,16 @@ Zapisz pracę i zamknij Patchy przed uruchomieniem instalatora.</translation>
         <translation>%1 nie ma edytowalnego mapowania inteligentnego filtra programu Photoshop. Zrasteryzować obiekt inteligentny i zastosować destrukcyjny filtr?</translation>
     </message>
     <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>Podążanie za ścieżką wymaga ścieżki. Zaznacz ją w panelu Ścieżki (lub utwórz poleceniem Utwórz ścieżkę roboczą z zaznaczenia), a następnie ponownie wybierz Płomień.</translation>
+    </message>
+    <message>
         <source>Filter preview failed: %1</source>
         <translation>Podgląd filtra nie powiódł się: %1</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>Podążanie za ścieżką wymaga zaznaczonej ścieżki</translation>
     </message>
     <message>
         <source>Filter: %1</source>

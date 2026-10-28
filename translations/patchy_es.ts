@@ -4428,10 +4428,6 @@
         <translation>Colores</translation>
     </message>
     <message>
-        <source>Classic Fire</source>
-        <translation>Fuego clásico</translation>
-    </message>
-    <message>
         <source>Blue Gas</source>
         <translation>Gas azul</translation>
     </message>
@@ -4446,6 +4442,82 @@
     <message>
         <source>Base Y</source>
         <translation>Base Y</translation>
+    </message>
+    <message>
+        <source>Campfire</source>
+        <translation>Hoguera</translation>
+    </message>
+    <message>
+        <source>Candle</source>
+        <translation>Vela</translation>
+    </message>
+    <message>
+        <source>Torch</source>
+        <translation>Antorcha</translation>
+    </message>
+    <message>
+        <source>Wildfire</source>
+        <translation>Incendio forestal</translation>
+    </message>
+    <message>
+        <source>Fire Wall</source>
+        <translation>Muro de fuego</translation>
+    </message>
+    <message>
+        <source>Fire Line</source>
+        <translation>Línea de fuego</translation>
+    </message>
+    <message>
+        <source>Embers</source>
+        <translation>Brasas</translation>
+    </message>
+    <message>
+        <source>Smoky Fire</source>
+        <translation>Fuego con humo</translation>
+    </message>
+    <message>
+        <source>Green Magic</source>
+        <translation>Magia verde</translation>
+    </message>
+    <message>
+        <source>Purple Spirit</source>
+        <translation>Espíritu púrpura</translation>
+    </message>
+    <message>
+        <source>Cold Flame</source>
+        <translation>Llama fría</translation>
+    </message>
+    <message>
+        <source>Base Line</source>
+        <translation>Línea base</translation>
+    </message>
+    <message>
+        <source>Follow Path</source>
+        <translation>Seguir trazado</translation>
+    </message>
+    <message>
+        <source>Straight Up</source>
+        <translation>Hacia arriba</translation>
+    </message>
+    <message>
+        <source>Away from the Path</source>
+        <translation>Lejos del trazado</translation>
+    </message>
+    <message>
+        <source>Flicker Size</source>
+        <translation>Tamaño del parpadeo</translation>
+    </message>
+    <message>
+        <source>Lean</source>
+        <translation>Inclinación</translation>
+    </message>
+    <message>
+        <source>Core Brightness</source>
+        <translation>Brillo del núcleo</translation>
+    </message>
+    <message>
+        <source>Sparks</source>
+        <translation>Chispas</translation>
     </message>
     <message>
         <source>Filtering pixels</source>
@@ -13896,6 +13968,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>Mostrar las formas como cuadrícula de miniaturas</translation>
     </message>
+    <message>
+        <source>Randomize</source>
+        <translation>Aleatorio</translation>
+    </message>
+    <message>
+        <source>Pick a new random seed</source>
+        <translation>Elegir una nueva semilla aleatoria</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20231,8 +20311,16 @@ Guarde su trabajo y cierre Patchy antes de ejecutar el instalador.</translation>
         <translation>%1 no tiene una correspondencia editable con un filtro inteligente de Photoshop. ¿Desea rasterizar el objeto inteligente y aplicar el filtro de forma destructiva?</translation>
     </message>
     <message>
+        <source>Follow Path needs a path. Select one in the Paths panel (or make one with Make Work Path from Selection), then choose Flame again.</source>
+        <translation>Seguir trazado necesita un trazado. Selecciona uno en el panel Trazados (o crea uno con Hacer trazado de trabajo a partir de la selección) y vuelve a elegir Llama.</translation>
+    </message>
+    <message>
         <source>Filter preview failed: %1</source>
         <translation>Error en la previsualización del filtro: %1</translation>
+    </message>
+    <message>
+        <source>Follow Path needs a selected path</source>
+        <translation>Seguir trazado necesita un trazado seleccionado</translation>
     </message>
     <message>
         <source>Filter: %1</source>

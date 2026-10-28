@@ -462,6 +462,7 @@ FilterRegistry::normalize(const FilterInvocation &invocation) const {
 
   auto normalized = default_invocation(
       filter->identifier, invocation.foreground, invocation.background);
+  normalized.guide_paths = invocation.guide_paths;
   for (const auto &parameter : filter->catalog.parameters) {
     const auto found = invocation.parameters.find(parameter.key);
     if (found == invocation.parameters.end()) {
@@ -522,6 +523,12 @@ FilterRegistry::scale(const FilterInvocation &invocation,
       *real *= spatial_scale;
     }
     found->second = clamp_parameter_value(parameter, std::move(found->second));
+  }
+  for (auto &polyline : scaled->guide_paths) {
+    for (auto &point : polyline) {
+      point.x *= spatial_scale;
+      point.y *= spatial_scale;
+    }
   }
   return scaled;
 }
