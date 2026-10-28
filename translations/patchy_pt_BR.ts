@@ -3343,10 +3343,6 @@
         <translation>Quadrado</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>Redondo suave</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>Redondo rígido</translation>
     </message>

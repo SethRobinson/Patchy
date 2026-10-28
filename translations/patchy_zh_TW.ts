@@ -3275,10 +3275,6 @@
         <translation>圓形</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>柔邊圓形</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>實邊圓形</translation>
     </message>

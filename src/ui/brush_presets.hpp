@@ -19,6 +19,9 @@ struct BrushPreset {
 };
 
 [[nodiscard]] std::span<const BrushPreset> builtin_brush_presets();
+// Maps retired preset ids to the preset that replaced them ("round" -> "hard_round").
+[[nodiscard]] QString canonical_brush_preset_id(const QString& id);
+// Resolves retired ids too; the returned preset's id is the canonical one.
 [[nodiscard]] const BrushPreset* find_brush_preset(const QString& id);
 [[nodiscard]] QString brush_preset_display_name(const BrushPreset& preset);
 

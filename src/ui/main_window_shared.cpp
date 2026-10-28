@@ -674,7 +674,8 @@ int proportional_brush_step(int size, int direction, bool coarse) {
 }
 
 QString default_startup_brush_preset_id() {
-  return QStringLiteral("round");
+  // 25 px hard round, the startup brush since before issue 482 renamed its preset.
+  return QStringLiteral("hard_round");
 }
 
 void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset) {

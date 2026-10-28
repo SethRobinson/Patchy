@@ -188,7 +188,8 @@ ScriptStroke BrushAutomationLibrary::resolve(const QJsonObject& input) const {
         args[it.key()] = merged;
       } else args[it.key()] = it.value();
     }
-    s.preset_id = preset_id; s.label = p["name"].toString();
+    // The resolved preset's own id: a retired built-in id ("round") reports its replacement.
+    s.preset_id = p["id"].toString(); s.label = p["name"].toString();
     if (p.contains("tipPng") && !input.contains("tipId")) {
       auto& cached = preset_tips_[preset_id];
       if (!cached) {

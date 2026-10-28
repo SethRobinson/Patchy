@@ -166,6 +166,8 @@ interface PatchyBrushes {
   listTips(): PatchyBrushTipInfo[];
   getTip(id: string): PatchyBrushTipInfo;
   listPresets(): PatchyBrushPreset[];
+  /** Built-in ids: soft_round ("Round"), hard_round, square, pencil, ink, airbrush. The retired
+   * id "round" still resolves and returns hard_round. */
   getPreset(id: string): PatchyBrushPreset;
   /** Detached current brush/pen settings; requires an active document. Captured tip
    * IDs live for this Patchy process. savePreset makes a persistent independent copy. */

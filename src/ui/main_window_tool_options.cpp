@@ -2122,7 +2122,8 @@ void MainWindow::load_tool_settings() {
                        /*apply_tool_settings=*/false);
   if (brush_preset_combo_ != nullptr) {
     // The preset row names the preset last picked; its values come from the keys above.
-    const auto preset_id = settings.value(QStringLiteral("tools/brushPreset")).toString();
+    // A retired id ("round") lands on the preset that replaced it.
+    const auto preset_id = canonical_brush_preset_id(settings.value(QStringLiteral("tools/brushPreset")).toString());
     if (const auto index = brush_preset_combo_->findData(preset_id);
         index >= 0 && find_brush_preset(preset_id) != nullptr) {
       const QSignalBlocker blocker(brush_preset_combo_);

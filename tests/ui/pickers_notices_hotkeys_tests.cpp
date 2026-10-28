@@ -2973,7 +2973,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_flow->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
-  CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("hard_round"));
   CHECK(brush_size->value() == 25);
   CHECK(brush_opacity->value() == 100);
   CHECK(brush_flow->value() == 100);

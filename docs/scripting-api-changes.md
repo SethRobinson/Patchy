@@ -14,6 +14,11 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-28 (behavioral): the built-in brush presets lead with `soft_round`, now named "Round", then
+`hard_round` (now 25 px, the old Round's values), `square`, `pencil`, `ink`, `airbrush`.
+`brushes.listPresets()` no longer lists `round`; `getPreset("round")` and `presetId: "round"` still
+work and return `hard_round` (GitHub issue 482, [brushes.md](brushes.md)). Pinned by
+`ui_brush_preset_list_leads_with_round_and_retired_round_id_resolves`.
 2026-10-27 (additive): `patchy.perspective.clone` takes `sample`: `"current"` (default, unchanged: the
 layer alone), `"currentAndBelow"` or `"all"`, the Clone tool's Sample tokens
 ([perspective-planes.md](perspective-planes.md)). Permanent identifiers: the key and its three tokens.

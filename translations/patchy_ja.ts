@@ -1425,10 +1425,6 @@ RGB: %2, %3, %4</translation>
         <translation>輝度</translation>
     </message>
     <message>
-        <source>Soft Round</source>
-        <translation>ソフト円形</translation>
-    </message>
-    <message>
         <source>Hard Round</source>
         <translation>ハード円形</translation>
     </message>

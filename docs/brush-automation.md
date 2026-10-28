@@ -38,7 +38,8 @@ mapping, rather than the artist's preferences.
 `getCurrent` captures settings explicitly. `activate` changes the manual tool;
 ordinary stroke calls restore it. Presets saved through the AI appear in the
 existing preset control, whose final entries save/manage user presets. Built-in
-IDs and startup Round behavior remain unchanged. Working changes do not update
+IDs never change; the retired `round` id resolves to `hard_round`, the 25 px
+startup brush ([brushes.md](brushes.md)). Working changes do not update
 a saved preset. UI activation preserves colors unless the preset includes them.
 
 ## Resource persistence
