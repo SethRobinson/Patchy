@@ -401,6 +401,29 @@ std::vector<std::uint8_t> decode_base64(std::string_view text) {
   return out;
 }
 
+std::string xmp_display_text(std::span<const std::uint8_t> packet) {
+  std::string text(packet.begin(), packet.end());
+  const auto trim_end = [](std::string& value) {
+    while (!value.empty() && (value.back() == ' ' || value.back() == '\t' || value.back() == '\r' ||
+                              value.back() == '\n' || value.back() == '\0')) {
+      value.pop_back();
+    }
+  };
+  trim_end(text);
+  const auto trailer_at = text.rfind("<?xpacket");
+  if (trailer_at == std::string::npos || trailer_at == 0U) {
+    return text;
+  }
+  auto trailer = text.substr(trailer_at);
+  if (trailer.find("end=") == std::string::npos || trailer.find('>') != trailer.size() - 1U ||
+      trailer.compare(trailer.size() - 2U, 2U, "?>") != 0) {
+    return text;
+  }
+  text.erase(trailer_at);
+  trim_end(text);
+  return text.empty() ? trailer : text + "\n" + trailer;
+}
+
 bool is_ai_generation_text_key(std::string_view key) noexcept {
   return key == "parameters" || key == "prompt" || key == "workflow" || key == "invokeai_metadata" ||
          key == "invokeai_graph" || key == "sd-metadata" || key == "Dream" || key == "generation_data" ||
@@ -531,7 +554,7 @@ std::vector<MetadataEntry> describe_file_info(const DocumentFileInfo& info,
         } else if (dataset.record == 2 && dataset.dataset == 202) {
           value = bytes_text(dataset.data.size());
         } else {
-          value = iim_text(*block, dataset);
+          value = iim_display_text(dataset.record, dataset.dataset, iim_text(*block, dataset));
         }
         add("IPTC-IIM", iim_dataset_name(dataset.record, dataset.dataset), std::move(value), "IPTC",
             iim_dataset_privacy(dataset.record, dataset.dataset));

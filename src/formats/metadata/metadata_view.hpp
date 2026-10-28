@@ -106,4 +106,9 @@ struct EmbeddedThumbnail {
 
 [[nodiscard]] std::vector<std::uint8_t> decode_base64(std::string_view text);
 
+// The XMP packet as the Raw XMP page shows and copies it: the padding (whitespace and NULs
+// that let tools edit in place) is dropped from the end and from before a closing
+// <?xpacket end=...?>, which stays on its own line.
+[[nodiscard]] std::string xmp_display_text(std::span<const std::uint8_t> packet);
+
 }  // namespace patchy::metadata

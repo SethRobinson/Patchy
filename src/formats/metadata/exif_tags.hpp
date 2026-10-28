@@ -32,6 +32,10 @@ namespace patchy::metadata {
 // rationals to the usual photographic units, and long binary blobs to a size.
 [[nodiscard]] std::string format_exif_value(const TiffStream& stream, IfdKind kind, const TiffEntry& entry);
 
+// Display form of an EXIF date: "YYYY:MM:DD HH:MM:SS" becomes "YYYY-MM-DD HH:MM:SS" and
+// "YYYY:MM:DD" (GPSDateStamp) "YYYY-MM-DD". Anything else is returned unchanged.
+[[nodiscard]] std::string exif_date_display(std::string text);
+
 // GPS latitude/longitude in signed decimal degrees (south/west negative).
 [[nodiscard]] std::optional<double> gps_latitude(const TiffStream& stream);
 [[nodiscard]] std::optional<double> gps_longitude(const TiffStream& stream);

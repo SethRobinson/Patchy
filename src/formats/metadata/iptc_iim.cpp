@@ -432,6 +432,36 @@ PrivacyClass iim_dataset_privacy(std::uint8_t record, std::uint8_t dataset) noex
   }
 }
 
+std::string iim_display_text(std::uint8_t record, std::uint8_t dataset, std::string text) {
+  // 1:70 DateSent, 1:80 TimeSent; 2:30/35 Release, 2:37/38 Expiration, 2:55/60 Created,
+  // 2:62/63 DigitalCreation.
+  const bool is_date = (record == 1 && dataset == 70) ||
+                       (record == 2 && (dataset == 30 || dataset == 37 || dataset == iim::kDateCreated || dataset == 62));
+  const bool is_time = (record == 1 && dataset == 80) ||
+                       (record == 2 && (dataset == 35 || dataset == 38 || dataset == iim::kTimeCreated || dataset == 63));
+  const auto digits = [&text](std::size_t from, std::size_t count) {
+    for (std::size_t i = from; i < from + count; ++i) {
+      if (text[i] < '0' || text[i] > '9') {
+        return false;
+      }
+    }
+    return true;
+  };
+  if (is_date && text.size() == 8 && digits(0, 8)) {
+    return text.substr(0, 4) + "-" + text.substr(4, 2) + "-" + text.substr(6, 2);
+  }
+  if (is_time && (text.size() == 6 || text.size() == 11) && digits(0, 6)) {
+    auto shown = text.substr(0, 2) + ":" + text.substr(2, 2) + ":" + text.substr(4, 2);
+    if (text.size() == 6) {
+      return shown;
+    }
+    if ((text[6] == '+' || text[6] == '-') && digits(7, 4)) {
+      return shown + text[6] + text.substr(7, 2) + ":" + text.substr(9, 2);
+    }
+  }
+  return text;
+}
+
 std::array<std::uint8_t, 16> iim_digest(std::span<const std::uint8_t> iim_bytes) {
   return pdf::md5(iim_bytes);
 }

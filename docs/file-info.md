@@ -256,6 +256,16 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
   privacy column. Group, name and value text there are specification identifiers and
   container descriptions shown untranslated, as ExifTool does (docs/localization.md); the
   curated pages translate their labels.
+- Dates are shown readably, never rewritten (#500): EXIF DateTime, DateTimeOriginal,
+  DateTimeDigitized and GPSDateStamp as `2026-10-27 13:18:05` / `2026-10-27`
+  (`exif_date_display`, also the Camera page), the IPTC-IIM date datasets (1:70, 2:30, 2:37,
+  2:55, 2:62) as `2026-10-27` and the time datasets (1:80, 2:35, 2:38, 2:60, 2:63) as
+  `13:18:05+02:00` (`iim_display_text`). A value that does not match the specification's
+  pattern is shown as stored. These rows are read-only; the editable Date Created field is
+  XMP photoshop:DateCreated, converted to IIM by `apply_fields` as before.
+- Raw XMP and Copy XMP show `xmp_display_text`: the packet without its padding (whitespace and
+  NULs at the end and before the closing `<?xpacket end=...?>`, which stays on its own line).
+  The packet in the document and in saved files keeps its padding.
 - Privacy classes (`MetadataPrivacy`, string ids from `privacy_class_id`, permanent): none,
   location, deviceIdentity, personal, hiddenImage, editHistory, machineInfo, timestamp,
   aiPrompt, provenance, watermark. The banner lists every class present except timestamps.

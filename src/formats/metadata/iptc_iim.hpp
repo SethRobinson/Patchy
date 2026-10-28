@@ -46,6 +46,10 @@ struct IimBlock {
 // Specification name ("By-line", "Caption-Abstract"), or "Record:Dataset" when unknown.
 [[nodiscard]] std::string iim_dataset_name(std::uint8_t record, std::uint8_t dataset);
 [[nodiscard]] PrivacyClass iim_dataset_privacy(std::uint8_t record, std::uint8_t dataset) noexcept;
+// Display form of a dataset's text: the date datasets (CCYYMMDD) become "CCYY-MM-DD" and the
+// time datasets (HHMMSS+hhmm) "HH:MM:SS+hh:mm". Malformed values and other datasets are
+// returned unchanged.
+[[nodiscard]] std::string iim_display_text(std::uint8_t record, std::uint8_t dataset, std::string text);
 
 // Photoshop resource 1061 / MWG digest: MD5 of the IIM bytes.
 [[nodiscard]] std::array<std::uint8_t, 16> iim_digest(std::span<const std::uint8_t> iim_bytes);

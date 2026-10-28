@@ -1273,8 +1273,7 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
     build_thumbnails();
     build_file();
     build_all();
-    xmp_view->setPlainText(working.xmp ? QString::fromUtf8(reinterpret_cast<const char*>(working.xmp->data()),
-                                                           static_cast<qsizetype>(working.xmp->size()))
+    xmp_view->setPlainText(working.xmp ? QString::fromStdString(md::xmp_display_text(*working.xmp))
                                        : QObject::tr("No XMP metadata."));
     filter->clear();
   };
