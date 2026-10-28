@@ -1574,6 +1574,84 @@ void ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes() {
   }
 }
 
+// Pops up the Edit menu with `submenu` open beside it and saves both as one image (the
+// issue-thread shot of Edit > Presets and Edit > Define New Preset).
+void save_menu_with_open_submenu(QMenu& submenu, const std::string& name) {
+  auto* edit_menu = qobject_cast<QMenu*>(submenu.parentWidget());
+  if (edit_menu == nullptr) {
+    return;
+  }
+  edit_menu->popup(QPoint(0, 0));
+  QApplication::processEvents();
+  const auto row = edit_menu->actionGeometry(submenu.menuAction());
+  submenu.popup(edit_menu->mapToGlobal(QPoint(edit_menu->width() - 4, row.top())));
+  QApplication::processEvents();
+  auto edit_image = capture_widget_artifact(name + "_parent", *edit_menu);
+  auto submenu_image = capture_widget_artifact(name + "_submenu", submenu);
+  if (!edit_image.isNull() && !submenu_image.isNull()) {
+    const auto dpr = edit_image.devicePixelRatio();
+    edit_image.setDevicePixelRatio(1.0);  // compose in device pixels
+    submenu_image.setDevicePixelRatio(1.0);
+    const int gap = static_cast<int>(std::lround(4 * dpr));
+    const int top = static_cast<int>(std::lround(row.top() * dpr));
+    QImage combined(edit_image.width() - gap + submenu_image.width(),
+                    std::max(edit_image.height(), top + submenu_image.height()), QImage::Format_ARGB32_Premultiplied);
+    combined.fill(Qt::transparent);
+    QPainter painter(&combined);
+    painter.drawImage(QPoint(0, 0), edit_image);
+    painter.drawImage(QPoint(edit_image.width() - gap, top), submenu_image);
+    painter.end();
+    save_image_artifact(name, combined);
+  }
+  submenu.hide();
+  edit_menu->hide();
+  QApplication::processEvents();
+}
+
+void ui_edit_define_menu_holds_the_define_commands() {
+  // Seth, October 28, 2026 (GitHub issue 485 follow-up): the three Define commands in one
+  // Edit submenu right above Presets, same QActions, object names and hotkey ids.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* define_menu = window.findChild<QMenu*>(QStringLiteral("editDefineMenu"));
+  auto* presets_menu = window.findChild<QMenu*>(QStringLiteral("editPresetsMenu"));
+  CHECK(define_menu != nullptr && presets_menu != nullptr);
+  if (define_menu == nullptr || presets_menu == nullptr) {
+    return;
+  }
+  CHECK(define_menu->title() == QStringLiteral("Define New Preset"));
+  CHECK(define_menu->menuAction()->menuRole() == QAction::NoRole);
+  const std::vector<std::pair<QString, QString>> expected{
+      {QStringLiteral("editDefineBrushTipAction"), QStringLiteral("edit.define_brush_tip")},
+      {QStringLiteral("editDefineCustomShapeAction"), QStringLiteral("edit.define_custom_shape")},
+      {QStringLiteral("editDefineCustomShapeFromSvgAction"), QStringLiteral("edit.define_custom_shape_svg")}};
+  const auto actions = define_menu->actions();
+  CHECK(actions.size() == static_cast<qsizetype>(expected.size()));
+  for (qsizetype index = 0; index < std::min<qsizetype>(actions.size(), expected.size()); ++index) {
+    auto* action = actions[index];
+    CHECK(action->objectName() == expected[static_cast<std::size_t>(index)].first);
+    CHECK(action->menuRole() == QAction::NoRole);
+    const auto* command = window.hotkey_registry().find_command(expected[static_cast<std::size_t>(index)].second);
+    CHECK(command != nullptr && command->action.data() == action);
+  }
+  // Nothing of the three is left on the Edit menu itself, and Define sits right above Presets.
+  auto* edit_menu = qobject_cast<QMenu*>(define_menu->parentWidget());
+  CHECK(edit_menu != nullptr);
+  if (edit_menu != nullptr) {
+    const auto edit_actions = edit_menu->actions();
+    const auto define_index = edit_actions.indexOf(define_menu->menuAction());
+    CHECK(define_index >= 0 && edit_actions.indexOf(presets_menu->menuAction()) == define_index + 1);
+    for (const auto& item : expected) {
+      for (auto* action : edit_actions) {
+        CHECK(action->objectName() != item.first);
+      }
+    }
+  }
+  // The SVG import needs no document; the other two follow the document actions.
+  CHECK(patchy::ui::command_works_without_document(*define_menu->menuAction(), QString()));
+  save_menu_with_open_submenu(*define_menu, "ui_edit_define_menu_open");
+}
+
 void ui_edit_presets_menu_lists_the_managers_in_order() {
   // GitHub issue 485: Edit > Presets gathers the preset managers.
   patchy::ui::MainWindow window;
@@ -1613,34 +1691,16 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
   CHECK(texts == (QStringList{QStringLiteral("Styles Manager..."), QStringLiteral("Brush Tips..."),
                               QStringLiteral("Saved Brushes..."), QStringLiteral("Gradient Manager..."),
                               QStringLiteral("Pattern Manager..."), QStringLiteral("Custom Shapes...")}));
-  // The open submenu beside the Edit menu, for the issue thread.
-  if (auto* edit_menu = qobject_cast<QMenu*>(presets->parentWidget()); edit_menu != nullptr) {
-    edit_menu->popup(QPoint(0, 0));
-    QApplication::processEvents();
-    const auto row = edit_menu->actionGeometry(presets->menuAction());
-    presets->popup(edit_menu->mapToGlobal(QPoint(edit_menu->width() - 4, row.top())));
-    QApplication::processEvents();
-    auto edit_image = capture_widget_artifact("ui_edit_menu_with_presets", *edit_menu);
-    auto presets_image = capture_widget_artifact("ui_edit_presets_submenu", *presets);
-    if (!edit_image.isNull() && !presets_image.isNull()) {
-      const auto dpr = edit_image.devicePixelRatio();
-      edit_image.setDevicePixelRatio(1.0);  // compose in device pixels
-      presets_image.setDevicePixelRatio(1.0);
-      const int gap = static_cast<int>(std::lround(4 * dpr));
-      const int top = static_cast<int>(std::lround(row.top() * dpr));
-      QImage combined(edit_image.width() - gap + presets_image.width(),
-                      std::max(edit_image.height(), top + presets_image.height()), QImage::Format_ARGB32_Premultiplied);
-      combined.fill(Qt::transparent);
-      QPainter painter(&combined);
-      painter.drawImage(QPoint(0, 0), edit_image);
-      painter.drawImage(QPoint(edit_image.width() - gap, top), presets_image);
-      painter.end();
-      save_image_artifact("ui_edit_presets_menu_open", combined);
-    }
-    presets->hide();
-    edit_menu->hide();
-    QApplication::processEvents();
+  // The menu is built from the list the Preferences Presets page reads.
+  QStringList listed;
+  for (const auto& entry : patchy::ui::MainWindow::preset_manager_entries()) {
+    listed << QLatin1String(entry.action_object_name);
   }
+  QStringList menu_names = entries;
+  menu_names.removeAll(QStringLiteral("-"));
+  CHECK(listed == menu_names);
+  // The open submenu beside the Edit menu, for the issue thread.
+  save_menu_with_open_submenu(*presets, "ui_edit_presets_menu_open");
   // Each entry opens its manager; the Styles manager only manages from here.
   const std::vector<std::pair<const char*, QString>> dialogs{
       {"editPresetsStylesAction", QStringLiteral("styleManagerDialog")},
@@ -6618,6 +6678,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_custom_shape_library_folders_duplicates_and_keeps_deleted_defaults},
       {"ui_custom_shape_manager_edits_reach_the_shape_picker", ui_custom_shape_manager_edits_reach_the_shape_picker},
       {"ui_edit_presets_menu_lists_the_managers_in_order", ui_edit_presets_menu_lists_the_managers_in_order},
+      {"ui_edit_define_menu_holds_the_define_commands", ui_edit_define_menu_holds_the_define_commands},
       {"ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes",
        ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes},
       {"ui_line_arrowheads_extend_the_shape", ui_line_arrowheads_extend_the_shape},

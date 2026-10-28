@@ -111,9 +111,9 @@ void MainWindow::save_current_automation_brush() {
   try { (void)brush_automation_library().save(name, canvas_->current_script_brush(), false); }
   catch (const std::exception& e) { show_status_error(tr("Could not save brush preset: %1").arg(translate_data_text(e.what()))); }
 }
-void MainWindow::manage_automation_brush_presets() {
+void MainWindow::manage_automation_brush_presets(QWidget* parent) {
   auto& library = brush_automation_library(); library.refresh();
-  QDialog dialog(this); dialog.setObjectName("brushPresetManager"); dialog.setWindowTitle(tr("Saved Brushes"));
+  QDialog dialog(parent != nullptr ? parent : this); dialog.setObjectName("brushPresetManager"); dialog.setWindowTitle(tr("Saved Brushes"));
   auto* layout = new QVBoxLayout(&dialog);
   auto* hint = new QLabel(tr("Select a saved brush. Update replaces it with the current brush settings. Document Undo does not change saved brushes."), &dialog);
   hint->setWordWrap(true); layout->addWidget(hint);

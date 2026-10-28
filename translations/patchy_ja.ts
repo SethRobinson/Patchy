@@ -27865,6 +27865,38 @@ Locked: %1</source>
         <source>Custom Shapes...</source>
         <translation>カスタムシェイプ...</translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation>新規プリセットを定義</translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation>各ボタンはプリセットマネージャーを開きます。編集 &gt; プリセットと同じダイアログです。ライブラリへの変更はすぐに反映されます。</translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation>レイヤースタイルのプリセットの名前変更、並べ替え、読み込み、書き出しを行います。</translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation>.abr ブラシを読み込み、ブラシ先端を定義して間隔を設定します。</translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation>設定ごと保存したブラシを使う、更新する、削除します。</translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation>グラデーションのプリセットを編集、並べ替え、読み込みます。</translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation>.pat パターンや画像を読み込み、フォルダーに整理します。</translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation>カスタムシェイプツール用に .csh や SVG のシェイプを読み込みます。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

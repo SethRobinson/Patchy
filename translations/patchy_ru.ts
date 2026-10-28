@@ -28029,6 +28029,38 @@ Locked: %1</source>
         <source>Custom Shapes...</source>
         <translation>Произвольные фигуры...</translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation>Определить новый набор</translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation>Каждая кнопка открывает менеджер наборов, те же окна, что и Редактирование &gt; Наборы. Изменения в библиотеке применяются сразу.</translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation>Переименование, сортировка, импорт и экспорт стилей слоя.</translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation>Импорт кистей .abr, создание отпечатков и настройка их интервала.</translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation>Использование, обновление и удаление кистей, сохранённых с настройками.</translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation>Правка, сортировка и импорт градиентов.</translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation>Импорт узоров .pat или изображений и сортировка их по папкам.</translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation>Импорт фигур .csh или SVG для инструмента «Произвольная фигура».</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

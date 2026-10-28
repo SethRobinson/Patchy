@@ -28029,6 +28029,38 @@ Zablokowano: %1</translation>
         <source>Custom Shapes...</source>
         <translation>Niestandardowe kształty...</translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation>Zdefiniuj nowe ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation>Każdy przycisk otwiera menedżer ustawień wstępnych, te same okna co Edycja &gt; Ustawienia wstępne. Zmiany w bibliotece obowiązują od razu.</translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation>Zmieniaj nazwy, sortuj, importuj i eksportuj style warstw.</translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation>Importuj pędzle .abr, definiuj końcówki i ustawiaj ich odstępy.</translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation>Używaj, aktualizuj lub usuwaj pędzle zapisane z ustawieniami.</translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation>Edytuj, sortuj i importuj gradienty.</translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation>Importuj wzorki .pat lub obrazy i porządkuj je w folderach.</translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation>Importuj kształty .csh lub SVG dla narzędzia Niestandardowy kształt.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

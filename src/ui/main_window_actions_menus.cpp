@@ -804,14 +804,27 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   remove_object_action->setIcon(simple_icon(QStringLiteral("RO")));
   register_hotkey(remove_object_action, "edit.remove_object");
   connect(remove_object_action, &QAction::triggered, this, [this] { remove_object_dialog(); });
-  auto* define_brush_tip_action = edit_menu->addAction(tr("Define Brush Tip from Selection"));
+  // Edit > Define New Preset (Seth, October 28, 2026: the Edit menu was too long): the
+  // three Define commands in one submenu beside Presets. The actions keep their full
+  // names because the shape context menu and the Hotkeys page show the same QActions;
+  // their object names and hotkey ids are permanent.
+  edit_menu->addSeparator();
+  auto* define_menu = new QMenu(tr("Define New Preset"), edit_menu);
+  bind_widget_text(define_menu, QT_TR_NOOP("Define New Preset"));
+  define_menu->setObjectName(QStringLiteral("editDefineMenu"));
+  auto* define_menu_action = edit_menu->addMenu(define_menu);
+  define_menu_action->setMenuRole(QAction::NoRole);
+  define_menu_action->setProperty(kWorksWithoutDocumentProperty, true);
+  auto* define_brush_tip_action = define_menu->addAction(tr("Define Brush Tip from Selection"));
   define_brush_tip_action->setObjectName(QStringLiteral("editDefineBrushTipAction"));
+  define_brush_tip_action->setMenuRole(QAction::NoRole);
   register_hotkey(define_brush_tip_action, "edit.define_brush_tip");
   connect(define_brush_tip_action, &QAction::triggered, this, [this] { define_brush_tip_from_selection(); });
   register_document_action(define_brush_tip_action);
-  auto* define_custom_shape_action = edit_menu->addAction(tr("Define Custom Shape from Path"));
+  auto* define_custom_shape_action = define_menu->addAction(tr("Define Custom Shape from Path"));
   bind_action_text(define_custom_shape_action, QT_TR_NOOP("Define Custom Shape from Path"));
   define_custom_shape_action->setObjectName(QStringLiteral("editDefineCustomShapeAction"));
+  define_custom_shape_action->setMenuRole(QAction::NoRole);
   define_custom_shape_action_ = define_custom_shape_action;
   register_hotkey(define_custom_shape_action, "edit.define_custom_shape");
   connect(define_custom_shape_action, &QAction::triggered, this,
@@ -819,17 +832,18 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_document_action(define_custom_shape_action);
   // Needs no document (the shape lands in the application library), so it is
   // deliberately not a document action - the Photoshop Shapes-panel import.
-  auto* define_custom_shape_svg_action = edit_menu->addAction(tr("Define Custom Shape from SVG File"));
+  auto* define_custom_shape_svg_action = define_menu->addAction(tr("Define Custom Shape from SVG File"));
   bind_action_text(define_custom_shape_svg_action, QT_TR_NOOP("Define Custom Shape from SVG File"));
   define_custom_shape_svg_action->setObjectName(QStringLiteral("editDefineCustomShapeFromSvgAction"));
+  define_custom_shape_svg_action->setMenuRole(QAction::NoRole);
   register_hotkey(define_custom_shape_svg_action, "edit.define_custom_shape_svg");
   connect(define_custom_shape_svg_action, &QAction::triggered, this,
           [this] { define_custom_shape_from_svg_file(); });
   // Edit > Presets (GitHub issues 485 and 486): the preset manager dialogs in
-  // one place. They manage application libraries, so none needs a document.
+  // one place, from preset_manager_entries(), which the Preferences Presets page
+  // reads too. They manage application libraries, so none needs a document.
   // The options bar and Layer Style buttons that open them stay as they are.
   // The hotkey ids are permanent.
-  edit_menu->addSeparator();
   {
     auto* presets_menu = new QMenu(tr("Presets"), edit_menu);
     bind_widget_text(presets_menu, QT_TR_NOOP("Presets"));
@@ -837,36 +851,17 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     auto* presets_menu_action = edit_menu->addMenu(presets_menu);
     presets_menu_action->setMenuRole(QAction::NoRole);
     presets_menu_action->setProperty(kWorksWithoutDocumentProperty, true);
-    struct PresetEntry {
-      const char* text;
-      const char* object_name;
-      const char* hotkey_id;
-      void (MainWindow::*open)();
-      bool separator_before;
-    };
-    for (const auto& entry :
-         {PresetEntry{QT_TR_NOOP("Styles Manager..."), "editPresetsStylesAction", "edit.presets_styles",
-                      &MainWindow::open_style_manager, false},
-          PresetEntry{QT_TR_NOOP("Brush Tips..."), "editPresetsBrushTipsAction", "edit.presets_brush_tips",
-                      &MainWindow::open_brush_tip_manager, true},
-          PresetEntry{QT_TR_NOOP("Saved Brushes..."), "editPresetsSavedBrushesAction", "edit.presets_saved_brushes",
-                      &MainWindow::manage_automation_brush_presets, false},
-          PresetEntry{QT_TR_NOOP("Gradient Manager..."), "editPresetsGradientsAction", "edit.presets_gradients",
-                      &MainWindow::open_gradient_manager, true},
-          PresetEntry{QT_TR_NOOP("Pattern Manager..."), "editPresetsPatternsAction", "edit.presets_patterns",
-                      &MainWindow::open_pattern_manager, false},
-          PresetEntry{QT_TR_NOOP("Custom Shapes..."), "editPresetsCustomShapesAction", "edit.presets_custom_shapes",
-                      &MainWindow::open_custom_shape_manager, true}}) {
+    for (const auto& entry : preset_manager_entries()) {
       if (entry.separator_before) {
         presets_menu->addSeparator();
       }
       auto* action = presets_menu->addAction(tr(entry.text));
       bind_action_text(action, entry.text);
-      action->setObjectName(QLatin1String(entry.object_name));
+      action->setObjectName(QLatin1String(entry.action_object_name));
       action->setMenuRole(QAction::NoRole);
       action->setProperty(kWorksWithoutDocumentProperty, true);
       register_hotkey(action, entry.hotkey_id, QKeySequence());
-      connect(action, &QAction::triggered, this, [this, open = entry.open] { (this->*open)(); });
+      connect(action, &QAction::triggered, this, [this, open = entry.open] { (this->*open)(nullptr); });
     }
   }
   // Edit > Convert to Color Profile (docs/rgb-profiles.md): converts the pixels from the

@@ -969,12 +969,36 @@ void MainWindow::import_brush_tips_from_abr() {
   message.exec();
 }
 
-void MainWindow::open_style_manager() {
-  (void)request_style_manager(this, style_library(), {}, /*offer_use=*/false);
+const std::vector<MainWindow::PresetManagerEntry>& MainWindow::preset_manager_entries() {
+  static const std::vector<PresetManagerEntry> entries{
+      {QT_TR_NOOP("Styles Manager..."), QT_TR_NOOP("Rename, sort, import and export layer style presets."),
+       "editPresetsStylesAction", "preferencesPresetsStylesButton", "edit.presets_styles",
+       &MainWindow::open_style_manager, false},
+      {QT_TR_NOOP("Brush Tips..."), QT_TR_NOOP("Import .abr brushes, define tips and set their spacing."),
+       "editPresetsBrushTipsAction", "preferencesPresetsBrushTipsButton", "edit.presets_brush_tips",
+       &MainWindow::open_brush_tip_manager, true},
+      {QT_TR_NOOP("Saved Brushes..."), QT_TR_NOOP("Use, update or delete brushes saved with their settings."),
+       "editPresetsSavedBrushesAction", "preferencesPresetsSavedBrushesButton", "edit.presets_saved_brushes",
+       &MainWindow::manage_automation_brush_presets, false},
+      {QT_TR_NOOP("Gradient Manager..."), QT_TR_NOOP("Edit, sort and import gradient presets."),
+       "editPresetsGradientsAction", "preferencesPresetsGradientsButton", "edit.presets_gradients",
+       &MainWindow::open_gradient_manager, true},
+      {QT_TR_NOOP("Pattern Manager..."), QT_TR_NOOP("Import .pat patterns or images and sort them into folders."),
+       "editPresetsPatternsAction", "preferencesPresetsPatternsButton", "edit.presets_patterns",
+       &MainWindow::open_pattern_manager, false},
+      {QT_TR_NOOP("Custom Shapes..."), QT_TR_NOOP("Import .csh or SVG shapes for the Custom Shape tool."),
+       "editPresetsCustomShapesAction", "preferencesPresetsCustomShapesButton", "edit.presets_custom_shapes",
+       &MainWindow::open_custom_shape_manager, true},
+  };
+  return entries;
 }
 
-void MainWindow::open_gradient_manager() {
-  const auto selected = request_gradient_manager(this, gradient_library(), {});
+void MainWindow::open_style_manager(QWidget* parent) {
+  (void)request_style_manager(parent != nullptr ? parent : this, style_library(), {}, /*offer_use=*/false);
+}
+
+void MainWindow::open_gradient_manager(QWidget* parent) {
+  const auto selected = request_gradient_manager(parent != nullptr ? parent : this, gradient_library(), {});
   const auto* entry = gradient_library().find_entry(selected);
   if (entry == nullptr || canvas_ == nullptr) {
     return;
@@ -987,9 +1011,9 @@ void MainWindow::open_gradient_manager() {
   statusBar()->showMessage(tr("Gradient preset: %1").arg(gradient_library_entry_display_name(*entry)));
 }
 
-void MainWindow::open_pattern_manager() {
-  const auto selected_storage_id =
-      request_pattern_manager(this, pattern_library(), current_pattern_stamp_pattern_id_);
+void MainWindow::open_pattern_manager(QWidget* parent) {
+  const auto selected_storage_id = request_pattern_manager(parent != nullptr ? parent : this, pattern_library(),
+                                                           current_pattern_stamp_pattern_id_);
   if (selected_storage_id.isEmpty()) {
     return;
   }
@@ -1001,12 +1025,12 @@ void MainWindow::open_pattern_manager() {
   }
 }
 
-void MainWindow::open_brush_tip_manager() {
+void MainWindow::open_brush_tip_manager(QWidget* parent) {
   std::function<QImage()> capture;
   if (canvas_ != nullptr) {
     capture = [this] { return capture_brush_tip_define_source(); };
   }
-  request_brush_tip_manager(this, brush_tip_library(), active_brush_tip_id_, capture,
+  request_brush_tip_manager(parent != nullptr ? parent : this, brush_tip_library(), active_brush_tip_id_, capture,
                             [this](const QString& id) { set_active_brush_tip(id, true); });
 }
 

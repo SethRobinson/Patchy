@@ -27947,6 +27947,38 @@ Verrouillé : %1</translation>
         <source>Custom Shapes...</source>
         <translation>Formes personnalisées...</translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation>Définir un nouveau paramètre prédéfini</translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation>Chaque bouton ouvre un gestionnaire de paramètres prédéfinis, les mêmes boîtes de dialogue que Édition &gt; Paramètres prédéfinis. Les modifications d&apos;une bibliothèque s&apos;appliquent aussitôt.</translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation>Renommer, trier, importer et exporter des styles de calque.</translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation>Importer des pinceaux .abr, définir des pointes et régler leur espacement.</translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation>Utiliser, mettre à jour ou supprimer les pinceaux enregistrés avec leurs réglages.</translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation>Modifier, trier et importer des dégradés.</translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation>Importer des motifs .pat ou des images et les classer dans des dossiers.</translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation>Importer des formes .csh ou SVG pour l&apos;outil Forme personnalisée.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

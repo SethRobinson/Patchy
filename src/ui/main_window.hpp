@@ -304,6 +304,18 @@ public:
   // destructor that normally drops it will not run. See docs/document-recovery.md.
   void discard_recovery_folder_for_forced_exit();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
+  // The one list both Edit > Presets and the Preferences Presets page read
+  // (labels, order, groups, hotkey ids, and the open function).
+  struct PresetManagerEntry {
+    const char* text;                // QT_TR_NOOP, MainWindow context (menu and button)
+    const char* description;         // QT_TR_NOOP, the Preferences page's line
+    const char* action_object_name;  // the Edit > Presets QAction
+    const char* button_object_name;  // the Preferences page button
+    const char* hotkey_id;           // permanent
+    void (MainWindow::*open)(QWidget* parent);
+    bool separator_before;           // starts a new group
+  };
+  [[nodiscard]] static const std::vector<PresetManagerEntry>& preset_manager_entries();
   // Theme extras (main_window_theme_extras.cpp): the effects overlay over the document
   // area, the theme menu right of Help, and whether the empty start screen shows.
   [[nodiscard]] ThemeEffectsOverlay* theme_effects_overlay() const;
@@ -313,7 +325,9 @@ public:
   [[nodiscard]] BrushAutomationLibrary& brush_automation_library();
   void activate_automation_brush(const ScriptStroke& brush);
   void refresh_automation_brush_presets();
-  void manage_automation_brush_presets();
+  // `parent` (Edit > Presets passes none, the Preferences Presets page itself)
+  // owns the Saved Brushes dialog; null means the main window.
+  void manage_automation_brush_presets(QWidget* parent = nullptr);
   void save_current_automation_brush();
   [[nodiscard]] PatternLibrary& pattern_library();
   [[nodiscard]] GradientLibrary& gradient_library();
@@ -2124,14 +2138,16 @@ private:
   int remove_object_last_attempt_{-1};
   void apply_brush_tip_to_canvas(CanvasWidget* canvas);
   void import_brush_tips_from_abr();
-  void open_brush_tip_manager();
-  // Edit > Presets (GitHub issues 485 and 486): the preset managers, opened
-  // from the menu. Use applies the choice to the tool it belongs to (Gradient
+  void open_brush_tip_manager(QWidget* parent = nullptr);
+  // Edit > Presets and the Preferences Presets page (GitHub issue 485): the
+  // preset managers. Use applies the choice to the tool it belongs to (Gradient
   // tool, Pattern Stamp, Custom Shape); the Styles manager only manages.
-  void open_style_manager();
-  void open_gradient_manager();
-  void open_pattern_manager();
-  void open_custom_shape_manager();
+  // `parent` owns the dialog (Preferences passes itself so the manager opens
+  // over it); null means the main window.
+  void open_style_manager(QWidget* parent = nullptr);
+  void open_gradient_manager(QWidget* parent = nullptr);
+  void open_pattern_manager(QWidget* parent = nullptr);
+  void open_custom_shape_manager(QWidget* parent = nullptr);
   void expand_selection_dialog();
   void contract_selection_dialog();
   void border_selection_dialog();

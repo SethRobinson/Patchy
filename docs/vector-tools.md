@@ -81,7 +81,7 @@ proportions) encoded through the probed keyOriginLine arrow keys. The
 CustomShapeLibrary (JSON sidecars in a `shapes` folder beside the settings
 file, unit-box paths, v1 text codec) ships 17 builtins: ids shape.builtin.*
 are append-only, geometry is code-authoritative (restore_default_shapes
-rewrites drifted builtin sidecars, keeping user renames). Edit > Define
+rewrites drifted builtin sidecars, keeping user renames). Edit > Define New Preset > Define
 Custom Shape from Path adds a user entry. Builtins seed once under the
 `shapes/defaultShapesVersion` stamp (`kDefaultCustomShapesVersion`, each
 builtin's `introduced_version`), so a deleted default stays deleted.

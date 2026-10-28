@@ -27947,6 +27947,38 @@ Bloqueado: %1</translation>
         <source>Custom Shapes...</source>
         <translation>Formas personalizadas...</translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation>Definir nova predefinição</translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation>Cada botão abre um gerenciador de predefinições, as mesmas caixas de diálogo de Editar &gt; Predefinições. As alterações em uma biblioteca valem na hora.</translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation>Renomeie, organize, importe e exporte estilos de camada.</translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation>Importe pincéis .abr, defina pontas e ajuste o espaçamento.</translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation>Use, atualize ou exclua pincéis salvos com suas configurações.</translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation>Edite, organize e importe degradês.</translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation>Importe padrões .pat ou imagens e organize-os em pastas.</translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation>Importe formas .csh ou SVG para a ferramenta Forma personalizada.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

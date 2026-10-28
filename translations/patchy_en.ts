@@ -27866,6 +27866,38 @@ Locked: %1</source>
         <source>Custom Shapes...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

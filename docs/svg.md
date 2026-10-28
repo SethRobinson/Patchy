@@ -228,7 +228,7 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
 - File > Export > Flat Image routes svg to the same structure-preserving writer and
   skips the raster options prompt (vectors scale client-side). Divide Scanned
   Photos and Export Documents to Folder leave svg out of their format lists.
-- Edit > Define Custom Shape from SVG File: one stampable library shape per
+- Edit > Define New Preset > Define Custom Shape from SVG File: one stampable library shape per
   file (geometry merged, paint ignored, unit-normalized, combine ops
   preserved so holes keep cutting) named from the file stem (the Photoshop
   Shapes-panel behavior). Needs no open document.

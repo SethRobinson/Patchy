@@ -27865,6 +27865,38 @@ Locked: %1</source>
         <source>Custom Shapes...</source>
         <translation>사용자 지정 모양...</translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation>새 사전 설정 정의</translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation>각 버튼은 사전 설정 관리자를 엽니다. 편집 &gt; 사전 설정과 같은 대화 상자입니다. 라이브러리 변경 내용은 바로 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation>레이어 스타일 사전 설정의 이름 변경, 정렬, 가져오기, 내보내기를 합니다.</translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation>.abr 브러시를 가져오고 팁을 정의하며 간격을 설정합니다.</translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation>설정과 함께 저장한 브러시를 사용, 업데이트 또는 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation>그레이디언트 사전 설정을 편집, 정렬, 가져옵니다.</translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation>.pat 패턴이나 이미지를 가져와 폴더로 정리합니다.</translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation>사용자 지정 모양 도구용 .csh 또는 SVG 모양을 가져옵니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

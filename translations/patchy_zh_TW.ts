@@ -27865,6 +27865,38 @@ Locked: %1</source>
         <source>Custom Shapes...</source>
         <translation>自訂形狀...</translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation>定義新預設集</translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation>每個按鈕會開啟一個預設集管理員，與「編輯 &gt; 預設集」中的對話框相同。對資料庫的變更會立即生效。</translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation>重新命名、排序、匯入和匯出圖層樣式預設集。</translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation>匯入 .abr 筆刷、定義筆尖並設定間距。</translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation>使用、更新或刪除連同設定一起儲存的筆刷。</translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation>編輯、排序和匯入漸層預設集。</translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation>匯入 .pat 圖樣或影像，並整理到資料夾中。</translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation>為自訂形狀工具匯入 .csh 或 SVG 形狀。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

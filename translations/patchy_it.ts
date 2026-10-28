@@ -27947,6 +27947,38 @@ Bloccato: %1</translation>
         <source>Custom Shapes...</source>
         <translation>Forme personali...</translation>
     </message>
+    <message>
+        <source>Define New Preset</source>
+        <translation>Definisci nuovo predefinito</translation>
+    </message>
+    <message>
+        <source>Each button opens a preset manager, the same dialogs as Edit &gt; Presets. Changes to a library apply at once.</source>
+        <translation>Ogni pulsante apre una gestione dei predefiniti, le stesse finestre di Modifica &gt; Predefiniti. Le modifiche a una libreria si applicano subito.</translation>
+    </message>
+    <message>
+        <source>Rename, sort, import and export layer style presets.</source>
+        <translation>Rinomina, ordina, importa ed esporta gli stili di livello.</translation>
+    </message>
+    <message>
+        <source>Import .abr brushes, define tips and set their spacing.</source>
+        <translation>Importa pennelli .abr, definisci punte e regola la loro spaziatura.</translation>
+    </message>
+    <message>
+        <source>Use, update or delete brushes saved with their settings.</source>
+        <translation>Usa, aggiorna o elimina i pennelli salvati con le loro impostazioni.</translation>
+    </message>
+    <message>
+        <source>Edit, sort and import gradient presets.</source>
+        <translation>Modifica, ordina e importa le sfumature.</translation>
+    </message>
+    <message>
+        <source>Import .pat patterns or images and sort them into folders.</source>
+        <translation>Importa pattern .pat o immagini e ordinali in cartelle.</translation>
+    </message>
+    <message>
+        <source>Import .csh or SVG shapes for the Custom Shape tool.</source>
+        <translation>Importa forme .csh o SVG per lo strumento Forma personale.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
