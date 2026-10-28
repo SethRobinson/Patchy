@@ -9191,6 +9191,134 @@ void ui_layer_blend_mode_next_previous_commands_step_the_list() {
   CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
 }
 
+// GitHub issue 476 follow-up: fast Next Blend Mode presses never wait on the compositor. Each
+// press sets the mode at once (document, panel and status); the canvas renders on a worker and,
+// while one render is in flight, only the newest mode, so seven quick presses render at most
+// twice and still make one undo entry.
+void ui_layer_blend_mode_fast_steps_render_only_the_landing_mode() {
+  constexpr int kWidth = 2400;
+  constexpr int kHeight = 1600;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  for (int index = 0; index < 4; ++index) {
+    patchy::PixelBuffer pixels(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    for (int y = 0; y < kHeight; ++y) {
+      auto* row = pixels.pixel(0, y);
+      for (int x = 0; x < kWidth; ++x) {
+        row[x * 4 + 0] = static_cast<std::uint8_t>((x * (index + 3) + y) & 0xFF);
+        row[x * 4 + 1] = static_cast<std::uint8_t>((y * (index + 5) + x / 2) & 0xFF);
+        row[x * 4 + 2] = static_cast<std::uint8_t>((x ^ y) & 0xFF);
+        row[x * 4 + 3] = 160;
+      }
+    }
+    patchy::Layer layer(document.allocate_layer_id(), "Texture " + std::to_string(index), std::move(pixels));
+    layer.set_blend_mode(index % 2 == 0 ? patchy::BlendMode::Overlay : patchy::BlendMode::SoftLight);
+    document.add_layer(std::move(layer));
+  }
+  // Under half the canvas: the old commit path re-rendered this region on the GUI thread.
+  patchy::Layer target(document.allocate_layer_id(), "Target",
+                       solid_pixels(1100, 760, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  target.set_bounds(patchy::Rect{200, 200, 1100, 760});
+  const auto target_id = document.add_layer(std::move(target)).id();
+  document.set_active_layer(target_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Fast Blend Steps"));
+  show_window(window);
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  auto* next = require_hotkey_action(window, QStringLiteral("layer.blend_mode_next"));
+  auto* previous = require_hotkey_action(window, QStringLiteral("layer.blend_mode_previous"));
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  const auto blend_of_target = [&window, target_id] {
+    const auto* layer = std::as_const(Access::document(window)).find_layer(target_id);
+    return layer != nullptr ? layer->blend_mode() : patchy::BlendMode::Normal;
+  };
+  // Waits for the first worker render to land after `baseline`, then long enough for a pending
+  // one (a render in flight restarts once for the newest state without counting).
+  const auto settle = [canvas](int baseline) {
+    QElapsedTimer wait;
+    wait.start();
+    while (canvas->render_cache_diagnostics().full_refreshes == baseline && wait.elapsed() < 8000) {
+      QApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+    QElapsedTimer tail;
+    tail.start();
+    while ((tail.elapsed() < 1500 || !canvas->render_settled()) && wait.elapsed() < 12000) {
+      QApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+  };
+
+  // Timing, as a press followed by the event processing a real key gets (paints included).
+  {
+    const auto timing_baseline = canvas->render_cache_diagnostics().full_refreshes;
+    QElapsedTimer run;
+    run.start();
+    for (int step = 0; step < 7; ++step) {
+      QElapsedTimer press;
+      press.start();
+      next->trigger();
+      QApplication::processEvents();
+      std::printf("[blend-step] press %d: %lld ms\n", step + 1, static_cast<long long>(press.elapsed()));
+    }
+    std::printf("[blend-step] 7 presses: %lld ms\n", static_cast<long long>(run.elapsed()));
+    for (int step = 0; step < 7; ++step) {
+      previous->trigger();
+    }
+    settle(timing_baseline);
+    CHECK(blend_of_target() == patchy::BlendMode::Normal);
+  }
+
+  EnvironmentVariableRestorer restore_render_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("300"));
+  QElapsedTimer pause;
+  pause.start();
+  while (Access::layer_blend_edit_pending(window) && pause.elapsed() < 3000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  const auto depth_before = Access::active_session_undo_depth(window);
+  const auto before = canvas->render_cache_diagnostics();
+  QElapsedTimer presses;
+  presses.start();
+  for (int step = 0; step < 7; ++step) {
+    next->trigger();
+    QApplication::processEvents(QEventLoop::AllEvents, 1);
+  }
+  const auto presses_ms = presses.elapsed();
+  // Normal, Dissolve, | Darken, Multiply, Color Burn, Linear Burn, Darker Color, | Lighten.
+  CHECK(blend_of_target() == patchy::BlendMode::Lighten);
+  CHECK(blend_combo->currentText() == QStringLiteral("Lighten"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Blend mode: Lighten"));
+  const auto during = canvas->render_cache_diagnostics();
+  std::printf("[blend-step] quick presses: %lld ms, full %d, patches %d, awaited %d, overlays %d\n",
+              static_cast<long long>(presses_ms), during.full_refreshes - before.full_refreshes,
+              during.partial_patches - before.partial_patches, during.awaited_renders - before.awaited_renders,
+              during.processing_overlays_shown - before.processing_overlays_shown);
+  CHECK(during.full_refreshes == before.full_refreshes);  // no render on the GUI thread
+  CHECK(during.partial_patches == before.partial_patches);
+  // The one awaited operation is the run's undo snapshot (a document copy), not a render.
+  CHECK(during.awaited_renders - before.awaited_renders <= 1);
+  CHECK(presses_ms < 300);  // the presses never waited for the delayed worker render
+  settle(before.full_refreshes);
+  const auto after = canvas->render_cache_diagnostics();
+  std::printf("[blend-step] renders for 7 quick presses: %d\n", after.full_refreshes - before.full_refreshes);
+  CHECK(after.full_refreshes - before.full_refreshes >= 1);
+  CHECK(after.full_refreshes - before.full_refreshes <= 2);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
+  // The canvas holds the mode the presses landed on.
+  const auto shown = canvas->current_composite();
+  CHECK(!shown.isNull());
+  const auto expected = patchy::ui::qimage_from_document(std::as_const(Access::document(window)), true)
+                            .convertToFormat(QImage::Format_RGBA8888);
+  for (const auto point : {QPoint(400, 400), QPoint(1200, 900), QPoint(250, 950)}) {
+    CHECK(shown.isNull() || color_close(shown.pixelColor(point), expected.pixelColor(point), 1));
+  }
+}
+
 namespace blend_preview {
 
 struct PreviewDocument {
@@ -10403,6 +10531,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
       {"ui_layer_blend_mode_next_previous_commands_step_the_list",
        ui_layer_blend_mode_next_previous_commands_step_the_list},
+      {"ui_layer_blend_mode_fast_steps_render_only_the_landing_mode",
+       ui_layer_blend_mode_fast_steps_render_only_the_landing_mode},
       {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",
        ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close},
       {"ui_layer_blend_list_choice_after_preview_is_one_undo_entry",

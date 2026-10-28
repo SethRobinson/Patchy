@@ -11,11 +11,13 @@
 #include <QCoreApplication>
 #include <QKeyEvent>
 #include <QPainter>
+#include <QScopeGuard>
 #include <QSignalBlocker>
 #include <QStyledItemDelegate>
 #include <QWheelEvent>
 #include <QStandardItemModel>
 #include <QObject>
+#include <QVariant>
 
 #include <algorithm>
 #include <array>
@@ -26,6 +28,7 @@ namespace {
 
 constexpr char kBlendModeArrowKeysProperty[] = "patchy.blendModeArrowKeys";
 constexpr char kBlendModeListDelegateProperty[] = "patchy.blendModeListDelegate";
+constexpr char kBlendModeSteppingProperty[] = "patchy.blendModeStepping";
 
 // The rows QComboBox::insertSeparator adds carry this accessible description.
 bool is_separator_index(const QModelIndex& index) {
@@ -173,7 +176,7 @@ private:
     if (index < 0 || index >= combo_->count() || index == combo_->currentIndex()) {
       return;
     }
-    combo_->setCurrentIndex(index);
+    step_blend_mode_combo_to(combo_, index);
     emit combo_->activated(index);
   }
 
@@ -389,6 +392,16 @@ void install_blend_mode_arrow_keys(QComboBox* combo) {
 }
 
 }  // namespace
+
+void step_blend_mode_combo_to(QComboBox* combo, int index) {
+  combo->setProperty(kBlendModeSteppingProperty, true);
+  const auto clear = qScopeGuard([combo] { combo->setProperty(kBlendModeSteppingProperty, QVariant()); });
+  combo->setCurrentIndex(index);
+}
+
+bool blend_mode_combo_stepping(const QComboBox* combo) {
+  return combo != nullptr && combo->property(kBlendModeSteppingProperty).toBool();
+}
 
 int blend_mode_step_index(const QComboBox* combo, int direction) {
   return next_step_stop(combo, combo->currentIndex(), direction < 0 ? -1 : 1);
