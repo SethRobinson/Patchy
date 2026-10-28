@@ -329,7 +329,12 @@ void paint_simple_icon_glyph(QPainter& painter, const QString& text, const QColo
 class ProceduralIconEngine final : public QIconEngine {
  public:
   using GlyphPainter = std::function<void(QPainter&, const QColor&)>;
+  // Paints in device pixels on an unscaled painter, given the pixmap's device size, so a
+  // glyph can put its edges on whole pixels at any screen scale.
+  using PixelGlyphPainter = std::function<void(QPainter&, const QColor&, const QSize&)>;
 
+  ProceduralIconEngine(QString name, QColor ThemePalette::* ink_role, PixelGlyphPainter glyph)
+      : text_(std::move(name)), accent_role_(ink_role), pixel_glyph_(std::move(glyph)) {}
   ProceduralIconEngine(QString text, QColor accent)
       : text_(std::move(text)), accent_(std::move(accent)) {}
   ProceduralIconEngine(QString text, QColor ThemePalette::* accent_role)
@@ -363,6 +368,15 @@ class ProceduralIconEngine final : public QIconEngine {
     const qreal ratio = scale > 0.0 ? scale : qreal(1.0);
     QPixmap rendered(QSize(qRound(size.width() * ratio), qRound(size.height() * ratio)));
     rendered.fill(Qt::transparent);
+    if (pixel_glyph_) {
+      {
+        QPainter painter(&rendered);
+        painter.setRenderHint(QPainter::Antialiasing);
+        pixel_glyph_(painter, resolved_accent(), rendered.size());
+      }
+      rendered.setDevicePixelRatio(ratio);
+      return styled_for_mode(std::move(rendered), mode);
+    }
     rendered.setDevicePixelRatio(ratio);
     QPainter painter(&rendered);
     // The glyph code is authored against a square area, 32x32 unless the caller
@@ -376,6 +390,31 @@ class ProceduralIconEngine final : public QIconEngine {
       paint_simple_icon_glyph(painter, text_, resolved_accent());
     }
     painter.end();
+    return styled_for_mode(std::move(rendered), mode);
+  }
+
+  QSize actualSize(const QSize& size, QIcon::Mode mode, QIcon::State state) override {
+    Q_UNUSED(mode);
+    Q_UNUSED(state);
+    return size;
+  }
+
+  QString iconName() override { return text_; }
+  bool isNull() override { return false; }
+  QIconEngine* clone() const override {
+    if (pixel_glyph_) {
+      return new ProceduralIconEngine(text_, accent_role_, pixel_glyph_);
+    }
+    if (glyph_) {
+      return new ProceduralIconEngine(text_, authored_size_, accent_role_, glyph_);
+    }
+    return accent_role_ != nullptr ? new ProceduralIconEngine(text_, accent_role_)
+                                   : new ProceduralIconEngine(text_, accent_);
+  }
+  QString key() const override { return QStringLiteral("PatchyProceduralIcon"); }
+
+ private:
+  [[nodiscard]] static QPixmap styled_for_mode(QPixmap rendered, QIcon::Mode mode) {
     if (mode == QIcon::Normal) {
       return rendered;
     }
@@ -390,24 +429,6 @@ class ProceduralIconEngine final : public QIconEngine {
     return rendered;
   }
 
-  QSize actualSize(const QSize& size, QIcon::Mode mode, QIcon::State state) override {
-    Q_UNUSED(mode);
-    Q_UNUSED(state);
-    return size;
-  }
-
-  QString iconName() override { return text_; }
-  bool isNull() override { return false; }
-  QIconEngine* clone() const override {
-    if (glyph_) {
-      return new ProceduralIconEngine(text_, authored_size_, accent_role_, glyph_);
-    }
-    return accent_role_ != nullptr ? new ProceduralIconEngine(text_, accent_role_)
-                                   : new ProceduralIconEngine(text_, accent_);
-  }
-  QString key() const override { return QStringLiteral("PatchyProceduralIcon"); }
-
- private:
   // A role wins over an explicit color, and an invalid explicit color falls back
   // to the theme's icon ink. Resolved here rather than stored so the glyph
   // follows a live scheme change.
@@ -423,6 +444,7 @@ class ProceduralIconEngine final : public QIconEngine {
   QColor ThemePalette::* accent_role_ = nullptr;
   qreal authored_size_ = 32.0;
   GlyphPainter glyph_;
+  PixelGlyphPainter pixel_glyph_;
 };
 
 }  // namespace
@@ -454,25 +476,48 @@ QIcon themed_glyph_icon(QString name, qreal authored_size, QColor ThemePalette::
 }
 
 QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
-  // Authored in 32 units; every glyph spans y 4 to 28 so the set shares one height.
-  auto glyph = [kind](QPainter& painter, const QColor& ink) {
-    QPen pen(ink, 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-    painter.setPen(pen);
-    painter.setBrush(Qt::NoBrush);
-    if (kind == QStringLiteral("transparent")) {
-      // A 3x3 checkerboard: the corners and the middle solid.
-      painter.setPen(Qt::NoPen);
-      painter.setBrush(ink);
-      for (const auto& [x, y] : {std::pair{4.0, 4.0}, std::pair{20.0, 4.0}, std::pair{12.0, 12.0},
-                                 std::pair{4.0, 20.0}, std::pair{20.0, 20.0}}) {
-        painter.drawRect(QRectF(x, y, 8.0, 8.0));
+  // Designed on a 16 px grid where every glyph spans 2 to 15: 13 px tall in the 16 px lock
+  // buttons (GitHub issue 484). Painted in device pixels with every straight edge rounded to a
+  // whole pixel, so the glyphs stay sharp at 100%, 150% and 200%; only curves and the pencil's
+  // diagonals are antialiased.
+  auto glyph = [kind](QPainter& painter, const QColor& theme_ink, const QSize& device) {
+    // Overlapping parts are painted opaque and the ink's alpha applied once at the end, so a
+    // translucent theme color stays even where they meet.
+    QColor ink = theme_ink;
+    ink.setAlpha(255);
+    const int side = std::min(device.width(), device.height());
+    const int left = (device.width() - side) / 2;
+    const int top = (device.height() - side) / 2;
+    const qreal unit = side / 16.0;
+    const auto px = [unit](qreal grid) { return qRound(grid * unit); };
+    // The device rect between grid edges, at least one pixel each way.
+    const auto cell = [&](qreal x0, qreal y0, qreal x1, qreal y1) {
+      const int x = px(x0);
+      const int y = px(y0);
+      return QRectF(left + x, top + y, std::max(1, px(x1) - x), std::max(1, px(y1) - y));
+    };
+    const auto fill = [&painter, &ink](std::initializer_list<QRectF> rects) {
+      for (const auto& rect : rects) {
+        painter.fillRect(rect, ink);
       }
-      painter.setPen(pen);
-      painter.setBrush(Qt::NoBrush);
-      painter.drawRect(QRectF(5.1, 5.1, 21.8, 21.8));
+    };
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(ink);
+    if (kind == QStringLiteral("transparent")) {
+      // A framed 3x3 checkerboard: the corners and the middle solid.
+      fill({cell(2, 2, 15, 3), cell(2, 14, 15, 15), cell(2, 2, 3, 15), cell(14, 2, 15, 15),
+            cell(2, 2, 7, 7), cell(10, 2, 15, 7), cell(2, 10, 7, 15), cell(10, 10, 15, 15),
+            cell(7, 7, 10, 10)});
     } else if (kind == QStringLiteral("pixels")) {
-      // A pencil from its point at the lower left up to a solid end cap at the upper right.
+      // A pencil from its point at the lower left up to a solid end cap at the upper right,
+      // authored in 32 units across 4 to 28 and fitted so its solid part spans the 13 px.
+      const qreal span = px(15) - px(2) - 1;
       painter.save();
+      painter.translate(left + (px(2) + px(15)) / 2.0, top + (px(2) + px(15)) / 2.0);
+      painter.scale(span / 24.0, span / 24.0);
+      painter.translate(-16.0, -16.0);
+      painter.setPen(QPen(ink, 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+      painter.setBrush(Qt::NoBrush);
       painter.translate(16.2, 16.6);
       painter.rotate(-45.0);
       QPainterPath body(QPointF(-15.0, 0.0));
@@ -488,44 +533,68 @@ QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
       painter.drawPolygon(QPolygonF({QPointF(-15.0, 0.0), QPointF(-11.5, -2.2), QPointF(-11.5, 2.2)}));
       painter.restore();
     } else if (kind == QStringLiteral("position")) {
-      // A four-way move arrow.
-      painter.drawLine(QPointF(16.0, 8.0), QPointF(16.0, 24.0));
-      painter.drawLine(QPointF(8.0, 16.0), QPointF(24.0, 16.0));
-      painter.setPen(QPen(ink, 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      painter.setBrush(ink);
-      painter.drawPolygon(QPolygonF({QPointF(16.0, 4.0), QPointF(11.5, 9.5), QPointF(20.5, 9.5)}));
-      painter.drawPolygon(QPolygonF({QPointF(16.0, 28.0), QPointF(11.5, 22.5), QPointF(20.5, 22.5)}));
-      painter.drawPolygon(QPolygonF({QPointF(4.0, 16.0), QPointF(9.5, 11.5), QPointF(9.5, 20.5)}));
-      painter.drawPolygon(QPolygonF({QPointF(28.0, 16.0), QPointF(22.5, 11.5), QPointF(22.5, 20.5)}));
+      // A four-way move arrow: full-length stems and heads three grid units deep.
+      const auto stem_v = cell(8, 2, 9, 15);
+      const auto stem_h = cell(2, 8, 15, 9);
+      fill({stem_v, stem_h});
+      const int depth = std::max(1, px(5) - px(2));
+      if (unit < 1.25) {
+        // Small renders step the heads, each row one pixel wider on both sides than the row
+        // nearer the point, so they stay sharp.
+        for (int row = 0; row < depth; ++row) {
+          fill({QRectF(stem_v.left() - row, stem_v.top() + row, stem_v.width() + 2 * row, 1),
+                QRectF(stem_v.left() - row, stem_v.bottom() - 1 - row, stem_v.width() + 2 * row, 1),
+                QRectF(stem_h.left() + row, stem_h.top() - row, 1, stem_h.height() + 2 * row),
+                QRectF(stem_h.right() - 1 - row, stem_h.top() - row, 1, stem_h.height() + 2 * row)});
+        }
+      } else {
+        // Larger ones get smooth heads, flat at the point and two units wider on each side
+        // at the base.
+        const qreal wing = px(2);
+        const qreal l = stem_v.left();
+        const qreal r = stem_v.right();
+        const qreal t = stem_v.top();
+        const qreal b = stem_v.bottom();
+        const qreal hl = stem_h.left();
+        const qreal hr = stem_h.right();
+        const qreal ht = stem_h.top();
+        const qreal hb = stem_h.bottom();
+        painter.drawPolygon(QPolygonF({QPointF(l, t), QPointF(r, t), QPointF(r + wing, t + depth),
+                                       QPointF(l - wing, t + depth)}));
+        painter.drawPolygon(QPolygonF({QPointF(l, b), QPointF(r, b), QPointF(r + wing, b - depth),
+                                       QPointF(l - wing, b - depth)}));
+        painter.drawPolygon(QPolygonF({QPointF(hl, ht), QPointF(hl, hb), QPointF(hl + depth, hb + wing),
+                                       QPointF(hl + depth, ht - wing)}));
+        painter.drawPolygon(QPolygonF({QPointF(hr, ht), QPointF(hr, hb), QPointF(hr - depth, hb + wing),
+                                       QPointF(hr - depth, ht - wing)}));
+      }
     } else if (kind == QStringLiteral("autonest")) {
       // An artboard frame with crop ticks at two corners, holding a small solid layer.
-      painter.drawRect(QRectF(9.0, 9.0, 15.0, 15.0));
-      painter.drawLine(QPointF(9.0, 4.0), QPointF(9.0, 9.0));
-      painter.drawLine(QPointF(4.0, 9.0), QPointF(9.0, 9.0));
-      painter.drawLine(QPointF(24.0, 24.0), QPointF(24.0, 28.0));
-      painter.drawLine(QPointF(24.0, 24.0), QPointF(28.0, 24.0));
-      painter.setPen(Qt::NoPen);
-      painter.setBrush(ink);
-      painter.drawRect(QRectF(13.0, 13.0, 7.0, 7.0));
+      fill({cell(4, 4, 13, 5), cell(4, 12, 13, 13), cell(4, 4, 5, 13), cell(12, 4, 13, 13),
+            cell(4, 2, 5, 4), cell(2, 4, 4, 5), cell(12, 13, 13, 15), cell(13, 12, 15, 13),
+            cell(6, 6, 11, 11)});
     } else {
-      // "all": a padlock with a solid body and a keyhole cut out of it.
-      QPainterPath shackle(QPointF(10.5, 14.0));
-      shackle.lineTo(10.5, 9.5);
-      shackle.cubicTo(10.5, 2.6, 21.5, 2.6, 21.5, 9.5);
-      shackle.lineTo(21.5, 14.0);
+      // "all": a padlock, a two-unit shackle with a rounded top over a solid body with a
+      // keyhole slot. The inner cut and the slot clear what was painted under them.
+      QPainterPath shackle;
+      shackle.addRoundedRect(cell(4, 2, 13, 10), 3.0 * unit, 3.0 * unit);
       painter.drawPath(shackle);
-      QPainterPath body;
-      body.addRoundedRect(QRectF(6.0, 13.5, 20.0, 14.5), 2.5, 2.5);
-      QPainterPath keyhole;
-      keyhole.setFillRule(Qt::WindingFill);  // the stem and the round part as one shape
-      keyhole.addEllipse(QPointF(16.0, 19.5), 2.2, 2.2);
-      keyhole.addRect(QRectF(15.0, 19.5, 2.0, 5.0));
-      painter.setPen(Qt::NoPen);
-      painter.setBrush(ink);
-      painter.drawPath(body.subtracted(keyhole.simplified()));
+      painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+      QPainterPath opening;
+      opening.addRoundedRect(cell(6, 4, 11, 11), unit, unit);
+      painter.drawPath(opening);
+      painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+      fill({cell(3, 8, 14, 15)});
+      painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+      painter.fillRect(cell(8, 10, 9, 13), ink);
     }
+    if (theme_ink.alpha() < 255) {
+      painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+      painter.fillRect(QRect(QPoint(0, 0), device), QColor(0, 0, 0, theme_ink.alpha()));
+    }
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
   };
-  return themed_glyph_icon(QStringLiteral("layer-lock-%1").arg(kind), 32.0, ink_role, std::move(glyph));
+  return QIcon(new ProceduralIconEngine(QStringLiteral("layer-lock-%1").arg(kind), ink_role, std::move(glyph)));
 }
 
 QIcon window_chrome_icon(QString role) {

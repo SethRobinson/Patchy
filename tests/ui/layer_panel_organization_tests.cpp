@@ -6262,7 +6262,7 @@ void ui_layer_lock_buttons_share_one_icon_height() {
     save_image_artifact(std::string("issue484_lock_row_") + label, panel_shot.copy(scaled).toImage());
     save_widget_artifact(std::string("issue484_layers_panel_") + label, *panel);
 
-    // Every icon's ink spans the same rows of its render, at least 11 of them.
+    // Every icon's ink spans 13 rows of its 16 px render (the pencil's point may add one).
     for (const auto* name : names) {
       auto* button = window.findChild<QToolButton*>(QLatin1String(name));
       if (button == nullptr) {
@@ -6285,7 +6285,105 @@ void ui_layer_lock_buttons_share_one_icon_height() {
   }
   CHECK(heights.size() == 8U);
   for (const auto height : heights) {
-    CHECK(height >= 11 && std::abs(height - heights.front()) <= 1);
+    CHECK(std::abs(height - 13) <= 1);
+  }
+}
+
+// GitHub issue 484 follow-up: the lock glyphs sit on whole device pixels. Each glyph's ink box
+// (any alpha) equals its fully opaque box, so no outer row or column is a half-covered fringe,
+// at 100%, 150% and 200% for the 16 px buttons and the 14 px row badges. The padlock and the
+// straight-edged glyphs are 13 px tall in a 16 px button. Saves every render, and a 6x copy.
+void ui_layer_lock_icons_land_on_whole_pixels() {
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  const std::array<const char*, 5> kinds{"transparent", "pixels", "position", "autonest", "all"};
+  const std::array<qreal, 3> ratios{1.0, 1.5, 2.0};
+  const std::array<int, 2> sizes{16, 14};
+  struct Render {
+    QString kind;
+    int size = 0;
+    qreal ratio = 1.0;
+    QImage image;
+  };
+  std::vector<Render> renders;
+  int strip_width = 4;
+  int strip_height = 4;
+  for (const auto size : sizes) {
+    int row_width = 4;
+    int row_height = 0;
+    for (const auto ratio : ratios) {
+      for (const auto* kind : kinds) {
+        const auto icon = patchy::ui::layer_lock_icon(QLatin1String(kind), &patchy::ui::ThemePalette::icon_ink);
+        auto image = icon.pixmap(QSize(size, size), ratio).toImage().convertToFormat(QImage::Format_ARGB32);
+        row_width += image.width() + 4;
+        row_height = std::max(row_height, image.height());
+        renders.push_back({QLatin1String(kind), size, ratio, std::move(image)});
+      }
+      row_width += 8;
+    }
+    strip_width = std::max(strip_width, row_width);
+    strip_height += row_height + 4;
+  }
+  QImage strip(strip_width, strip_height, QImage::Format_ARGB32);
+  strip.fill(patchy::ui::theme().panel_bg);
+  {
+    QPainter painter(&strip);
+    int x = 4;
+    int y = 4;
+    int row_height = 0;
+    int last_size = renders.empty() ? 0 : renders.front().size;
+    qreal last_ratio = renders.empty() ? 1.0 : renders.front().ratio;
+    for (const auto& render : renders) {
+      if (render.size != last_size) {
+        x = 4;
+        y += row_height + 4;
+        row_height = 0;
+      } else if (render.ratio != last_ratio) {
+        x += 8;
+      }
+      last_size = render.size;
+      last_ratio = render.ratio;
+      auto image = render.image;
+      image.setDevicePixelRatio(1.0);
+      painter.drawImage(QPoint(x, y), image);
+      x += image.width() + 4;
+      row_height = std::max(row_height, image.height());
+    }
+  }
+  save_image_artifact("issue484_lock_icons_scales", strip);
+  save_image_artifact("issue484_lock_icons_scales_x6",
+                      strip.scaled(strip.size() * 6, Qt::IgnoreAspectRatio, Qt::FastTransformation));
+
+  const auto bounds = [](const QImage& image, int min_alpha) {
+    QRect box;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        if (qAlpha(image.pixel(x, y)) >= min_alpha) {
+          box = box.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    return box;
+  };
+  for (const auto& render : renders) {
+    const auto ink = bounds(render.image, 1);
+    const auto solid = bounds(render.image, 255);
+    std::printf("[INFO] %s %d px at %.1fx: ink %dx%d at (%d,%d), opaque %dx%d at (%d,%d)\n",
+                qPrintable(render.kind), render.size, render.ratio, ink.width(), ink.height(), ink.x(), ink.y(),
+                solid.width(), solid.height(), solid.x(), solid.y());
+    // The pencil is a diagonal, so its point and corners are antialiased by design: its
+    // mostly covered pixels span the height instead.
+    const bool pencil = render.kind == QStringLiteral("pixels");
+    const auto measured = pencil ? bounds(render.image, 97) : ink;
+    if (!pencil) {
+      CHECK(!ink.isEmpty() && ink == solid);
+    }
+    if (render.size == 16 && render.ratio == 1.0) {
+      CHECK(measured.height() == 13);
+    }
+    if (render.size == 16 && render.ratio == 2.0) {
+      CHECK(std::abs(measured.height() - 26) <= (pencil ? 1 : 0));
+    }
   }
 }
 
@@ -6506,6 +6604,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_list_row_masks_map_scroll_bars_without_warnings},
       {"ui_layer_row_tooltip_names_every_lock", ui_layer_row_tooltip_names_every_lock},
       {"ui_layer_lock_buttons_share_one_icon_height", ui_layer_lock_buttons_share_one_icon_height},
+      {"ui_layer_lock_icons_land_on_whole_pixels", ui_layer_lock_icons_land_on_whole_pixels},
       {"ui_layer_thumbnail_ctrl_hover_shows_selection_cursor",
        ui_layer_thumbnail_ctrl_hover_shows_selection_cursor},
   };
