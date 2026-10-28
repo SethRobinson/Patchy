@@ -1,6 +1,7 @@
 #include <string_view>
 #include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/palette.hpp"
 #include "core/pixel_tools.hpp"
@@ -842,6 +843,73 @@ void tool_fill_bucket_transparency_lock_skips_transparent_pixels() {
   CHECK(dirty.width == 16);
   CHECK(pixel_is(document, layer_id, 20, 4, 0, 180, 210));
   CHECK(pixel_is(document, layer_id, 4, 4, 0, 0, 0, 0));
+}
+
+// GitHub issue 498: moving content off a transparent layer leaves alpha-0 pixels that still
+// hold the old RGB. Fill and the Magic Wand treat every alpha-0 pixel as one color, so a
+// click on clean transparency covers those ghosts too, at 8, 16 and 32 bits; opaque pixels
+// keep the ordinary metric and stay out at tolerance 0 and 32.
+void tool_fill_bucket_transparent_pixels_match_whatever_rgb_they_hold() {
+  const std::array<std::uint8_t, 4> clear{0, 0, 0, 0};
+  const std::array<std::uint8_t, 4> ghost{200, 30, 30, 0};
+  const std::array<std::uint8_t, 4> faint{0, 0, 0, 10};
+  const std::array<std::uint8_t, 4> faint_red{220, 10, 10, 10};
+  CHECK(patchy::color_within_tolerance(clear.data(), ghost.data(), 4, 0));
+  CHECK(patchy::color_within_tolerance(ghost.data(), clear.data(), 4, 0));
+  CHECK(!patchy::color_within_tolerance(ghost.data(), faint.data(), 4, 0));
+  // Against an alpha-0 side only alpha counts: 10 <= 2 * 5, 10 > 2 * 4.
+  CHECK(patchy::color_within_tolerance(ghost.data(), faint_red.data(), 4, 5));
+  CHECK(!patchy::color_within_tolerance(ghost.data(), faint_red.data(), 4, 4));
+  // Two visible pixels still compare RGB.
+  CHECK(!patchy::color_within_tolerance(faint.data(), faint_red.data(), 4, 5));
+
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    patchy::Document document(32, 16, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer pixels(32, 16, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    document.add_pixel_layer("Layer", std::move(pixels));
+    if (depth != patchy::BitDepth::UInt8) {
+      patchy::convert_document_depth(document, depth);
+    }
+    const auto layer_id = document.layers().front().id();
+    auto& layer_pixels = document.find_layer(layer_id)->pixels();
+    const auto format = layer_pixels.format();
+    CHECK(format.bit_depth == depth);
+    // Ghost letters: alpha 0 with leftover color in columns 8..23, and an opaque block at
+    // columns 26..29, rows 4..11, that stays outside the fill (the fill goes around it).
+    for (std::int32_t y = 0; y < 16; ++y) {
+      for (std::int32_t x = 8; x < 24; ++x) {
+        patchy::store_pixel(format, layer_pixels.pixel(x, y), {200.0F, 30.0F, 30.0F, 0.0F});
+      }
+      for (std::int32_t x = 26; x < 30 && y >= 4 && y < 12; ++x) {
+        patchy::store_pixel(format, layer_pixels.pixel(x, y), {40.0F, 40.0F, 40.0F, 255.0F});
+      }
+    }
+    for (const int tolerance : {0, 32}) {
+      auto copy = document;
+      auto options = tool_options(0, 180, 210);
+      options.flood_tolerance = tolerance;
+      const auto dirty = patchy::flood_fill(copy, layer_id, 2, 2, options);
+      CHECK(dirty.x == 0);
+      CHECK(dirty.width == 32);
+      const auto& filled = std::as_const(copy).find_layer(layer_id)->pixels();
+      const auto at = [&](std::int32_t x, std::int32_t y) { return patchy::load_pixel(format, filled.pixel(x, y)); };
+      for (const std::int32_t x : {2, 8, 15, 23, 25, 31}) {
+        const auto value = at(x, 7);
+        CHECK(value[3] >= 254.0F);
+        if (depth != patchy::BitDepth::Float32) {  // 32-bit stores linear values
+          CHECK(std::abs(value[1] - 180.0F) < 1.0F);
+        }
+      }
+      const auto opaque = at(27, 7);
+      CHECK(std::abs(opaque[0] - 40.0F) < 1.0F && std::abs(opaque[1] - 40.0F) < 1.0F);
+    }
+    // Clicking a ghost pixel fills the clean transparency around it too.
+    auto from_ghost = document;
+    const auto ghost_dirty = patchy::flood_fill(from_ghost, layer_id, 12, 3, tool_options(0, 180, 210));
+    CHECK(ghost_dirty.x == 0);
+    CHECK(patchy::load_pixel(format, std::as_const(from_ghost).find_layer(layer_id)->pixels().pixel(2, 2))[3] >= 254.0F);
+  }
 }
 
 void tool_gradient_draws_foreground_to_background_and_writes_artifact() {
@@ -1807,6 +1875,8 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
        tool_fill_bucket_softness_feathers_inward_from_region_edge},
       {"tool_fill_bucket_transparency_lock_skips_transparent_pixels",
        tool_fill_bucket_transparency_lock_skips_transparent_pixels},
+      {"tool_fill_bucket_transparent_pixels_match_whatever_rgb_they_hold",
+       tool_fill_bucket_transparent_pixels_match_whatever_rgb_they_hold},
       {"tool_gradient_draws_foreground_to_background_and_writes_artifact",
        tool_gradient_draws_foreground_to_background_and_writes_artifact},
       {"tool_gradient_supports_custom_stops_radial_reverse_and_alpha",

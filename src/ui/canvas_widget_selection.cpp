@@ -13,6 +13,7 @@
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/pixel_tools.hpp"
 #include "core/smart_object.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -823,18 +824,12 @@ void CanvasWidget::grow_selection() {
     return;
   }
 
-  const std::array<int, 4> target = {static_cast<int>(sum[0] / sample_count),
-                                     static_cast<int>(sum[1] / sample_count),
-                                     static_cast<int>(sum[2] / sample_count),
-                                     static_cast<int>(sum[3] / sample_count)};
-  const auto tolerance_squared = wand_tolerance_ * wand_tolerance_ * 4;
+  const std::array<std::uint8_t, 4> target = {static_cast<std::uint8_t>(sum[0] / sample_count),
+                                              static_cast<std::uint8_t>(sum[1] / sample_count),
+                                              static_cast<std::uint8_t>(sum[2] / sample_count),
+                                              static_cast<std::uint8_t>(sum[3] / sample_count)};
   const auto matches = [&](int x, int y) {
-    const auto* color = pixel(x, y);
-    const auto dr = static_cast<int>(color[0]) - target[0];
-    const auto dg = static_cast<int>(color[1]) - target[1];
-    const auto db = static_cast<int>(color[2]) - target[2];
-    const auto da = static_cast<int>(color[3]) - target[3];
-    return dr * dr + dg * dg + db * db + da * da <= tolerance_squared;
+    return patchy::color_within_tolerance(pixel(x, y), target.data(), 4, wand_tolerance_);
   };
 
   std::vector<std::uint8_t> selected(total_pixels);
@@ -939,11 +934,10 @@ void CanvasWidget::select_similar_to_selection() {
     return;
   }
 
-  const std::array<int, 4> target = {static_cast<int>(sum[0] / sample_count),
-                                     static_cast<int>(sum[1] / sample_count),
-                                     static_cast<int>(sum[2] / sample_count),
-                                     static_cast<int>(sum[3] / sample_count)};
-  const auto tolerance_squared = wand_tolerance_ * wand_tolerance_ * 4;
+  const std::array<std::uint8_t, 4> target = {static_cast<std::uint8_t>(sum[0] / sample_count),
+                                              static_cast<std::uint8_t>(sum[1] / sample_count),
+                                              static_cast<std::uint8_t>(sum[2] / sample_count),
+                                              static_cast<std::uint8_t>(sum[3] / sample_count)};
   std::vector<std::uint8_t> selected(total_pixels);
   auto min_x = std::numeric_limits<int>::max();
   auto min_y = std::numeric_limits<int>::max();
@@ -953,12 +947,7 @@ void CanvasWidget::select_similar_to_selection() {
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      const auto* color = pixel(x, y);
-      const auto dr = static_cast<int>(color[0]) - target[0];
-      const auto dg = static_cast<int>(color[1]) - target[1];
-      const auto db = static_cast<int>(color[2]) - target[2];
-      const auto da = static_cast<int>(color[3]) - target[3];
-      if (dr * dr + dg * dg + db * db + da * da > tolerance_squared) {
+      if (!patchy::color_within_tolerance(pixel(x, y), target.data(), 4, wand_tolerance_)) {
         continue;
       }
       selected[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)] = 1U;

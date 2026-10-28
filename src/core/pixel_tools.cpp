@@ -2581,8 +2581,10 @@ Rect draw_ellipse(Document& document, LayerId layer_id, Rect rect, const EditOpt
 bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::uint16_t channels,
                             int tolerance) noexcept {
   const auto compared = std::min<std::uint16_t>(channels, 4);
+  // An alpha-0 pixel has no visible color: compare alpha alone (GitHub issue 498).
+  const std::uint16_t first = compared == 4 && (a[3] == 0 || b[3] == 0) ? 3 : 0;
   if (tolerance <= 0) {
-    for (std::uint16_t channel = 0; channel < compared; ++channel) {
+    for (std::uint16_t channel = first; channel < compared; ++channel) {
       if (a[channel] != b[channel]) {
         return false;
       }
@@ -2592,7 +2594,7 @@ bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::u
   const auto clamped = std::min(tolerance, 255);
   const auto tolerance_squared = clamped * clamped * 4;
   int distance_squared = 0;
-  for (std::uint16_t channel = 0; channel < compared; ++channel) {
+  for (std::uint16_t channel = first; channel < compared; ++channel) {
     const auto delta = static_cast<int>(a[channel]) - static_cast<int>(b[channel]);
     distance_squared += delta * delta;
   }
@@ -2696,8 +2698,10 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
         return false;
       }
       const auto compared = std::min<std::size_t>(channels, 4U);
+      // As color_within_tolerance: an alpha-0 side compares alpha alone (GitHub issue 498).
+      const std::size_t first = compared == 4U && (value[3] <= 0.0F || deep_target[3] <= 0.0F) ? 3U : 0U;
       if (tolerance <= 0) {
-        for (std::size_t c = 0; c < compared; ++c) {
+        for (std::size_t c = first; c < compared; ++c) {
           if (value[c] != deep_target[c]) {
             return false;
           }
@@ -2705,7 +2709,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
         return true;
       }
       double distance_squared = 0.0;
-      for (std::size_t c = 0; c < compared; ++c) {
+      for (std::size_t c = first; c < compared; ++c) {
         const auto delta = static_cast<double>(value[c]) - static_cast<double>(deep_target[c]);
         distance_squared += delta * delta;
       }
