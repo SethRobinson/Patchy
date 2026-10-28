@@ -6860,14 +6860,6 @@ Flux : %6
         <translation>Transparent</translation>
     </message>
     <message>
-        <source>Resolution</source>
-        <translation>Résolution</translation>
-    </message>
-    <message>
-        <source>Background</source>
-        <translation>Arrière-plan</translation>
-    </message>
-    <message>
         <source>Create</source>
         <translation>Créer</translation>
     </message>
@@ -9089,10 +9081,6 @@ RVB : %2, %3, %4</translation>
     <message>
         <source>32 Bits/Channel</source>
         <translation>32 bits/couche</translation>
-    </message>
-    <message>
-        <source>Bit Depth</source>
-        <translation>Profondeur de bits</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
@@ -12182,23 +12170,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Épreuve CMJN nécessite un profil CMJN. Choisissez-en un dans les Préférences.</translation>
     </message>
     <message>
-        <source>Name</source>
-        <comment>new document name field</comment>
-        <translation>Nom</translation>
-    </message>
-    <message>
-        <source>Color Mode</source>
-        <translation>Mode colorimétrique</translation>
-    </message>
-    <message>
-        <source>Color Profile</source>
-        <translation>Profil colorimétrique</translation>
-    </message>
-    <message>
-        <source>Save Preset...</source>
-        <translation>Enregistrer le paramètre prédéfini...</translation>
-    </message>
-    <message>
         <source>Save these settings as a preset in the Saved group</source>
         <translation>Enregistrer ces réglages comme paramètre prédéfini dans le groupe Enregistrés</translation>
     </message>
@@ -13763,6 +13734,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>Afficher les formes en grille de vignettes</translation>
+    </message>
+    <message>
+        <source>Color Mode:</source>
+        <translation>Mode colorimétrique :</translation>
+    </message>
+    <message>
+        <source>Bit Depth:</source>
+        <translation>Profondeur de bits :</translation>
+    </message>
+    <message>
+        <source>Color Profile:</source>
+        <translation>Profil colorimétrique :</translation>
     </message>
 </context>
 <context>

@@ -6850,14 +6850,6 @@ Flow: %6
         <translation>透明</translation>
     </message>
     <message>
-        <source>Resolution</source>
-        <translation>分辨率</translation>
-    </message>
-    <message>
-        <source>Background</source>
-        <translation>背景</translation>
-    </message>
-    <message>
         <source>Create</source>
         <translation>创建</translation>
     </message>
@@ -9059,10 +9051,6 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>32 Bits/Channel</source>
         <translation>32 位/通道</translation>
-    </message>
-    <message>
-        <source>Bit Depth</source>
-        <translation>位深度</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
@@ -12148,23 +12136,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>CMYK 校样需要 CMYK 配置文件。请在首选项中选择。</translation>
     </message>
     <message>
-        <source>Name</source>
-        <comment>new document name field</comment>
-        <translation>名称</translation>
-    </message>
-    <message>
-        <source>Color Mode</source>
-        <translation>颜色模式</translation>
-    </message>
-    <message>
-        <source>Color Profile</source>
-        <translation>颜色配置文件</translation>
-    </message>
-    <message>
-        <source>Save Preset...</source>
-        <translation>存储预设...</translation>
-    </message>
-    <message>
         <source>Save these settings as a preset in the Saved group</source>
         <translation>将这些设置存储为“已保存”组中的预设</translation>
     </message>
@@ -13720,6 +13691,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>以缩略图网格显示形状</translation>
+    </message>
+    <message>
+        <source>Color Mode:</source>
+        <translation>颜色模式:</translation>
+    </message>
+    <message>
+        <source>Bit Depth:</source>
+        <translation>位深度:</translation>
+    </message>
+    <message>
+        <source>Color Profile:</source>
+        <translation>颜色配置文件:</translation>
     </message>
 </context>
 <context>

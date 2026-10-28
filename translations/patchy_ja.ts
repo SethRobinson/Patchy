@@ -3651,10 +3651,6 @@ Flow: %6
         <translation>透明</translation>
     </message>
     <message>
-        <source>Background</source>
-        <translation>背景</translation>
-    </message>
-    <message>
         <source>Layer %1</source>
         <translation>レイヤー %1</translation>
     </message>
@@ -3749,10 +3745,6 @@ Flow: %6
     <message>
         <source>pt</source>
         <translation>pt</translation>
-    </message>
-    <message>
-        <source>Resolution</source>
-        <translation>解像度</translation>
     </message>
     <message>
         <source>%1 PPI</source>
@@ -9061,10 +9053,6 @@ Mixed selection</source>
         <translation>32 bit/チャンネル</translation>
     </message>
     <message>
-        <source>Bit Depth</source>
-        <translation>ビット数</translation>
-    </message>
-    <message>
         <source>This filter is not available in 32-bit documents</source>
         <translation>このフィルターは 32 ビットのドキュメントでは使用できません</translation>
     </message>
@@ -12148,23 +12136,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>CMYK 校正には CMYK プロファイルが必要です。環境設定で選択してください。</translation>
     </message>
     <message>
-        <source>Name</source>
-        <comment>new document name field</comment>
-        <translation>名前</translation>
-    </message>
-    <message>
-        <source>Color Mode</source>
-        <translation>カラーモード</translation>
-    </message>
-    <message>
-        <source>Color Profile</source>
-        <translation>カラープロファイル</translation>
-    </message>
-    <message>
-        <source>Save Preset...</source>
-        <translation>プリセットを保存...</translation>
-    </message>
-    <message>
         <source>Save these settings as a preset in the Saved group</source>
         <translation>この設定を「保存済み」グループのプリセットとして保存</translation>
     </message>
@@ -13720,6 +13691,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>シェイプをサムネイルのグリッドで表示</translation>
+    </message>
+    <message>
+        <source>Color Mode:</source>
+        <translation>カラーモード:</translation>
+    </message>
+    <message>
+        <source>Bit Depth:</source>
+        <translation>ビット数:</translation>
+    </message>
+    <message>
+        <source>Color Profile:</source>
+        <translation>カラープロファイル:</translation>
     </message>
 </context>
 <context>

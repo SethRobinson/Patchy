@@ -31,6 +31,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QSet>
 #include <QStandardItemModel>
 #include <QTabWidget>
 #include <QTest>
@@ -685,6 +686,91 @@ void ui_new_document_save_preset_and_reload() {
   }));
 }
 
+// GitHub issue 497: the group chips stay on one row beside the search field at the dialog's
+// opening and minimum widths (the Saved chip showing too); the field labels end in a colon
+// and share one left edge; the summary starts at the fields' left edge with Save to its left,
+// in the label column.
+void ui_new_document_layout_lines_up_labels_fields_and_summary() {
+  NewDocumentSettingsScope scope;
+  patchy::ui::app_settings().setValue(
+      QStringLiteral("newDocument/userPresets"),
+      QStringLiteral(R"([{"id":"user-1","name":"Banner","w":1234,"h":567,"ppi":72}])"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(with_new_document_dialog(window, [&](QDialog& dialog) {
+    auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentSearchEdit"));
+    auto* chip_row = dialog.findChild<QWidget*>(QStringLiteral("newDocumentChipRow"));
+    auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentNameEdit"));
+    auto* width = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+    auto* summary = dialog.findChild<QLabel*>(QStringLiteral("newDocumentSummaryLabel"));
+    auto* save = dialog.findChild<QPushButton*>(QStringLiteral("newDocumentSavePresetButton"));
+    auto* create = dialog.findChild<QPushButton*>(QStringLiteral("newDocumentCreateButton"));
+    auto* cancel = dialog.findChild<QPushButton*>(QStringLiteral("newDocumentCancelButton"));
+    CHECK(search != nullptr && chip_row != nullptr && name != nullptr && width != nullptr && summary != nullptr &&
+          save != nullptr && create != nullptr);
+    if (search == nullptr || chip_row == nullptr || name == nullptr || width == nullptr || summary == nullptr ||
+        save == nullptr || create == nullptr) {
+      dialog.reject();
+      return;
+    }
+    const auto in_dialog = [&dialog](const QWidget* widget) {
+      return QRect(widget->mapTo(&dialog, QPoint(0, 0)), widget->size());
+    };
+    const auto check_top_row = [&] {
+      int chip_top = -1;
+      int shown = 0;
+      bool one_row = true;
+      for (auto* chip : chip_row->findChildren<QToolButton*>()) {
+        if (!chip->property("newDocumentChip").toBool() || chip->isHidden()) {
+          continue;
+        }
+        ++shown;
+        one_row = one_row && (chip_top < 0 || chip->y() == chip_top);
+        chip_top = chip->y();
+        CHECK(in_dialog(chip).right() < dialog.width());
+      }
+      CHECK(shown == 8);
+      CHECK(one_row);
+      CHECK(in_dialog(search).right() < in_dialog(chip_row).left());
+      CHECK(search->width() <= 400);
+    };
+    check_top_row();
+
+    // Labels: one left edge, each ending in a colon.
+    QSet<int> label_lefts;
+    int labels = 0;
+    for (const auto& text : {QStringLiteral("Name:"), QStringLiteral("Width:"), QStringLiteral("Height:"),
+                             QStringLiteral("Resolution:"), QStringLiteral("Background:"), QStringLiteral("Color Mode:"),
+                             QStringLiteral("Color Profile:")}) {
+      for (auto* label : dialog.findChildren<QLabel*>()) {
+        if (label->text() == text) {
+          ++labels;
+          label_lefts.insert(in_dialog(label).left());
+          CHECK((label->alignment() & Qt::AlignRight) == 0);
+        }
+      }
+    }
+    CHECK(labels == 7);
+    CHECK(label_lefts.size() == 1);
+
+    // The summary starts at the fields' left edge; Save sits in the label column, left of it.
+    CHECK(in_dialog(summary).left() == in_dialog(name).left());
+    CHECK(in_dialog(summary).left() == in_dialog(width).left());
+    CHECK(label_lefts.size() == 1 && in_dialog(save).left() == *label_lefts.begin());
+    CHECK(in_dialog(save).right() < in_dialog(name).left());
+    CHECK(std::abs(in_dialog(save).top() - in_dialog(summary).top()) <= 4);
+    CHECK(in_dialog(create).top() > in_dialog(summary).bottom());
+    // The buttons no longer widen the settings column: Cancel ends where the fields end.
+    CHECK(cancel != nullptr && in_dialog(cancel).right() == in_dialog(name).right());
+    save_widget_artifact("issue_497_new_document_layout", dialog);
+
+    dialog.resize(dialog.minimumSizeHint());
+    QApplication::processEvents();
+    check_top_row();
+    dialog.reject();
+  }));
+}
+
 // app.newDocument's name and colorMode options.
 void ui_script_new_document_options() {
   NewDocumentSettingsScope scope;
@@ -724,6 +810,8 @@ std::vector<patchy::test::TestCase> new_document_options_ui_tests() {
       {"ui_new_document_color_mode_needs_a_cmyk_profile", ui_new_document_color_mode_needs_a_cmyk_profile},
       {"ui_new_document_empty_layer_preference", ui_new_document_empty_layer_preference},
       {"ui_new_document_empty_layer_checkbox", ui_new_document_empty_layer_checkbox},
+      {"ui_new_document_layout_lines_up_labels_fields_and_summary",
+       ui_new_document_layout_lines_up_labels_fields_and_summary},
       {"ui_new_document_name_reaches_tab_and_save_as", ui_new_document_name_reaches_tab_and_save_as},
       {"ui_new_document_save_preset_and_reload", ui_new_document_save_preset_and_reload},
       {"ui_new_document_templates_show_their_unit", ui_new_document_templates_show_their_unit},

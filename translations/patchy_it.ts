@@ -6860,14 +6860,6 @@ Flusso: %6
         <translation>Trasparente</translation>
     </message>
     <message>
-        <source>Resolution</source>
-        <translation>Risoluzione</translation>
-    </message>
-    <message>
-        <source>Background</source>
-        <translation>Sfondo</translation>
-    </message>
-    <message>
         <source>Create</source>
         <translation>Crea</translation>
     </message>
@@ -9089,10 +9081,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>32 Bits/Channel</source>
         <translation>32 bit/canale</translation>
-    </message>
-    <message>
-        <source>Bit Depth</source>
-        <translation>Profondità di bit</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
@@ -12182,23 +12170,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Prova CMYK richiede un profilo CMYK. Scegline uno nelle Preferenze.</translation>
     </message>
     <message>
-        <source>Name</source>
-        <comment>new document name field</comment>
-        <translation>Nome</translation>
-    </message>
-    <message>
-        <source>Color Mode</source>
-        <translation>Modalità colore</translation>
-    </message>
-    <message>
-        <source>Color Profile</source>
-        <translation>Profilo colore</translation>
-    </message>
-    <message>
-        <source>Save Preset...</source>
-        <translation>Salva predefinito...</translation>
-    </message>
-    <message>
         <source>Save these settings as a preset in the Saved group</source>
         <translation>Salva queste impostazioni come predefinito nel gruppo Salvati</translation>
     </message>
@@ -13763,6 +13734,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Show the shapes as a grid of thumbnails</source>
         <translation>Mostra le forme come griglia di miniature</translation>
+    </message>
+    <message>
+        <source>Color Mode:</source>
+        <translation>Modalità colore:</translation>
+    </message>
+    <message>
+        <source>Bit Depth:</source>
+        <translation>Profondità di bit:</translation>
+    </message>
+    <message>
+        <source>Color Profile:</source>
+        <translation>Profilo colore:</translation>
     </message>
 </context>
 <context>
