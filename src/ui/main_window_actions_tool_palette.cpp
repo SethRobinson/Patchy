@@ -1012,16 +1012,23 @@ private:
 // footer never overflows and stays at the bottom of the collapsed column while
 // an expansion widens the bar. QToolBarLayout rewrites its margins from the
 // style on every polish, so the reservation is re-applied whenever it is lost.
+// `extra_reserve` is the wheel-scroll expand row kept between the tools and the
+// footer (ToolPaletteLayout::bottom_reserve, GitHub issue 488).
 class ToolPaletteFooterPlacer final : public QObject {
 public:
-  ToolPaletteFooterPlacer(QToolBar* palette, ToolPaletteFooter* footer, QToolButton* extension)
-      : QObject(palette), palette_(palette), footer_(footer), extension_(extension) {
+  ToolPaletteFooterPlacer(QToolBar* palette, ToolPaletteFooter* footer, QToolButton* extension,
+                          std::function<int()> extra_reserve)
+      : QObject(palette), palette_(palette), footer_(footer), extension_(extension),
+        extra_reserve_(std::move(extra_reserve)) {
     palette->installEventFilter(this);
     if (extension != nullptr) {
       extension->installEventFilter(this);
     }
     apply();
   }
+
+  // Re-reserves the margin after the expand row came or went.
+  void refresh() { apply(); }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
@@ -1059,10 +1066,11 @@ private:
     }
     auto* layout = palette_->layout();
     const auto margins = layout->contentsMargins();
-    // The top margin is the style's own; the bottom one carries the footer.
+    // The top margin is the style's own; the bottom one carries the footer and the
+    // expand row above it.
     const int base = margins.top();
     const int footer_height = footer_->footer_height();
-    const int wanted = base + footer_height;
+    const int wanted = base + footer_height + extra_reserve();
     if (margins.bottom() != wanted) {
       layout->setContentsMargins(margins.left(), base, margins.right(), wanted);
     }
@@ -1072,7 +1080,10 @@ private:
     seat_extension();
   }
 
-  // Pins the extension button directly above the footer, in the band
+  int extra_reserve() const { return extra_reserve_ ? extra_reserve_() : 0; }
+
+  // Pins the extension button directly above the footer (above the expand row
+  // while there is one), in the band
   // QToolBarLayout::layoutActions keeps free for it (the visible tools stop
   // one extension extent above the content bottom). Qt itself seats the button
   // at the bar's bottom edge, inside the footer, so every placement lifts it;
@@ -1085,7 +1096,7 @@ private:
     if (extension_ == nullptr || footer_ == nullptr || palette_ == nullptr || extension_->isHidden()) {
       return;
     }
-    const int limit = footer_->geometry().top() - 1;
+    const int limit = footer_->geometry().top() - 1 - extra_reserve();
     const auto geometry = extension_->geometry();
     const int wanted_top = std::max(0, limit - geometry.height() + 1);
     if (geometry.top() == wanted_top) {
@@ -1099,6 +1110,7 @@ private:
   QPointer<QToolBar> palette_;
   QPointer<ToolPaletteFooter> footer_;
   QPointer<QToolButton> extension_;
+  std::function<int()> extra_reserve_;
   bool seating_extension_{false};
 };
 
@@ -1790,8 +1802,16 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     tool_palette_footer_->set_screen_mode_button(button);
     refresh_screen_mode_button();
   }
-  new ToolPaletteFooterPlacer(tool_palette, tool_palette_footer_,
-                              tool_palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button")));
+  auto* footer_placer = new ToolPaletteFooterPlacer(
+      tool_palette, tool_palette_footer_, tool_palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button")),
+      [layout = QPointer<ToolPaletteLayout>(tool_palette_layout_)] {
+        return layout != nullptr ? layout->bottom_reserve() : 0;
+      });
+  tool_palette_layout_->on_bottom_reserve_changed = [footer_placer = QPointer<ToolPaletteFooterPlacer>(footer_placer)] {
+    if (footer_placer != nullptr) {
+      footer_placer->refresh();
+    }
+  };
   connect(primary_color_button_, &QPushButton::clicked, this, [this] { choose_primary_color(); });
   connect(secondary_color_button_, &QPushButton::clicked, this, [this] { choose_secondary_color(); });
   connect(swap_colors_action, &QAction::triggered, this, [this] { swap_colors(); });

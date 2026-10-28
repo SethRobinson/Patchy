@@ -1,5 +1,6 @@
 #include "ui/tool_palette_layout.hpp"
 
+#include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
 
 #include <QAction>
@@ -53,6 +54,10 @@ private:
   QPointer<QWidget> stash_;
 };
 
+// The expand row's height, Qt's extension button height (the qt_toolbar_ext_button QSS rule):
+// the scroll-down arrow covers that button's band right above it.
+constexpr int kExpandRowHeight = 14;
+
 QString tool_id(const QAction* tool) {
   return tool != nullptr ? tool->property(kToolPaletteToolIdProperty).toString() : QString();
 }
@@ -61,20 +66,45 @@ QString tool_id(const QAction* tool) {
 
 ToolPaletteScrollArrow::ToolPaletteScrollArrow(Direction direction, QWidget* parent)
     : QWidget(parent), direction_(direction) {
-  setObjectName(direction == Direction::Up ? QStringLiteral("toolPaletteScrollUpArrow")
-                                           : QStringLiteral("toolPaletteScrollDownArrow"));
-  // The toolbar would squeeze a plain widget's row; the arrow keeps its 12 px.
-  setFixedHeight(sizeHint().height());
+  switch (direction) {
+    case Direction::Up:
+      setObjectName(QStringLiteral("toolPaletteScrollUpArrow"));
+      // A toolbar item: the toolbar would squeeze a plain widget's row; it keeps its 12 px.
+      setFixedHeight(sizeHint().height());
+      break;
+    case Direction::Down:
+      setObjectName(QStringLiteral("toolPaletteScrollDownArrow"));
+      break;
+    case Direction::Expand:
+      setObjectName(QStringLiteral("toolPaletteExpandArrow"));
+      break;
+  }
+  // Repaint on enter and leave for the hover fill.
+  setAttribute(Qt::WA_Hover);
 }
 
-QSize ToolPaletteScrollArrow::sizeHint() const { return {24, 12}; }
+QSize ToolPaletteScrollArrow::sizeHint() const {
+  return {24, direction_ == Direction::Up ? 12 : kExpandRowHeight};
+}
 
 void ToolPaletteScrollArrow::paintEvent(QPaintEvent* event) {
   QWidget::paintEvent(event);
   const auto& colors = theme();
   QPainter painter(this);
   painter.fillRect(rect(), colors.tool_palette_bg);
+  if (underMouse()) {
+    painter.fillRect(rect(), colors.button_hover_bg);
+    painter.setPen(colors.button_hover_border);
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+  }
   painter.setRenderHint(QPainter::Antialiasing);
+  if (direction_ == Direction::Expand) {
+    // The extension's own chevron, pointing where the columns open.
+    constexpr int kChevron = 12;
+    themed_svg_icon(QStringLiteral("chevron-right"))
+        .paint(&painter, QRect((width() - kChevron) / 2, (height() - kChevron) / 2, kChevron, kChevron));
+    return;
+  }
   // A small filled chevron, centered.
   const QPointF center(width() / 2.0, height() / 2.0);
   constexpr qreal kHalfWidth = 4.5;
@@ -109,9 +139,21 @@ ToolPaletteLayout::ToolPaletteLayout(QToolBar* palette, QWidget* stash)
   scroll_down_arrow_ = new ToolPaletteScrollArrow(ToolPaletteScrollArrow::Direction::Down, palette);
   scroll_down_arrow_->on_click = [this] { scroll_by(1); };
   scroll_down_arrow_->hide();
+  // In wheel-scroll mode the expand arrow gets a row of its own under the down arrow, kept
+  // whenever any tool is hidden: a column scrolled to its last tool no longer overflows, so
+  // Qt hides its extension there (GitHub issue 488).
+  expand_arrow_ = new ToolPaletteScrollArrow(ToolPaletteScrollArrow::Direction::Expand, palette);
+  expand_arrow_->on_click = [this] { expand(); };
+  expand_arrow_->hide();
   palette->installEventFilter(this);
   if (extension_ != nullptr) {
     extension_->installEventFilter(this);
+    // Open columns show every tool and need no rows of ours: settled before Qt's own
+    // expand or collapse (clicked) lays the bar out.
+    connect(extension_, &QToolButton::toggled, this, [this] {
+      update_bottom_reserve();
+      schedule_scroll_update();
+    });
   }
 }
 
@@ -302,11 +344,32 @@ void ToolPaletteLayout::apply_scroll() {
   scroll_up_item_->setVisible(scroll_mode() && scroll_offset_ > 0);
 }
 
-bool ToolPaletteLayout::can_scroll_up() const { return scroll_mode() && scroll_offset_ > 0; }
+bool ToolPaletteLayout::expanded() const { return extension_ != nullptr && extension_->isChecked(); }
+
+bool ToolPaletteLayout::can_scroll_up() const { return scroll_mode() && !expanded() && scroll_offset_ > 0; }
 
 bool ToolPaletteLayout::can_scroll_down() const {
-  return scroll_mode() && palette_ != nullptr && scroll_offset_ < scrollable_count() - 1 &&
+  return scroll_mode() && !expanded() && palette_ != nullptr && scroll_offset_ < scrollable_count() - 1 &&
          palette_->sizeHint().height() > palette_->height();
+}
+
+void ToolPaletteLayout::expand() {
+  if (palette_ == nullptr || extension_ == nullptr || expanded()) {
+    return;
+  }
+  // The columns hold every item, so scroll back to the top, then lay the bar out at once:
+  // a column scrolled to its last tool did not overflow and Qt had hidden its extension.
+  scroll_offset_ = 0;
+  wheel_remainder_ = 0;
+  apply_scroll();
+  if (auto* bar_layout = palette_->layout(); bar_layout != nullptr) {
+    bar_layout->invalidate();
+    bar_layout->activate();
+  }
+  if (!extension_->isHidden()) {
+    extension_->click();
+  }
+  schedule_scroll_update();
 }
 
 bool ToolPaletteLayout::scroll_by(int steps) {
@@ -375,6 +438,8 @@ void ToolPaletteLayout::update_scroll_state() {
       if (auto* arrow = palette_->widgetForAction(scroll_up_item_); arrow != nullptr) {
         slack += arrow->sizeHint().height() + spacing;
       }
+      // With every tool back the expand row goes too.
+      slack += bottom_reserve_;
     }
     if (needed > slack) {
       break;
@@ -382,23 +447,54 @@ void ToolPaletteLayout::update_scroll_state() {
     --scroll_offset_;
     apply_scroll();
   }
-  place_down_arrow();
+  update_bottom_reserve();
+  place_arrows();
 }
 
-void ToolPaletteLayout::place_down_arrow() {
-  if (scroll_down_arrow_ == nullptr || palette_ == nullptr) {
+// The expand row is kept while the collapsed column hides anything: tools scrolled off the
+// top or overflowing below (measured without the row, so the row never keeps itself).
+void ToolPaletteLayout::update_bottom_reserve() {
+  int wanted = 0;
+  if (palette_ != nullptr && scroll_mode() && !expanded() &&
+      (scroll_offset_ > 0 || palette_->sizeHint().height() - bottom_reserve_ > palette_->height())) {
+    wanted = kExpandRowHeight;
+  }
+  if (wanted == bottom_reserve_) {
     return;
   }
-  const bool show = scroll_mode() && extension_ != nullptr && !extension_->isHidden();
-  if (!show) {
+  bottom_reserve_ = wanted;
+  if (on_bottom_reserve_changed) {
+    on_bottom_reserve_changed();
+  }
+  schedule_scroll_update();
+}
+
+void ToolPaletteLayout::place_arrows() {
+  if (scroll_down_arrow_ == nullptr || expand_arrow_ == nullptr || palette_ == nullptr) {
+    return;
+  }
+  // Both rows span the palette's width less its 1 px right border.
+  const int width = std::max(1, palette_->width() - 1);
+  // The down arrow covers Qt's extension band, so it shows exactly while the collapsed
+  // column overflows below.
+  if (scroll_mode() && !expanded() && extension_ != nullptr && !extension_->isHidden()) {
+    const auto band = extension_->geometry();
+    scroll_down_arrow_->setGeometry(0, band.top(), width, band.height());
+    scroll_down_arrow_->show();
+    scroll_down_arrow_->raise();
+  } else {
     scroll_down_arrow_->hide();
-    return;
   }
-  // Over the extension band, the palette's width less its 1 px right border.
-  const auto band = extension_->geometry();
-  scroll_down_arrow_->setGeometry(0, band.top(), std::max(1, palette_->width() - 1), band.height());
-  scroll_down_arrow_->show();
-  scroll_down_arrow_->raise();
+  // The expand row fills the reserved band between the content and the footer.
+  const auto* bar_layout = palette_->layout();
+  if (bottom_reserve_ > 0 && bar_layout != nullptr) {
+    const int top = palette_->height() - bar_layout->contentsMargins().bottom();
+    expand_arrow_->setGeometry(0, top, width, bottom_reserve_);
+    expand_arrow_->show();
+    expand_arrow_->raise();
+  } else {
+    expand_arrow_->hide();
+  }
 }
 
 bool ToolPaletteLayout::eventFilter(QObject* watched, QEvent* event) {

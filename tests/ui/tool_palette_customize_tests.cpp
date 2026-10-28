@@ -353,7 +353,8 @@ void ui_tool_palette_wheel_scrolls_overflowing_column() {
   }
   CHECK(down->isVisible());
   CHECK(!up->isVisible());
-  // The arrow covers the extension, so the > arrow cannot open columns in this mode.
+  // The arrow covers Qt's extension band; the palette's own expand row sits under it
+  // (GitHub issue 488, ui_tool_palette_scroll_mode_keeps_expand_button_reachable).
   CHECK(down->geometry().contains(extension->geometry().center()));
   CHECK(!zoom->isVisible());
   CHECK(layout->can_scroll_down());
@@ -399,6 +400,171 @@ void ui_tool_palette_wheel_scrolls_overflowing_column() {
   send_wheel(*palette, -120);
   CHECK(layout->scroll_offset() == 0);
   CHECK(move->isVisible());
+}
+
+// GitHub issue 488: in wheel-scroll mode the expand arrow that opens the extra columns has a
+// full-width row of its own directly above the footer, under the scroll-down arrow. It stays
+// there once the column is scrolled to its last tool (nothing overflows below then, so Qt
+// hides its own extension), and a click scrolls back to the top and opens every tool in
+// columns. Both layouts.
+void ui_tool_palette_scroll_mode_keeps_expand_button_reachable() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.setAnimated(false);
+  auto* palette = tool_palette(window);
+  auto* layout = window.tool_palette_layout();
+  CHECK(layout != nullptr);
+  if (palette == nullptr || layout == nullptr) {
+    return;
+  }
+  auto* down = palette->findChild<QWidget*>(QStringLiteral("toolPaletteScrollDownArrow"));
+  auto* extension = palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+  auto* footer = palette->findChild<QWidget*>(QStringLiteral("toolPaletteFooter"));
+  auto* zoom = button_named(window, "zoomToolButton");
+  auto* move = button_named(window, "moveToolButton");
+  CHECK(down != nullptr && extension != nullptr && footer != nullptr);
+  if (down == nullptr || extension == nullptr || footer == nullptr || zoom == nullptr || move == nullptr) {
+    return;
+  }
+  const int tool_width = move->width();
+  // The expand row: visible, whole inside the bar, directly above the footer, as wide as a
+  // tool button and clear of every tool and the scroll arrow.
+  const auto check_expand_row = [&](const char* stage, bool expect_down) -> QWidget* {
+    auto* expand = palette->findChild<QWidget*>(QStringLiteral("toolPaletteExpandArrow"));
+    CHECK(expand != nullptr);
+    if (expand == nullptr) {
+      std::printf("  %s: no expand arrow\n", stage);
+      return nullptr;
+    }
+    const auto row = expand->geometry();
+    const auto footer_rect = footer->geometry();
+    if (!expand->isVisible() || row.bottom() >= footer_rect.top() || row.bottom() < footer_rect.top() - 2 ||
+        row.width() < tool_width || row.height() < 14) {
+      std::printf("  %s: expand %d,%d %dx%d visible %d, footer top %d\n", stage, row.x(), row.y(), row.width(),
+                  row.height(), expand->isVisible() ? 1 : 0, footer_rect.top());
+    }
+    CHECK(expand->isVisible());
+    CHECK(row.bottom() < footer_rect.top());
+    CHECK(row.bottom() >= footer_rect.top() - 2);
+    CHECK(row.width() >= tool_width);
+    CHECK(row.height() >= 14);
+    CHECK(palette->rect().contains(row));
+    if (down->isVisible() != expect_down) {
+      std::printf("  %s: down arrow visible %d, extension visible %d at %d, offset %d, can scroll down %d\n", stage,
+                  down->isVisible() ? 1 : 0, extension->isVisible() ? 1 : 0, extension->y(), layout->scroll_offset(),
+                  layout->can_scroll_down() ? 1 : 0);
+    }
+    CHECK(down->isVisible() == expect_down);
+    if (down->isVisible()) {
+      CHECK(down->geometry().bottom() < row.top());
+      CHECK(down->height() >= 14);
+      CHECK(down->width() >= tool_width);
+    }
+    for (auto* button : palette->findChildren<QToolButton*>()) {
+      if (button == extension || footer->isAncestorOf(button) || !button->isVisible()) {
+        continue;
+      }
+      CHECK(!geometry_in_palette(*palette, *button).intersects(row));
+    }
+    return expand;
+  };
+  const auto click = [](QWidget& target) {
+    QTest::mouseClick(&target, Qt::LeftButton, Qt::NoModifier, target.rect().center());
+    settle();
+  };
+  // capture_widget_artifact re-themes the window with the Normal sheet while it grabs, which
+  // re-lays a scaled palette; the Biggest palette is grabbed as it stands.
+  const auto save_palette = [&](const char* name, bool scaled) {
+    if (scaled) {
+      (void)palette->grab().save(QStringLiteral("test-artifacts/%1.png").arg(QLatin1String(name)));
+    } else {
+      (void)capture_widget_artifact(name, *palette);
+    }
+    settle();
+  };
+
+  for (const bool two_columns : {false, true}) {
+    const char* label = two_columns ? "two columns" : "one column";
+    std::printf("  %s\n", label);
+    auto customization = window.tool_palette_customization();
+    customization.two_columns = two_columns;
+    window.apply_tool_palette_customization(customization);
+    if (two_columns) {
+      // Two columns are short enough to fit the window's minimum height at Normal; the
+      // biggest icons also cover a scaled palette.
+      window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Biggest,
+                                            patchy::ui::ToolFlyoutOpenMode::Hold);
+    }
+    shrink_palette(window, *palette, 150);
+    if (!layout->can_scroll_down()) {
+      std::printf("  no overflow: window %d, palette %d, hint %d\n", window.height(), palette->height(),
+                  palette->sizeHint().height());
+    }
+    CHECK(layout->can_scroll_down());
+    save_palette(two_columns ? "ui_tool_palette_488_short_two_columns" : "ui_tool_palette_488_short", two_columns);
+    check_expand_row("short", true);
+
+    // Scrolled to the last tool: nothing overflows below, the expand arrow stays put.
+    for (int notches = 0; notches < 30 && layout->can_scroll_down(); ++notches) {
+      send_wheel(*palette, -120);
+    }
+    CHECK(zoom->isVisible());
+    CHECK(!move->isVisible());
+    CHECK(!layout->can_scroll_down());
+    save_palette(two_columns ? "ui_tool_palette_488_scrolled_two_columns" : "ui_tool_palette_488_scrolled",
+                 two_columns);
+    auto* expand = check_expand_row("scrolled to the bottom", false);
+    if (expand == nullptr) {
+      continue;
+    }
+
+    // A click opens the columns with every tool, the first one included.
+    const int collapsed_width = palette->width();
+    click(*expand);
+    CHECK(process_events_until([&] { return palette->width() > collapsed_width && extension->isChecked(); }));
+    CHECK(layout->scroll_offset() == 0);
+    CHECK(move->isVisible());
+    CHECK(zoom->isVisible());
+    CHECK(!expand->isVisible());
+    CHECK(!down->isVisible());
+    CHECK(extension->isVisible());
+    CHECK(extension->geometry().bottom() < footer->geometry().top());
+    CHECK(extension->geometry().bottom() >= footer->geometry().top() - 2);
+    save_palette(two_columns ? "ui_tool_palette_488_expanded_two_columns" : "ui_tool_palette_488_expanded",
+                 two_columns);
+    // The wheel scrolls nothing while the columns are open.
+    send_wheel(*palette, -120);
+    CHECK(layout->scroll_offset() == 0);
+
+    // The < arrow closes them; the column overflows again with both rows back.
+    click(*extension);
+    CHECK(process_events_until([&] { return palette->width() <= collapsed_width && !extension->isChecked(); }));
+    settle();
+    check_expand_row("collapsed again", true);
+  }
+
+  // Painted from theme roles: the chevron shows on the bar in both schemes.
+  auto* expand = palette->findChild<QWidget*>(QStringLiteral("toolPaletteExpandArrow"));
+  if (expand != nullptr) {
+    const auto saved_scheme = patchy::ui::active_color_scheme();
+    for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+      patchy::ui::set_active_color_scheme(scheme);
+      const auto image = expand->grab().toImage();
+      const auto background = patchy::ui::theme().tool_palette_bg;
+      int inked = 0;
+      for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+          const QColor pixel = image.pixelColor(x, y);
+          if (std::abs(pixel.red() - background.red()) + std::abs(pixel.green() - background.green()) +
+                  std::abs(pixel.blue() - background.blue()) > 120) {
+            ++inked;
+          }
+        }
+      }
+      CHECK(inked >= 6);
+    }
+    patchy::ui::set_active_color_scheme(saved_scheme);
+  }
 }
 
 // GitHub issue 199: a right-click on any Layers footer button lists the buttons with a tick
@@ -1939,6 +2105,8 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_tool_palette_two_columns_place_tools_side_by_side",
        ui_tool_palette_two_columns_place_tools_side_by_side},
       {"ui_tool_palette_wheel_scrolls_overflowing_column", ui_tool_palette_wheel_scrolls_overflowing_column},
+      {"ui_tool_palette_scroll_mode_keeps_expand_button_reachable",
+       ui_tool_palette_scroll_mode_keeps_expand_button_reachable},
       {"ui_layer_footer_buttons_hide_from_their_menu", ui_layer_footer_buttons_hide_from_their_menu},
       {"ui_tool_palette_customize_dialog_applies_cancels_and_resets",
        ui_tool_palette_customize_dialog_applies_cancels_and_resets},
