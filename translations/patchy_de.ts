@@ -28306,6 +28306,14 @@ Fixiert: %1</translation>
         <source>Follow Path needs a selected path</source>
         <translation>Pfad folgen braucht einen ausgewählten Pfad</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>AppImage herunterladen</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>Installationsprogramm herunterladen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

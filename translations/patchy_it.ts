@@ -28306,6 +28306,14 @@ Bloccato: %1</translation>
         <source>Follow Path needs a selected path</source>
         <translation>Segui tracciato richiede un tracciato selezionato</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>Scarica AppImage</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>Scarica il programma di installazione</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

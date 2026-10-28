@@ -28225,6 +28225,14 @@ Locked: %1</source>
         <source>Follow Path needs a selected path</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

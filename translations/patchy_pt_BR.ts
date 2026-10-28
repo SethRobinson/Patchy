@@ -28306,6 +28306,14 @@ Bloqueado: %1</translation>
         <source>Follow Path needs a selected path</source>
         <translation>Seguir demarcador precisa de um demarcador selecionado</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>Baixar AppImage</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>Baixar instalador</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

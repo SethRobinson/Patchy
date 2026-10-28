@@ -51,6 +51,12 @@ inline constexpr char kAppImageReleaseDownloadPrefix[] = "https://github.com/Set
 
 [[nodiscard]] bool update_has_installer(const UpdateInfo& update);
 
+// The file a browser download of `update` fetches directly (GitHub issue 501): the pinned
+// installer_url when update_has_installer, else download_url; for an AppImage copy
+// (`appimage` true) appimage_url, else kAppImageDownloadUrl. Used by the prompt's Download
+// Installer button and the download and install failure boxes.
+[[nodiscard]] QUrl update_direct_download_url(const UpdateInfo& update, bool appimage);
+
 enum class UpdateCheckStatus {
   UpdateAvailable,
   NoUpdateAvailable,

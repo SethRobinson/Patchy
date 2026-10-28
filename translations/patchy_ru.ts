@@ -28388,6 +28388,14 @@ Locked: %1</source>
         <source>Follow Path needs a selected path</source>
         <translation>Для режима «Вдоль контура» нужен выбранный контур</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>Скачать AppImage</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>Скачать установщик</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

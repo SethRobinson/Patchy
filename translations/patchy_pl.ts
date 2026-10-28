@@ -28388,6 +28388,14 @@ Zablokowano: %1</translation>
         <source>Follow Path needs a selected path</source>
         <translation>Podążanie za ścieżką wymaga zaznaczonej ścieżki</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>Pobierz AppImage</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>Pobierz instalator</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

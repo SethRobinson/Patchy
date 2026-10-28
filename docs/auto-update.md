@@ -26,7 +26,7 @@ this order. Every key is permanent; accessors live in `src/ui/app_settings.hpp`.
 - The record is written when a check gets an answer, never on `NetworkError`, so a launch
   without a network tries again next time.
 - `updates/skippedVersion` holds the version from the prompt's "Don't ask again about
-  version X" checkbox (stored on any button except Update Now). `update_prompt_wanted`
+  version X" checkbox (stored on any button except Update Now, Download Installer included). `update_prompt_wanted`
   shows the prompt only for a version newer than it. The check still runs and the start
   panel still says an update is available.
 
@@ -53,7 +53,8 @@ version: neither raises a prompt.
    `start_model_download`, the same downloader as the Object Selection model: every host
    resolves on a detached thread first, redirects must be https, the file is written through
    `QSaveFile`, and it is kept only when size and SHA-256 match the manifest. A file already
-   there with the right hash is reused. A failure offers the browser download instead.
+   there with the right hash is reused. A failure offers the browser download instead
+   ("Which URL the browser buttons open" below).
 4. It then sets `pending_update_install_` and calls `close()`. `closeEvent` asks about
    unsaved documents as on any quit. Cancel there drops the pending update and Patchy stays
    open. Once every document is settled, `launch_update_installer` starts the installer
@@ -96,6 +97,22 @@ version: neither raises a prompt.
    when it is still there, or says where to download the installer.
 8. The updated copy deletes the downloaded installer 30 seconds after startup
    (`remove_update_download`, by exact file name, then the empty folder).
+
+## Which URL the browser buttons open
+
+`update_direct_download_url` (`update_checker.hpp`) picks the file itself (GitHub issue 501):
+the pinned `installer_url` when `update_has_installer`, else `download_url`; for an AppImage
+copy `appimage_url`, else `kAppImageDownloadUrl`.
+
+- **Download Installer** (`updateDownloadInstallerButton`; "Download AppImage" on an
+  AppImage) sits beside Update Now whenever the prompt offers Update Now, for users who would
+  rather install by hand. It opens that URL, so the browser downloads the file. Update Now
+  stays the default button.
+- **Download** (no self-update: portable zip, development build, macOS, read-only AppImage)
+  opens `download_url`, or the AppImage URL above for an AppImage. The Flatpak prompt has
+  Copy Command instead.
+- **The failure boxes** (`updateDownloadFailedMessageBox`, `updateInstallFailedMessageBox`,
+  via `UpdateInstallerLaunch::browser_download_url`) open the direct URL too.
 
 ## Windows ARM64
 
@@ -236,7 +253,8 @@ had not loaded yet would be the new build.
 ## Tests
 
 - `tests/ui/app_shell_tests_updates_preferences.cpp`, filter `update`: the manifest keys,
-  the install-location match, the prompt for an installed copy, and the whole path with a
+  the install-location match, the prompt for an installed copy (Download Installer beside a
+  default Update Now), `update_direct_download_url_prefers_the_pinned_file`, and the whole path with a
   `file://` stand-in installer and the launch captured through `MainWindowTestAccess` (wrong
   checksum, Cancel at the save prompt, a launch that fails, a settled close, which must
   request the application exit exactly once through `set_application_exit_hook`).

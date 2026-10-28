@@ -28224,6 +28224,14 @@ Locked: %1</source>
         <source>Follow Path needs a selected path</source>
         <translation>「沿著路徑」需要選取一條路徑</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>下載 AppImage</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>下載安裝程式</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -28306,6 +28306,14 @@ Bloqueada: %1</translation>
         <source>Follow Path needs a selected path</source>
         <translation>Seguir trazado necesita un trazado seleccionado</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>Descargar AppImage</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>Descargar instalador</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

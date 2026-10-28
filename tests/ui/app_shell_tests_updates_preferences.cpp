@@ -1372,8 +1372,14 @@ void ui_update_available_dialog_offers_one_click_update_for_installed_copy() {
       CHECK(dialog != nullptr);
       auto* button = dialog->findChild<QAbstractButton*>(QStringLiteral("updateInstallNowButton"));
       update_now = button != nullptr;
+      // Beside Update Now, a button that only downloads the installer (GitHub issue 501);
+      // Update Now stays the default.
+      auto* installer_only = dialog->findChild<QAbstractButton*>(QStringLiteral("updateDownloadInstallerButton"));
+      CHECK((installer_only != nullptr) == update_now);
       if (button != nullptr) {
         CHECK(dialog->defaultButton() == button);
+        CHECK(installer_only != nullptr && installer_only->text() == QStringLiteral("Download Installer"));
+        (void)capture_widget_artifact("update_available_download_installer", *dialog);
       }
       if (text != nullptr) {
         *text = dialog->text();
@@ -1404,6 +1410,27 @@ void ui_update_available_dialog_offers_one_click_update_for_installed_copy() {
 #else
   patchy::test::skip("Windows only (one-click update)");
 #endif
+}
+
+// What the Download Installer button and the failure boxes open (GitHub issue 501): the file
+// itself, the pinned installer when there is one.
+void update_direct_download_url_prefers_the_pinned_file() {
+  const QUrl page(QStringLiteral("https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsInstaller.exe"));
+  patchy::ui::UpdateInfo update{QStringLiteral("windows"), QStringLiteral("9.9"), page};
+  CHECK(patchy::ui::update_direct_download_url(update, false) == page);
+  update.installer_url = QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy/releases/download/v9.9/PatchyWindowsInstaller.exe"));
+  update.installer_size = 1000;
+  update.installer_sha256 = QByteArray(64, 'a');
+  CHECK(patchy::ui::update_direct_download_url(update, false) == update.installer_url);
+  // Half a pin is no pin: the manifest's download_url.
+  auto partial = update;
+  partial.installer_sha256.clear();
+  CHECK(patchy::ui::update_direct_download_url(partial, false) == page);
+  // An AppImage copy: the manifest's AppImage, else the latest-release AppImage.
+  CHECK(patchy::ui::update_direct_download_url(update, true) ==
+        QUrl(QString::fromLatin1(patchy::ui::kAppImageDownloadUrl)));
+  update.appimage_url = QUrl(QStringLiteral("https://example.com/PatchyLinux.AppImage"));
+  CHECK(patchy::ui::update_direct_download_url(update, true) == update.appimage_url);
 }
 
 // After a one-click update the installer hands Patchy the AI apps still running the
@@ -1661,6 +1688,9 @@ void ui_update_one_click_replaces_appimage_on_close() {
       CHECK(prompt->findChild<QAbstractButton*>(QStringLiteral("updateCopyCommandButton")) == nullptr);
       auto* update_now = prompt->findChild<QAbstractButton*>(QStringLiteral("updateInstallNowButton"));
       saw_update_now = update_now != nullptr;
+      auto* appimage_only = prompt->findChild<QAbstractButton*>(QStringLiteral("updateDownloadInstallerButton"));
+      CHECK(appimage_only != nullptr && appimage_only->text() == QStringLiteral("Download AppImage"));
+      CHECK(prompt->defaultButton() == update_now);
       if (update_now != nullptr) {
         update_now->click();
       } else {
@@ -1927,6 +1957,8 @@ void ui_update_one_click_downloads_installer_and_hands_over_on_close() {
     CHECK(launches.back().wait_process_id == QCoreApplication::applicationPid());
     CHECK(launches.back().expected_size == installer_bytes.size());
     CHECK(launches.back().expected_sha256 == update.installer_sha256);
+    // A launch that fails offers the installer file itself in the browser (GitHub issue 501).
+    CHECK(launches.back().browser_download_url == update.installer_url);
   }
   CHECK(!window.isVisible());
   CHECK(exit_requests == 1);
@@ -3736,6 +3768,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_update_available_dialog_warns_to_close_patchy_before_installing", ui_update_available_dialog_warns_to_close_patchy_before_installing},
       {"update_install_location_matching_ignores_case_and_separators", update_install_location_matching_ignores_case_and_separators},
       {"ui_update_available_dialog_offers_one_click_update_for_installed_copy", ui_update_available_dialog_offers_one_click_update_for_installed_copy},
+      {"update_direct_download_url_prefers_the_pinned_file", update_direct_download_url_prefers_the_pinned_file},
       {"ui_update_connector_restart_notice_names_the_apps", ui_update_connector_restart_notice_names_the_apps},
       {"connector_update_notice_reports_a_replaced_executable", connector_update_notice_reports_a_replaced_executable},
       {"appimage_environment_names_the_appimage_file", appimage_environment_names_the_appimage_file},

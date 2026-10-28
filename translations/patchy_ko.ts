@@ -28224,6 +28224,14 @@ Locked: %1</source>
         <source>Follow Path needs a selected path</source>
         <translation>패스 따라가기에는 선택한 패스가 필요합니다</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>AppImage 다운로드</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>설치 프로그램 다운로드</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

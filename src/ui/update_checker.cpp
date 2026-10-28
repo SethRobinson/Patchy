@@ -167,6 +167,13 @@ bool update_has_appimage_install(const UpdateInfo& update) {
          update.appimage_install_size > 0 && !update.appimage_install_sha256.isEmpty();
 }
 
+QUrl update_direct_download_url(const UpdateInfo& update, bool appimage) {
+  if (appimage) {
+    return update.appimage_url.isEmpty() ? QUrl(QString::fromLatin1(kAppImageDownloadUrl)) : update.appimage_url;
+  }
+  return update_has_installer(update) ? update.installer_url : update.download_url;
+}
+
 bool update_checks_available() {
 #if defined(Q_OS_WASM) || defined(PATCHY_STORE_BUILD)
   return false;

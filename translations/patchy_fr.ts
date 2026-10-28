@@ -28306,6 +28306,14 @@ Verrouillé : %1</translation>
         <source>Follow Path needs a selected path</source>
         <translation>Suivre le tracé nécessite un tracé sélectionné</translation>
     </message>
+    <message>
+        <source>Download AppImage</source>
+        <translation>Télécharger l&apos;AppImage</translation>
+    </message>
+    <message>
+        <source>Download Installer</source>
+        <translation>Télécharger le programme d&apos;installation</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -6218,10 +6218,8 @@ void MainWindow::download_and_install_update(const UpdateInfo& update) {
   const auto file_url = appimage_update ? update.appimage_install_url : update.installer_url;
   const auto file_size = appimage_update ? update.appimage_install_size : update.installer_size;
   const auto file_sha256 = appimage_update ? update.appimage_install_sha256 : update.installer_sha256;
-  QUrl browser_url = update.download_url;
-  if (appimage_update) {
-    browser_url = update.appimage_url.isEmpty() ? QUrl(QString::fromLatin1(kAppImageDownloadUrl)) : update.appimage_url;
-  }
+  // A failure offers the browser download of the file itself (GitHub issue 501).
+  const auto browser_url = update_direct_download_url(update, appimage_update);
   const auto megabytes = [](qint64 bytes) { return static_cast<int>((bytes + 500000) / 1000000); };
   const auto total_mb = megabytes(file_size);
   const auto progress_text = [&](qint64 received) {
@@ -6391,11 +6389,7 @@ void MainWindow::show_update_available(const UpdateInfo& update) {
                      "Download the new AppImage, quit Patchy, and replace this file with it:\n\n%3")
                       .arg(update.version, QStringLiteral(PATCHY_VERSION), appimage);
   }
-  QUrl download_url = update.download_url;
-  if (!appimage.isEmpty()) {
-    download_url = update.appimage_url.isEmpty() ? QUrl(QString::fromLatin1(kAppImageDownloadUrl))
-                                                 : update.appimage_url;
-  }
+  const auto download_url = appimage.isEmpty() ? update.download_url : update_direct_download_url(update, true);
 #else
   const auto update_text =
       (self_update ? tr("Patchy %1 is available. You are using version %2.\n\n"
@@ -6418,11 +6412,27 @@ void MainWindow::show_update_available(const UpdateInfo& update) {
 #endif
   QAbstractButton* install_button = nullptr;
   QAbstractButton* download_button = nullptr;
+  QAbstractButton* direct_download_button = nullptr;
+  QUrl direct_download_url;
   if (self_update) {
     auto* button = dialog.addButton(tr("Update Now"), QMessageBox::AcceptRole);
     button->setObjectName(QStringLiteral("updateInstallNowButton"));
     dialog.setDefaultButton(button);
     install_button = button;
+    // Just the file, for whoever would rather install it by hand (GitHub issue 501); Update
+    // Now stays the default. Without self-update the Download button below covers this.
+#if defined(Q_OS_LINUX)
+    const bool appimage_copy = !appimage.isEmpty();
+#else
+    const bool appimage_copy = false;
+#endif
+    direct_download_url = update_direct_download_url(update, appimage_copy);
+    if (direct_download_url.isValid() && !direct_download_url.isEmpty()) {
+      auto* direct = dialog.addButton(appimage_copy ? tr("Download AppImage") : tr("Download Installer"),
+                                      QMessageBox::AcceptRole);
+      direct->setObjectName(QStringLiteral("updateDownloadInstallerButton"));
+      direct_download_button = direct;
+    }
   } else {
     auto* button = dialog.addButton(tr("Download"), QMessageBox::AcceptRole);
     button->setObjectName(QStringLiteral("updateDownloadButton"));
@@ -6457,8 +6467,13 @@ void MainWindow::show_update_available(const UpdateInfo& update) {
 #else
   const auto& download_url = update.download_url;
 #endif
-  if (download_button != nullptr && dialog.clickedButton() == download_button &&
-      !QDesktopServices::openUrl(download_url)) {
+  QUrl browser_url;
+  if (download_button != nullptr && dialog.clickedButton() == download_button) {
+    browser_url = download_url;
+  } else if (direct_download_button != nullptr && dialog.clickedButton() == direct_download_button) {
+    browser_url = direct_download_url;
+  }
+  if (!browser_url.isEmpty() && !QDesktopServices::openUrl(browser_url)) {
     show_status_error(tr("Could not open the download link"));
   }
 }
