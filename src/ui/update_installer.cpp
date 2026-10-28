@@ -20,7 +20,6 @@
 #ifdef Q_OS_WIN
 #include <QProcess>
 #include <QProcessEnvironment>
-#include <QSettings>
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -52,12 +51,17 @@ bool install_location_matches(const QString& registered_install_location, const 
 bool installed_copy_can_self_update() {
 #ifdef Q_OS_WIN
   // The entry packaging/windows/InstallPatchy.ps1 writes; the portable zip registers nothing.
-  const QSettings uninstall_entry(
-      QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Patchy"),
-      QSettings::NativeFormat);
+  // Read only: a native-format QSettings creates the key it names, which left an empty
+  // Uninstall\Patchy key on every PC that ran Patchy without installing it.
+  QString registered_location;
+  std::array<wchar_t, 4096> buffer{};
+  DWORD size = static_cast<DWORD>(buffer.size() * sizeof(wchar_t));
+  if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Patchy",
+                   L"InstallLocation", RRF_RT_REG_SZ, nullptr, buffer.data(), &size) == ERROR_SUCCESS) {
+    registered_location = QString::fromWCharArray(buffer.data());
+  }
   const auto application_dir = QCoreApplication::applicationDirPath();
-  return install_location_matches(uninstall_entry.value(QStringLiteral("InstallLocation")).toString(),
-                                  application_dir) &&
+  return install_location_matches(registered_location, application_dir) &&
          QFileInfo(QDir(application_dir).filePath(QStringLiteral("UninstallPatchy.exe"))).isFile();
 #else
   return false;

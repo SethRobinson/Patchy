@@ -45,6 +45,8 @@ version: neither raises a prompt.
    (`src/ui/update_installer.cpp`): the per-user uninstall entry
    `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Patchy` names the folder the
    app runs from as `InstallLocation`, and `UninstallPatchy.exe` sits beside `patchy.exe`.
+   The value is read with `RegGetValueW`, never a native-format `QSettings`, which creates
+   the key it names (1.19 and earlier left an empty `Uninstall\Patchy` key on every PC).
 3. `MainWindow::download_and_install_update` (`src/ui/main_window_files.cpp`) downloads
    into `<per-user app data>/updates/patchy-update-<version>/PatchyWindowsInstaller.exe` (never the
    shared temp folder) with

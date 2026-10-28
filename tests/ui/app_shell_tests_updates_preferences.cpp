@@ -2,6 +2,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QScrollBar>
+#include <QSettings>
 #include <QWindow>
 
 
@@ -1322,7 +1323,20 @@ void update_install_location_matching_ignores_case_and_separators() {
   CHECK(!install_location_matches(QString(), QStringLiteral("C:/Apps/Patchy")));
   CHECK(!install_location_matches(QStringLiteral("C:\\Apps\\Patchy"), QString()));
   // The suites never run from an installed copy, so they never start a real update.
+#ifdef Q_OS_WIN
+  // Asking only reads: it never creates the uninstall entry it looks at (it once left an
+  // empty Uninstall\Patchy key on every PC that ran Patchy).
+  const auto has_uninstall_entry = [] {
+    const QSettings uninstall(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+                              QSettings::NativeFormat);
+    return uninstall.childGroups().contains(QStringLiteral("Patchy"), Qt::CaseInsensitive);
+  };
+  const bool entry_before = has_uninstall_entry();
   CHECK(!patchy::ui::installed_copy_can_self_update());
+  CHECK(has_uninstall_entry() == entry_before);
+#else
+  CHECK(!patchy::ui::installed_copy_can_self_update());
+#endif
   CHECK(patchy::ui::update_download_folder(QStringLiteral("1.10")).endsWith(QStringLiteral("/patchy-update-1.10")));
   CHECK(patchy::ui::update_download_folder(QStringLiteral("..\\1.10/x")).endsWith(QStringLiteral("/patchy-update-..1.10")));
 }
