@@ -50,6 +50,7 @@
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
+#include "ui/pattern_manager_dialog.hpp"
 #include "ui/gradient_preset_popup.hpp"
 #include "ui/curved_slider.hpp"
 #include "ui/dialog_utils.hpp"
@@ -62,6 +63,7 @@
 #include "ui/pattern_library.hpp"
 #include "ui/shape_appearance_dialog.hpp"
 #include "ui/style_library.hpp"
+#include "ui/style_manager_dialog.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/start_panel.hpp"
 #include "ui/tile_preview_window.hpp"
@@ -965,6 +967,38 @@ void MainWindow::import_brush_tips_from_abr() {
     message.setDetailedText(warnings.join(QStringLiteral("\n")));
   }
   message.exec();
+}
+
+void MainWindow::open_style_manager() {
+  (void)request_style_manager(this, style_library(), {}, /*offer_use=*/false);
+}
+
+void MainWindow::open_gradient_manager() {
+  const auto selected = request_gradient_manager(this, gradient_library(), {});
+  const auto* entry = gradient_library().find_entry(selected);
+  if (entry == nullptr || canvas_ == nullptr) {
+    return;
+  }
+  canvas_->set_gradient_stops(sampled_gradient_stops_from_definition(
+      entry->definition, canvas_->primary_color(), canvas_->secondary_color()));
+  refresh_gradient_controls_from_canvas();
+  save_tool_settings();
+  refresh_document_info();
+  statusBar()->showMessage(tr("Gradient preset: %1").arg(gradient_library_entry_display_name(*entry)));
+}
+
+void MainWindow::open_pattern_manager() {
+  const auto selected_storage_id =
+      request_pattern_manager(this, pattern_library(), current_pattern_stamp_pattern_id_);
+  if (selected_storage_id.isEmpty()) {
+    return;
+  }
+  if (const auto* entry = pattern_library().find_entry(selected_storage_id); entry != nullptr) {
+    current_pattern_stamp_pattern_id_ = entry->id;
+    refresh_pattern_stamp_pattern_combo();
+    apply_pattern_stamp_settings_to_canvas(canvas_);
+    save_tool_settings();
+  }
 }
 
 void MainWindow::open_brush_tip_manager() {

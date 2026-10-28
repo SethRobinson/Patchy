@@ -82,7 +82,16 @@ CustomShapeLibrary (JSON sidecars in a `shapes` folder beside the settings
 file, unit-box paths, v1 text codec) ships 17 builtins: ids shape.builtin.*
 are append-only, geometry is code-authoritative (restore_default_shapes
 rewrites drifted builtin sidecars, keeping user renames). Edit > Define
-Custom Shape from Path adds a user entry.
+Custom Shape from Path adds a user entry. Builtins seed once under the
+`shapes/defaultShapesVersion` stamp (`kDefaultCustomShapesVersion`, each
+builtin's `introduced_version`), so a deleted default stays deleted.
+Edit > Presets > Custom Shapes (`request_custom_shape_manager`, GitHub
+issue 486) is the Pattern Manager's shape twin: rename, folder, duplicate,
+delete, Import of SVG files (`custom_shape_path_from_svg_file`, shared with
+Define Custom Shape from SVG File), Restore Default Shapes (re-adds and
+resets builtin names and folders) and Use Shape, which picks it in the bar.
+Every edit reaches the bar's picker at once through `changed()`. Photoshop
+`.csh` import is not built: it waits on a sample file Patchy may test with.
 
 ## Path editing (Path Select / Direct Select)
 

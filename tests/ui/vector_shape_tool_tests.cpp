@@ -47,7 +47,10 @@
 #include "core/pixel_buffer.hpp"
 #include "core/vector_shape.hpp"
 #include "core/vector_raster.hpp"
+#include "ui/custom_shape_library.hpp"
 #include "ui/default_custom_shapes.hpp"
+#include "ui/preset_tree_widget.hpp"
+#include <QTreeWidgetItemIterator>
 #include "ui/blend_mode_ui.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
@@ -1314,6 +1317,251 @@ void ui_custom_shape_builtin_geometry_refreshes() {
     CHECK(heart != nullptr);
     CHECK(heart->path == builtin_heart->path);
     CHECK(heart->name == QStringLiteral("My Heart"));
+  }
+}
+
+void ui_custom_shape_library_folders_duplicates_and_keeps_deleted_defaults() {
+  // The library edits behind the Custom Shapes manager (GitHub issue 486).
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto storage = directory.filePath(QStringLiteral("shapes"));
+  const auto heart_id = QStringLiteral("shape.builtin.heart");
+  const auto builtin_count = static_cast<int>(patchy::ui::builtin_custom_shapes().size());
+  QString heart_storage_id;
+  QString copy_storage_id;
+  {
+    patchy::ui::CustomShapeLibrary library(storage);
+    CHECK(library.restore_default_shapes() == builtin_count);
+    CHECK(library.has_all_default_shapes_introduced_after(0));
+    CHECK(library.default_shapes_match_factory());
+    heart_storage_id = library.find_entry_by_shape_id(heart_id)->storage_id;
+    int changes = 0;
+    QObject::connect(&library, &patchy::ui::CustomShapeLibrary::changed, [&changes] { ++changes; });
+    CHECK(library.set_shape_folder(heart_storage_id, QStringLiteral("Mine")));
+    CHECK(library.find_entry(heart_storage_id)->folder == QStringLiteral("Mine"));
+    copy_storage_id = library.duplicate_shape(heart_storage_id);
+    CHECK(!copy_storage_id.isEmpty());
+    const auto* copy = library.find_entry(copy_storage_id);
+    CHECK(copy != nullptr);
+    CHECK(copy->name == QStringLiteral("Heart Copy"));
+    CHECK(copy->folder == QStringLiteral("Mine"));
+    CHECK(copy->id.startsWith(QStringLiteral("shape.user.")));
+    CHECK(copy->path == library.find_entry(heart_storage_id)->path);
+    CHECK(library.rename_shape(heart_storage_id, QStringLiteral("My Heart")));
+    CHECK(!library.default_shapes_match_factory());
+    CHECK(changes == 3);
+  }
+  {
+    // Folder, copy and rename reached the sidecars; Restore's reset puts the
+    // builtin back under its factory name and folder and leaves the copy.
+    patchy::ui::CustomShapeLibrary library(storage);
+    CHECK(library.find_entry(heart_storage_id)->name == QStringLiteral("My Heart"));
+    CHECK(library.find_entry(heart_storage_id)->folder == QStringLiteral("Mine"));
+    CHECK(library.find_entry(copy_storage_id) != nullptr);
+    CHECK(library.reset_default_shapes_to_factory() == 1);
+    CHECK(library.find_entry(heart_storage_id)->name == QStringLiteral("Heart"));
+    CHECK(library.find_entry(heart_storage_id)->folder == QStringLiteral("Symbols"));
+    CHECK(library.default_shapes_match_factory());
+    int changes = 0;
+    QObject::connect(&library, &patchy::ui::CustomShapeLibrary::changed, [&changes] { ++changes; });
+    CHECK(library.remove_shapes({heart_storage_id, copy_storage_id, QStringLiteral("missing")}) == 2);
+    CHECK(changes == 1);
+  }
+  {
+    // A seeded install (stamp at the current version) keeps the deleted
+    // builtin deleted; the manager's Restore (version 0) brings it back.
+    patchy::ui::CustomShapeLibrary library(storage);
+    CHECK(library.find_entry_by_shape_id(heart_id) == nullptr);
+    CHECK(library.find_entry(copy_storage_id) == nullptr);
+    CHECK(library.restore_default_shapes(patchy::ui::kDefaultCustomShapesVersion) == 0);
+    CHECK(library.find_entry_by_shape_id(heart_id) == nullptr);
+    CHECK(library.has_all_default_shapes_introduced_after(patchy::ui::kDefaultCustomShapesVersion));
+    CHECK(!library.has_all_default_shapes_introduced_after(0));
+    CHECK(library.restore_default_shapes() == 1);
+    CHECK(library.find_entry_by_shape_id(heart_id) != nullptr);
+    CHECK(library.default_shapes_match_factory());
+  }
+}
+
+void ui_custom_shape_manager_edits_reach_the_shape_picker() {
+  // Edit > Presets > Custom Shapes... (GitHub issue 486): rename and
+  // duplicate show in the options bar Shape picker at once, and Use Shape
+  // picks the shape for the Custom Shape tool.
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  CHECK(combo != nullptr);
+  auto& library = patchy::ui::MainWindowTestAccess::custom_shape_library(window);
+  // A copy: add_shape reallocates the entry vector.
+  const auto heart_path = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.heart"))->path;
+  const auto storage_id = library.add_shape(QStringLiteral("Manager Shape"), heart_path);
+  CHECK(!storage_id.isEmpty());
+  const auto shape_id = library.find_entry(storage_id)->id;
+  combo->setCurrentIndex(combo->findData(QStringLiteral("shape.builtin.star")));
+  QApplication::processEvents();
+  const auto count_before = combo->count();
+  QString copy_storage_id;
+
+  bool ran = false;
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
+    CHECK(manager != nullptr);
+    if (manager == nullptr) {
+      return;
+    }
+    auto* tree = static_cast<patchy::ui::PresetTreeWidget*>(
+        manager->findChild<QTreeWidget*>(QStringLiteral("customShapeManagerTree")));
+    auto* name_edit = manager->findChild<QLineEdit*>(QStringLiteral("customShapeManagerNameEdit"));
+    auto* duplicate_button = manager->findChild<QPushButton*>(QStringLiteral("customShapeManagerDuplicateButton"));
+    auto* use_button = manager->findChild<QPushButton*>(QStringLiteral("customShapeManagerUseButton"));
+    auto* preview = manager->findChild<QLabel*>(QStringLiteral("customShapeManagerPreview"));
+    CHECK(tree != nullptr && name_edit != nullptr && duplicate_button != nullptr && use_button != nullptr &&
+          preview != nullptr);
+    // The picker's current shape is preselected.
+    CHECK(tree->current_id() == library.find_entry_by_shape_id(QStringLiteral("shape.builtin.star"))->storage_id);
+    QTreeWidgetItem* row = nullptr;
+    for (QTreeWidgetItemIterator it(tree); *it != nullptr; ++it) {
+      if (patchy::ui::PresetTreeWidget::item_entry_id(*it) == storage_id) {
+        row = *it;
+      }
+    }
+    CHECK(row != nullptr);
+    tree->setCurrentItem(row);
+    QApplication::processEvents();
+    CHECK(name_edit->text() == QStringLiteral("Manager Shape"));
+    CHECK(!preview->pixmap().isNull());
+    name_edit->setText(QStringLiteral("Renamed Shape"));
+    QMetaObject::invokeMethod(name_edit, "editingFinished");
+    QApplication::processEvents();
+    CHECK(combo->itemText(combo->findData(shape_id)) == QStringLiteral("Renamed Shape"));
+    duplicate_button->click();
+    QApplication::processEvents();
+    CHECK(combo->count() == count_before + 1);
+    copy_storage_id = tree->current_id();
+    CHECK(library.find_entry(copy_storage_id) != nullptr &&
+          library.find_entry(copy_storage_id)->name == QStringLiteral("Renamed Shape Copy"));
+    // Back to the renamed shape, then Use Shape.
+    for (QTreeWidgetItemIterator it(tree); *it != nullptr; ++it) {
+      if (patchy::ui::PresetTreeWidget::item_entry_id(*it) == storage_id) {
+        tree->setCurrentItem(*it);
+      }
+    }
+    QApplication::processEvents();
+    save_widget_artifact("ui_custom_shape_manager_dialog", *manager);
+    CHECK(use_button->isEnabled());
+    ran = true;
+    use_button->click();
+  });
+  require_action(window, "editPresetsCustomShapesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(ran);
+  CHECK(combo->currentData().toString() == shape_id);
+  CHECK(canvas->custom_shape_path() != nullptr && *canvas->custom_shape_path() == heart_path);
+  CHECK(library.remove_shapes({storage_id, copy_storage_id}) == 2);  // keep repeated runs clean
+  CHECK(combo->findData(shape_id) < 0);
+}
+
+void ui_edit_presets_menu_lists_the_managers_in_order() {
+  // GitHub issue 485: Edit > Presets gathers the preset managers.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* presets = window.findChild<QMenu*>(QStringLiteral("editPresetsMenu"));
+  CHECK(presets != nullptr);
+  if (presets == nullptr) {
+    return;
+  }
+  CHECK(presets->menuAction()->menuRole() == QAction::NoRole);
+  QStringList entries;
+  for (auto* action : presets->actions()) {
+    if (action->isSeparator()) {
+      entries << QStringLiteral("-");
+      continue;
+    }
+    entries << action->objectName();
+    CHECK(action->menuRole() == QAction::NoRole);
+    CHECK(patchy::ui::command_works_without_document(*action, QString()));
+  }
+  const QStringList expected{QStringLiteral("editPresetsStylesAction"),
+                             QStringLiteral("-"),
+                             QStringLiteral("editPresetsBrushTipsAction"),
+                             QStringLiteral("editPresetsSavedBrushesAction"),
+                             QStringLiteral("-"),
+                             QStringLiteral("editPresetsGradientsAction"),
+                             QStringLiteral("editPresetsPatternsAction"),
+                             QStringLiteral("-"),
+                             QStringLiteral("editPresetsCustomShapesAction")};
+  CHECK(entries == expected);
+  QStringList texts;
+  for (auto* action : presets->actions()) {
+    if (!action->isSeparator()) {
+      texts << action->text();
+    }
+  }
+  CHECK(texts == (QStringList{QStringLiteral("Styles Manager..."), QStringLiteral("Brush Tips..."),
+                              QStringLiteral("Saved Brushes..."), QStringLiteral("Gradient Manager..."),
+                              QStringLiteral("Pattern Manager..."), QStringLiteral("Custom Shapes...")}));
+  // The open submenu beside the Edit menu, for the issue thread.
+  if (auto* edit_menu = qobject_cast<QMenu*>(presets->parentWidget()); edit_menu != nullptr) {
+    edit_menu->popup(QPoint(0, 0));
+    QApplication::processEvents();
+    const auto row = edit_menu->actionGeometry(presets->menuAction());
+    presets->popup(edit_menu->mapToGlobal(QPoint(edit_menu->width() - 4, row.top())));
+    QApplication::processEvents();
+    auto edit_image = capture_widget_artifact("ui_edit_menu_with_presets", *edit_menu);
+    auto presets_image = capture_widget_artifact("ui_edit_presets_submenu", *presets);
+    if (!edit_image.isNull() && !presets_image.isNull()) {
+      const auto dpr = edit_image.devicePixelRatio();
+      edit_image.setDevicePixelRatio(1.0);  // compose in device pixels
+      presets_image.setDevicePixelRatio(1.0);
+      const int gap = static_cast<int>(std::lround(4 * dpr));
+      const int top = static_cast<int>(std::lround(row.top() * dpr));
+      QImage combined(edit_image.width() - gap + presets_image.width(),
+                      std::max(edit_image.height(), top + presets_image.height()), QImage::Format_ARGB32_Premultiplied);
+      combined.fill(Qt::transparent);
+      QPainter painter(&combined);
+      painter.drawImage(QPoint(0, 0), edit_image);
+      painter.drawImage(QPoint(edit_image.width() - gap, top), presets_image);
+      painter.end();
+      save_image_artifact("ui_edit_presets_menu_open", combined);
+    }
+    presets->hide();
+    edit_menu->hide();
+    QApplication::processEvents();
+  }
+  // Each entry opens its manager; the Styles manager only manages from here.
+  const std::vector<std::pair<const char*, QString>> dialogs{
+      {"editPresetsStylesAction", QStringLiteral("styleManagerDialog")},
+      {"editPresetsBrushTipsAction", QStringLiteral("brushTipManagerDialog")},
+      {"editPresetsSavedBrushesAction", QStringLiteral("brushPresetManager")},
+      {"editPresetsGradientsAction", QStringLiteral("gradientManagerDialog")},
+      {"editPresetsPatternsAction", QStringLiteral("patternManagerDialog")},
+      {"editPresetsCustomShapesAction", QStringLiteral("customShapeManagerDialog")}};
+  for (const auto& [action_name, dialog_name] : dialogs) {
+    bool found = false;
+    QTimer::singleShot(0, [&, dialog_name] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(dialog_name));
+      found = dialog != nullptr;
+      if (dialog == nullptr) {
+        return;
+      }
+      if (dialog_name == QStringLiteral("styleManagerDialog")) {
+        auto* use_button = dialog->findChild<QPushButton*>(QStringLiteral("styleManagerUseButton"));
+        CHECK(use_button != nullptr && !use_button->isVisible());
+      }
+      if (dialog_name == QStringLiteral("customShapeManagerDialog")) {
+        save_widget_artifact("ui_custom_shape_manager_from_menu", *dialog);
+      }
+      dialog->reject();
+    });
+    require_action(window, action_name)->trigger();
+    QApplication::processEvents();
+    if (!found) {
+      std::cerr << "no dialog " << dialog_name.toStdString() << " from " << action_name << "\n";
+    }
+    CHECK(found);
   }
 }
 
@@ -6256,6 +6504,10 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_custom_shape_stamps_and_defines", ui_custom_shape_stamps_and_defines},
       {"ui_custom_shape_shift_and_link_keep_proportions", ui_custom_shape_shift_and_link_keep_proportions},
       {"ui_custom_shape_builtin_geometry_refreshes", ui_custom_shape_builtin_geometry_refreshes},
+      {"ui_custom_shape_library_folders_duplicates_and_keeps_deleted_defaults",
+       ui_custom_shape_library_folders_duplicates_and_keeps_deleted_defaults},
+      {"ui_custom_shape_manager_edits_reach_the_shape_picker", ui_custom_shape_manager_edits_reach_the_shape_picker},
+      {"ui_edit_presets_menu_lists_the_managers_in_order", ui_edit_presets_menu_lists_the_managers_in_order},
       {"ui_line_arrowheads_extend_the_shape", ui_line_arrowheads_extend_the_shape},
       {"ui_shape_appearance_dialog_commits_and_cancels",
        ui_shape_appearance_dialog_commits_and_cancels},

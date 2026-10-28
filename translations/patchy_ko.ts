@@ -13489,6 +13489,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation>대상: 아직 평면 없음</translation>
     </message>
+    <message>
+        <source>Custom Shapes</source>
+        <translation>사용자 지정 모양</translation>
+    </message>
+    <message>
+        <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
+        <translation>선택한 모양에 대한 폴더입니다. 폴더에서 제거하려면 비워 두세요.</translation>
+    </message>
+    <message>
+        <source>Import SVG files as custom shapes</source>
+        <translation>SVG 파일을 사용자 지정 모양으로 가져오기</translation>
+    </message>
+    <message>
+        <source>Delete the selected shapes or folders (Del)</source>
+        <translation>선택한 모양이나 폴더 삭제(Del)</translation>
+    </message>
+    <message>
+        <source>Restore Default Shapes</source>
+        <translation>기본 모양 복원</translation>
+    </message>
+    <message>
+        <source>Bring back deleted built-in shapes and reset changed defaults</source>
+        <translation>삭제된 내장 모양을 다시 가져오고 변경된 기본값을 재설정합니다.</translation>
+    </message>
+    <message>
+        <source>Use Shape</source>
+        <translation>모양 사용</translation>
+    </message>
+    <message>
+        <source>Could not update the selected shape. Check that the shape library folder is writable.</source>
+        <translation>선택한 모양을 업데이트할 수 없습니다. 모양 라이브러리 폴더에 쓰기 가능한지 확인하십시오.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n shape(s) selected</source>
+        <translation>
+            <numerusform>%n개의 모양이 선택되었습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete shape &quot;%1&quot;?</source>
+        <translation>모양 &quot;%1&quot;을(를) 삭제하시겠습니까?</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n shape(s)?</source>
+        <translation>
+            <numerusform>%n개 모양을 삭제하시겠습니까?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Shapes</source>
+        <translation>모양 삭제</translation>
+    </message>
+    <message numerus="yes">
+        <source>Could not delete %n shape(s). Check that the shape library folder is writable.</source>
+        <translation>
+            <numerusform>%n개의 모양을 삭제할 수 없습니다. 모양 라이브러리 폴더에 쓰기 가능한지 확인하십시오.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>SVG Files (*.svg *.svgz)</source>
+        <translation>SVG 파일(*.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Import Shapes</source>
+        <translation>모양 가져오기</translation>
+    </message>
+    <message>
+        <source>SVG Shape</source>
+        <translation>SVG 모양</translation>
+    </message>
+    <message>
+        <source>No shapes could be imported.</source>
+        <translation>모양을 가져올 수 없습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n shape(s).</source>
+        <translation>
+            <numerusform>%n개 모양을 가져왔습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>All default shapes are already present with factory settings.</source>
+        <translation>모든 기본 모양이 이미 초기 설정으로 갖춰져 있습니다.</translation>
+    </message>
+    <message>
+        <source>Some default shapes could not be restored. Check that the shape library folder is writable.</source>
+        <translation>일부 기본 모양을 복원할 수 없습니다. 모양 라이브러리 폴더에 쓰기 가능한지 확인하십시오.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Restored %n default shape(s).</source>
+        <translation>
+            <numerusform>%n개의 기본 모양을 복원했습니다.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Reset %n default shape(s) to factory settings.</source>
+        <translation>
+            <numerusform>기본 모양 %n개를 초기 설정으로 되돌렸습니다.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15748,6 +15848,25 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Black</source>
         <translation>검정</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CustomShapeLibrary</name>
+    <message>
+        <source>Could not read %1</source>
+        <translation>%1을(를) 읽을 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not read the SVG: %1</source>
+        <translation>SVG를 읽을 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>The SVG has no shape geometry to define</source>
+        <translation>SVG에는 정의할 모양 기하학이 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 Copy</source>
+        <translation>%1 사본</translation>
     </message>
 </context>
 <context>
@@ -23607,14 +23726,6 @@ Y: %2
         <translation>SVG 파일(*.svg *.svgz);;모든 파일(*.*)</translation>
     </message>
     <message>
-        <source>Could not read the SVG: %1</source>
-        <translation>SVG를 읽을 수 없습니다: %1</translation>
-    </message>
-    <message>
-        <source>The SVG has no shape geometry to define</source>
-        <translation>SVG에는 정의할 모양 기하학이 없습니다.</translation>
-    </message>
-    <message>
         <source>SVG Shape</source>
         <translation>SVG 모양</translation>
     </message>
@@ -27634,6 +27745,30 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Not a supported image or document: %1</source>
         <translation>지원되지 않는 이미지 또는 문서입니다: %1</translation>
+    </message>
+    <message>
+        <source>Styles Manager...</source>
+        <translation>스타일 관리자...</translation>
+    </message>
+    <message>
+        <source>Brush Tips...</source>
+        <translation>브러시 팁...</translation>
+    </message>
+    <message>
+        <source>Saved Brushes...</source>
+        <translation>저장된 브러시...</translation>
+    </message>
+    <message>
+        <source>Gradient Manager...</source>
+        <translation>그레이디언트 관리자...</translation>
+    </message>
+    <message>
+        <source>Pattern Manager...</source>
+        <translation>패턴 관리자...</translation>
+    </message>
+    <message>
+        <source>Custom Shapes...</source>
+        <translation>사용자 지정 모양...</translation>
     </message>
 </context>
 <context>

@@ -2112,6 +2112,13 @@ private:
   void apply_brush_tip_to_canvas(CanvasWidget* canvas);
   void import_brush_tips_from_abr();
   void open_brush_tip_manager();
+  // Edit > Presets (GitHub issues 485 and 486): the preset managers, opened
+  // from the menu. Use applies the choice to the tool it belongs to (Gradient
+  // tool, Pattern Stamp, Custom Shape); the Styles manager only manages.
+  void open_style_manager();
+  void open_gradient_manager();
+  void open_pattern_manager();
+  void open_custom_shape_manager();
   void expand_selection_dialog();
   void contract_selection_dialog();
   void border_selection_dialog();

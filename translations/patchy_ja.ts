@@ -13489,6 +13489,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation>対象: まだ平面がありません</translation>
     </message>
+    <message>
+        <source>Custom Shapes</source>
+        <translation>カスタムシェイプ</translation>
+    </message>
+    <message>
+        <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
+        <translation>選択したシェイプのフォルダー。空欄にするとフォルダーから外します</translation>
+    </message>
+    <message>
+        <source>Import SVG files as custom shapes</source>
+        <translation>SVG ファイルをカスタムシェイプとして読み込みます</translation>
+    </message>
+    <message>
+        <source>Delete the selected shapes or folders (Del)</source>
+        <translation>選択したシェイプまたはフォルダーを削除します (Del)</translation>
+    </message>
+    <message>
+        <source>Restore Default Shapes</source>
+        <translation>標準シェイプを復元</translation>
+    </message>
+    <message>
+        <source>Bring back deleted built-in shapes and reset changed defaults</source>
+        <translation>削除した内蔵シェイプを復元し、変更された標準シェイプを初期状態に戻します</translation>
+    </message>
+    <message>
+        <source>Use Shape</source>
+        <translation>このシェイプを使う</translation>
+    </message>
+    <message>
+        <source>Could not update the selected shape. Check that the shape library folder is writable.</source>
+        <translation>選択したシェイプを更新できませんでした。シェイプライブラリのフォルダーに書き込めることを確認してください。</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n shape(s) selected</source>
+        <translation>
+            <numerusform>%n 個のシェイプを選択中</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete shape &quot;%1&quot;?</source>
+        <translation>シェイプ「%1」を削除しますか？</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n shape(s)?</source>
+        <translation>
+            <numerusform>%n 個のシェイプを削除しますか？</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Shapes</source>
+        <translation>シェイプを削除</translation>
+    </message>
+    <message numerus="yes">
+        <source>Could not delete %n shape(s). Check that the shape library folder is writable.</source>
+        <translation>
+            <numerusform>%n 個のシェイプを削除できませんでした。シェイプライブラリのフォルダーに書き込めることを確認してください。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>SVG Files (*.svg *.svgz)</source>
+        <translation>SVG ファイル (*.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Import Shapes</source>
+        <translation>シェイプを読み込む</translation>
+    </message>
+    <message>
+        <source>SVG Shape</source>
+        <translation>SVG シェイプ</translation>
+    </message>
+    <message>
+        <source>No shapes could be imported.</source>
+        <translation>シェイプを読み込めませんでした。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n shape(s).</source>
+        <translation>
+            <numerusform>%n 個のシェイプを読み込みました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>All default shapes are already present with factory settings.</source>
+        <translation>すべての標準シェイプは既に初期設定の状態で揃っています。</translation>
+    </message>
+    <message>
+        <source>Some default shapes could not be restored. Check that the shape library folder is writable.</source>
+        <translation>一部の標準シェイプを復元できませんでした。シェイプライブラリのフォルダーに書き込めることを確認してください。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Restored %n default shape(s).</source>
+        <translation>
+            <numerusform>%n 個の標準シェイプを復元しました。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Reset %n default shape(s) to factory settings.</source>
+        <translation>
+            <numerusform>%n 個の標準シェイプを初期設定に戻しました。</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15751,6 +15851,25 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CustomShapeLibrary</name>
+    <message>
+        <source>Could not read %1</source>
+        <translation>%1 を読み込めませんでした</translation>
+    </message>
+    <message>
+        <source>Could not read the SVG: %1</source>
+        <translation>SVG を読み込めませんでした: %1</translation>
+    </message>
+    <message>
+        <source>The SVG has no shape geometry to define</source>
+        <translation>この SVG には定義できるシェイプのジオメトリがありません</translation>
+    </message>
+    <message>
+        <source>%1 Copy</source>
+        <translation>%1 のコピー</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::FontPickerCombo</name>
     <message>
         <source>The quick brown fox jumps over the lazy dog. 0123456789</source>
@@ -16846,14 +16965,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     <message>
         <source>SVG Files (*.svg *.svgz);;All Files (*.*)</source>
         <translation>SVG ファイル (*.svg *.svgz);;すべてのファイル (*.*)</translation>
-    </message>
-    <message>
-        <source>Could not read the SVG: %1</source>
-        <translation>SVG を読み込めませんでした: %1</translation>
-    </message>
-    <message>
-        <source>The SVG has no shape geometry to define</source>
-        <translation>この SVG には定義できるシェイプのジオメトリがありません</translation>
     </message>
     <message>
         <source>Defined custom shape %1 from the SVG</source>
@@ -27634,6 +27745,30 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Not a supported image or document: %1</source>
         <translation>対応していない画像またはドキュメントです: %1</translation>
+    </message>
+    <message>
+        <source>Styles Manager...</source>
+        <translation>スタイルマネージャー...</translation>
+    </message>
+    <message>
+        <source>Brush Tips...</source>
+        <translation>ブラシ先端...</translation>
+    </message>
+    <message>
+        <source>Saved Brushes...</source>
+        <translation>保存したブラシ...</translation>
+    </message>
+    <message>
+        <source>Gradient Manager...</source>
+        <translation>グラデーションマネージャー...</translation>
+    </message>
+    <message>
+        <source>Pattern Manager...</source>
+        <translation>パターンマネージャー...</translation>
+    </message>
+    <message>
+        <source>Custom Shapes...</source>
+        <translation>カスタムシェイプ...</translation>
     </message>
 </context>
 <context>

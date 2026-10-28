@@ -13489,6 +13489,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation>目标：尚无平面</translation>
     </message>
+    <message>
+        <source>Custom Shapes</source>
+        <translation>自定形状</translation>
+    </message>
+    <message>
+        <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
+        <translation>所选形状所在的文件夹；留空可将其移出文件夹</translation>
+    </message>
+    <message>
+        <source>Import SVG files as custom shapes</source>
+        <translation>将 SVG 文件导入为自定形状</translation>
+    </message>
+    <message>
+        <source>Delete the selected shapes or folders (Del)</source>
+        <translation>删除所选形状或文件夹 (Del)</translation>
+    </message>
+    <message>
+        <source>Restore Default Shapes</source>
+        <translation>恢复默认形状</translation>
+    </message>
+    <message>
+        <source>Bring back deleted built-in shapes and reset changed defaults</source>
+        <translation>找回已删除的内置形状并重置已更改的默认设置</translation>
+    </message>
+    <message>
+        <source>Use Shape</source>
+        <translation>使用形状</translation>
+    </message>
+    <message>
+        <source>Could not update the selected shape. Check that the shape library folder is writable.</source>
+        <translation>无法更新所选形状。请检查形状库文件夹是否可写。</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n shape(s) selected</source>
+        <translation>
+            <numerusform>已选择 %n 个形状</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete shape &quot;%1&quot;?</source>
+        <translation>要删除形状“%1”吗？</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n shape(s)?</source>
+        <translation>
+            <numerusform>要删除 %n 个形状吗？</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Shapes</source>
+        <translation>删除形状</translation>
+    </message>
+    <message numerus="yes">
+        <source>Could not delete %n shape(s). Check that the shape library folder is writable.</source>
+        <translation>
+            <numerusform>无法删除 %n 个形状。请检查形状库文件夹是否可写。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>SVG Files (*.svg *.svgz)</source>
+        <translation>SVG 文件 (*.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Import Shapes</source>
+        <translation>导入形状</translation>
+    </message>
+    <message>
+        <source>SVG Shape</source>
+        <translation>SVG 形状</translation>
+    </message>
+    <message>
+        <source>No shapes could be imported.</source>
+        <translation>未能导入任何形状。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n shape(s).</source>
+        <translation>
+            <numerusform>已导入 %n 个形状。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>All default shapes are already present with factory settings.</source>
+        <translation>所有默认形状均已存在且为出厂设置。</translation>
+    </message>
+    <message>
+        <source>Some default shapes could not be restored. Check that the shape library folder is writable.</source>
+        <translation>部分默认形状无法恢复。请检查形状库文件夹是否可写。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Restored %n default shape(s).</source>
+        <translation>
+            <numerusform>已恢复 %n 个默认形状。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Reset %n default shape(s) to factory settings.</source>
+        <translation>
+            <numerusform>已将 %n 个默认形状重置为出厂设置。</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15748,6 +15848,25 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Black</source>
         <translation>黑色</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CustomShapeLibrary</name>
+    <message>
+        <source>Could not read %1</source>
+        <translation>无法读取 %1</translation>
+    </message>
+    <message>
+        <source>Could not read the SVG: %1</source>
+        <translation>无法读取 SVG：%1</translation>
+    </message>
+    <message>
+        <source>The SVG has no shape geometry to define</source>
+        <translation>该 SVG 没有可定义的形状几何数据</translation>
+    </message>
+    <message>
+        <source>%1 Copy</source>
+        <translation>%1 拷贝</translation>
     </message>
 </context>
 <context>
@@ -22461,14 +22580,6 @@ Y: %2
         <translation>SVG 文件 (*.svg *.svgz);;所有文件 (*.*)</translation>
     </message>
     <message>
-        <source>Could not read the SVG: %1</source>
-        <translation>无法读取 SVG：%1</translation>
-    </message>
-    <message>
-        <source>The SVG has no shape geometry to define</source>
-        <translation>该 SVG 没有可定义的形状几何数据</translation>
-    </message>
-    <message>
         <source>SVG Shape</source>
         <translation>SVG 形状</translation>
     </message>
@@ -27634,6 +27745,30 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Not a supported image or document: %1</source>
         <translation>不支持的图像或文档：%1</translation>
+    </message>
+    <message>
+        <source>Styles Manager...</source>
+        <translation>样式管理器...</translation>
+    </message>
+    <message>
+        <source>Brush Tips...</source>
+        <translation>画笔笔尖...</translation>
+    </message>
+    <message>
+        <source>Saved Brushes...</source>
+        <translation>已存储的画笔...</translation>
+    </message>
+    <message>
+        <source>Gradient Manager...</source>
+        <translation>渐变管理器...</translation>
+    </message>
+    <message>
+        <source>Pattern Manager...</source>
+        <translation>图案管理器...</translation>
+    </message>
+    <message>
+        <source>Custom Shapes...</source>
+        <translation>自定形状...</translation>
     </message>
 </context>
 <context>

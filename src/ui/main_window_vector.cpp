@@ -34,6 +34,8 @@
 #include "ui/background_workers.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/custom_shape_library.hpp"
+#include "ui/custom_shape_manager_dialog.hpp"
+#include "ui/default_custom_shapes.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/gradient_library.hpp"
@@ -1390,13 +1392,41 @@ CustomShapeLibrary& MainWindow::custom_shape_library() {
     // Built on first use, which is startup (docs/startup-performance.md).
     const startup_trace::Scope library_phase("mw.lib.custom_shapes");
     custom_shape_library_ = new CustomShapeLibrary({}, this);
-    custom_shape_library_->restore_default_shapes();
+    // Seed the builtins once, like the other preset libraries: a shape the
+    // user deletes in the Custom Shapes manager stays deleted; its Restore
+    // button brings it back. Geometry refreshes run on every start. On wasm
+    // the sidecars live in MEMFS, so every session seeds afresh.
+    auto settings = app_settings();
+    const auto version_key = QStringLiteral("shapes/defaultShapesVersion");
+#ifdef Q_OS_WASM
+    const int stored_version = 0;
+#else
+    const int stored_version = settings.value(version_key, 0).toInt();
+#endif
+    custom_shape_library_->restore_default_shapes(stored_version);
+    if (stored_version < kDefaultCustomShapesVersion &&
+        custom_shape_library_->has_all_default_shapes_introduced_after(stored_version)) {
+      settings.setValue(version_key, kDefaultCustomShapesVersion);
+    }
     connect(custom_shape_library_, &CustomShapeLibrary::changed, this, [this] {
       refresh_custom_shape_combo();
       apply_custom_shape_selection();
     });
   }
   return *custom_shape_library_;
+}
+
+void MainWindow::open_custom_shape_manager() {
+  const auto initial =
+      custom_shape_combo_ != nullptr ? custom_shape_combo_->currentData().toString() : QString();
+  const auto storage_id = request_custom_shape_manager(this, custom_shape_library(), initial);
+  const auto* entry = custom_shape_library().find_entry(storage_id);
+  if (entry == nullptr || custom_shape_combo_ == nullptr) {
+    return;
+  }
+  if (const auto index = custom_shape_combo_->findData(entry->id); index >= 0) {
+    custom_shape_combo_->setCurrentIndex(index);  // the combo's handler applies and saves it
+  }
 }
 
 void MainWindow::refresh_custom_shape_combo() {
@@ -1496,53 +1526,13 @@ void MainWindow::define_custom_shape_from_svg_file() {
 }
 
 bool MainWindow::define_custom_shape_from_svg_path(const QString& path) {
-  QFile file(path);
-  if (!file.open(QIODevice::ReadOnly)) {
-    show_status_error(tr("Could not read %1").arg(path));
+  QString error;
+  const auto parsed = custom_shape_path_from_svg_file(path, error);
+  if (!parsed.has_value()) {
+    show_status_error(error);
     return false;
   }
-  const auto raw = file.readAll();
-  patchy::Document imported;
-  try {
-    imported = svg::DocumentIo::read(
-        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(raw.constData()),
-                                      static_cast<std::size_t>(raw.size())));
-  } catch (const std::exception& error) {
-    show_status_error(tr("Could not read the SVG: %1").arg(translate_data_text(error.what())));
-    return false;
-  }
-  // The Photoshop Shapes-panel behavior: one stampable shape per file, all
-  // drawable geometry merged (paint ignored), combine ops preserved so holes
-  // keep cutting when stamped. Shape groups renumber per source layer.
-  VectorPath merged;
-  std::int32_t group_base = 0;
-  const auto collect = [&](auto&& self, const std::vector<Layer>& layers) -> void {
-    for (const auto& layer : layers) {
-      if (!layer.children().empty()) {
-        self(self, layer.children());
-      }
-      const auto* shape = layer.vector_shape();
-      if (shape == nullptr || shape->path.subpaths.empty()) {
-        continue;
-      }
-      std::int32_t highest = 0;
-      for (const auto& subpath : shape->path.subpaths) {
-        auto copy = subpath;
-        highest = std::max(highest, copy.shape_group);
-        copy.shape_group += group_base;
-        merged.subpaths.push_back(std::move(copy));
-      }
-      group_base += highest + 1;
-    }
-  };
-  collect(collect, imported.layers());
-  const auto bounds = merged.bounds();
-  if (!bounds.has_value() || bounds->right - bounds->left < 1e-6 || bounds->bottom - bounds->top < 1e-6) {
-    show_status_error(tr("The SVG has no shape geometry to define"));
-    return false;
-  }
-  const auto scale = 1.0 / std::max(bounds->right - bounds->left, bounds->bottom - bounds->top);
-  transform_vector_path(merged, {scale, 0.0, 0.0, scale, -bounds->left * scale, -bounds->top * scale});
+  const auto& merged = *parsed;
   const auto name = QFileInfo(path).completeBaseName();
   const auto storage_id = custom_shape_library().add_shape(name.isEmpty() ? tr("SVG Shape") : name, merged);
   if (storage_id.isEmpty()) {

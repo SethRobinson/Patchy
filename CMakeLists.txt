@@ -1442,6 +1442,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/paths_panel.cpp
       src/ui/custom_shape_library.hpp
       src/ui/custom_shape_library.cpp
+      src/ui/custom_shape_manager_dialog.hpp
+      src/ui/custom_shape_manager_dialog.cpp
       src/ui/default_custom_shapes.hpp
       src/ui/default_custom_shapes.cpp
       src/ui/shape_appearance_dialog.hpp

@@ -13563,6 +13563,118 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Target: no plane yet</source>
         <translation>Cel: jeszcze brak płaszczyzny</translation>
     </message>
+    <message>
+        <source>Custom Shapes</source>
+        <translation>Niestandardowe kształty</translation>
+    </message>
+    <message>
+        <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
+        <translation>Folder dla wybranych kształtów; pozostaw puste, aby usunąć je z folderów</translation>
+    </message>
+    <message>
+        <source>Import SVG files as custom shapes</source>
+        <translation>Importuj pliki SVG jako niestandardowe kształty</translation>
+    </message>
+    <message>
+        <source>Delete the selected shapes or folders (Del)</source>
+        <translation>Usuń wybrane kształty lub foldery (Del)</translation>
+    </message>
+    <message>
+        <source>Restore Default Shapes</source>
+        <translation>Przywróć domyślne kształty</translation>
+    </message>
+    <message>
+        <source>Bring back deleted built-in shapes and reset changed defaults</source>
+        <translation>Przywróć usunięte wbudowane kształty i zresetuj zmienione ustawienia domyślne</translation>
+    </message>
+    <message>
+        <source>Use Shape</source>
+        <translation>Użyj kształtu</translation>
+    </message>
+    <message>
+        <source>Could not update the selected shape. Check that the shape library folder is writable.</source>
+        <translation>Nie można zaktualizować wybranego kształtu. Sprawdź, czy folder biblioteki kształtów umożliwia zapis.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n shape(s) selected</source>
+        <translation>
+            <numerusform>Wybrano %n kształt</numerusform>
+            <numerusform>Wybrano %n kształty</numerusform>
+            <numerusform>Wybrano %n kształtów</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete shape &quot;%1&quot;?</source>
+        <translation>Usunąć kształt „%1”?</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n shape(s)?</source>
+        <translation>
+            <numerusform>Usunąć %n kształt?</numerusform>
+            <numerusform>Usunąć %n kształty?</numerusform>
+            <numerusform>Usunąć %n kształtów?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Shapes</source>
+        <translation>Usuń kształty</translation>
+    </message>
+    <message numerus="yes">
+        <source>Could not delete %n shape(s). Check that the shape library folder is writable.</source>
+        <translation>
+            <numerusform>Nie można usunąć %n kształtu. Sprawdź, czy folder biblioteki kształtów jest dostępny do zapisu.</numerusform>
+            <numerusform>Nie można usunąć %n kształtów. Sprawdź, czy folder biblioteki kształtów jest dostępny do zapisu.</numerusform>
+            <numerusform>Nie można usunąć %n kształtów. Sprawdź, czy folder biblioteki kształtów jest dostępny do zapisu.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>SVG Files (*.svg *.svgz)</source>
+        <translation>Pliki SVG (*.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Import Shapes</source>
+        <translation>Importuj kształty</translation>
+    </message>
+    <message>
+        <source>SVG Shape</source>
+        <translation>Kształt SVG</translation>
+    </message>
+    <message>
+        <source>No shapes could be imported.</source>
+        <translation>Nie można zaimportować żadnych kształtów.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n shape(s).</source>
+        <translation>
+            <numerusform>Zaimportowano %n kształt.</numerusform>
+            <numerusform>Zaimportowano %n kształty.</numerusform>
+            <numerusform>Zaimportowano %n kształtów.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>All default shapes are already present with factory settings.</source>
+        <translation>Wszystkie domyślne kształty są już obecne przy ustawieniach fabrycznych.</translation>
+    </message>
+    <message>
+        <source>Some default shapes could not be restored. Check that the shape library folder is writable.</source>
+        <translation>Niektórych kształtów domyślnych nie udało się przywrócić. Sprawdź, czy folder biblioteki kształtów umożliwia zapis.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Restored %n default shape(s).</source>
+        <translation>
+            <numerusform>Przywrócono %n domyślny kształt.</numerusform>
+            <numerusform>Przywrócono %n domyślne kształty.</numerusform>
+            <numerusform>Przywrócono %n domyślnych kształtów.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Reset %n default shape(s) to factory settings.</source>
+        <translation>
+            <numerusform>Przywrócono ustawienia fabryczne %n domyślnego kształtu.</numerusform>
+            <numerusform>Przywrócono ustawienia fabryczne %n domyślnych kształtów.</numerusform>
+            <numerusform>Przywrócono ustawienia fabryczne %n domyślnych kształtów.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15822,6 +15934,25 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Black</source>
         <translation>Czarny</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CustomShapeLibrary</name>
+    <message>
+        <source>Could not read %1</source>
+        <translation>Nie można odczytać %1</translation>
+    </message>
+    <message>
+        <source>Could not read the SVG: %1</source>
+        <translation>Nie można odczytać pliku SVG: %1</translation>
+    </message>
+    <message>
+        <source>The SVG has no shape geometry to define</source>
+        <translation>SVG nie ma geometrii kształtu do zdefiniowania</translation>
+    </message>
+    <message>
+        <source>%1 Copy</source>
+        <translation>%1 kopia</translation>
     </message>
 </context>
 <context>
@@ -23731,14 +23862,6 @@ Y: %2
         <translation>Pliki SVG (*.svg *.svgz);;Wszystkie pliki (*.*)</translation>
     </message>
     <message>
-        <source>Could not read the SVG: %1</source>
-        <translation>Nie można odczytać pliku SVG: %1</translation>
-    </message>
-    <message>
-        <source>The SVG has no shape geometry to define</source>
-        <translation>SVG nie ma geometrii kształtu do zdefiniowania</translation>
-    </message>
-    <message>
         <source>SVG Shape</source>
         <translation>Kształt SVG</translation>
     </message>
@@ -27786,6 +27909,30 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
     <message>
         <source>Not a supported image or document: %1</source>
         <translation>Nieobsługiwany obraz lub dokument: %1</translation>
+    </message>
+    <message>
+        <source>Styles Manager...</source>
+        <translation>Menedżer stylów...</translation>
+    </message>
+    <message>
+        <source>Brush Tips...</source>
+        <translation>Końcówki pędzla...</translation>
+    </message>
+    <message>
+        <source>Saved Brushes...</source>
+        <translation>Zapisane pędzle...</translation>
+    </message>
+    <message>
+        <source>Gradient Manager...</source>
+        <translation>Menedżer gradientów...</translation>
+    </message>
+    <message>
+        <source>Pattern Manager...</source>
+        <translation>Menedżer wzorków...</translation>
+    </message>
+    <message>
+        <source>Custom Shapes...</source>
+        <translation>Niestandardowe kształty...</translation>
     </message>
 </context>
 <context>

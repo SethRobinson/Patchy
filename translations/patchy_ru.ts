@@ -13563,6 +13563,118 @@ Each item&apos;s own View setting still applies.</source>
         <source>Target: no plane yet</source>
         <translation>Цель: плоскости пока нет</translation>
     </message>
+    <message>
+        <source>Custom Shapes</source>
+        <translation>Произвольные фигуры</translation>
+    </message>
+    <message>
+        <source>Folder for the selected shape(s); leave empty to remove them from folders</source>
+        <translation>Папка для выбранных фигур; оставьте пустым, чтобы убрать их из папок</translation>
+    </message>
+    <message>
+        <source>Import SVG files as custom shapes</source>
+        <translation>Импорт файлов SVG как произвольных фигур</translation>
+    </message>
+    <message>
+        <source>Delete the selected shapes or folders (Del)</source>
+        <translation>Удалить выбранные фигуры или папки (Del)</translation>
+    </message>
+    <message>
+        <source>Restore Default Shapes</source>
+        <translation>Восстановить стандартные фигуры</translation>
+    </message>
+    <message>
+        <source>Bring back deleted built-in shapes and reset changed defaults</source>
+        <translation>Восстановить удалённые стандартные фигуры и сбросить изменения стандартных настроек</translation>
+    </message>
+    <message>
+        <source>Use Shape</source>
+        <translation>Использовать фигуру</translation>
+    </message>
+    <message>
+        <source>Could not update the selected shape. Check that the shape library folder is writable.</source>
+        <translation>Не удалось обновить выбранную фигуру. Убедитесь, что папка библиотеки фигур доступна для записи.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n shape(s) selected</source>
+        <translation>
+            <numerusform>Выбрана %n фигура</numerusform>
+            <numerusform>Выбрано %n фигуры</numerusform>
+            <numerusform>Выбрано %n фигур</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete shape &quot;%1&quot;?</source>
+        <translation>Удалить фигуру «%1»?</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n shape(s)?</source>
+        <translation>
+            <numerusform>Удалить %n фигуру?</numerusform>
+            <numerusform>Удалить %n фигуры?</numerusform>
+            <numerusform>Удалить %n фигур?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Shapes</source>
+        <translation>Удалить фигуры</translation>
+    </message>
+    <message numerus="yes">
+        <source>Could not delete %n shape(s). Check that the shape library folder is writable.</source>
+        <translation>
+            <numerusform>Не удалось удалить %n фигуру. Проверьте доступ к папке библиотеки фигур для записи.</numerusform>
+            <numerusform>Не удалось удалить %n фигуры. Проверьте доступ к папке библиотеки фигур для записи.</numerusform>
+            <numerusform>Не удалось удалить %n фигур. Проверьте доступ к папке библиотеки фигур для записи.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>SVG Files (*.svg *.svgz)</source>
+        <translation>Файлы SVG (*.svg *.svgz)</translation>
+    </message>
+    <message>
+        <source>Import Shapes</source>
+        <translation>Импорт фигур</translation>
+    </message>
+    <message>
+        <source>SVG Shape</source>
+        <translation>Форма SVG</translation>
+    </message>
+    <message>
+        <source>No shapes could be imported.</source>
+        <translation>Не удалось импортировать ни одной фигуры.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n shape(s).</source>
+        <translation>
+            <numerusform>Импортирована %n фигура.</numerusform>
+            <numerusform>Импортировано %n фигуры.</numerusform>
+            <numerusform>Импортировано %n фигур.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>All default shapes are already present with factory settings.</source>
+        <translation>Все стандартные фигуры уже имеют заводские настройки.</translation>
+    </message>
+    <message>
+        <source>Some default shapes could not be restored. Check that the shape library folder is writable.</source>
+        <translation>Не удалось восстановить некоторые стандартные фигуры. Убедитесь, что папка библиотеки фигур доступна для записи.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Restored %n default shape(s).</source>
+        <translation>
+            <numerusform>Восстановлена %n стандартная фигура.</numerusform>
+            <numerusform>Восстановлены %n стандартные фигуры.</numerusform>
+            <numerusform>Восстановлено %n стандартных фигур.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Reset %n default shape(s) to factory settings.</source>
+        <translation>
+            <numerusform>Сброшены настройки %n стандартной фигуры.</numerusform>
+            <numerusform>Сброшены настройки %n стандартных фигур.</numerusform>
+            <numerusform>Сброшены настройки %n стандартных фигур.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15822,6 +15934,25 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Black</source>
         <translation>Черный</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CustomShapeLibrary</name>
+    <message>
+        <source>Could not read %1</source>
+        <translation>Не удалось прочитать %1</translation>
+    </message>
+    <message>
+        <source>Could not read the SVG: %1</source>
+        <translation>Не удалось прочитать SVG: %1</translation>
+    </message>
+    <message>
+        <source>The SVG has no shape geometry to define</source>
+        <translation>В SVG нет геометрии формы, которую можно было бы определить.</translation>
+    </message>
+    <message>
+        <source>%1 Copy</source>
+        <translation>%1 Копия</translation>
     </message>
 </context>
 <context>
@@ -23731,14 +23862,6 @@ Y: %2
         <translation>Файлы SVG (*.svg *.svgz);;Все файлы (*.*)</translation>
     </message>
     <message>
-        <source>Could not read the SVG: %1</source>
-        <translation>Не удалось прочитать SVG: %1</translation>
-    </message>
-    <message>
-        <source>The SVG has no shape geometry to define</source>
-        <translation>В SVG нет геометрии формы, которую можно было бы определить.</translation>
-    </message>
-    <message>
         <source>SVG Shape</source>
         <translation>Форма SVG</translation>
     </message>
@@ -27786,6 +27909,30 @@ The open document keeps its blend modes either way.</source>
     <message>
         <source>Not a supported image or document: %1</source>
         <translation>Неподдерживаемое изображение или документ: %1</translation>
+    </message>
+    <message>
+        <source>Styles Manager...</source>
+        <translation>Менеджер стилей...</translation>
+    </message>
+    <message>
+        <source>Brush Tips...</source>
+        <translation>Отпечатки кистей...</translation>
+    </message>
+    <message>
+        <source>Saved Brushes...</source>
+        <translation>Сохраненные кисти...</translation>
+    </message>
+    <message>
+        <source>Gradient Manager...</source>
+        <translation>Менеджер градиентов...</translation>
+    </message>
+    <message>
+        <source>Pattern Manager...</source>
+        <translation>Менеджер узоров...</translation>
+    </message>
+    <message>
+        <source>Custom Shapes...</source>
+        <translation>Произвольные фигуры...</translation>
     </message>
 </context>
 <context>
