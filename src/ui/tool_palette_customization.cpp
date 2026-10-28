@@ -26,6 +26,8 @@
 #include <QPolygonF>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QResizeEvent>
+#include <QScreen>
 #include <QSettings>
 #include <QStyle>
 #include <QStyleOptionViewItem>
@@ -50,6 +52,8 @@ QString layout_key() { return QStringLiteral("toolPalette/layout"); }
 QString wheel_scroll_key() { return QStringLiteral("toolPalette/wheelScroll"); }
 // True when every tool shows on its own button (GitHub issue 499); absent for tool groups.
 QString ungroup_tools_key() { return QStringLiteral("toolPalette/ungroupTools"); }
+// The size the user dragged the Customize Tool Palette dialog to; absent until then.
+QString customize_dialog_size_key() { return QStringLiteral("toolPalette/customizeDialogSize"); }
 // toolPalette/showCustomizeButton belonged to the palette's gear, since removed: never reuse it.
 QString hidden_layer_buttons_key() { return QStringLiteral("layersPanel/hiddenFooterButtons"); }
 // The optional footer buttons the user showed (kLayerFooterButtonIdsHiddenByDefault).
@@ -74,55 +78,67 @@ constexpr int kIdRole = Qt::UserRole;
 // with the cluster separators and the flyout corner arrows, then the bottom items the choice
 // keeps (color well, Quick Mask, screen mode), drawn at the chosen toolbar icon size. It
 // repaints from the choice the dialog's controls hold, so it follows every tick.
-// It shows at most kMaxRows rows of tools, so a long layout keeps the dialog short (GitHub
-// issue 499 comment): the rows past them are cut off at a torn gap, two zigzag edges in the
-// separator color with the dialog showing through, and the footer follows. The "toolRows" and "shownToolRows"
-// properties carry the full and the drawn row counts.
+// It draws as many rows of tools as fit in the height its column gives it (the dialog is
+// resizable, GitHub issue 499 comment): when some rows do not fit, the strip is cut at a torn
+// gap, two zigzag edges in the separator color with the dialog showing through, and the
+// footer follows. When the whole palette fits there is no gap. The "toolRows",
+// "shownToolRows" and "stripHeight" properties carry the full and the drawn row counts and
+// the painted strip's height.
 class ToolPalettePreview final : public QWidget {
 public:
-  static constexpr int kMaxRows = 10;
-
   explicit ToolPalettePreview(const ToolPaletteCatalog& catalog, QWidget* parent)
       : QWidget(parent), catalog_(catalog) {
     setObjectName(QStringLiteral("toolPaletteCustomizePreview"));
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
   }
 
   void set_choice(const ToolPaletteDialogChoice& value) {
     choice_ = value;
-    const Metrics metrics = measure();
-    const double factor = toolbar_icon_size_factor(choice_.icon_size);
-    setFixedSize(qCeil(metrics.size.width() * factor), qCeil(metrics.size.height() * factor));
-    setProperty("toolRows", metrics.rows);
-    setProperty("shownToolRows", std::min(metrics.rows, kMaxRows));
+    const double factor = draw_factor();
+    // The narrowest strip that still shows a row: one row, the gap and the footer.
+    const Metrics smallest = measure(0);
+    setFixedWidth(qCeil(smallest.size.width() * factor));
+    setMinimumHeight(qCeil(smallest.size.height() * factor));
+    updateGeometry();
+    refresh_counts();
     update();
   }
 
+  [[nodiscard]] QSize sizeHint() const override { return minimumSize(); }
+
 protected:
+  void resizeEvent(QResizeEvent* event) override {
+    QWidget::resizeEvent(event);
+    refresh_counts();
+  }
+
   void paintEvent(QPaintEvent* event) override {
     QWidget::paintEvent(event);
     const auto& colors = theme();
     QPainter painter(this);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     // Laid out at the Normal size, drawn at the chosen one.
-    const double factor = toolbar_icon_size_factor(choice_.icon_size);
-    const Metrics metrics = measure();
+    const double factor = draw_factor();
+    const Metrics metrics = measure(available_height());
     const QSize size = metrics.size;
-    const bool cut = metrics.rows > kMaxRows;
+    const bool cut = metrics.shown_rows < metrics.rows;
+    // The strip ends with its footer; below it the column stays empty.
+    const QRect strip_rect(0, 0, width(), strip_height(metrics));
+    QPainterPath strip;
+    strip.addRect(QRectF(strip_rect));
     if (cut) {
       // The strip is left unpainted inside the gap, so the dialog shows through it.
-      QPainterPath strip;
-      strip.addRect(QRectF(rect()));
-      painter.setClipPath(
-          strip.subtracted(QTransform::fromScale(factor, factor).map(tear_gap(metrics.tear_y, size.width()))));
+      strip = strip.subtracted(QTransform::fromScale(factor, factor).map(tear_gap(metrics.tear_y, size.width())));
     }
-    painter.fillRect(rect(), colors.tool_palette_bg);
+    painter.setClipPath(strip);
+    painter.fillRect(strip_rect, colors.tool_palette_bg);
     painter.setPen(colors.tool_palette_border);
-    painter.drawLine(width() - 1, 0, width() - 1, height() - 1);
+    painter.drawLine(width() - 1, 0, width() - 1, strip_rect.bottom());
     painter.scale(factor, factor);
     const int columns = choice_.customization.two_columns ? 2 : 1;
     const QIcon corner = themed_svg_icon(QStringLiteral("tool-flyout-corner"));
     int y = kMargin;
-    int rows_left = kMaxRows;
+    int rows_left = metrics.shown_rows;
     bool first = true;
     for (const auto& cluster : catalog_.clusters) {
       const auto shown = visible_slots(cluster);
@@ -155,8 +171,8 @@ protected:
       y += kCellHeight + kSpacing;
       rows_left -= (static_cast<int>(count) + columns - 1) / columns;
     }
+    painter.setClipping(false);
     if (cut) {
-      painter.setClipping(false);
       painter.setRenderHint(QPainter::Antialiasing, true);
       QPen edge_pen(colors.tool_palette_separator, 1.0);
       edge_pen.setCosmetic(true);
@@ -218,10 +234,28 @@ private:
   };
 
   struct Metrics {
-    QSize size;       // at the Normal toolbar icon size
-    int rows{0};      // every row of tools, the cut ones included
-    int tear_y{0};    // the top of the torn gap, when rows pass kMaxRows
+    QSize size;          // the strip at the Normal toolbar icon size
+    int rows{0};         // every row of tools, the cut ones included
+    int shown_rows{0};   // the rows drawn
+    int tear_y{0};       // the top of the torn gap, when some rows are cut
   };
+
+  [[nodiscard]] double draw_factor() const { return toolbar_icon_size_factor(choice_.icon_size); }
+
+  // The widget's height at the Normal toolbar icon size.
+  [[nodiscard]] int available_height() const { return static_cast<int>(height() / draw_factor()); }
+
+  // The painted strip's height in pixels; the column below it stays empty.
+  [[nodiscard]] int strip_height(const Metrics& metrics) const {
+    return std::min(height(), qCeil(metrics.size.height() * draw_factor()));
+  }
+
+  void refresh_counts() {
+    const Metrics metrics = measure(available_height());
+    setProperty("toolRows", metrics.rows);
+    setProperty("shownToolRows", metrics.shown_rows);
+    setProperty("stripHeight", strip_height(metrics));
+  }
 
   [[nodiscard]] bool shows(const char* footer_item) const {
     return !choice_.customization.hidden_footer_items.contains(QLatin1String(footer_item));
@@ -272,46 +306,60 @@ private:
     return shown;
   }
 
-  // The miniature's layout at the Normal toolbar icon size: the first kMaxRows rows, the gap
-  // when there are more, then the footer.
-  [[nodiscard]] Metrics measure() const {
+  // The strip's layout at the Normal toolbar icon size within `available` height: every row
+  // when the whole palette fits, else the rows that fit above the gap and the footer (at
+  // least one, so a cut strip always shows where it starts).
+  [[nodiscard]] Metrics measure(int available) const {
     const int columns = choice_.customization.two_columns ? 2 : 1;
-    Metrics metrics;
-    int height = kMargin;
-    bool first = true;
+    std::vector<int> cluster_rows;
     for (const auto& cluster : catalog_.clusters) {
       const auto count = static_cast<int>(visible_slots(cluster).size());
-      if (count == 0) {
-        continue;
+      if (count > 0) {
+        cluster_rows.push_back((count + columns - 1) / columns);
       }
-      const int rows = (count + columns - 1) / columns;
-      const int drawn = std::clamp(kMaxRows - metrics.rows, 0, rows);
-      if (drawn > 0) {
-        if (!first) {
-          height += kSeparatorExtent + kSpacing;
-        }
-        height += drawn * (kCellHeight + kSpacing);
-      }
-      first = false;
-      metrics.rows += rows;
     }
-    if (metrics.rows > kMaxRows) {
-      metrics.tear_y = height;
-      height += kTearHeight;
-    }
-    height += kFooterGap;
+    int footer = kFooterGap + kMargin;
     if (shows(kToolPaletteColorsId)) {
-      height += kWellHeight;
+      footer += kWellHeight;
     }
     if (shows(kToolPaletteQuickMaskId)) {
-      height += kFooterRow;
+      footer += kFooterRow;
     }
     if (shows(kToolPaletteScreenModeId)) {
-      height += kFooterRow;
+      footer += kFooterRow;
     }
-    height += kMargin;
+    constexpr int kRow = kCellHeight + kSpacing;
+    constexpr int kSeparator = kSeparatorExtent + kSpacing;
+    Metrics metrics;
+    int full = kMargin;
+    for (std::size_t index = 0; index < cluster_rows.size(); ++index) {
+      full += (index > 0 ? kSeparator : 0) + cluster_rows[index] * kRow;
+      metrics.rows += cluster_rows[index];
+    }
     const int width = 2 * kMargin + columns * kCellWidth + (columns - 1) * kSpacing + 1;
-    metrics.size = {width, height};
+    if (full + footer <= available || metrics.rows == 0) {
+      metrics.shown_rows = metrics.rows;
+      metrics.size = {width, full + footer};
+      return metrics;
+    }
+    // Rows above the gap, a cluster's separator only with a row of it under it.
+    const int limit = available - kTearHeight - footer;
+    int height = kMargin;
+    for (std::size_t index = 0; index < cluster_rows.size(); ++index) {
+      const int separator = index > 0 ? kSeparator : 0;
+      int drawn = 0;
+      while (drawn < cluster_rows[index] &&
+             (height + (drawn == 0 ? separator : 0) + kRow <= limit || metrics.shown_rows == 0)) {
+        height += (drawn == 0 ? separator : 0) + kRow;
+        ++drawn;
+        ++metrics.shown_rows;
+      }
+      if (drawn < cluster_rows[index]) {
+        break;
+      }
+    }
+    metrics.tear_y = height;
+    metrics.size = {width, height + kTearHeight + footer};
     return metrics;
   }
 
@@ -654,7 +702,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
   tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
   tree->setItemDelegateForColumn(1, new ShortcutColumnDelegate(tree));
-  tree->setMinimumSize(340, 420);
+  // Short enough for a small screen: the dialog is resizable and the list grows with it.
+  tree->setMinimumSize(340, 200);
   list_column->addWidget(tree, 1);
   tools_layout->addLayout(list_column, 1);
 
@@ -742,8 +791,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   preview_label->setFont(heading_font);
   preview_column->addWidget(preview_label);
   auto* preview = new ToolPalettePreview(catalog, tools_page);
-  preview_column->addWidget(preview, 0, Qt::AlignLeft);
-  preview_column->addStretch(1);
+  // The preview takes the column's height and shows the rows that fit in it.
+  preview_column->addWidget(preview, 1, Qt::AlignLeft);
   tools_layout->addSpacing(8);
   tools_layout->addLayout(preview_column);
   tabs->addTab(tools_page, QObject::tr("Tools"));
@@ -1100,11 +1149,32 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   footer->addWidget(buttons);
+  // Frameless chrome has no native resize border; the corner grip is the resize handle.
+  auto* size_grip = new VisibleSizeGrip(&dialog);
+  size_grip->setObjectName(QStringLiteral("toolPaletteCustomizeSizeGrip"));
+  footer->addWidget(size_grip, 0, Qt::AlignBottom);
   content->addSpacing(4);
   content->addLayout(footer);
 
   tabs->setCurrentIndex(tab == ToolPaletteCustomizeTab::LayerButtons ? 1 : 0);
-  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+  // It opens at its natural size, or the size the user last dragged it to, inside the screen.
+  dialog.ensurePolished();
+  dialog.adjustSize();
+  QSize open_size = dialog.size();
+  if (const auto saved = app_settings().value(customize_dialog_size_key()).toSize(); saved.isValid()) {
+    open_size = saved.expandedTo(dialog.minimumSizeHint());
+  }
+  const auto* screen = parent != nullptr ? parent->screen() : QGuiApplication::primaryScreen();
+  if (screen != nullptr) {
+    open_size = open_size.boundedTo(screen->availableGeometry().size());
+  }
+  dialog.resize(open_size);
+  const auto open_result = run_non_modal_dialog(dialog);
+  if (dialog.size() != open_size) {
+    auto settings = app_settings();
+    settings.setValue(customize_dialog_size_key(), dialog.size());
+  }
+  if (open_result != QDialog::Accepted) {
     if (preview_layer_icon_size) {
       preview_layer_icon_size(current.layer_icon_size);
     }

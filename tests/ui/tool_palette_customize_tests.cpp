@@ -5,7 +5,7 @@
 // the palette's bottom items, the toolbar icon size and tool group opening shown in the dialog
 // (213 follow-up), and when tool groups open: click and hold, click or hover (459). Groups with
 // one tool, no tool groups, clicks handed on from an open flyout, the two-column footer and
-// the shortcut key column (499), and the dialog preview's 10-row cut (499 comment).
+// the shortcut key column (499), and the resizable dialog's preview that shows the rows that fit (499 comment).
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
@@ -37,6 +37,7 @@
 #include <QImage>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScreen>
 #include <QScrollBar>
 #include <QTabWidget>
 #include <QTest>
@@ -75,7 +76,7 @@ struct CustomizationSettingsGuard {
                             "layersPanel/shownFooterButtons", "toolPalette/hiddenFooterItems",
                             "layersPanel/footerButtonOrder", "preferences/toolbarIconSize",
                             "preferences/toolFlyoutOpenMode", "layersPanel/footerIconSize",
-                            "toolPalette/ungroupTools"}) {
+                            "toolPalette/ungroupTools", "toolPalette/customizeDialogSize"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
     }
@@ -1048,12 +1049,17 @@ void ui_tool_palette_footer_items_hide_and_preview() {
     // The whole preview fits in the dialog, footer rows included.
     CHECK(preview->mapTo(&dialog, QPoint(0, preview->height())).y() <= dialog.height());
     (void)capture_widget_artifact("ui_tool_palette_customize_dialog_options", dialog);
-    int height = preview->height();
+    // A footer row left out shortens the strip, or makes room for another row of tools.
+    int strip = preview->property("stripHeight").toInt();
+    int shown = preview->property("shownToolRows").toInt();
     for (auto* box : {colors, quick_mask, screen_mode}) {
       box->setChecked(false);
       QApplication::processEvents();
-      CHECK(preview->height() < height);
-      height = preview->height();
+      const int new_strip = preview->property("stripHeight").toInt();
+      const int new_shown = preview->property("shownToolRows").toInt();
+      CHECK(new_strip < strip || new_shown > shown);
+      strip = new_strip;
+      shown = new_shown;
     }
     const int normal_width = preview->width();
     icon_size->setCurrentIndex(icon_size->findData(QStringLiteral("bigger")));
@@ -2252,9 +2258,9 @@ void ui_tool_palette_no_tool_groups_shows_every_tool() {
     ungroup->setChecked(true);
     QApplication::processEvents();
     CHECK(!flyout_open->isEnabled());
-    // Every tool has a cell of its own in the preview; it still shows only its first 10 rows.
+    // Every tool has a cell of its own in the preview; it shows the rows that fit.
     CHECK(preview->property("toolRows").toInt() > grouped_rows);
-    CHECK(preview->property("shownToolRows").toInt() == 10);
+    CHECK(preview->property("shownToolRows").toInt() < preview->property("toolRows").toInt());
     CHECK(preview->mapTo(&dialog, QPoint(0, preview->height())).y() <= dialog.height());
     (void)capture_widget_artifact("ui_tool_palette_customize_no_tool_groups", dialog);
     press_dialog_button(dialog, QDialogButtonBox::Ok);
@@ -2515,14 +2521,17 @@ void ui_tool_flyout_shortcut_keys_start_in_one_column() {
   CHECK(ran);
 }
 
-// Rows of the preview whose pixel one logical pixel in from the left edge is not the palette's
-// background: only the torn gap reaches there (icons and separators start at the margin).
+// Rows of the preview's painted strip whose pixel one logical pixel in from the left edge is
+// not the palette's background: only the torn gap reaches there (icons and separators start
+// at the margin).
 int preview_torn_rows(QWidget& preview) {
   const QImage image = preview.grab().toImage();
   const QColor background = patchy::ui::theme().tool_palette_bg;
-  const int x = qRound(static_cast<double>(image.width()) / preview.width());
+  const double scale = static_cast<double>(image.width()) / preview.width();
+  const int x = qRound(scale);
+  const int strip = std::min(image.height(), qRound(preview.property("stripHeight").toInt() * scale));
   int rows = 0;
-  for (int y = 0; y < image.height(); ++y) {
+  for (int y = 0; y < strip; ++y) {
     if (image.pixelColor(x, y) != background) {
       ++rows;
     }
@@ -2530,16 +2539,26 @@ int preview_torn_rows(QWidget& preview) {
   return rows;
 }
 
-// GitHub issue 499 comment: the dialog's preview shows the first 10 rows of tools, then a torn
-// gap and the footer, so a long layout keeps the dialog short; a layout that fits shows no gap.
-void ui_tool_palette_customize_preview_shows_ten_rows() {
+bool preview_is_cut(const QWidget& preview) {
+  return preview.property("shownToolRows").toInt() < preview.property("toolRows").toInt();
+}
+
+// GitHub issue 499 comment: the dialog is resizable and its preview shows the rows of tools
+// that fit in its height, then the footer; only when rows are left out does a torn gap mark
+// the cut. The dialog opens short, inside the screen, and remembers the size it is dragged to.
+void ui_tool_palette_customize_preview_fits_its_height() {
   CustomizationSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
   if (tool_palette(window) == nullptr) {
     return;
   }
-  // 3 px margins, 10 rows of 20, at most 9 separators of 6, the 11 px gap and the footer: 336.
-  constexpr int kTallestPreview = 340;
+  const QScreen* screen = window.screen();
+  CHECK(screen != nullptr);
+  if (screen == nullptr) {
+    return;
+  }
+  const QSize available = screen->availableGeometry().size();
+  QSize dragged_size;
   bool ran = false;
   when_customize_dialog_opens([&](QDialog& dialog) {
     ran = true;
@@ -2547,16 +2566,22 @@ void ui_tool_palette_customize_preview_shows_ten_rows() {
     auto* preview = dialog.findChild<QWidget*>(QStringLiteral("toolPaletteCustomizePreview"));
     auto* ungroup = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteUngroupToolsCheck"));
     auto* two_columns = dialog.findChild<QRadioButton*>(QStringLiteral("toolPaletteTwoColumnsRadio"));
-    CHECK(tree != nullptr && preview != nullptr && ungroup != nullptr && two_columns != nullptr);
-    if (tree == nullptr || preview == nullptr || ungroup == nullptr || two_columns == nullptr) {
+    auto* grip = dialog.findChild<QWidget*>(QStringLiteral("toolPaletteCustomizeSizeGrip"));
+    CHECK(tree != nullptr && preview != nullptr && ungroup != nullptr && two_columns != nullptr && grip != nullptr);
+    if (tree == nullptr || preview == nullptr || ungroup == nullptr || two_columns == nullptr || grip == nullptr) {
       dialog.reject();
       return;
     }
     settle();
-    // The default single column is longer than 10 rows: cut, with the gap drawn.
-    CHECK(preview->property("toolRows").toInt() > 10);
-    CHECK(preview->property("shownToolRows").toInt() == 10);
-    CHECK(preview->height() <= kTallestPreview);
+    CHECK(grip->isVisible());
+    // It opens short and inside the screen; the default single column does not fit, so the
+    // preview is cut, with the gap drawn, and its strip stays inside the preview.
+    CHECK(dialog.height() <= 480);
+    CHECK(dialog.width() <= available.width() && dialog.height() <= available.height());
+    CHECK(dialog.minimumHeight() <= dialog.height());
+    CHECK(preview_is_cut(*preview));
+    CHECK(preview->property("shownToolRows").toInt() > 0);
+    CHECK(preview->property("stripHeight").toInt() <= preview->height());
     CHECK(preview_torn_rows(*preview) > 0);
     CHECK(preview->mapTo(&dialog, QPoint(0, preview->height())).y() <= dialog.height());
     (void)capture_widget_artifact("ui_tool_palette_customize_preview_cut", dialog);
@@ -2568,38 +2593,57 @@ void ui_tool_palette_customize_preview_shows_ten_rows() {
       (void)capture_widget_artifact("ui_tool_palette_customize_preview_cut_light", dialog);
     }
     settle();
-    // No tool groups nearly doubles the rows; the preview keeps its height within a few
-    // separators, and the dialog keeps its own.
-    const int grouped_height = preview->height();
-    const int dialog_height = dialog.height();
+    // No tool groups nearly doubles the rows; the dialog keeps its size.
+    const QSize open_size = dialog.size();
+    const int grouped_rows = preview->property("toolRows").toInt();
     ungroup->setChecked(true);
-    QApplication::processEvents();
-    CHECK(preview->property("toolRows").toInt() > 20);
-    CHECK(preview->property("shownToolRows").toInt() == 10);
-    CHECK(preview->height() <= kTallestPreview);
-    CHECK(std::abs(preview->height() - grouped_height) <= 30);
-    CHECK(preview_torn_rows(*preview) > 0);
     settle();
-    CHECK(dialog.height() == dialog_height);
-    (void)capture_widget_artifact("ui_tool_palette_customize_preview_cut_no_groups", dialog);
+    CHECK(preview->property("toolRows").toInt() > grouped_rows);
+    CHECK(preview_is_cut(*preview));
+    CHECK(dialog.size() == open_size);
     ungroup->setChecked(false);
+    // Two columns, and the dialog dragged taller until the whole palette fits: no gap.
     two_columns->setChecked(true);
-    QApplication::processEvents();
-    CHECK(preview->property("shownToolRows").toInt() ==
-          std::min(10, preview->property("toolRows").toInt()));
-    // Only the first two clusters left: they fit, so the preview draws them all and no gap.
+    settle();
+    const int shown_before = preview->property("shownToolRows").toInt();
+    dialog.resize(dialog.width() + 40, available.height() - 60);
+    settle();
+    CHECK(tree->height() > 200);
+    CHECK(preview->property("shownToolRows").toInt() >= shown_before);
+    CHECK(!preview_is_cut(*preview));
+    CHECK(preview_torn_rows(*preview) == 0);
+    CHECK(preview->property("stripHeight").toInt() <= preview->height());
+    (void)capture_widget_artifact("ui_tool_palette_customize_preview_tall", dialog);
+    // Back at the smallest size, a short layout (only the first two clusters) still fits.
     for (int index = 2; index < tree->topLevelItemCount(); ++index) {
       auto* header = tree->topLevelItem(index);
       for (int row = 0; row < header->childCount(); ++row) {
         header->child(row)->setCheckState(0, Qt::Unchecked);
       }
     }
-    QApplication::processEvents();
+    dialog.resize(dialog.minimumSize());
+    settle();
     const int short_rows = preview->property("toolRows").toInt();
-    CHECK(short_rows > 0 && short_rows <= 10);
-    CHECK(preview->property("shownToolRows").toInt() == short_rows);
+    CHECK(short_rows > 0);
+    CHECK(!preview_is_cut(*preview));
     CHECK(preview_torn_rows(*preview) == 0);
     (void)capture_widget_artifact("ui_tool_palette_customize_preview_short", dialog);
+    dialog.resize(dialog.width() + 30, dialog.height() + 50);
+    settle();
+    dragged_size = dialog.size();
+    dialog.reject();
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::Tools);
+  CHECK(ran);
+  settle();
+  // The dragged size is stored and the next open uses it.
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/customizeDialogSize")).toSize() ==
+        dragged_size);
+  ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    settle();
+    CHECK(dialog.size() == dragged_size);
     dialog.reject();
   });
   window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::Tools);
@@ -2643,6 +2687,6 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_tool_palette_two_column_footer_sits_centered_under_the_tools",
        ui_tool_palette_two_column_footer_sits_centered_under_the_tools},
       {"ui_tool_flyout_shortcut_keys_start_in_one_column", ui_tool_flyout_shortcut_keys_start_in_one_column},
-      {"ui_tool_palette_customize_preview_shows_ten_rows", ui_tool_palette_customize_preview_shows_ten_rows},
+      {"ui_tool_palette_customize_preview_fits_its_height", ui_tool_palette_customize_preview_fits_its_height},
   };
 }
