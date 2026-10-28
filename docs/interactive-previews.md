@@ -20,6 +20,19 @@ outside the list, and compares the settled canvas with a full refresh.
 Do not remove `ExcludeUserInputEvents` from synchronous processing waits:
 those workers read the live Document and must retain their reentrancy guards.
 
+## Blend mode steps
+
+Layer blend changes take the same snapshot refresh when they come as steps: the closed
+combo's arrows, Home/End, Page Up/Down and wheel, and Next/Previous Blend Mode
+(Shift+Plus/Minus, #476) move the combo through `step_blend_mode_combo_to`, and
+`set_active_layer_blend` sees `blend_mode_combo_stepping` and calls
+`document_changed_async_preview` instead of re-rendering the layer's area on the GUI
+thread. A press costs a few milliseconds; a quick run renders the mode it lands on (at most
+one render in flight plus one pending). A choice from the open list (after its own async
+hover preview, #367) still renders at once. Pinned by
+`ui_layer_blend_mode_fast_steps_render_only_the_landing_mode` (2400x1600: about 140 ms per
+press before, 1 to 6 ms after, on a 12th-gen i7).
+
 ## Move-drag proxy preview
 
 Heavy Move-tool drags latch onto a translated-snapshot proxy (canvas_widget_move.cpp / canvas_widget_events.cpp):

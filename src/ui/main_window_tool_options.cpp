@@ -1389,7 +1389,14 @@ void MainWindow::set_active_layer_blend(int index) {
     layer->set_blend_mode(mode);
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
-  canvas_->document_changed(to_qrect(affected));
+  // A step (arrow keys, wheel, Shift+Plus/Minus) renders on a worker, which keeps drawing the
+  // previous frame and renders only the newest mode once one render is in flight: a quick
+  // run of steps never waits on the compositor (#476). A choice from the list renders at once.
+  if (blend_mode_combo_stepping(blend_combo_)) {
+    canvas_->document_changed_async_preview();
+  } else {
+    canvas_->document_changed(to_qrect(affected));
+  }
   // A Paint.NET mode no selected layer uses any more leaves the list (GitHub issue 379).
   // Its rows sit after Photoshop's, so the rows the run steps through keep their places.
   std::vector<BlendMode> in_use;
@@ -1421,7 +1428,7 @@ void MainWindow::step_layer_blend_mode(int direction) {
   if (index < 0 || index == blend_combo_->currentIndex()) {
     return;
   }
-  blend_combo_->setCurrentIndex(index);
+  step_blend_mode_combo_to(blend_combo_, index);
   statusBar()->showMessage(tr("Blend mode: %1").arg(blend_combo_->itemText(index)));
 }
 

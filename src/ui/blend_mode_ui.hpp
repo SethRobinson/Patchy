@@ -39,6 +39,11 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu = BlendModeMenu::
 // with the closed combo's stepping rules (separators, disabled rows and Paint.NET's modes
 // skipped); the current row itself at either end.
 [[nodiscard]] int blend_mode_step_index(const QComboBox* combo, int direction);
+// Moves the combo to `index` as one keyboard or wheel step (the closed combo's arrows, Home/End,
+// Page Up/Down and wheel, Next/Previous Blend Mode). A currentIndexChanged handler can ask
+// blend_mode_combo_stepping() and defer its expensive work: steps come in quick runs (#476).
+void step_blend_mode_combo_to(QComboBox* combo, int index);
+[[nodiscard]] bool blend_mode_combo_stepping(const QComboBox* combo);
 // Renames a blend mode list's rows in the current language, separators left alone.
 void retranslate_blend_mode_items(QComboBox* combo);
 // For a combo that serves layers and folders in turn (the Layers panel's): adds Pass
