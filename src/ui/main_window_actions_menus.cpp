@@ -1610,8 +1610,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   addAction(layer_merge_selected_to_new_action_);
   register_document_action(layer_merge_selected_to_new_action_);
   // Next / Previous Blend Mode (GitHub issue 476): Photoshop's Shift+Plus and Shift+Minus step
-  // the selected layers' mode down and up the Layers panel's list. Window-only, like the
-  // actions above. Shift+= is the main keyboard's plus on US layouts: Qt matches that press
+  // the selected layers' mode down and up the Layers panel's list (with Brush or Healing Brush
+  // active, that tool's Mode list). Window-only, like the actions above. Shift+= is the main keyboard's plus on US layouts: Qt matches that press
   // as Shift+= or as an unshifted +, never as Shift++, which the keypad and layouts with a
   // plain + key send.
   for (const auto& [object_name, text, hotkey_id, direction] :

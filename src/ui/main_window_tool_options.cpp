@@ -1469,8 +1469,34 @@ void MainWindow::set_active_layer_blend(int index) {
 // Photoshop's Shift+Plus / Shift+Minus for the layer mode (GitHub issue 476): one step down or
 // up the Layers panel's list with the closed combo's rules (separators, modes the document's
 // depth cannot use and Paint.NET's modes skipped, wrapping around at either end), committed through
-// the combo, so a run of presses is one undo entry like a run of arrow-key steps.
+// the combo, so a run of presses is one undo entry like a run of arrow-key steps. With a tool
+// whose options bar has a blend Mode list (Brush, Healing Brush) the keys step that list instead,
+// saved like a choice from it.
 void MainWindow::step_layer_blend_mode(int direction) {
+  QComboBox* tool_mode_combo = nullptr;
+  if (canvas_ != nullptr) {
+    switch (canvas_->tool()) {
+      case CanvasTool::Brush:
+        tool_mode_combo = brush_mode_combo_;
+        break;
+      case CanvasTool::Healing:
+        tool_mode_combo = healing_mode_combo_;
+        break;
+      default:
+        break;
+    }
+  }
+  if (tool_mode_combo != nullptr) {
+    if (!tool_mode_combo->isEnabled() || tool_mode_combo->view()->isVisible()) {
+      return;
+    }
+    const auto index = blend_mode_step_index(tool_mode_combo, direction);
+    if (index >= 0 && index != tool_mode_combo->currentIndex()) {
+      step_blend_mode_combo_to(tool_mode_combo, index);
+      statusBar()->showMessage(tr("Blend mode: %1").arg(tool_mode_combo->itemText(index)));
+    }
+    return;
+  }
   if (!has_active_document() || blend_combo_ == nullptr || !blend_combo_->isEnabled() ||
       blend_combo_->view()->isVisible()) {
     return;
