@@ -5,20 +5,25 @@
 #include "ui/measurement_units.hpp"
 #include "ui/modifier_names.hpp"
 
+#include <QActionEvent>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QCoreApplication>
 #include <QDoubleSpinBox>
 #include <QEvent>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QWidgetAction>
 
 #include <algorithm>
+#include <utility>
 
 namespace patchy::ui {
 
@@ -28,6 +33,15 @@ constexpr int kOffsetLimit = 1000000;
 // The flip toggles match the 24 px dialog spin boxes (configure_dialog_spinbox).
 constexpr int kFlipButtonSize = 24;
 
+// A wrapped note follows the width the fields give the panel: its own width hint (Qt's
+// guess for a word-wrapped label, wider with larger fonts) never widens a column.
+void make_wrapping_note(QLabel* note) {
+  note->setWordWrap(true);
+  QSizePolicy policy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+  policy.setHeightForWidth(true);
+  note->setSizePolicy(policy);
+}
+
 }  // namespace
 
 CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
@@ -36,6 +50,10 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   layout->setContentsMargins(10, 8, 10, 8);
   layout->setHorizontalSpacing(8);
   layout->setVerticalSpacing(6);
+  // Columns (GitHub issue 515): 0 the row captions, 1 the Offset's "X:", 2 the first field
+  // column (where every value starts), 3 the second column's captions, 4 the second field
+  // column; 5 takes any extra width. Captions in columns 1 and 3 sit right beside their field.
+  constexpr auto kFieldCaption = Qt::AlignRight | Qt::AlignVCenter;
 
   // Row 0: the slots.
   slots_label_ = new QLabel(this);
@@ -57,7 +75,7 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
     slot_buttons_[static_cast<std::size_t>(slot)] = button;
   }
   slot_row->addStretch(1);
-  layout->addLayout(slot_row, 0, 1, 1, 4);
+  layout->addLayout(slot_row, 0, 2, 1, 3);
   connect(slot_group_, &QButtonGroup::idClicked, this, [this](int slot) { emit slot_picked(slot); });
 
   // Row 1: where the active source is.
@@ -65,16 +83,18 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   layout->addWidget(source_caption_, 1, 0);
   source_label_ = new QLabel(this);
   source_label_->setObjectName(QStringLiteral("cloneSourcePointLabel"));
-  layout->addWidget(source_label_, 1, 1, 1, 4);
+  layout->addWidget(source_label_, 1, 2, 1, 3);
 
   // Row 2: the offset, with a note under it while the next stroke still sets it.
   offset_label_ = new QLabel(this);
   layout->addWidget(offset_label_, 2, 0);
   offset_x_label_ = new QLabel(this);
-  layout->addWidget(offset_x_label_, 2, 1);
+  offset_x_label_->setAlignment(kFieldCaption);
+  layout->addWidget(offset_x_label_, 2, 1, kFieldCaption);
   offset_x_spin_ = new QSpinBox(this);
   offset_x_spin_->setObjectName(QStringLiteral("cloneSourceOffsetXSpin"));
   offset_y_label_ = new QLabel(this);
+  offset_y_label_->setAlignment(kFieldCaption);
   offset_y_spin_ = new QSpinBox(this);
   offset_y_spin_->setObjectName(QStringLiteral("cloneSourceOffsetYSpin"));
   for (auto* spin : {offset_x_spin_, offset_y_spin_}) {
@@ -82,7 +102,7 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
     configure_dialog_spinbox(spin, 84);
   }
   layout->addWidget(offset_x_spin_, 2, 2);
-  layout->addWidget(offset_y_label_, 2, 3);
+  layout->addWidget(offset_y_label_, 2, 3, kFieldCaption);
   layout->addWidget(offset_y_spin_, 2, 4);
   const auto offset_changed = [this] {
     emit offset_edited(QPoint(offset_x_spin_->value(), offset_y_spin_->value()));
@@ -91,8 +111,8 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   connect(offset_y_spin_, &QSpinBox::valueChanged, this, offset_changed);
   offset_note_ = new QLabel(this);
   offset_note_->setObjectName(QStringLiteral("cloneSourceOffsetNote"));
-  offset_note_->setWordWrap(true);
-  layout->addWidget(offset_note_, 3, 1, 1, 4);
+  make_wrapping_note(offset_note_);
+  layout->addWidget(offset_note_, 3, 2, 1, 3);
 
   // Rows 4 and 5: the Clone Stamp's scale, rotation and flips, and Reset.
   scale_label_ = new QLabel(this);
@@ -105,9 +125,10 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   scale_spin_->setSingleStep(1.0);
   scale_spin_->setValue(100.0);
   configure_dialog_spinbox(scale_spin_, 84);
-  layout->addWidget(scale_spin_, 4, 1, 1, 2);
+  layout->addWidget(scale_spin_, 4, 2);
   rotation_label_ = new QLabel(this);
-  layout->addWidget(rotation_label_, 4, 3);
+  rotation_label_->setAlignment(kFieldCaption);
+  layout->addWidget(rotation_label_, 4, 3, kFieldCaption);
   rotation_spin_ = new QDoubleSpinBox(this);
   rotation_spin_->setObjectName(QStringLiteral("cloneSourceRotationSpin"));
   rotation_spin_->setRange(-patchy::CloneSourceTransform::kMaxRotationDegrees,
@@ -144,7 +165,7 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
     connect(button, &QToolButton::toggled, this, [this] { emit_transform(); });
   }
   flip_row->addStretch(1);
-  layout->addLayout(flip_row, 5, 1, 1, 2);
+  layout->addLayout(flip_row, 5, 2);
   reset_button_ = new QPushButton(this);
   reset_button_->setObjectName(QStringLiteral("cloneSourceResetButton"));
   reset_button_->setAutoDefault(false);
@@ -153,7 +174,7 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
           [this] { emit transform_edited(patchy::CloneSourceTransform{}); });
   transform_note_ = new QLabel(this);
   transform_note_->setObjectName(QStringLiteral("cloneSourceTransformNote"));
-  transform_note_->setWordWrap(true);
+  make_wrapping_note(transform_note_);
   layout->addWidget(transform_note_, 6, 0, 1, 5);
 
   // Row 7: the overlay.
@@ -161,7 +182,8 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   overlay_check_->setObjectName(QStringLiteral("cloneSourceOverlayCheck"));
   layout->addWidget(overlay_check_, 7, 0, 1, 3);
   overlay_opacity_label_ = new QLabel(this);
-  layout->addWidget(overlay_opacity_label_, 7, 3);
+  overlay_opacity_label_->setAlignment(kFieldCaption);
+  layout->addWidget(overlay_opacity_label_, 7, 3, kFieldCaption);
   overlay_opacity_spin_ = new QSpinBox(this);
   overlay_opacity_spin_->setObjectName(QStringLiteral("cloneSourceOverlayOpacitySpin"));
   overlay_opacity_spin_->setRange(1, 100);
@@ -175,6 +197,36 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   retranslate();
   refresh();
   install_scrub_labels_in(this);
+}
+
+QSize CloneSourcePanel::sizeHint() const {
+  // QMenu sizes a QWidgetAction from its size hint alone, never height-for-width: ask the
+  // grid how tall the wrapped notes make it at the hinted width (GitHub issue 515).
+  auto hint = QWidget::sizeHint();
+  if (layout() != nullptr && layout()->hasHeightForWidth()) {
+    hint.setHeight(std::max(hint.height(), layout()->totalHeightForWidth(hint.width())));
+  }
+  return hint;
+}
+
+void CloneSourcePanel::relayout_popup() {
+  updateGeometry();
+  // QMenu caches its item rectangles; an ActionChanged event re-measures them and resizes an
+  // open menu, so a note that appears or goes away never clips or leaves a gap.
+  auto* menu = qobject_cast<QMenu*>(parentWidget());
+  if (menu == nullptr) {
+    return;
+  }
+  for (auto* action : menu->actions()) {
+    const auto* widget_action = qobject_cast<QWidgetAction*>(action);
+    if (widget_action != nullptr && widget_action->defaultWidget() == this) {
+      QActionEvent event(QEvent::ActionChanged, action);
+      QCoreApplication::sendEvent(menu, &event);
+    }
+  }
+  if (menu->isVisible()) {
+    menu->resize(menu->sizeHint());
+  }
 }
 
 QToolButton* CloneSourcePanel::slot_button(int slot) const {
@@ -236,6 +288,11 @@ void CloneSourcePanel::retranslate() {
 }
 
 void CloneSourcePanel::refresh() {
+  const auto note_layout = [this] {
+    return std::make_pair(offset_note_->isHidden() ? QString() : offset_note_->text(),
+                          transform_note_->isHidden() ? QString() : transform_note_->text());
+  };
+  const auto notes_before = note_layout();
   const QSignalBlocker slot_blocker(slot_group_);
   for (int slot = 0; slot < kSlotCount; ++slot) {
     auto* button = slot_buttons_[static_cast<std::size_t>(slot)];
@@ -303,6 +360,9 @@ void CloneSourcePanel::refresh() {
     overlay_opacity_spin_->setValue(state_.overlay_opacity);
   }
   overlay_opacity_spin_->setEnabled(state_.overlay_shown);
+  if (note_layout() != notes_before) {
+    relayout_popup();
+  }
 }
 
 }  // namespace patchy::ui

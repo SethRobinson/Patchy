@@ -48,6 +48,7 @@ public:
   explicit CloneSourcePanel(QWidget* parent = nullptr);
 
   void set_state(const State& state);
+  [[nodiscard]] QSize sizeHint() const override;
   [[nodiscard]] const State& state() const noexcept { return state_; }
 
   [[nodiscard]] QToolButton* slot_button(int slot) const;
@@ -75,6 +76,7 @@ private:
   void retranslate();
   void refresh();
   void emit_transform();
+  void relayout_popup();
 
   State state_;
   std::array<QToolButton*, kSlotCount> slot_buttons_{};
