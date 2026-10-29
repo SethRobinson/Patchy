@@ -14625,16 +14625,16 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Aucune pointe de pinceau n&apos;est active.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Paramètres du pinceau</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>Garder ouvert</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>Ouvrir les paramètres du pinceau dans une fenêtre qui reste ouverte pendant que vous peignez</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Dynamique et effets du pinceau</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>Ouvrir la dynamique et les effets du pinceau dans une fenêtre qui reste ouverte pendant que vous peignez</translation>
     </message>
 </context>
 <context>
@@ -28034,10 +28034,6 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>%1 sera remplacée par %2.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Paramètres du pinceau</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>Mettre au &amp;premier plan</translation>
     </message>
@@ -28431,16 +28427,20 @@ Verrouillé : %1</translation>
         <translation>L&apos;outil actif n&apos;a pas de pointe de pinceau.</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>Ouvrez un document pour modifier les paramètres du pinceau.</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Dynamique et effets du pinceau</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>Les paramètres du pinceau pourront de nouveau être changés une fois la boîte de dialogue fermée.</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>Ouvrez un document pour modifier la dynamique et les effets du pinceau.</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>Les paramètres du pinceau s&apos;appliquent à l&apos;outil Pinceau.</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>La dynamique et les effets du pinceau pourront de nouveau être modifiés une fois la boîte de dialogue fermée.</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>La dynamique et les effets du pinceau s&apos;appliquent à l&apos;outil Pinceau.</translation>
     </message>
 </context>
 <context>

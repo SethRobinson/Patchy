@@ -14608,15 +14608,15 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
+        <source>Brush Dynamics and Effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -27955,10 +27955,6 @@ The open document keeps its blend modes either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation type="unfinished"></translation>
     </message>
@@ -28350,15 +28346,19 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
+        <source>Brush Dynamics and Effects</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <source>Open a document to change the brush dynamics and effects.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

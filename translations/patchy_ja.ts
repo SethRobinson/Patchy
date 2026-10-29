@@ -14582,16 +14582,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>アクティブなブラシ先端はありません。</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>ブラシ設定</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>開いたままにする</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>ペイント中も開いたままのウィンドウでブラシ設定を開きます</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>ブラシのダイナミクスと効果</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>ペイント中も開いたままのウィンドウでブラシのダイナミクスと効果を開きます</translation>
     </message>
 </context>
 <context>
@@ -27952,10 +27952,6 @@ The open document keeps its blend modes either way.</source>
         <translation>%1 は %2 に置き換えられます。</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>ブラシ設定</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>最前面へ(&amp;F)</translation>
     </message>
@@ -28349,16 +28345,20 @@ Locked: %1</source>
         <translation>アクティブなツールにはブラシ先端がありません。</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>ブラシ設定を変更するにはドキュメントを開いてください。</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>ブラシのダイナミクスと効果</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>開いているダイアログを閉じると、ブラシ設定を再び変更できます。</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>ブラシのダイナミクスと効果を変更するにはドキュメントを開いてください。</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>ブラシ設定はブラシツールに適用されます。</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>開いているダイアログを閉じると、ブラシのダイナミクスと効果を再び変更できます。</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>ブラシのダイナミクスと効果はブラシツールに適用されます。</translation>
     </message>
 </context>
 <context>

@@ -4,6 +4,7 @@
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_stroke_preview.hpp"
 #include "ui/brush_tool_window.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -1371,8 +1372,9 @@ void ui_brush_tips_window_floats_and_follows_the_tool() {
     return;
   }
   const QRect popup_rect(popup->mapToGlobal(QPoint(0, 0)), popup->size());
-  auto* keep_open = popup->findChild<QToolButton*>(QStringLiteral("brushTipPickerKeepOpenButton"));
+  auto* keep_open = popup->findChild<QPushButton*>(QStringLiteral("brushTipPickerKeepOpenButton"));
   CHECK(keep_open != nullptr);
+  CHECK(!keep_open->isFlat());  // a framed button, not a text label
   keep_open->click();
   QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
   QApplication::processEvents();
@@ -1443,7 +1445,7 @@ void ui_brush_tips_window_floats_and_follows_the_tool() {
   clear_brush_tip_test_state();
 }
 
-// The Dynamics panel floats: Keep Open turns the popup into the Brush Settings window, its edits
+// The Dynamics panel floats: Keep Open turns the popup into the Brush Dynamics and Effects window, its edits
 // reach the canvas live, a tip switch or an outside change reloads it, it follows the tool, and
 // the size and open state are remembered.
 void ui_brush_settings_window_floats_and_edits_live() {
@@ -1479,8 +1481,11 @@ void ui_brush_settings_window_floats_and_edits_live() {
   popup->findChild<patchy::ui::BrushDynamicsPanel*>()->select_section(
       patchy::ui::BrushDynamicsPanel::Section::Scattering);
   CHECK(popup->height() <= 600);
-  auto* keep_open = popup->findChild<QToolButton*>(QStringLiteral("brushDynamicsKeepOpenButton"));
+  auto* keep_open = popup->findChild<QPushButton*>(QStringLiteral("brushDynamicsKeepOpenButton"));
   CHECK(keep_open != nullptr);
+  CHECK(!keep_open->isFlat());
+  QApplication::processEvents();
+  save_widget_artifact("ui_brush_dynamics_popup_keep_open", *popup);
   keep_open->click();
   QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
   QApplication::processEvents();
@@ -1549,6 +1554,63 @@ void ui_brush_settings_window_floats_and_edits_live() {
 }
 
 // Both windows open beside a canvas with a stroke painted (the card's capture).
+// Both popups' Keep Open buttons side by side (the card's capture, GitHub issue 506).
+void shot_brush_keep_open_buttons() {
+  clear_brush_tip_test_state();
+  clear_brush_window_settings();
+  const auto cleanup = qScopeGuard([] { clear_brush_window_settings(); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto bar_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  window.set_active_brush_tip(bar_id, false);
+  QApplication::processEvents();
+  QImage tips_image;
+  if (auto* popup = open_tip_picker_popup(window); popup != nullptr) {
+    popup->resize(420, 300);
+    QApplication::processEvents();
+    CHECK(popup->findChild<QPushButton*>(QStringLiteral("brushTipPickerKeepOpenButton")) != nullptr);
+    tips_image = popup->grab().toImage();
+    popup->close();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    process_events_for(350);
+  }
+  QImage dynamics_image;
+  auto* button = window.findChild<patchy::ui::BrushDynamicsButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+  if (button != nullptr) {
+    button->click();
+    QApplication::processEvents();
+    if (auto* popup = visible_top_level("brushDynamicsPopup"); popup != nullptr) {
+      popup->findChild<patchy::ui::BrushDynamicsPanel*>()->select_section(
+          patchy::ui::BrushDynamicsPanel::Section::ShapeDynamics);
+      QApplication::processEvents();
+      popup->findChild<patchy::ui::BrushDynamicsPanel*>()->preview()->rebuild_now();
+      QApplication::processEvents();
+      dynamics_image = popup->grab().toImage();
+      popup->close();
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+      QApplication::processEvents();
+    }
+  }
+  CHECK(!tips_image.isNull() && !dynamics_image.isNull());
+  if (tips_image.isNull() || dynamics_image.isNull()) {
+    return;
+  }
+  QImage shot(tips_image.width() + dynamics_image.width() + 36,
+              std::max(tips_image.height(), dynamics_image.height()) + 24, QImage::Format_ARGB32);
+  shot.fill(patchy::ui::theme().window_bg);
+  {
+    QPainter painter(&shot);
+    painter.drawImage(QPoint(12, 12), tips_image);
+    painter.drawImage(QPoint(tips_image.width() + 24, 12), dynamics_image);
+  }
+  save_image_artifact("shot_brush_keep_open_buttons", shot);
+  clear_brush_tip_test_state();
+}
+
 void shot_brush_floating_windows() {
   clear_brush_tip_test_state();
   clear_brush_window_settings();
@@ -2400,6 +2462,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_tips_window_floats_and_follows_the_tool", ui_brush_tips_window_floats_and_follows_the_tool},
       {"ui_brush_settings_window_floats_and_edits_live", ui_brush_settings_window_floats_and_edits_live},
       {"shot_brush_floating_windows", shot_brush_floating_windows},
+      {"shot_brush_keep_open_buttons", shot_brush_keep_open_buttons},
       {"ui_brush_dynamics_popup_tabs_switch_and_remember", ui_brush_dynamics_popup_tabs_switch_and_remember},
       {"ui_brush_dynamics_section_switch_keeps_values", ui_brush_dynamics_section_switch_keeps_values},
       {"ui_brush_dynamics_reset_section_and_default_dots",

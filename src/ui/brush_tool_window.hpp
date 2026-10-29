@@ -12,7 +12,7 @@ class QVBoxLayout;
 
 namespace patchy::ui {
 
-// A floating brush window (Window > Brush Tips, Window > Brush Settings, or a popup's Keep Open
+// A floating brush window (Window > Brush Tips, Window > Brush Dynamics and Effects, or a popup's Keep Open
 // button; GitHub issue 506 follow-up): a non-modal Qt::Tool dialog owned by the main window, so
 // it stays above it and closes with it. Its content edits the active tool live while the user
 // paints. Keys that no text field in it takes (tool letters, [ and ], Space) go to the canvas,

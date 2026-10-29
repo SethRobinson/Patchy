@@ -2762,8 +2762,8 @@ private:
   // Clone source settings (GitHub issue 424, docs/healing.md "Clone source settings"):
   // the gear popup's panel follows the active canvas.
   void refresh_clone_source_panel();
-  // Window > Brush Settings: picks the Brush tool from any other tool and opens the floating
-  // Brush Settings window (the Dynamics popup's panel; GitHub issue 506 follow-up).
+  // Window > Brush Dynamics and Effects: picks the Brush tool from any other tool and opens the
+  // floating Brush Dynamics and Effects window (the Dynamics popup's panel; GitHub issue 506).
   void show_brush_settings_window();
   // Window > Brush Tips: the floating tip chooser, picking the Brush tool first when the active
   // tool takes no tip.

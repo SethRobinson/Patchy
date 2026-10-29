@@ -1055,8 +1055,8 @@ void ui_window_menu_hides_collapsed_panel() {
 }
 
 // F6, F7 and F8 show the Color, Layers and Info panels and bring them to the front; the
-// same key on a panel already in front hides it (GitHub issue 469). Brush Settings has a
-// command of its own with no key, which opens the Brush tool's Dynamics popup.
+// same key on a panel already in front hides it (GitHub issue 469). Brush Dynamics and Effects
+// has a command of its own with no key, which opens the Brush tool's floating Dynamics window.
 void ui_window_panel_hotkeys_show_and_hide_panels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1122,9 +1122,10 @@ void ui_window_panel_hotkeys_show_and_hide_panels() {
   CHECK(brush_command != nullptr && brush_command->action == brush_settings);
   CHECK(brush_command != nullptr && brush_command->default_shortcuts.isEmpty());
   CHECK(brush_settings->shortcuts().isEmpty());
+  CHECK(brush_settings->text().remove(QLatin1Char('&')) == QStringLiteral("Brush Dynamics and Effects"));
   canvas->set_tool(patchy::ui::CanvasTool::Move);
   QApplication::processEvents();
-  // Brush Settings opens the floating Brush Settings window (GitHub issue 506 follow-up).
+  // The entry opens the floating Brush Dynamics and Effects window (GitHub issue 506 follow-up).
   const auto clear_window_state = [] {
     for (const auto* key : {"brushes/settingsWindowOpen", "brushes/settingsWindowSize", "brushes/tipsWindowOpen",
                             "brushes/tipsWindowSize"}) {

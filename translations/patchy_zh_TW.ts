@@ -14582,16 +14582,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>沒有使用中的筆刷筆尖。</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>筆刷設定</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>保持開啟</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>在繪畫時保持開啟的視窗中開啟筆刷設定</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>筆刷動態與效果</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>在繪畫時保持開啟的視窗中開啟筆刷動態與效果</translation>
     </message>
 </context>
 <context>
@@ -27952,10 +27952,6 @@ The open document keeps its blend modes either way.</source>
         <translation>%1 將以 %2 取代。</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>筆刷設定</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>移至最上層(&amp;F)</translation>
     </message>
@@ -28349,16 +28345,20 @@ Locked: %1</source>
         <translation>目前的工具沒有筆刷筆尖。</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>開啟文件以變更筆刷設定。</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>筆刷動態與效果</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>關閉目前開啟的對話方塊後即可再次變更筆刷設定。</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>開啟文件以變更筆刷動態與效果。</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>筆刷設定適用於筆刷工具。</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>關閉目前開啟的對話方塊後即可再次變更筆刷動態與效果。</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>筆刷動態與效果適用於筆刷工具。</translation>
     </message>
 </context>
 <context>

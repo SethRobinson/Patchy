@@ -14625,16 +14625,16 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>No hay ninguna punta de pincel activa.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Ajustes de pincel</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>Mantener abierto</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>Abrir los ajustes del pincel en una ventana que sigue abierta mientras pintas</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Dinámica y efectos de pincel</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>Abrir la dinámica y los efectos de pincel en una ventana que sigue abierta mientras pintas</translation>
     </message>
 </context>
 <context>
@@ -28034,10 +28034,6 @@ El documento abierto conserva sus modos de fusión en ambos casos.</translation>
         <translation>%1 se sustituirá por %2.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Ajustes de pincel</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>Traer al &amp;frente</translation>
     </message>
@@ -28431,16 +28427,20 @@ Bloqueada: %1</translation>
         <translation>La herramienta activa no tiene punta de pincel.</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>Abre un documento para cambiar los ajustes del pincel.</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Dinámica y efectos de pincel</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>Los ajustes del pincel se podrán cambiar de nuevo cuando se cierre el cuadro de diálogo abierto.</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>Abre un documento para cambiar la dinámica y los efectos de pincel.</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>Los ajustes del pincel se aplican a la herramienta Pincel.</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>La dinámica y los efectos de pincel se podrán cambiar de nuevo cuando se cierre el cuadro de diálogo abierto.</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>La dinámica y los efectos de pincel se aplican a la herramienta Pincel.</translation>
     </message>
 </context>
 <context>

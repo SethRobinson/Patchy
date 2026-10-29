@@ -1037,7 +1037,7 @@ void BrushDynamicsButton::open_window(std::optional<QPoint> global_top_left, boo
     popup_->close();
   }
   if (window_ == nullptr) {
-    auto* window = new BrushToolWindow(QStringLiteral("brushSettingsWindow"), tr("Brush Settings"),
+    auto* window = new BrushToolWindow(QStringLiteral("brushSettingsWindow"), tr("Brush Dynamics and Effects"),
                                        QStringLiteral("brushes/settingsWindow"), this->window());
     auto* panel = new BrushDynamicsPanel(window);
     window->set_body(panel);
@@ -1231,17 +1231,19 @@ void BrushDynamicsButton::show_popup() {
   auto* layout = new QVBoxLayout(popup);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
-  // The header: Keep Open turns the popup into the floating Brush Settings window in place.
+  // The header: Keep Open turns the popup into the floating Brush Dynamics and Effects window in
+  // place. A push button, framed like Reset Section, so it reads as a control (GitHub issue 506).
   auto* header = new QHBoxLayout();
   header->setContentsMargins(8, 6, 8, 0);
-  auto* title = new QLabel(tr("Brush Settings"), popup);
+  auto* title = new QLabel(tr("Brush Dynamics and Effects"), popup);
   title->setObjectName(QStringLiteral("brushDynamicsPopupTitle"));
   header->addWidget(title);
   header->addStretch(1);
-  auto* keep_open = new QToolButton(popup);
+  auto* keep_open = new QPushButton(tr("Keep Open"), popup);
   keep_open->setObjectName(QStringLiteral("brushDynamicsKeepOpenButton"));
-  keep_open->setText(tr("Keep Open"));
-  keep_open->setToolTip(tr("Open the brush settings in a window that stays open while you paint"));
+  keep_open->setAutoDefault(false);
+  keep_open->setToolTip(
+      tr("Open the brush dynamics and effects in a window that stays open while you paint"));
   header->addWidget(keep_open);
   layout->addLayout(header);
   auto* panel = new BrushDynamicsPanel(popup);
@@ -1249,7 +1251,7 @@ void BrushDynamicsButton::show_popup() {
   load_panel(*panel);
   layout->addWidget(panel);
   connect_panel(*panel);
-  connect(keep_open, &QToolButton::clicked, popup, [this, popup, panel] {
+  connect(keep_open, &QPushButton::clicked, popup, [this, popup, panel] {
     const auto top_left = popup->mapToGlobal(QPoint(0, 0));
     const auto popup_size = popup->size();
     const auto section = panel->current_section();
@@ -1279,7 +1281,7 @@ void BrushDynamicsButton::show_popup() {
     popup_width = std::min(popup_width, available.width());
   }
   popup->setFixedSize(popup_width, popup_height);
-  // A hidden options bar (Window > Brush Settings): under the window's top-left corner.
+  // A hidden options bar: under the window's top-left corner.
   auto position = isVisible() ? mapToGlobal(QPoint(0, height())) : window()->mapToGlobal(QPoint(12, 12));
   if (screen != nullptr) {
     const auto available = screen->availableGeometry();

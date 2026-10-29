@@ -312,11 +312,12 @@ BrushTipBrowser::BrushTipBrowser(BrushTipLibrary& library, BrushTipPicker& picke
   folder_combo_->setObjectName(QStringLiteral("brushTipPickerFolderCombo"));
   top_row->addWidget(folder_combo_, 1);
   if (host == Host::Popup) {
-    auto* keep_open = new QToolButton(this);
+    // A push button, framed like Import and Manage, so it reads as a control.
+    auto* keep_open = new QPushButton(BrushTipPicker::tr("Keep Open"), this);
     keep_open->setObjectName(QStringLiteral("brushTipPickerKeepOpenButton"));
-    keep_open->setText(BrushTipPicker::tr("Keep Open"));
+    keep_open->setAutoDefault(false);
     keep_open->setToolTip(BrushTipPicker::tr("Open the brush tips in a window that stays open while you paint"));
-    connect(keep_open, &QToolButton::clicked, this, &BrushTipBrowser::keep_open_requested);
+    connect(keep_open, &QPushButton::clicked, this, &BrushTipBrowser::keep_open_requested);
     top_row->addWidget(keep_open);
   }
   layout->addLayout(top_row);

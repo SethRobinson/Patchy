@@ -14668,16 +14668,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Нет активного отпечатка кисти.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Настройки кисти</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>Оставить открытым</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>Открыть настройки кисти в окне, которое остаётся открытым во время рисования</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Динамика и эффекты кисти</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>Открыть динамику и эффекты кисти в окне, которое остаётся открытым во время рисования</translation>
     </message>
 </context>
 <context>
@@ -28116,10 +28116,6 @@ The open document keeps its blend modes either way.</source>
         <translation>%1 будет заменён на %2.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Настройки кисти</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>На &amp;передний план</translation>
     </message>
@@ -28513,16 +28509,20 @@ Locked: %1</source>
         <translation>У активного инструмента нет отпечатка кисти.</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>Откройте документ, чтобы изменить настройки кисти.</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Динамика и эффекты кисти</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>Настройки кисти можно будет снова менять после закрытия открытого диалога.</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>Откройте документ, чтобы изменить динамику и эффекты кисти.</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>Настройки кисти относятся к инструменту «Кисть».</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>Динамику и эффекты кисти можно будет снова менять после закрытия открытого диалога.</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>Динамика и эффекты кисти относятся к инструменту «Кисть».</translation>
     </message>
 </context>
 <context>

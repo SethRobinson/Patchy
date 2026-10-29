@@ -14582,16 +14582,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>활성 브러시 팁이 없습니다.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>브러시 설정</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>열어 두기</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>그리는 동안 열려 있는 창에서 브러시 설정을 엽니다</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>브러시 동적 설정 및 효과</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>그리는 동안 열려 있는 창에서 브러시 동적 설정 및 효과를 엽니다</translation>
     </message>
 </context>
 <context>
@@ -27952,10 +27952,6 @@ The open document keeps its blend modes either way.</source>
         <translation>%1 글꼴이 %2(으)로 대체됩니다.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>브러시 설정</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>맨 앞으로 가져오기(&amp;F)</translation>
     </message>
@@ -28349,16 +28345,20 @@ Locked: %1</source>
         <translation>활성 도구에 브러시 팁이 없습니다.</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>브러시 설정을 바꾸려면 문서를 여세요.</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>브러시 동적 설정 및 효과</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>열려 있는 대화 상자가 닫히면 브러시 설정을 다시 바꿀 수 있습니다.</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>브러시 동적 설정 및 효과를 바꾸려면 문서를 여세요.</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>브러시 설정은 브러시 도구에 적용됩니다.</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>열려 있는 대화 상자가 닫히면 브러시 동적 설정 및 효과를 다시 바꿀 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>브러시 동적 설정 및 효과는 브러시 도구에 적용됩니다.</translation>
     </message>
 </context>
 <context>

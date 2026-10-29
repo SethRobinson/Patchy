@@ -746,7 +746,7 @@ void MainWindow::install_window_panel_entries() {
   };
   // The panels' own title sources, so each entry shares its panel's translation. F6, F7 and
   // F8 are Photoshop's panel keys (GitHub issue 469); F5, its Brush Settings key, stays View >
-  // Force Refresh, so Window > Brush Settings ships unbound.
+  // Force Refresh, so Window > Brush Dynamics and Effects ships unbound.
   static constexpr PanelEntry kPanels[] = {
       {"layersDock", "windowPanelLayersAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layers"),
        "window.panel_layers", Qt::Key_F7},
@@ -786,11 +786,12 @@ void MainWindow::install_window_panel_entries() {
     });
     window_panel_actions_.push_back(action);
   }
-  // Brush Settings is the Brush tool's Dynamics popup on the options bar, opened the same way.
+  // Brush Dynamics and Effects is the Brush tool's Dynamics panel as a floating window (its id
+  // and object name keep the old "brush settings" wording: persisted identifiers).
   window_brush_settings_action_ = new QAction(window_menu);
   window_brush_settings_action_->setObjectName(QStringLiteral("windowBrushSettingsAction"));
   window_brush_settings_action_->setMenuRole(QAction::NoRole);
-  bind_action_text(window_brush_settings_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush Settings"));
+  bind_action_text(window_brush_settings_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush Dynamics and Effects"));
   register_hotkey(window_brush_settings_action_, "window.brush_settings", QKeySequence());
   register_document_action(window_brush_settings_action_);
   connect(window_brush_settings_action_, &QAction::triggered, this,
