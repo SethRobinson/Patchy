@@ -366,6 +366,24 @@ void ui_animation_preview_ignores_name_delays_and_plays_hidden_layers() {
       QApplication::processEvents();
     }
   }
+  // Each group's buttons sit further below the checkbox above them than the checkboxes sit
+  // from each other (GitHub issue 198 follow-up: Set Time crowded Apply to all layers).
+  {
+    auto* all_layers = panel->findChild<QCheckBox*>(QStringLiteral("animationFrameTimeAllLayersCheck"));
+    auto* set_time = panel->findChild<QPushButton*>(QStringLiteral("animationSetFrameTimeButton"));
+    CHECK(all_layers != nullptr && set_time != nullptr);
+    if (all_layers != nullptr && set_time != nullptr) {
+      const auto top = [panel](const QWidget* widget) { return widget->mapTo(panel, QPoint(0, 0)).y(); };
+      const auto bottom = [panel](const QWidget* widget) {
+        return widget->mapTo(panel, QPoint(0, widget->height())).y();
+      };
+      const int option_gap = top(hidden_check) - bottom(ignore_check);
+      std::printf("  [button gaps] options %d, Play %d, Set Time %d\n", option_gap,
+                  top(play_button) - bottom(hidden_check), top(set_time) - bottom(all_layers));
+      CHECK(top(play_button) - bottom(hidden_check) >= option_gap + 6);
+      CHECK(top(set_time) - bottom(all_layers) >= option_gap + 6);
+    }
+  }
 
   // No combo boxes are left: each delay is one field with its presets drop-down attached.
   CHECK(panel->findChildren<QComboBox*>().isEmpty());
