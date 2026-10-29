@@ -59,6 +59,9 @@ std::uint64_t document_layer_bytes(const Document& document) {
 StatusDocumentInfoLabel::StatusDocumentInfoLabel(QWidget* parent) : QLabel(parent) {
   setObjectName(QStringLiteral("statusDocumentInfoLabel"));
   setTextFormat(Qt::PlainText);
+  // Centered in the fixed-width field (GitHub issue 502), so a short line sits evenly
+  // between the two separators.
+  setAlignment(Qt::AlignCenter);
   setVisible(false);  // until there is a document to describe
 }
 
