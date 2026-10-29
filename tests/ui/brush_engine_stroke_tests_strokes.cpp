@@ -1177,6 +1177,113 @@ void ui_paint_shift_line_preview_follows_pointer() {
   save_widget_artifact("issue445_shift_line_preview", window);
 }
 
+// GitHub issue 505: at a high zoom the Shift+click preview runs between the pixel centers
+// the stroke paints, not from the anchor pixel's top-left corner.
+void ui_paint_shift_line_preview_starts_at_pixel_center() {
+  patchy::Document document(40, 20, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer(
+      "Paint", solid_pixels(40, 20, patchy::PixelFormat::rgba8(), QColor(128, 128, 128)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(400, 240);
+  canvas.set_document(&document);
+  canvas.set_zoom(8.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  // The widget pixel at a document pixel's center: its corner plus half of 8 px.
+  const auto center_of = [&canvas](QPoint document_point) {
+    return canvas.widget_position_for_document_point(document_point) + QPoint(4, 4);
+  };
+  // Bounds of the preview's light line near a row: the halo is dark, the artwork mid gray. Only the
+  // document area counts (the scroll bars are light too).
+  const auto light_bounds = [&canvas](int row_y) {
+    const auto image = canvas.grab().toImage();
+    const auto left = canvas.widget_position_for_document_point(QPoint(0, 0)).x();
+    const auto right = canvas.widget_position_for_document_point(QPoint(40, 0)).x();
+    QRect bounds;
+    for (int y = row_y - 12; y <= row_y + 12; ++y) {
+      for (int x = left; x < right; ++x) {
+        const auto color = image.pixelColor(x, y);
+        if (std::min({color.red(), color.green(), color.blue()}) >= 200) {
+          bounds = bounds.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    return bounds;
+  };
+  const auto near = [](int value, int expected) { return std::abs(value - expected) <= 1; };
+
+  // The capture for the issue: a 1 px dot at 1600%, then Shift held further along.
+  canvas.set_zoom(16.0);
+  canvas.set_brush_size(1);
+  QApplication::processEvents();
+  const auto dot = canvas.widget_position_for_document_point(QPoint(4, 9)) + QPoint(8, 8);
+  send_mouse(canvas, QEvent::MouseButtonPress, dot, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, dot, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(16, 4)) + QPoint(8, 8),
+             Qt::NoButton, Qt::NoButton, Qt::ShiftModifier);
+  send_key_press(canvas, Qt::Key_Shift);
+  QApplication::processEvents();
+  save_image_artifact("issue505_shift_line_preview_1600", canvas.grab().toImage());
+  send_key_release(canvas, Qt::Key_Shift, Qt::ShiftModifier);
+  canvas.set_zoom(8.0);
+  QApplication::processEvents();
+
+  for (const auto brush_size : {1, 3}) {
+    canvas.set_brush_size(brush_size);
+    QApplication::processEvents();
+    const auto row = brush_size == 1 ? 5 : 12;
+    const auto start = center_of(QPoint(5, row));
+    const auto end = center_of(QPoint(30, row));
+    send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::NoButton, Qt::ShiftModifier);
+    send_key_press(canvas, Qt::Key_Shift);
+    QApplication::processEvents();
+    save_image_artifact("issue505_shift_line_preview_size" + std::to_string(brush_size), canvas.grab().toImage());
+    const auto line = light_bounds(start.y());
+    CHECK(!line.isEmpty());
+    if (brush_size == 1) {
+      // A 1 px stroke paints from pixel to pixel: the line spans the two pixel centers.
+      CHECK(near(line.left(), start.x()));
+      CHECK(near(line.right(), end.x()));
+      CHECK(near(line.center().y(), start.y()));
+      CHECK(line.height() <= 2);
+    }
+    const auto preview_y = line.center().y();
+
+    // The Shift+click paints the previewed line: its rows sit centered on the preview.
+    send_mouse(canvas, QEvent::MouseButtonPress, end, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+    send_key_release(canvas, Qt::Key_Shift, Qt::ShiftModifier);
+    QApplication::processEvents();
+    const auto* painted = document.find_layer(layer_id);
+    int top = -1;
+    int bottom = -1;
+    for (int y = row - 3; y <= row + 3; ++y) {
+      if (painted->pixels().pixel(18, y)[0] <= 10U) {
+        top = top < 0 ? y : top;
+        bottom = y;
+      }
+    }
+    CHECK(top >= 0);
+    if (brush_size == 1) {
+      CHECK(top == row && bottom == row);
+    }
+    // Painted rows top..bottom cover widget rows from top's corner to bottom + 1's corner.
+    const auto painted_center_y = (canvas.widget_position_for_document_point(QPoint(18, top)).y() +
+                                   canvas.widget_position_for_document_point(QPoint(18, bottom + 1)).y()) /
+                                  2;
+    CHECK(near(preview_y, painted_center_y));
+  }
+}
+
 void ui_brush_opacity_and_flow_digit_keys_set_values() {
   patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
@@ -4162,6 +4269,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_brush_alt_right_drag_syncs_options_bar_spins},
       {"ui_brush_shift_click_connects_strokes", ui_brush_shift_click_connects_strokes},
       {"ui_paint_shift_line_preview_follows_pointer", ui_paint_shift_line_preview_follows_pointer},
+      {"ui_paint_shift_line_preview_starts_at_pixel_center",
+       ui_paint_shift_line_preview_starts_at_pixel_center},
       {"ui_brush_opacity_and_flow_digit_keys_set_values",
        ui_brush_opacity_and_flow_digit_keys_set_values},
       {"ui_undo_shortcut_includes_ctrl_alt_z", ui_undo_shortcut_includes_ctrl_alt_z},
