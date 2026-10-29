@@ -14444,10 +14444,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Incluye las capas ocultas de nivel superior como fotogramas. Solo vista previa: la exportación sigue usando las capas visibles.</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>Tiempo de fotograma en los nombres de capa</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>El tiempo que Definir tiempo escribe al final de los nombres de capa.</translation>
     </message>
@@ -14484,8 +14480,20 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Duración de fotograma predeterminada:</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Cuánto se muestra cada fotograma cuando el nombre de su capa no tiene tiempo. Escriba un valor en segundos o elija uno de la lista. La exportación de GIF, WebP y PNG animados usa el mismo valor predeterminado.</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Cuánto se muestra cada fotograma cuando el nombre de su capa no tiene tiempo. Escriba un valor en segundos, use los botones - y + o elija uno de la lista. La exportación de GIF, WebP y PNG animados usa el mismo valor predeterminado.</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>Valores predefinidos de duración de fotograma</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>Nombres de capa</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Duración de fotograma:</translation>
     </message>
 </context>
 <context>
