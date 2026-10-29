@@ -11,8 +11,8 @@ origin it is drawn at) rather than letting QTextDocument place the lines, becaus
 leading model moves baselines off Qt's natural spacing. `text_layout.hpp` owns that plan and is
 the single geometric authority: `photoshop_text_layout_plan` / `boxed_text_render_plan` produce
 it, and `TextLineGeometry` reads the same plan back for caret rects, selection rects and
-hit-testing. Build it with the same `boxed` / `photoshop_layout` flags the render pass got and its
-answers are guaranteed to agree with the drawn glyphs.
+hit-testing. Built with the render pass's `boxed` / `photoshop_layout` flags, its answers agree with the
+drawn glyphs.
 
 Caret and selection geometry MUST go through `TextLineGeometry`, never Qt's natural
 `blockBoundingRect` origins: those drift roughly (leading - Qt line spacing) px per line on a
@@ -37,6 +37,11 @@ pixel-aligned glyph drawer) measures against AnyStretch; measuring against 100 s
 unstretched condensed line a third wider than the caret layout
 (`ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available`,
 `ui_psd_text_tracking_click_lands_on_glyphs`).
+
+A paragraph separator (no fragment) is the NEXT block's `charFormat()`, a blank paragraph's
+only format: copying, rescaling, substituting or serializing char formats must cover
+separators, or committed blank lines lose their size and leading
+(`ui_text_blank_lines_keep_fixed_leading`, `ui_duke_psd_text_runs_survive_reedit`).
 
 Mouse hit-testing goes through the same plan, never `QTextEdit::cursorForPosition`.
 `MainWindow::handle_text_editor_viewport_mouse_event` intercepts left press/drag/double-click for
@@ -138,7 +143,7 @@ the session mid-call (`configure()` runs on every cursor move). Real-click tests
 
 - The options bar shows session apply/cancel buttons (`textApplyButton`/`textCancelButton`) while an editor is open; they must keep `Qt::NoFocus`, or the focus-loss auto-commit fires on mouse press and Cancel commits instead of canceling.
 - The font combo is a `FontPickerCombo` (src/ui/font_picker.*: a searchable list + writing-system preview); its popup objectName `textFontPickerPopup` must stay matched by `is_text_option_widget` (a Qt::Popup is a window, so isAncestorOf misses it and focusing its search box auto-commits).
-- **A popup pick must apply even when its row is already current.** A family the database lacks has no row, so a control set to one parks on another family while `currentFont()` names the missing one; the commit sets the index, then pushes the family through `setCurrentFont` when `currentFont().families().value(0)` still disagrees.
+- **A popup pick must apply even when its row is already current.** A family the database lacks has no row, so the control parks on another row while `currentFont()` names the missing one; the commit sets the index, then calls `setCurrentFont` while `currentFont().families().value(0)` still disagrees.
 - New UI that must coexist with an open text session needs the same `is_text_option_widget` exemption (`textCharacterDialog`, `textParagraphDialog` and their buttons have it).
 - **The keyboard returns to the session** (issue 175), so the next key replaces a selected "Type" placeholder: color, alignment and Warp buttons are `Qt::NoFocus`; a combo pick (`activated`, emitted by the font popup too), Enter in the size field, closing its slider popup or the text color panel, and Enter, checkbox or combo edits in the Character/Paragraph panels call `return_keyboard_to_text_editor`. Warp Text commits for its dialog, then reopens the session with its selection (`ui_text_placeholder_survives_*`).
 - The inline editor claims Bold, Italic and printable Ctrl+Alt (AltGr) text in `ShortcutOverride` before app hotkeys (Ctrl+B Color Balance, Ctrl+I Invert, Ctrl+Alt+E) take them; Bold and Italic route to `toggle_text_bold_face` / `toggle_text_italic_face`.
@@ -169,14 +174,14 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   text layers only) and commits them as ONE "Type" step: the first commit that reaches a push
   site takes the snapshot and `text_commit_snapshot_suppressed_` skips the rest. A layer whose
   edit lambda returns false (faux bold on warped text) is canceled alone and its status error is
-  re-shown after the loop. The panel selection is re-selected afterward (every commit rebuilds
+  re-shown after the loop. The panel selection is re-selected after (commits rebuild
   the rows); alignment selects the whole object first, like the direction combo.
 - **Re-entrancy.** The hidden sessions rewrite the bar from each layer they open, so
   `applying_text_options_to_layers_` makes every slot return during a pass, and add_text_at's
   size-spin write is signal-blocked like the family combo. The size spin has keyboard tracking
-  OFF (Enter, focus loss or a step applies, never each keystroke). The text color panel is
+  OFF (Enter, focus loss or a step applies). The text color panel is
   live, so its layer apply is debounced (`apply_text_color_to_selected_layers_debounced`). A
-  Palette swatch click takes the same apply (Type tool or open panel; see
+  Palette swatch click takes the same apply (Type tool or open panel;
   [palette-mode.md](palette-mode.md)).
 - **Color picks during a session** (issue 371, `tests/ui/text_color_targets_tests.cpp`). The Text
   Color window (button OK, still live) finds the session open at each pick, so another word or
@@ -190,10 +195,9 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   `refresh_options_bar` and `refresh_layer_controls`, keyed so an unchanged layer costs nothing;
   the alignment buttons read the first paragraph run). A mixed selection shows the active
   layer's values, the color button keeps the primary color, and a pixel layer leaves the bar
-  alone (it seeds the next new layer). Sizes travel through the session's zoomed editor, so a
-  size typed at a very low zoom can round; the bar shows what landed. Sizes are whole document pixels: the bar shows the fewest-decimal points naming them (`text_pixels_to_points`: 67 px at 96 ppi shows 50, not 50.25) and keeps a typed value that names the same pixels (`text_points_for_display`; issue 371, `ui_text_size_*`).
-- Tests: `ui_text_options_bar_size_applies_to_selected_layers_without_session`,
-  `ui_text_options_bar_family_and_style_apply_to_selected_layers_without_session`,
+  alone (it seeds the next new layer). Sizes travel through the zoomed editor, so a size typed at
+  a very low zoom can round; the bar shows what landed. Sizes are whole document pixels: the bar shows the fewest-decimal points naming them (`text_pixels_to_points`: 67 px at 96 ppi shows 50, not 50.25) and keeps a typed value that names the same pixels (`text_points_for_display`; issue 371, `ui_text_size_*`).
+- Tests: `ui_text_options_bar_*_to_selected_layers_without_session`,
   `ui_text_options_bar_follows_active_text_layer`,
   `ui_text_character_panel_edits_all_selected_layers_without_session`.
 
@@ -212,17 +216,17 @@ tightly). Test: `ui_script_text_auto_leading_ignores_spacer_paragraphs`.
 
 ## Character panel
 
-- Options bar > Character... (Text tool); the style row first (Faux Bold, Faux Italic, [text-character-styles.md](text-character-styles.md)), leading with Auto leading below, tracking, H/V scales, Rotate Latin. The leading field is never locked: a typed value turns Auto leading off. Number fields apply on Enter, focus loss or +/-. During inline editing it applies to the text selection, or the whole object with a bare caret. Otherwise it applies to every selected unlocked text layer (see the no-session section above), warped text included, and remains usable after switching tools.
-- **Faux bold is refused on warped layers** (Photoshop parity, [warp.md](warp.md)): the Faux Bold button shows a status error and reverts when ENABLING on a session whose layer carries an active Warp Text; unchecking stays allowed so imported faux+warp files can be fixed. Ctrl+B's faux fallback refuses the same way; a family with a real Bold face keeps toggling. Faux italic is unrestricted.
-- Without an inline session, the panel reads the first character's format from the active layer's stored runs (transform vertical scale and document resolution applied to displayed leading). A change opens a hidden session per target layer (`add_text_at(..., show_editor=false)`) and commits through the normal Type undo/render path, without preview or focus; mixed run sizes and colors survive. Opening the panel alone mutates nothing. The scripting `text` setter rides the same session ([scripting.md](scripting.md)).
+- Options bar > Character... (Text tool); the style row first (Faux Bold, Faux Italic, [text-character-styles.md](text-character-styles.md)), leading with Auto leading below, tracking, H/V scales, Rotate Latin. The leading field is never locked: a typed value turns Auto leading off. Number fields apply on Enter, focus loss or +/-. Inline, it applies to the selection (a bare caret: the whole object); otherwise to every selected unlocked text layer (no-session section above), warped text included, and stays usable after switching tools.
+- **Faux bold is refused on warped layers** (Photoshop parity, [warp.md](warp.md)): enabling Faux Bold on a session whose layer has an active Warp Text shows a status error and reverts; unchecking stays allowed so imported faux+warp files can be fixed. Ctrl+B's faux fallback refuses the same way; a family with a real Bold face keeps toggling. Faux italic is unrestricted.
+- Without an inline session, the panel reads the first character's format from the active layer's stored runs (transform vertical scale and document resolution applied to displayed leading). A change opens a hidden session per target layer (`add_text_at(..., show_editor=false)`) and commits through the normal Type undo/render path, without preview or focus; mixed run sizes and colors survive. Opening the panel mutates nothing. The scripting `text` setter rides the same session ([scripting.md](scripting.md)).
 - Controls disable with neither a live session nor an editable text layer (pixel locks, transform sessions); `refresh_options_bar` and `refresh_layer_controls` resync the panel on session, selection, lock and history changes. Tests: `ui_text_character_panel_tracks_session_and_layer`, `ui_text_character_panel_edits_selected_layer_without_session`.
 - Double-clicking a T thumbnail opens the layer with all text selected (Type tool, zoom and pan kept); the deferred callback re-checks the session since entry may rebuild the rows (`ui_text_thumbnail_double_click_selects_all_without_zoom`).
 - Fixed leading opts the layer into the Photoshop layout marker at commit (Qt-natural layout ignores it).
 
 ## Paragraph panel
 
-- Options bar > Paragraph... (Text tool); edits alignment (Left, Center, Right, Justify with the last line left, the only justify variant the paragraph runs model) plus Photoshop's five metrics: first line indent, left indent, right indent, space before, space after. The fields show points at the document's text PPI and store document pixels, as `patchy.text.paragraph_runs` (v2 columns 4 to 8) and the TySh EngineData carry them. A negative first line indent with a positive left indent is a hanging indent (`/Hanging true` in the EngineData).
-- Same session model as the Character panel: during inline editing a change merges into the block formats of the paragraphs the selection touches (a bare caret edits its own paragraph); with no session it applies to every paragraph of every selected unlocked text layer through the hidden-session path, one Type undo step. Block margins live in editor pixels (document px times the canvas zoom, divided by a PSD-frame session's display scale, the same conversion leading uses).
+- Options bar > Paragraph... (Text tool); edits alignment (Left, Center, Right, Justify last-left, the only justify variant modeled) plus Photoshop's five metrics (first line, left and right indent, space before and after). The fields show points at the document's text PPI and store document pixels, as `patchy.text.paragraph_runs` (v2 columns 4 to 8) and the TySh EngineData carry them. A negative first line indent with a positive left indent is a hanging indent (`/Hanging true` in the EngineData).
+- Same session model as the Character panel: inline, a change merges into the block formats of the paragraphs the selection touches (a bare caret: its own paragraph); with no session, into every paragraph of every selected unlocked text layer through the hidden-session path, one Type undo step. Block margins live in editor pixels (document px times the canvas zoom, divided by a PSD-frame session's display scale, the same conversion leading uses).
 - The panel reads the caret's paragraph in a session, else the active layer's first paragraph (1:1 render document); `sync_text_character_dialog_from_editor` and the alignment sync refresh it.
 - Scripting: `layer.textParagraph` (read the first paragraph, set merges into every paragraph) and the `paragraph` option of `addTextLayer`, document pixels ([scripting.md](scripting.md)). Tests: `ui_text_paragraph_panel_sets_indents_and_spacing`, `ui_script_text_paragraph_reads_and_sets_metrics`.
 - Lists (bullets, numbering) are not modeled: Photoshop stores them only in its Txt2 block, and Patchy's Txt2 writer authors no list style ([txt2.md](txt2.md), "Lists"). Scripted posters type a bullet character into the line instead.

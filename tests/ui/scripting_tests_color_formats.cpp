@@ -394,6 +394,63 @@ void ui_text_baseline_shift_moves_individual_runs() {
   if (resized_layer) CHECK(baseline_difference(*resized_layer) == 16);
 }
 
+// Blank paragraphs take the fixed leading of the run that covers them, as Photoshop draws them:
+// "HH", four line breaks, "HH" at 18 px with 19 px leading puts the second line 4 x 19 px below
+// the first. The editor commit behind rerenderText copied and rescaled char formats fragment by
+// fragment, so blank paragraphs (no fragment, only their separator's format) fell back to the
+// layer's default size and auto leading: a PSD spacing its labels with blank lines at 18/19 drew
+// them 81 px apart instead of Photoshop's 76.
+void ui_text_blank_lines_keep_fixed_leading() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  QString family;
+  for (const auto* candidate : {"Arial", "Liberation Sans", "DejaVu Sans"}) {
+    if (QFontDatabase::hasFamily(QString::fromLatin1(candidate))) {
+      family = QString::fromLatin1(candidate);
+      break;
+    }
+  }
+  if (family.isEmpty()) {
+    patchy::test::skip("no Arial-class family installed");
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    app.activeDocument.addTextLayer('HH\n\n\n\nHH', {font: '%1', size: 18, x: 30, y: 40, color: '#000000'});
+  )JS").arg(family)));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto id = document.active_layer_id();
+  CHECK(id.has_value());
+  if (!id) return;
+  auto* layer = document.find_layer(*id);
+  layer->metadata()[patchy::kLayerMetadataTextLayoutMode] = patchy::kTextLayoutModePhotoshop;
+  layer->metadata()[patchy::kLayerMetadataTextRuns] =
+      QStringLiteral("v3\n0\t8\t18\t0\t0\t#000000\t%1\t19\t0\t1\t1").arg(family).toStdString();
+  const auto line_pitch = [&document, &id] {
+    const auto& pixels = std::as_const(document).find_layer(*id)->pixels();
+    std::vector<int> band_bottoms;
+    bool inked_above = false;
+    for (int y = 0; y < pixels.height(); ++y) {
+      bool inked = false;
+      for (int x = 0; x < pixels.width() && !inked; ++x) {
+        inked = pixels.pixel(x, y)[3] > 128;
+      }
+      if (!inked && inked_above) band_bottoms.push_back(y - 1);
+      inked_above = inked;
+    }
+    if (inked_above) band_bottoms.push_back(pixels.height() - 1);
+    CHECK(band_bottoms.size() == 2);
+    return band_bottoms.size() == 2 ? band_bottoms[1] - band_bottoms[0] : 0;
+  };
+  // The editor works at the canvas zoom and commits in document units, so a zoom other than 1
+  // takes the rescale path too. The second pass re-renders from the runs the first one stored.
+  require_canvas(window)->set_zoom(2.0);
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.activeLayer.rerenderText();")));
+  CHECK(line_pitch() == 4 * 19);
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.activeLayer.rerenderText();")));
+  CHECK(line_pitch() == 4 * 19);
+}
+
 // setTextRuns retypes an existing layer with formatted runs on top of the first character's
 // formatting (the family and size survive, the runs' own bold and color apply), and a plain
 // `text` assignment afterwards keeps the first run's formatting as before.
@@ -2696,6 +2753,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_script_text_runs_create_and_read_back", ui_script_text_runs_create_and_read_back},
       {"ui_script_text_box_wraps_and_aligns", ui_script_text_box_wraps_and_aligns},
       {"ui_text_baseline_shift_moves_individual_runs", ui_text_baseline_shift_moves_individual_runs},
+      {"ui_text_blank_lines_keep_fixed_leading", ui_text_blank_lines_keep_fixed_leading},
       {"ui_script_set_text_runs_edits_existing_layer", ui_script_set_text_runs_edits_existing_layer},
       {"ui_script_rerender_text_replaces_stored_pixels", ui_script_rerender_text_replaces_stored_pixels},
       {"ui_script_text_paragraph_reads_and_sets_metrics", ui_script_text_paragraph_reads_and_sets_metrics},

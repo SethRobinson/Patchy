@@ -275,6 +275,72 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
   };
   std::vector<FormatRange> ranges;
   std::vector<BlockFormatRange> block_ranges;
+  const auto scale_char_format = [scale](QTextCharFormat& format) {
+    auto format_font = format.font();
+    const auto before_pixel_size = format_font.pixelSize();
+    const auto before_point_size = format_font.pointSizeF();
+    const auto before_shift = format.property(kTextBaselineShiftFormatProperty).toDouble();
+    const auto before_leading = format.hasProperty(kTextLeadingFormatProperty)
+                                    ? format.property(kTextLeadingFormatProperty).toDouble()
+                                    : 0.0;
+    // The exact (fractional) size scales alongside the int pixel size so Photoshop-layout
+    // math stays sub-pixel across editor zoom changes and editor->document conversion.
+    const auto before_exact_size = format.hasProperty(kTextExactSizeFormatProperty)
+                                       ? format.property(kTextExactSizeFormatProperty).toDouble()
+                                       : 0.0;
+    scale_font_size(format_font, scale);
+    bool changed = format_font.pixelSize() != before_pixel_size ||
+                   std::abs(format_font.pointSizeF() - before_point_size) >= 0.0001;
+    if (format.hasProperty(kTextBaselineShiftFormatProperty) && std::isfinite(before_shift)) {
+      const auto scaled_shift = before_shift * scale;
+      format.setProperty(kTextBaselineShiftFormatProperty, scaled_shift);
+      changed = changed || std::abs(scaled_shift - before_shift) >= 0.0001;
+    }
+    if (format.hasProperty(kTextLeadingFormatProperty) && std::isfinite(before_leading) && before_leading > 0.0) {
+      const auto scaled_leading = before_leading * scale;
+      format.setProperty(kTextLeadingFormatProperty, scaled_leading);
+      changed = changed || std::abs(scaled_leading - before_leading) >= 0.0001;
+    }
+    if (std::isfinite(before_exact_size) && before_exact_size > 0.0) {
+      const auto scaled_exact = before_exact_size * scale;
+      format.setProperty(kTextExactSizeFormatProperty, scaled_exact);
+      // Re-derive the int pixel size from the exact value so repeated zoom round trips
+      // do not accumulate integer-rounding drift. The exact size is the FontSize basis;
+      // the glyph pixel size folds the character panel's vertical scale back in.
+      if (format_font.pixelSize() > 0) {
+        auto vertical_glyph_scale = 1.0;
+        if (format.hasProperty(kTextVerticalScaleFormatProperty)) {
+          const auto value = format.property(kTextVerticalScaleFormatProperty).toDouble();
+          if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+            vertical_glyph_scale = value;
+          }
+        }
+        format_font.setPixelSize(std::max(1, static_cast<int>(std::lround(scaled_exact * vertical_glyph_scale))));
+      }
+      changed = true;
+    }
+    if (format.hasProperty(kTextTrackingFormatProperty) && format_font.letterSpacingType() == QFont::AbsoluteSpacing) {
+      const auto tracking = format.property(kTextTrackingFormatProperty).toDouble();
+      if (std::isfinite(tracking) && std::abs(tracking) > 0.0001) {
+        const auto exact = std::isfinite(before_exact_size) && before_exact_size > 0.0
+                               ? before_exact_size * scale
+                               : static_cast<double>(format_font.pixelSize());
+        auto horizontal_glyph_scale = 1.0;
+        if (format.hasProperty(kTextHorizontalScaleFormatProperty)) {
+          const auto value = format.property(kTextHorizontalScaleFormatProperty).toDouble();
+          if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+            horizontal_glyph_scale = value;
+          }
+        }
+        format_font.setLetterSpacing(QFont::AbsoluteSpacing, tracking / 1000.0 * exact * horizontal_glyph_scale);
+        changed = true;
+      }
+    }
+    if (changed) {
+      format.setFont(format_font);
+    }
+    return changed;
+  };
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
     auto block_format = block.blockFormat();
     auto scaled_block_format = block_format;
@@ -298,73 +364,17 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
       }
 
       auto format = fragment.charFormat();
-      auto format_font = format.font();
-      const auto before_pixel_size = format_font.pixelSize();
-      const auto before_point_size = format_font.pointSizeF();
-      const auto before_shift = format.property(kTextBaselineShiftFormatProperty).toDouble();
-      const auto before_leading = format.hasProperty(kTextLeadingFormatProperty)
-                                      ? format.property(kTextLeadingFormatProperty).toDouble()
-                                      : 0.0;
-      // The exact (fractional) size scales alongside the int pixel size so Photoshop-layout
-      // math stays sub-pixel across editor zoom changes and editor->document conversion.
-      const auto before_exact_size = format.hasProperty(kTextExactSizeFormatProperty)
-                                         ? format.property(kTextExactSizeFormatProperty).toDouble()
-                                         : 0.0;
-      scale_font_size(format_font, scale);
-      bool changed = format_font.pixelSize() != before_pixel_size ||
-                     std::abs(format_font.pointSizeF() - before_point_size) >= 0.0001;
-      if (format.hasProperty(kTextBaselineShiftFormatProperty) && std::isfinite(before_shift)) {
-        const auto scaled_shift = before_shift * scale;
-        format.setProperty(kTextBaselineShiftFormatProperty, scaled_shift);
-        changed = changed || std::abs(scaled_shift - before_shift) >= 0.0001;
+      if (scale_char_format(format)) {
+        ranges.push_back(FormatRange{fragment.position(), fragment.length(), format});
       }
-      if (format.hasProperty(kTextLeadingFormatProperty) && std::isfinite(before_leading) && before_leading > 0.0) {
-        const auto scaled_leading = before_leading * scale;
-        format.setProperty(kTextLeadingFormatProperty, scaled_leading);
-        changed = changed || std::abs(scaled_leading - before_leading) >= 0.0001;
+    }
+    // The paragraph separator too: it is the next block's char format, the only format a blank
+    // paragraph has, and its size and leading set that blank line's height.
+    if (const auto next = block.next(); next.isValid()) {
+      auto format = next.charFormat();
+      if (scale_char_format(format)) {
+        ranges.push_back(FormatRange{block.position() + block.length() - 1, 1, format});
       }
-      if (std::isfinite(before_exact_size) && before_exact_size > 0.0) {
-        const auto scaled_exact = before_exact_size * scale;
-        format.setProperty(kTextExactSizeFormatProperty, scaled_exact);
-        // Re-derive the int pixel size from the exact value so repeated zoom round trips
-        // do not accumulate integer-rounding drift. The exact size is the FontSize basis;
-        // the glyph pixel size folds the character panel's vertical scale back in.
-        if (format_font.pixelSize() > 0) {
-          auto vertical_glyph_scale = 1.0;
-          if (format.hasProperty(kTextVerticalScaleFormatProperty)) {
-            const auto value = format.property(kTextVerticalScaleFormatProperty).toDouble();
-            if (std::isfinite(value) && value > 0.01 && value < 100.0) {
-              vertical_glyph_scale = value;
-            }
-          }
-          format_font.setPixelSize(
-              std::max(1, static_cast<int>(std::lround(scaled_exact * vertical_glyph_scale))));
-        }
-        changed = true;
-      }
-      if (format.hasProperty(kTextTrackingFormatProperty) && format_font.letterSpacingType() == QFont::AbsoluteSpacing) {
-        const auto tracking = format.property(kTextTrackingFormatProperty).toDouble();
-        if (std::isfinite(tracking) && std::abs(tracking) > 0.0001) {
-          const auto exact = std::isfinite(before_exact_size) && before_exact_size > 0.0
-                                 ? before_exact_size * scale
-                                 : static_cast<double>(format_font.pixelSize());
-          auto horizontal_glyph_scale = 1.0;
-          if (format.hasProperty(kTextHorizontalScaleFormatProperty)) {
-            const auto value = format.property(kTextHorizontalScaleFormatProperty).toDouble();
-            if (std::isfinite(value) && value > 0.01 && value < 100.0) {
-              horizontal_glyph_scale = value;
-            }
-          }
-          format_font.setLetterSpacing(QFont::AbsoluteSpacing,
-                                       tracking / 1000.0 * exact * horizontal_glyph_scale);
-          changed = true;
-        }
-      }
-      if (!changed) {
-        continue;
-      }
-      format.setFont(format_font);
-      ranges.push_back(FormatRange{fragment.position(), fragment.length(), format});
     }
   }
 
@@ -464,6 +474,18 @@ std::unique_ptr<QTextDocument> copy_text_document_formats(const QTextDocument& s
       cursor.setPosition(start);
       cursor.setPosition(end, QTextCursor::KeepAnchor);
       cursor.mergeCharFormat(fragment.charFormat());
+    }
+    // The paragraph separator's format is the next block's char format: a blank paragraph has no
+    // fragment, so this is where its size and leading live (dropping it gave blank lines between
+    // fixed-leading lines auto leading instead).
+    if (const auto next = block.next(); next.isValid()) {
+      const auto separator = block.position() + block.length() - 1;
+      if (separator >= 0 && separator < plain_length) {
+        QTextCursor cursor(document.get());
+        cursor.setPosition(separator);
+        cursor.setPosition(separator + 1, QTextCursor::KeepAnchor);
+        cursor.mergeCharFormat(next.charFormat());
+      }
     }
   }
   return document;
@@ -627,12 +649,14 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       last_format = fragment.charFormat();
       append_run(fragment.position(), fragment.length(), fragment.charFormat());
     }
-    if (block.next().isValid()) {
+    if (const auto next = block.next(); next.isValid()) {
       const auto separator_position = block.position() + block.length() - 1;
       if (separator_position >= 0 && separator_position < plain_length) {
+        // A blank paragraph's run is its own separator, whose format Qt reports as the NEXT
+        // block's char format (block.charFormat() is the separator before it, one line up).
         const auto separator_format = block_has_fragment ? last_format
-                                                         : (block.charFormat().isValid() ? block.charFormat()
-                                                                                         : last_format);
+                                                         : (next.charFormat().isValid() ? next.charFormat()
+                                                                                        : last_format);
         found_run = true;
         append_run(separator_position, 1, separator_format);
         last_format = separator_format;
@@ -1079,9 +1103,9 @@ void resolve_document_font_styles(QTextDocument& document) {
 
 // Move every run whose family cannot draw its own characters onto the face that is actually
 // drawing it (see substituted_text_family), so the runs the commit serializes name the font the
-// user is looking at. Blank paragraphs carry their family in the BLOCK char format, which holds no
-// fragment: rich_text_runs_from_document still emits a separator run from it, so a missed one
-// leaves the whole layer flagged. Patch-then-apply like resolve_document_font_styles -- mutating
+// user is looking at. Paragraph separators hold no fragment (each is the next block's char format)
+// and blank paragraphs exist only as their block char format: rich_text_runs_from_document still
+// emits runs from them, so a missed one leaves the whole layer flagged. Patch-then-apply like resolve_document_font_styles -- mutating
 // while iterating invalidates the fragment iterators.
 void substitute_missing_document_font_families(QTextDocument& document, const TextFontReplacements* replacements) {
   struct FamilyPatch {
@@ -1122,6 +1146,13 @@ void substitute_missing_document_font_families(QTextDocument& document, const Te
       const auto substitute = substitute_for(family, fragment.text());
       if (!substitute.isEmpty()) {
         patches.push_back(FamilyPatch{fragment.position(), fragment.length(), false, substitute});
+      }
+    }
+    // The paragraph separator (the next block's char format) is serialized as a run too.
+    if (const auto next = block.next(); next.isValid()) {
+      const auto family = text_display_family_from_format(next.charFormat(), QString());
+      if (const auto substitute = substitute_for(family, QString()); !substitute.isEmpty()) {
+        patches.push_back(FamilyPatch{block.position() + block.length() - 1, 1, false, substitute});
       }
     }
     if (block_has_fragment) {
