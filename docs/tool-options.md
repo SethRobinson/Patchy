@@ -65,6 +65,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Brush, Pattern Stamp | Flow (`brushFlowSpin`) | `brushFlow` | no | yes |
 | Brush | Airbrush (`brushAirbrushCheck`) | `brushAirbrush` | no | yes |
 | Brush, Mixer, Eraser | Smooth and its four options | `brushSmoothing`, `...PulledString`, `...CatchUp`, `...CatchUpEnd`, `...ZoomAdjust` | yes | yes |
+| Brush | Show Overlay and Overlay Opacity (`brushOverlayAction`, `brushOverlayOpacitySpin` in the Smoothing gear) | `brushOverlay`, `brushOverlayOpacity` | new (issue 517) | yes |
 | Brush, Mixer, Pattern Stamp, Eraser | Tip (`BrushTipPicker`) | `brushTip` | no | yes |
 | Brush | Dynamics button | per-tip sidecar; Round/Square session | sidecar | sidecar |
 | Eraser | Size, Opacity, Soft (own set) | `eraserSize` (before), `eraserOpacity`, `eraserSoftness` | size only | yes |

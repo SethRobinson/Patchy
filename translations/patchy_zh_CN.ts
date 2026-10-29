@@ -28356,6 +28356,18 @@ Locked: %1</source>
         <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation>画笔动态和效果适用于画笔工具。</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>显示叠加</translation>
+    </message>
+    <message>
+        <source>Overlay Opacity:</source>
+        <translation>叠加不透明度:</translation>
+    </message>
+    <message>
+        <source>Opacity of the brush overlay</source>
+        <translation>画笔叠加的不透明度</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

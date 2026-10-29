@@ -1628,6 +1628,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       const auto stroke_brush_size = effective_brush_input().size;
       begin_axis_constrained_stroke(stroke_brush_size == 1 ? QPointF(document_point) : document_point_f);
       painting_ = true;
+      invalidate_brush_overlay();  // the stroke shows the paint itself (GitHub issue 517)
       begin_coalesced_mouse_tracking(*this, *event, coalesced_mouse_state_);
       sync_stroke_input_compression();
       last_document_position_ = document_point;
@@ -2597,6 +2598,7 @@ void CanvasWidget::leaveEvent(QEvent* event) {
   hide_stroke_connect_preview();
   hide_eyedropper_sample_outline();
   invalidate_clone_overlay();
+  invalidate_brush_overlay();
   if (brush_hover_position_valid_) {
     const auto stale = brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
     brush_hover_position_valid_ = false;
@@ -2909,6 +2911,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     painting_ = false;
     set_retouch_source_indicator(std::nullopt);
     invalidate_clone_overlay();
+    invalidate_brush_overlay();
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
     clone_source_cache_ = QImage();
@@ -4264,6 +4267,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     } else {
       spacebar_panning_ = true;
       apply_hand_cursor(event->modifiers());
+      invalidate_brush_overlay();  // the hand replaces the dab preview
     }
     event->accept();
     return;

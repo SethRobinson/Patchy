@@ -28438,6 +28438,18 @@ Bloqueado: %1</translation>
         <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation>A dinâmica e os efeitos do pincel valem para a ferramenta Pincel.</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Mostrar sobreposição</translation>
+    </message>
+    <message>
+        <source>Overlay Opacity:</source>
+        <translation>Opacidade da sobreposição:</translation>
+    </message>
+    <message>
+        <source>Opacity of the brush overlay</source>
+        <translation>Opacidade da sobreposição do pincel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

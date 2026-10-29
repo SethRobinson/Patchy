@@ -28357,6 +28357,18 @@ Locked: %1</source>
         <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Overlay Opacity:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity of the brush overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

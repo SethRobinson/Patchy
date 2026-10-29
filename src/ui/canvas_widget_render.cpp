@@ -1157,6 +1157,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
                                 .subtracted(QRegion(0, 0, kLeftRulerWidth, height())));
     }
     draw_stroke_connect_preview(painter);
+    draw_brush_dab_overlay(painter);
     draw_brush_hover_outline(painter);
     draw_eyedropper_sample_outline(painter);
     painter.restore();

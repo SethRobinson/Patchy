@@ -2777,6 +2777,10 @@ private:
   void restore_brush_tool_windows();
   // Applies the shared overlay settings to every canvas and both checkboxes, and saves them.
   void apply_clone_overlay_settings(bool shown, int opacity);
+  // The Brush overlay (GitHub issue 517): applies to every canvas, saves, and syncs the gear.
+  void apply_brush_overlay_settings(bool shown, int opacity);
+  // Shows the overlay entries in the Smoothing gear for the Brush only, with current values.
+  void sync_brush_overlay_menu();
   // The Sample choice for the document info lines ("active layer", ...).
   [[nodiscard]] QString retouch_sample_info_text() const;
   // Derives the crop ratio preset combo's row from the canvas ratio values
@@ -3102,6 +3106,11 @@ private:
   QAction* brush_smoothing_catch_up_action_{nullptr};
   QAction* brush_smoothing_catch_up_end_action_{nullptr};
   QAction* brush_smoothing_zoom_adjust_action_{nullptr};
+  // The Brush overlay entries in the same gear (GitHub issue 517), shown for the Brush only.
+  QAction* brush_overlay_separator_{nullptr};
+  QAction* brush_overlay_action_{nullptr};
+  QAction* brush_overlay_opacity_action_{nullptr};
+  QSpinBox* brush_overlay_opacity_spin_{nullptr};
   QCheckBox* patch_transparent_check_{nullptr};
   QComboBox* pattern_stamp_pattern_combo_{nullptr};
   QCheckBox* pattern_stamp_aligned_check_{nullptr};
@@ -3559,6 +3568,9 @@ private:
   bool current_brush_smoothing_catch_up_{true};
   bool current_brush_smoothing_catch_up_end_{true};
   bool current_brush_smoothing_zoom_adjust_{true};
+  // The Brush overlay, off at 100% by default; tools/brushOverlay and tools/brushOverlayOpacity.
+  bool current_brush_overlay_shown_{false};
+  int current_brush_overlay_opacity_{100};
   // Brush Mode (core/paint_mode.hpp), persisted as tools/brushMode (a script paint
   // mode id) and pushed to every session's canvas.
   patchy::PaintMode current_brush_paint_mode_{};

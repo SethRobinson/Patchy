@@ -3807,6 +3807,175 @@ void ui_brush_smoothing_options_bar_round_trips_settings() {
   CHECK(!gear->isVisible());
 }
 
+// The Brush overlay (GitHub issue 517) lives in the Brush tool's gear: Show Overlay and its
+// opacity, off at 100% with no saved setting, reaching the canvas and persisting. The Mixer
+// Brush and the Eraser share the gear but not the overlay, so their menu hides the entries.
+void ui_brush_overlay_gear_defaults_off_and_persists() {
+  SettingsValueRestorer restore_overlay(QStringLiteral("tools/brushOverlay"));
+  SettingsValueRestorer restore_opacity(QStringLiteral("tools/brushOverlayOpacity"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/brushOverlay"));
+    settings.remove(QStringLiteral("tools/brushOverlayOpacity"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* gear = window.findChild<QToolButton*>(QStringLiteral("brushSmoothingOptionsButton"));
+  auto* overlay = window.findChild<QAction*>(QStringLiteral("brushOverlayAction"));
+  auto* opacity_action = window.findChild<QAction*>(QStringLiteral("brushOverlayOpacityAction"));
+  auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOverlayOpacitySpin"));
+  CHECK(gear != nullptr && gear->menu() != nullptr && overlay != nullptr && opacity_action != nullptr &&
+        opacity != nullptr);
+  if (gear == nullptr || gear->menu() == nullptr || overlay == nullptr || opacity_action == nullptr ||
+      opacity == nullptr) {
+    return;
+  }
+  auto* menu = gear->menu();
+  CHECK(menu->actions().contains(overlay) && menu->actions().contains(opacity_action));
+  CHECK(!canvas->brush_overlay_shown());
+  CHECK(canvas->brush_overlay_opacity() == 100);
+  menu->popup(gear->mapToGlobal(QPoint(0, gear->height())));
+  QApplication::processEvents();
+  CHECK(overlay->isVisible() && opacity_action->isVisible());
+  CHECK(overlay->isCheckable() && !overlay->isChecked());
+  CHECK(opacity->value() == 100);
+  CHECK(!opacity->isEnabled());  // nothing to fade while the overlay is off
+
+  overlay->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->brush_overlay_shown());
+  CHECK(opacity->isEnabled());
+  opacity->setValue(40);
+  CHECK(canvas->brush_overlay_opacity() == 40);
+  save_window_popup_artifact("issue517_brush_overlay_gear", window, *gear, *menu);
+  menu->close();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::save_tool_settings(window);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/brushOverlay")).toBool());
+    CHECK(settings.value(QStringLiteral("tools/brushOverlayOpacity")).toInt() == 40);
+  }
+
+  for (const auto* tool_name : {"Mixer Brush", "Eraser"}) {
+    require_action_by_text(window, QString::fromLatin1(tool_name))->trigger();
+    QApplication::processEvents();
+    menu->popup(gear->mapToGlobal(QPoint(0, gear->height())));
+    QApplication::processEvents();
+    CHECK(!overlay->isVisible() && !opacity_action->isVisible());
+    menu->close();
+    QApplication::processEvents();
+  }
+
+  // A new window reads the saved choice back.
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  auto* reopened_canvas = require_canvas(reopened);
+  CHECK(reopened_canvas->brush_overlay_shown());
+  CHECK(reopened_canvas->brush_overlay_opacity() == 40);
+}
+
+// With the overlay on, the canvas shows one dab of the current tip under the hovered Brush in
+// the foreground color at the overlay opacity: the footprint's shape (Round, Square, a sampled
+// tip) and nothing outside it. Off, on another tool, or in the document, nothing changes.
+void ui_brush_overlay_draws_dab_in_foreground_color() {
+  patchy::Document document(120, 80, patchy::PixelFormat::rgba8());
+  auto& layer =
+      document.add_pixel_layer("Paper", solid_pixels(120, 80, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto original_bytes = std::as_const(layer).pixels().data();
+  const std::vector<std::uint8_t> original(original_bytes.begin(), original_bytes.end());
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(400, 260);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(2.0);
+  canvas.set_primary_color(QColor(220, 30, 40));
+  canvas.set_brush_size(20);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+  const QPoint hover_doc(60, 40);
+  const auto hover = canvas.widget_position_for_document_point(hover_doc) + QPoint(1, 1);
+  const auto pixel = [&canvas, hover](QPoint document_point) {
+    send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    return canvas.grab().toImage().pixelColor(canvas.widget_position_for_document_point(document_point) +
+                                              QPoint(1, 1));
+  };
+  const QColor red(220, 30, 40);
+  const QColor white(Qt::white);
+  CHECK(!canvas.brush_overlay_shown());
+  CHECK(color_close(pixel(hover_doc), white, 6));
+
+  canvas.set_brush_overlay_shown(true);
+  CHECK(color_close(pixel(hover_doc), red, 6));
+  CHECK(color_close(pixel(hover_doc + QPoint(8, 0)), red, 6));
+  CHECK(color_close(pixel(hover_doc + QPoint(13, 0)), white, 6));
+  CHECK(color_close(pixel(hover_doc + QPoint(8, 8)), white, 6));  // past the round edge
+
+  canvas.set_brush_shape(patchy::BrushShape::Square);
+  CHECK(color_close(pixel(hover_doc + QPoint(8, 8)), red, 6));  // the square's corner
+  canvas.set_brush_shape(patchy::BrushShape::Round);
+
+  canvas.set_brush_overlay_opacity(50);
+  const auto half = pixel(hover_doc);
+  CHECK(half.red() > 225 && half.green() > 115 && half.green() < 170 && half.blue() > 120 && half.blue() < 175);
+  canvas.set_brush_overlay_opacity(100);
+
+  // The foreground color follows at once.
+  canvas.set_primary_color(QColor(20, 60, 200));
+  CHECK(color_close(pixel(hover_doc), QColor(20, 60, 200), 6));
+
+  // A sampled tip: its left half paints, its right half does not.
+  auto tip = std::make_shared<patchy::BrushTip>();
+  tip->width = 20;
+  tip->height = 20;
+  tip->mask.assign(400, std::uint8_t{0});
+  for (int y = 0; y < 20; ++y) {
+    for (int x = 0; x < 10; ++x) {
+      tip->mask[static_cast<std::size_t>(y) * 20 + x] = 255;
+    }
+  }
+  canvas.set_brush_tip(tip, QStringLiteral("test.half"));
+  CHECK(color_close(pixel(hover_doc + QPoint(-5, 0)), QColor(20, 60, 200), 10));
+  CHECK(color_close(pixel(hover_doc + QPoint(5, 0)), white, 10));
+  canvas.set_brush_tip(nullptr, QString());
+
+  canvas.set_tool(patchy::ui::CanvasTool::Eraser);
+  CHECK(color_close(pixel(hover_doc), white, 6));
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  CHECK(color_close(pixel(hover_doc), QColor(20, 60, 200), 6));
+  // The preview never paints.
+  CHECK(std::ranges::equal(std::as_const(layer).pixels().data(), original));
+
+  // The issue shot: a soft orange brush over a striped sheet at 200%.
+  patchy::Document sheet(200, 120, patchy::PixelFormat::rgba8());
+  auto stripes = solid_pixels(200, 120, patchy::PixelFormat::rgba8(), QColor(236, 236, 230));
+  for (int x = 0; x < 200; x += 40) {
+    fill_pixel_rect(stripes, QRect(x, 0, 20, 120), QColor(70, 110, 160));
+  }
+  sheet.add_pixel_layer("Stripes", std::move(stripes));
+  patchy::ui::CanvasWidget shot;
+  shot.resize(420, 260);
+  shot.set_document(&sheet);
+  shot.set_tool(patchy::ui::CanvasTool::Brush);
+  shot.set_zoom(2.0);
+  shot.set_primary_color(QColor(245, 140, 30));
+  shot.set_brush_size(70);
+  shot.set_brush_softness(60);
+  shot.set_brush_overlay_shown(true);
+  shot.show();
+  QApplication::processEvents();
+  send_mouse(shot, QEvent::MouseMove, shot.widget_position_for_document_point(QPoint(100, 60)), Qt::NoButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  save_widget_artifact("issue517_brush_overlay", shot);
+}
+
 void ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab() {
   patchy::Document document(200, 120, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint",
@@ -4322,6 +4491,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_mixer_calibration_contact_sheet", ui_mixer_calibration_contact_sheet},
       {"ui_brush_smoothing_options_bar_round_trips_settings",
        ui_brush_smoothing_options_bar_round_trips_settings},
+      {"ui_brush_overlay_gear_defaults_off_and_persists", ui_brush_overlay_gear_defaults_off_and_persists},
+      {"ui_brush_overlay_draws_dab_in_foreground_color", ui_brush_overlay_draws_dab_in_foreground_color},
       {"ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab",
        ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab},
       {"ui_brush_smoothing_catch_up_on_end_completes_stroke",

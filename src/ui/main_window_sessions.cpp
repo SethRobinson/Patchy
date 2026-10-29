@@ -177,6 +177,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   }
   session->canvas->set_clone_overlay_shown(current_clone_overlay_shown_);
   session->canvas->set_clone_overlay_opacity(current_clone_overlay_opacity_);
+  session->canvas->set_brush_overlay_shown(current_brush_overlay_shown_);
+  session->canvas->set_brush_overlay_opacity(current_brush_overlay_opacity_);
   if (retouch_sample_layers_combo_ != nullptr) {
     session->canvas->set_retouch_sample_layers(
         sample_layers_from_settings(retouch_sample_layers_combo_->currentData().toString().toStdString(), std::nullopt));

@@ -2872,6 +2872,45 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           window.canvas_->set_brush_smoothing_zoom_adjust(on);
         }
       });
+  // The Brush overlay (GitHub issue 517): a live dab of the tip in the foreground color
+  // under the pointer, off at 100% by default. The Mixer Brush and the Eraser share this
+  // gear; sync_brush_overlay_menu shows these entries for the Brush only.
+  brush_overlay_separator_ = smoothing_menu->addSeparator();
+  brush_overlay_action_ = smoothing_menu->addAction(tr("Show Overlay"));
+  brush_overlay_action_->setObjectName(QStringLiteral("brushOverlayAction"));
+  bind_action_text(brush_overlay_action_, QT_TR_NOOP("Show Overlay"));
+  brush_overlay_action_->setCheckable(true);
+  brush_overlay_action_->setChecked(current_brush_overlay_shown_);
+  connect(brush_overlay_action_, &QAction::toggled, this,
+          [this](bool on) { apply_brush_overlay_settings(on, current_brush_overlay_opacity_); });
+  {
+    auto* row = new QWidget(smoothing_menu);
+    row->setObjectName(QStringLiteral("brushOverlayOpacityRow"));
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(24, 3, 10, 3);
+    row_layout->setSpacing(6);
+    auto* label = new QLabel(tr("Overlay Opacity:"), row);
+    bind_widget_text(label, QT_TR_NOOP("Overlay Opacity:"));
+    brush_overlay_opacity_spin_ = new QSpinBox(row);
+    brush_overlay_opacity_spin_->setObjectName(QStringLiteral("brushOverlayOpacitySpin"));
+    brush_overlay_opacity_spin_->setRange(1, 100);
+    brush_overlay_opacity_spin_->setValue(current_brush_overlay_opacity_);
+    brush_overlay_opacity_spin_->setSuffix(percent_suffix());
+    configure_toolbar_spinbox(brush_overlay_opacity_spin_, 60);
+    bind_tooltip(brush_overlay_opacity_spin_, QT_TR_NOOP("Opacity of the brush overlay"));
+    label->setBuddy(brush_overlay_opacity_spin_);
+    row_layout->addWidget(label);
+    row_layout->addWidget(brush_overlay_opacity_spin_);
+    row_layout->addStretch(1);
+    auto* opacity_action = new QWidgetAction(smoothing_menu);
+    opacity_action->setObjectName(QStringLiteral("brushOverlayOpacityAction"));
+    opacity_action->setDefaultWidget(row);
+    smoothing_menu->addAction(opacity_action);
+    brush_overlay_opacity_action_ = opacity_action;
+    connect(brush_overlay_opacity_spin_, &QSpinBox::valueChanged, this,
+            [this](int value) { apply_brush_overlay_settings(current_brush_overlay_shown_, value); });
+  }
+  connect(smoothing_menu, &QMenu::aboutToShow, this, [this] { sync_brush_overlay_menu(); });
   brush_smoothing_options_button_->setMenu(smoothing_menu);
 
   // Photoshop's "Useful Mixer Brush Combinations" dropdown: each entry is one

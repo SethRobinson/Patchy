@@ -28438,6 +28438,18 @@ Verrouillé : %1</translation>
         <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation>La dynamique et les effets du pinceau s&apos;appliquent à l&apos;outil Pinceau.</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Afficher la superposition</translation>
+    </message>
+    <message>
+        <source>Overlay Opacity:</source>
+        <translation>Opacité de la superposition :</translation>
+    </message>
+    <message>
+        <source>Opacity of the brush overlay</source>
+        <translation>Opacité de la superposition du pinceau</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

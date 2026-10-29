@@ -122,6 +122,12 @@ struct ShapeCoverageParams {
 // output is pinned by tool_write_paths_digest_baseline.
 [[nodiscard]] float brush_coverage(double distance_squared, int radius, int softness);
 
+// One dab's coverage at an offset (pixel index minus dab position) from where it lands, before
+// selection, flow, opacity and per-dab dynamics: the scaled tip under its angle and roundness
+// when options.brush_tip is set, else the procedural Round or Square footprint. paint_brush_dab
+// stamps exactly this; the Brush tool's live overlay previews it (GitHub issue 517).
+[[nodiscard]] float brush_dab_coverage(double offset_x, double offset_y, const EditOptions& options);
+
 enum class GradientMethod {
   Linear,
   Radial
