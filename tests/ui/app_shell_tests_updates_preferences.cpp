@@ -4,6 +4,8 @@
 #include <QScrollBar>
 #include <QSettings>
 #include <QWindow>
+#include <QCursor>
+#include <QScopeGuard>
 
 
 #include "ui/recent_file_list.hpp"
@@ -585,6 +587,8 @@ void ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts() {
 // its cursor, and on unblock gives the window the cursor of the widget under the pointer, or
 // the one it held before when the pointer is elsewhere.
 void ui_blocked_window_cursor_shows_the_arrow_until_unblocked() {
+  // Put the pointer back afterwards: a later test reads canvas hover from where it rests.
+  const auto restore_pointer = qScopeGuard([pointer = QCursor::pos()] { QCursor::setPos(pointer); });
   QWidget window;
   auto* canvas = new QWidget(&window);
   canvas->setGeometry(0, 0, 200, 300);
@@ -665,6 +669,8 @@ void ui_blocked_window_cursor_shows_the_arrow_until_unblocked() {
 // The issue 504 case on the real window: Preferences open over a document with the brush
 // cursor, and the canvas refreshing that cursor behind it.
 void ui_blocked_window_cursor_covers_preferences_over_the_canvas() {
+  // Put the pointer back afterwards: a later test reads canvas hover from where it rests.
+  const auto restore_pointer = qScopeGuard([pointer = QCursor::pos()] { QCursor::setPos(pointer); });
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);

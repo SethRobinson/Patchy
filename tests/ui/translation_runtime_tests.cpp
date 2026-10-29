@@ -2,6 +2,7 @@
 #include "ui/main_window.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QCursor>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -153,6 +154,10 @@ void ui_translation_language_switch_matches_fresh_windows() {
   auto& manager = patchy::ui::LocalizationManager::instance();
   const auto original = manager.current_language();
   const auto restore = qScopeGuard([&] { manager.set_language(original, false); settle_translations(); });
+  // The Info panel reports the pointer over the canvas. Keep it off every window, wherever an
+  // earlier test left it, so a relayout during a switch hovers nothing.
+  const auto restore_pointer = qScopeGuard([pointer = QCursor::pos()] { QCursor::setPos(pointer); });
+  QCursor::setPos(-10000, -10000);
   QStringList failures;
   for (const bool with_document : {false, true}) {
     QMap<QString, Snapshot> fresh;

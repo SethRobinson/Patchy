@@ -973,7 +973,13 @@ void ui_brush_dynamics_popup_tabs_switch_and_remember() {
   }
   CHECK(popup->height() <= 600);
   CHECK(popup->width() >= 520);
+#if defined(Q_OS_LINUX)
+  // Linux's default UI font and wider spin boxes make the Color Dynamics page about 470 px
+  // beside the tab column, so the popup grows to about 650 px there.
+  CHECK(popup->width() <= 680);
+#else
   CHECK(popup->width() <= 600);  // about 520; the control combos and labels set the floor
+#endif
   auto* panel = popup->findChild<patchy::ui::BrushDynamicsPanel*>();
   CHECK(panel != nullptr);
   // Every page fits a 600 px popup: the panel's whole-content height is within it.
