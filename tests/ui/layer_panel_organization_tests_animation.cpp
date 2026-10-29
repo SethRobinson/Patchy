@@ -339,6 +339,34 @@ void ui_animation_preview_ignores_name_delays_and_plays_hidden_layers() {
   // the platform arrows instead and ran its text under them).
   auto* delay_edit = delay_field->findChild<QLineEdit*>();
   CHECK(delay_edit != nullptr && delay_edit->width() < delay_field->width() - 50);
+  // Both fields start at the same x and stretch so each drop-down ends where the buttons
+  // below it end, at the opening size and with the window widened.
+  {
+    auto* time_field = panel->findChild<QDoubleSpinBox*>(QStringLiteral("animationSelectionTimeSpin"));
+    auto* time_drop = panel->findChild<QToolButton*>(QStringLiteral("animationSelectionTimePresetsButton"));
+    auto* remove_time = panel->findChild<QPushButton*>(QStringLiteral("animationRemoveFrameTimeButton"));
+    CHECK(time_field != nullptr && time_drop != nullptr && remove_time != nullptr);
+    if (time_field != nullptr && time_drop != nullptr && remove_time != nullptr) {
+      const auto left = [panel](const QWidget* widget) { return widget->mapTo(panel, QPoint(0, 0)).x(); };
+      const auto right = [panel](const QWidget* widget) {
+        return widget->mapTo(panel, QPoint(widget->width(), 0)).x();
+      };
+      const auto check_edges = [&](const char* label) {
+        std::printf("  [%s] fields x=%d/%d, drop-downs end %d/%d, buttons end %d/%d\n", label, left(delay_field),
+                    left(time_field), right(delay_presets), right(time_drop), right(play_button), right(remove_time));
+        CHECK(left(delay_field) == left(time_field));
+        CHECK(right(delay_presets) == right(play_button));
+        CHECK(right(time_drop) == right(remove_time));
+      };
+      check_edges("opening size");
+      panel->resize(panel->width() + 120, panel->height());
+      QApplication::processEvents();
+      check_edges("widened");
+      panel->resize(panel->minimumWidth(), panel->height());
+      QApplication::processEvents();
+    }
+  }
+
   // No combo boxes are left: each delay is one field with its presets drop-down attached.
   CHECK(panel->findChildren<QComboBox*>().isEmpty());
 
