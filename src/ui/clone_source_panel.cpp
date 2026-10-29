@@ -23,7 +23,6 @@
 #include <QWidgetAction>
 
 #include <algorithm>
-#include <utility>
 
 namespace patchy::ui {
 
@@ -60,6 +59,9 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   layout->addWidget(slots_label_, 0, 0);
   auto* slot_row = new QHBoxLayout();
   slot_row->setSpacing(4);
+  // A little more air under the slot buttons than between the other rows, so the Point
+  // readout never crowds the checked slot's box (GitHub issue 515).
+  slot_row->setContentsMargins(0, 0, 0, 4);
   slot_group_ = new QButtonGroup(this);
   slot_group_->setExclusive(true);
   for (int slot = 0; slot < kSlotCount; ++slot) {
@@ -68,7 +70,9 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
     button->setText(QString::number(slot + 1));
     button->setCheckable(true);
     button->setAutoRaise(false);
-    button->setFixedSize(28, 22);
+    // No fixed size: the theme's QToolButton minimum makes them 34 px squares, and a
+    // fixed 22 px height let the grid plan a 22 px row the buttons then overhung, onto the
+    // Point row (GitHub issue 515).
     button->setFocusPolicy(Qt::NoFocus);
     slot_group_->addButton(button, slot);
     slot_row->addWidget(button);
@@ -211,8 +215,10 @@ QSize CloneSourcePanel::sizeHint() const {
 
 void CloneSourcePanel::relayout_popup() {
   updateGeometry();
-  // QMenu caches its item rectangles; an ActionChanged event re-measures them and resizes an
-  // open menu, so a note that appears or goes away never clips or leaves a gap.
+  // QMenu measures its items once and keeps those rectangles, also across closing and
+  // reopening: a popup first opened before the note existed came back with the old,
+  // shorter panel and every row squeezed (GitHub issue 515). An ActionChanged event makes it
+  // measure again at the next show, and resizes it now when it is open.
   auto* menu = qobject_cast<QMenu*>(parentWidget());
   if (menu == nullptr) {
     return;
@@ -288,11 +294,6 @@ void CloneSourcePanel::retranslate() {
 }
 
 void CloneSourcePanel::refresh() {
-  const auto note_layout = [this] {
-    return std::make_pair(offset_note_->isHidden() ? QString() : offset_note_->text(),
-                          transform_note_->isHidden() ? QString() : transform_note_->text());
-  };
-  const auto notes_before = note_layout();
   const QSignalBlocker slot_blocker(slot_group_);
   for (int slot = 0; slot < kSlotCount; ++slot) {
     auto* button = slot_buttons_[static_cast<std::size_t>(slot)];
@@ -360,7 +361,10 @@ void CloneSourcePanel::refresh() {
     overlay_opacity_spin_->setValue(state_.overlay_opacity);
   }
   overlay_opacity_spin_->setEnabled(state_.overlay_shown);
-  if (note_layout() != notes_before) {
+  // Any change of the hint (a note shown or hidden, a longer Point text, a language) goes to
+  // the menu, open or closed.
+  if (const auto hint = sizeHint(); hint != reported_hint_) {
+    reported_hint_ = hint;
     relayout_popup();
   }
 }
