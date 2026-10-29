@@ -11,6 +11,7 @@
 #include "ui/ui_text_size.hpp"
 
 #include <QEvent>
+#include <QKeyEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QStyle>
@@ -54,6 +55,10 @@ constexpr int kVisibleRecentRows = 8;
 
 StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   setObjectName(QStringLiteral("startPanel"));
+  // A click on the empty panel (or a label on it) takes focus out of the recent
+  // filter, so Ctrl+V reaches Edit > Paste and opens a copied file path. Qt gives
+  // click focus to the nearest ancestor that accepts it; Tab never stops here.
+  setFocusPolicy(Qt::ClickFocus);
 
   auto* outer = new QVBoxLayout(this);
   outer->setContentsMargins(24, 24, 24, 24);
@@ -198,6 +203,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   recent_filter_edit_->setPlaceholderText(tr("Filter recent files..."));
   bind_translated_text(recent_filter_edit_, QT_TR_NOOP("Filter recent files..."), "patchy::ui::StartPanel");
   recent_filter_edit_->setFixedHeight(ui_text_length(24));
+  recent_filter_edit_->installEventFilter(this);
   recent_filter_edit_->setMinimumWidth(ui_text_length(140));
   recent_filter_edit_->setMaximumWidth(ui_text_length(230));
   recent_header->addWidget(recent_filter_edit_, 1);
@@ -496,6 +502,19 @@ void StartPanel::open_first_recent_match() {
       return;
     }
   }
+}
+
+bool StartPanel::eventFilter(QObject* watched, QEvent* event) {
+  // Escape leaves the filter the way a background click does. The key still
+  // travels on, so MainWindow's Escape (leaving full screen) keeps working.
+  if (watched == recent_filter_edit_ && event->type() == QEvent::KeyPress) {
+    const auto* key_event = static_cast<QKeyEvent*>(event);
+    if (key_event->key() == Qt::Key_Escape && key_event->modifiers() == Qt::NoModifier &&
+        recent_filter_edit_->hasFocus()) {
+      setFocus(Qt::OtherFocusReason);
+    }
+  }
+  return QWidget::eventFilter(watched, event);
 }
 
 void StartPanel::changeEvent(QEvent* event) {
