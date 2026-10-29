@@ -10,6 +10,7 @@
 #include "core/clone_source_transform.hpp"
 
 #include <QPoint>
+#include <QSize>
 #include <QWidget>
 
 #include <array>
@@ -79,6 +80,8 @@ private:
   void relayout_popup();
 
   State state_;
+  // The size hint the menu last heard about (relayout_popup).
+  QSize reported_hint_;
   std::array<QToolButton*, kSlotCount> slot_buttons_{};
   QButtonGroup* slot_group_{nullptr};
   QLabel* slots_label_{nullptr};

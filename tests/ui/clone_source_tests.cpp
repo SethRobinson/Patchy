@@ -881,6 +881,116 @@ void ui_clone_source_popup_fits_the_aligned_note() {
   }
 }
 
+// The reporter's shot for GitHub issue 515: every row squeezed, Point on the slot buttons and
+// the note's second line cut off. The popup opened once before the note existed, and QMenu
+// kept that height for the panel when it opened again with a source set and Aligned off.
+// Through the real popup path, after each state change made while it is closed, the panel
+// gets its full height-for-width, no two of its widgets overlap, no label is cut, and the
+// Point row keeps clear of the slot buttons; in the suite font and a wide one (DejaVu Sans
+// on Linux). The issue shots are the reopened popup in both fonts.
+void ui_clone_source_popup_reopen_gets_full_height() {
+  SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
+  const QFont base_font = QApplication::font();
+  struct AppFontRestorer {
+    QFont font;
+    ~AppFontRestorer() { QApplication::setFont(font); }
+  } restore_font{base_font};
+  register_test_fonts(patchy::test::TestFontRole::Verdana);
+  for (const bool wide_font : {false, true}) {
+    QFont font = base_font;
+    if (wide_font) {
+      font.setFamilies({QStringLiteral("DejaVu Sans"), QStringLiteral("Verdana")});
+    }
+    QApplication::setFont(font);
+    auto&& [window, canvas] = ShownWindowFixture{};
+    require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+    QApplication::processEvents();
+    auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
+    auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
+    auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
+    auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
+    CHECK(aligned != nullptr && gear != nullptr && menu != nullptr && panel != nullptr);
+    if (aligned == nullptr || gear == nullptr || menu == nullptr || panel == nullptr) {
+      return;
+    }
+    const std::string font_name = wide_font ? "wide font" : "suite font";
+    const auto rect_in_panel = [panel](const QWidget* widget) {
+      return QRect(widget->mapTo(panel, QPoint(0, 0)), widget->size());
+    };
+    int smallest_point_gap = 1000;
+    const auto check_layout = [&](const char* when) {
+      QApplication::processEvents();
+      const int needed = panel->layout()->hasHeightForWidth()
+                             ? panel->layout()->totalHeightForWidth(panel->width())
+                             : panel->layout()->totalSizeHint().height();
+      const int point_gap = rect_in_panel(panel->source_label()).top() - rect_in_panel(panel->slot_button(0)).bottom() - 1;
+      std::printf("  %s (%s), %s: panel %dx%d (needs %d) in menu %dx%d, Point %d px below the slots\n", font_name.c_str(),
+                  QFontInfo(panel->source_label()->font()).family().toStdString().c_str(), when, panel->width(),
+                  panel->height(), needed, menu->width(), menu->height(), point_gap);
+      CHECK(menu->isVisible());
+      CHECK(panel->height() >= needed);
+      CHECK(QRect(QPoint(0, 0), menu->size()).contains(QRect(panel->mapTo(menu, QPoint(0, 0)), panel->size())));
+      std::vector<QWidget*> shown;
+      for (auto* child : panel->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+        if (child->isVisible()) {
+          shown.push_back(child);
+        }
+      }
+      for (std::size_t i = 0; i < shown.size(); ++i) {
+        CHECK(QRect(QPoint(0, 0), panel->size()).contains(rect_in_panel(shown[i])));
+        for (std::size_t j = i + 1; j < shown.size(); ++j) {
+          if (rect_in_panel(shown[i]).intersects(rect_in_panel(shown[j]))) {
+            std::printf("    overlap: %s and %s\n", shown[i]->metaObject()->className(),
+                        shown[j]->metaObject()->className());
+            CHECK(false);
+          }
+        }
+        if (const auto* label = qobject_cast<QLabel*>(shown[i]); label != nullptr && !label->text().isEmpty()) {
+          const int label_needs = label->wordWrap() ? label->heightForWidth(label->width())
+                                                    : label->fontMetrics().height();
+          CHECK(label->height() >= label_needs);
+        }
+      }
+      smallest_point_gap = std::min(smallest_point_gap, point_gap);
+    };
+
+    // Opened first with no source (no note), as anyone does before Alt-clicking.
+    aligned->setChecked(true);
+    open_gear_popup(*gear, *menu);
+    check_layout("no source");
+    menu->close();
+    QApplication::processEvents();
+
+    // A source and Aligned off while closed: the reporter's state.
+    canvas->set_brush_size(30);
+    alt_click(*canvas, QPoint(60, 60));
+    QApplication::processEvents();
+    aligned->setChecked(false);
+    QApplication::processEvents();
+    open_gear_popup(*gear, *menu);
+    save_window_popup_artifact(wide_font ? "issue515_reopened_popup_wide_font" : "issue515_reopened_popup", window,
+                               *gear, *menu);
+    check_layout("reopened with Aligned off");
+    menu->close();
+    QApplication::processEvents();
+
+    // Aligned on again (the one-line offset note), then an empty slot (no note).
+    aligned->setChecked(true);
+    open_gear_popup(*gear, *menu);
+    check_layout("reopened with Aligned on");
+    panel->slot_button(1)->click();
+    menu->close();
+    QApplication::processEvents();
+    open_gear_popup(*gear, *menu);
+    check_layout("reopened on an empty slot");
+    panel->slot_button(0)->click();
+    menu->close();
+    QApplication::processEvents();
+    // The Point readout keeps clear of the slot buttons above it.
+    CHECK(smallest_point_gap >= 8);
+  }
+}
+
 // The resize tests (GitHub issue 516): a red source half and a blue target half, the
 // source picked well inside the red so every brush size shows plain red under the brush.
 struct CloneResizeScene {
@@ -1161,5 +1271,6 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_alt_click_outside_canvas_clears_source", ui_clone_source_alt_click_outside_canvas_clears_source},
       {"ui_clone_source_flip_buttons_center_on_their_label", ui_clone_source_flip_buttons_center_on_their_label},
       {"ui_clone_source_popup_fits_the_aligned_note", ui_clone_source_popup_fits_the_aligned_note},
+      {"ui_clone_source_popup_reopen_gets_full_height", ui_clone_source_popup_reopen_gets_full_height},
   };
 }
