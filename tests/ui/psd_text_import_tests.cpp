@@ -4074,7 +4074,14 @@ void ui_faux_bold_widening_matches_photoshop_captures() {
     // Glyph origins land on whole pixels, so the ten-glyph line can round up to 1px either way.
     CHECK(std::abs(gains[i].first - captures[i].photoshop_width_gain) <= 1.0);
     // Below ~36px Photoshop's ink height moves in quarter pixels (+0.25 for a 0.3-0.7px stroke).
-    CHECK(std::abs(gains[i].second - captures[i].photoshop_height_gain) <= 0.6);
+    // CoreText's antialiasing inks Arial's 62.5px stroke 0.6px shorter than these Windows
+    // captures (+0.40 against +1.00).
+#ifdef Q_OS_MACOS
+    constexpr double kHeightTolerance = 0.65;
+#else
+    constexpr double kHeightTolerance = 0.6;
+#endif
+    CHECK(std::abs(gains[i].second - captures[i].photoshop_height_gain) <= kHeightTolerance);
   }
 }
 

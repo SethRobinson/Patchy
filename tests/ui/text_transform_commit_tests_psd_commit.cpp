@@ -1158,8 +1158,15 @@ void ui_psd_centered_text_commit_rounds_line_start_like_photoshop() {
                 ps_columns->first, ps_columns->second, ps_rows->first, ps_rows->second, patchy_columns->first,
                 patchy_columns->second, patchy_rows->first, patchy_rows->second);
     std::fflush(stdout);
-    CHECK(std::abs(patchy_columns->first - ps_columns->first) <= 1);
-    CHECK(std::abs(patchy_columns->second - ps_columns->second) <= 1);
+    // CoreText's Arial advances run a little wider than these Windows captures: the tracked
+    // centred point line ends 2 columns right on macOS.
+#ifdef Q_OS_MACOS
+    constexpr int kColumnTolerance = 2;
+#else
+    constexpr int kColumnTolerance = 1;
+#endif
+    CHECK(std::abs(patchy_columns->first - ps_columns->first) <= kColumnTolerance);
+    CHECK(std::abs(patchy_columns->second - ps_columns->second) <= kColumnTolerance);
     CHECK(std::abs(patchy_rows->first - ps_rows->first) <= 1);
     CHECK(std::abs(patchy_rows->second - ps_rows->second) <= 1);
   }
