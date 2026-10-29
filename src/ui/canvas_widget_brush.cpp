@@ -172,6 +172,9 @@ void CanvasWidget::set_brush_size(int size) {
   brush_size_ = std::clamp(size, 1, kMaxBrushSize);
   update_tool_cursor();
   invalidate_brush_hover_outline(previous_outline);
+  // [ and ] resize without a mouse move: repaint the overlay drawn at the old size
+  // too, or a shrink leaves its rim on screen (GitHub issue 516).
+  invalidate_clone_overlay();
 }
 
 int CanvasWidget::brush_size() const noexcept {
@@ -807,6 +810,9 @@ void CanvasWidget::end_brush_adjust_drag(bool commit) {
     // gesture already ends with the brush under the pen.
     move_pointer_to_global_position(mapToGlobal(brush_adjust_origin_widget_));
     last_mouse_position_ = brush_adjust_origin_widget_;
+    // The hovered brush (and the clone overlay under it) is back on the anchor at
+    // once, before the warped pointer's move arrives (GitHub issue 516).
+    brush_hover_widget_position_ = brush_adjust_origin_widget_;
   }
   update_tool_cursor();
   if (commit) {
@@ -2920,11 +2926,21 @@ bool CanvasWidget::clone_overlay_active() const {
          render_cache_.size() == QSize(document_->width(), document_->height());
 }
 
+// Where the overlay is centred: the hovered brush, or during an Alt+right-drag resize the
+// size disc, which a mouse gesture anchors at the press point while the pointer moves on
+// (GitHub issue 516: the overlay followed the pointer and showed beside the disc).
+QPoint CanvasWidget::clone_overlay_center_widget() const {
+  if (brush_adjust_dragging_) {
+    return brush_adjust_from_tablet_ ? brush_adjust_current_widget_ : brush_adjust_origin_widget_;
+  }
+  return brush_hover_widget_position_;
+}
+
 QRect CanvasWidget::clone_overlay_widget_rect() const {
   const auto radius =
       static_cast<int>(std::ceil(static_cast<double>(std::max(1, active_outline_brush_size())) * zoom_ / 2.0)) + 3;
-  return QRect(brush_hover_widget_position_.x() - radius, brush_hover_widget_position_.y() - radius, 2 * radius + 1,
-               2 * radius + 1);
+  const auto center = clone_overlay_center_widget();
+  return QRect(center.x() - radius, center.y() - radius, 2 * radius + 1, 2 * radius + 1);
 }
 
 void CanvasWidget::invalidate_clone_overlay() {
@@ -2946,7 +2962,8 @@ void CanvasWidget::draw_clone_source_overlay(QPainter& painter) const {
   if (!clone_overlay_active()) {
     return;
   }
-  const auto hover = document_position(brush_hover_widget_position_);
+  const auto center = clone_overlay_center_widget();
+  const auto hover = document_position(center);
   // The offset the next stroke takes: the kept one while Aligned has one, else the
   // source point lands under the pointer.
   const auto offset = clone_aligned_ && clone_aligned_offset_set_ ? clone_source_offset_ : clone_source_point_ - hover;
@@ -2970,7 +2987,7 @@ void CanvasWidget::draw_clone_source_overlay(QPainter& painter) const {
   footprint.addEllipse(QPointF(0.0, 0.0), radius,
                        std::max(0.5, radius * static_cast<double>(brush.roundness) / 100.0));
   QTransform footprint_place;
-  footprint_place.translate(brush_hover_widget_position_.x(), brush_hover_widget_position_.y());
+  footprint_place.translate(center.x(), center.y());
   footprint_place.rotate(brush.angle_degrees);
   QPainterPath document_area;
   document_area.addRect(QRectF(widget_position_f(QPointF(0.0, 0.0)),

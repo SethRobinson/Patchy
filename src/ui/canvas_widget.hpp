@@ -2144,6 +2144,7 @@ private:
   // The clone source overlay (GitHub issue 424): whether it draws now, its widget rect
   // around the hovered brush, the drawing, and a repaint of where it was last drawn.
   [[nodiscard]] bool clone_overlay_active() const;
+  [[nodiscard]] QPoint clone_overlay_center_widget() const;
   [[nodiscard]] QRect clone_overlay_widget_rect() const;
   void draw_clone_source_overlay(QPainter& painter) const;
   void invalidate_clone_overlay();

@@ -746,6 +746,153 @@ void ui_clone_source_overlay_screenshot() {
   save_image_artifact("ui_clone_source_overlay_in_use", shot.copy(crop));
 }
 
+// The resize tests (GitHub issue 516): a red source half and a blue target half, the
+// source picked well inside the red so every brush size shows plain red under the brush.
+struct CloneResizeScene {
+  patchy::Document document{160, 96, patchy::PixelFormat::rgba8()};
+  CanvasWidget canvas;
+  QPoint hover;
+  double scale{1.0};  // widget pixels per document pixel
+
+  explicit CloneResizeScene(int brush_size) {
+    auto pixels = solid_pixels(160, 96, patchy::PixelFormat::rgba8(), QColor(30, 40, 210, 255));
+    fill_pixel_rect(pixels, QRect(0, 0, 80, 96), QColor(220, 40, 30, 255));
+    document.add_pixel_layer("Halves", std::move(pixels));
+    prepare_clone_canvas(canvas, document, brush_size, 0, 100);
+    canvas.set_clone_aligned(false);
+    canvas.set_clone_overlay_shown(true);
+    canvas.set_clone_overlay_opacity(100);
+    alt_click(canvas, QPoint(30, 48));
+    hover = canvas.widget_position_for_document_point(QPoint(120, 48));
+    scale = static_cast<double>(canvas.widget_position_for_document_point(QPoint(100, 0)).x() -
+                                canvas.widget_position_for_document_point(QPoint(0, 0)).x()) /
+            100.0;
+    send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+  }
+
+  // The widget pixels the overlay changes: the canvas with the overlay against the
+  // canvas without it, everything else (the resize disc, its readout) being equal.
+  [[nodiscard]] QRect overlay_bounds() {
+    const auto on = canvas.grab().toImage();
+    canvas.set_clone_overlay_shown(false);
+    const auto off = canvas.grab().toImage();
+    canvas.set_clone_overlay_shown(true);
+    QApplication::processEvents();
+    QRect bounds;
+    for (int y = 0; y < on.height(); ++y) {
+      for (int x = 0; x < on.width(); ++x) {
+        if (!color_close(on.pixelColor(x, y), off.pixelColor(x, y), 8)) {
+          bounds = bounds.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    return bounds;
+  }
+
+  // The overlay sits centred on `center` at `brush_size` across.
+  void check_overlay(QPoint center, int brush_size) {
+    const auto bounds = overlay_bounds();
+    const auto diameter = static_cast<double>(brush_size) * scale;
+    CHECK(!bounds.isEmpty());
+    CHECK(std::abs(bounds.center().x() - center.x()) <= 2);
+    CHECK(std::abs(bounds.center().y() - center.y()) <= 2);
+    CHECK(std::abs(bounds.width() - diameter) <= 3.0);
+    CHECK(std::abs(bounds.height() - diameter) <= 3.0);
+  }
+};
+
+// What the screen shows after an update: the last frame with the repainted region
+// replaced by a fresh paint. Pixels outside the region keep their old values.
+QImage repaint_onto(const QImage& last_frame, const QImage& fresh, const QRegion& repainted) {
+  QImage shown = last_frame.copy();
+  QPainter painter(&shown);
+  painter.setClipRegion(repainted);
+  painter.drawImage(0, 0, fresh);
+  painter.end();
+  return shown;
+}
+
+// Changes the brush size the way [ and ] do (the size spin calls set_brush_size) with the
+// pointer still: the next frame on screen matches a full repaint, so no rim of the old
+// overlay is left, and the overlay is the new size on the brush.
+QImage clone_overlay_after_size_step(CloneResizeScene& scene, int size, QImage* stale_view) {
+  const auto last_frame = scene.canvas.grab().toImage();
+  PaintRegionRecorder recorder(&scene.canvas);
+  scene.canvas.installEventFilter(&recorder);
+  recorder.reset();
+  scene.canvas.set_brush_size(size);
+  QApplication::processEvents();
+  scene.canvas.removeEventFilter(&recorder);
+  const auto fresh = scene.canvas.grab().toImage();
+  const auto shown = repaint_onto(last_frame, fresh, recorder.region());
+  if (stale_view != nullptr) {
+    *stale_view = shown;
+  }
+  return fresh;
+}
+
+void ui_clone_source_overlay_follows_bracket_resize() {
+  CloneResizeScene scene(40);
+  scene.check_overlay(scene.hover, 40);
+  for (const int size : {12, 40}) {
+    QImage shown;
+    const auto fresh = clone_overlay_after_size_step(scene, size, &shown);
+    CHECK(shown == fresh);
+    scene.check_overlay(scene.hover, size);
+  }
+}
+
+// The Alt+right-drag resize anchors its disc at the press point while the mouse moves on:
+// the overlay stays centred on the disc at the dragged size, during the drag and after.
+void ui_clone_source_overlay_follows_drag_resize() {
+  CloneResizeScene scene(20);
+  scene.check_overlay(scene.hover, 20);
+  const QPoint moved = scene.hover + QPoint(15, 0);
+  send_mouse(scene.canvas, QEvent::MouseButtonPress, scene.hover, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(scene.canvas, QEvent::MouseMove, moved, Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  QApplication::processEvents();
+  const auto dragged = scene.canvas.brush_size();
+  CHECK(dragged > 20);
+  scene.check_overlay(scene.hover, dragged);
+  send_mouse(scene.canvas, QEvent::MouseButtonRelease, moved, Qt::RightButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(scene.canvas.brush_size() == dragged);
+  scene.check_overlay(scene.hover, dragged);
+}
+
+// Captures for the issue: the canvas as shown after ] then [ (stale rims show when the
+// old overlay is not repainted), and during an Alt+right-drag resize.
+void ui_clone_source_overlay_resize_screenshot() {
+  ensure_artifact_dir();
+  {
+    CloneResizeScene scene(24);
+    QImage shown;
+    clone_overlay_after_size_step(scene, 48, &shown);
+    const auto grown = shown;
+    clone_overlay_after_size_step(scene, 16, &shown);
+    // Left: the frame after ] (24 to 48 px); right: after [ (48 to 16 px).
+    QImage pair(grown.width() * 2 + 8, grown.height(), QImage::Format_ARGB32);
+    pair.fill(QColor(40, 40, 40));
+    QPainter painter(&pair);
+    painter.drawImage(0, 0, grown);
+    painter.drawImage(grown.width() + 8, 0, shown);
+    painter.end();
+    save_image_artifact("ui_clone_overlay_bracket_resize", pair);
+  }
+  {
+    CloneResizeScene scene(20);
+    send_mouse(scene.canvas, QEvent::MouseButtonPress, scene.hover, Qt::RightButton, Qt::RightButton,
+               Qt::AltModifier);
+    send_mouse(scene.canvas, QEvent::MouseMove, scene.hover + QPoint(20, 0), Qt::NoButton, Qt::RightButton,
+               Qt::AltModifier);
+    QApplication::processEvents();
+    save_image_artifact("ui_clone_overlay_drag_resize", scene.canvas.grab().toImage());
+    send_mouse(scene.canvas, QEvent::MouseButtonRelease, scene.hover + QPoint(20, 0), Qt::RightButton,
+               Qt::NoButton, Qt::AltModifier);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> clone_source_tests() {
@@ -761,6 +908,9 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_gear_popup_drives_canvas", ui_clone_source_gear_popup_drives_canvas},
       {"ui_clone_source_overlay_check_lives_in_the_popup", ui_clone_source_overlay_check_lives_in_the_popup},
       {"ui_clone_source_overlay_screenshot", ui_clone_source_overlay_screenshot},
+      {"ui_clone_source_overlay_follows_bracket_resize", ui_clone_source_overlay_follows_bracket_resize},
+      {"ui_clone_source_overlay_follows_drag_resize", ui_clone_source_overlay_follows_drag_resize},
+      {"ui_clone_source_overlay_resize_screenshot", ui_clone_source_overlay_resize_screenshot},
       {"ui_clone_source_flip_buttons_center_on_their_label", ui_clone_source_flip_buttons_center_on_their_label},
   };
 }
