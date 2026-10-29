@@ -28368,6 +28368,18 @@ Locked: %1</source>
         <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation>ブラシのダイナミクスと効果はブラシツールに適用されます。</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>オーバーレイを表示</translation>
+    </message>
+    <message>
+        <source>Overlay Opacity:</source>
+        <translation>オーバーレイの不透明度:</translation>
+    </message>
+    <message>
+        <source>Opacity of the brush overlay</source>
+        <translation>ブラシオーバーレイの不透明度</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

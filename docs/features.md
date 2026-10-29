@@ -18,11 +18,11 @@
 ## Painting, selections, and retouching
 
 - Raster editing tools: Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
-- Free Transform, Skew, Distort and Perspective work on the selected pixels when a selection is active: the pixels lift out, the box fits them, and the selection follows them on Enter
+- Free Transform, Skew, Distort and Perspective work on the selected pixels when a selection is active: the box fits them, and the selection follows them on Enter
 - Ctrl-drag a corner or side of the Move tool's transform box to distort it; Ctrl mid-drag toggles distort and resize
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush blends the stroke on release and offers Replace and blend modes; Red Eye works with a click or a box over the eye
 - Clone source settings on the Clone Stamp gear: four saved sources, offset, scale, rotation, flips, and a source overlay
-- Brush tips (.abr import, from selections, a name filter) with texture, dual brush, wet edges and pen-driven size, opacity, flow, scatter and color dynamics; the Brush Tips and Brush Dynamics and Effects windows stay open while you paint
+- Brush tips (.abr import, from selections, a name filter) with texture, dual brush, wet edges and pen-driven size, opacity, flow, scatter and color dynamics; the Brush Tips and Brush Dynamics and Effects windows stay open while you paint; a Brush gear option previews the dab under the pointer
 - Mixer Brush with Wet, Load, Mix, Flow, and Sample All Layers controls, plus stroke smoothing with pulled-string and catch-up options
 - Painting tools show their mouse gestures in the status bar; Ctrl+click (Command+click on macOS) selects the layer under the pointer and Ctrl+drag moves the selected layer without switching tools; Alt+right-drag sets brush size and softness (Quick Select: size) with a readout on the canvas; holding Shift previews the line a Shift+click paints
 - Rectangular and elliptical marquees, lassos including Magnetic Lasso, Magic Wand (Sample can average a square around the click), Quick Select, and paintable Quick Mask selections, with feathering and selection adjustments; a drag inside a selection moves its outline

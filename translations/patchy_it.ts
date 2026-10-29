@@ -28450,6 +28450,18 @@ Bloccato: %1</translation>
         <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation>La dinamica e gli effetti del pennello valgono per lo strumento Pennello.</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Mostra sovrapposizione</translation>
+    </message>
+    <message>
+        <source>Overlay Opacity:</source>
+        <translation>Opacità sovrapposizione:</translation>
+    </message>
+    <message>
+        <source>Opacity of the brush overlay</source>
+        <translation>Opacità della sovrapposizione del pennello</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

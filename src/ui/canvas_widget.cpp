@@ -884,6 +884,7 @@ void CanvasWidget::set_primary_color(QColor color) {
     color = QColor(snapped.red, snapped.green, snapped.blue, color.alpha());
   }
   primary_color_ = color;
+  invalidate_brush_overlay();  // the Brush overlay paints in the foreground color
 }
 
 QColor CanvasWidget::primary_color() const noexcept {

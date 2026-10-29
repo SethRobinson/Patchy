@@ -442,6 +442,11 @@ public:
   [[nodiscard]] bool clone_overlay_shown() const noexcept { return clone_overlay_shown_; }
   void set_clone_overlay_opacity(int percent);
   [[nodiscard]] int clone_overlay_opacity() const noexcept { return clone_overlay_opacity_; }
+  // The Brush tool's live dab preview under the pointer (GitHub issue 517).
+  void set_brush_overlay_shown(bool shown);
+  [[nodiscard]] bool brush_overlay_shown() const noexcept { return brush_overlay_shown_; }
+  void set_brush_overlay_opacity(int percent);
+  [[nodiscard]] int brush_overlay_opacity() const noexcept { return brush_overlay_opacity_; }
   // Runs after any change to the sources, the active slot, an offset or the transform.
   void set_clone_source_changed_callback(std::function<void()> callback) {
     clone_source_changed_callback_ = std::move(callback);
@@ -2151,6 +2156,14 @@ private:
   [[nodiscard]] QRect clone_overlay_widget_rect() const;
   void draw_clone_source_overlay(QPainter& painter) const;
   void invalidate_clone_overlay();
+  // The Brush overlay (GitHub issue 517): one dab of the current tip in the foreground color
+  // under the hovered brush, rendered once per tip, size, color and zoom into
+  // brush_overlay_image_ and only blitted per repaint.
+  [[nodiscard]] bool brush_overlay_active() const;
+  [[nodiscard]] QPointF brush_overlay_center_widget() const;
+  [[nodiscard]] QRect brush_overlay_widget_rect() const;
+  void draw_brush_dab_overlay(QPainter& painter) const;
+  void invalidate_brush_overlay();
   // Clone and Healing cursor feedback (GitHub issue 380): Alt shows the source cursor,
   // Ctrl the temporary Move, and a press that would be refused (no source yet, no
   // editable pixel layer) the not-allowed cursor; while painting, a small crosshair marks
@@ -3747,6 +3760,13 @@ private:
   bool clone_overlay_shown_{true};
   int clone_overlay_opacity_{100};
   mutable QRect clone_overlay_drawn_rect_{};
+  bool brush_overlay_shown_{false};
+  int brush_overlay_opacity_{100};
+  mutable QRect brush_overlay_drawn_rect_{};
+  mutable QImage brush_overlay_image_;  // the dab at brush_overlay_image_scale_ pixels per document pixel
+  mutable QString brush_overlay_key_;
+  mutable QPointF brush_overlay_image_center_{};  // the dab position inside brush_overlay_image_
+  mutable double brush_overlay_image_scale_{1.0};
   std::function<void()> clone_source_changed_callback_;
   std::optional<PatternResource> pattern_stamp_pattern_;
   bool pattern_stamp_aligned_{true};

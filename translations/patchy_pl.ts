@@ -28532,6 +28532,18 @@ Zablokowano: %1</translation>
         <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation>Dynamika pędzla i efekty dotyczą narzędzia Pędzel.</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Pokaż nakładkę</translation>
+    </message>
+    <message>
+        <source>Overlay Opacity:</source>
+        <translation>Krycie nakładki:</translation>
+    </message>
+    <message>
+        <source>Opacity of the brush overlay</source>
+        <translation>Krycie nakładki pędzla</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

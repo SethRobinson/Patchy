@@ -590,6 +590,15 @@ struct TipDabTransform {
 
 }  // namespace
 
+float brush_dab_coverage(double offset_x, double offset_y, const EditOptions& options) {
+  if (options.brush_tip != nullptr) {
+    return options.brush_tip->empty() ? 0.0F
+                                      : tip_dab_coverage(*options.brush_tip, tip_dab_transform(options), offset_x,
+                                                         offset_y);
+  }
+  return brush_shape_coverage(offset_x, offset_y, std::max(1, options.brush_size) / 2, options);
+}
+
 [[nodiscard]] Layer* editable_layer(Document& document, LayerId layer_id) noexcept {
   auto* layer = document.find_layer(layer_id);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {

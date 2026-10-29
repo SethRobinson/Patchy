@@ -175,6 +175,7 @@ void CanvasWidget::set_brush_size(int size) {
   // [ and ] resize without a mouse move: repaint the overlay drawn at the old size
   // too, or a shrink leaves its rim on screen (GitHub issue 516).
   invalidate_clone_overlay();
+  invalidate_brush_overlay();
 }
 
 int CanvasWidget::brush_size() const noexcept {
@@ -199,8 +200,10 @@ int CanvasWidget::brush_flow() const noexcept {
 }
 
 void CanvasWidget::set_brush_softness(int softness) {
+  invalidate_brush_overlay();
   brush_softness_ = std::clamp(softness, 0, 100);
   update_tool_cursor();
+  invalidate_brush_overlay();
 }
 
 int CanvasWidget::brush_softness() const noexcept {
@@ -313,6 +316,7 @@ void CanvasWidget::set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, co
   brush_tip_scaled_cache_.clear();
   brush_tip_stroke_state_ = {};
   update_tool_cursor();
+  invalidate_brush_overlay();
 }
 
 const QString& CanvasWidget::brush_tip_id() const noexcept {
@@ -332,6 +336,7 @@ void CanvasWidget::set_brush_shape(patchy::BrushShape shape) {
   brush_tip_stroke_state_ = {};
   brush_cursor_cache_.reset();
   update_tool_cursor();
+  invalidate_brush_overlay();
 }
 
 patchy::BrushShape CanvasWidget::brush_shape() const noexcept {
@@ -350,8 +355,10 @@ const patchy::BrushDynamics& CanvasWidget::brush_dynamics() const noexcept {
 }
 
 void CanvasWidget::set_brush_base_shape(double angle_degrees, int roundness) noexcept {
+  invalidate_brush_overlay();
   brush_base_angle_degrees_ = std::clamp(angle_degrees, -180.0, 360.0);
   brush_base_roundness_ = std::clamp(roundness, 1, 100);
+  invalidate_brush_overlay();
 }
 
 double CanvasWidget::brush_base_angle_degrees() const noexcept {
@@ -652,6 +659,7 @@ void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
       (brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect())
           .united(brush_outline_drawn_rect_);
   const auto old_overlay = clone_overlay_drawn_rect_;
+  const auto old_brush_overlay = brush_overlay_drawn_rect_;
   brush_hover_widget_position_ = widget_position;
   brush_hover_position_valid_ = true;
   if (brush_outline_uses_overlay()) {
@@ -663,6 +671,11 @@ void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
     update(old_overlay.united(clone_overlay_widget_rect()));
   } else if (!old_overlay.isEmpty()) {
     update(old_overlay);
+  }
+  if (brush_overlay_active()) {
+    update(old_brush_overlay.united(brush_overlay_widget_rect()));
+  } else if (!old_brush_overlay.isEmpty()) {
+    update(old_brush_overlay);
   }
 }
 
@@ -3045,6 +3058,157 @@ void CanvasWidget::draw_clone_source_overlay(QPainter& painter) const {
   painter.drawImage(QRectF(source_rect), render_cache_, QRectF(source_rect));
   painter.restore();
   clone_overlay_drawn_rect_ = clip_rect.toAlignedRect().adjusted(-2, -2, 2, 2);
+}
+
+void CanvasWidget::set_brush_overlay_shown(bool shown) {
+  if (brush_overlay_shown_ == shown) {
+    return;
+  }
+  invalidate_brush_overlay();
+  brush_overlay_shown_ = shown;
+  invalidate_brush_overlay();
+}
+
+void CanvasWidget::set_brush_overlay_opacity(int percent) {
+  percent = std::clamp(percent, 1, 100);
+  if (brush_overlay_opacity_ == percent) {
+    return;
+  }
+  brush_overlay_opacity_ = percent;
+  invalidate_brush_overlay();
+}
+
+// Only for the Brush tool, and hidden while painting (the stroke shows the paint itself),
+// panning, or drawing a polygonal preview (GitHub issue 517).
+bool CanvasWidget::brush_overlay_active() const {
+  return brush_overlay_shown_ && tool_ == CanvasTool::Brush && !painting_ && brush_hover_position_valid_ &&
+         !spacebar_panning_ && preview_points_.empty() && document_ != nullptr;
+}
+
+// Where the dab lands, in widget coordinates: the hovered brush (or the drag-resize disc,
+// as for the clone overlay) plus the engine's half-pixel offset, since a dab at document
+// position x covers pixel i by its coverage at i - x. From 100% zoom up it snaps to the
+// pixel under the pointer, so the cached dab's pixels sit on the document's.
+QPointF CanvasWidget::brush_overlay_center_widget() const {
+  auto position = document_position_f(QPointF(clone_overlay_center_widget()));
+  if (zoom_ >= 1.0) {
+    position = QPointF(std::floor(position.x()), std::floor(position.y()));
+  }
+  return widget_position_f(position + QPointF(0.5, 0.5));
+}
+
+// A generous bound of the dab around its centre: a rotated square or tip reaches the
+// half diagonal, and a soft tip grows by its feather (scaled_brush_tip_for).
+QRect CanvasWidget::brush_overlay_widget_rect() const {
+  const auto size = static_cast<double>(std::max(1, brush_size_));
+  const auto half = ((size / 2.0 + size * brush_softness_ / 400.0 + 2.0) * 1.42 + 2.0) * zoom_ + 3.0;
+  const auto center = brush_overlay_center_widget();
+  return QRectF(center.x() - half, center.y() - half, 2.0 * half, 2.0 * half).toAlignedRect();
+}
+
+void CanvasWidget::invalidate_brush_overlay() {
+  QRect region = brush_overlay_drawn_rect_;
+  if (brush_overlay_active()) {
+    region = region.united(brush_overlay_widget_rect());
+  }
+  if (!region.isEmpty()) {
+    update(region);
+  }
+}
+
+// One dab of the current tip in the foreground color (GitHub issue 517), from the coverage
+// the paint engine stamps (patchy::brush_dab_coverage): size, Soft, roundness, angle, Round
+// or Square, or the sampled tip. Per-dab dynamics (scatter, jitter, pen input) are not
+// previewed. The dab is rendered once per setting and zoom, at document resolution from 100%
+// up (so its pixels match the paint's) and at screen resolution below it, capped so a huge
+// brush stays a bounded image; a repaint only draws that image, clipped to the canvas, so
+// the cost follows the brush, not the document.
+void CanvasWidget::draw_brush_dab_overlay(QPainter& painter) const {
+  brush_overlay_drawn_rect_ = QRect();
+  if (!brush_overlay_active()) {
+    return;
+  }
+  const auto scaled_tip = scaled_brush_tip_for(brush_size_, brush_softness_);
+  patchy::EditOptions options;
+  options.brush_size = brush_size_;
+  options.brush_softness = brush_softness_;
+  options.brush_roundness = brush_base_roundness_;
+  options.brush_angle_degrees = brush_base_angle_degrees_;
+  options.brush_shape = brush_tip_ == nullptr ? brush_shape_ : patchy::BrushShape::Round;
+  options.brush_tip = scaled_tip.get();
+  // Document pixels the dab can reach from its position.
+  auto reach = static_cast<double>(std::max(1, brush_size_) / 2) * 1.42 + 2.0;
+  if (scaled_tip != nullptr) {
+    reach = std::hypot(std::max(scaled_tip->anchor_x, scaled_tip->width - scaled_tip->anchor_x),
+                       std::max(scaled_tip->anchor_y, scaled_tip->height - scaled_tip->anchor_y)) +
+            2.0;
+  }
+  constexpr double kMaxHalfExtent = 1024.0;
+  const auto scale = std::min({1.0, zoom_, kMaxHalfExtent / reach});
+  const auto gray = qGray(primary_color_.rgb());
+  const auto color = editing_grayscale_target() ? QColor(gray, gray, gray) : primary_color_;
+  const auto key = QStringLiteral("%1:%2:%3:%4:%5:%6:%7:%8:%9")
+                       .arg(reinterpret_cast<quintptr>(scaled_tip.get()))
+                       .arg(brush_size_)
+                       .arg(brush_softness_)
+                       .arg(brush_base_roundness_)
+                       .arg(brush_base_angle_degrees_)
+                       .arg(static_cast<int>(options.brush_shape))
+                       .arg(color.rgb())
+                       .arg(scale)
+                       .arg(scaled_tip != nullptr ? scaled_tip->width : 0);
+  if (brush_overlay_key_ != key) {
+    brush_overlay_key_ = key;
+    const auto half = static_cast<int>(std::ceil(reach * scale)) + 1;
+    const auto extent = 2 * half + 1;
+    QImage image(extent, extent, QImage::Format_ARGB32_Premultiplied);
+    // Below 100% each screen pixel averages four samples, so a hard edge does not stair-step.
+    const bool supersample = scale < 1.0 && extent <= 1025;
+    constexpr std::array<double, 2> kSubOffsets = {-0.25, 0.25};
+    for (int y = 0; y < extent; ++y) {
+      auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+      for (int x = 0; x < extent; ++x) {
+        float coverage = 0.0F;
+        if (supersample) {
+          for (const auto sub_y : kSubOffsets) {
+            for (const auto sub_x : kSubOffsets) {
+              coverage += patchy::brush_dab_coverage((x - half + sub_x) / scale, (y - half + sub_y) / scale, options);
+            }
+          }
+          coverage /= 4.0F;
+        } else {
+          coverage = patchy::brush_dab_coverage((x - half) / scale, (y - half) / scale, options);
+        }
+        const auto alpha = std::clamp(static_cast<int>(std::lround(coverage * 255.0F)), 0, 255);
+        row[x] = qRgba(color.red() * alpha / 255, color.green() * alpha / 255, color.blue() * alpha / 255, alpha);
+      }
+    }
+    brush_overlay_image_ = std::move(image);
+    brush_overlay_image_center_ = QPointF(half + 0.5, half + 0.5);
+    brush_overlay_image_scale_ = scale;
+  }
+  if (brush_overlay_image_.isNull()) {
+    return;
+  }
+  const auto ratio = zoom_ / brush_overlay_image_scale_;
+  const auto center = brush_overlay_center_widget();
+  const QRectF target(center.x() - brush_overlay_image_center_.x() * ratio,
+                      center.y() - brush_overlay_image_center_.y() * ratio, brush_overlay_image_.width() * ratio,
+                      brush_overlay_image_.height() * ratio);
+  const QRectF document_area(widget_position_f(QPointF(0.0, 0.0)),
+                             widget_position_f(QPointF(document_->width(), document_->height())));
+  const auto clip = target.intersected(document_area);
+  if (clip.isEmpty()) {
+    return;
+  }
+  painter.save();
+  painter.setClipRect(clip, Qt::IntersectClip);
+  painter.setOpacity(static_cast<double>(brush_overlay_opacity_) / 100.0);
+  // A document-resolution dab shows its pixels when zoomed in; only a capped one is smoothed.
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, brush_overlay_image_scale_ < std::min(1.0, zoom_));
+  painter.drawImage(target, brush_overlay_image_);
+  painter.restore();
+  brush_overlay_drawn_rect_ = clip.toAlignedRect().adjusted(-2, -2, 2, 2);
 }
 
 bool CanvasWidget::begin_pattern_stamp_stroke(QPoint point) {

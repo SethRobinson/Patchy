@@ -17,6 +17,7 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <exception>
@@ -120,6 +121,51 @@ void tool_brush_opacity_and_bounded_layer_expansion_work() {
   CHECK(painted[3] >= 120);
   CHECK(painted[3] <= 136);
   write_bmp_artifact("tool_brush_expand_layer", document);
+}
+
+// brush_dab_coverage is what paint_brush_dab stamps (the Brush overlay previews it, GitHub
+// issue 517): a dab at an integer position writes each pixel's alpha from the coverage at its
+// offset, for the soft Round, a rotated flat ellipse, a rotated Square and a sampled tip.
+void tool_brush_dab_coverage_matches_painted_dab() {
+  const auto bar_tip = make_bar_brush_tip();
+  const auto scaled_bar = patchy::make_scaled_brush_tip(patchy::build_brush_tip_mips(bar_tip), 15);
+  const auto configure = [&scaled_bar](int variant) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 15;
+    if (variant == 0) {
+      options.brush_softness = 60;
+    } else if (variant == 1) {
+      options.brush_roundness = 40;
+      options.brush_angle_degrees = 30.0;
+      options.brush_softness = 20;
+    } else if (variant == 2) {
+      options.brush_shape = patchy::BrushShape::Square;
+      options.brush_angle_degrees = 20.0;
+    } else {
+      options.brush_tip = &scaled_bar;
+      options.brush_angle_degrees = 45.0;
+    }
+    return options;
+  };
+  for (int variant = 0; variant < 4; ++variant) {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    const auto options = configure(variant);
+    CHECK(!patchy::paint_brush_dab(document, layer_id, 20.0, 20.0, options, false).empty());
+    const auto& pixels = std::as_const(*document.find_layer(layer_id)).pixels();
+    int worst = 0;
+    int covered = 0;
+    for (std::int32_t y = 4; y < 36; ++y) {
+      for (std::int32_t x = 4; x < 36; ++x) {
+        const auto expected = static_cast<int>(
+            std::lround(patchy::brush_dab_coverage(x - 20.0, y - 20.0, options) * 255.0F));
+        worst = std::max(worst, std::abs(expected - static_cast<int>(pixels.pixel(x, y)[3])));
+        covered += expected > 0 ? 1 : 0;
+      }
+    }
+    CHECK(covered > 20);
+    CHECK(worst <= 2);
+  }
 }
 
 void tool_square_brush_dabs_are_pixel_snapped_and_solid() {
@@ -2209,6 +2255,7 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},
       {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},
+      {"tool_brush_dab_coverage_matches_painted_dab", tool_brush_dab_coverage_matches_painted_dab},
       {"tool_square_brush_dabs_are_pixel_snapped_and_solid", tool_square_brush_dabs_are_pixel_snapped_and_solid},
       {"tool_brush_repaints_translucent_pixels_without_color_halo",
        tool_brush_repaints_translucent_pixels_without_color_halo},

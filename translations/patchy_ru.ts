@@ -28532,6 +28532,18 @@ Locked: %1</source>
         <source>Brush dynamics and effects apply to the Brush tool.</source>
         <translation>Динамика и эффекты кисти относятся к инструменту «Кисть».</translation>
     </message>
+    <message>
+        <source>Show Overlay</source>
+        <translation>Показывать наложение</translation>
+    </message>
+    <message>
+        <source>Overlay Opacity:</source>
+        <translation>Непрозрачность наложения:</translation>
+    </message>
+    <message>
+        <source>Opacity of the brush overlay</source>
+        <translation>Непрозрачность наложения кисти</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

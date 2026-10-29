@@ -271,6 +271,7 @@ void CanvasWidget::set_spacebar_panning(bool enabled) {
   if (!panning_) {
     update_tool_cursor();
   }
+  invalidate_brush_overlay();
 }
 
 bool CanvasWidget::begin_pan_at_global_position(QPoint global_position) {
