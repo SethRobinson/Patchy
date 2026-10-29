@@ -28256,6 +28256,14 @@ Locked: %1</source>
         <source>Tool Options</source>
         <translation>工具选项</translation>
     </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>动画预览(&amp;N)</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>将图层作为动画帧预览</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -28420,6 +28420,14 @@ Zablokowano: %1</translation>
         <source>Tool Options</source>
         <translation>Opcje narzędzia</translation>
     </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Podgląd a&amp;nimacji</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Podgląd warstw jako klatek animacji</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

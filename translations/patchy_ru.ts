@@ -28420,6 +28420,14 @@ Locked: %1</source>
         <source>Tool Options</source>
         <translation>Параметры инструмента</translation>
     </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Предварительный просмотр а&amp;нимации</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Просмотреть слои как кадры анимации</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

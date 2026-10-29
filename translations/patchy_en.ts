@@ -28257,6 +28257,14 @@ Locked: %1</source>
         <source>Tool Options</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

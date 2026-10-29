@@ -1950,6 +1950,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   apply_bound_translation(invisible_watermark_action);
   register_hotkey(invisible_watermark_action, "image.add_invisible_watermark");
   connect(invisible_watermark_action, &QAction::triggered, this, [this] { add_invisible_watermark(); });
+  // The Layers panel's film button, also on the Image menu (GitHub issue 512); both toggle
+  // the preview window.
+  image_menu->addSeparator();
+  auto* animation_preview_action = image_menu->addAction(tr("A&nimation Preview"));
+  bind_action_text(animation_preview_action, QT_TR_NOOP("A&nimation Preview"));
+  animation_preview_action->setObjectName(QStringLiteral("imageAnimationPreviewAction"));
+  animation_preview_action->setMenuRole(QAction::NoRole);
+  animation_preview_action->setIcon(simple_icon(QStringLiteral("film")));
+  bind_translated_status_tip(animation_preview_action,
+                             QT_TR_NOOP("Preview the layers as animation frames"));
+  apply_bound_translation(animation_preview_action);
+  register_hotkey(animation_preview_action, "image.animation_preview");
+  connect(animation_preview_action, &QAction::triggered, this, [this] { toggle_animation_preview_window(); });
   // Image menu like GIMP (GitHub issue 97); the Layer menu is at its row bound, and the
   // Layers panel menu carries the same action where Photoshop users look for it.
   image_menu->addSeparator();
@@ -1965,7 +1978,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   for (auto* action : {adjustments_menu->menuAction(), image_rotate_flip_menu->menuAction(), image_size_action,
                        canvas_size_action, crop_action,
                        rotate_cw_action, rotate_ccw_action, rotate_arbitrary_action, shift_seams_action,
-                       divide_photos_action, invisible_watermark_action, image_flatten_action_}) {
+                       divide_photos_action, invisible_watermark_action, animation_preview_action,
+                       image_flatten_action_}) {
     register_document_action(action);
   }
 

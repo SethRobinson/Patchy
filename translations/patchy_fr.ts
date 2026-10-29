@@ -28338,6 +28338,14 @@ Verrouillé : %1</translation>
         <source>Tool Options</source>
         <translation>Options d&apos;outil</translation>
     </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Aperçu de l&apos;a&amp;nimation</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Prévisualiser les calques comme images d&apos;animation</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

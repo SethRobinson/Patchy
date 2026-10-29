@@ -1171,6 +1171,43 @@ void ui_window_menu_lists_panels_and_toolbars() {
   }
 }
 
+// Image > Animation Preview toggles the same window as the Layers panel's film button
+// (GitHub issue 512).
+void ui_image_menu_opens_animation_preview() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* image_menu = window.findChild<QMenu*>(QStringLiteral("imageMenu"));
+  auto* action = require_action(window, "imageAnimationPreviewAction");
+  CHECK(image_menu != nullptr && action != nullptr);
+  if (image_menu == nullptr || action == nullptr) {
+    return;
+  }
+  CHECK(image_menu->actions().contains(action));
+  CHECK(action->text().remove(QLatin1Char('&')) == QStringLiteral("Animation Preview"));
+  CHECK(action->menuRole() == QAction::NoRole);
+  CHECK(action->isEnabled());
+  const auto preview = [&window] {
+    auto* found = window.findChild<QDialog*>(QStringLiteral("animationPreviewWindow"));
+    return found != nullptr && found->isVisible() ? found : nullptr;
+  };
+  CHECK(preview() == nullptr);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(preview() != nullptr);
+  // Captures for review: test-artifacts/ui_image_menu_animation_preview.png.
+  image_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+  save_widget_artifact("ui_image_menu_animation_preview", *image_menu);
+  image_menu->hide();
+  action->trigger();
+  QApplication::processEvents();
+  process_events_until([&preview] { return preview() == nullptr; });
+  CHECK(preview() == nullptr);
+  // With no document open it is off, like the film button.
+  CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, 0));
+  QApplication::processEvents();
+  CHECK(!action->isEnabled());
+}
+
 // Closing a panel and opening it again leaves every section at the column's full width,
 // stacked in one column with nothing beside it. Under the old dock column a reopened dock
 // could come back narrower, with the window background showing beside its title.
@@ -5137,6 +5174,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_layer_panel_new_layer_menu_lists_fills_and_adjustments", ui_layer_panel_new_layer_menu_lists_fills_and_adjustments},
       {"ui_window_menu_lists_panels_and_toolbars", ui_window_menu_lists_panels_and_toolbars},
+      {"ui_image_menu_opens_animation_preview", ui_image_menu_opens_animation_preview},
       {"ui_window_menu_hides_collapsed_panel", ui_window_menu_hides_collapsed_panel},
       {"ui_window_panel_hotkeys_show_and_hide_panels", ui_window_panel_hotkeys_show_and_hide_panels},
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},

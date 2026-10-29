@@ -28338,6 +28338,14 @@ Bloqueado: %1</translation>
         <source>Tool Options</source>
         <translation>Opções da ferramenta</translation>
     </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Pré-visualização da a&amp;nimação</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Pré-visualizar as camadas como quadros de animação</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
