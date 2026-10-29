@@ -52,7 +52,8 @@ void CanvasWidget::apply_script_brush(const ScriptStroke& s) {
   set_brush_tip(s.tip, s.tip_id); script_brush_spacing_ = s.spacing;
   set_brush_shape(!s.tip && s.tip_id == builtin_square_brush_tip_id() ? patchy::BrushShape::Square
                                                                      : patchy::BrushShape::Round);
-  brush_dynamics_ = s.dynamics; brush_base_angle_degrees_ = s.angle; brush_base_roundness_ = s.roundness;
+  brush_dynamics_ = patchy::effective_brush_dynamics(s.dynamics);  // as set_brush_dynamics stores it
+  brush_base_angle_degrees_ = s.angle; brush_base_roundness_ = s.roundness;
   mixer_wet_ = s.wet; mixer_load_ = s.load; mixer_mix_ = s.mix; mixer_flow_ = s.flow;
   mixer_sample_all_layers_ = s.sample_all_layers;
   pen_input_settings_ = PenInputSettings{};

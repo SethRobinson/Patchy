@@ -1,26 +1,31 @@
 #include "ui/brush_dynamics_popup.hpp"
 
 #include "ui/action_icons.hpp"
+#include "ui/app_settings.hpp"
+#include "ui/brush_stroke_preview.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/measurement_units.hpp"
 
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCursor>
 #include <QFrame>
 #include <QGridLayout>
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPainter>
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStackedWidget>
+#include <QStyle>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -32,6 +37,16 @@
 namespace patchy::ui {
 
 namespace {
+
+using Section = BrushDynamicsPanel::Section;
+
+// The popup's size (GitHub issue 506): short enough to open under the options bar on a 768 px
+// screen, and every page fits it without scrolling.
+constexpr int kPopupWidth = 520;
+constexpr int kPopupHeight = 600;
+constexpr int kPreviewHeight = 64;
+
+const char* const kSectionSettingsKey = "brushes/dynamicsSection";
 
 // Percent fraction <-> spin value helpers (BrushDynamics stores 0..1 fractions).
 [[nodiscard]] int percent_from_fraction(double fraction) {
@@ -81,20 +96,109 @@ void select_combo_control(QComboBox& combo, patchy::BrushDynamicControl control)
 }
 
 // macOS: QMacStyle's Aqua layout spacings/margins are far roomier than the
-// Windows metrics this dense panel was designed around, which pushed the popup
-// past the screen height. Pin Windows-like metrics there; other platforms keep
-// their style defaults (Windows rendering must not move).
+// Windows metrics this dense panel was designed around. Pin Windows-like metrics
+// there; other platforms keep their style defaults (Windows rendering must not move).
 void compact_group_grid(QGridLayout* grid) {
 #ifdef Q_OS_MACOS
   grid->setHorizontalSpacing(8);
   grid->setVerticalSpacing(6);
-  grid->setContentsMargins(9, 4, 9, 9);
 #else
   Q_UNUSED(grid);
 #endif
 }
 
+// The core section a page edits; Tip Shape has none (its angle and roundness live beside
+// BrushDynamics, not in it).
+[[nodiscard]] patchy::BrushDynamicsSection core_section(Section section) {
+  switch (section) {
+    case Section::ShapeDynamics: return patchy::BrushDynamicsSection::ShapeDynamics;
+    case Section::Scattering: return patchy::BrushDynamicsSection::Scattering;
+    case Section::Transfer: return patchy::BrushDynamicsSection::Transfer;
+    case Section::Texture: return patchy::BrushDynamicsSection::Texture;
+    case Section::DualBrush: return patchy::BrushDynamicsSection::DualBrush;
+    case Section::ColorDynamics: return patchy::BrushDynamicsSection::ColorDynamics;
+    case Section::BrushEffects:
+    case Section::TipShape: break;
+  }
+  return patchy::BrushDynamicsSection::BrushEffects;
+}
+
+[[nodiscard]] QString section_title(Section section) {
+  switch (section) {
+    case Section::TipShape: return BrushDynamicsPanel::tr("Tip Shape");
+    case Section::ShapeDynamics: return BrushDynamicsPanel::tr("Shape Dynamics");
+    case Section::Scattering: return BrushDynamicsPanel::tr("Scattering");
+    case Section::Transfer: return BrushDynamicsPanel::tr("Transfer");
+    case Section::Texture: return BrushDynamicsPanel::tr("Texture");
+    case Section::DualBrush: return BrushDynamicsPanel::tr("Dual Brush");
+    case Section::ColorDynamics: return BrushDynamicsPanel::tr("Color Dynamics");
+    case Section::BrushEffects: return BrushDynamicsPanel::tr("Brush Effects");
+  }
+  return {};
+}
+
+[[nodiscard]] QString object_name_part(Section section) {
+  switch (section) {
+    case Section::TipShape: return QStringLiteral("TipShape");
+    case Section::ShapeDynamics: return QStringLiteral("ShapeDynamics");
+    case Section::Scattering: return QStringLiteral("Scattering");
+    case Section::Transfer: return QStringLiteral("Transfer");
+    case Section::Texture: return QStringLiteral("Texture");
+    case Section::DualBrush: return QStringLiteral("DualBrush");
+    case Section::ColorDynamics: return QStringLiteral("ColorDynamics");
+    case Section::BrushEffects: return QStringLiteral("BrushEffects");
+  }
+  return {};
+}
+
+// The changed-from-default mark on a section tab.
+class SectionChangedDot : public QWidget {
+public:
+  explicit SectionChangedDot(QWidget* parent) : QWidget(parent) {
+    setFixedSize(10, 10);
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+  }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(theme().brush_dynamics_changed_dot);
+    painter.drawEllipse(QRectF(rect()).adjusted(1.5, 1.5, -1.5, -1.5));
+  }
+};
+
+// A page's scroll area sizes to its whole page: QScrollArea::sizeHint caps at about 24 font
+// heights, which would shrink the popup below its content. It only scrolls when the screen
+// itself is shorter than the popup.
+class SectionPageScroll : public QScrollArea {
+public:
+  using QScrollArea::QScrollArea;
+
+  [[nodiscard]] QSize sizeHint() const override {
+    const auto frame = 2 * frameWidth();
+    const auto content = widget() != nullptr ? widget()->sizeHint() : QSize(0, 0);
+    return content + QSize(frame, frame);
+  }
+  [[nodiscard]] QSize minimumSizeHint() const override { return {80, 80}; }
+};
+
 }  // namespace
+
+QString BrushDynamicsPanel::section_id(Section section) {
+  switch (section) {
+    case Section::TipShape: return QStringLiteral("tipShape");
+    case Section::ShapeDynamics: return QStringLiteral("shapeDynamics");
+    case Section::Scattering: return QStringLiteral("scattering");
+    case Section::Transfer: return QStringLiteral("transfer");
+    case Section::Texture: return QStringLiteral("texture");
+    case Section::DualBrush: return QStringLiteral("dualBrush");
+    case Section::ColorDynamics: return QStringLiteral("colorDynamics");
+    case Section::BrushEffects: return QStringLiteral("brushEffects");
+  }
+  return {};
+}
 
 BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   setObjectName(QStringLiteral("brushDynamicsPanel"));
@@ -102,13 +206,115 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   layout->setContentsMargins(8, 8, 8, 8);
   layout->setSpacing(6);
 
+  preview_ = new BrushStrokePreview(this);
+  preview_->setObjectName(QStringLiteral("dynamicsStrokePreview"));
+  preview_->setMinimumSize(160, kPreviewHeight);
+  preview_->setFixedHeight(kPreviewHeight);
+  preview_->setToolTip(tr("Preview of a pen stroke with these settings"));
+  preview_->setVisible(false);
+  layout->addWidget(preview_);
+
+  auto* sections_row = new QHBoxLayout();
+  sections_row->setSpacing(0);
+  layout->addLayout(sections_row, 1);
+
+  auto* tab_column = new QFrame(this);
+  tab_column->setObjectName(QStringLiteral("dynamicsSectionTabs"));
+  auto* tab_layout = new QVBoxLayout(tab_column);
+  tab_layout->setContentsMargins(0, 4, 0, 4);
+  tab_layout->setSpacing(0);
+  sections_row->addWidget(tab_column);
+  auto* tab_group = new QButtonGroup(this);
+  tab_group->setExclusive(true);
+
+  stack_ = new QStackedWidget(this);
+  stack_->setObjectName(QStringLiteral("dynamicsSectionStack"));
+  sections_row->addWidget(stack_, 1);
+
+  // One tab row plus its page. The page holds a header (title + Reset Section) over `body`,
+  // which takes the rows; `switchable` sections get their on/off box in the tab.
+  const auto add_section = [&](Section section, QCheckBox* enabled_check) -> QGridLayout* {
+    auto& tab = tabs_[static_cast<int>(section)];
+    const auto name = object_name_part(section);
+    auto* row = new QWidget(tab_column);
+    row->setObjectName(QStringLiteral("dynamicsTab%1Row").arg(name));
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(6, 0, 4, 0);
+    row_layout->setSpacing(2);
+    if (enabled_check != nullptr) {
+      enabled_check->setParent(row);
+      row_layout->addWidget(enabled_check);
+    } else {
+      // A hidden stand-in keeps the name in line with the switchable tabs' names.
+      auto* placeholder = new QCheckBox(row);
+      auto policy = placeholder->sizePolicy();
+      policy.setRetainSizeWhenHidden(true);
+      placeholder->setSizePolicy(policy);
+      placeholder->setFocusPolicy(Qt::NoFocus);
+      placeholder->setVisible(false);
+      row_layout->addWidget(placeholder);
+    }
+    tab.enabled = enabled_check;
+    tab.button = new QPushButton(row);
+    tab.button->setObjectName(QStringLiteral("dynamicsTab%1").arg(name));
+    tab.button->setCheckable(true);
+    tab.button->setFlat(true);
+    tab.button->setFocusPolicy(Qt::TabFocus);
+    tab.button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    tab.button->setMinimumHeight(fontMetrics().height() + 10);
+    tab_group->addButton(tab.button, static_cast<int>(section));
+    row_layout->addWidget(tab.button, 1);
+    tab.dot = new SectionChangedDot(row);
+    tab.dot->setObjectName(QStringLiteral("dynamicsTab%1Dot").arg(name));
+    row_layout->addWidget(tab.dot);
+    // Keep the column from reflowing when a dot appears.
+    auto dot_policy = tab.dot->sizePolicy();
+    dot_policy.setRetainSizeWhenHidden(true);
+    tab.dot->setSizePolicy(dot_policy);
+    tab.dot->setVisible(false);
+    tab_layout->addWidget(row);
+
+    auto* scroll = new SectionPageScroll(stack_);
+    scroll->setObjectName(QStringLiteral("dynamics%1Page").arg(name));
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto* page = new QWidget(scroll);
+    page->setObjectName(QStringLiteral("dynamicsSectionPage"));
+    auto* page_layout = new QVBoxLayout(page);
+    page_layout->setContentsMargins(10, 6, 8, 6);
+    page_layout->setSpacing(8);
+    auto* header = new QHBoxLayout();
+    tab.title = new QLabel(page);
+    tab.title->setObjectName(QStringLiteral("dynamicsSectionTitle"));
+    header->addWidget(tab.title);
+    header->addStretch(1);
+    tab.reset = new QPushButton(tr("Reset Section"), page);
+    tab.reset->setObjectName(QStringLiteral("dynamicsResetSectionButton"));
+    tab.reset->setToolTip(tr("Reset this section's settings to their defaults"));
+    header->addWidget(tab.reset);
+    page_layout->addLayout(header);
+    tab.body = new QWidget(page);
+    tab.body->setObjectName(QStringLiteral("dynamicsSectionBody"));
+    auto* grid = new QGridLayout(tab.body);
+    grid->setContentsMargins(0, 0, 0, 0);
+    compact_group_grid(grid);
+    grid->setColumnStretch(1, 1);
+    page_layout->addWidget(tab.body);
+    page_layout->addStretch(1);
+    scroll->setWidget(page);
+    stack_->addWidget(scroll);
+    connect(tab.reset, &QPushButton::clicked, this, [this, section] { reset_section(section); });
+    return grid;
+  };
+
   const auto add_percent_row = [this](QGridLayout* grid, int row, const QString& label,
                                       const QString& object_name, int maximum) -> QSpinBox* {
     auto* text = new QLabel(label, this);
     auto* slider = new QSlider(Qt::Horizontal, this);
     slider->setObjectName(object_name + QStringLiteral("Slider"));
     slider->setRange(0, maximum);
-    slider->setMinimumWidth(120);
+    slider->setMinimumWidth(60);
     auto* spin = new QSpinBox(this);
     spin->setObjectName(object_name);
     spin->setRange(0, maximum);
@@ -118,16 +324,20 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
     grid->addWidget(text, row, 0);
     grid->addWidget(slider, row, 1);
     grid->addWidget(spin, row, 2);
+    rows_.insert(spin, {text, slider});
     return spin;
   };
 
-  // A "Control:" combo plus its fade-steps spin (shown only while the combo says Fade). The
-  // items carry the enum in their data so display order stays decoupled from the enum values;
-  // with_global lists "Use Global Pen Setting" first (size/roundness/opacity only).
+  // A "Control:" combo plus its fade-steps spin (shown only while the combo says Fade), on the
+  // row right under the jitter it drives. The items carry the enum in their data so display
+  // order stays decoupled from the enum values; with_global lists "Use Global Pen Setting"
+  // first (size/roundness/opacity only).
   const auto add_control_row = [this](QGridLayout* grid, int row, const QString& label,
                                       const QString& combo_name, const QString& fade_name,
                                       bool with_global) -> std::pair<QComboBox*, QSpinBox*> {
-    grid->addWidget(new QLabel(label, this), row, 0);
+    auto* text = new QLabel(label, this);
+    text->setIndent(12);
+    grid->addWidget(text, row, 0);
     auto* combo = new QComboBox(this);
     combo->setObjectName(combo_name);
     if (with_global) {
@@ -147,78 +357,92 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
     fade_spin->setToolTip(tr("Spacing steps to fade over"));
     fade_spin->setVisible(false);
     auto* row_layout = new QHBoxLayout();
-    row_layout->addWidget(combo);
+    row_layout->addWidget(combo, 1);
     row_layout->addWidget(fade_spin);
-    row_layout->addStretch(1);
     grid->addLayout(row_layout, row, 1, 1, 2);
+    rows_.insert(combo, {text, nullptr});
     return {combo, fade_spin};
   };
 
+  const auto make_section_check = [this](const QString& object_name) {
+    auto* check = new QCheckBox(this);
+    check->setObjectName(object_name);
+    return check;
+  };
+  shape_dynamics_enabled_check_ =
+      make_section_check(QStringLiteral("dynamicsShapeDynamicsEnabledCheck"));
+  shape_dynamics_enabled_check_->setChecked(true);
+  scattering_enabled_check_ = make_section_check(QStringLiteral("dynamicsScatteringEnabledCheck"));
+  scattering_enabled_check_->setChecked(true);
+  transfer_enabled_check_ = make_section_check(QStringLiteral("dynamicsTransferEnabledCheck"));
+  transfer_enabled_check_->setChecked(true);
+  texture_enabled_check_ = make_section_check(QStringLiteral("dynamicsTextureEnabledCheck"));
+  dual_brush_enabled_check_ = make_section_check(QStringLiteral("dynamicsDualBrushEnabledCheck"));
+  color_dynamics_enabled_check_ = make_section_check(QStringLiteral("dynamicsColorEnabledCheck"));
+
   // Tip Shape: the static Photoshop "Brush Tip Shape" angle/roundness.
-  auto* shape_group = new QGroupBox(tr("Tip Shape"), this);
-  auto* shape_grid = new QGridLayout(shape_group);
-  compact_group_grid(shape_grid);
+  auto* shape_grid = add_section(Section::TipShape, nullptr);
   shape_grid->addWidget(new QLabel(tr("Angle:"), this), 0, 0);
   base_angle_spin_ = new QSpinBox(this);
   base_angle_spin_->setObjectName(QStringLiteral("dynamicsBaseAngleSpin"));
   base_angle_spin_->setRange(-180, 180);
   base_angle_spin_->setSuffix(degree_suffix());
-  shape_grid->addWidget(base_angle_spin_, 0, 1);
-  shape_grid->addWidget(new QLabel(tr("Roundness:"), this), 0, 2);
+  shape_grid->addWidget(base_angle_spin_, 0, 1, Qt::AlignLeft);
+  shape_grid->addWidget(new QLabel(tr("Roundness:"), this), 1, 0);
   base_roundness_spin_ = new QSpinBox(this);
   base_roundness_spin_->setObjectName(QStringLiteral("dynamicsBaseRoundnessSpin"));
   base_roundness_spin_->setRange(1, 100);
   base_roundness_spin_->setSuffix(percent_suffix());
   base_roundness_spin_->setValue(100);
-  shape_grid->addWidget(base_roundness_spin_, 0, 3);
-  shape_grid->setColumnStretch(4, 1);
-  layout->addWidget(shape_group);
+  shape_grid->addWidget(base_roundness_spin_, 1, 1, Qt::AlignLeft);
 
-  // Shape Dynamics.
-  auto* dynamics_group = new QGroupBox(tr("Shape Dynamics"), this);
-  auto* dynamics_grid = new QGridLayout(dynamics_group);
-  compact_group_grid(dynamics_grid);
+  // Shape Dynamics. Each jitter's Control sits right under it.
+  auto* dynamics_grid = add_section(Section::ShapeDynamics, shape_dynamics_enabled_check_);
   size_jitter_spin_ =
       add_percent_row(dynamics_grid, 0, tr("Size Jitter:"), QStringLiteral("dynamicsSizeJitterSpin"), 100);
-  minimum_diameter_spin_ = add_percent_row(dynamics_grid, 1, tr("Minimum Diameter:"),
-                                           QStringLiteral("dynamicsMinimumDiameterSpin"), 100);
   std::tie(size_control_combo_, size_fade_steps_spin_) =
-      add_control_row(dynamics_grid, 2, tr("Size Control:"), QStringLiteral("dynamicsSizeControlCombo"),
+      add_control_row(dynamics_grid, 1, tr("Size Control:"), QStringLiteral("dynamicsSizeControlCombo"),
                       QStringLiteral("dynamicsSizeFadeStepsSpin"), true);
+  minimum_diameter_spin_ = add_percent_row(dynamics_grid, 2, tr("Minimum Diameter:"),
+                                           QStringLiteral("dynamicsMinimumDiameterSpin"), 100);
   angle_jitter_spin_ =
       add_percent_row(dynamics_grid, 3, tr("Angle Jitter:"), QStringLiteral("dynamicsAngleJitterSpin"), 100);
-  dynamics_grid->addWidget(new QLabel(tr("Angle Control:"), this), 4, 0);
-  // The angle combo predates the data-mapped ones: its item indices equal the enum values
-  // (tests and set_values rely on that), so new sources append in enum order.
-  angle_control_combo_ = new QComboBox(this);
-  angle_control_combo_->setObjectName(QStringLiteral("dynamicsAngleControlCombo"));
-  angle_control_combo_->addItem(tr("Off"));
-  angle_control_combo_->addItem(tr("Fade"));
-  angle_control_combo_->addItem(tr("Pen Pressure"));
-  angle_control_combo_->addItem(tr("Pen Tilt"));
-  angle_control_combo_->addItem(tr("Pen Rotation"));
-  angle_control_combo_->addItem(tr("Initial Direction"));
-  angle_control_combo_->addItem(tr("Direction"));
-  angle_control_combo_->addItem(tr("Stylus Wheel"));
-  fade_steps_spin_ = new QSpinBox(this);
-  fade_steps_spin_->setObjectName(QStringLiteral("dynamicsFadeStepsSpin"));
-  fade_steps_spin_->setRange(1, 9999);
-  fade_steps_spin_->setValue(25);
-  fade_steps_spin_->setToolTip(tr("Spacing steps to fade over"));
-  fade_steps_spin_->setVisible(false);
-  auto* control_row = new QHBoxLayout();
-  control_row->addWidget(angle_control_combo_);
-  control_row->addWidget(fade_steps_spin_);
-  control_row->addStretch(1);
-  dynamics_grid->addLayout(control_row, 4, 1, 1, 2);
+  {
+    auto* text = new QLabel(tr("Angle Control:"), this);
+    text->setIndent(12);
+    dynamics_grid->addWidget(text, 4, 0);
+    // The angle combo predates the data-mapped ones: its item indices equal the enum values
+    // (tests and set_values rely on that), so new sources append in enum order.
+    angle_control_combo_ = new QComboBox(this);
+    angle_control_combo_->setObjectName(QStringLiteral("dynamicsAngleControlCombo"));
+    angle_control_combo_->addItem(tr("Off"));
+    angle_control_combo_->addItem(tr("Fade"));
+    angle_control_combo_->addItem(tr("Pen Pressure"));
+    angle_control_combo_->addItem(tr("Pen Tilt"));
+    angle_control_combo_->addItem(tr("Pen Rotation"));
+    angle_control_combo_->addItem(tr("Initial Direction"));
+    angle_control_combo_->addItem(tr("Direction"));
+    angle_control_combo_->addItem(tr("Stylus Wheel"));
+    fade_steps_spin_ = new QSpinBox(this);
+    fade_steps_spin_->setObjectName(QStringLiteral("dynamicsFadeStepsSpin"));
+    fade_steps_spin_->setRange(1, 9999);
+    fade_steps_spin_->setValue(25);
+    fade_steps_spin_->setToolTip(tr("Spacing steps to fade over"));
+    fade_steps_spin_->setVisible(false);
+    auto* control_row = new QHBoxLayout();
+    control_row->addWidget(angle_control_combo_, 1);
+    control_row->addWidget(fade_steps_spin_);
+    dynamics_grid->addLayout(control_row, 4, 1, 1, 2);
+    rows_.insert(angle_control_combo_, {text, nullptr});
+  }
   roundness_jitter_spin_ = add_percent_row(dynamics_grid, 5, tr("Roundness Jitter:"),
                                            QStringLiteral("dynamicsRoundnessJitterSpin"), 100);
-  minimum_roundness_spin_ = add_percent_row(dynamics_grid, 6, tr("Minimum Roundness:"),
+  std::tie(roundness_control_combo_, roundness_fade_steps_spin_) = add_control_row(
+      dynamics_grid, 6, tr("Roundness Control:"), QStringLiteral("dynamicsRoundnessControlCombo"),
+      QStringLiteral("dynamicsRoundnessFadeStepsSpin"), true);
+  minimum_roundness_spin_ = add_percent_row(dynamics_grid, 7, tr("Minimum Roundness:"),
                                             QStringLiteral("dynamicsMinimumRoundnessSpin"), 100);
   minimum_roundness_spin_->setValue(25);
-  std::tie(roundness_control_combo_, roundness_fade_steps_spin_) = add_control_row(
-      dynamics_grid, 7, tr("Roundness Control:"), QStringLiteral("dynamicsRoundnessControlCombo"),
-      QStringLiteral("dynamicsRoundnessFadeStepsSpin"), true);
   auto* flips_row = new QHBoxLayout();
   flip_x_check_ = new QCheckBox(tr("Flip X Jitter"), this);
   flip_x_check_->setObjectName(QStringLiteral("dynamicsFlipXCheck"));
@@ -228,12 +452,9 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   flips_row->addWidget(flip_y_check_);
   flips_row->addStretch(1);
   dynamics_grid->addLayout(flips_row, 8, 0, 1, 3);
-  layout->addWidget(dynamics_group);
 
   // Scattering.
-  auto* scatter_group = new QGroupBox(tr("Scattering"), this);
-  auto* scatter_grid = new QGridLayout(scatter_group);
-  compact_group_grid(scatter_grid);
+  auto* scatter_grid = add_section(Section::Scattering, scattering_enabled_check_);
   scatter_spin_ = add_percent_row(scatter_grid, 0, tr("Scatter:"), QStringLiteral("dynamicsScatterSpin"), 1000);
   std::tie(scatter_control_combo_, scatter_fade_steps_spin_) =
       add_control_row(scatter_grid, 1, tr("Scatter Control:"), QStringLiteral("dynamicsScatterControlCombo"),
@@ -241,7 +462,8 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   both_axes_check_ = new QCheckBox(tr("Both Axes"), this);
   both_axes_check_->setObjectName(QStringLiteral("dynamicsBothAxesCheck"));
   scatter_grid->addWidget(both_axes_check_, 2, 0, 1, 2);
-  scatter_grid->addWidget(new QLabel(tr("Count:"), this), 3, 0);
+  auto* count_label = new QLabel(tr("Count:"), this);
+  scatter_grid->addWidget(count_label, 3, 0);
   count_spin_ = new QSpinBox(this);
   count_spin_->setObjectName(QStringLiteral("dynamicsCountSpin"));
   count_spin_->setRange(1, 16);
@@ -251,122 +473,106 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   std::tie(count_control_combo_, count_fade_steps_spin_) =
       add_control_row(scatter_grid, 5, tr("Count Control:"), QStringLiteral("dynamicsCountControlCombo"),
                       QStringLiteral("dynamicsCountFadeStepsSpin"), false);
-  layout->addWidget(scatter_group);
 
   // Transfer (opacity and flow).
-  auto* transfer_group = new QGroupBox(tr("Transfer"), this);
-  auto* transfer_grid = new QGridLayout(transfer_group);
-  compact_group_grid(transfer_grid);
+  auto* transfer_grid = add_section(Section::Transfer, transfer_enabled_check_);
   opacity_jitter_spin_ = add_percent_row(transfer_grid, 0, tr("Opacity Jitter:"),
                                          QStringLiteral("dynamicsOpacityJitterSpin"), 100);
-  minimum_opacity_spin_ = add_percent_row(transfer_grid, 1, tr("Minimum Opacity:"),
-                                          QStringLiteral("dynamicsMinimumOpacitySpin"), 100);
   std::tie(opacity_control_combo_, opacity_fade_steps_spin_) = add_control_row(
-      transfer_grid, 2, tr("Opacity Control:"), QStringLiteral("dynamicsOpacityControlCombo"),
+      transfer_grid, 1, tr("Opacity Control:"), QStringLiteral("dynamicsOpacityControlCombo"),
       QStringLiteral("dynamicsOpacityFadeStepsSpin"), true);
+  minimum_opacity_spin_ = add_percent_row(transfer_grid, 2, tr("Minimum Opacity:"),
+                                          QStringLiteral("dynamicsMinimumOpacitySpin"), 100);
   flow_jitter_spin_ = add_percent_row(transfer_grid, 3, tr("Flow Jitter:"),
                                       QStringLiteral("dynamicsFlowJitterSpin"), 100);
-  minimum_flow_spin_ = add_percent_row(transfer_grid, 4, tr("Minimum Flow:"),
-                                       QStringLiteral("dynamicsMinimumFlowSpin"), 100);
   std::tie(flow_control_combo_, flow_fade_steps_spin_) = add_control_row(
-      transfer_grid, 5, tr("Flow Control:"), QStringLiteral("dynamicsFlowControlCombo"),
+      transfer_grid, 4, tr("Flow Control:"), QStringLiteral("dynamicsFlowControlCombo"),
       QStringLiteral("dynamicsFlowFadeStepsSpin"), false);
-  layout->addWidget(transfer_group);
+  minimum_flow_spin_ = add_percent_row(transfer_grid, 5, tr("Minimum Flow:"),
+                                       QStringLiteral("dynamicsMinimumFlowSpin"), 100);
 
   // Texture. The generated grain is intentionally static: scale/depth/invert are saved brush
   // settings, never pen-input controls.
-  auto* texture_group = new QGroupBox(tr("Texture"), this);
-  auto* texture_grid = new QGridLayout(texture_group);
-  compact_group_grid(texture_grid);
-  texture_enabled_check_ = new QCheckBox(tr("Enable Texture"), this);
-  texture_enabled_check_->setObjectName(QStringLiteral("dynamicsTextureEnabledCheck"));
-  texture_grid->addWidget(texture_enabled_check_, 0, 0, 1, 2);
-  texture_grid->addWidget(new QLabel(tr("Grain:"), this), 1, 0);
+  auto* texture_grid = add_section(Section::Texture, texture_enabled_check_);
+  texture_grid->addWidget(new QLabel(tr("Grain:"), this), 0, 0);
   texture_style_combo_ = new QComboBox(this);
   texture_style_combo_->setObjectName(QStringLiteral("dynamicsTextureStyleCombo"));
   texture_style_combo_->addItem(tr("Fine Grain"), static_cast<int>(patchy::BrushTextureStyle::FineGrain));
   texture_style_combo_->addItem(tr("Canvas"), static_cast<int>(patchy::BrushTextureStyle::Canvas));
   texture_style_combo_->addItem(tr("Speckle"), static_cast<int>(patchy::BrushTextureStyle::Speckle));
-  texture_grid->addWidget(texture_style_combo_, 1, 1, 1, 2);
-  texture_scale_spin_ = add_percent_row(texture_grid, 2, tr("Scale:"),
+  texture_grid->addWidget(texture_style_combo_, 0, 1, 1, 2);
+  texture_scale_spin_ = add_percent_row(texture_grid, 1, tr("Scale:"),
                                         QStringLiteral("dynamicsTextureScaleSpin"), 1000);
   texture_scale_spin_->setMinimum(1);
-  texture_depth_spin_ = add_percent_row(texture_grid, 3, tr("Depth:"),
+  texture_depth_spin_ = add_percent_row(texture_grid, 2, tr("Depth:"),
                                         QStringLiteral("dynamicsTextureDepthSpin"), 100);
   texture_invert_check_ = new QCheckBox(tr("Invert Texture"), this);
   texture_invert_check_->setObjectName(QStringLiteral("dynamicsTextureInvertCheck"));
-  texture_grid->addWidget(texture_invert_check_, 4, 0, 1, 2);
-  layout->addWidget(texture_group);
+  texture_grid->addWidget(texture_invert_check_, 3, 0, 1, 2);
 
   // Dual Brush: one fixed secondary computed mask.
-  auto* dual_group = new QGroupBox(tr("Dual Brush"), this);
-  auto* dual_grid = new QGridLayout(dual_group);
-  compact_group_grid(dual_grid);
-  dual_brush_enabled_check_ = new QCheckBox(tr("Enable Dual Brush"), this);
-  dual_brush_enabled_check_->setObjectName(QStringLiteral("dynamicsDualBrushEnabledCheck"));
-  dual_grid->addWidget(dual_brush_enabled_check_, 0, 0, 1, 2);
-  dual_brush_size_spin_ = add_percent_row(dual_grid, 1, tr("Secondary Size:"),
+  auto* dual_grid = add_section(Section::DualBrush, dual_brush_enabled_check_);
+  dual_brush_size_spin_ = add_percent_row(dual_grid, 0, tr("Secondary Size:"),
                                           QStringLiteral("dynamicsDualBrushSizeSpin"), 400);
   dual_brush_size_spin_->setMinimum(5);
-  dual_brush_hardness_spin_ = add_percent_row(dual_grid, 2, tr("Secondary Hardness:"),
+  dual_brush_hardness_spin_ = add_percent_row(dual_grid, 1, tr("Secondary Hardness:"),
                                               QStringLiteral("dynamicsDualBrushHardnessSpin"), 100);
-  dual_brush_spacing_spin_ = add_percent_row(dual_grid, 3, tr("Secondary Spacing:"),
+  dual_brush_spacing_spin_ = add_percent_row(dual_grid, 2, tr("Secondary Spacing:"),
                                              QStringLiteral("dynamicsDualBrushSpacingSpin"), 1000);
   dual_brush_spacing_spin_->setMinimum(10);
-  layout->addWidget(dual_group);
 
-  // Color Dynamics and the independent Wet Edges coverage treatment.
-  auto* color_group = new QGroupBox(tr("Color Dynamics"), this);
-  auto* color_grid = new QGridLayout(color_group);
-  compact_group_grid(color_grid);
-  color_dynamics_enabled_check_ = new QCheckBox(tr("Enable Color Dynamics"), this);
-  color_dynamics_enabled_check_->setObjectName(QStringLiteral("dynamicsColorEnabledCheck"));
-  color_grid->addWidget(color_dynamics_enabled_check_, 0, 0, 1, 2);
+  // Color Dynamics.
+  auto* color_grid = add_section(Section::ColorDynamics, color_dynamics_enabled_check_);
   foreground_background_jitter_spin_ = add_percent_row(
-      color_grid, 1, tr("Foreground/Background Jitter:"),
+      color_grid, 0, tr("Foreground/Background Jitter:"),
       QStringLiteral("dynamicsColorForegroundBackgroundJitterSpin"), 100);
+  // The longest label in the popup wraps rather than widening every page.
+  rows_.value(foreground_background_jitter_spin_).first->setWordWrap(true);
   std::tie(color_control_combo_, color_fade_steps_spin_) = add_control_row(
-      color_grid, 2, tr("Color Control:"), QStringLiteral("dynamicsColorControlCombo"),
+      color_grid, 1, tr("Color Control:"), QStringLiteral("dynamicsColorControlCombo"),
       QStringLiteral("dynamicsColorFadeStepsSpin"), false);
-  hue_jitter_spin_ = add_percent_row(color_grid, 3, tr("Hue Jitter:"),
+  hue_jitter_spin_ = add_percent_row(color_grid, 2, tr("Hue Jitter:"),
                                      QStringLiteral("dynamicsColorHueJitterSpin"), 100);
-  saturation_jitter_spin_ = add_percent_row(color_grid, 4, tr("Saturation Jitter:"),
+  saturation_jitter_spin_ = add_percent_row(color_grid, 3, tr("Saturation Jitter:"),
                                             QStringLiteral("dynamicsColorSaturationJitterSpin"), 100);
-  brightness_jitter_spin_ = add_percent_row(color_grid, 5, tr("Brightness Jitter:"),
+  brightness_jitter_spin_ = add_percent_row(color_grid, 4, tr("Brightness Jitter:"),
                                             QStringLiteral("dynamicsColorBrightnessJitterSpin"), 100);
-  color_grid->addWidget(new QLabel(tr("Purity:"), this), 6, 0);
+  color_grid->addWidget(new QLabel(tr("Purity:"), this), 5, 0);
   purity_spin_ = new QSpinBox(this);
   purity_spin_->setObjectName(QStringLiteral("dynamicsColorPuritySpin"));
   purity_spin_->setRange(-100, 100);
   purity_spin_->setSuffix(percent_suffix());
-  color_grid->addWidget(purity_spin_, 6, 1, Qt::AlignLeft);
+  color_grid->addWidget(purity_spin_, 5, 1, Qt::AlignLeft);
   color_per_tip_check_ = new QCheckBox(tr("Apply Per Tip"), this);
   color_per_tip_check_->setObjectName(QStringLiteral("dynamicsColorPerTipCheck"));
   color_per_tip_check_->setChecked(true);
-  color_grid->addWidget(color_per_tip_check_, 7, 0, 1, 2);
-  layout->addWidget(color_group);
+  color_grid->addWidget(color_per_tip_check_, 6, 0, 1, 2);
 
-  auto* effects_group = new QGroupBox(tr("Brush Effects"), this);
-  auto* effects_layout = new QVBoxLayout(effects_group);
+  // Brush Effects: Wet Edges keeps its own box on the page, so the tab has no switch.
+  auto* effects_grid = add_section(Section::BrushEffects, nullptr);
   wet_edges_check_ = new QCheckBox(tr("Wet Edges"), this);
   wet_edges_check_->setObjectName(QStringLiteral("dynamicsWetEdgesCheck"));
   wet_edges_check_->setToolTip(
       tr("Builds paint along stroke edges for a watercolor wash. It does not smear canvas "
          "colors; use Smudge for that."));
-  effects_layout->addWidget(wet_edges_check_);
-  layout->addWidget(effects_group);
+  effects_grid->addWidget(wet_edges_check_, 0, 0, 1, 3);
+  tab_layout->addStretch(1);
 
   auto* footer = new QHBoxLayout();
-  footer->addStretch(1);
-  auto* reset_button = new QPushButton(tr("Reset"), this);
+  auto* reset_button = new QPushButton(tr("Reset All"), this);
   reset_button->setObjectName(QStringLiteral("dynamicsResetButton"));
   reset_button->setToolTip(tr("Reset the tip shape and all dynamics to defaults"));
   footer->addWidget(reset_button);
+  footer->addStretch(1);
+  auto* hint = new QLabel(tr("Changes apply as you edit."), this);
+  hint->setObjectName(QStringLiteral("dynamicsApplyHint"));
+  footer->addWidget(hint);
   layout->addLayout(footer);
+  retitle_tabs();
 
   const auto emit_edited = [this] {
     if (!loading_) {
-      refresh_control_dependent_widgets();
+      after_values_changed();
       emit edited();
     }
   };
@@ -387,20 +593,129 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
                       flow_control_combo_, texture_style_combo_, color_control_combo_}) {
     connect(combo, &QComboBox::currentIndexChanged, this, emit_edited);
   }
-  for (auto* check : {flip_x_check_, flip_y_check_, both_axes_check_, texture_enabled_check_,
+  for (auto* check : {flip_x_check_, flip_y_check_, both_axes_check_, shape_dynamics_enabled_check_,
+                      scattering_enabled_check_, transfer_enabled_check_, texture_enabled_check_,
                       texture_invert_check_, dual_brush_enabled_check_,
                       color_dynamics_enabled_check_, color_per_tip_check_, wet_edges_check_}) {
     connect(check, &QCheckBox::toggled, this, emit_edited);
   }
-  refresh_control_dependent_widgets();
   connect(reset_button, &QPushButton::clicked, this, &BrushDynamicsPanel::reset_to_defaults);
 
-  // Keep - / + buttons on the panel's spin boxes (see the sub-control gotcha in dialog_utils);
-  // applied after all children exist.
-  set_themed_style(*this, dialog_spinbox_button_style());
+  connect(tab_group, &QButtonGroup::idClicked, this, [this](int id) {
+    select_section(static_cast<Section>(id));
+  });
+  // The last tab used comes back on the next opening (stored by id, so a section added later
+  // never shifts it).
+  auto initial = Section::TipShape;
+  const auto stored = app_settings().value(QLatin1String(kSectionSettingsKey)).toString();
+  for (int index = 0; index < kSectionCount; ++index) {
+    if (section_id(static_cast<Section>(index)) == stored) {
+      initial = static_cast<Section>(index);
+    }
+  }
+  stack_->setCurrentIndex(static_cast<int>(initial));
+  tabs_[static_cast<int>(initial)].button->setChecked(true);
+  after_values_changed();
+
+  // The tab column and page chrome; the - / + spin buttons (see the sub-control gotcha in
+  // dialog_utils) go last and apply after all children exist.
+  set_themed_style(*this, ThemedQss(QStringLiteral(R"(
+    QFrame#dynamicsSectionTabs {
+      background: @dialog_tab_bg;
+      border: 1px solid @dialog_tab_border;
+    }
+    QFrame#dynamicsSectionTabs QWidget {
+      background: transparent;
+    }
+    QFrame#dynamicsSectionTabs QPushButton {
+      text-align: left;
+      padding: 4px 4px;
+      border: 0;
+      border-radius: 0;
+      color: @dialog_tab_text;
+      background: transparent;
+    }
+    QFrame#dynamicsSectionTabs QPushButton:hover:!checked {
+      background: @dialog_tab_hover_bg;
+    }
+    QFrame#dynamicsSectionTabs QPushButton:checked {
+      background: @dialog_tab_selected_bg;
+      color: @text_on_raised;
+    }
+    QStackedWidget#dynamicsSectionStack {
+      border: 1px solid @dialog_tab_border;
+      border-left: 0;
+      background: @dialog_tab_bg;
+    }
+    QStackedWidget#dynamicsSectionStack QScrollArea,
+    QStackedWidget#dynamicsSectionStack QWidget#qt_scrollarea_viewport,
+    QStackedWidget#dynamicsSectionStack QWidget#dynamicsSectionPage,
+    QStackedWidget#dynamicsSectionStack QWidget#dynamicsSectionBody {
+      background: transparent;
+    }
+    QLabel#dynamicsSectionTitle {
+      font-weight: bold;
+    }
+    QLabel#dynamicsApplyHint {
+      color: @hint_text;
+    }
+  )")));
+  append_themed_style(*this, dialog_spinbox_button_style());
   // The popup is a Qt::Popup frame, not a dialog, so the exec_dialog hook never sees
   // these rows: pair every "Label", slider, spin row here (GitHub issue 46).
   install_scrub_labels_in(this);
+}
+
+void BrushDynamicsPanel::retitle_tabs() {
+  for (int index = 0; index < kSectionCount; ++index) {
+    const auto section = static_cast<Section>(index);
+    auto& tab = tabs_[index];
+    const auto title = section_title(section);
+    tab.button->setText(title);
+    tab.title->setText(title);
+    tab.dot->setToolTip(tr("Changed from the defaults"));
+    if (tab.enabled != nullptr) {
+      tab.enabled->setToolTip(tr("Turn %1 on or off. Its settings are kept while it is off.").arg(title));
+      tab.enabled->setAccessibleName(tr("Use %1").arg(title));
+    }
+  }
+}
+
+void BrushDynamicsPanel::select_section(Section section) {
+  const auto index = static_cast<int>(section);
+  if (index < 0 || index >= kSectionCount) {
+    return;
+  }
+  stack_->setCurrentIndex(index);
+  if (!tabs_[index].button->isChecked()) {
+    tabs_[index].button->setChecked(true);
+  }
+  app_settings().setValue(QLatin1String(kSectionSettingsKey), section_id(section));
+}
+
+BrushDynamicsPanel::Section BrushDynamicsPanel::current_section() const {
+  return static_cast<Section>(std::clamp(stack_->currentIndex(), 0, kSectionCount - 1));
+}
+
+bool BrushDynamicsPanel::section_marked_changed(Section section) const {
+  const auto index = static_cast<int>(section);
+  return index >= 0 && index < kSectionCount && !tabs_[index].dot->isHidden();
+}
+
+void BrushDynamicsPanel::set_preview_tip(std::shared_ptr<const patchy::BrushTip> tip,
+                                         double spacing) {
+  preview_->setVisible(tip != nullptr);
+  preview_->set_tip(std::move(tip));
+  preview_->set_spacing(spacing);
+  preview_->set_dynamics(dynamics(), base_angle_degrees(), base_roundness());
+}
+
+void BrushDynamicsPanel::after_values_changed() {
+  refresh_control_dependent_widgets();
+  refresh_section_markers();
+  if (preview_->has_tip()) {
+    preview_->set_dynamics(dynamics(), base_angle_degrees(), base_roundness());
+  }
 }
 
 void BrushDynamicsPanel::set_values(const patchy::BrushDynamics& dynamics, double base_angle_degrees,
@@ -409,6 +724,9 @@ void BrushDynamicsPanel::set_values(const patchy::BrushDynamics& dynamics, doubl
   base_angle_spin_->setValue(normalized_angle_value(base_angle_degrees));
   base_roundness_spin_->setValue(
       std::clamp(static_cast<int>(std::lround(base_roundness)), 1, 100));
+  shape_dynamics_enabled_check_->setChecked(dynamics.shape_dynamics_enabled);
+  scattering_enabled_check_->setChecked(dynamics.scattering_enabled);
+  transfer_enabled_check_->setChecked(dynamics.transfer_enabled);
   size_jitter_spin_->setValue(percent_from_fraction(dynamics.size_jitter));
   minimum_diameter_spin_->setValue(percent_from_fraction(dynamics.minimum_diameter));
   select_combo_control(*size_control_combo_, dynamics.size_control);
@@ -460,12 +778,15 @@ void BrushDynamicsPanel::set_values(const patchy::BrushDynamics& dynamics, doubl
   purity_spin_->setValue(static_cast<int>(std::lround(dynamics.purity * 100.0)));
   color_per_tip_check_->setChecked(dynamics.color_per_tip);
   wet_edges_check_->setChecked(dynamics.wet_edges);
-  refresh_control_dependent_widgets();
+  after_values_changed();
   loading_ = false;
 }
 
 patchy::BrushDynamics BrushDynamicsPanel::dynamics() const {
   patchy::BrushDynamics dynamics;
+  dynamics.shape_dynamics_enabled = shape_dynamics_enabled_check_->isChecked();
+  dynamics.scattering_enabled = scattering_enabled_check_->isChecked();
+  dynamics.transfer_enabled = transfer_enabled_check_->isChecked();
   dynamics.size_jitter = fraction_from_percent(size_jitter_spin_->value());
   dynamics.minimum_diameter = fraction_from_percent(minimum_diameter_spin_->value());
   dynamics.size_control = combo_control(*size_control_combo_);
@@ -522,6 +843,18 @@ patchy::BrushDynamics BrushDynamicsPanel::dynamics() const {
   return dynamics;
 }
 
+void BrushDynamicsPanel::set_row_enabled(QWidget* field, bool enabled) {
+  field->setEnabled(enabled);
+  if (const auto found = rows_.constFind(field); found != rows_.constEnd()) {
+    if (found->first != nullptr) {
+      found->first->setEnabled(enabled);
+    }
+    if (found->second != nullptr) {
+      found->second->setEnabled(enabled);
+    }
+  }
+}
+
 void BrushDynamicsPanel::refresh_control_dependent_widgets() {
   fade_steps_spin_->setVisible(angle_control_combo_->currentIndex() ==
                                static_cast<int>(patchy::BrushDynamicControl::Fade));
@@ -537,30 +870,40 @@ void BrushDynamicsPanel::refresh_control_dependent_widgets() {
   for (const auto& [combo, fade_spin] : control_rows) {
     fade_spin->setVisible(combo_control(*combo) == patchy::BrushDynamicControl::Fade);
   }
-  // The Minimum Opacity floor only participates while the opacity control has a real source.
-  const auto minimum_opacity_live = control_has_source(combo_control(*opacity_control_combo_));
-  minimum_opacity_spin_->setEnabled(minimum_opacity_live);
-  if (auto* slider = findChild<QSlider*>(QStringLiteral("dynamicsMinimumOpacitySpinSlider"))) {
-    slider->setEnabled(minimum_opacity_live);
-  }
-  const auto minimum_flow_live = control_has_source(combo_control(*flow_control_combo_));
-  minimum_flow_spin_->setEnabled(minimum_flow_live);
-  if (auto* slider = findChild<QSlider*>(QStringLiteral("dynamicsMinimumFlowSpinSlider"))) {
-    slider->setEnabled(minimum_flow_live);
-  }
-  const auto set_group_enabled = [this](const QString& prefix, bool enabled) {
-    const auto children = findChildren<QWidget*>();
-    for (auto* child : children) {
-      if (child->objectName().startsWith(prefix) &&
-          child != texture_enabled_check_ && child != dual_brush_enabled_check_ &&
-          child != color_dynamics_enabled_check_) {
-        child->setEnabled(enabled);
-      }
+  // The size and roundness floors bound both the jitter and the control; with neither they
+  // change nothing.
+  set_row_enabled(minimum_diameter_spin_, size_jitter_spin_->value() > 0 ||
+                                              control_has_source(combo_control(*size_control_combo_)));
+  set_row_enabled(minimum_roundness_spin_,
+                  roundness_jitter_spin_->value() > 0 ||
+                      control_has_source(combo_control(*roundness_control_combo_)));
+  // The Minimum Opacity and Flow floors only participate while their control has a source.
+  set_row_enabled(minimum_opacity_spin_, control_has_source(combo_control(*opacity_control_combo_)));
+  set_row_enabled(minimum_flow_spin_, control_has_source(combo_control(*flow_control_combo_)));
+  // Count Jitter and Count Control vary a count above one; at one dab they do nothing.
+  const auto multiple_dabs = count_spin_->value() > 1;
+  set_row_enabled(count_jitter_spin_, multiple_dabs);
+  set_row_enabled(count_control_combo_, multiple_dabs);
+  count_fade_steps_spin_->setEnabled(multiple_dabs);
+  // A section that is off keeps its values; its rows read as inactive until it is back on.
+  for (const auto& tab : tabs_) {
+    if (tab.enabled != nullptr) {
+      tab.body->setEnabled(tab.enabled->isChecked());
     }
-  };
-  set_group_enabled(QStringLiteral("dynamicsTexture"), texture_enabled_check_->isChecked());
-  set_group_enabled(QStringLiteral("dynamicsDualBrush"), dual_brush_enabled_check_->isChecked());
-  set_group_enabled(QStringLiteral("dynamicsColor"), color_dynamics_enabled_check_->isChecked());
+  }
+}
+
+void BrushDynamicsPanel::refresh_section_markers() {
+  const auto values = dynamics();
+  for (int index = 0; index < kSectionCount; ++index) {
+    const auto section = static_cast<Section>(index);
+    const auto changed =
+        section == Section::TipShape
+            ? (base_angle_spin_->value() != 0 || base_roundness_spin_->value() != 100)
+            : !patchy::brush_dynamics_section_is_default(values, core_section(section));
+    tabs_[index].dot->setVisible(changed);
+    tabs_[index].reset->setEnabled(changed);
+  }
 }
 
 double BrushDynamicsPanel::base_angle_degrees() const {
@@ -573,6 +916,17 @@ double BrushDynamicsPanel::base_roundness() const {
 
 void BrushDynamicsPanel::reset_to_defaults() {
   set_values({}, 0.0, 100.0);
+  emit edited();
+}
+
+void BrushDynamicsPanel::reset_section(Section section) {
+  if (section == Section::TipShape) {
+    set_values(dynamics(), 0.0, 100.0);
+  } else {
+    auto values = dynamics();
+    patchy::reset_brush_dynamics_section(values, core_section(section));
+    set_values(values, base_angle_degrees(), base_roundness());
+  }
   emit edited();
 }
 
@@ -589,6 +943,15 @@ BrushDynamicsButton::BrushDynamicsButton(QWidget* parent) : QToolButton(parent) 
   connect(this, &QToolButton::clicked, this, &BrushDynamicsButton::show_popup);
   retranslate();
   set_active_entry(nullptr);
+}
+
+BrushDynamicsButton::~BrushDynamicsButton() {
+  // An open popup is a child: delete it while this button is still whole, so its destroyed()
+  // handler never runs against a half-destroyed button (a window closed with the popup up).
+  if (popup_ != nullptr) {
+    popup_->disconnect(this);
+    delete popup_.data();
+  }
 }
 
 void BrushDynamicsButton::open_popup() {
@@ -632,6 +995,7 @@ void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
     return;
   }
   tip_id_ = entry->id;
+  tip_spacing_ = entry->spacing;
   round_session_ = false;
   dynamics_ = entry->dynamics;
   base_angle_degrees_ = entry->base_angle_degrees;
@@ -650,6 +1014,7 @@ void BrushDynamicsButton::set_round_session(const QString& round_tip_id,
     return;
   }
   tip_id_ = round_tip_id;
+  tip_spacing_ = 0.25;  // the Round and Square brushes stamp at Photoshop's default spacing
   round_session_ = true;
   dynamics_ = dynamics;
   base_angle_degrees_ = base_angle_degrees;
@@ -657,6 +1022,11 @@ void BrushDynamicsButton::set_round_session(const QString& round_tip_id,
   setEnabled(true);
   retranslate();
   refresh_active_indicator();
+}
+
+void BrushDynamicsButton::set_preview_tip_provider(
+    std::function<std::shared_ptr<const patchy::BrushTip>(const QString& tip_id)> provider) {
+  preview_tip_provider_ = std::move(provider);
 }
 
 void BrushDynamicsButton::refresh_active_indicator() {
@@ -746,17 +1116,15 @@ void BrushDynamicsButton::show_popup() {
 
   auto* layout = new QVBoxLayout(popup);
   layout->setContentsMargins(0, 0, 0, 0);
-  // The control rows outgrew short screens, so the panel lives in a scroll area and the popup
-  // clamps to the available screen height (a vertical scrollbar appears only when clamped).
-  auto* scroll = new QScrollArea(popup);
-  scroll->setObjectName(QStringLiteral("brushDynamicsPopupScroll"));
-  scroll->setWidgetResizable(true);
-  scroll->setFrameShape(QFrame::NoFrame);
-  scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  auto* panel = new BrushDynamicsPanel(scroll);
+  auto* panel = new BrushDynamicsPanel(popup);
   panel->set_values(dynamics_, base_angle_degrees_, base_roundness_);
-  scroll->setWidget(panel);
-  layout->addWidget(scroll);
+  if (round_session_) {
+    panel->set_preview_tip(procedural_brush_preview_tip(tip_id_ == builtin_square_brush_tip_id()),
+                           tip_spacing_);
+  } else if (preview_tip_provider_) {
+    panel->set_preview_tip(preview_tip_provider_(tip_id_), tip_spacing_);
+  }
+  layout->addWidget(panel);
   connect(panel, &BrushDynamicsPanel::edited, popup, [this, panel] {
     dynamics_ = panel->dynamics();
     base_angle_degrees_ = panel->base_angle_degrees();
@@ -764,32 +1132,31 @@ void BrushDynamicsButton::show_popup() {
     schedule_emit();
   });
 
-  // Size from the panel's own hint: QScrollArea::sizeHint is capped at ~24 font-heights, so
-  // adjustSize() through it would show a needless scrollbar on any normal screen. The scroll
-  // area only earns its keep when the screen truly cannot fit the full panel.
-  const auto panel_hint = panel->sizeHint();
+  // A fixed 520 x 600 (GitHub issue 506), wider only if a translation needs it, so switching
+  // tabs never resizes the popup and it opens under the options bar. Never taller than the
+  // screen: on a very short one the pages scroll instead.
   const auto frame = 2 * popup->frameWidth();
-  auto popup_width = panel_hint.width() + frame;
-  auto popup_height = panel_hint.height() + frame;
+  const auto panel_hint = panel->sizeHint();
+  auto popup_width = std::max(kPopupWidth, panel_hint.width() + frame);
+  auto popup_height = kPopupHeight;
   const auto* screen = this->screen();
   if (screen != nullptr) {
     const auto available = screen->availableGeometry();
-    const auto max_height = std::max(200, available.height() - 40);
-    if (popup_height > max_height) {
-      popup_height = max_height;
-      // Reserve room for the scrollbar so clamping never squeezes the rows horizontally.
-      popup_width += scroll->verticalScrollBar()->sizeHint().width();
-    }
+    popup_height = std::min(popup_height, std::max(200, available.height() - 16));
+    popup_width = std::min(popup_width, available.width());
   }
-  popup->resize(popup_width, popup_height);
+  popup->setFixedSize(popup_width, popup_height);
   // A hidden options bar (Window > Brush Settings): under the window's top-left corner.
   auto position = isVisible() ? mapToGlobal(QPoint(0, height())) : window()->mapToGlobal(QPoint(12, 12));
   if (screen != nullptr) {
     const auto available = screen->availableGeometry();
-    if (position.y() + popup->height() > available.bottom()) {
+    if (position.y() + popup->height() > available.bottom() + 1) {
       position.setY(std::max(available.top(), mapToGlobal(QPoint(0, 0)).y() - popup->height()));
     }
-    position.setX(std::min(position.x(), available.right() - popup->width()));
+    position.setY(std::clamp(position.y(), available.top(),
+                             std::max(available.top(), available.bottom() + 1 - popup->height())));
+    position.setX(std::clamp(position.x(), available.left(),
+                             std::max(available.left(), available.right() + 1 - popup->width())));
   }
   popup->move(position);
   popup->show();

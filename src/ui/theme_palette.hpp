@@ -436,6 +436,8 @@ struct ThemePalette {
   QColor info_banner_border;
   QColor info_banner_text;
   QColor swatch_border;
+  // The Brush Dynamics popup's "changed from the defaults" dot on a section tab.
+  QColor brush_dynamics_changed_dot;
 
   // Shared button and surface families used by more than one dialog. These were
   // duplicated per dialog with identical values before the theme layer existed;

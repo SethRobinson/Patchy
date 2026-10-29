@@ -14755,10 +14755,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14791,10 +14787,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14808,10 +14800,6 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Color Dynamics</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14855,11 +14843,39 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Reset</source>
+        <source>Reset the tip shape and all dynamics to defaults</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Reset the tip shape and all dynamics to defaults</source>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

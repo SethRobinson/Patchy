@@ -14729,10 +14729,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>텍스처</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>텍스처 활성화</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>입자:</translation>
     </message>
@@ -14765,10 +14761,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>듀얼 브러시</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>듀얼 브러시 활성화</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>보조 크기:</translation>
     </message>
@@ -14783,10 +14775,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color Dynamics</source>
         <translation>색상 동적 설정</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>색상 동적 설정 활성화</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14829,12 +14817,40 @@ Each item&apos;s own View setting still applies.</source>
         <translation>획 가장자리에 물감을 쌓아 수채화의 번짐 효과를 냅니다. 캔버스의 색상을 문질러 섞지는 않습니다. 그 작업에는 손가락 도구를 사용하세요.</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>초기화</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>팁 모양과 모든 동적 설정을 기본값으로 재설정</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>이 설정으로 그린 펜 획 미리 보기</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>섹션 재설정</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>이 섹션의 설정을 기본값으로 되돌립니다</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>모두 재설정</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>변경 사항은 편집하는 즉시 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>기본값에서 변경됨</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>%1을(를) 켜거나 끕니다. 꺼져 있는 동안에도 설정은 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>%1 사용</translation>
     </message>
 </context>
 <context>

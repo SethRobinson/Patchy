@@ -14729,10 +14729,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>纹理</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>启用纹理</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>颗粒:</translation>
     </message>
@@ -14765,10 +14761,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>双重画笔</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>启用双重画笔</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>次级大小:</translation>
     </message>
@@ -14783,10 +14775,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color Dynamics</source>
         <translation>颜色动态</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>启用颜色动态</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14829,12 +14817,40 @@ Each item&apos;s own View setting still applies.</source>
         <translation>沿描边边缘堆积颜料，形成水彩晕染效果。它不会涂抹画布上的颜色；如需涂抹，请使用涂抹工具。</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>复位</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>将笔尖形状和所有动态恢复为默认值</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>使用这些设置的笔触预览</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>重置此部分</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>将此部分的设置恢复为默认值</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>全部重置</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>更改在编辑时即时生效。</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>已更改（不同于默认值）</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>开启或关闭%1。关闭期间其设置会保留。</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>使用%1</translation>
     </message>
 </context>
 <context>

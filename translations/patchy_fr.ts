@@ -14772,10 +14772,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Texture</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>Activer la texture</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>Grain :</translation>
     </message>
@@ -14808,10 +14804,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Forme double</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>Activer la forme double</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>Taille secondaire :</translation>
     </message>
@@ -14826,10 +14818,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Color Dynamics</source>
         <translation>Dynamique de la couleur</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>Activer la dynamique de la couleur</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14872,12 +14860,40 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Accumule la peinture le long des bords du tracé pour un effet de lavis à l&apos;aquarelle. Cette option n&apos;étale pas les couleurs de la toile ; utilisez l&apos;outil Doigt pour cela.</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>Réinitialiser</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>Réinitialiser la forme de la pointe et toute la dynamique aux valeurs par défaut</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>Aperçu d&apos;un tracé au stylet avec ces réglages</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>Réinitialiser la section</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>Rétablir les valeurs par défaut des réglages de cette section</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>Tout réinitialiser</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>Les modifications s&apos;appliquent pendant l&apos;édition.</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>Modifié par rapport aux valeurs par défaut</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>Activer ou désactiver %1. Ses réglages sont conservés tant que la section est désactivée.</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>Utiliser %1</translation>
     </message>
 </context>
 <context>

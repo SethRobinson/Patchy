@@ -616,7 +616,10 @@ namespace {
 // Equality over the persisted dynamics fields only (seed/pen inputs are per-stroke scratch).
 [[nodiscard]] bool persisted_dynamics_equal(const patchy::BrushDynamics& a,
                                             const patchy::BrushDynamics& b) {
-  return a.size_jitter == b.size_jitter && a.minimum_diameter == b.minimum_diameter &&
+  return a.shape_dynamics_enabled == b.shape_dynamics_enabled &&
+         a.scattering_enabled == b.scattering_enabled &&
+         a.transfer_enabled == b.transfer_enabled && a.size_jitter == b.size_jitter &&
+         a.minimum_diameter == b.minimum_diameter &&
          a.size_control == b.size_control && a.size_fade_steps == b.size_fade_steps &&
          a.angle_jitter == b.angle_jitter && a.angle_control == b.angle_control &&
          a.angle_fade_steps == b.angle_fade_steps && a.roundness_jitter == b.roundness_jitter &&
@@ -791,6 +794,9 @@ bool BrushTipLibrary::set_tip_folder(const QString& id, const QString& folder) {
 
 QJsonObject brush_dynamics_to_json(const patchy::BrushDynamics& dynamics) {
   QJsonObject object;
+  object.insert(QStringLiteral("shapeDynamicsEnabled"), dynamics.shape_dynamics_enabled);
+  object.insert(QStringLiteral("scatteringEnabled"), dynamics.scattering_enabled);
+  object.insert(QStringLiteral("transferEnabled"), dynamics.transfer_enabled);
   object.insert(QStringLiteral("sizeJitter"), dynamics.size_jitter);
   object.insert(QStringLiteral("minimumDiameter"), dynamics.minimum_diameter);
   object.insert(QStringLiteral("sizeControl"), control_token(dynamics.size_control));
@@ -855,6 +861,12 @@ patchy::BrushDynamics brush_dynamics_from_json(const QJsonObject& object) {
   const auto read_fade_steps = [&object](const char* key) {
     return std::clamp(object.value(QLatin1String(key)).toInt(25), 1, 9999);
   };
+  // The section switches arrived with GitHub issue 506; a sidecar or script without them
+  // reads every section as on, which is how it painted before.
+  dynamics.shape_dynamics_enabled =
+      object.value(QStringLiteral("shapeDynamicsEnabled")).toBool(true);
+  dynamics.scattering_enabled = object.value(QStringLiteral("scatteringEnabled")).toBool(true);
+  dynamics.transfer_enabled = object.value(QStringLiteral("transferEnabled")).toBool(true);
   dynamics.size_jitter = clamp_fraction(object.value(QStringLiteral("sizeJitter")).toDouble(0.0));
   dynamics.minimum_diameter = clamp_fraction(object.value(QStringLiteral("minimumDiameter")).toDouble(0.0));
   dynamics.size_control = sanitize_non_angle_control(
@@ -959,7 +971,10 @@ QPixmap brush_tip_thumbnail_with_badge(const BrushTipEntry& entry) {
 
 bool brush_dynamics_is_default(const patchy::BrushDynamics& dynamics) {
   const patchy::BrushDynamics defaults;
-  return dynamics.size_jitter == defaults.size_jitter &&
+  return dynamics.shape_dynamics_enabled == defaults.shape_dynamics_enabled &&
+         dynamics.scattering_enabled == defaults.scattering_enabled &&
+         dynamics.transfer_enabled == defaults.transfer_enabled &&
+         dynamics.size_jitter == defaults.size_jitter &&
          dynamics.minimum_diameter == defaults.minimum_diameter &&
          dynamics.size_control == defaults.size_control &&
          dynamics.size_fade_steps == defaults.size_fade_steps &&

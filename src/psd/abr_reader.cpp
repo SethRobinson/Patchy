@@ -121,7 +121,20 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
 [[nodiscard]] BrushDynamics parse_brush_dynamics(const DescriptorObject& preset,
                                                   const DescriptorObject& primary_brush) {
   BrushDynamics dynamics;
-  if (descriptor_bool(preset, "useTipDynamics")) {
+  // Photoshop keeps a section's settings when its checkbox is off (useTipDynamics, useScatter,
+  // usePaintDynamics), so each section is read either way; an off section that holds anything
+  // but defaults imports with its Patchy switch off and the values kept (GitHub issue 506).
+  // An off section at defaults imports exactly as before: on, at defaults.
+  const auto import_section = [&dynamics](bool used, BrushDynamicsSection section,
+                                          bool BrushDynamics::*enabled) {
+    if (!used) {
+      if (brush_dynamics_section_is_default(dynamics, section)) {
+        return;
+      }
+      dynamics.*enabled = false;
+    }
+  };
+  {
     const auto size = read_variation(preset, "szVr");
     dynamics.size_jitter = std::clamp(size.jitter, 0.0, 1.0);
     dynamics.minimum_diameter =
@@ -142,8 +155,10 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
     dynamics.roundness_fade_steps = roundness.fade_steps;
     dynamics.flip_x_jitter = descriptor_bool(preset, "flipX");
     dynamics.flip_y_jitter = descriptor_bool(preset, "flipY");
+    import_section(descriptor_bool(preset, "useTipDynamics"), BrushDynamicsSection::ShapeDynamics,
+                   &BrushDynamics::shape_dynamics_enabled);
   }
-  if (descriptor_bool(preset, "useScatter")) {
+  {
     const auto scatter = read_variation(preset, "scatterDynamics");
     dynamics.scatter = std::clamp(scatter.jitter, 0.0, 10.0);
     dynamics.scatter_both_axes = descriptor_bool(preset, "bothAxes");
@@ -156,8 +171,10 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
     dynamics.count_jitter = std::clamp(count.jitter, 0.0, 1.0);
     dynamics.count_control = non_angle_control_from_bvty(count.control, BrushDynamicControl::Off);
     dynamics.count_fade_steps = count.fade_steps;
+    import_section(descriptor_bool(preset, "useScatter"), BrushDynamicsSection::Scattering,
+                   &BrushDynamics::scattering_enabled);
   }
-  if (descriptor_bool(preset, "usePaintDynamics")) {
+  {
     const auto opacity = read_variation(preset, "opVr");
     dynamics.opacity_jitter = std::clamp(opacity.jitter, 0.0, 1.0);
     dynamics.minimum_opacity = std::clamp(opacity.minimum, 0.0, 1.0);
@@ -169,6 +186,8 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
     dynamics.minimum_flow = std::clamp(flow.minimum, 0.0, 1.0);
     dynamics.flow_control = non_angle_control_from_bvty(flow.control, BrushDynamicControl::Off);
     dynamics.flow_fade_steps = flow.fade_steps;
+    import_section(descriptor_bool(preset, "usePaintDynamics"), BrushDynamicsSection::Transfer,
+                   &BrushDynamics::transfer_enabled);
   }
   if (descriptor_bool(preset, "useTexture")) {
     dynamics.texture_enabled = true;

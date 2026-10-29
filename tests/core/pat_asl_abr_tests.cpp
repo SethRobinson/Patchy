@@ -1380,6 +1380,92 @@ void write_desc_variation(patchy::psd::BigEndianWriter& writer, std::string_view
   write_desc_double(writer, "Mnm ", minimum_percent);
 }
 
+// GitHub issue 506: Photoshop keeps a section's values while its checkbox is off. Such a
+// section imports with its Patchy switch off and the values kept; an off section at defaults
+// (the common case) imports on, exactly as before the switches existed.
+void abr_disabled_sections_keep_their_values() {
+  patchy::psd::BigEndianWriter desc;
+  desc.write_u32(16);  // descriptor version
+  write_desc_header(desc, "null", 1);
+  write_desc_id(desc, "Brsh");
+  write_desc_ascii(desc, "VlLs");
+  desc.write_u32(1);  // one preset
+  write_desc_ascii(desc, "Objc");
+  write_desc_header(desc, "brushPreset", 9);
+  write_desc_id(desc, "Nm  ");
+  write_desc_ascii(desc, "TEXT");
+  write_desc_unicode_string(desc, u"Switch Probe");
+  write_desc_id(desc, "Brsh");
+  write_desc_ascii(desc, "Objc");
+  write_desc_header(desc, "sampledBrush", 3);
+  write_desc_double(desc, "Spcn", 25.0);
+  write_desc_double(desc, "Angl", 0.0);
+  write_desc_double(desc, "Rndn", 100.0);
+  write_desc_bool(desc, "useTipDynamics", true);
+  write_desc_variation(desc, "szVr", 0, 25, 40.0, 0.0);
+  write_desc_bool(desc, "useScatter", false);
+  write_desc_variation(desc, "scatterDynamics", 0, 25, 150.0, 0.0);
+  write_desc_double(desc, "Cnt ", 3.0);
+  write_desc_bool(desc, "usePaintDynamics", false);
+  write_desc_variation(desc, "opVr", 0, 25, 0.0, 0.0);  // off and at defaults
+
+  patchy::psd::BigEndianWriter samp;
+  {
+    patchy::psd::BigEndianWriter entry;
+    for (int i = 0; i < 47; ++i) {
+      entry.write_u8(0);
+    }
+    entry.write_u32(0);
+    entry.write_u32(0);
+    entry.write_u32(4);
+    entry.write_u32(4);
+    entry.write_u16(8);
+    entry.write_u8(0);
+    for (int i = 0; i < 16; ++i) {
+      entry.write_u8(255);
+    }
+    const auto body = entry.bytes();
+    samp.write_u32(static_cast<std::uint32_t>(body.size()));
+    samp.write_bytes(body);
+    while (samp.bytes().size() % 4U != 0U) {
+      samp.write_u8(0);
+    }
+  }
+  patchy::psd::BigEndianWriter file;
+  file.write_u16(6);
+  file.write_u16(1);
+  const auto write_block = [&file](std::string_view key, const std::vector<std::uint8_t>& block) {
+    write_desc_ascii(file, "8BIM");
+    write_desc_ascii(file, key);
+    file.write_u32(static_cast<std::uint32_t>(block.size()));
+    file.write_bytes(block);
+    while (file.bytes().size() % 4U != 0U) {
+      file.write_u8(0);
+    }
+  };
+  write_block("samp", samp.bytes());
+  write_block("desc", desc.bytes());
+
+  std::string error;
+  const auto result = patchy::psd::read_abr(file.bytes(), error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->brushes.size() == 1);
+  const auto& dynamics = result->brushes.front().dynamics;
+  CHECK(dynamics.shape_dynamics_enabled);
+  CHECK(std::abs(dynamics.size_jitter - 0.40) < 1e-9);
+  CHECK(!dynamics.scattering_enabled);
+  CHECK(std::abs(dynamics.scatter - 1.50) < 1e-9);
+  CHECK(dynamics.count == 3);
+  CHECK(dynamics.transfer_enabled);
+  CHECK(dynamics.opacity_jitter == 0.0);
+  // The engine paints the off section as its defaults.
+  const auto effective = patchy::effective_brush_dynamics(dynamics);
+  CHECK(effective.scatter == 0.0);
+  CHECK(effective.count == 1);
+  CHECK(std::abs(effective.size_jitter - 0.40) < 1e-9);
+}
+
 void abr_v6_desc_controls_import() {
   // The committed Photoshop fixture only exercises bVTy 0 (no control chosen), so this
   // synthesized v6 file pins the explicit control mappings: every dynamic carries a distinct
@@ -1731,6 +1817,7 @@ std::vector<patchy::test::TestCase> pat_asl_abr_tests() {
       {"abr_dynamics_fixture_extracts_shape_and_scatter", abr_dynamics_fixture_extracts_shape_and_scatter},
       {"abr_myer_brushes_have_default_dynamics", abr_myer_brushes_have_default_dynamics},
       {"abr_v6_desc_controls_import", abr_v6_desc_controls_import},
+      {"abr_disabled_sections_keep_their_values", abr_disabled_sections_keep_their_values},
       {"abr_v1_parses_sampled_brush_and_skips_computed", abr_v1_parses_sampled_brush_and_skips_computed},
       {"abr_v2_parses_named_rle_and_16bit_brushes", abr_v2_parses_named_rle_and_16bit_brushes},
       {"abr_rejects_corrupt_truncated_and_empty_files", abr_rejects_corrupt_truncated_and_empty_files},

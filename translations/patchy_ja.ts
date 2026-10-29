@@ -14729,10 +14729,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>テクスチャ</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>テクスチャを有効化</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>粒子:</translation>
     </message>
@@ -14765,10 +14761,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>デュアルブラシ</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>デュアルブラシを有効化</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>サブブラシのサイズ:</translation>
     </message>
@@ -14783,10 +14775,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color Dynamics</source>
         <translation>カラーダイナミクス</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>カラーダイナミクスを有効化</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14829,12 +14817,40 @@ Each item&apos;s own View setting still applies.</source>
         <translation>水彩のにじみのようにストロークの縁に絵の具をためます。キャンバスの色はこすり混ぜません。その場合は指先ツールを使用してください。</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>リセット</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>先端のシェイプとすべてのダイナミクスを初期設定に戻します</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>この設定でのペンストロークのプレビュー</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>セクションをリセット</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>このセクションの設定を既定値に戻します</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>すべてリセット</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>変更は編集と同時に適用されます。</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>既定値から変更されています</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>%1 のオン/オフを切り替えます。オフの間も設定は保持されます。</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>%1 を使用</translation>
     </message>
 </context>
 <context>
