@@ -16786,10 +16786,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Werkzeugpalette</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Optionen</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Neu</translation>
     </message>
@@ -28357,6 +28353,18 @@ Fixiert: %1</translation>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>Ebenen-Schaltflächen anpassen</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Werkzeugoptionen</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>A&amp;nimationsvorschau</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Die Ebenen als Animationsbilder in der Vorschau zeigen</translation>
     </message>
 </context>
 <context>

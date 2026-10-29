@@ -16742,10 +16742,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>工具面板</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>选项</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>新建(&amp;N)</translation>
     </message>
@@ -28275,6 +28271,18 @@ Locked: %1</source>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>自定义图层按钮</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>工具选项</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>动画预览(&amp;N)</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>将图层作为动画帧预览</translation>
     </message>
 </context>
 <context>

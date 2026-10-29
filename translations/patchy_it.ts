@@ -16786,10 +16786,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Palette strumenti</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Opzioni</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Nuovo</translation>
     </message>
@@ -28357,6 +28353,18 @@ Bloccato: %1</translation>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>Personalizza pulsanti dei livelli</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Opzioni strumento</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>A&amp;nteprima animazione</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Visualizza in anteprima i livelli come fotogrammi di animazione</translation>
     </message>
 </context>
 <context>

@@ -932,7 +932,8 @@ void ui_start_panel_shows_about_info_and_update_status() {
 }
 
 // GitHub issue 163: the Window menu lists every side panel and both toolbars as checkable
-// entries, alphabetically, with the document-window commands under Window > Arrange.
+// entries, the panels alphabetically, then Tool Palette and Tool Options as a pair between
+// separators (GitHub issue 513), with the document-window commands under Window > Arrange.
 // Picking a closed, background-tab or collapsed panel brings it forward expanded; picking
 // one already in front closes it.
 // A checked Window menu entry hides its panel even while the panel is collapsed
@@ -1091,10 +1092,26 @@ void ui_window_menu_lists_panels_and_toolbars() {
     }
   }
   CHECK(entry_texts == QStringList({QStringLiteral("Channels"), QStringLiteral("Color"), QStringLiteral("History"),
-                                    QStringLiteral("Info"),
-                                    QStringLiteral("Layers"), QStringLiteral("Options"), QStringLiteral("Palette"),
+                                    QStringLiteral("Info"), QStringLiteral("Layers"), QStringLiteral("Palette"),
                                     QStringLiteral("Paths"), QStringLiteral("Properties"),
-                                    QStringLiteral("Tool Palette")}));
+                                    QStringLiteral("Tool Palette"), QStringLiteral("Tool Options")}));
+  // The toolbar pair stands apart: a separator before Tool Palette, one after Tool Options,
+  // then Reset Panels.
+  {
+    const auto actions = window_menu->actions();
+    auto* palette_toggle = window.findChild<QToolBar*>(QStringLiteral("toolPalette"))->toggleViewAction();
+    auto* options_toggle = window.findChild<QToolBar*>(QStringLiteral("Options"))->toggleViewAction();
+    const auto at = actions.indexOf(palette_toggle);
+    CHECK(at > 0 && at + 3 < actions.size());
+    if (at > 0 && at + 3 < actions.size()) {
+      CHECK(actions[at - 1]->isSeparator());
+      CHECK(actions[at + 1] == options_toggle);
+      CHECK(actions[at + 2]->isSeparator());
+      CHECK(actions[at + 3] == require_action(window, "windowResetPanelsAction"));
+      CHECK(!actions[at - 2]->isSeparator());
+    }
+    CHECK(options_toggle->menuRole() == QAction::NoRole);
+  }
 
   const auto history = QStringLiteral("historyDock");
   auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
@@ -1152,6 +1169,43 @@ void ui_window_menu_lists_panels_and_toolbars() {
     save_widget_artifact("menu_" + menu->objectName().toStdString(), *menu);
     menu->hide();
   }
+}
+
+// Image > Animation Preview toggles the same window as the Layers panel's film button
+// (GitHub issue 512).
+void ui_image_menu_opens_animation_preview() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* image_menu = window.findChild<QMenu*>(QStringLiteral("imageMenu"));
+  auto* action = require_action(window, "imageAnimationPreviewAction");
+  CHECK(image_menu != nullptr && action != nullptr);
+  if (image_menu == nullptr || action == nullptr) {
+    return;
+  }
+  CHECK(image_menu->actions().contains(action));
+  CHECK(action->text().remove(QLatin1Char('&')) == QStringLiteral("Animation Preview"));
+  CHECK(action->menuRole() == QAction::NoRole);
+  CHECK(action->isEnabled());
+  const auto preview = [&window] {
+    auto* found = window.findChild<QDialog*>(QStringLiteral("animationPreviewWindow"));
+    return found != nullptr && found->isVisible() ? found : nullptr;
+  };
+  CHECK(preview() == nullptr);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(preview() != nullptr);
+  // Captures for review: test-artifacts/ui_image_menu_animation_preview.png.
+  image_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+  save_widget_artifact("ui_image_menu_animation_preview", *image_menu);
+  image_menu->hide();
+  action->trigger();
+  QApplication::processEvents();
+  process_events_until([&preview] { return preview() == nullptr; });
+  CHECK(preview() == nullptr);
+  // With no document open it is off, like the film button.
+  CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, 0));
+  QApplication::processEvents();
+  CHECK(!action->isEnabled());
 }
 
 // Closing a panel and opening it again leaves every section at the column's full width,
@@ -5120,6 +5174,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_layer_panel_new_layer_menu_lists_fills_and_adjustments", ui_layer_panel_new_layer_menu_lists_fills_and_adjustments},
       {"ui_window_menu_lists_panels_and_toolbars", ui_window_menu_lists_panels_and_toolbars},
+      {"ui_image_menu_opens_animation_preview", ui_image_menu_opens_animation_preview},
       {"ui_window_menu_hides_collapsed_panel", ui_window_menu_hides_collapsed_panel},
       {"ui_window_panel_hotkeys_show_and_hide_panels", ui_window_panel_hotkeys_show_and_hide_panels},
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},

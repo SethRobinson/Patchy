@@ -127,12 +127,12 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
   for (auto* toggle : {ctx.tool_palette->toggleViewAction(), ctx.options_toolbar->toggleViewAction()}) {
     toggle->setProperty(kWorksWithoutDocumentProperty, true);
   }
-  // The "Options" toggle would otherwise be captured by macOS's menu-text heuristic
+  // The "Tool Options" toggle would otherwise be captured by macOS's menu-text heuristic
   // (any menubar action containing "options" gets relocated as a Preferences item).
   ctx.tool_palette->toggleViewAction()->setMenuRole(QAction::NoRole);
   ctx.options_toolbar->toggleViewAction()->setMenuRole(QAction::NoRole);
   bind_widget_text(ctx.tool_palette, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Tool Palette"));
-  bind_widget_text(ctx.options_toolbar, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Options"));
+  bind_widget_text(ctx.options_toolbar, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Tool Options"));
   const std::vector<std::pair<QAction*, const char*>> translated_actions = {
       {ctx.new_action, QT_TR_NOOP("&New")},
       {ctx.open_action, QT_TR_NOOP("&Open...")},

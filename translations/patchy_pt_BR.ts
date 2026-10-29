@@ -16898,10 +16898,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Paleta de ferramentas</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Opções</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Novo</translation>
     </message>
@@ -28357,6 +28353,18 @@ Bloqueado: %1</translation>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>Personalizar botões de camadas</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Opções da ferramenta</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Pré-visualização da a&amp;nimação</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Pré-visualizar as camadas como quadros de animação</translation>
     </message>
 </context>
 <context>

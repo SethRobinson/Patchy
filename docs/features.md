@@ -50,7 +50,7 @@
 
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
 - Named palette colors appear in the Palette panel, color picker, Info panel, and eyedropper readout. Rename swatches, preserve names through GPL, PSD, and indexed PNG round trips, and manage palettes through scripts
-- Pixel-art and game-dev extras: seamless texture authoring (live tile preview window, in-canvas tiling mode, seam shifting), sprite sheet export/import, image sequence export/import (numbered files become layers and back), animated GIF, WebP and PNG import/export (frames become layers with their timings in the layer names, visible layers save back as a looping animation, and the layers panel's film button previews it, with delay presets), and flat and web exports with pixel scaling, resizing, edge trimming and background fill
+- Pixel-art and game-dev extras: seamless texture authoring (live tile preview window, in-canvas tiling mode, seam shifting), sprite sheet export/import, image sequence export/import (numbered files become layers and back), animated GIF, WebP and PNG import/export (frames become layers with their timings in the layer names, visible layers save as a looping animation, and the film button or Image > Animation Preview previews it, with delay presets), and flat and web exports with pixel scaling, resizing, edge trimming and background fill
 
 ## Color and print
 

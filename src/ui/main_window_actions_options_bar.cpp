@@ -828,7 +828,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // The startup-defaults donor canvas resolved by create_actions() (see the
   // comment there); a local alias keeps the moved body identical.
   auto* canvas_defaults = ctx.canvas_defaults;
-  auto* toolbar = new QToolBar(tr("Options"), this);
+  auto* toolbar = new QToolBar(tr("Tool Options"), this);
   toolbar->setObjectName(QStringLiteral("Options"));
   toolbar->setMovable(false);
   toolbar->setFloatable(false);

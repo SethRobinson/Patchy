@@ -16786,10 +16786,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Palette d&apos;outils</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Options</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Nouveau</translation>
     </message>
@@ -28357,6 +28353,18 @@ Verrouillé : %1</translation>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>Personnaliser les boutons des calques</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Options d&apos;outil</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Aperçu de l&apos;a&amp;nimation</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Prévisualiser les calques comme images d&apos;animation</translation>
     </message>
 </context>
 <context>

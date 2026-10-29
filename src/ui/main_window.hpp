@@ -690,6 +690,7 @@ private:
   void sort_window_panel_entries();
   // The panel and toolbar toggles in the current language's alphabetical order.
   [[nodiscard]] std::vector<QAction*> sorted_window_panel_actions() const;
+  void add_window_toolbar_entries(QMenu& menu) const;
   // Photoshop's rule for a panel picked from the Window menu: one that is open, in
   // front and expanded closes; any other opens, comes to the front and expands.
   void toggle_window_panel(const QString& panel_id);
@@ -3360,6 +3361,8 @@ private:
   QAction* window_panels_separator_{nullptr};
   QAction* window_documents_separator_{nullptr};
   std::vector<QAction*> window_panel_actions_;
+  QAction* window_toolbars_separator_{nullptr};
+  std::vector<QAction*> window_toolbar_actions_;  // Tool Palette, Tool Options: a fixed pair after the panels
   QAction* window_reset_panels_separator_{nullptr};
   QAction* window_reset_panels_action_{nullptr};
   QStringList default_collapsed_panels_;

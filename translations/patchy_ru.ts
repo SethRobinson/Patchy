@@ -16942,10 +16942,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Палитра инструментов</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Параметры</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Создать</translation>
     </message>
@@ -28439,6 +28435,18 @@ Locked: %1</source>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>Настройка кнопок слоёв</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Параметры инструмента</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Предварительный просмотр а&amp;нимации</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Просмотреть слои как кадры анимации</translation>
     </message>
 </context>
 <context>

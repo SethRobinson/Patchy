@@ -18148,10 +18148,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>背景色</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>オプション</translation>
-    </message>
-    <message>
         <source>Auto-Select</source>
         <translation>自動選択</translation>
     </message>
@@ -28275,6 +28271,18 @@ Locked: %1</source>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>レイヤーのボタンのカスタマイズ</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>ツールオプション</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>アニメーションプレビュー(&amp;N)</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>レイヤーをアニメーションのフレームとしてプレビューします</translation>
     </message>
 </context>
 <context>

@@ -16942,10 +16942,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Paleta narzędzi</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Opcje</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Nowy</translation>
     </message>
@@ -28439,6 +28435,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>Dostosuj przyciski warstw</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Opcje narzędzia</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Podgląd a&amp;nimacji</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Podgląd warstw jako klatek animacji</translation>
     </message>
 </context>
 <context>

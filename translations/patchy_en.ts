@@ -16769,10 +16769,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation type="unfinished"></translation>
     </message>
@@ -28275,6 +28271,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>Customize Layer Buttons</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

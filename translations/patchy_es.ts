@@ -16786,10 +16786,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Paleta de herramientas</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Opciones</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Nuevo</translation>
     </message>
@@ -28357,6 +28353,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Customize Layer Buttons</source>
         <translation>Personalizar botones de Capas</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Opciones de herramienta</translation>
+    </message>
+    <message>
+        <source>A&amp;nimation Preview</source>
+        <translation>Previsualizació&amp;n de animación</translation>
+    </message>
+    <message>
+        <source>Preview the layers as animation frames</source>
+        <translation>Previsualizar las capas como fotogramas de animación</translation>
     </message>
 </context>
 <context>
