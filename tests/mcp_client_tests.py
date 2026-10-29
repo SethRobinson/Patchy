@@ -186,7 +186,9 @@ async def sdk_workflow(exe):
                 " patchy.ui.zoom = 400; patchy.setResult({fit: fit, zoom: patchy.ui.zoom});"})).structuredContent["result"]
             assert zoomed["fit"] > 0 and zoomed["zoom"] == 400
             window = await call("get_preview", {"target": "window"})
-            assert window.structuredContent["width"] == 1000 and window.structuredContent["height"] == 700
+            # The window never goes under its minimum, which holds the Options bar wrapped at
+            # that width (wider fonts wrap it further, as on Linux).
+            assert window.structuredContent["width"] == 1000 and window.structuredContent["height"] >= 700
             await call("execute_script", {"code": "patchy.ui.zoom = NaN;"}, error=True)
             # Exercise every shipped example without relying on a source checkout.
             for script, args in [("painting", {"out": str(OUT)}),

@@ -1580,6 +1580,7 @@ interface PatchyUi {
   /**
    * Resizes the main window (clamped to 320x240..8192x8192). Staging for
    * automation that captures the app; a maximized window is restored first.
+   * The window never goes below its minimum size, so a short request can come out taller.
    */
   setWindowSize(width: number, height: number): void;
   /** Sets the width of the right panel stack (Layers/Channels/Paths). */

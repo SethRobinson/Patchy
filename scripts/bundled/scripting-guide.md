@@ -597,7 +597,7 @@ doc.exportArtboards("out", {format: "png"});
 | `patchy.ui.createCanvas(options)` | Opens an interactive window with a `graphics` surface plus `onFrame`, key, and mouse callbacks. This is how the bundled games work; see `Games/pong.js` for a compact example. The run stays alive until the window closes. |
 | `patchy.ui.playTone(freq, ms, volume, wave)` | Plays a short synthesized blip (defaults 880 Hz, 120 ms, 0.5; wave `"sine"` or `"square"`). Fire-and-forget, for game feedback: Pong uses it for paddle hits and scores. |
 | `patchy.ui.playSound(path)` | Plays a `.wav` file (10 MB max). Relative paths resolve like `include()`. Throws if the file is missing or not a WAV. |
-| `patchy.ui.setWindowSize(w, h)` | Resizes the main window. Meant for automation that captures the app at a known size. |
+| `patchy.ui.setWindowSize(w, h)` | Resizes the main window. Meant for automation that captures the app at a known size. The window never goes below its minimum size, so a short request can come out taller. |
 | `patchy.ui.setSidePanelWidth(px)` | Sets the width of the right panel stack (Layers/Channels/Paths). |
 | `patchy.ui.captureWindow(path)` | Saves a PNG screenshot without raising or focusing the window. Waits up to 60 seconds for enabled Dynamic Vector Preview to settle; returns false on timeout or write failure. |
 | `patchy.ui.setStatusMessage(text)` | Shows a message in the status bar. Handy for progress readouts in long batches. |
