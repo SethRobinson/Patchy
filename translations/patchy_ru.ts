@@ -28420,6 +28420,10 @@ Locked: %1</source>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Перезапустите Patchy, чтобы новый размер текста вступил в силу.</translation>
     </message>
+    <message>
+        <source>Customize Layer Buttons</source>
+        <translation>Настройка кнопок слоёв</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

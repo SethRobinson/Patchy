@@ -1983,11 +1983,32 @@ void MainWindow::create_docks() {
   apply_layer_footer_icon_size(stored_layer_footer_icon_size());
   apply_layer_footer_visibility();
 
+  // A gear at the right end of the Layers title row opens Customize Tool Palette on its
+  // Layers buttons tab (GitHub issue 511), as the Color panel's gear sits in its row.
+  auto* layers_settings_button = new QToolButton(layers_panel);
+  layers_settings_button->setObjectName(QStringLiteral("layersPanelSettingsButton"));
+  layers_settings_button->setIcon(simple_icon(QStringLiteral("gear")));
+  layers_settings_button->setIconSize(QSize(14, 14));
+  layers_settings_button->setFixedSize(18, 18);
+  layers_settings_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  layers_settings_button->setFocusPolicy(Qt::NoFocus);
+  const auto apply_layers_settings_tooltip = [layers_settings_button] {
+    layers_settings_button->setToolTip(tr("Customize Layer Buttons"));
+    layers_settings_button->setAccessibleName(layers_settings_button->toolTip());
+  };
+  apply_layers_settings_tooltip();
+  register_retranslation(apply_layers_settings_tooltip);
+  // After the click finishes: the dialog runs its own loop.
+  connect(layers_settings_button, &QToolButton::clicked, this, [this] {
+    QTimer::singleShot(0, this, [this] { show_tool_palette_customization(ToolPaletteCustomizeTab::LayerButtons); });
+  });
+
   tab_specs.push_back(PanelSpec{.id = QStringLiteral("layersDock"),
                                 .object_prefix = QStringLiteral("layers"),
                                 .title = tr("Layers"),
                                 .content = layers_panel,
-                                .expanded_minimum_height = 300});
+                                .expanded_minimum_height = 300,
+                                .header_widget = layers_settings_button});
 
   channel_panel_ = new ChannelPanel(this);
   tab_specs.push_back(PanelSpec{.id = QStringLiteral("channelsDock"),

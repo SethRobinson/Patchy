@@ -28420,6 +28420,10 @@ Zablokowano: %1</translation>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Uruchom ponownie Patchy, aby nowy rozmiar tekstu zaczął obowiązywać.</translation>
     </message>
+    <message>
+        <source>Customize Layer Buttons</source>
+        <translation>Dostosuj przyciski warstw</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

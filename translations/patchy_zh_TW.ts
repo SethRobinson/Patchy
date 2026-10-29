@@ -28256,6 +28256,10 @@ Locked: %1</source>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>請重新啟動 Patchy，新的文字大小才會生效。</translation>
     </message>
+    <message>
+        <source>Customize Layer Buttons</source>
+        <translation>自訂圖層按鈕</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

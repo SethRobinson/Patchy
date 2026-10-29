@@ -28338,6 +28338,10 @@ Bloccato: %1</translation>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Riavvia Patchy per applicare la nuova dimensione del testo.</translation>
     </message>
+    <message>
+        <source>Customize Layer Buttons</source>
+        <translation>Personalizza pulsanti dei livelli</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

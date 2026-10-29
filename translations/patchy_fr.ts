@@ -28338,6 +28338,10 @@ Verrouillé : %1</translation>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Redémarrez Patchy pour que la nouvelle taille du texte prenne effet.</translation>
     </message>
+    <message>
+        <source>Customize Layer Buttons</source>
+        <translation>Personnaliser les boutons des calques</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

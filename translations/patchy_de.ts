@@ -28338,6 +28338,10 @@ Fixiert: %1</translation>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Starten Sie Patchy neu, damit die neue Textgröße wirksam wird.</translation>
     </message>
+    <message>
+        <source>Customize Layer Buttons</source>
+        <translation>Ebenen-Schaltflächen anpassen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
