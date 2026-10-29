@@ -92,10 +92,11 @@ public:
     setKeyboardTracking(false);
     setCorrectionMode(QAbstractSpinBox::CorrectToPreviousValue);
     setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    // The field stretches so its drop-down ends at the right edge of the buttons below it.
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   }
 
-  // Only as wide as a long delay ("9999.19 s") plus the shared spin style's padding (6 px
+  // At least as wide as a long delay ("9999.19 s") plus the shared spin style's padding (6 px
   // left, 54 px for the - and + buttons), its border and a little air. Measured when the
   // layout asks, so the font is the polished one.
   QSize sizeHint() const override {
@@ -208,6 +209,12 @@ AnimationPreviewWindow::AnimationPreviewWindow(
     QDialog#animationPreviewWindow QToolButton#animationSelectionTimePresetsButton:hover {
       border-color: @button_hover_border;
     }
+    /* The edit area already stops at the + button, so the right padding only has to clear
+       the - button (Preferences' interface-scale field): the value sits against it. */
+    QDialog#animationPreviewWindow QDoubleSpinBox#animationFrameDelaySpin,
+    QDialog#animationPreviewWindow QDoubleSpinBox#animationSelectionTimeSpin {
+      padding-right: 30px;
+    }
     QDialog#animationPreviewWindow QToolButton#animationFrameDelayPresetsButton::menu-indicator,
     QDialog#animationPreviewWindow QToolButton#animationSelectionTimePresetsButton::menu-indicator {
       image: none;
@@ -242,7 +249,6 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   delay_field->setSpacing(1);
   delay_field->addWidget(delay_spin_);
   delay_field->addWidget(delay_presets);
-  delay_field->addStretch(1);
   playback_layout->addWidget(delay_label, 0, 0);
   playback_layout->addLayout(delay_field, 0, 1);
   set_default_delay_ms(static_cast<int>(load_image_save_option_defaults().animation_frame_delay_ms), false);
@@ -298,7 +304,6 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   time_field->setSpacing(1);
   time_field->addWidget(selection_time_spin_);
   time_field->addWidget(time_presets);
-  time_field->addStretch(1);
   names_layout->addWidget(time_label, 0, 0);
   names_layout->addLayout(time_field, 0, 1);
   all_layers_check_ = new QCheckBox(tr("Apply to all layers"), names_group);
