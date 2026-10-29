@@ -2843,9 +2843,9 @@ void MainWindow::refresh_brush_tool_windows(bool edit_allowed) {
   if (brush_dynamics_button_ != nullptr) {
     brush_dynamics_button_->set_tool_supported(
         edit_allowed && current_tool_ == CanvasTool::Brush,
-        no_document ? tr("Open a document to change the brush settings.")
-                    : !edit_allowed ? tr("Brush settings can be changed again once the open dialog closes.")
-                                    : tr("Brush settings apply to the Brush tool."));
+        no_document ? tr("Open a document to change the brush dynamics and effects.")
+                    : !edit_allowed ? tr("Brush dynamics and effects can be changed again once the open dialog closes.")
+                                    : tr("Brush dynamics and effects apply to the Brush tool."));
   }
 }
 

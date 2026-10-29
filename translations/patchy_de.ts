@@ -14625,16 +14625,16 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Keine Pinselspitze ist aktiv.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Pinseleinstellungen</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>Geöffnet lassen</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>Die Pinseleinstellungen in einem Fenster öffnen, das beim Malen offen bleibt</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Pinseldynamik und Effekte</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>Pinseldynamik und Effekte in einem Fenster öffnen, das beim Malen offen bleibt</translation>
     </message>
 </context>
 <context>
@@ -28034,10 +28034,6 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>%1 wird durch %2 ersetzt.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Pinseleinstellungen</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>In den &amp;Vordergrund</translation>
     </message>
@@ -28431,16 +28427,20 @@ Fixiert: %1</translation>
         <translation>Das aktive Werkzeug hat keine Pinselspitze.</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>Öffnen Sie ein Dokument, um die Pinseleinstellungen zu ändern.</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Pinseldynamik und Effekte</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>Pinseleinstellungen lassen sich wieder ändern, sobald der offene Dialog geschlossen ist.</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>Öffnen Sie ein Dokument, um Pinseldynamik und Effekte zu ändern.</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>Pinseleinstellungen gelten für das Pinsel-Werkzeug.</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>Pinseldynamik und Effekte lassen sich wieder ändern, sobald der offene Dialog geschlossen ist.</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>Pinseldynamik und Effekte gelten für das Pinsel-Werkzeug.</translation>
     </message>
 </context>
 <context>

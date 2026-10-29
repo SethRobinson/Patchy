@@ -14668,16 +14668,16 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Żadna końcówka pędzla nie jest aktywna.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Ustawienia pędzla</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>Pozostaw otwarte</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>Otwórz ustawienia pędzla w oknie, które zostaje otwarte podczas malowania</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Dynamika pędzla i efekty</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>Otwórz dynamikę pędzla i efekty w oknie, które zostaje otwarte podczas malowania</translation>
     </message>
 </context>
 <context>
@@ -28116,10 +28116,6 @@ Otwarty dokument w obu przypadkach zachowuje swoje tryby mieszania.</translation
         <translation>%1 zostanie zastąpiona przez %2.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Ustawienia pędzla</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>Przenieś na &amp;wierzch</translation>
     </message>
@@ -28513,16 +28509,20 @@ Zablokowano: %1</translation>
         <translation>Aktywne narzędzie nie ma końcówki pędzla.</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>Otwórz dokument, aby zmienić ustawienia pędzla.</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Dynamika pędzla i efekty</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>Ustawienia pędzla będzie można znów zmienić po zamknięciu otwartego okna dialogowego.</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>Otwórz dokument, aby zmienić dynamikę pędzla i efekty.</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>Ustawienia pędzla dotyczą narzędzia Pędzel.</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>Dynamikę pędzla i efekty będzie można znów zmienić po zamknięciu otwartego okna dialogowego.</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>Dynamika pędzla i efekty dotyczą narzędzia Pędzel.</translation>
     </message>
 </context>
 <context>

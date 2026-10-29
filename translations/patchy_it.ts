@@ -14625,16 +14625,16 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Nessuna punta del pennello è attiva.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Impostazioni pennello</translation>
-    </message>
-    <message>
         <source>Keep Open</source>
         <translation>Tieni aperto</translation>
     </message>
     <message>
-        <source>Open the brush settings in a window that stays open while you paint</source>
-        <translation>Apri le impostazioni del pennello in una finestra che resta aperta mentre dipingi</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Dinamica ed effetti del pennello</translation>
+    </message>
+    <message>
+        <source>Open the brush dynamics and effects in a window that stays open while you paint</source>
+        <translation>Apri la dinamica e gli effetti del pennello in una finestra che resta aperta mentre dipingi</translation>
     </message>
 </context>
 <context>
@@ -28034,10 +28034,6 @@ Il documento aperto mantiene i suoi metodi di fusione in entrambi i casi.</trans
         <translation>%1 verrà sostituito con %2.</translation>
     </message>
     <message>
-        <source>Brush Settings</source>
-        <translation>Impostazioni pennello</translation>
-    </message>
-    <message>
         <source>Bring to &amp;Front</source>
         <translation>Porta in &amp;primo piano</translation>
     </message>
@@ -28431,16 +28427,20 @@ Bloccato: %1</translation>
         <translation>Lo strumento attivo non ha una punta del pennello.</translation>
     </message>
     <message>
-        <source>Open a document to change the brush settings.</source>
-        <translation>Apri un documento per modificare le impostazioni del pennello.</translation>
+        <source>Brush Dynamics and Effects</source>
+        <translation>Dinamica ed effetti del pennello</translation>
     </message>
     <message>
-        <source>Brush settings can be changed again once the open dialog closes.</source>
-        <translation>Le impostazioni del pennello si potranno cambiare di nuovo quando la finestra di dialogo aperta sarà chiusa.</translation>
+        <source>Open a document to change the brush dynamics and effects.</source>
+        <translation>Apri un documento per modificare la dinamica e gli effetti del pennello.</translation>
     </message>
     <message>
-        <source>Brush settings apply to the Brush tool.</source>
-        <translation>Le impostazioni del pennello valgono per lo strumento Pennello.</translation>
+        <source>Brush dynamics and effects can be changed again once the open dialog closes.</source>
+        <translation>La dinamica e gli effetti del pennello si potranno cambiare di nuovo quando la finestra di dialogo aperta sarà chiusa.</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects apply to the Brush tool.</source>
+        <translation>La dinamica e gli effetti del pennello valgono per lo strumento Pennello.</translation>
     </message>
 </context>
 <context>

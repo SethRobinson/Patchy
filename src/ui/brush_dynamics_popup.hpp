@@ -196,7 +196,8 @@ public:
   [[nodiscard]] bool popup_open() const noexcept { return popup_ != nullptr; }
   void retranslate();
 
-  // The floating Brush Settings window (Window > Brush Settings, or the popup's Keep Open;
+  // The floating Brush Dynamics and Effects window (Window > Brush Dynamics and Effects, or the
+  // popup's Keep Open;
   // GitHub issue 506 follow-up): one panel that edits the same model as the popup, live, while
   // the user paints. While it is open the button raises it instead of opening the popup.
   void open_window(std::optional<QPoint> global_top_left = std::nullopt, bool activate = true);
