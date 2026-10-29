@@ -1,5 +1,7 @@
 #include "ui/wayland_pointer_cursor.hpp"
 
+#include "ui/blocked_window_cursor.hpp"
+
 #include <QApplication>
 #include <QCursor>
 #include <QEvent>
@@ -11,22 +13,6 @@
 
 namespace patchy::ui {
 namespace {
-
-// The native window a widget's cursor is applied to, as qt_qpa_set_cursor finds it.
-QWindow* native_window_of(const QWidget& widget) {
-  const QWidget* native = widget.internalWinId() != 0 ? &widget : widget.nativeParentWidget();
-  return native != nullptr ? native->windowHandle() : nullptr;
-}
-
-// The cursor Qt shows over `widget`: its own or its nearest ancestor's within the window,
-// and the arrow over a disabled one (qt_qpa_set_cursor's rules).
-QCursor effective_cursor(const QWidget& widget) {
-  const QWidget* source = &widget;
-  while (!source->isWindow() && !source->testAttribute(Qt::WA_SetCursor) && source->parentWidget() != nullptr) {
-    source = source->parentWidget();
-  }
-  return source->isEnabled() ? source->cursor() : QCursor(Qt::ArrowCursor);
-}
 
 class WaylandPointerCursorFilter : public QObject {
  public:
@@ -63,15 +49,15 @@ class WaylandPointerCursorFilter : public QObject {
         !changed.testAttribute(Qt::WA_WState_Created) || QGuiApplication::overrideCursor() != nullptr) {
       return;
     }
-    QWindow* pointer_window = native_window_of(*pointer);
-    if (pointer_window == nullptr || pointer_window == native_window_of(changed)) {
+    QWindow* pointer_window = cursor_native_window(*pointer);
+    if (pointer_window == nullptr || pointer_window == cursor_native_window(changed)) {
       return;
     }
     reapplying_ = true;
     // QWindow::setCursor skips a shape the window already holds; unsetting first makes the
     // cursor reach the plug-in again.
     pointer_window->unsetCursor();
-    pointer_window->setCursor(effective_cursor(*pointer));
+    pointer_window->setCursor(effective_widget_cursor(*pointer));
     reapplying_ = false;
   }
 

@@ -62,6 +62,8 @@ A dialog function that arms async work must disarm it from a `qScopeGuard` decla
 
 Use `exec_dialog` or `run_non_modal_dialog`, never `QDialog::exec`. `place_dialog` centers or restores positions. On wasm, shrink to the canvas and scroll content that cannot fit ([wasm.md](wasm.md)). Desktop tall dialogs cap themselves with `QScrollArea`, page `sizeHint`, and `availableGeometry().height() - 40` (Shape Appearance). Unnamed dialogs have no position memory. `QProgressDialog`, `QMessageBox`, and `mark_dialog_always_centered` dialogs (About, New Document) center on the owner and discard saved positions. Saved positions off the owner's screen also recenter.
 
+A window a modal blocks shows the arrow, never its last cursor (issue 504, `src/ui/blocked_window_cursor.cpp`).
+
 Placement clamps the full frame to the screen's available area (no taskbars or docks), again after Show finalizes sizes and margins and on Resize, for unnamed and transient dialogs too. Automatic moves never enter position memory.
 
 `show_warning_message` answers bare letters: Y/N (Yes/No, Save/Discard), S/D, C (Cancel). A Save + Discard box reads "&Yes", "&No", "&Cancel" (keeping those roles), so its text must be a yes/no question; the close prompt is one, Yes default (issues 70, 240; `ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys`). The default button has the accent outline.
@@ -70,7 +72,7 @@ Fields typing replaces (hex, ratios) call `select_all_on_focus`: select-all on f
 
 Dialog spin boxes that retain their minus/plus buttons must append `dialog_spinbox_button_style()` from `src/ui/dialog_utils` to the dialog stylesheet after all children exist. Child dialogs inherit it; the color picker's buttonless fields reset its padding. Sub-control geometry rules (`QSpinBox::up-button { width; subcontrol-position }`) are silently ignored under a descendant-prefixed selector (`QDialog#name QSpinBox::up-button`): write them unprefixed in a stylesheet set on the dialog itself, and set it after the children exist (widgets on initially hidden tab pages miss an earlier one).
 
-A slider row that wants one-unit steppers passes `step_buttons = true` to `add_dialog_slider_spin_row` (every Layer Style effect slider does). The pair comes from `add_spin_step_buttons` (`src/ui/dialog_utils.hpp`): compact 22 px `-` / `+` push buttons that auto-repeat and disable at the range ends, also used by the Blend If fields. `wrap_spin_with_step_buttons` makes a `[spin] - +` form row. The buttons are named `<spin objectName>DecreaseButton` and `<spin objectName>IncreaseButton`, with the shared `Decrease %1` / `Increase %1` accessible names plus the field label.
+A slider row that wants one-unit steppers passes `step_buttons = true` to `add_dialog_slider_spin_row`. The pair comes from `add_spin_step_buttons` (`src/ui/dialog_utils.hpp`): `-` / `+` push buttons that auto-repeat and disable at the range ends, also used by the Blend If fields. `wrap_spin_with_step_buttons` makes a `[spin] - +` form row. The buttons are `<spin objectName>DecreaseButton` / `IncreaseButton`, accessible names `Decrease %1` / `Increase %1` plus the field label.
 
 A font derived from another one goes through `scale_font_size`, `scaled_font`, or `offset_font` in `src/ui/dialog_utils.hpp`. Never write `font.setPointSizeF(font.pointSizeF() * k)`: on a pixel-defined font (macOS) the accessor returns -1, so it is a no-op plus a Qt warning. See the cross-platform rules in [platform.md](platform.md).
 

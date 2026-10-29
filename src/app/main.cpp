@@ -18,6 +18,7 @@
 #include "ui/stress_test.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui/app_style.hpp"
+#include "ui/blocked_window_cursor.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/theme_sounds.hpp"
 #include "ui/user_fonts.hpp"
@@ -508,6 +509,9 @@ int main(int argc, char* argv[]) {
   // Qt before 6.10 shows a cursor change in one window over whatever window the pointer is
   // in on Wayland, so the canvas tool cursor appeared over dialogs (GitHub issue 215).
   patchy::ui::install_wayland_pointer_cursor_fix();
+  // A window a modal dialog blocks shows the arrow, not the tool cursor its canvas held (GitHub
+  // issue 504).
+  patchy::ui::install_blocked_window_cursor_fix();
   // Slider grooves snap to the click; tool flyouts open on a short hold (see the style above).
   app.setStyle(new patchy::ui::AppStyle);
   app.setApplicationName(QStringLiteral("Patchy"));

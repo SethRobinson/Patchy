@@ -7,6 +7,7 @@
 
 
 #include "ui/recent_file_list.hpp"
+#include "ui/blocked_window_cursor.hpp"
 #include "ui/wayland_pointer_cursor.hpp"
 #include "ui/wayland_popup_anchor.hpp"
 #include "ui/canvas_widget.hpp"
@@ -574,6 +575,132 @@ void ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts() {
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(dialogs_checked == 2);
+  qApp->removeEventFilter(filter);
+}
+
+// GitHub issue 504: with a modal dialog open, the platform still applied the blocked main
+// window's cursor (the canvas tool cursor) when the pointer entered it. The filter shows the
+// arrow on a window from the moment Qt blocks it, keeps it there when a widget inside changes
+// its cursor, and on unblock gives the window the cursor of the widget under the pointer, or
+// the one it held before when the pointer is elsewhere.
+void ui_blocked_window_cursor_shows_the_arrow_until_unblocked() {
+  QWidget window;
+  auto* canvas = new QWidget(&window);
+  canvas->setGeometry(0, 0, 200, 300);
+  canvas->setCursor(Qt::CrossCursor);
+  auto* field = new QLabel(QStringLiteral("Size"), &window);
+  field->setGeometry(220, 10, 120, 24);
+  field->setCursor(Qt::IBeamCursor);
+  window.setGeometry(100, 100, 400, 300);
+  window.show();
+  QCoreApplication::processEvents();
+  QWindow* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  QObject* filter = patchy::ui::create_blocked_window_cursor_filter(&window);
+  qApp->installEventFilter(filter);
+
+  const auto open_modal = [&window](QDialog& dialog) {
+    dialog.setWindowModality(Qt::ApplicationModal);
+    dialog.setGeometry(window.geometry().right() + 50, 100, 200, 100);
+    dialog.show();
+    QCoreApplication::processEvents();
+  };
+
+  // The tool cursor the window held when the modal opened; the pointer is on the canvas.
+  QCursor::setPos(canvas->mapToGlobal(QPoint(100, 150)));
+  handle->setCursor(Qt::CrossCursor);
+  {
+    QDialog dialog(&window);
+    open_modal(dialog);
+    CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+    // A widget behind the dialog refreshes its cursor: the window keeps the arrow.
+    QPixmap brush_tip(17, 17);
+    brush_tip.fill(Qt::transparent);
+    canvas->setCursor(QCursor(brush_tip, 8, 8));
+    CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+    field->setEnabled(false);
+    field->setEnabled(true);
+    CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+    // A nested modal leaves the first block alone, and closing it keeps this window blocked.
+    {
+      QDialog inner(&dialog);
+      open_modal(inner);
+      CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+      inner.hide();
+      QCoreApplication::processEvents();
+      CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+    }
+    // The pointer moved over the label while the window was blocked: its cursor comes back.
+    QCursor::setPos(field->mapToGlobal(QPoint(5, 5)));
+    dialog.hide();
+    QCoreApplication::processEvents();
+    CHECK(handle->cursor().shape() == Qt::IBeamCursor);
+  }
+
+  // The pointer is outside the window when the modal closes: the cursor it held comes back.
+  QCursor::setPos(window.geometry().topLeft() - QPoint(40, 40));
+  // (Leaving the label resets the window to its own cursor, as Qt does for any alien widget.)
+  QCoreApplication::processEvents();
+  handle->setCursor(Qt::SizeAllCursor);
+  {
+    QDialog dialog(&window);
+    open_modal(dialog);
+    CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+    dialog.hide();
+    QCoreApplication::processEvents();
+    CHECK(handle->cursor().shape() == Qt::SizeAllCursor);
+  }
+  // Unblocked, the filter leaves a widget's cursor change to Qt (the bare event applies nothing).
+  handle->setCursor(Qt::CrossCursor);
+  QEvent cursor_change(QEvent::CursorChange);
+  QCoreApplication::sendEvent(canvas, &cursor_change);
+  CHECK(handle->cursor().shape() == Qt::CrossCursor);
+  qApp->removeEventFilter(filter);
+}
+
+// The issue 504 case on the real window: Preferences open over a document with the brush
+// cursor, and the canvas refreshing that cursor behind it.
+void ui_blocked_window_cursor_covers_preferences_over_the_canvas() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(30);
+  QApplication::processEvents();
+  QWindow* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  QObject* filter = patchy::ui::create_blocked_window_cursor_filter(&window);
+  qApp->installEventFilter(filter);
+  QCursor::setPos(canvas->mapToGlobal(canvas->rect().center()));
+  handle->setCursor(canvas->cursor());  // what the platform applied with the pointer on the canvas
+  const auto tool_shape = canvas->cursor().shape();
+  CHECK(tool_shape != Qt::ArrowCursor);
+
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr && dialog->isModal());
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+    canvas->set_brush_size(41);
+    CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+    checked = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(checked);
+  // Preferences closed with the pointer on the canvas: the tool cursor is back.
+  CHECK(handle->cursor().shape() == canvas->cursor().shape());
+  CHECK(handle->cursor().shape() != Qt::ArrowCursor);
   qApp->removeEventFilter(filter);
 }
 
@@ -3754,6 +3881,10 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_wayland_pointer_cursor_fix_keeps_the_dialog_cursor", ui_wayland_pointer_cursor_fix_keeps_the_dialog_cursor},
       {"ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts",
        ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts},
+      {"ui_blocked_window_cursor_shows_the_arrow_until_unblocked",
+       ui_blocked_window_cursor_shows_the_arrow_until_unblocked},
+      {"ui_blocked_window_cursor_covers_preferences_over_the_canvas",
+       ui_blocked_window_cursor_covers_preferences_over_the_canvas},
       {"ui_recent_history_checks_in_background_and_skips_network_paths", ui_recent_history_checks_in_background_and_skips_network_paths},
       {"ui_open_dialog_hides_name_filter_details", ui_open_dialog_hides_name_filter_details},
       {"ui_open_dialog_lists_formats_alphabetically", ui_open_dialog_lists_formats_alphabetically},
