@@ -2893,11 +2893,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   {
     auto* row = new QWidget(smoothing_menu);
     row->setObjectName(QStringLiteral("brushOverlayOpacityRow"));
+    brush_overlay_opacity_row_ = row;
     auto* row_layout = new QHBoxLayout(row);
+    // The left margin is the menu's item text indent, set in sync_brush_overlay_menu.
     row_layout->setContentsMargins(24, 3, 10, 3);
     row_layout->setSpacing(6);
     auto* label = new QLabel(tr("Overlay Opacity:"), row);
     bind_widget_text(label, QT_TR_NOOP("Overlay Opacity:"));
+    label->setIndent(0);  // the row margin alone places the text
+    brush_overlay_opacity_label_ = label;
     brush_overlay_opacity_spin_ = new QSpinBox(row);
     brush_overlay_opacity_spin_->setObjectName(QStringLiteral("brushOverlayOpacitySpin"));
     brush_overlay_opacity_spin_->setRange(1, 100);

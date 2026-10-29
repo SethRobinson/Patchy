@@ -70,6 +70,7 @@
 #include <QStringList>
 #include <QStyle>
 #include <QStyleOptionButton>
+#include <QStyleOptionMenuItem>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
 #include <QStylePainter>
@@ -1948,6 +1949,53 @@ void install_prefix_scrub(QSpinBox* spin) {
 
 bool spin_box_scrub_active(const QAbstractSpinBox* spin) {
   return spin != nullptr && spin->property(kScrubActiveProperty).toBool();
+}
+
+namespace {
+
+// QMenu::initStyleOption is protected; naming it through a derived class yields the plain
+// QMenu member pointer, which any caller may then use on a menu it holds.
+struct MenuStyleOptionAccess : QMenu {
+  using QMenu::initStyleOption;
+};
+
+}  // namespace
+
+int menu_item_text_indent(QMenu& menu, QAction& reference) {
+  menu.ensurePolished();
+  QStyleOptionMenuItem option;
+  (menu.*(&MenuStyleOptionAccess::initStyleOption))(&option, &reference);
+  const auto text = option.text.section(QLatin1Char('\t'), 0, 0);
+  if (text.isEmpty()) {
+    return 0;
+  }
+  // No check mark, no hover highlight: only the text tells the two drawings apart.
+  option.checked = false;
+  option.state &= ~(QStyle::State_Selected | QStyle::State_Sunken | QStyle::State_On);
+  option.state |= QStyle::State_Off;
+  const auto width = std::max(menu.width(), option.fontMetrics.horizontalAdvance(text) + 200);
+  const auto height = std::max(menu.actionGeometry(&reference).height(), option.fontMetrics.height() + 16);
+  option.rect = QRect(0, 0, width, height);
+  const auto draw = [&menu](const QStyleOptionMenuItem& item) {
+    QImage image(item.rect.size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    menu.style()->drawControl(QStyle::CE_MenuItem, &item, &painter, &menu);
+    painter.end();
+    return image;
+  };
+  auto blank = option;
+  blank.text.clear();
+  const auto with_text = draw(option);
+  const auto without_text = draw(blank);
+  for (int x = 0; x < width; ++x) {
+    for (int y = 0; y < height; ++y) {
+      if (with_text.pixel(x, y) != without_text.pixel(x, y)) {
+        return std::max(0, x - option.fontMetrics.leftBearing(text.front()));
+      }
+    }
+  }
+  return 0;
 }
 
 void install_scrub_labels_in(QWidget* container) {

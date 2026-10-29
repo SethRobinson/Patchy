@@ -3114,6 +3114,8 @@ private:
   QAction* brush_outline_action_{nullptr};
   QAction* brush_overlay_opacity_action_{nullptr};
   QSpinBox* brush_overlay_opacity_spin_{nullptr};
+  QWidget* brush_overlay_opacity_row_{nullptr};  // its label lines up with the item text
+  QLabel* brush_overlay_opacity_label_{nullptr};
   QCheckBox* patch_transparent_check_{nullptr};
   QComboBox* pattern_stamp_pattern_combo_{nullptr};
   QCheckBox* pattern_stamp_aligned_check_{nullptr};

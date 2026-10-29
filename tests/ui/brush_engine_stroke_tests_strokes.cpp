@@ -3977,6 +3977,71 @@ void ui_brush_overlay_show_outline_off_removes_outline() {
   CHECK(darkest_on_rim() < 200);
 }
 
+// The gear's Overlay Opacity label starts at the same x as the menu's item text (GitHub issue
+// 517 follow-up), in both schemes: the first ink of "Overlay Opacity:" and of the unchecked
+// "Show Overlay" item, each less its first glyph's left bearing, agree within a pixel.
+void ui_brush_overlay_opacity_label_aligns_with_item_text() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    SettingsValueRestorer restore_overlay(QStringLiteral("tools/brushOverlay"));
+    patchy::ui::MainWindow window;
+    show_window(window);
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    auto* gear = window.findChild<QToolButton*>(QStringLiteral("brushSmoothingOptionsButton"));
+    auto* overlay = window.findChild<QAction*>(QStringLiteral("brushOverlayAction"));
+    auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOverlayOpacitySpin"));
+    CHECK(gear != nullptr && gear->menu() != nullptr && overlay != nullptr && opacity != nullptr);
+    if (gear == nullptr || gear->menu() == nullptr || overlay == nullptr || opacity == nullptr) {
+      return;
+    }
+    overlay->setChecked(false);  // no check mark left of the reference text
+    auto* menu = gear->menu();
+    QLabel* label = nullptr;
+    for (auto* candidate : menu->findChildren<QLabel*>()) {
+      if (candidate->buddy() == opacity) {
+        label = candidate;
+      }
+    }
+    CHECK(label != nullptr);
+    if (label == nullptr) {
+      return;
+    }
+    menu->popup(gear->mapToGlobal(QPoint(0, gear->height())));
+    QApplication::processEvents();
+    const auto image = menu->grab().toImage();
+    // The first column, from just inside the menu border, whose pixels in [top, bottom) differ
+    // from the row's own background (sampled at the menu's right end).
+    const auto first_ink = [&image, menu](int top, int bottom, int right) {
+      const auto background = image.pixelColor(menu->width() - 4, (top + bottom) / 2);
+      for (int x = 2; x < right; ++x) {
+        for (int y = top; y < bottom; ++y) {
+          const auto color = image.pixelColor(x, y);
+          if (std::abs(color.red() - background.red()) + std::abs(color.green() - background.green()) +
+                  std::abs(color.blue() - background.blue()) >
+              24) {
+            return x;
+          }
+        }
+      }
+      return -1;
+    };
+    const auto item = menu->actionGeometry(overlay);
+    const auto label_rect = QRect(label->mapTo(menu, QPoint(0, 0)), label->size());
+    const auto item_ink = first_ink(item.top() + 1, item.bottom(), item.center().x());
+    const auto label_ink = first_ink(label_rect.top(), label_rect.bottom() + 1, label_rect.right());
+    CHECK(item_ink > 0 && label_ink > 0);
+    const auto item_pen = item_ink - menu->fontMetrics().leftBearing(overlay->text().front());
+    const auto label_pen = label_ink - label->fontMetrics().leftBearing(label->text().front());
+    CHECK(std::abs(item_pen - label_pen) <= 1);
+    if (scheme == patchy::ui::ColorSchemePreference::Dark) {
+      save_window_popup_artifact("issue517_brush_gear_aligned", window, *gear, *menu);
+    }
+    menu->close();
+    QApplication::processEvents();
+  }
+}
+
 // The gear's Overlay Opacity row sits on the menu's own background in both schemes (GitHub
 // issue 517 follow-up: the row painted the darker window background).
 void ui_brush_overlay_opacity_row_matches_menu_background() {
@@ -4623,6 +4688,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_brush_overlay_show_outline_off_removes_outline", ui_brush_overlay_show_outline_off_removes_outline},
       {"ui_brush_overlay_opacity_row_matches_menu_background",
        ui_brush_overlay_opacity_row_matches_menu_background},
+      {"ui_brush_overlay_opacity_label_aligns_with_item_text",
+       ui_brush_overlay_opacity_label_aligns_with_item_text},
       {"ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab",
        ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab},
       {"ui_brush_smoothing_catch_up_on_end_completes_stroke",

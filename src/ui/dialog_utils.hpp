@@ -124,6 +124,13 @@ inline constexpr char kScrubActiveProperty[] = "patchy.scrubActive";
 void install_scrub_label(QLabel* label, QAbstractSpinBox* spin);
 void install_prefix_scrub(QSpinBox* spin);
 void install_scrub_labels_in(QWidget* container);
+// Where `menu` starts the text of `reference` (one of its text actions), in pixels from the
+// left of the item: the item padding plus the check/icon column, as the menu's own style
+// (stylesheet, theme, platform) draws it. A QWidgetAction row indents its first label by this
+// so the label lines up with the menu's item text (GitHub issue 517). Measured by drawing the
+// item with and without its text and taking the first column the text changes, less the first
+// glyph's left bearing; 0 when nothing could be measured.
+[[nodiscard]] int menu_item_text_indent(QMenu& menu, QAction& reference);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 // Large-button spin box styling (24px - / + buttons with readable glyphs; decrement left,

@@ -94,6 +94,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QLabel>
 #include <QLatin1String>
 #include <QLatin1StringView>
 #include <QLineEdit>
@@ -2820,6 +2821,25 @@ void MainWindow::sync_brush_overlay_menu() {
   if (brush_overlay_action_ != nullptr) {
     const QSignalBlocker blocker(brush_overlay_action_);
     brush_overlay_action_->setChecked(current_brush_overlay_shown_);
+  }
+  // The Overlay Opacity label starts where the menu starts its item text (GitHub issue 517),
+  // measured from the menu's own style so themes, DPI and platform styles agree.
+  if (brush_overlay_opacity_row_ != nullptr && brush_overlay_action_ != nullptr &&
+      brush_overlay_opacity_row_->layout() != nullptr) {
+    if (auto* menu = qobject_cast<QMenu*>(brush_overlay_opacity_row_->parentWidget()); menu != nullptr) {
+      if (auto indent = menu_item_text_indent(*menu, *brush_overlay_action_); indent > 0) {
+        // Less whatever inset the label still draws its text at (a theme's label padding).
+        if (brush_overlay_opacity_label_ != nullptr) {
+          brush_overlay_opacity_label_->ensurePolished();
+          indent = std::max(0, indent - brush_overlay_opacity_label_->contentsRect().left());
+        }
+        auto margins = brush_overlay_opacity_row_->layout()->contentsMargins();
+        if (margins.left() != indent) {
+          margins.setLeft(indent);
+          brush_overlay_opacity_row_->layout()->setContentsMargins(margins);
+        }
+      }
+    }
   }
   if (brush_overlay_opacity_spin_ != nullptr) {
     const QSignalBlocker blocker(brush_overlay_opacity_spin_);
