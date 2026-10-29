@@ -3,6 +3,16 @@
 `MainWindow::show_preferences` in `src/ui/main_window_preferences.cpp` builds the dialog
 (`patchyPreferencesDialog`) on every open.
 
+## OK and Cancel
+
+The button box `preferencesButtonBox` has OK and Cancel (issue 510). Controls only change the
+dialog: the `Accepted` branch of `show_preferences` stores and applies every setting, so a new
+setting is written there, never from its control's signal. Cancel, Esc and the chrome X skip
+that branch, and the `restore_theme` scope guard undoes the theme list's live preview
+(`ThemesPage::revert`). Buttons that act at once stay done on Cancel: the preset managers,
+Customize Tool Palette (its own OK), theme import, reload and delete, Remove Added Fonts, model
+downloads and deletes. The page and dialog size are remembered either way.
+
 ## Pages
 
 In order: Application, Colors and Themes, Tools, Metadata and Watermarks, Pen, Units & Grids,
@@ -99,5 +109,6 @@ per-test cleanup clears `preferences/lastPage`, so every test opens on Applicati
 `ui_preferences_page_list_switches_pages_and_remembers_the_last` the list, keys and memory;
 `ui_preferences_dialog_shows_every_tab` that every title shows whole;
 `ui_preferences_open_shows_busy_cursor_and_fills_start_page_after_showing` the wait cursor and
-the lazy start page. A test that opens the dialog on Hotkeys or Colors and Themes calls
+the lazy start page; `ui_preferences_cancel_button_discards_changes`,
+`ui_preferences_escape_discards_changes` and `ui_preferences_ok_button_keeps_changes` the two endings. A test that opens the dialog on Hotkeys or Colors and Themes calls
 `wait_for_preferences_start_page` before looking at that page (`select_preferences_page` does).
