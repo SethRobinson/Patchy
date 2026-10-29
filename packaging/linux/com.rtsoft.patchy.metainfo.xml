@@ -147,6 +147,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.22" date="2026-10-30">
+      <description>
+        <ul>
+          <li>Brush Dynamics in a tabbed popup with a stroke preview, and a brush tip Filter field</li>
+          <li>Brush and clone overlays that show the dab under the pointer</li>
+          <li>A Layers panel settings gear and outlined thumbnails</li>
+          <li>Image &gt; Animation Preview with delay steps and presets</li>
+          <li>GIMP drop shadows and text layers keep their styling</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.21" date="2026-10-29">
       <description>
         <ul>
