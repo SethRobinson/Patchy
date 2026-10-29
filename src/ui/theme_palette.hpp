@@ -183,6 +183,9 @@ struct ThemePalette {
   QColor layer_lock_badge_active;
   QColor layer_lock_badge_inherited;
   QColor layer_thumbnail_border;
+  // The 1 px ring around every content and mask thumbnail slot (#514), so a
+  // white, transparent or letterboxed tile reads as the same square as the rest.
+  QColor layer_thumbnail_outline;
   QColor layer_mask_disabled_cross;
   QColor layer_clip_badge;
   // Layer color labels (GitHub issue 244), Photoshop's lclr indices 1..7.

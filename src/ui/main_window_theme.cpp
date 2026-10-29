@@ -682,6 +682,16 @@ QString photoshop_style_template() {
       color: @layer_row_details_text;
       font-size: 10px;
     }
+    /* Every content and mask slot gets a 1 px ring (#514), so wide, white and
+       transparent tiles share one square shape. Folder glyphs have no slot. The
+       active rule below has equal or higher specificity and comes later, so its
+       2 px border replaces the ring. */
+    QLabel#layerContentThumbnail[layerThumbnailSlot="true"],
+    QLabel#layerMaskThumbnail,
+    QLabel#layerVectorMaskThumbnail {
+      border: 1px solid @layer_thumbnail_outline;
+      padding: 0;
+    }
     QLabel#layerContentThumbnail[layerTargetActive="true"],
     QLabel#layerMaskThumbnail[layerTargetActive="true"],
     QLabel#layerVectorMaskThumbnail[layerTargetActive="true"],
