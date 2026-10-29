@@ -692,6 +692,10 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
 }
 void MainWindow::showEvent(QShowEvent* event) {
   QMainWindow::showEvent(event);
+  if (!brush_tool_windows_restored_) {
+    // After the main window is on screen, so the floating brush windows sit above it.
+    QTimer::singleShot(0, this, [this] { restore_brush_tool_windows(); });
+  }
   ensure_native_resizable_frame();
   if (!native_frame_geometry_resynced_) {
     native_frame_geometry_resynced_ = true;

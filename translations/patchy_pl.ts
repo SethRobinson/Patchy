@@ -14663,6 +14663,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Brush dynamics and effects for the Round brush (this session only; resets on the next launch)</source>
         <translation>Dynamika pędzla i efekty pędzla okrągłego (tylko w tej sesji; resetuje się przy następnym uruchomieniu)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>Żadna końcówka pędzla nie jest aktywna.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Ustawienia pędzla</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Pozostaw otwarte</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>Otwórz ustawienia pędzla w oknie, które zostaje otwarte podczas malowania</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -15011,6 +15027,26 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Manage…</source>
         <translation>Zarządzaj…</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtruj</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>Pokaż końcówki, których nazwa lub folder zawiera ten tekst</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Pozostaw otwarte</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>Otwórz końcówki pędzla w oknie, które zostaje otwarte podczas malowania</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Końcówki pędzla</translation>
     </message>
 </context>
 <context>
@@ -28455,6 +28491,34 @@ Zablokowano: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Podgląd warstw jako klatek animacji</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Końcówki pędzla</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>Otwórz dokument, aby wybrać końcówkę pędzla.</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>Końcówki pędzla będzie można znów zmienić po zamknięciu otwartego okna dialogowego.</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>Aktywne narzędzie nie ma końcówki pędzla.</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>Otwórz dokument, aby zmienić ustawienia pędzla.</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>Ustawienia pędzla będzie można znów zmienić po zamknięciu otwartego okna dialogowego.</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>Ustawienia pędzla dotyczą narzędzia Pędzel.</translation>
     </message>
 </context>
 <context>

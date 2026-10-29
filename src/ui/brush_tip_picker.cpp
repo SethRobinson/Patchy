@@ -2,6 +2,7 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/brush_tip_library.hpp"
+#include "ui/brush_tool_window.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
@@ -12,15 +13,20 @@
 #include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QKeyEvent>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QRadialGradient>
 #include <QScreen>
+#include <QSignalBlocker>
 #include <QSizeGrip>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
+#include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -135,6 +141,11 @@ void BrushTipPicker::set_current_tip_id(const QString& id) {
   }
   current_tip_id_ = effective;
   update_button_face();
+  // The floating window follows the active tool's tip (only the mark moves: this can run
+  // from the window's own click on that list).
+  if (window_browser_ != nullptr) {
+    window_browser_->select_current();
+  }
 }
 
 const QString& BrushTipPicker::current_tip_id() const noexcept {
@@ -148,6 +159,7 @@ void BrushTipPicker::refresh() {
     emit tip_selected(current_tip_id_);
   }
   update_button_face();
+  refresh_window();
 }
 
 // The width comes from the size hints, not setFixedWidth: polishing applies the stylesheet's
@@ -223,12 +235,21 @@ void BrushTipPicker::set_working_preview(const QString& name, const QPixmap& ima
   working_name_ = name; working_preview_ = image; update_button_face();
 }
 
-void BrushTipPicker::rebuild_popup_list(QListWidget* list, const QString& folder_filter) const {
+void BrushTipPicker::fill_tip_list(QListWidget* list, const QString& folder_filter,
+                                   const QString& text_filter) const {
   list->clear();
+  const auto text = text_filter.trimmed();
+  const auto matches = [&text](const QString& name, const QString& folder) {
+    return text.isEmpty() || name.contains(text, Qt::CaseInsensitive) ||
+           folder.contains(text, Qt::CaseInsensitive);
+  };
   QListWidgetItem* round_item = nullptr;
   if (folder_filter.isEmpty()) {
     // The two procedural brushes lead the list: Round, then Square right under it.
     for (const auto& id : {builtin_round_brush_tip_id(), builtin_square_brush_tip_id()}) {
+      if (!matches(builtin_tip_display_name(id), QString())) {
+        continue;
+      }
       auto* item = new QListWidgetItem(QIcon(builtin_tip_thumbnail(id, kThumbnailExtent)), builtin_tip_display_name(id));
       item->setData(Qt::UserRole, id);
       item->setToolTip(builtin_tip_display_name(id));
@@ -243,6 +264,9 @@ void BrushTipPicker::rebuild_popup_list(QListWidget* list, const QString& folder
   }
   for (const auto& entry : library_.entries()) {
     if (!folder_filter.isEmpty() && entry.folder != folder_filter) {
+      continue;
+    }
+    if (!matches(entry.name, entry.folder)) {
       continue;
     }
     auto* item = new QListWidgetItem(QIcon(brush_tip_thumbnail_with_badge(entry)), entry.name);
@@ -262,12 +286,222 @@ void BrushTipPicker::rebuild_popup_list(QListWidget* list, const QString& folder
       list->setCurrentItem(item);
     }
   }
-  if (list->currentItem() == nullptr && round_item != nullptr) {
+  if (list->currentItem() == nullptr && round_item != nullptr && text.isEmpty()) {
     list->setCurrentItem(round_item);
   }
 }
 
+BrushTipBrowser::BrushTipBrowser(BrushTipLibrary& library, BrushTipPicker& picker, Host host, QWidget* parent)
+    : QWidget(parent), library_(library), picker_(picker) {
+  setObjectName(QStringLiteral("brushTipBrowser"));
+  auto* layout = new QVBoxLayout(this);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(6);
+
+  auto* top_row = new QHBoxLayout();
+  top_row->setSpacing(4);
+  filter_ = new QLineEdit(this);
+  filter_->setObjectName(QStringLiteral("brushTipPickerFilterEdit"));
+  filter_->setPlaceholderText(BrushTipPicker::tr("Filter"));
+  filter_->setToolTip(BrushTipPicker::tr("Show the tips whose name or folder contains this text"));
+  filter_->setClearButtonEnabled(true);
+  filter_->installEventFilter(this);
+  top_row->addWidget(filter_, 1);
+  // Folder filter: fast navigation when many sets are installed. Empty data = show everything.
+  folder_combo_ = new QComboBox(this);
+  folder_combo_->setObjectName(QStringLiteral("brushTipPickerFolderCombo"));
+  top_row->addWidget(folder_combo_, 1);
+  if (host == Host::Popup) {
+    auto* keep_open = new QToolButton(this);
+    keep_open->setObjectName(QStringLiteral("brushTipPickerKeepOpenButton"));
+    keep_open->setText(BrushTipPicker::tr("Keep Open"));
+    keep_open->setToolTip(BrushTipPicker::tr("Open the brush tips in a window that stays open while you paint"));
+    connect(keep_open, &QToolButton::clicked, this, &BrushTipBrowser::keep_open_requested);
+    top_row->addWidget(keep_open);
+  }
+  layout->addLayout(top_row);
+
+  list_ = new QListWidget(this);
+  list_->setObjectName(QStringLiteral("brushTipPickerList"));
+  list_->setViewMode(QListView::IconMode);
+  list_->setIconSize(QSize(kThumbnailExtent, kThumbnailExtent));
+  list_->setGridSize(QSize(kThumbnailExtent + 22, kThumbnailExtent + 30));
+  list_->setResizeMode(QListView::Adjust);
+  list_->setMovement(QListView::Static);
+  list_->setWordWrap(true);
+  list_->setTextElideMode(Qt::ElideRight);
+  list_->setUniformItemSizes(true);
+  // Resizable (was a fixed 5×4 grid): the list reflows with the popup or window.
+  list_->setMinimumSize(3 * (kThumbnailExtent + 22) + 28, 2 * (kThumbnailExtent + 30) + 8);
+  layout->addWidget(list_, 1);
+
+  auto* buttons = new QHBoxLayout();
+  auto* import_button = new QPushButton(BrushTipPicker::tr("Import .abr…"), this);
+  import_button->setObjectName(QStringLiteral("brushTipImportButton"));
+  import_button->setToolTip(BrushTipPicker::tr("Import brushes from a Photoshop .abr file"));
+  auto* define_button = new QPushButton(BrushTipPicker::tr("New from Selection…"), this);
+  define_button->setObjectName(QStringLiteral("brushTipDefineButton"));
+  define_button->setToolTip(
+      BrushTipPicker::tr("Create a brush tip from the current selection (or the whole image): dark pixels paint, "
+         "light pixels stay clear"));
+  auto* manage_button = new QPushButton(BrushTipPicker::tr("Manage…"), this);
+  manage_button->setObjectName(QStringLiteral("brushTipManageButton"));
+  buttons->addWidget(import_button);
+  buttons->addWidget(define_button);
+  buttons->addStretch(1);
+  buttons->addWidget(manage_button);
+  if (host == Host::Popup) {
+    // A frameless popup has no native resize border; the grip is the resize handle.
+    buttons->addWidget(new VisibleSizeGrip(this), 0, Qt::AlignBottom);
+  }
+  layout->addLayout(buttons);
+
+  rebuild();
+  connect(folder_combo_, &QComboBox::currentIndexChanged, this, [this](int) {
+    picker_.set_folder_filter(folder_combo_->currentData().toString());
+    picker_.fill_tip_list(list_, picker_.folder_filter(), filter_->text());
+  });
+  connect(filter_, &QLineEdit::textChanged, this, [this](const QString& text) {
+    picker_.fill_tip_list(list_, picker_.folder_filter(), text);
+  });
+  connect(list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
+    if (item != nullptr) {
+      emit tip_chosen(item->data(Qt::UserRole).toString());
+    }
+  });
+  connect(filter_, &QLineEdit::returnPressed, this, &BrushTipBrowser::choose_first_match);
+  connect(import_button, &QPushButton::clicked, this, &BrushTipBrowser::import_requested);
+  connect(define_button, &QPushButton::clicked, this, &BrushTipBrowser::define_requested);
+  connect(manage_button, &QPushButton::clicked, this, &BrushTipBrowser::manage_requested);
+}
+
+void BrushTipBrowser::rebuild() {
+  const QSignalBlocker blocker(folder_combo_);
+  folder_combo_->clear();
+  folder_combo_->addItem(BrushTipPicker::tr("All Brushes"), QString());
+  const auto folders = library_.folders();
+  for (const auto& folder : folders) {
+    folder_combo_->addItem(folder, folder);
+  }
+  const auto folder_index = folder_combo_->findData(picker_.folder_filter());
+  if (folder_index < 0) {
+    picker_.set_folder_filter(QString());  // the folder went away
+  }
+  folder_combo_->setCurrentIndex(std::max(0, folder_index));
+  folder_combo_->setVisible(!folders.isEmpty());
+  picker_.fill_tip_list(list_, picker_.folder_filter(), filter_->text());
+}
+
+void BrushTipBrowser::select_current() {
+  const QSignalBlocker blocker(list_);
+  list_->setCurrentItem(nullptr);
+  for (int row = 0; row < list_->count(); ++row) {
+    if (list_->item(row)->data(Qt::UserRole).toString() == picker_.current_tip_id()) {
+      list_->setCurrentItem(list_->item(row));
+      list_->scrollToItem(list_->item(row));
+      break;
+    }
+  }
+}
+
+void BrushTipBrowser::focus_filter() {
+  filter_->setFocus(Qt::PopupFocusReason);
+}
+
+void BrushTipBrowser::choose_first_match() {
+  if (list_->count() > 0) {
+    emit tip_chosen(list_->item(0)->data(Qt::UserRole).toString());
+  }
+}
+
+bool BrushTipBrowser::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == filter_ && event->type() == QEvent::KeyPress) {
+    const auto key = static_cast<QKeyEvent*>(event)->key();
+    if (key == Qt::Key_Escape) {
+      // Escape clears the text first; on an empty field it closes the popup (the window
+      // passes it on to the canvas).
+      if (!filter_->text().isEmpty()) {
+        filter_->clear();
+        return true;
+      }
+      emit escape_with_empty_filter();
+      return false;
+    }
+    if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+      choose_first_match();
+      return true;
+    }
+  }
+  return QWidget::eventFilter(watched, event);
+}
+
+void BrushTipPicker::choose_tip(const QString& id) {
+  set_current_tip_id(id);
+  emit tip_selected(current_tip_id_);
+}
+
+void BrushTipPicker::refresh_window() {
+  // Deferred: a library change can arrive while the window's list is delivering a click.
+  if (window_browser_ != nullptr) {
+    QTimer::singleShot(0, window_browser_.data(), [browser = window_browser_] {
+      if (browser != nullptr) {
+        browser->rebuild();
+      }
+    });
+  }
+}
+
+void BrushTipPicker::set_window_key_target(std::function<QWidget*()> key_target) {
+  window_key_target_ = std::move(key_target);
+  if (window_ != nullptr) {
+    window_->set_key_target(window_key_target_);
+  }
+}
+
+void BrushTipPicker::set_tool_supported(bool supported, const QString& reason) {
+  tool_supported_ = supported;
+  unsupported_reason_ = supported ? QString() : reason;
+  if (window_ != nullptr) {
+    window_->set_unavailable_reason(unsupported_reason_);
+  }
+}
+
+void BrushTipPicker::hide_window_for_shutdown() {
+  if (window_ != nullptr) {
+    window_->hide_for_shutdown();
+  }
+}
+
+void BrushTipPicker::open_window(std::optional<QPoint> global_top_left, bool activate) {
+  if (window_ == nullptr) {
+    auto* window = new BrushToolWindow(QStringLiteral("brushTipsWindow"), tr("Brush Tips"),
+                                       QStringLiteral("brushes/tipsWindow"), this->window());
+    auto* browser = new BrushTipBrowser(library_, *this, BrushTipBrowser::Host::Window, window);
+    window->set_body(browser);
+    window->set_key_target(window_key_target_);
+    window->set_unavailable_reason(unsupported_reason_);
+    connect(browser, &BrushTipBrowser::tip_chosen, this, [this](const QString& id) { choose_tip(id); });
+    connect(browser, &BrushTipBrowser::import_requested, this, &BrushTipPicker::import_requested);
+    connect(browser, &BrushTipBrowser::define_requested, this, &BrushTipPicker::define_requested);
+    connect(browser, &BrushTipBrowser::manage_requested, this, &BrushTipPicker::manage_requested);
+    window_ = window;
+    window_browser_ = browser;
+  }
+  window_browser_->rebuild();
+  window_->open_window(global_top_left, activate);
+  if (activate) {
+    window_browser_->focus_filter();
+  }
+}
+
 void BrushTipPicker::show_popup() {
+  // With the floating window open, the picker brings it forward: one chooser at a time.
+  if (window_ != nullptr && window_->isVisible()) {
+    window_->raise();
+    window_->activateWindow();
+    window_browser_->focus_filter();
+    return;
+  }
   // Clicking the button while its popup is open must DISMISS it, not reopen it. The press that
   // closes the Qt::Popup is replayed onto the button, so by the time clicked() fires the popup
   // is either still closing (pointer alive) or was just destroyed (timestamp) — both mean this
@@ -296,79 +530,35 @@ void BrushTipPicker::show_popup() {
   auto* layout = new QVBoxLayout(popup);
   layout->setContentsMargins(6, 6, 6, 6);
   layout->setSpacing(6);
+  auto* browser = new BrushTipBrowser(library_, *this, BrushTipBrowser::Host::Popup, popup);
+  layout->addWidget(browser, 1);
 
-  // Folder filter: fast navigation when many sets are installed. Empty data = show everything.
-  auto* folder_combo = new QComboBox(popup);
-  folder_combo->setObjectName(QStringLiteral("brushTipPickerFolderCombo"));
-  folder_combo->addItem(tr("All Brushes"), QString());
-  const auto folders = library_.folders();
-  for (const auto& folder : folders) {
-    folder_combo->addItem(folder, folder);
-  }
-  if (!popup_folder_filter_.isEmpty()) {
-    const auto filter_index = folder_combo->findData(popup_folder_filter_);
-    folder_combo->setCurrentIndex(std::max(0, filter_index));
-  }
-  folder_combo->setVisible(!folders.isEmpty());
-  layout->addWidget(folder_combo);
-
-  auto* list = new QListWidget(popup);
-  list->setObjectName(QStringLiteral("brushTipPickerList"));
-  list->setViewMode(QListView::IconMode);
-  list->setIconSize(QSize(kThumbnailExtent, kThumbnailExtent));
-  list->setGridSize(QSize(kThumbnailExtent + 22, kThumbnailExtent + 30));
-  list->setResizeMode(QListView::Adjust);
-  list->setMovement(QListView::Static);
-  list->setWordWrap(true);
-  list->setTextElideMode(Qt::ElideRight);
-  list->setUniformItemSizes(true);
-  // Resizable (was a fixed 5×4 grid): the list reflows with the popup, whose size persists.
-  list->setMinimumSize(3 * (kThumbnailExtent + 22) + 28, 2 * (kThumbnailExtent + 30) + 8);
-  rebuild_popup_list(list, folder_combo->currentData().toString());
-  layout->addWidget(list, 1);
-
-  connect(folder_combo, &QComboBox::currentIndexChanged, popup, [this, folder_combo, list](int) {
-    popup_folder_filter_ = folder_combo->currentData().toString();
-    rebuild_popup_list(list, popup_folder_filter_);
-  });
-
-  auto* buttons = new QHBoxLayout();
-  auto* import_button = new QPushButton(tr("Import .abr…"), popup);
-  import_button->setObjectName(QStringLiteral("brushTipImportButton"));
-  import_button->setToolTip(tr("Import brushes from a Photoshop .abr file"));
-  auto* define_button = new QPushButton(tr("New from Selection…"), popup);
-  define_button->setObjectName(QStringLiteral("brushTipDefineButton"));
-  define_button->setToolTip(
-      tr("Create a brush tip from the current selection (or the whole image): dark pixels paint, "
-         "light pixels stay clear"));
-  auto* manage_button = new QPushButton(tr("Manage…"), popup);
-  manage_button->setObjectName(QStringLiteral("brushTipManageButton"));
-  buttons->addWidget(import_button);
-  buttons->addWidget(define_button);
-  buttons->addStretch(1);
-  buttons->addWidget(manage_button);
-  // A frameless popup has no native resize border; the grip is the resize handle.
-  buttons->addWidget(new VisibleSizeGrip(popup), 0, Qt::AlignBottom);
-  layout->addLayout(buttons);
-
-  connect(list, &QListWidget::itemClicked, popup, [this, popup](QListWidgetItem* item) {
-    if (item == nullptr) {
-      return;
-    }
-    const auto id = item->data(Qt::UserRole).toString();
+  connect(browser, &BrushTipBrowser::tip_chosen, popup, [this, popup](const QString& id) {
     popup->close();
-    set_current_tip_id(id);
-    emit tip_selected(current_tip_id_);
+    choose_tip(id);
   });
-  connect(import_button, &QPushButton::clicked, popup, [this, popup] {
+  connect(browser, &BrushTipBrowser::escape_with_empty_filter, popup, [popup] { popup->close(); });
+  connect(browser, &BrushTipBrowser::keep_open_requested, popup, [this, popup] {
+    // The window opens where the popup was, at the popup's size.
+    const auto top_left = popup->mapToGlobal(QPoint(0, 0));
+    const auto popup_size = popup->size();
+    popup->close();
+    const bool first_open = window_ == nullptr;
+    open_window(top_left);
+    if (first_open && window_ != nullptr &&
+        !app_settings().value(QStringLiteral("brushes/tipsWindowSize")).toSize().isValid()) {
+      window_->resize(popup_size.expandedTo(window_->minimumSizeHint()));
+    }
+  });
+  connect(browser, &BrushTipBrowser::import_requested, popup, [this, popup] {
     popup->close();
     emit import_requested();
   });
-  connect(define_button, &QPushButton::clicked, popup, [this, popup] {
+  connect(browser, &BrushTipBrowser::define_requested, popup, [this, popup] {
     popup->close();
     emit define_requested();
   });
-  connect(manage_button, &QPushButton::clicked, popup, [this, popup] {
+  connect(browser, &BrushTipBrowser::manage_requested, popup, [this, popup] {
     popup->close();
     emit manage_requested();
   });
@@ -387,6 +577,8 @@ void BrushTipPicker::show_popup() {
   }
   position_popup_below(*this, *popup);
   popup->show();
+  // Type at once: the filter has the keyboard as the popup opens.
+  browser->focus_filter();
 }
 
 }  // namespace patchy::ui

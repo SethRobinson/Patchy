@@ -14620,6 +14620,22 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Brush dynamics and effects for the Round brush (this session only; resets on the next launch)</source>
         <translation>Dinâmica e efeitos do pincel para o pincel redondo (apenas nesta sessão; redefinido na próxima inicialização)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>Nenhuma ponta de pincel está ativa.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Configurações do pincel</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Manter aberto</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>Abre as configurações do pincel em uma janela que fica aberta enquanto você pinta</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -14968,6 +14984,26 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Manage…</source>
         <translation>Gerenciar…</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtrar</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>Mostra as pontas cujo nome ou pasta contém este texto</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Manter aberto</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>Abre as pontas de pincel em uma janela que fica aberta enquanto você pinta</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Pontas de pincel</translation>
     </message>
 </context>
 <context>
@@ -28373,6 +28409,34 @@ Bloqueado: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Pré-visualizar as camadas como quadros de animação</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Pontas de pincel</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>Abra um documento para escolher uma ponta de pincel.</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>As pontas de pincel poderão ser alteradas de novo quando a caixa de diálogo aberta for fechada.</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>A ferramenta ativa não tem ponta de pincel.</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>Abra um documento para alterar as configurações do pincel.</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>As configurações do pincel poderão ser alteradas de novo quando a caixa de diálogo aberta for fechada.</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>As configurações do pincel valem para a ferramenta Pincel.</translation>
     </message>
 </context>
 <context>

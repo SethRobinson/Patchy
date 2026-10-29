@@ -14620,6 +14620,22 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
         <translation>Dinamica ed effetti del pennello per il pennello Quadrato (solo per questa sessione; vengono ripristinati al prossimo avvio)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>Nessuna punta del pennello è attiva.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Impostazioni pennello</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Tieni aperto</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>Apri le impostazioni del pennello in una finestra che resta aperta mentre dipingi</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -14968,6 +14984,26 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>%1 - %2 (%3×%4)</source>
         <translation>%1: %2 (%3×%4)</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtra</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>Mostra le punte il cui nome o la cui cartella contiene questo testo</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Tieni aperto</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>Apri le punte del pennello in una finestra che resta aperta mentre dipingi</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Punte pennello</translation>
     </message>
 </context>
 <context>
@@ -28373,6 +28409,34 @@ Bloccato: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Visualizza in anteprima i livelli come fotogrammi di animazione</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Punte pennello</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>Apri un documento per scegliere una punta del pennello.</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>Le punte del pennello si potranno cambiare di nuovo quando la finestra di dialogo aperta sarà chiusa.</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>Lo strumento attivo non ha una punta del pennello.</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>Apri un documento per modificare le impostazioni del pennello.</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>Le impostazioni del pennello si potranno cambiare di nuovo quando la finestra di dialogo aperta sarà chiusa.</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>Le impostazioni del pennello valgono per lo strumento Pennello.</translation>
     </message>
 </context>
 <context>

@@ -3,6 +3,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_stroke_preview.hpp"
+#include "ui/brush_tool_window.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -12,6 +13,10 @@
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QApplication>
+#include <QTest>
+#include <QScopeGuard>
+#include <QLineEdit>
+#include <QKeyEvent>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -1189,6 +1194,418 @@ void ui_brush_dynamics_reset_section_and_default_dots() {
   clear_brush_tip_test_state();
 }
 
+namespace {
+
+void clear_brush_window_settings() {
+  for (const auto* key : {"brushes/settingsWindowOpen", "brushes/settingsWindowSize", "brushes/tipsWindowOpen",
+                          "brushes/tipsWindowSize"}) {
+    patchy::ui::app_settings().remove(QLatin1String(key));
+  }
+}
+
+QWidget* visible_top_level(const char* name) {
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QLatin1String(name) && widget->isVisible()) {
+      return widget;
+    }
+  }
+  return nullptr;
+}
+
+QWidget* open_tip_picker_popup(patchy::ui::MainWindow& window) {
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return nullptr;
+  }
+  picker->click();
+  QApplication::processEvents();
+  auto* popup = visible_top_level("brushTipPickerPopup");
+  CHECK(popup != nullptr);
+  return popup;
+}
+
+// The listed tip ids, sorted (the list orders by folder, then name).
+QStringList list_tip_ids(QListWidget& list) {
+  QStringList ids;
+  for (int row = 0; row < list.count(); ++row) {
+    ids.push_back(list.item(row)->data(Qt::UserRole).toString());
+  }
+  ids.sort();
+  return ids;
+}
+
+QStringList sorted_ids(QStringList ids) {
+  ids.sort();
+  return ids;
+}
+
+// True once a stroke across the middle of the canvas changed what it shows.
+bool stroke_paints(patchy::ui::CanvasWidget& canvas) {
+  canvas.set_primary_color(QColor(0, 0, 0));
+  canvas.set_brush_size(16);
+  const auto before = canvas.grab().toImage();
+  const auto from = canvas.widget_position_for_document_point(QPoint(60, 60));
+  const auto to = canvas.widget_position_for_document_point(QPoint(200, 120));
+  drag(canvas, from, to);
+  QApplication::processEvents();
+  return canvas.grab().toImage() != before;
+}
+
+// The window forwards the keys no field of it takes to the canvas.
+bool window_forwards_keys_to(QWidget& tool_window, QWidget& canvas) {
+  struct Counter : QObject {
+    int presses{0};
+    bool eventFilter(QObject* /*watched*/, QEvent* event) override {
+      if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(event)->key() == Qt::Key_F12) {
+        ++presses;
+      }
+      return false;
+    }
+  } counter;
+  canvas.installEventFilter(&counter);
+  QKeyEvent press(QEvent::KeyPress, Qt::Key_F12, Qt::NoModifier);
+  QCoreApplication::sendEvent(&tool_window, &press);
+  canvas.removeEventFilter(&counter);
+  return counter.presses == 1;
+}
+
+}  // namespace
+
+// GitHub issue 506 follow-up: the tip chooser's Filter field narrows by name or folder with the
+// folder combo, takes the keyboard as the popup opens, Enter picks the first match and Escape
+// clears before it closes. The folder is remembered; the text is not.
+void ui_brush_tip_picker_filter_narrows_and_picks() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto bar_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  const auto wide_id = library.add_tip(QStringLiteral("Wide Bar"), make_bar_tip_image(), 0.25, QStringLiteral("Set A"));
+  const auto stone_id = library.add_tip(QStringLiteral("Stone"), make_bar_tip_image(), 0.25, QStringLiteral("Set A"));
+  CHECK(!bar_id.isEmpty() && !wide_id.isEmpty() && !stone_id.isEmpty());
+  QApplication::processEvents();
+
+  auto* popup = open_tip_picker_popup(window);
+  if (popup == nullptr) {
+    return;
+  }
+  auto* filter = popup->findChild<QLineEdit*>(QStringLiteral("brushTipPickerFilterEdit"));
+  auto* list = popup->findChild<QListWidget*>(QStringLiteral("brushTipPickerList"));
+  auto* folders = popup->findChild<QComboBox*>(QStringLiteral("brushTipPickerFolderCombo"));
+  CHECK(filter != nullptr && list != nullptr && folders != nullptr);
+  if (filter == nullptr || list == nullptr || folders == nullptr) {
+    return;
+  }
+  CHECK(filter->placeholderText() == QObject::tr("Filter"));
+  CHECK(filter->isClearButtonEnabled());
+  CHECK(filter->hasFocus());  // type at once
+  const auto everything = list->count();
+  CHECK(everything >= 5);  // Round, Square and the three tips
+
+  QTest::keyClicks(filter, QStringLiteral("BAR"));
+  QApplication::processEvents();
+  CHECK((list_tip_ids(*list) == sorted_ids({bar_id, wide_id})));  // case-insensitive, by name
+  filter->setText(QStringLiteral("set a"));
+  CHECK((list_tip_ids(*list) == sorted_ids({wide_id, stone_id})));  // by folder too
+  filter->setText(QStringLiteral("bar"));
+  folders->setCurrentIndex(folders->findData(QStringLiteral("Set A")));
+  CHECK((list_tip_ids(*list) == QStringList{wide_id}));  // with the folder combo
+  save_widget_artifact("ui_brush_tip_picker_filter", *popup);
+
+  // Escape clears the text first and keeps the popup open.
+  QTest::keyClick(filter, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(filter->text().isEmpty());
+  CHECK(visible_top_level("brushTipPickerPopup") != nullptr);
+  CHECK((list_tip_ids(*list) == sorted_ids({wide_id, stone_id})));
+  // On an empty field it closes the popup.
+  QTest::keyClick(filter, Qt::Key_Escape);
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  QApplication::processEvents();
+  CHECK(visible_top_level("brushTipPickerPopup") == nullptr);
+  process_events_for(350);
+
+  // The folder comes back, the text does not; Enter picks the first match.
+  popup = open_tip_picker_popup(window);
+  if (popup == nullptr) {
+    return;
+  }
+  filter = popup->findChild<QLineEdit*>(QStringLiteral("brushTipPickerFilterEdit"));
+  folders = popup->findChild<QComboBox*>(QStringLiteral("brushTipPickerFolderCombo"));
+  CHECK(filter->text().isEmpty());
+  CHECK(folders->currentData().toString() == QStringLiteral("Set A"));
+  QTest::keyClicks(filter, QStringLiteral("ston"));
+  QTest::keyClick(filter, Qt::Key_Return);
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  QApplication::processEvents();
+  CHECK(visible_top_level("brushTipPickerPopup") == nullptr);
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  CHECK(picker->current_tip_id() == stone_id);
+  picker->set_folder_filter(QString());
+  clear_brush_tip_test_state();
+}
+
+// The tip chooser floats: Keep Open turns the popup into a Brush Tips window owned by the main
+// window, picks apply to the tool, painting works with it open, it follows a tool or tip change
+// made elsewhere, and its size and open state are remembered.
+void ui_brush_tips_window_floats_and_follows_the_tool() {
+  clear_brush_tip_test_state();
+  clear_brush_window_settings();
+  const auto cleanup = qScopeGuard([] { clear_brush_window_settings(); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto bar_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  const auto other_id = library.add_tip(QStringLiteral("Other"), make_bar_tip_image(), 0.5);
+  QApplication::processEvents();
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+
+  auto* popup = open_tip_picker_popup(window);
+  if (popup == nullptr) {
+    return;
+  }
+  const QRect popup_rect(popup->mapToGlobal(QPoint(0, 0)), popup->size());
+  auto* keep_open = popup->findChild<QToolButton*>(QStringLiteral("brushTipPickerKeepOpenButton"));
+  CHECK(keep_open != nullptr);
+  keep_open->click();
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  QApplication::processEvents();
+  CHECK(visible_top_level("brushTipPickerPopup") == nullptr);
+  auto* tips_window = picker->tool_window();
+  CHECK(tips_window != nullptr && tips_window->isVisible());
+  if (tips_window == nullptr) {
+    return;
+  }
+  CHECK(tips_window->objectName() == QStringLiteral("brushTipsWindow"));
+  CHECK(tips_window->windowFlags().testFlag(Qt::Tool));
+  CHECK(tips_window->parentWidget() == &window);  // owned: above the main window, closes with it
+  CHECK(!tips_window->isModal());
+  // Where the popup was (kept on the screen).
+  CHECK(tips_window->frameGeometry().intersects(popup_rect));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/tipsWindowOpen")).toBool());
+
+  // A click picks the tip and the window stays.
+  auto* list = tips_window->findChild<QListWidget*>(QStringLiteral("brushTipPickerList"));
+  CHECK(list != nullptr);
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->data(Qt::UserRole).toString() == bar_id) {
+      list->setCurrentRow(row);
+      emit list->itemClicked(list->item(row));
+    }
+  }
+  QApplication::processEvents();
+  CHECK(picker->current_tip_id() == bar_id);
+  CHECK(canvas->has_brush_tip());
+  CHECK(tips_window->isVisible());
+  // Painting works with the window open, and keys reach the canvas.
+  CHECK(stroke_paints(*canvas));
+  CHECK(window_forwards_keys_to(*tips_window, *canvas));
+
+  // A tip chosen elsewhere moves the window's mark.
+  window.set_active_brush_tip(other_id, false);
+  QApplication::processEvents();
+  CHECK(list->currentItem() != nullptr && list->currentItem()->data(Qt::UserRole).toString() == other_id);
+  // A tool without a tip leaves the window disabled with the reason; a tool with one wakes it.
+  auto* reason = tips_window->findChild<QLabel*>(QStringLiteral("brushToolWindowUnavailableLabel"));
+  CHECK(reason != nullptr);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(!reason->isHidden());
+  CHECK(!list->isEnabled());
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  QApplication::processEvents();
+  CHECK(reason->isHidden());
+  CHECK(list->isEnabled());
+  save_widget_artifact("ui_brush_tips_window", *tips_window);
+
+  // The size and the open state are remembered; the picker raises the window instead of a popup.
+  tips_window->resize(520, 430);
+  QApplication::processEvents();
+  picker->click();
+  QApplication::processEvents();
+  CHECK(visible_top_level("brushTipPickerPopup") == nullptr);
+  tips_window->close();
+  QApplication::processEvents();
+  CHECK(!tips_window->isVisible());
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("brushes/tipsWindowOpen")).toBool());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/tipsWindowSize")).toSize() == QSize(520, 430));
+  require_action(window, "windowBrushTipsAction")->trigger();
+  CHECK(process_events_until([&] { return tips_window->isVisible(); }));
+  CHECK(tips_window->size() == QSize(520, 430));
+  tips_window->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
+// The Dynamics panel floats: Keep Open turns the popup into the Brush Settings window, its edits
+// reach the canvas live, a tip switch or an outside change reloads it, it follows the tool, and
+// the size and open state are remembered.
+void ui_brush_settings_window_floats_and_edits_live() {
+  clear_brush_tip_test_state();
+  clear_brush_window_settings();
+  const auto cleanup = qScopeGuard([] { clear_brush_window_settings(); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto bar_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  const auto other_id = library.add_tip(QStringLiteral("Other"), make_bar_tip_image(), 0.25);
+  patchy::BrushDynamics other_dynamics;
+  other_dynamics.scatter = 1.5;
+  CHECK(library.set_tip_dynamics(other_id, other_dynamics, 0.0, 100.0));
+  window.set_active_brush_tip(bar_id, false);
+  QApplication::processEvents();
+
+  auto* button = window.findChild<patchy::ui::BrushDynamicsButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+  if (button == nullptr) {
+    return;
+  }
+  button->click();
+  QApplication::processEvents();
+  auto* popup = visible_top_level("brushDynamicsPopup");
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  popup->findChild<patchy::ui::BrushDynamicsPanel*>()->select_section(
+      patchy::ui::BrushDynamicsPanel::Section::Scattering);
+  CHECK(popup->height() <= 600);
+  auto* keep_open = popup->findChild<QToolButton*>(QStringLiteral("brushDynamicsKeepOpenButton"));
+  CHECK(keep_open != nullptr);
+  keep_open->click();
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  QApplication::processEvents();
+  CHECK(visible_top_level("brushDynamicsPopup") == nullptr);
+  auto* settings_window = button->tool_window();
+  auto* panel = button->window_panel();
+  CHECK(settings_window != nullptr && settings_window->isVisible() && panel != nullptr);
+  if (settings_window == nullptr || panel == nullptr) {
+    return;
+  }
+  CHECK(settings_window->windowFlags().testFlag(Qt::Tool));
+  CHECK(settings_window->parentWidget() == &window);
+  CHECK(panel->current_section() == patchy::ui::BrushDynamicsPanel::Section::Scattering);
+  CHECK(button->isChecked());  // the button reads as pressed while its window is open
+
+  // Edits apply live while the window stays open.
+  auto* scatter = settings_window->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterSpin"));
+  CHECK(scatter != nullptr);
+  scatter->setValue(250);
+  CHECK(process_events_until([canvas] { return std::abs(canvas->brush_dynamics().scatter - 2.5) < 1e-9; }, 5000));
+  CHECK(settings_window->isVisible());
+  CHECK(stroke_paints(*canvas));
+  CHECK(window_forwards_keys_to(*settings_window, *canvas));
+  // The button raises the window instead of opening a second panel.
+  button->click();
+  QApplication::processEvents();
+  CHECK(visible_top_level("brushDynamicsPopup") == nullptr);
+
+  // Another tip reloads the window; so does a change made outside it (a script, a preset).
+  window.set_active_brush_tip(other_id, false);
+  QApplication::processEvents();
+  CHECK(scatter->value() == 150);
+  patchy::BrushDynamics changed;
+  changed.scatter = 0.4;
+  CHECK(library.set_tip_dynamics(other_id, changed, 0.0, 100.0));
+  QApplication::processEvents();
+  CHECK(process_events_until([scatter] { return scatter->value() == 40; }, 5000));
+
+  // The Eraser has no dynamics: the window says so and its panel is disabled.
+  auto* reason = settings_window->findChild<QLabel*>(QStringLiteral("brushToolWindowUnavailableLabel"));
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  QApplication::processEvents();
+  CHECK(!reason->isHidden());
+  CHECK(!panel->isEnabled());
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(reason->isHidden());
+  CHECK(panel->isEnabled());
+  panel->preview()->rebuild_now();
+  save_widget_artifact("ui_brush_settings_window", *settings_window);
+
+  settings_window->resize(600, 640);
+  QApplication::processEvents();
+  settings_window->close();
+  QApplication::processEvents();
+  CHECK(!button->isChecked());
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("brushes/settingsWindowOpen")).toBool());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/settingsWindowSize")).toSize() ==
+        QSize(600, 640));
+  require_action(window, "windowBrushSettingsAction")->trigger();
+  CHECK(process_events_until([&] { return settings_window->isVisible(); }));
+  CHECK(settings_window->size() == QSize(600, 640));
+  settings_window->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
+// Both windows open beside a canvas with a stroke painted (the card's capture).
+void shot_brush_floating_windows() {
+  clear_brush_tip_test_state();
+  clear_brush_window_settings();
+  const auto cleanup = qScopeGuard([] { clear_brush_window_settings(); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto bar_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  patchy::BrushDynamics dynamics;
+  dynamics.scatter = 1.2;
+  dynamics.count = 2;
+  dynamics.size_jitter = 0.4;
+  dynamics.angle_jitter = 0.3;
+  CHECK(library.set_tip_dynamics(bar_id, dynamics, 0.0, 100.0));
+  window.set_active_brush_tip(bar_id, false);
+  QApplication::processEvents();
+  canvas->set_brush_dynamics_test_seed(7);
+  CHECK(stroke_paints(*canvas));
+  canvas->set_brush_dynamics_test_seed(std::nullopt);
+  require_action(window, "windowBrushTipsAction")->trigger();
+  require_action(window, "windowBrushSettingsAction")->trigger();
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  auto* button = window.findChild<patchy::ui::BrushDynamicsButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(process_events_until([&] {
+    return picker->tool_window() != nullptr && picker->tool_window()->isVisible() &&
+           button->tool_window() != nullptr && button->tool_window()->isVisible();
+  }));
+  if (picker->tool_window() == nullptr || button->tool_window() == nullptr) {
+    return;
+  }
+  auto* tips_window = picker->tool_window();
+  auto* settings_window = button->tool_window();
+  tips_window->resize(380, 300);
+  button->window_panel()->select_section(patchy::ui::BrushDynamicsPanel::Section::Scattering);
+  button->window_panel()->preview()->rebuild_now();
+  QApplication::processEvents();
+  // The windows over the right of the main window, as a user would park them.
+  auto shot = window.grab().toImage();
+  {
+    QPainter painter(&shot);
+    const auto tips_image = tips_window->grab().toImage();
+    const auto settings_image = settings_window->grab().toImage();
+    const QPoint settings_at(shot.width() - settings_image.width() - 12, 90);
+    const QPoint tips_at(settings_at.x() - tips_image.width() - 12, 90);
+    painter.drawImage(tips_at, tips_image);
+    painter.drawImage(settings_at, settings_image);
+  }
+  save_image_artifact("shot_brush_floating_windows", shot);
+  tips_window->close();
+  settings_window->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
 void ui_brush_dynamics_button_toggles_popup_closed() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
@@ -1979,6 +2396,10 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_dynamics_popup_edits_apply_and_persist", ui_brush_dynamics_popup_edits_apply_and_persist},
       {"ui_brush_dynamics_popup_control_edits_persist", ui_brush_dynamics_popup_control_edits_persist},
       {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
+      {"ui_brush_tip_picker_filter_narrows_and_picks", ui_brush_tip_picker_filter_narrows_and_picks},
+      {"ui_brush_tips_window_floats_and_follows_the_tool", ui_brush_tips_window_floats_and_follows_the_tool},
+      {"ui_brush_settings_window_floats_and_edits_live", ui_brush_settings_window_floats_and_edits_live},
+      {"shot_brush_floating_windows", shot_brush_floating_windows},
       {"ui_brush_dynamics_popup_tabs_switch_and_remember", ui_brush_dynamics_popup_tabs_switch_and_remember},
       {"ui_brush_dynamics_section_switch_keeps_values", ui_brush_dynamics_section_switch_keeps_values},
       {"ui_brush_dynamics_reset_section_and_default_dots",

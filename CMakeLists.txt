@@ -1221,6 +1221,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/brush_tip_manager_dialog.cpp
       src/ui/brush_tip_picker.hpp
       src/ui/brush_tip_picker.cpp
+      src/ui/brush_tool_window.hpp
+      src/ui/brush_tool_window.cpp
       src/ui/canvas_widget.hpp
       src/ui/canvas_types.hpp
       src/ui/image_save_options.hpp

@@ -14603,6 +14603,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -14950,6 +14966,26 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>%1 - %2 (%3×%4)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -28291,6 +28327,34 @@ Locked: %1</source>
     </message>
     <message>
         <source>Preview the layers as animation frames</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

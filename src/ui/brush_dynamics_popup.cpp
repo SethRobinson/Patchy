@@ -4,6 +4,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/brush_stroke_preview.hpp"
 #include "ui/brush_tip_library.hpp"
+#include "ui/brush_tool_window.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
@@ -23,6 +24,7 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QToolButton>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyle>
@@ -183,6 +185,13 @@ public:
   }
   [[nodiscard]] QSize minimumSizeHint() const override { return {80, 80}; }
 };
+
+// True when two loaded models paint alike (the sidecar's own field set, plus the tip shape).
+[[nodiscard]] bool same_brush_model(const patchy::BrushDynamics& a, double a_angle, double a_roundness,
+                                    const patchy::BrushDynamics& b, double b_angle, double b_roundness) {
+  return a_angle == b_angle && a_roundness == b_roundness &&
+         brush_dynamics_to_json(a) == brush_dynamics_to_json(b);
+}
 
 }  // namespace
 
@@ -952,6 +961,96 @@ BrushDynamicsButton::~BrushDynamicsButton() {
     popup_->disconnect(this);
     delete popup_.data();
   }
+  // The floating window belongs to the main window; it must not call back into this button.
+  if (window_ != nullptr) {
+    window_->disconnect(this);
+    if (window_panel_ != nullptr) {
+      window_panel_->disconnect(this);
+    }
+  }
+}
+
+void BrushDynamicsButton::load_panel(BrushDynamicsPanel& panel) const {
+  panel.set_values(dynamics_, base_angle_degrees_, base_roundness_);
+  if (tip_id_.isEmpty()) {
+    panel.set_preview_tip(nullptr, tip_spacing_);
+  } else if (round_session_) {
+    panel.set_preview_tip(procedural_brush_preview_tip(tip_id_ == builtin_square_brush_tip_id()),
+                          tip_spacing_);
+  } else if (preview_tip_provider_) {
+    panel.set_preview_tip(preview_tip_provider_(tip_id_), tip_spacing_);
+  }
+}
+
+void BrushDynamicsButton::connect_panel(BrushDynamicsPanel& panel) {
+  connect(&panel, &BrushDynamicsPanel::edited, this, [this, panel_ptr = QPointer<BrushDynamicsPanel>(&panel)] {
+    if (panel_ptr == nullptr) {
+      return;
+    }
+    dynamics_ = panel_ptr->dynamics();
+    base_angle_degrees_ = panel_ptr->base_angle_degrees();
+    base_roundness_ = panel_ptr->base_roundness();
+    schedule_emit();
+  });
+}
+
+void BrushDynamicsButton::reload_open_panels() {
+  if (popup_panel_ != nullptr) {
+    load_panel(*popup_panel_);
+  }
+  if (window_panel_ != nullptr) {
+    load_panel(*window_panel_);
+  }
+  refresh_window_availability();
+}
+
+void BrushDynamicsButton::refresh_window_availability() {
+  if (window_ == nullptr) {
+    return;
+  }
+  window_->set_unavailable_reason(!tool_supported_ ? unsupported_reason_
+                                  : tip_id_.isEmpty() ? tr("No brush tip is active.")
+                                                      : QString());
+}
+
+void BrushDynamicsButton::set_window_key_target(std::function<QWidget*()> key_target) {
+  window_key_target_ = std::move(key_target);
+  if (window_ != nullptr) {
+    window_->set_key_target(window_key_target_);
+  }
+}
+
+void BrushDynamicsButton::set_tool_supported(bool supported, const QString& reason) {
+  tool_supported_ = supported;
+  unsupported_reason_ = supported ? QString() : reason;
+  refresh_window_availability();
+}
+
+void BrushDynamicsButton::hide_window_for_shutdown() {
+  if (window_ != nullptr) {
+    window_->hide_for_shutdown();
+  }
+}
+
+void BrushDynamicsButton::open_window(std::optional<QPoint> global_top_left, bool activate) {
+  if (popup_ != nullptr) {
+    popup_->close();
+  }
+  if (window_ == nullptr) {
+    auto* window = new BrushToolWindow(QStringLiteral("brushSettingsWindow"), tr("Brush Settings"),
+                                       QStringLiteral("brushes/settingsWindow"), this->window());
+    auto* panel = new BrushDynamicsPanel(window);
+    window->set_body(panel);
+    window->set_key_target(window_key_target_);
+    window_ = window;
+    window_panel_ = panel;
+    connect_panel(*panel);
+    connect(window, &QDialog::finished, this, [this] { sync_checked(); });
+  }
+  load_panel(*window_panel_);
+  refresh_window_availability();
+  window_->open_window(global_top_left, activate);
+  sync_checked();
 }
 
 void BrushDynamicsButton::open_popup() {
@@ -986,12 +1085,17 @@ void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
     setEnabled(false);
     retranslate();
     refresh_active_indicator();
+    reload_open_panels();
     return;
   }
-  if ((popup_ != nullptr || edit_pending()) && entry->id == tip_id_) {
+  if (entry->id == tip_id_ && !round_session_ &&
+      (edit_pending() ||
+       same_brush_model(entry->dynamics, entry->base_angle_degrees, entry->base_roundness, dynamics_,
+                        base_angle_degrees_, base_roundness_))) {
     // Our own edit echoing back through the library's changed(), or any reload (the brush
     // preset library's one-second disk refresh re-resolves the active tip) before a pending
-    // edit is emitted: the open popup or the pending edit owns the values.
+    // edit is emitted: the open panel or the pending edit owns the values. Only a real change
+    // from elsewhere (a script, a preset) reloads an open popup or window.
     return;
   }
   tip_id_ = entry->id;
@@ -1003,13 +1107,16 @@ void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
   setEnabled(true);
   retranslate();
   refresh_active_indicator();
+  reload_open_panels();
 }
 
 void BrushDynamicsButton::set_round_session(const QString& round_tip_id,
                                             const patchy::BrushDynamics& dynamics,
                                             double base_angle_degrees, double base_roundness) {
-  if ((popup_ != nullptr || edit_pending()) && tip_id_ == round_tip_id) {
-    // Our own edit echoing back through MainWindow's re-apply; the open popup or the pending
+  if (tip_id_ == round_tip_id && round_session_ &&
+      (edit_pending() || same_brush_model(dynamics, base_angle_degrees, base_roundness, dynamics_,
+                                          base_angle_degrees_, base_roundness_))) {
+    // Our own edit echoing back through MainWindow's re-apply; the open panel or the pending
     // edit owns the values.
     return;
   }
@@ -1022,6 +1129,7 @@ void BrushDynamicsButton::set_round_session(const QString& round_tip_id,
   setEnabled(true);
   retranslate();
   refresh_active_indicator();
+  reload_open_panels();
 }
 
 void BrushDynamicsButton::set_preview_tip_provider(
@@ -1069,7 +1177,7 @@ bool BrushDynamicsButton::edit_pending() const {
 }
 
 void BrushDynamicsButton::sync_checked() {
-  setChecked(popup_ != nullptr);
+  setChecked(popup_ != nullptr || (window_ != nullptr && window_->isVisible()));
 }
 
 void BrushDynamicsButton::show_popup() {
@@ -1084,6 +1192,12 @@ void BrushDynamicsButton::show_popup() {
     }
   } sync{this};
   if (tip_id_.isEmpty()) {
+    return;
+  }
+  // With the floating window open, the button brings it forward: one panel edits the brush.
+  if (window_ != nullptr && window_->isVisible()) {
+    window_->raise();
+    window_->activateWindow();
     return;
   }
   // Clicking the button while its popup is open must DISMISS it, not reopen it. The press that
@@ -1111,25 +1225,44 @@ void BrushDynamicsButton::show_popup() {
     if (rect().contains(mapFromGlobal(QCursor::pos()))) {
       popup_dismissed_ms_ = popup_clock_.elapsed();
     }
-    setChecked(false);
+    setChecked(window_ != nullptr && window_->isVisible());  // Keep Open: the window took over
   });
 
   auto* layout = new QVBoxLayout(popup);
   layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+  // The header: Keep Open turns the popup into the floating Brush Settings window in place.
+  auto* header = new QHBoxLayout();
+  header->setContentsMargins(8, 6, 8, 0);
+  auto* title = new QLabel(tr("Brush Settings"), popup);
+  title->setObjectName(QStringLiteral("brushDynamicsPopupTitle"));
+  header->addWidget(title);
+  header->addStretch(1);
+  auto* keep_open = new QToolButton(popup);
+  keep_open->setObjectName(QStringLiteral("brushDynamicsKeepOpenButton"));
+  keep_open->setText(tr("Keep Open"));
+  keep_open->setToolTip(tr("Open the brush settings in a window that stays open while you paint"));
+  header->addWidget(keep_open);
+  layout->addLayout(header);
   auto* panel = new BrushDynamicsPanel(popup);
-  panel->set_values(dynamics_, base_angle_degrees_, base_roundness_);
-  if (round_session_) {
-    panel->set_preview_tip(procedural_brush_preview_tip(tip_id_ == builtin_square_brush_tip_id()),
-                           tip_spacing_);
-  } else if (preview_tip_provider_) {
-    panel->set_preview_tip(preview_tip_provider_(tip_id_), tip_spacing_);
-  }
+  popup_panel_ = panel;
+  load_panel(*panel);
   layout->addWidget(panel);
-  connect(panel, &BrushDynamicsPanel::edited, popup, [this, panel] {
-    dynamics_ = panel->dynamics();
-    base_angle_degrees_ = panel->base_angle_degrees();
-    base_roundness_ = panel->base_roundness();
-    schedule_emit();
+  connect_panel(*panel);
+  connect(keep_open, &QToolButton::clicked, popup, [this, popup, panel] {
+    const auto top_left = popup->mapToGlobal(QPoint(0, 0));
+    const auto popup_size = popup->size();
+    const auto section = panel->current_section();
+    const bool first_open = window_ == nullptr;
+    popup->close();
+    open_window(top_left);
+    if (window_panel_ != nullptr) {
+      window_panel_->select_section(section);
+    }
+    if (first_open && window_ != nullptr &&
+        !app_settings().value(QStringLiteral("brushes/settingsWindowSize")).toSize().isValid()) {
+      window_->resize(popup_size.expandedTo(window_->minimumSizeHint()));
+    }
   });
 
   // A fixed 520 x 600 (GitHub issue 506), wider only if a translation needs it, so switching

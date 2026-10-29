@@ -14620,6 +14620,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
         <translation>Pinseldynamik und Effekte für den quadratischen Pinsel (nur in dieser Sitzung; wird beim nächsten Start zurückgesetzt)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>Keine Pinselspitze ist aktiv.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Pinseleinstellungen</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Geöffnet lassen</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>Die Pinseleinstellungen in einem Fenster öffnen, das beim Malen offen bleibt</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -14968,6 +14984,26 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>%1 - %2 (%3×%4)</source>
         <translation>%1: %2 (%3×%4)</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtern</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>Die Spitzen zeigen, deren Name oder Ordner diesen Text enthält</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Geöffnet lassen</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>Die Pinselspitzen in einem Fenster öffnen, das beim Malen offen bleibt</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Pinselspitzen</translation>
     </message>
 </context>
 <context>
@@ -28373,6 +28409,34 @@ Fixiert: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Die Ebenen als Animationsbilder in der Vorschau zeigen</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Pinselspitzen</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>Öffnen Sie ein Dokument, um eine Pinselspitze zu wählen.</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>Pinselspitzen lassen sich wieder ändern, sobald der offene Dialog geschlossen ist.</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>Das aktive Werkzeug hat keine Pinselspitze.</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>Öffnen Sie ein Dokument, um die Pinseleinstellungen zu ändern.</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>Pinseleinstellungen lassen sich wieder ändern, sobald der offene Dialog geschlossen ist.</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>Pinseleinstellungen gelten für das Pinsel-Werkzeug.</translation>
     </message>
 </context>
 <context>

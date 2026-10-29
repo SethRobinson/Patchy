@@ -14663,6 +14663,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Brush dynamics and effects for the Round brush (this session only; resets on the next launch)</source>
         <translation>Динамика и эффекты кисти для круглой кисти (только в этом сеансе; сбрасывается при следующем запуске)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>Нет активного отпечатка кисти.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Настройки кисти</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Оставить открытым</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>Открыть настройки кисти в окне, которое остаётся открытым во время рисования</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -15011,6 +15027,26 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Manage…</source>
         <translation>Управлять…</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Фильтр</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>Показать отпечатки, в имени или папке которых есть этот текст</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Оставить открытым</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>Открыть отпечатки кисти в окне, которое остаётся открытым во время рисования</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Отпечатки кистей</translation>
     </message>
 </context>
 <context>
@@ -28455,6 +28491,34 @@ Locked: %1</source>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Просмотреть слои как кадры анимации</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Отпечатки кистей</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>Откройте документ, чтобы выбрать отпечаток кисти.</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>Отпечатки кисти можно будет снова менять после закрытия открытого диалога.</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>У активного инструмента нет отпечатка кисти.</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>Откройте документ, чтобы изменить настройки кисти.</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>Настройки кисти можно будет снова менять после закрытия открытого диалога.</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>Настройки кисти относятся к инструменту «Кисть».</translation>
     </message>
 </context>
 <context>

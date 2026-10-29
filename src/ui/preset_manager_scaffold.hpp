@@ -32,6 +32,9 @@ public:
   // (stretch 2). Must be called before any right-column helper. The Shapes
   // Manager passes a container holding its List/Grid PresetBrowserView.
   void add_tree(QWidget* tree, int minimum_width);
+  // The same, with `above` (a filter field) over the tree in the left column; the selection
+  // and Delete plumbing still bind to the tree alone, so Delete in the field edits text.
+  void add_tree(QWidget* tree, int minimum_width, QWidget* above);
   [[nodiscard]] QVBoxLayout* right() const { return right_; }
 
   // {leading..., stretch, trailing...}; the caller attaches the returned row.

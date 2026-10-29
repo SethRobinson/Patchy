@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/brush_dynamics.hpp"
+#include "ui/brush_tool_window.hpp"
 
 #include <QElapsedTimer>
 #include <QHash>
@@ -12,6 +13,7 @@
 #include <array>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 
 class QCheckBox;
@@ -32,6 +34,7 @@ namespace patchy::ui {
 
 struct BrushTipEntry;
 class BrushStrokePreview;
+class BrushToolWindow;
 
 // The dynamics editing form, shared by the options-bar Dynamics popup and the Brush Tips
 // manager's editor (GitHub issue 506): a stroke preview strip on top, a column of section tabs
@@ -188,10 +191,22 @@ public:
   // True while a bitmap tip is active; MainWindow::refresh_options_bar combines this with the
   // document-editability flag instead of blanket-enabling the button.
   [[nodiscard]] bool has_active_tip() const noexcept { return !tip_id_.isEmpty(); }
-  // Opens the popup as a click would (Window > Brush Settings); does nothing while it is open.
+  // Opens the popup as a click would; does nothing while it is open.
   void open_popup();
   [[nodiscard]] bool popup_open() const noexcept { return popup_ != nullptr; }
   void retranslate();
+
+  // The floating Brush Settings window (Window > Brush Settings, or the popup's Keep Open;
+  // GitHub issue 506 follow-up): one panel that edits the same model as the popup, live, while
+  // the user paints. While it is open the button raises it instead of opening the popup.
+  void open_window(std::optional<QPoint> global_top_left = std::nullopt, bool activate = true);
+  [[nodiscard]] BrushToolWindow* tool_window() const noexcept { return window_; }
+  [[nodiscard]] BrushDynamicsPanel* window_panel() const noexcept { return window_panel_; }
+  void set_window_key_target(std::function<QWidget*()> key_target);
+  // False while the active tool is not the Brush (or no document is open): the window says
+  // why and its panel is disabled.
+  void set_tool_supported(bool supported, const QString& reason = {});
+  void hide_window_for_shutdown();
 
 signals:
   void dynamics_edited(const QString& tip_id, const patchy::BrushDynamics& dynamics,
@@ -200,6 +215,12 @@ signals:
 private:
   void show_popup();
   void sync_checked();
+  // Loads the model (values and preview tip) into a popup or window panel.
+  void load_panel(BrushDynamicsPanel& panel) const;
+  // A reload from outside (a tip switch, a script, a preset) reaches the open panels.
+  void reload_open_panels();
+  void refresh_window_availability();
+  void connect_panel(BrushDynamicsPanel& panel);
   void schedule_emit();
   [[nodiscard]] bool edit_pending() const;
   void refresh_active_indicator();
@@ -212,6 +233,12 @@ private:
   double base_angle_degrees_{0.0};
   double base_roundness_{100.0};
   QPointer<QFrame> popup_;
+  QPointer<BrushDynamicsPanel> popup_panel_;
+  QPointer<BrushToolWindow> window_;
+  QPointer<BrushDynamicsPanel> window_panel_;
+  std::function<QWidget*()> window_key_target_;
+  bool tool_supported_{true};
+  QString unsupported_reason_;
   // The debounced edit, captured when scheduled: the timer emits these, not the live model, so
   // a reload that lands before it fires cannot turn the edit back into the stored values.
   QTimer* emit_timer_{nullptr};

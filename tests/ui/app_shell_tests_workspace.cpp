@@ -1048,22 +1048,42 @@ void ui_window_panel_hotkeys_show_and_hide_panels() {
   CHECK(brush_settings->shortcuts().isEmpty());
   canvas->set_tool(patchy::ui::CanvasTool::Move);
   QApplication::processEvents();
+  // Brush Settings opens the floating Brush Settings window (GitHub issue 506 follow-up).
+  const auto clear_window_state = [] {
+    for (const auto* key : {"brushes/settingsWindowOpen", "brushes/settingsWindowSize", "brushes/tipsWindowOpen",
+                            "brushes/tipsWindowSize"}) {
+      patchy::ui::app_settings().remove(QLatin1String(key));
+    }
+  };
+  clear_window_state();
   brush_settings->trigger();
-  const auto popup_open = [] {
+  const auto window_open = [](const char* name) {
     for (auto* widget : QApplication::topLevelWidgets()) {
-      if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+      if (widget->objectName() == QLatin1String(name) && widget->isVisible()) {
         return widget;
       }
     }
     return static_cast<QWidget*>(nullptr);
   };
-  CHECK(process_events_until([&] { return popup_open() != nullptr; }));
+  CHECK(process_events_until([&] { return window_open("brushSettingsWindow") != nullptr; }));
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
-  if (auto* popup = popup_open(); popup != nullptr) {
-    save_widget_artifact("ui_window_brush_settings_popup", window);
-    popup->close();
+  if (auto* settings_window = window_open("brushSettingsWindow"); settings_window != nullptr) {
+    save_widget_artifact("ui_window_brush_settings_popup", *settings_window);
+    settings_window->close();
     QApplication::processEvents();
   }
+  // Brush Tips has its own command, no key either.
+  auto* brush_tips = require_action(window, "windowBrushTipsAction");
+  const auto* tips_command = window.hotkey_registry().find_command(QStringLiteral("window.brush_tips"));
+  CHECK(tips_command != nullptr && tips_command->action == brush_tips);
+  CHECK(tips_command != nullptr && tips_command->default_shortcuts.isEmpty());
+  brush_tips->trigger();
+  CHECK(process_events_until([&] { return window_open("brushTipsWindow") != nullptr; }));
+  if (auto* tips_window = window_open("brushTipsWindow"); tips_window != nullptr) {
+    tips_window->close();
+    QApplication::processEvents();
+  }
+  clear_window_state();
 }
 
 void ui_window_menu_lists_panels_and_toolbars() {

@@ -62,7 +62,14 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     }
     return rows;
   });
-  scaffold.add_tree(tree, 320);
+  // Imported sets run to hundreds of tips: a filter over the names (folders open while it
+  // narrows the list), like the shape and preset pickers' search fields.
+  auto* filter = new QLineEdit(&dialog);
+  filter->setObjectName(QStringLiteral("brushTipManagerFilterEdit"));
+  filter->setPlaceholderText(QObject::tr("Filter"));
+  filter->setClearButtonEnabled(true);
+  QObject::connect(filter, &QLineEdit::textChanged, tree, [tree](const QString& text) { tree->set_filter_text(text); });
+  scaffold.add_tree(tree, 320, filter);
 
   auto* preview = new BrushStrokePreview(&dialog);
   scaffold.right()->addWidget(preview);

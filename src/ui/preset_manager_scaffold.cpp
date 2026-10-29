@@ -29,6 +29,19 @@ void PresetManagerScaffold::add_tree(QWidget* tree, int minimum_width) {
   main_layout_->addLayout(right_, 2);
 }
 
+void PresetManagerScaffold::add_tree(QWidget* tree, int minimum_width, QWidget* above) {
+  tree_ = tree;
+  tree_->setMinimumWidth(minimum_width);
+  auto* left = new QVBoxLayout();
+  left->setContentsMargins(0, 0, 0, 0);
+  left->setSpacing(4);
+  left->addWidget(above);
+  left->addWidget(tree_, 1);
+  main_layout_->addLayout(left, 1);
+  right_ = new QVBoxLayout();
+  main_layout_->addLayout(right_, 2);
+}
+
 QHBoxLayout* PresetManagerScaffold::button_row(std::initializer_list<QPushButton*> leading,
                                                std::initializer_list<QPushButton*> trailing) {
   auto* row = new QHBoxLayout();
