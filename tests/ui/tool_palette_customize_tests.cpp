@@ -2496,14 +2496,18 @@ void ui_tool_flyout_shortcut_keys_start_in_one_column() {
     }
     settle();
     auto* viewport = tree->viewport();
-    const QImage list = viewport->grab().toImage();
-    const double list_scale = static_cast<double>(list.width()) / viewport->width();
-    const int column = qRound(tree->header()->sectionViewportPosition(1) * list_scale);
+    double list_scale = 1.0;
     const auto row_key_left = [&](const char* name) {
       auto* row = tree_row(*tree, QLatin1String(name));
       if (row == nullptr) {
         return -1;
       }
+      // Taller rows (Linux fonts) put a row under the list's fold: scroll it in first.
+      tree->scrollToItem(row);
+      settle();
+      const QImage list = viewport->grab().toImage();
+      list_scale = static_cast<double>(list.width()) / viewport->width();
+      const int column = qRound(tree->header()->sectionViewportPosition(1) * list_scale);
       const QRect band = tree->visualItemRect(row);
       return key_ink_left(list, QRect(column, qRound(band.top() * list_scale), list.width() - column,
                                       qRound(band.height() * list_scale)),

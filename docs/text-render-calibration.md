@@ -212,8 +212,8 @@ without MS Gothic) and `psd_vertical_*captures*` in tests/core.
 
 ## Tracking and alignment
 
-PS 2026 COM sweep (`scripts/dev/text-tracking/`; six captures in `test-fixtures/psd/
-photoshop-text-track-*.psd`): "TEXT", Arial 48 px, point/box, left/centre/right, tracking -80 to +200.
+PS 2026 COM sweep (`scripts/dev/text-tracking/`, captures `test-fixtures/psd/photoshop-text-track-*.psd`):
+"TEXT", Arial 48 px, point/box, left/centre/right, tracking -80 to +200.
 
 - **Alignment uses the width without the trailing gap.** Qt's letter spacing follows the last
   glyph too, so `photoshop_text_layout_plan` moves each centred or right left-to-right line by
@@ -222,9 +222,10 @@ photoshop-text-track-*.psd`): "TEXT", Arial 48 px, point/box, left/centre/right,
   the lowercase "d" (`photoshop_ascender_fraction`; typo ascender only without a "d"): Arial 48
   at top 40.10 lands on 74 and 40.15 on 75 ("d" 0.7158, typo 0.728). Calibri (0.678 vs typo
   0.750), Segoe UI, Times, Verdana, Georgia, Courier New and Tahoma at 30 to 72 px all fit "d".
-  Baseline shift moves it by exactly its value. Patchy-written blocks get cap height (above).
-- Gaps: Qt's untracked "TEXT" advance is 122.66 px to Photoshop's 121.80 (right lines can sit a
-  column left); a fractional box top can land a row off. Pinned by
+  Baseline shift moves it exactly. Patchy-written blocks get cap height (above).
+- Gaps: Qt's untracked "TEXT" advance is 122.66 px to PS 121.80 (right lines sit a
+  column left), psd-tools `type-layer.psd`'s centred "A" a column right, and a fractional box
+  top a row off. Pinned by
   `ui_psd_centered_text_commit_rounds_line_start_like_photoshop` and two `_if_available` tests.
 
 ## Pixel grid and fractional anchors
