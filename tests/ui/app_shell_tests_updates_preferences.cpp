@@ -74,6 +74,7 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPushButton>
+#include <QDialogButtonBox>
 #include <QListWidget>
 #include <QStringList>
 #include <QDateTime>
@@ -3650,6 +3651,173 @@ void ui_color_scheme_cancel_restores_entry_scheme() {
   CHECK(settings.value(QStringLiteral("preferences/colorScheme")).toString() == QStringLiteral("dark"));
 }
 
+// GitHub issue 510: how a Preferences run ends, by the dialog's own buttons or a key.
+enum class PreferencesExit { cancel_button, escape_key, ok_button };
+
+struct PreferencesEntryState {
+  bool wheel_zooms = false;
+  int grid_subdivisions = 0;
+  QString language;
+  bool saw_dialog = false;
+  bool previewed_light = false;
+};
+
+// Opens Preferences, changes a checkbox (mouse wheel zoom), a number (grid subdivisions),
+// the theme (previewed live) and, unless it ends with OK, the language, then ends the run
+// the way `exit` says. Returns what the controls showed on entry.
+PreferencesEntryState change_preferences_and_exit(patchy::ui::MainWindow& window, PreferencesExit exit) {
+  PreferencesEntryState entry;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* wheel = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesWheelZoomCheck"));
+    auto* subdivisions = dialog->findChild<QSpinBox*>(QStringLiteral("preferencesGridSubdivisionsSpin"));
+    auto* language = dialog->findChild<QComboBox*>(QStringLiteral("preferencesLanguageCombo"));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("preferencesButtonBox"));
+    CHECK(wheel != nullptr && subdivisions != nullptr && language != nullptr && buttons != nullptr);
+    if (wheel == nullptr || subdivisions == nullptr || language == nullptr || buttons == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(buttons->button(QDialogButtonBox::Ok) != nullptr);
+    CHECK(buttons->button(QDialogButtonBox::Cancel) != nullptr);
+    entry.saw_dialog = true;
+    entry.wheel_zooms = wheel->isChecked();
+    entry.grid_subdivisions = subdivisions->value();
+    entry.language = language->currentData().toString();
+    wheel->setChecked(!entry.wheel_zooms);
+    subdivisions->setValue(entry.grid_subdivisions == 7 ? 9 : 7);
+    if (exit != PreferencesExit::ok_button && language->count() > 1) {
+      language->setCurrentIndex(language->currentIndex() == 0 ? 1 : 0);
+    }
+    CHECK(select_preferences_theme(*dialog, QStringLiteral("light")));
+    entry.previewed_light = patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Light;
+    if (exit == PreferencesExit::ok_button || exit == PreferencesExit::cancel_button) {
+      auto* button =
+          buttons->button(exit == PreferencesExit::ok_button ? QDialogButtonBox::Ok : QDialogButtonBox::Cancel);
+      if (button != nullptr) {
+        if (exit == PreferencesExit::cancel_button) {
+          save_widget_artifact("preferences_ok_and_cancel", *dialog);
+        }
+        button->click();
+      } else {
+        dialog->reject();
+      }
+    } else {
+      auto* target = dialog->focusWidget() != nullptr ? dialog->focusWidget() : dialog;
+      QTest::keyClick(target, Qt::Key_Escape);
+    }
+    // A key or button that failed to end the run must not hang the suite.
+    if (dialog->isVisible()) {
+      CHECK(false);
+      dialog->reject();
+    }
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(entry.saw_dialog);
+  CHECK(entry.previewed_light);
+  return entry;
+}
+
+// What a fresh Preferences shows: the settings in effect in the running window.
+std::pair<bool, int> preferences_wheel_and_subdivisions(patchy::ui::MainWindow& window) {
+  std::pair<bool, int> shown{false, -1};
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    if (auto* wheel = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesWheelZoomCheck")); wheel != nullptr) {
+      shown.first = wheel->isChecked();
+    }
+    if (auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("preferencesGridSubdivisionsSpin")); spin != nullptr) {
+      shown.second = spin->value();
+    }
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  return shown;
+}
+
+void seed_preferences_cancel_settings() {
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  auto settings = patchy::ui::app_settings();
+  settings.setValue(QStringLiteral("preferences/colorScheme"), QStringLiteral("dark"));
+  settings.setValue(QStringLiteral("input/wheelZooms"), true);
+  settings.setValue(QStringLiteral("view/gridSubdivisions"), 4);
+  settings.sync();
+}
+
+void check_preferences_left_unchanged(PreferencesExit exit) {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom(QStringLiteral("preferences/customThemeId"));
+  SettingsValueRestorer restore_wheel(QStringLiteral("input/wheelZooms"));
+  SettingsValueRestorer restore_subdivisions(QStringLiteral("view/gridSubdivisions"));
+  ColorSchemeRestorer restore_active;
+  seed_preferences_cancel_settings();
+  const auto entry_language = patchy::ui::LocalizationManager::instance().current_language();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto entry = change_preferences_and_exit(window, exit);
+  QApplication::processEvents();
+  CHECK(entry.wheel_zooms);
+  CHECK(entry.grid_subdivisions == 4);
+  CHECK(entry.language == entry_language);
+
+  CHECK(patchy::ui::ThemeManager::instance().preference() == patchy::ui::ColorSchemePreference::Dark);
+  CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Dark);
+  CHECK(patchy::ui::LocalizationManager::instance().current_language() == entry_language);
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("preferences/colorScheme")).toString() == QStringLiteral("dark"));
+  CHECK(settings.value(QStringLiteral("input/wheelZooms")).toBool());
+  CHECK(settings.value(QStringLiteral("view/gridSubdivisions")).toInt() == 4);
+  // The window's own state is untouched too: a new Preferences shows the entry values.
+  const auto shown = preferences_wheel_and_subdivisions(window);
+  CHECK(shown.first);
+  CHECK(shown.second == 4);
+}
+
+// GitHub issue 510: Cancel discards every change made in the dialog, the live theme
+// preview and a language pick included.
+void ui_preferences_cancel_button_discards_changes() {
+  check_preferences_left_unchanged(PreferencesExit::cancel_button);
+}
+
+void ui_preferences_escape_discards_changes() {
+  check_preferences_left_unchanged(PreferencesExit::escape_key);
+}
+
+void ui_preferences_ok_button_keeps_changes() {
+  SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
+  SettingsValueRestorer restore_custom(QStringLiteral("preferences/customThemeId"));
+  SettingsValueRestorer restore_wheel(QStringLiteral("input/wheelZooms"));
+  SettingsValueRestorer restore_subdivisions(QStringLiteral("view/gridSubdivisions"));
+  ColorSchemeRestorer restore_active;
+  seed_preferences_cancel_settings();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  change_preferences_and_exit(window, PreferencesExit::ok_button);
+  QApplication::processEvents();
+
+  CHECK(patchy::ui::ThemeManager::instance().preference() == patchy::ui::ColorSchemePreference::Light);
+  CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Light);
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("preferences/colorScheme")).toString() == QStringLiteral("light"));
+  CHECK(!settings.value(QStringLiteral("input/wheelZooms")).toBool());
+  CHECK(settings.value(QStringLiteral("view/gridSubdivisions")).toInt() == 7);
+  const auto shown = preferences_wheel_and_subdivisions(window);
+  CHECK(!shown.first);
+  CHECK(shown.second == 7);
+}
+
 // GitHub issue 133: the Preferences combo previews a built-in scheme without persisting,
 // which already clears the active custom theme; the OK that follows must still clear the
 // STORED custom theme id, or the next launch re-applies the old theme over the new scheme.
@@ -3940,6 +4108,9 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"gui_scale_percent_normalizes_to_offered_steps", gui_scale_percent_normalizes_to_offered_steps},
       {"ui_color_scheme_preference_persists_setting", ui_color_scheme_preference_persists_setting},
       {"ui_color_scheme_cancel_restores_entry_scheme", ui_color_scheme_cancel_restores_entry_scheme},
+      {"ui_preferences_cancel_button_discards_changes", ui_preferences_cancel_button_discards_changes},
+      {"ui_preferences_escape_discards_changes", ui_preferences_escape_discards_changes},
+      {"ui_preferences_ok_button_keeps_changes", ui_preferences_ok_button_keeps_changes},
       {"ui_color_scheme_commit_after_preview_clears_stored_custom_theme", ui_color_scheme_commit_after_preview_clears_stored_custom_theme},
       {"ui_color_scheme_follow_system_tracks_style_hints", ui_color_scheme_follow_system_tracks_style_hints},
       {"ui_color_scheme_unknown_resolves_light_on_desktop_linux",

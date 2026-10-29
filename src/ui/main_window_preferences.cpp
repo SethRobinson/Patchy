@@ -2059,9 +2059,15 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   presets_layout->addStretch(1);
   add_page(presets_page, tr("Presets"), QStringLiteral("presets"));
 
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, pages_host);
+  // Every setting is stored and applied in the accept branch below, and the theme list's live
+  // preview is undone by restore_theme, so Cancel, Esc and the chrome X all leave the
+  // settings as they were when the dialog opened (GitHub issue 510). Actions that act at
+  // once (the preset managers, Customize Tool Palette, theme import and delete, font and
+  // model removal) are done by then and stay done.
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, pages_host);
   buttons->setObjectName(QStringLiteral("preferencesButtonBox"));
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   // Frameless chrome has no native resize border; the corner grip is the resize handle
   // (GitHub issue 92).
   auto* button_row = new QHBoxLayout();
