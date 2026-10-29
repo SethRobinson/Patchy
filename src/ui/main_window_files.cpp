@@ -3167,16 +3167,14 @@ void MainWindow::open_document_path(QString path) {
       if (!unattended_automation()) remember_open_directory_for_path(path);
     }
     if (loaded->import_notices.isEmpty()) {
-      statusBar()->showMessage(tr("Opened %1").arg(browser_transfer ? loaded_file_name : path));
+      // The new tab already names the file, so a clean open says nothing (GitHub
+      // issue 518); clearing drops whatever the previous document left there.
+      statusBar()->clearMessage();
     } else {
-      // Import notes ride the status bar by default; the consolidated popup is opt-in
+      // Import notes ride the status bar by default, in the yellow notice flash so
+      // they are not missed (GitHub issue 487); the consolidated popup is opt-in
       // (see show_import_notices_popup) unless the notes describe data loss.
-      auto status_notes = loaded->import_notices.front();
-      if (loaded->import_notices.size() > 1) {
-        status_notes +=
-            tr(" (+%n more import note(s))", nullptr, static_cast<int>(loaded->import_notices.size()) - 1);
-      }
-      statusBar()->showMessage(tr("Opened %1. %2").arg(loaded_file_name, status_notes));
+      show_import_notes_status(loaded->import_notices);
       if (!unattended_automation()) {
         show_import_notices_popup(this, loaded_file_name, loaded->import_notices,
                                   loaded->force_import_notices_popup);
@@ -3188,7 +3186,7 @@ void MainWindow::open_document_path(QString path) {
     // Linked smart objects whose files are missing (GitHub issue 257; off in Preferences).
     show_missing_linked_files_dialog(true);
     // Photoshop's Missing Fonts dialog on open (GitHub issue 169; off in Preferences). Last, so
-    // its own status message is not overwritten by the "Opened" one.
+    // its own status message is not overwritten by the import notes.
     show_resolve_missing_fonts_dialog(true);
 #ifdef Q_OS_WASM
     wasm_files::publish_open_probe(QStringLiteral("opened"), path);
@@ -3486,15 +3484,12 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     refresh_document_tab_titles();
     open_extra_imported_page_sessions(loaded->file_name, std::move(loaded->extra_documents), loaded->pdf_color_mode,
                                       loaded->pdf_bit_depth.value_or(BitDepth::UInt8), loaded->import_notices);
+    // Reopen changes no tab, so a clean one still confirms itself; notes show
+    // alone, like an open's.
     if (loaded->import_notices.isEmpty()) {
       statusBar()->showMessage(tr("Reopened %1").arg(path));
     } else {
-      auto status_notes = loaded->import_notices.front();
-      if (loaded->import_notices.size() > 1) {
-        status_notes +=
-            tr(" (+%n more import note(s))", nullptr, static_cast<int>(loaded->import_notices.size()) - 1);
-      }
-      statusBar()->showMessage(tr("Reopened %1. %2").arg(loaded->file_name, status_notes));
+      show_import_notes_status(loaded->import_notices);
     }
   } catch (const std::exception& error) {
     show_open_failed_message_box(this, translated_file_message(error.what()), QDir::toNativeSeparators(path));

@@ -210,7 +210,9 @@ struct ThemePalette {
 
   // Status bar. status_error_mark is the status bar's own surface punched out of
   // the warning triangle, so it must track status_bar_bg exactly or the glyph
-  // fills in; that is why it is a role rather than a constant.
+  // fills in; that is why it is a role rather than a constant. The status_notice
+  // roles are the yellow version of the error presentation, for notes that block
+  // nothing (import notes on open; GitHub issue 487).
   QColor status_bar_bg;
   QColor status_text;
   QColor status_text_disabled;
@@ -221,6 +223,9 @@ struct ThemePalette {
   QColor status_error_wash;
   QColor status_warning_fill;
   QColor status_error_mark;
+  QColor status_notice_text;
+  QColor status_notice_wash;
+  QColor status_notice_fill;
 
   // Layer drag-and-drop indicators, and the text editor's resize handles.
   QColor drop_indicator_bg;

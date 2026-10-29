@@ -2384,6 +2384,9 @@ private:
   // the status bar flashes red and keeps a warning icon; plain
   // statusBar()->showMessage stays the path for informational text.
   void show_status_error(const QString& text);
+  // A file's import notes after an open or reopen: the first note plus
+  // "(+N more import notes)", flashed in the yellow notice colors (GitHub issue 487).
+  void show_import_notes_status(const QStringList& notices);
   void update_canvas_info(CanvasInfoState info);
   void choose_primary_color();
   void choose_secondary_color();

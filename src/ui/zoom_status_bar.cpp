@@ -27,10 +27,17 @@ constexpr double kErrorFlashPulses = 2.0;  // decaying red pulses over the flash
 constexpr int kErrorFlashFrameMs = 33;     // ~30 fps, only while the flash runs
 // These follow the color scheme; status_error_mark is the status-bar surface
 // punched out of the warning triangle, so it tracks status_bar_bg by role
-// rather than by a copied literal (see theme_palette.hpp).
-[[nodiscard]] QColor error_text_color() { return theme().status_error_text; }
-[[nodiscard]] QColor error_wash_color() { return theme().status_error_wash; }
-[[nodiscard]] QColor warning_fill_color() { return theme().status_warning_fill; }
+// rather than by a copied literal (see theme_palette.hpp). Notices use the
+// yellow status_notice roles and the same mark.
+[[nodiscard]] QColor highlight_text_color(bool notice) {
+  return notice ? theme().status_notice_text : theme().status_error_text;
+}
+[[nodiscard]] QColor highlight_wash_color(bool notice) {
+  return notice ? theme().status_notice_wash : theme().status_error_wash;
+}
+[[nodiscard]] QColor warning_fill_color(bool notice) {
+  return notice ? theme().status_notice_fill : theme().status_warning_fill;
+}
 [[nodiscard]] QColor warning_mark_color() { return theme().status_error_mark; }
 
 // QLineEdit's fixed inset between its contents rect and the text (QLineEditPrivate::horizontalMargin).
@@ -268,43 +275,54 @@ void ZoomPercentEdit::commit_editor_text() {
   setText(display_text_);                // normalize even when the zoom did not change
 }
 
-ZoomStatusBar::ZoomStatusBar(QWidget* parent) : QStatusBar(parent), error_flash_timer_(this) {
-  error_flash_timer_.setInterval(kErrorFlashFrameMs);
-  connect(&error_flash_timer_, &QTimer::timeout, this, [this] {
-    if (error_flash_clock_.elapsed() >= kErrorFlashDurationMs) {
-      error_flash_timer_.stop();  // settle into the persistent red state
+ZoomStatusBar::ZoomStatusBar(QWidget* parent) : QStatusBar(parent), highlight_flash_timer_(this) {
+  highlight_flash_timer_.setInterval(kErrorFlashFrameMs);
+  connect(&highlight_flash_timer_, &QTimer::timeout, this, [this] {
+    if (highlight_flash_clock_.elapsed() >= kErrorFlashDurationMs) {
+      highlight_flash_timer_.stop();  // settle into the persistent colored state
     }
     update();
   });
   // Any different message (info showMessage, clearMessage, a new error) ends
   // the error presentation. showMessage with an IDENTICAL string never emits
-  // messageChanged, which is why show_error_message restarts the flash itself.
+  // messageChanged, which is why show_highlighted_message restarts the flash itself.
   connect(this, &QStatusBar::messageChanged, this, [this](const QString& text) {
-    if (!error_active_ || text == error_text_) {
+    if (!highlight_active_ || text == highlight_text_) {
       return;
     }
-    error_active_ = false;
-    error_text_.clear();
-    error_flash_timer_.stop();
+    highlight_active_ = false;
+    highlight_text_.clear();
+    highlight_flash_timer_.stop();
     update();
   });
 }
 
-void ZoomStatusBar::show_error_message(const QString& text) {
-  // Error state must be set before showMessage: the messageChanged emission
-  // compares against error_text_ and must see the new error as its own.
-  error_text_ = text;
-  error_active_ = true;
-  error_flash_clock_.start();
-  error_flash_timer_.start();
+void ZoomStatusBar::show_highlighted_message(const QString& text, bool notice) {
+  // The state must be set before showMessage: the messageChanged emission
+  // compares against highlight_text_ and must see the new message as its own.
+  highlight_text_ = text;
+  highlight_active_ = true;
+  highlight_is_notice_ = notice;
+  highlight_flash_clock_.start();
+  highlight_flash_timer_.start();
   showMessage(text);  // no-op (and no signal) when text is already current
   update();
 }
 
-bool ZoomStatusBar::error_message_active() const { return error_active_; }
+void ZoomStatusBar::show_error_message(const QString& text) { show_highlighted_message(text, false); }
+
+void ZoomStatusBar::show_notice_message(const QString& text) { show_highlighted_message(text, true); }
+
+bool ZoomStatusBar::error_message_active() const { return highlight_active_ && !highlight_is_notice_; }
 
 bool ZoomStatusBar::error_flash_running() const {
-  return error_active_ && error_flash_timer_.isActive();
+  return error_message_active() && highlight_flash_timer_.isActive();
+}
+
+bool ZoomStatusBar::notice_message_active() const { return highlight_active_ && highlight_is_notice_; }
+
+bool ZoomStatusBar::notice_flash_running() const {
+  return notice_message_active() && highlight_flash_timer_.isActive();
 }
 
 void ZoomStatusBar::set_left_widget(QWidget* widget) {
@@ -347,14 +365,14 @@ void ZoomStatusBar::paintEvent(QPaintEvent* event) {
   if (right <= left) {
     return;
   }
-  if (error_active_ && error_flash_timer_.isActive()) {
+  if (highlight_active_ && highlight_flash_timer_.isActive()) {
     const auto phase = std::clamp(
-        static_cast<double>(error_flash_clock_.elapsed()) / kErrorFlashDurationMs, 0.0, 1.0);
+        static_cast<double>(highlight_flash_clock_.elapsed()) / kErrorFlashDurationMs, 0.0, 1.0);
     const auto wave =
         0.5 * (1.0 + std::cos(phase * 2.0 * std::numbers::pi * kErrorFlashPulses));
     const auto alpha = static_cast<int>(std::lround(170.0 * wave * (1.0 - phase)));
     if (alpha > 0) {
-      auto wash = error_wash_color();
+      auto wash = highlight_wash_color(highlight_is_notice_);
       wash.setAlpha(alpha);
       painter.save();
       painter.setRenderHint(QPainter::Antialiasing, true);
@@ -365,7 +383,7 @@ void ZoomStatusBar::paintEvent(QPaintEvent* event) {
     }
   }
   auto text_left = left;
-  if (error_active_) {
+  if (highlight_active_) {
     const auto icon_side = fontMetrics().ascent() + 2;
     const QRect icon_rect(left, (height() - icon_side) / 2, icon_side, icon_side);
     paint_warning_icon(painter, icon_rect);
@@ -374,7 +392,7 @@ void ZoomStatusBar::paintEvent(QPaintEvent* event) {
   if (right <= text_left) {
     return;
   }
-  painter.setPen(error_active_ ? error_text_color() : palette().windowText().color());
+  painter.setPen(highlight_active_ ? highlight_text_color(highlight_is_notice_) : palette().windowText().color());
   painter.drawText(QRect(text_left, 0, right - text_left, height()),
                    Qt::AlignLeading | Qt::AlignVCenter | Qt::TextSingleLine, message);
 }
@@ -389,7 +407,7 @@ void ZoomStatusBar::paint_warning_icon(QPainter& painter, const QRect& icon_rect
   triangle.lineTo(r.left(), r.bottom());
   triangle.closeSubpath();
   painter.setPen(Qt::NoPen);
-  painter.setBrush(warning_fill_color());
+  painter.setBrush(warning_fill_color(highlight_is_notice_));
   painter.drawPath(triangle);
   const auto stem_width = std::max(1.0, r.width() / 8.0);
   const auto stem_x = r.center().x() - stem_width / 2.0;

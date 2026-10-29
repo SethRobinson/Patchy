@@ -211,6 +211,9 @@ const ThemePalette& dark_palette() {
       .status_error_wash = rgb(0xa83232),
       .status_warning_fill = rgb(0xe05c5c),
       .status_error_mark = rgb(0x252525),
+      .status_notice_text = rgb(0xf0c44c),
+      .status_notice_wash = rgb(0xa8862a),
+      .status_notice_fill = rgb(0xe0b030),
 
       // Drop indicators and text resize handles.
       .drop_indicator_bg = rgb(0x31a8ff),
@@ -717,6 +720,10 @@ const ThemePalette& light_palette() {
     light.icon_success = rgb(0x1f8a3d);
     light.icon_surface = rgb(0xf0f0f0);
 
+    // Yellow text keeps its lightness band in the flip and is unreadable on the
+    // light status bar; this amber is darker than the error red, as dark as needed.
+    light.status_notice_text = rgb(0x7a5a00);
+
     return light;
   }();
   return palette;
@@ -925,6 +932,9 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(status_error_wash),
       PATCHY_THEME_ROLE(status_warning_fill),
       PATCHY_THEME_ROLE(status_error_mark),
+      PATCHY_THEME_ROLE(status_notice_text),
+      PATCHY_THEME_ROLE(status_notice_wash),
+      PATCHY_THEME_ROLE(status_notice_fill),
 
       PATCHY_THEME_ROLE(drop_indicator_bg),
       PATCHY_THEME_ROLE(drop_indicator_border),

@@ -19421,20 +19421,12 @@ Rect : -</translation>
         <source>Remember this choice</source>
         <translation>Mémoriser ce choix</translation>
     </message>
-    <message>
-        <source>Opened %1</source>
-        <translation>%1 ouvert</translation>
-    </message>
     <message numerus="yes">
         <source> (+%n more import note(s))</source>
         <translation>
             <numerusform> (+%n autre note d&apos;importation)</numerusform>
             <numerusform> (+%n autres notes d&apos;importation)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Opened %1. %2</source>
-        <translation>%1 ouvert. %2</translation>
     </message>
     <message>
         <source>File is missing</source>
@@ -19459,10 +19451,6 @@ Rect : -</translation>
     <message>
         <source>Reopened %1</source>
         <translation>%1 rouvert</translation>
-    </message>
-    <message>
-        <source>Reopened %1. %2</source>
-        <translation>%1 rouvert. %2</translation>
     </message>
     <message>
         <source>Import from Scanner</source>

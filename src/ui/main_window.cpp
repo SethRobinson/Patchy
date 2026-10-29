@@ -5799,6 +5799,17 @@ void MainWindow::show_status_error(const QString& text) {
   zoom_status_bar_->show_error_message(text);
 }
 
+void MainWindow::show_import_notes_status(const QStringList& notices) {
+  if (notices.isEmpty()) {
+    return;
+  }
+  auto text = notices.front();
+  if (notices.size() > 1) {
+    text += tr(" (+%n more import note(s))", nullptr, static_cast<int>(notices.size()) - 1);
+  }
+  zoom_status_bar_->show_notice_message(text);
+}
+
 void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->setObjectName(QStringLiteral("canvas"));
   canvas->set_clone_source_changed_callback([this, canvas] {

@@ -19421,20 +19421,12 @@ Rechteck: -</translation>
         <source>Remember this choice</source>
         <translation>Diese Auswahl merken</translation>
     </message>
-    <message>
-        <source>Opened %1</source>
-        <translation>%1 geöffnet</translation>
-    </message>
     <message numerus="yes">
         <source> (+%n more import note(s))</source>
         <translation>
             <numerusform> (+%n weiterer Importhinweis)</numerusform>
             <numerusform> (+%n weitere Importhinweise)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Opened %1. %2</source>
-        <translation>%1 geöffnet. %2</translation>
     </message>
     <message>
         <source>File is missing</source>
@@ -19459,10 +19451,6 @@ Rechteck: -</translation>
     <message>
         <source>Reopened %1</source>
         <translation>%1 erneut geöffnet</translation>
-    </message>
-    <message>
-        <source>Reopened %1. %2</source>
-        <translation>%1 erneut geöffnet. %2</translation>
     </message>
     <message>
         <source>Import from Scanner</source>

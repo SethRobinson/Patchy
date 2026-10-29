@@ -11,6 +11,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/main_window.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/theme_manager.hpp"
@@ -20,7 +21,10 @@
 #include "test_harness.hpp"
 #include <patchy_version.hpp>
 #include <QApplication>
+#include <QFileInfo>
+#include <QImage>
 #include <QPalette>
+#include <QStatusBar>
 #include <QToolTip>
 #include <QDialog>
 #include <QLabel>
@@ -51,9 +55,11 @@
 #include <utility>
 #include <map>
 #include <vector>
+#include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 #include "app_shell_test_support.hpp"
+#include "local_psd_fixtures.hpp"
 
 namespace {
 using namespace patchy::test::ui::app_shell_support;
@@ -163,7 +169,7 @@ void ui_theme_text_roles_contrast_with_their_backgrounds() {
     QColor patchy::ui::ThemePalette::* text;
     QColor patchy::ui::ThemePalette::* background;
   };
-  const std::array<TextPair, 11> pairs{{
+  const std::array<TextPair, 12> pairs{{
       {"the About dialog's body text", &patchy::ui::ThemePalette::splash_body_text,
        &patchy::ui::ThemePalette::splash_bg},
       {"a highlighted menu item", &patchy::ui::ThemePalette::text_on_accent,
@@ -186,6 +192,8 @@ void ui_theme_text_roles_contrast_with_their_backgrounds() {
        &patchy::ui::ThemePalette::title_bar_bg},
       {"a selected layer row's name", &patchy::ui::ThemePalette::layer_row_name_text,
        &patchy::ui::ThemePalette::layer_row_selected_bg},
+      {"an import note in the status bar", &patchy::ui::ThemePalette::status_notice_text,
+       &patchy::ui::ThemePalette::status_bar_bg},
   }};
 
   // 3:1 is the floor for UI text and large type; every pair here clears it in
@@ -615,6 +623,99 @@ void ui_status_bar_error_message_flashes_then_persists_until_replaced() {
   CHECK(!bar.error_message_active());
 }
 
+// Import notes use the error presentation in the yellow notice roles (GitHub
+// issue 487): the same flash and persistence, never reported as an error.
+void ui_status_bar_notice_message_flashes_yellow_then_persists_until_replaced() {
+  patchy::ui::ZoomStatusBar bar;
+  bar.resize(600, 24);
+  bar.show();
+  QApplication::processEvents();
+
+  bar.show_notice_message(QStringLiteral("GIMP blend mode Color Erase opened as Normal"));
+  CHECK(bar.currentMessage() == QStringLiteral("GIMP blend mode Color Erase opened as Normal"));
+  CHECK(bar.notice_message_active());
+  CHECK(bar.notice_flash_running());
+  CHECK(!bar.error_message_active());
+  CHECK(!bar.error_flash_running());
+
+  CHECK(process_events_until([&bar] { return !bar.notice_flash_running(); }));
+  CHECK(bar.notice_message_active());
+  // The settled bar draws the warning triangle in status_notice_fill, and no
+  // pixel in the error triangle's red.
+  const auto shot = bar.grab().toImage().convertToFormat(QImage::Format_ARGB32);
+  bool saw_notice_fill = false;
+  bool saw_error_fill = false;
+  for (int y = 0; y < shot.height(); ++y) {
+    for (int x = 0; x < std::min(shot.width(), 40); ++x) {
+      const auto pixel = shot.pixelColor(x, y);
+      saw_notice_fill |= channel_delta(pixel, patchy::ui::theme().status_notice_fill) <= 8;
+      saw_error_fill |= channel_delta(pixel, patchy::ui::theme().status_warning_fill) <= 8;
+    }
+  }
+  CHECK(saw_notice_fill);
+  CHECK(!saw_error_fill);
+  save_widget_artifact("status_bar_notice", bar);
+
+  // An error replaces the notice with the red presentation.
+  bar.show_error_message(QStringLiteral("Layer pixels are locked."));
+  CHECK(bar.error_message_active());
+  CHECK(!bar.notice_message_active());
+
+  bar.show_notice_message(QStringLiteral("GIMP blend mode Color Erase opened as Normal"));
+  bar.showMessage(QStringLiteral("Applied Levels"));
+  CHECK(!bar.notice_message_active());
+  CHECK(!bar.notice_flash_running());
+}
+
+// A clean open leaves the status bar empty (the tab names the file; GitHub issue
+// 518), dropping any message the previous document left there.
+void ui_clean_open_shows_no_opened_status() {
+  std::filesystem::create_directories("test-artifacts/open-status");
+  const QString path = QStringLiteral("test-artifacts/open-status/clean.png");
+  QImage image(8, 8, QImage::Format_ARGB32);
+  image.fill(QColor(40, 120, 200));
+  CHECK(image.save(path));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.statusBar()->showMessage(QStringLiteral("Left over from before"));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  CHECK(window.statusBar()->currentMessage().isEmpty());
+  auto* bar = qobject_cast<patchy::ui::ZoomStatusBar*>(window.statusBar());
+  CHECK(bar != nullptr && !bar->notice_message_active() && !bar->error_message_active());
+}
+
+// An open with import notes shows only the notes, with no "Opened" prefix, in
+// the yellow notice flash (GitHub issues 518 and 487).
+void ui_open_with_import_notes_shows_notes_as_a_notice() {
+  SettingsValueRestorer policy_restorer(QStringLiteral("imports/adoptIndexedPalette"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), QStringLiteral("always"));
+  }
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("aseprite", "aseprite-indexed-frames.aseprite").wstring());
+  CHECK(QFileInfo::exists(path));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  const auto message = window.statusBar()->currentMessage();
+  CHECK(message.contains(QStringLiteral("first frame")));
+  CHECK(!message.startsWith(QStringLiteral("Opened ")));
+  CHECK(!message.contains(QStringLiteral("aseprite-indexed-frames")));
+  auto* bar = qobject_cast<patchy::ui::ZoomStatusBar*>(window.statusBar());
+  CHECK(bar != nullptr && bar->notice_message_active() && !bar->error_message_active());
+  if (bar != nullptr) {
+    CHECK(process_events_until([bar] { return !bar->notice_flash_running(); }));
+    save_widget_artifact("open_import_notes_status", *window.statusBar());
+  }
+}
+
 void ui_blocking_refusal_shows_error_status_and_info_clears_it() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -779,6 +880,9 @@ std::vector<patchy::test::TestCase> app_shell_tests_part4() {
       {"ui_light_scheme_about_dialog_reads_as_a_light_surface", ui_light_scheme_about_dialog_reads_as_a_light_surface},
       {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},
       {"ui_status_bar_error_message_flashes_then_persists_until_replaced", ui_status_bar_error_message_flashes_then_persists_until_replaced},
+      {"ui_status_bar_notice_message_flashes_yellow_then_persists_until_replaced", ui_status_bar_notice_message_flashes_yellow_then_persists_until_replaced},
+      {"ui_clean_open_shows_no_opened_status", ui_clean_open_shows_no_opened_status},
+      {"ui_open_with_import_notes_shows_notes_as_a_notice", ui_open_with_import_notes_shows_notes_as_a_notice},
       {"ui_blocking_refusal_shows_error_status_and_info_clears_it", ui_blocking_refusal_shows_error_status_and_info_clears_it},
       {"ui_session_commit_cancel_icons_read_in_both_schemes", ui_session_commit_cancel_icons_read_in_both_schemes},
   };

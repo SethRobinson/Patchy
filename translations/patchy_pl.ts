@@ -20102,10 +20102,6 @@ Prostokąt: -</translation>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
-    <message>
-        <source>Opened %1</source>
-        <translation>Otwarto %1</translation>
-    </message>
     <message numerus="yes">
         <source> (+%n more import note(s))</source>
         <translation>
@@ -20113,10 +20109,6 @@ Prostokąt: -</translation>
             <numerusform> (i %n dodatkowe uwagi dotyczące importu)</numerusform>
             <numerusform> (i %n dodatkowych uwag dotyczących importu)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Opened %1. %2</source>
-        <translation>Otwarto %1. %2</translation>
     </message>
     <message>
         <source>Opening page %1 of %2...</source>
@@ -20145,10 +20137,6 @@ Prostokąt: -</translation>
     <message>
         <source>Reopened %1</source>
         <translation>Ponownie otwarto %1</translation>
-    </message>
-    <message>
-        <source>Reopened %1. %2</source>
-        <translation>Ponownie otwarto %1. %2</translation>
     </message>
     <message>
         <source>Import from Scanner</source>
