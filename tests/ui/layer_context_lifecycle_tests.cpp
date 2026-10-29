@@ -3453,7 +3453,10 @@ void ui_new_document_dialog_fits_short_screens() {
     const auto top_row_bottom = std::max(in_dialog(search).bottom(), in_dialog(chip_row).bottom());
     CHECK(in_dialog(frame).top() > top_row_bottom);
     CHECK(in_dialog(name).top() > top_row_bottom);
-    CHECK(std::abs(in_dialog(frame).top() - in_dialog(name).top()) <= 8);
+    // The Name field lines up with the top of the first Recent card (GitHub issue 497); 4 is the
+    // card's inset in its cell.
+    const int first_card_top = in_dialog(recent).top() + recent->visualItemRect(recent->item(0)).top() + 4;
+    CHECK(std::abs(in_dialog(name).top() - first_card_top) <= 1);
 
     // The chips sit on one row, and every group fits without a scroll bar.
     int chip_top = -1;
