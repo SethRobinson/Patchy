@@ -1056,6 +1056,18 @@ QString default_brush_tips_folder_name() {
   return QObject::tr("Patchy Defaults");
 }
 
+QString default_brush_tip_id(const DefaultBrushTipSpec& spec) {
+  QString id = QStringLiteral("default-");
+  for (const auto character : spec.key.toLower()) {
+    if ((character >= u'a' && character <= u'z') || (character >= u'0' && character <= u'9')) {
+      id += character;
+    } else if (!id.endsWith(u'-')) {
+      id += u'-';
+    }
+  }
+  return id;
+}
+
 std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
   using patchy::BrushDynamicControl;
   // Curated dynamics, tuned per tip: media tips get subtle per-dab variation so dense strokes
@@ -1067,33 +1079,33 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
   // their art authored bitmap +X = direction of travel; Dotted Line and RTsoft Logo ship
   // deliberately plain so they stamp clean.
   std::vector<DefaultBrushTipSpec> specs;
-  specs.push_back({QObject::tr("Chalk"), 0.08, make_chalk_tip(),
+  specs.push_back({QObject::tr("Chalk"), QStringLiteral("Chalk"), 0.08, make_chalk_tip(),
                    {.angle_jitter = 0.08, .opacity_jitter = 0.10}});
-  specs.push_back({QObject::tr("Charcoal"), 0.06, make_charcoal_tip(),
+  specs.push_back({QObject::tr("Charcoal"), QStringLiteral("Charcoal"), 0.06, make_charcoal_tip(),
                    {.angle_jitter = 0.06, .opacity_jitter = 0.15}});
-  specs.push_back({QObject::tr("Pastel"), 0.08, make_pastel_tip(),
+  specs.push_back({QObject::tr("Pastel"), QStringLiteral("Pastel"), 0.08, make_pastel_tip(),
                    {.angle_jitter = 0.10, .opacity_jitter = 0.10}});
-  specs.push_back({QObject::tr("Bristle"), 0.03, make_bristle_tip(),
+  specs.push_back({QObject::tr("Bristle"), QStringLiteral("Bristle"), 0.03, make_bristle_tip(),
                    {.angle_control = BrushDynamicControl::Direction}});
-  specs.push_back({QObject::tr("Sponge"), 0.15, make_sponge_tip(),
+  specs.push_back({QObject::tr("Sponge"), QStringLiteral("Sponge"), 0.15, make_sponge_tip(),
                    {.size_jitter = 0.15, .angle_jitter = 1.0, .opacity_jitter = 0.15}});
-  specs.push_back({QObject::tr("Canvas"), 0.10, make_canvas_tip()});
-  specs.push_back({QObject::tr("Smoke"), 0.12, make_smoke_tip(),
+  specs.push_back({QObject::tr("Canvas"), QStringLiteral("Canvas"), 0.10, make_canvas_tip()});
+  specs.push_back({QObject::tr("Smoke"), QStringLiteral("Smoke"), 0.12, make_smoke_tip(),
                    {.size_jitter = 0.25, .angle_jitter = 1.0, .scatter = 0.35, .opacity_jitter = 0.35}});
-  specs.push_back({QObject::tr("Spray"), 0.05, make_spray_tip(),
+  specs.push_back({QObject::tr("Spray"), QStringLiteral("Spray"), 0.05, make_spray_tip(),
                    {.size_jitter = 0.50,
                     .angle_jitter = 1.0,
                     .scatter = 0.50,
                     .scatter_both_axes = true,
                     .opacity_jitter = 0.30}});
-  specs.push_back({QObject::tr("Spatter"), 0.40, make_spatter_tip(),
+  specs.push_back({QObject::tr("Spatter"), QStringLiteral("Spatter"), 0.40, make_spatter_tip(),
                    {.size_jitter = 0.50,
                     .angle_jitter = 1.0,
                     .scatter = 1.50,
                     .count = 2,
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.25}});
-  specs.push_back({QObject::tr("Stipple"), 0.60, make_stipple_tip(),
+  specs.push_back({QObject::tr("Stipple"), QStringLiteral("Stipple"), 0.60, make_stipple_tip(),
                    {.size_jitter = 0.35,
                     .angle_jitter = 1.0,
                     .scatter = 1.20,
@@ -1101,13 +1113,13 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count = 3,
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.30}});
-  specs.push_back({QObject::tr("Ink Splat"), 1.50, make_ink_splat_tip(),
+  specs.push_back({QObject::tr("Ink Splat"), QStringLiteral("Ink Splat"), 1.50, make_ink_splat_tip(),
                    {.size_jitter = 0.60, .angle_jitter = 1.0, .scatter = 0.80, .opacity_jitter = 0.20}});
-  specs.push_back({QObject::tr("Grunge"), 0.80, make_grunge_tip(),
+  specs.push_back({QObject::tr("Grunge"), QStringLiteral("Grunge"), 0.80, make_grunge_tip(),
                    {.size_jitter = 0.25, .angle_jitter = 1.0, .opacity_jitter = 0.25}});
-  specs.push_back({QObject::tr("Square"), 0.05, make_square_tip()});
-  specs.push_back({QObject::tr("Calligraphy"), 0.04, make_calligraphy_tip()});
-  specs.push_back({QObject::tr("Star"), 1.30, make_star_tip(),
+  specs.push_back({QObject::tr("Square"), QStringLiteral("Square"), 0.05, make_square_tip()});
+  specs.push_back({QObject::tr("Calligraphy"), QStringLiteral("Calligraphy"), 0.04, make_calligraphy_tip()});
+  specs.push_back({QObject::tr("Star"), QStringLiteral("Star"), 1.30, make_star_tip(),
                    {.size_jitter = 0.60,
                     .angle_jitter = 1.0,
                     .scatter = 2.00,
@@ -1115,7 +1127,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count = 2,
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.15}});
-  specs.push_back({QObject::tr("Grass"), 0.60, make_grass_tip(),
+  specs.push_back({QObject::tr("Grass"), QStringLiteral("Grass"), 0.60, make_grass_tip(),
                    {.size_jitter = 0.40,
                     .angle_jitter = 0.06,
                     .angle_control = BrushDynamicControl::Direction,
@@ -1124,22 +1136,22 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count_jitter = 0.50}});
 
   // ---- v3 additions (since_version 3): path stamps, scatter stamps, and the logo ----
-  specs.push_back({QObject::tr("Dotted Line"), 2.5, make_dotted_line_tip(), {}, 3});
-  specs.push_back({QObject::tr("Dashed Line"), 2.0, make_dashed_line_tip(),
+  specs.push_back({QObject::tr("Dotted Line"), QStringLiteral("Dotted Line"), 2.5, make_dotted_line_tip(), {}, 3});
+  specs.push_back({QObject::tr("Dashed Line"), QStringLiteral("Dashed Line"), 2.0, make_dashed_line_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Stitches"), 1.5, make_stitches_tip(),
+  specs.push_back({QObject::tr("Stitches"), QStringLiteral("Stitches"), 1.5, make_stitches_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Chain"), 0.85, make_chain_tip(),
+  specs.push_back({QObject::tr("Chain"), QStringLiteral("Chain"), 0.85, make_chain_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Rope"), 1.0, make_rope_tip(),
+  specs.push_back({QObject::tr("Rope"), QStringLiteral("Rope"), 1.0, make_rope_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Arrow"), 2.2, make_arrow_tip(),
+  specs.push_back({QObject::tr("Arrow"), QStringLiteral("Arrow"), 2.2, make_arrow_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Brick Road"), 1.0, make_brick_road_tip(),
+  specs.push_back({QObject::tr("Brick Road"), QStringLiteral("Brick Road"), 1.0, make_brick_road_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Cobblestone"), 0.95, make_cobblestone_tip(),
+  specs.push_back({QObject::tr("Cobblestone"), QStringLiteral("Cobblestone"), 0.95, make_cobblestone_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Leaf"), 1.2, make_leaf_tip(),
+  specs.push_back({QObject::tr("Leaf"), QStringLiteral("Leaf"), 1.2, make_leaf_tip(),
                    {.size_jitter = 0.40,
                     .minimum_diameter = 0.30,
                     .angle_jitter = 1.0,
@@ -1150,7 +1162,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.15},
                    3});
-  specs.push_back({QObject::tr("Snowflake"), 2.0, make_snowflake_tip(),
+  specs.push_back({QObject::tr("Snowflake"), QStringLiteral("Snowflake"), 2.0, make_snowflake_tip(),
                    {.size_jitter = 0.60,
                     .minimum_diameter = 0.20,
                     .angle_jitter = 1.0,
@@ -1160,7 +1172,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.30},
                    3});
-  specs.push_back({QObject::tr("Rain"), 1.5, make_rain_tip(),
+  specs.push_back({QObject::tr("Rain"), QStringLiteral("Rain"), 1.5, make_rain_tip(),
                    {.size_jitter = 0.40,
                     .minimum_diameter = 0.40,
                     .scatter = 2.50,
@@ -1169,7 +1181,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.40},
                    3});
-  specs.push_back({QObject::tr("Bubbles"), 1.4, make_bubbles_tip(),
+  specs.push_back({QObject::tr("Bubbles"), QStringLiteral("Bubbles"), 1.4, make_bubbles_tip(),
                    {.size_jitter = 0.60,
                     .minimum_diameter = 0.15,
                     .scatter = 2.50,
@@ -1178,7 +1190,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.25},
                    3});
-  specs.push_back({QObject::tr("Flower"), 1.7, make_flower_tip(),
+  specs.push_back({QObject::tr("Flower"), QStringLiteral("Flower"), 1.7, make_flower_tip(),
                    {.size_jitter = 0.50,
                     .minimum_diameter = 0.25,
                     .angle_jitter = 1.0,
@@ -1186,7 +1198,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .scatter_both_axes = true,
                     .opacity_jitter = 0.15},
                    3});
-  specs.push_back({QObject::tr("Sparkle"), 1.8, make_sparkle_tip(),
+  specs.push_back({QObject::tr("Sparkle"), QStringLiteral("Sparkle"), 1.8, make_sparkle_tip(),
                    {.size_jitter = 0.70,
                     .minimum_diameter = 0.10,
                     .angle_jitter = 0.05,
@@ -1196,7 +1208,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.40},
                    3});
-  specs.push_back({QObject::tr("Heart"), 1.5, make_heart_tip(),
+  specs.push_back({QObject::tr("Heart"), QStringLiteral("Heart"), 1.5, make_heart_tip(),
                    {.size_jitter = 0.40,
                     .minimum_diameter = 0.30,
                     .angle_jitter = 0.08,
@@ -1204,7 +1216,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .scatter_both_axes = true,
                     .opacity_jitter = 0.10},
                    3});
-  specs.push_back({QObject::tr("Confetti"), 1.0, make_confetti_tip(),
+  specs.push_back({QObject::tr("Confetti"), QStringLiteral("Confetti"), 1.0, make_confetti_tip(),
                    {.size_jitter = 0.50,
                     .minimum_diameter = 0.20,
                     .angle_jitter = 1.0,
@@ -1214,21 +1226,21 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .count_jitter = 0.50,
                     .opacity_jitter = 0.30},
                    3});
-  specs.push_back({QObject::tr("Paw Prints"), 2.0, make_paw_prints_tip(),
+  specs.push_back({QObject::tr("Paw Prints"), QStringLiteral("Paw Prints"), 2.0, make_paw_prints_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Footprints"), 2.2, make_footprints_tip(),
+  specs.push_back({QObject::tr("Footprints"), QStringLiteral("Footprints"), 2.2, make_footprints_tip(),
                    {.angle_control = BrushDynamicControl::Direction}, 3});
-  specs.push_back({QObject::tr("Crosshatch"), 0.5, make_crosshatch_tip(),
+  specs.push_back({QObject::tr("Crosshatch"), QStringLiteral("Crosshatch"), 0.5, make_crosshatch_tip(),
                    {.size_jitter = 0.15,
                     .angle_jitter = 0.03,
                     .flip_x_jitter = true,
                     .flip_y_jitter = true,
                     .opacity_jitter = 0.20},
                    3});
-  specs.push_back({QObject::tr("RTsoft Logo"), 1.3, make_rtsoft_logo_tip(), {}, 3});
+  specs.push_back({QObject::tr("RTsoft Logo"), QStringLiteral("RTsoft Logo"), 1.3, make_rtsoft_logo_tip(), {}, 3});
 
   // ---- v4 additions (since_version 4): presets demonstrating the expanded brush engine ----
-  specs.push_back({QObject::tr("Textured Chalk"), 0.08, make_chalk_tip(),
+  specs.push_back({QObject::tr("Textured Chalk"), QStringLiteral("Textured Chalk"), 0.08, make_chalk_tip(),
                    {.angle_jitter = 0.08,
                     .opacity_jitter = 0.10,
                     .texture_enabled = true,
@@ -1236,13 +1248,13 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .texture_scale = 0.65,
                     .texture_depth = 0.55},
                    4});
-  specs.push_back({QObject::tr("Dual Brush Dots"), 0.35, make_square_tip(),
+  specs.push_back({QObject::tr("Dual Brush Dots"), QStringLiteral("Dual Brush Dots"), 0.35, make_square_tip(),
                    {.dual_brush_enabled = true,
                     .dual_brush_size = 0.18,
                     .dual_brush_hardness = 0.90,
                     .dual_brush_spacing = 2.0},
                    4});
-  specs.push_back({QObject::tr("Color Scatter"), 0.75, make_spatter_tip(),
+  specs.push_back({QObject::tr("Color Scatter"), QStringLiteral("Color Scatter"), 0.75, make_spatter_tip(),
                    {.size_jitter = 0.35,
                     .angle_jitter = 1.0,
                     .scatter = 1.25,
@@ -1254,7 +1266,7 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .hue_jitter = 0.08,
                     .saturation_jitter = 0.12},
                    4});
-  specs.push_back({QObject::tr("Wet Edge Wash"), 0.12, make_smoke_tip(),
+  specs.push_back({QObject::tr("Wet Edge Wash"), QStringLiteral("Wet Edge Wash"), 0.12, make_smoke_tip(),
                    {.opacity_jitter = 0.10, .wet_edges = true}, 4});
 
   // The tips carry their own spacing too; keep both in sync for callers using either.

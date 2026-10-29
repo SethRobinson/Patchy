@@ -154,9 +154,10 @@ private:
   std::vector<std::pair<QString, QImage>> pending_thumbnails_;
 
   void reload();
+  // A non-empty storage_id names the files (replacing any already there), as seeding does.
   QString add_pattern_internal(const QString& name, const PixelBuffer& tile,
                                const QString& folder, const QString& pattern_id,
-                               const QString& source_id = {});
+                               const QString& source_id = {}, const QString& storage_id = {});
   bool remove_entry_files(const QString& storage_id);
   [[nodiscard]] QString png_path(const QString& storage_id) const;
   bool write_sidecar(const PatternLibraryEntry& entry) const;

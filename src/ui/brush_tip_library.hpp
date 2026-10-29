@@ -25,7 +25,7 @@ namespace patchy::ui {
 [[nodiscard]] bool is_builtin_brush_tip_id(const QString& id);
 
 struct BrushTipEntry {
-  QString id;        // storage filename stem (UUID); stable across sessions
+  QString id;        // storage filename stem (UUID, or default_brush_tip_id); stable across sessions
   QString name;
   QString folder;    // organizational group; empty = ungrouped (listed first)
   double spacing{0.25};
@@ -150,7 +150,8 @@ private:
                            const QString& folder, const patchy::BrushDynamics& dynamics = {},
                            double base_angle_degrees = 0.0, double base_roundness = 100.0,
                            std::optional<int> tool_flow_percent = std::nullopt,
-                           std::optional<bool> tool_airbrush = std::nullopt);
+                           std::optional<bool> tool_airbrush = std::nullopt,
+                           const QString& requested_id = {});
   bool remove_entry_files(const QString& id);
   [[nodiscard]] QString png_path(const QString& id) const;
   bool write_sidecar(const BrushTipEntry& entry) const;

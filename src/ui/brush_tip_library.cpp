@@ -477,7 +477,7 @@ QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& cov
                                           const QString& folder, const patchy::BrushDynamics& dynamics,
                                           double base_angle_degrees, double base_roundness,
                                           std::optional<int> tool_flow_percent,
-                                          std::optional<bool> tool_airbrush) {
+                                          std::optional<bool> tool_airbrush, const QString& requested_id) {
   auto tip = brush_tip_from_coverage_image(coverage_mask, spacing);
   if (tip.empty()) {
     return {};
@@ -491,7 +491,8 @@ QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& cov
   if (!QDir().mkpath(storage_dir_)) {
     return {};
   }
-  const auto id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+  // A requested id replaces any files already under it (a default another process seeded).
+  const auto id = requested_id.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : requested_id;
   QSaveFile png(png_path(id));
   if (!png.open(QIODevice::WriteOnly) || !coverage_image_from_brush_tip(tip).save(&png, "PNG")) {
     return {};
@@ -592,14 +593,15 @@ int BrushTipLibrary::restore_default_tips(int newer_than_version) {
     if (spec.since_version <= newer_than_version) {
       continue;  // shipped before the user's stored version; if missing, it was deleted on purpose
     }
+    const auto id = default_brush_tip_id(spec);
     const auto exists = std::any_of(entries_.begin(), entries_.end(), [&](const BrushTipEntry& entry) {
-      return entry.folder == folder && entry.name == spec.name;
+      return entry.id == id || (entry.folder == folder && entry.name == spec.name);
     });
     if (exists) {
       continue;
     }
     if (!add_tip_internal(spec.name, coverage_image_from_brush_tip(spec.tip), spec.spacing, folder,
-                          spec.dynamics)
+                          spec.dynamics, 0.0, 100.0, std::nullopt, std::nullopt, id)
              .isEmpty()) {
       ++restored;
     }
@@ -656,7 +658,7 @@ int BrushTipLibrary::reset_default_tips_to_factory() {
   int reset = 0;
   for (const auto& spec : generate_default_brush_tips()) {
     const auto found = std::find_if(entries_.begin(), entries_.end(), [&](const BrushTipEntry& entry) {
-      return entry.folder == folder && entry.name == spec.name;
+      return entry.id == default_brush_tip_id(spec) || (entry.folder == folder && entry.name == spec.name);
     });
     if (found == entries_.end()) {
       continue;  // missing tips are restore_default_tips()'s job
@@ -719,7 +721,7 @@ int BrushTipLibrary::apply_default_tip_dynamics() {
       continue;
     }
     const auto found = std::find_if(entries_.begin(), entries_.end(), [&](const BrushTipEntry& entry) {
-      return entry.folder == folder && entry.name == spec.name;
+      return entry.id == default_brush_tip_id(spec) || (entry.folder == folder && entry.name == spec.name);
     });
     if (found == entries_.end()) {
       continue;

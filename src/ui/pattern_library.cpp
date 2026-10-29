@@ -383,7 +383,8 @@ std::optional<PatternResource> PatternLibrary::resource_for_entry(
 QString PatternLibrary::add_pattern_internal(const QString& name, const PixelBuffer& tile,
                                              const QString& folder,
                                              const QString& requested_pattern_id,
-                                             const QString& source_id) {
+                                             const QString& source_id,
+                                             const QString& requested_storage_id) {
   if (tile.empty() || tile.format() != PixelFormat::rgba8() ||
       tile.width() > kMaxPatternDimension || tile.height() > kMaxPatternDimension) {
     return {};
@@ -400,10 +401,11 @@ QString PatternLibrary::add_pattern_internal(const QString& name, const PixelBuf
     return {};
   }
 
-  QString storage_id;
-  do {
+  QString storage_id = requested_storage_id;
+  while (storage_id.isEmpty() || (requested_storage_id.isEmpty() && (QFileInfo::exists(png_path(storage_id)) ||
+                                                                     QFileInfo::exists(json_path(storage_id))))) {
     storage_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-  } while (QFileInfo::exists(png_path(storage_id)) || QFileInfo::exists(json_path(storage_id)));
+  }
 
   PatternLibraryEntry entry;
   entry.storage_id = storage_id;
@@ -717,9 +719,11 @@ int PatternLibrary::restore_default_patterns(int newer_than_version) {
     if (find_entry_by_pattern_id(preset.id) != nullptr) {
       continue;
     }
+    // Stored under the preset id, so two Patchy processes seeding a fresh profile at once write
+    // the same files instead of one copy each (GitHub issue 506).
     const auto tile = preset.tile();
     if (!tile.empty() &&
-        !add_pattern_internal(preset.english_name, tile, preset.folder, preset.id).isEmpty()) {
+        !add_pattern_internal(preset.english_name, tile, preset.folder, preset.id, {}, preset.id).isEmpty()) {
       ++restored;
     }
   }

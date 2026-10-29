@@ -8,6 +8,7 @@
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
+#include "ui/pattern_library.hpp"
 #include "ui/default_brush_tips.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
@@ -2403,6 +2404,45 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
   clear_brush_tip_test_state();
 }
 
+// Two Patchy processes starting together on a fresh profile (a second click while the first
+// is still starting, or a --headless run) both seed the defaults before either sees the other's
+// files: every brush tip and pattern ended up twice (GitHub issue 506). Seeded defaults have
+// stable file names, so the second seeding rewrites the first one's files.
+void ui_default_tips_and_patterns_seed_once_when_two_processes_race() {
+  clear_brush_tip_test_state();
+  clear_pattern_test_state();
+  const auto tips_dir = brush_tip_test_storage_dir() + QStringLiteral("/race");
+  {
+    patchy::ui::BrushTipLibrary first(tips_dir);
+    patchy::ui::BrushTipLibrary second(tips_dir);  // read the empty folder before the first seeds
+    const auto seeded = first.restore_default_tips(0);
+    CHECK(seeded > 0);
+    CHECK(second.restore_default_tips(0) == seeded);
+    const patchy::ui::BrushTipLibrary reopened(tips_dir);
+    CHECK(reopened.entries().size() == static_cast<std::size_t>(seeded));
+    // The stable name also finds the tip again after a language change renames its default.
+    patchy::ui::BrushTipLibrary renamed(tips_dir);
+    for (const auto& entry : std::vector(renamed.entries())) {
+      CHECK(renamed.rename_tip(entry.id, entry.name + QStringLiteral(" (renamed)")));
+      CHECK(renamed.set_tip_folder(entry.id, QStringLiteral("Elsewhere")));
+    }
+    CHECK(renamed.restore_default_tips() == 0);
+    CHECK(renamed.reset_default_tips_to_factory() == 0);
+  }
+  const auto patterns_dir = pattern_test_storage_dir() + QStringLiteral("/race");
+  {
+    patchy::ui::PatternLibrary first(patterns_dir);
+    patchy::ui::PatternLibrary second(patterns_dir);
+    const auto seeded = first.restore_default_patterns(0);
+    CHECK(seeded > 0);
+    CHECK(second.restore_default_patterns(0) == seeded);
+    const patchy::ui::PatternLibrary reopened(patterns_dir);
+    CHECK(reopened.entries().size() == static_cast<std::size_t>(seeded));
+  }
+  clear_brush_tip_test_state();
+  clear_pattern_test_state();
+}
+
 // The active bitmap tip comes back on the next launch (GitHub issue 254); a tip the
 // library has since lost falls back to Round.
 void ui_brush_tip_restores_on_startup() {
@@ -2479,6 +2519,8 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
        ui_brush_color_dynamics_reaches_stroke_compositor},
       {"ui_brush_dynamics_abr_import_carries_dynamics", ui_brush_dynamics_abr_import_carries_dynamics},
       {"ui_default_brush_tips_seed_once_and_render_sheet", ui_default_brush_tips_seed_once_and_render_sheet},
-      {"ui_brush_tip_restores_on_startup", ui_brush_tip_restores_on_startup},
+      {"ui_default_tips_and_patterns_seed_once_when_two_processes_race",
+     ui_default_tips_and_patterns_seed_once_when_two_processes_race},
+    {"ui_brush_tip_restores_on_startup", ui_brush_tip_restores_on_startup},
   };
 }

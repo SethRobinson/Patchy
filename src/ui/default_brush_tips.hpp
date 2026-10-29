@@ -10,6 +10,9 @@ namespace patchy::ui {
 
 struct DefaultBrushTipSpec {
   QString name;
+  // The English name, whatever the interface language: the seeded tip's stable id
+  // (default_brush_tip_id).
+  QString key;
   double spacing{0.25};
   patchy::BrushTip tip;
   // Curated Photoshop-style dynamics seeded with the tip (default = none). Applied to existing
@@ -24,6 +27,11 @@ struct DefaultBrushTipSpec {
 
 // The folder the built-in tips are seeded into (localized once at seed time).
 [[nodiscard]] QString default_brush_tips_folder_name();
+
+// The library id (file name) a seeded default is stored under: "default-" and its key, so two
+// Patchy processes seeding a fresh profile at once write the same files instead of one copy
+// each (GitHub issue 506), and the tip is found again in any interface language.
+[[nodiscard]] QString default_brush_tip_id(const DefaultBrushTipSpec& spec);
 
 // Deterministic, parametric generation of the built-in bitmap brush set: natural media (chalk,
 // charcoal, spray, bristle, and friends), the v3 stamp set (dotted/dashed lines, brick road,
