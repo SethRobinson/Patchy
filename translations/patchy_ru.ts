@@ -16926,10 +16926,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Палитра инструментов</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Параметры</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Создать</translation>
     </message>
@@ -28419,6 +28415,10 @@ Locked: %1</source>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Перезапустите Patchy, чтобы новый размер текста вступил в силу.</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Параметры инструмента</translation>
     </message>
 </context>
 <context>

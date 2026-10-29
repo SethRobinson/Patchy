@@ -16770,10 +16770,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Werkzeugpalette</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Optionen</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Neu</translation>
     </message>
@@ -28337,6 +28333,10 @@ Fixiert: %1</translation>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Starten Sie Patchy neu, damit die neue Textgröße wirksam wird.</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Werkzeugoptionen</translation>
     </message>
 </context>
 <context>

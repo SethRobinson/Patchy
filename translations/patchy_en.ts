@@ -16753,10 +16753,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation type="unfinished"></translation>
     </message>
@@ -28255,6 +28251,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

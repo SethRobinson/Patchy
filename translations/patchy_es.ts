@@ -16770,10 +16770,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Paleta de herramientas</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Opciones</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Nuevo</translation>
     </message>
@@ -28337,6 +28333,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Reinicie Patchy para que el nuevo tamaño del texto tenga efecto.</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Opciones de herramienta</translation>
     </message>
 </context>
 <context>

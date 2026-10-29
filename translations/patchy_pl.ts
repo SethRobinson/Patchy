@@ -16926,10 +16926,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Paleta narzędzi</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Opcje</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Nowy</translation>
     </message>
@@ -28419,6 +28415,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Uruchom ponownie Patchy, aby nowy rozmiar tekstu zaczął obowiązywać.</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Opcje narzędzia</translation>
     </message>
 </context>
 <context>

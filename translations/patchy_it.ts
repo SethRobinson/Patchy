@@ -16770,10 +16770,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Palette strumenti</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Opzioni</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Nuovo</translation>
     </message>
@@ -28337,6 +28333,10 @@ Bloccato: %1</translation>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Riavvia Patchy per applicare la nuova dimensione del testo.</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Opzioni strumento</translation>
     </message>
 </context>
 <context>

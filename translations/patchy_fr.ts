@@ -16770,10 +16770,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Palette d&apos;outils</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Options</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Nouveau</translation>
     </message>
@@ -28337,6 +28333,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Redémarrez Patchy pour que la nouvelle taille du texte prenne effet.</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Options d&apos;outil</translation>
     </message>
 </context>
 <context>

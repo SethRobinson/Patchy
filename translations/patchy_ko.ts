@@ -16838,10 +16838,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>도구 팔레트</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>옵션</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>새로 만들기(&amp;N)</translation>
     </message>
@@ -28255,6 +28251,10 @@ Locked: %1</source>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>새 텍스트 크기를 적용하려면 Patchy를 다시 시작하세요.</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>도구 옵션</translation>
     </message>
 </context>
 <context>

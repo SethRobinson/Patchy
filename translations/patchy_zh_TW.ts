@@ -16726,10 +16726,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>工具面板</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>選項</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>開新檔案(&amp;N)</translation>
     </message>
@@ -28255,6 +28251,10 @@ Locked: %1</source>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>請重新啟動 Patchy，新的文字大小才會生效。</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>工具選項</translation>
     </message>
 </context>
 <context>

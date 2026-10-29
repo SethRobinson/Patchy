@@ -796,9 +796,13 @@ void MainWindow::install_window_panel_entries() {
   connect(window_brush_settings_action_, &QAction::triggered, this,
           [this] { QTimer::singleShot(0, this, [this] { show_brush_settings_popup(); }); });
   window_panel_actions_.push_back(window_brush_settings_action_);
+  // The two toolbars follow the sorted panels as a fixed pair between separators (GitHub
+  // issue 513); the Reset Panels separator closes the pair.
+  window_toolbars_separator_ = new QAction(window_menu);
+  window_toolbars_separator_->setSeparator(true);
   for (const auto* toolbar_name : {"toolPalette", "Options"}) {
     if (auto* toolbar = findChild<QToolBar*>(QLatin1String(toolbar_name)); toolbar != nullptr) {
-      window_panel_actions_.push_back(toolbar->toggleViewAction());
+      window_toolbar_actions_.push_back(toolbar->toggleViewAction());
     }
   }
   // Window > Reset Panels closes the list: every panel and toolbar back to the layout a
@@ -840,11 +844,25 @@ void MainWindow::sort_window_panel_entries() {
       action->setChecked(panel_column_->panel_visible(id));
     }
   }
-  for (auto* action : {window_reset_panels_separator_, window_reset_panels_action_}) {
+  std::vector<QAction*> trailing{window_toolbars_separator_};
+  trailing.insert(trailing.end(), window_toolbar_actions_.begin(), window_toolbar_actions_.end());
+  trailing.push_back(window_reset_panels_separator_);
+  trailing.push_back(window_reset_panels_action_);
+  for (auto* action : trailing) {
     if (action != nullptr) {
       window_menu->removeAction(action);
       window_menu->insertAction(window_documents_separator_, action);
     }
+  }
+}
+
+void MainWindow::add_window_toolbar_entries(QMenu& menu) const {
+  if (window_toolbar_actions_.empty()) {
+    return;
+  }
+  menu.addSeparator();
+  for (auto* action : window_toolbar_actions_) {
+    menu.addAction(action);
   }
 }
 
@@ -875,6 +893,7 @@ void MainWindow::show_panel_header_menu(const QString& panel_id, const QPoint& g
   for (auto* action : sorted_window_panel_actions()) {
     menu.addAction(action);
   }
+  add_window_toolbar_entries(menu);
   if (window_reset_panels_action_ != nullptr) {
     menu.addSeparator();
     menu.addAction(window_reset_panels_action_);
@@ -1046,6 +1065,7 @@ QMenu* MainWindow::createPopupMenu() {
   for (auto* action : sorted_window_panel_actions()) {
     menu->addAction(action);
   }
+  add_window_toolbar_entries(*menu);
   if (window_reset_panels_action_ != nullptr) {
     menu->addSeparator();
     menu->addAction(window_reset_panels_action_);

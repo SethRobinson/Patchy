@@ -16882,10 +16882,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Paleta de ferramentas</translation>
     </message>
     <message>
-        <source>Options</source>
-        <translation>Opções</translation>
-    </message>
-    <message>
         <source>&amp;New</source>
         <translation>&amp;Novo</translation>
     </message>
@@ -28337,6 +28333,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Reinicie o Patchy para que o novo tamanho do texto tenha efeito.</translation>
+    </message>
+    <message>
+        <source>Tool Options</source>
+        <translation>Opções da ferramenta</translation>
     </message>
 </context>
 <context>

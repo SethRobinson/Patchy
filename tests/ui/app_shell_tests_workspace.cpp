@@ -932,7 +932,8 @@ void ui_start_panel_shows_about_info_and_update_status() {
 }
 
 // GitHub issue 163: the Window menu lists every side panel and both toolbars as checkable
-// entries, alphabetically, with the document-window commands under Window > Arrange.
+// entries, the panels alphabetically, then Tool Palette and Tool Options as a pair between
+// separators (GitHub issue 513), with the document-window commands under Window > Arrange.
 // Picking a closed, background-tab or collapsed panel brings it forward expanded; picking
 // one already in front closes it.
 // A checked Window menu entry hides its panel even while the panel is collapsed
@@ -1091,10 +1092,26 @@ void ui_window_menu_lists_panels_and_toolbars() {
     }
   }
   CHECK(entry_texts == QStringList({QStringLiteral("Channels"), QStringLiteral("Color"), QStringLiteral("History"),
-                                    QStringLiteral("Info"),
-                                    QStringLiteral("Layers"), QStringLiteral("Options"), QStringLiteral("Palette"),
+                                    QStringLiteral("Info"), QStringLiteral("Layers"), QStringLiteral("Palette"),
                                     QStringLiteral("Paths"), QStringLiteral("Properties"),
-                                    QStringLiteral("Tool Palette")}));
+                                    QStringLiteral("Tool Palette"), QStringLiteral("Tool Options")}));
+  // The toolbar pair stands apart: a separator before Tool Palette, one after Tool Options,
+  // then Reset Panels.
+  {
+    const auto actions = window_menu->actions();
+    auto* palette_toggle = window.findChild<QToolBar*>(QStringLiteral("toolPalette"))->toggleViewAction();
+    auto* options_toggle = window.findChild<QToolBar*>(QStringLiteral("Options"))->toggleViewAction();
+    const auto at = actions.indexOf(palette_toggle);
+    CHECK(at > 0 && at + 3 < actions.size());
+    if (at > 0 && at + 3 < actions.size()) {
+      CHECK(actions[at - 1]->isSeparator());
+      CHECK(actions[at + 1] == options_toggle);
+      CHECK(actions[at + 2]->isSeparator());
+      CHECK(actions[at + 3] == require_action(window, "windowResetPanelsAction"));
+      CHECK(!actions[at - 2]->isSeparator());
+    }
+    CHECK(options_toggle->menuRole() == QAction::NoRole);
+  }
 
   const auto history = QStringLiteral("historyDock");
   auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
