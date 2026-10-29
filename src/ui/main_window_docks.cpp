@@ -2003,25 +2003,41 @@ void MainWindow::create_docks() {
   apply_layer_footer_icon_size(stored_layer_footer_icon_size());
   apply_layer_footer_visibility();
 
-  // A gear at the right end of the Layers title row opens Customize Tool Palette on its
-  // Layers buttons tab (GitHub issue 511), as the Color panel's gear sits in its row.
+  // The Layers panel settings gear at the right end of its title row, as the Color panel's
+  // sits in its row (GitHub issue 511): Customize Layer Buttons... (Customize Tool Palette on
+  // its Layers buttons tab), then the thumbnails' Thumbnail Size and Thumbnail Display
+  // submenus, sharing their actions with the thumbnail menus.
   auto* layers_settings_button = new QToolButton(layers_panel);
   layers_settings_button->setObjectName(QStringLiteral("layersPanelSettingsButton"));
   layers_settings_button->setIcon(simple_icon(QStringLiteral("gear")));
   layers_settings_button->setIconSize(QSize(14, 14));
   layers_settings_button->setFixedSize(18, 18);
   layers_settings_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  layers_settings_button->setPopupMode(QToolButton::InstantPopup);
   layers_settings_button->setFocusPolicy(Qt::NoFocus);
   const auto apply_layers_settings_tooltip = [layers_settings_button] {
-    layers_settings_button->setToolTip(tr("Customize Layer Buttons"));
+    layers_settings_button->setToolTip(tr("Layers panel settings"));
     layers_settings_button->setAccessibleName(layers_settings_button->toolTip());
   };
   apply_layers_settings_tooltip();
   register_retranslation(apply_layers_settings_tooltip);
-  // After the click finishes: the dialog runs its own loop.
-  connect(layers_settings_button, &QToolButton::clicked, this, [this] {
+  auto* layers_settings_menu = new QMenu(layers_settings_button);
+  layers_settings_menu->setObjectName(QStringLiteral("layersPanelSettingsMenu"));
+  auto* customize_layer_buttons = layers_settings_menu->addAction(QString());
+  customize_layer_buttons->setObjectName(QStringLiteral("layersPanelCustomizeButtonsAction"));
+  customize_layer_buttons->setMenuRole(QAction::NoRole);
+  bind_action_text(customize_layer_buttons, QT_TR_NOOP("Customize Layer Buttons..."));
+  // After the menu closes: the dialog runs its own loop.
+  connect(customize_layer_buttons, &QAction::triggered, this, [this] {
     QTimer::singleShot(0, this, [this] { show_tool_palette_customization(ToolPaletteCustomizeTab::LayerButtons); });
   });
+  add_layer_thumbnail_view_menus(layers_settings_menu);
+  // Preferences may have changed the thumbnail settings since the menu last opened.
+  connect(layers_settings_menu, &QMenu::aboutToShow, this, [this] {
+    add_layer_thumbnail_size_menu(nullptr);
+    add_layer_thumbnail_bounds_actions(nullptr);
+  });
+  layers_settings_button->setMenu(layers_settings_menu);
 
   tab_specs.push_back(PanelSpec{.id = QStringLiteral("layersDock"),
                                 .object_prefix = QStringLiteral("layers"),

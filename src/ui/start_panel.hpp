@@ -48,6 +48,7 @@ class StartPanel final : public QWidget {
  protected:
   void showEvent(QShowEvent* event) override;
   void changeEvent(QEvent* event) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
   // The stylesheet background, then a theme package's backdrop image when the
   // active theme has one (the empty workspace is pasteboard, theme_backdrop.hpp).
   void paintEvent(QPaintEvent* event) override;

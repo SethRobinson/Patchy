@@ -28277,10 +28277,6 @@ Locked: %1</source>
         <translation>新しい文字サイズを反映するには Patchy を再起動してください。</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>レイヤーのボタンのカスタマイズ</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>ツールオプション</translation>
     </message>
@@ -28291,6 +28287,14 @@ Locked: %1</source>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>レイヤーをアニメーションのフレームとしてプレビューします</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>レイヤーパネルの設定</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>レイヤーのボタンのカスタマイズ...</translation>
     </message>
 </context>
 <context>

@@ -28359,10 +28359,6 @@ Verrouillé : %1</translation>
         <translation>Redémarrez Patchy pour que la nouvelle taille du texte prenne effet.</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>Personnaliser les boutons des calques</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>Options d&apos;outil</translation>
     </message>
@@ -28373,6 +28369,14 @@ Verrouillé : %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Prévisualiser les calques comme images d&apos;animation</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>Paramètres du panneau Calques</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>Personnaliser les boutons des calques...</translation>
     </message>
 </context>
 <context>

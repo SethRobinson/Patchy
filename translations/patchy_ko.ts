@@ -28277,10 +28277,6 @@ Locked: %1</source>
         <translation>새 텍스트 크기를 적용하려면 Patchy를 다시 시작하세요.</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>레이어 버튼 사용자 지정</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>도구 옵션</translation>
     </message>
@@ -28291,6 +28287,14 @@ Locked: %1</source>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>레이어를 애니메이션 프레임으로 미리 봅니다</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>레이어 패널 설정</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>레이어 버튼 사용자 지정...</translation>
     </message>
 </context>
 <context>

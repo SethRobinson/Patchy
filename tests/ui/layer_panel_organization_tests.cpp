@@ -1602,6 +1602,107 @@ void ui_layer_thumbnails_preview_the_whole_document() {
         QSize(28, 28));
 }
 
+// GitHub issue 514: every content and mask slot carries a 1 px ring in
+// layer_thumbnail_outline, so a white, transparent or letterboxed tile still reads
+// as the same square as the rest. The active target keeps its 2 px accent border
+// instead, and folder glyphs get no ring. Checked in Dark and Light.
+void ui_layer_thumbnail_slots_draw_outline_ring() {
+  SettingsValueRestorer restore_zoom(QStringLiteral("view/zoomLayerThumbnailsToContent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), false);
+    settings.sync();
+  }
+  ColorSchemeRestorer restore_scheme;
+
+  // 4:1, so the content tile is a 28x7 strip in its square slot (the issue's case).
+  constexpr std::int32_t kWidth = 160;
+  constexpr std::int32_t kHeight = 40;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::Layer white(document.allocate_layer_id(), "White",
+                      solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(255, 255, 255, 255)));
+  patchy::PixelBuffer mask_pixels(kWidth, kHeight, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  white.set_mask(patchy::LayerMask{patchy::Rect{0, 0, kWidth, kHeight}, std::move(mask_pixels), 255, false});
+  document.add_layer(std::move(white));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Clear",
+                                   solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0))));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Active",
+                                   solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(),
+                                                QColor(40, 110, 230, 255))));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Thumbnail Ring"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Active")),
+                             QItemSelectionModel::ClearAndSelect);
+  QApplication::processEvents();
+
+  const auto label_for = [layer_list](const QString& layer_name, const QString& object_name) -> QLabel* {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, layer_name));
+    return row != nullptr ? row->findChild<QLabel*>(object_name) : nullptr;
+  };
+  const auto ring_is = [](QLabel* label, const QColor& color, int width) {
+    CHECK(label != nullptr);
+    if (label == nullptr) {
+      return false;
+    }
+    const auto image = label->grab().toImage();
+    const int w = image.width();
+    const int h = image.height();
+    bool ok = w > 4 && h > 4;
+    for (int inset = 0; ok && inset < width; ++inset) {
+      for (const auto point : {QPoint(inset, h / 2), QPoint(w - 1 - inset, h / 2), QPoint(w / 2, inset),
+                               QPoint(w / 2, h - 1 - inset), QPoint(inset, inset)}) {
+        if (image.pixelColor(point).rgb() != color.rgb()) {
+          fprintf(stderr, "  %s at (%d,%d): %s, wanted %s\n", label->objectName().toUtf8().constData(), point.x(),
+                  point.y(), image.pixelColor(point).name().toUtf8().constData(), color.name().toUtf8().constData());
+          ok = false;
+          break;
+        }
+      }
+    }
+    return ok;
+  };
+
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(scheme);
+    QApplication::processEvents();
+    const auto& palette = patchy::ui::theme();
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+    CHECK(panel != nullptr);
+    if (panel != nullptr) {
+      save_widget_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_layer_thumbnail_ring_dark"
+                                                                             : "ui_layer_thumbnail_ring_light",
+                           *panel);
+    }
+    auto* active = label_for(QStringLiteral("Active"), QStringLiteral("layerContentThumbnail"));
+    CHECK(active != nullptr && active->property("layerTargetActive").toBool());
+    CHECK(ring_is(label_for(QStringLiteral("White"), QStringLiteral("layerContentThumbnail")),
+                  palette.layer_thumbnail_outline, 1));
+    CHECK(ring_is(label_for(QStringLiteral("White"), QStringLiteral("layerMaskThumbnail")),
+                  palette.layer_thumbnail_outline, 1));
+    CHECK(ring_is(label_for(QStringLiteral("Clear"), QStringLiteral("layerContentThumbnail")),
+                  palette.layer_thumbnail_outline, 1));
+    // The selected slot keeps its 2 px accent border; the ring does not show through.
+    CHECK(ring_is(active, palette.accent_bright, 2));
+    // A folder glyph is an icon, not a tile: no ring.
+    auto* folder = label_for(QStringLiteral("Folder"), QStringLiteral("layerContentThumbnail"));
+    CHECK(folder != nullptr && !folder->property("layerThumbnailSlot").toBool());
+    if (folder != nullptr) {
+      CHECK(folder->grab().toImage().pixelColor(0, folder->height() / 2).rgb() !=
+            palette.layer_thumbnail_outline.rgb());
+    }
+  }
+}
+
 // GitHub issue 386: the Thumbnail Size submenu (None, Small, Medium, Large) resizes every row's
 // content and mask tiles and the row height, redraws folder and adjustment glyphs at the new
 // size, and is remembered for the next window. Since #481 the row menu offers it only at None,
@@ -6532,6 +6633,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
       {"ui_layer_panel_mixed_folder_visual_cleanup", ui_layer_panel_mixed_folder_visual_cleanup},
       {"ui_layer_thumbnails_preview_the_whole_document", ui_layer_thumbnails_preview_the_whole_document},
+      {"ui_layer_thumbnail_slots_draw_outline_ring", ui_layer_thumbnail_slots_draw_outline_ring},
       {"ui_layer_thumbnail_size_menu_resizes_rows_and_persists",
        ui_layer_thumbnail_size_menu_resizes_rows_and_persists},
       {"ui_layer_thumbnails_zoom_to_content_preference", ui_layer_thumbnails_zoom_to_content_preference},

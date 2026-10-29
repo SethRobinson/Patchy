@@ -4172,8 +4172,10 @@ void MainWindow::add_layer_thumbnail_size_menu(QMenu* menu) {
     return;
   }
   menu->addSeparator();
-  auto* size_menu = menu->addMenu(tr("Thumbnail Size"));
+  auto* size_menu = menu->addMenu(QString());
   size_menu->setObjectName(QStringLiteral("layerThumbnailSizeMenu"));
+  // Bound, so the Layers panel settings gear's lasting menu follows a language change.
+  bind_widget_text(size_menu, QT_TR_NOOP("Thumbnail Size"));
   size_menu->menuAction()->setMenuRole(QAction::NoRole);
   for (auto* action : layer_thumbnail_size_actions_) {
     size_menu->addAction(action);
@@ -4227,8 +4229,9 @@ void MainWindow::add_layer_thumbnail_bounds_actions(QMenu* menu) {
     return;
   }
   // A submenu like Thumbnail Size, right under it.
-  auto* display_menu = menu->addMenu(tr("Thumbnail Display"));
+  auto* display_menu = menu->addMenu(QString());
   display_menu->setObjectName(QStringLiteral("layerThumbnailDisplayMenu"));
+  bind_widget_text(display_menu, QT_TR_NOOP("Thumbnail Display"));
   display_menu->menuAction()->setMenuRole(QAction::NoRole);
   for (auto* action : layer_thumbnail_bounds_actions_) {
     display_menu->addAction(action);

@@ -28441,10 +28441,6 @@ Locked: %1</source>
         <translation>Перезапустите Patchy, чтобы новый размер текста вступил в силу.</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>Настройка кнопок слоёв</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>Параметры инструмента</translation>
     </message>
@@ -28455,6 +28451,14 @@ Locked: %1</source>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Просмотреть слои как кадры анимации</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>Настройки панели «Слои»</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>Настройка кнопок слоёв...</translation>
     </message>
 </context>
 <context>
