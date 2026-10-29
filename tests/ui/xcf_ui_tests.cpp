@@ -481,6 +481,127 @@ void ui_xcf_review_capture() {
   }
 }
 
+[[nodiscard]] std::string layer_metadata_of(const patchy::Layer& layer, const char* key) {
+  const auto found = layer.metadata().find(key);
+  return found == layer.metadata().end() ? std::string() : found->second;
+}
+
+// GitHub issues 508 and 509: an outlined GIMP text layer opens as text that Patchy has redrawn,
+// with the outline as a Stroke style (no fill for GIMP's "stroke only"), and an edit keeps the
+// stroke, the underline and the span colors.
+void ui_xcf_outlined_text_opens_editable_with_a_stroke() {
+  namespace builder = patchy::test::xcf;
+  builder::Image image;
+  image.width = 360;
+  image.height = 160;
+  const auto text_layer = [](const std::string& name, const std::string& parasite, std::int32_t y) {
+    builder::Layer layer;
+    layer.name = name;
+    layer.drawable = builder::solid(60, 30, {10, 20, 30, 255});
+    layer.properties.push_back(builder::prop_offsets(20, y));
+    layer.properties.push_back(builder::prop_u32(builder::kTextLayerFlags, 1));
+    layer.properties.push_back(builder::prop_parasites({builder::text_parasite(parasite)}));
+    return layer;
+  };
+  image.layers.push_back(text_layer(
+      "Outlined",
+      "(text \"Outlined\")\n(font \"Sans-serif Bold\")\n(font-size 40)\n(font-size-unit pixels)\n"
+      "(color (color-rgb 0 0 1))\n(outline stroke-only)\n(outline-direction outer)\n(outline-width 3)\n"
+      "(outline-unit pixels)\n(outline-foreground (color-rgb 1 0 0))\n(box-mode dynamic)\n",
+      10));
+  image.layers.push_back(text_layer(
+      "Underlined",
+      "(markup \"<markup><u>Under</u> <span foreground=\\\"#00ff00\\\">green</span></markup>\")\n"
+      "(font \"Sans-serif\")\n(font-size 30)\n(font-size-unit pixels)\n(color (color-rgb 0.5 0 0))\n"
+      "(box-mode dynamic)\n",
+      90));
+  const auto bytes = builder::write(image);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto path = temp.filePath(QStringLiteral("outlined.xcf"));
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  CHECK(file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+        static_cast<qint64>(bytes.size()));
+  file.close();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* outlined = find_named(document.layers(), "Outlined");
+  CHECK(outlined != nullptr && patchy::layer_is_text(*outlined));
+  if (outlined == nullptr) {
+    return;
+  }
+  const auto outlined_id = outlined->id();
+  const auto* underlined_before = find_named(document.layers(), "Underlined");
+  CHECK(underlined_before != nullptr);
+  if (underlined_before == nullptr) {
+    return;
+  }
+  const auto underlined_id = underlined_before->id();
+  CHECK(!outlined->metadata().contains(patchy::kLayerMetadataXcfPendingOutline));
+  CHECK(layer_metadata_of(*outlined, patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  CHECK(outlined->layer_style().strokes.size() == 1);
+  if (outlined->layer_style().strokes.size() == 1) {
+    const auto& stroke = outlined->layer_style().strokes.front();
+    CHECK(stroke.enabled && stroke.position == patchy::LayerStrokePosition::Outside);
+    CHECK(std::abs(stroke.size - 3.0F) < 0.01F && (stroke.color == patchy::RgbColor{255, 0, 0}));
+  }
+  CHECK(outlined->fill_opacity() == 0.0F);
+  // Patchy's redraw sits where GIMP's text box starts: the glyph ink is near the layer origin.
+  const auto before = outlined->bounds();
+  CHECK(std::abs(before.x - 20) <= 6 && std::abs(before.y - 10) <= 10);
+  CHECK(document.find_layer(outlined_id) != nullptr);
+
+  const int mutated = patchy::ui::MainWindowTestAccess::cli_append_text_to_text_layers(window, QStringLiteral("!"));
+  CHECK(mutated >= 2);
+  const auto* edited = document.find_layer(outlined_id);
+  CHECK(edited != nullptr && layer_metadata_of(*edited, patchy::kLayerMetadataText) == "Outlined!");
+  if (edited != nullptr) {
+    CHECK(edited->layer_style().strokes.size() == 1 && edited->fill_opacity() == 0.0F);
+    // The redraw at open and the edit's redraw agree: the text does not jump.
+    CHECK(std::abs(edited->bounds().x - before.x) <= 2 && std::abs(edited->bounds().y - before.y) <= 2);
+  }
+  const auto* underlined = document.find_layer(underlined_id);
+  CHECK(underlined != nullptr);
+  if (underlined != nullptr) {
+    CHECK(layer_metadata_of(*underlined, patchy::kLayerMetadataText) == "Under green!");
+    const auto runs = layer_metadata_of(*underlined, patchy::kLayerMetadataTextRuns);
+    CHECK(runs.find("underline") != std::string::npos);
+    CHECK(runs.find("#00ff00") != std::string::npos && runs.find("#800000") != std::string::npos);
+  }
+}
+
+// For the cards (GitHub issues 508 and 509): philipzae's files as Patchy opens them, then after
+// an edit (local-test-fixtures/xcf-issue-508).
+void ui_xcf_issue_508_review_capture() {
+  const auto samples = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-508";
+  if (!std::filesystem::exists(samples / "README.txt")) {
+    return;
+  }
+  for (const char* stem : {"text-editable", "text-turned-pixels"}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1280, 800);
+    window.set_cli_automation_mode(true);
+    patchy::ui::MainWindowTestAccess::open_document_path(
+        window, QString::fromStdWString((samples / (std::string(stem) + ".xcf")).wstring()));
+    QApplication::processEvents();
+    patchy::ui::MainWindowTestAccess::canvas(window)->set_zoom_centered(1.0);
+    window.statusBar()->clearMessage();
+    QApplication::processEvents();
+    patchy::test::ui::save_widget_artifact(std::string("xcf508_") + stem + "_open", window);
+    (void)patchy::ui::MainWindowTestAccess::cli_append_text_to_text_layers(window, QStringLiteral(" edit"));
+    window.statusBar()->clearMessage();
+    QApplication::processEvents();
+    patchy::test::ui::save_widget_artifact(std::string("xcf508_") + stem + "_edited", window);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> xcf_ui_tests() {
@@ -488,6 +609,8 @@ std::vector<patchy::test::TestCase> xcf_ui_tests() {
       {"ui_xcf_files_open_by_name_compressed_name_and_content", ui_xcf_files_open_by_name_compressed_name_and_content},
       {"ui_xcf_gimp_modes_show_in_the_layers_panel", ui_xcf_gimp_modes_show_in_the_layers_panel},
       {"ui_xcf_text_layers_stay_editable", ui_xcf_text_layers_stay_editable},
+      {"ui_xcf_outlined_text_opens_editable_with_a_stroke", ui_xcf_outlined_text_opens_editable_with_a_stroke},
+      {"ui_xcf_issue_508_review_capture", ui_xcf_issue_508_review_capture},
       {"ui_script_opens_xcf_files", ui_script_opens_xcf_files},
       {"ui_xcf_review_capture", ui_xcf_review_capture},
       {"ui_xcf_metadata_reaches_file_info", ui_xcf_metadata_reaches_file_info},

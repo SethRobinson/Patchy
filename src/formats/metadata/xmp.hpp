@@ -115,4 +115,14 @@ struct XmpRow {
 
 [[nodiscard]] PrivacyClass xmp_property_privacy(std::string_view ns, std::string_view name) noexcept;
 
+// An ISO 8601 date-time whose time zone is hour-only ("+03") or basic ("+0300"), as GIMP and
+// some exporters write, with the offset shown as "+03:00" (#500). Display only: anything
+// else, "Z" and "+03:00" included, comes back unchanged.
+[[nodiscard]] std::string xmp_date_display(std::string text);
+
+// True for IPTC DigitalSourceType values that name a trained model (generative AI):
+// trainedAlgorithmicMedia and compositeWithTrainedAlgorithmicMedia, as a full newscodes URI
+// or a bare code. digitalCapture, digitalArt and the other values describe ordinary sources.
+[[nodiscard]] bool is_ai_digital_source_type(std::string_view value) noexcept;
+
 }  // namespace patchy::metadata

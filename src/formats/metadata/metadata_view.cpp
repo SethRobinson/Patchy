@@ -515,9 +515,22 @@ std::vector<MetadataEntry> describe_file_info(const DocumentFileInfo& info,
           continue;
         }
         const auto group = "EXIF " + std::string(ifd_kind_label(kind));
+        // Without a latitude or longitude, the GPS version and a zero altitude are the
+        // placeholders writers fill in (GIMP writes GPSAltitude 0/100 into every file), not a
+        // location (#500). Other GPS tags, a real altitude among them, still show.
+        const bool gps_placeholders_only =
+            kind == IfdKind::Gps && ifd->find(exif_tag::kGpsLatitude) == nullptr &&
+            ifd->find(exif_tag::kGpsLongitude) == nullptr;
+        const auto* altitude = kind == IfdKind::Gps ? ifd->find(exif_tag::kGpsAltitude) : nullptr;
+        const bool zero_altitude = altitude == nullptr || stream->real_value(*altitude).value_or(0.0) == 0.0;
         for (const auto& entry : ifd->entries) {
           if ((kind == IfdKind::Ifd0 && (entry.tag == kTagExifIfd || entry.tag == kTagGpsIfd)) ||
               (kind == IfdKind::Exif && entry.tag == kTagInteropIfd)) {
+            continue;
+          }
+          if (gps_placeholders_only &&
+              (entry.tag == 0 || (zero_altitude && (entry.tag == exif_tag::kGpsAltitude ||
+                                                    entry.tag == exif_tag::kGpsAltitudeRef)))) {
             continue;
           }
           add(group, exif_tag_display_name(kind, entry.tag), format_exif_value(*stream, kind, entry), "EXIF",
@@ -762,7 +775,7 @@ EditHistorySummary summarize_edit_history(const DocumentFileInfo& info) {
         if (field.name == "action") {
           event.action = text;
         } else if (field.name == "when") {
-          event.when = text;
+          event.when = xmp_date_display(text);
         } else if (field.name == "softwareAgent") {
           event.software_agent = text;
         } else if (field.name == "changed") {
@@ -798,6 +811,11 @@ EditHistorySummary summarize_edit_history(const DocumentFileInfo& info) {
       std::any_of(packet->properties.begin(), packet->properties.end(),
                   [](const XmpProperty& property) { return property.ns == xmp_ns::kCrs; });
   return summary;
+}
+
+bool AiGenerationSummary::present() const noexcept {
+  return !tool.empty() || !prompt.empty() || !workflow.empty() || is_ai_digital_source_type(digital_source_type) ||
+         !raw.empty();
 }
 
 AiGenerationSummary summarize_ai_generation(const DocumentFileInfo& info) {

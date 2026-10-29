@@ -642,6 +642,124 @@ void ui_file_info_shows_readable_dates_and_trims_xmp_padding() {
   CHECK(inspected);
 }
 
+// Issue 500 follow-up: a GIMP-style file (History "when" with an hour-only "+03" zone, an
+// EXIF GPS IFD holding only a zero altitude and the GPS version, IPTC DigitalSourceType
+// digitalCapture) shows the zone as "+03:00", no EXIF GPS group, the source type on the
+// History and Provenance page and no AI Generation page. Saves file-info/gimp-history.png.
+void ui_file_info_gimp_offsets_gps_and_source_type() {
+  QImage image(16, 8, QImage::Format_RGB32);
+  image.fill(QColor(160, 120, 90));
+  QBuffer buffer;
+  buffer.open(QIODevice::WriteOnly);
+  QImageWriter writer(&buffer, "jpg");
+  CHECK(writer.write(image));
+  const auto& encoded = buffer.data();
+  std::vector<std::uint8_t> bytes(reinterpret_cast<const std::uint8_t*>(encoded.constData()),
+                                  reinterpret_cast<const std::uint8_t*>(encoded.constData()) + encoded.size());
+  md::TiffStream exif;
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kSoftware, "GIMP 3.2.6");
+  exif.set_rational(md::IfdKind::Gps, md::exif_tag::kGpsAltitude, 0, 100);
+  const std::vector<std::uint8_t> version{2, 3, 0, 0};
+  exif.set_undefined(md::IfdKind::Gps, 0, version);
+  md::SaveMetadata metadata;
+  metadata.exif = md::write_tiff(exif);
+  metadata.xmp = R"xmp(<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"
+    xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#"
+    xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
+    xmpMM:DocumentID="gimp:docid:gimp:3f4c2b1a-0000-4000-8000-000000000500"
+    Iptc4xmpExt:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture">
+   <xmpMM:History><rdf:Seq>
+     <rdf:li stEvt:action="saved" stEvt:when="2026-10-26T13:50:44+03" stEvt:softwareAgent="GIMP 3.2.6 (Linux)" stEvt:changed="/"/>
+   </rdf:Seq></xmpMM:History>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>)xmp";
+  bytes = md::inject_metadata(std::move(bytes), "jpg", metadata);
+  const auto path = artifact_dir() + QStringLiteral("/gimp-style.jpg");
+  {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  // The driver runs inside Qt's event dispatch: failures are recorded, never thrown.
+  const auto expect = [](bool ok, const char* what) {
+    if (!ok) {
+      patchy::test::report_failure(std::string("gimp-offsets: ") + what);
+    }
+  };
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    expect(dialog != nullptr, "no File Info dialog");
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(std::max(dialog->width(), 900), std::max(dialog->height(), 640));
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
+    const auto page_item = [categories](const QString& page) -> QListWidgetItem* {
+      for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+        if (categories->item(row)->data(Qt::UserRole).toString() == page) {
+          return categories->item(row);
+        }
+      }
+      return nullptr;
+    };
+    const auto show_page = [&](const QString& page) {
+      if (auto* item = page_item(page)) {
+        categories->setCurrentItem(item);
+      }
+      QApplication::processEvents();
+    };
+    auto* ai = page_item(QStringLiteral("fileInfoAiPage"));
+    expect(ai != nullptr && ai->isHidden(), "AI Generation page shown for digitalCapture");
+
+    show_page(QStringLiteral("fileInfoAllMetadataPage"));
+    auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("fileInfoAllMetadataTree"));
+    expect(tree != nullptr, "no All Metadata tree");
+    if (tree != nullptr) {
+      expect(tree->findItems(QStringLiteral("EXIF GPS"), Qt::MatchExactly).isEmpty(), "EXIF GPS group shown");
+      const auto when = tree->findItems(QStringLiteral("xmpMM:History[1]/stEvt:when"),
+                                        Qt::MatchExactly | Qt::MatchRecursive);
+      expect(!when.isEmpty() && when.front()->text(1) == QStringLiteral("2026-10-26T13:50:44+03:00"),
+             "All Metadata History when");
+    }
+
+    show_page(QStringLiteral("fileInfoHistoryPage"));
+    auto* history = dialog->findChild<QTreeWidget*>(QStringLiteral("fileInfoHistoryTree"));
+    expect(history != nullptr && history->topLevelItemCount() == 1 &&
+               history->topLevelItem(0)->text(1) == QStringLiteral("2026-10-26T13:50:44+03:00"),
+           "History page When");
+    bool source_shown = false;
+    for (auto* label : dialog->findChildren<QLabel*>()) {
+      source_shown = source_shown || (label->text().endsWith(QStringLiteral("digitalsourcetype/digitalCapture")) &&
+                                      label->isVisibleTo(dialog));
+    }
+    expect(source_shown, "digital source type not on the History and Provenance page");
+    if (history != nullptr) {
+      for (int column = 0; column < history->columnCount(); ++column) {
+        history->resizeColumnToContents(column);
+      }
+    }
+    QApplication::processEvents();
+    dialog->grab().save(artifact_dir() + QStringLiteral("/gimp-history.png"));
+    inspected = true;
+    dialog->reject();
+  });
+  require_action(window, "fileInfoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+}
+
 // Issue 219 captures: File Info after a PSD save shows the created and modified dates and
 // the creating application; a Photoshop file resaved by Patchy keeps its application and
 // created date and lists Patchy in its history. Saves after-new-document.png,
@@ -1507,6 +1625,7 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_file_info_privacy_notice_can_be_hidden", ui_file_info_privacy_notice_can_be_hidden},
       {"ui_file_info_shows_readable_dates_and_trims_xmp_padding",
        ui_file_info_shows_readable_dates_and_trims_xmp_padding},
+      {"ui_file_info_gimp_offsets_gps_and_source_type", ui_file_info_gimp_offsets_gps_and_source_type},
       {"ui_file_info_scans_for_watermarks", ui_file_info_scans_for_watermarks},
       {"ui_document_tab_scan_for_watermarks", ui_document_tab_scan_for_watermarks},
   };

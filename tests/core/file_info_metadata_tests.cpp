@@ -1119,6 +1119,117 @@ void metadata_dates_display_readably() {
   CHECK(date_time != nullptr && reread->string_value(*date_time) == "2026:10:27 13:18:05");
 }
 
+// #500 follow-up: hour-only time zones ("+03", as GIMP writes in xmpMM:History) show as
+// "+03:00"; GPS placeholders without a position stay out of All Metadata; DigitalSourceType
+// counts as AI generation only for trained-model sources. Stored bytes are unchanged.
+void metadata_display_normalizes_offsets_gps_placeholders_and_ai_sources() {
+  CHECK(md::xmp_date_display("2026-10-26T13:21:22+03") == "2026-10-26T13:21:22+03:00");
+  CHECK(md::xmp_date_display("2026-10-26T13:21:22-0530") == "2026-10-26T13:21:22-05:30");
+  CHECK(md::xmp_date_display("2026-10-26T13:21+03") == "2026-10-26T13:21+03:00");
+  CHECK(md::xmp_date_display("2026-10-26T13:21:22.25+03") == "2026-10-26T13:21:22.25+03:00");
+  CHECK(md::xmp_date_display("2026-10-26T13:21:22+03:00") == "2026-10-26T13:21:22+03:00");
+  CHECK(md::xmp_date_display("2026-10-26T13:21:22Z") == "2026-10-26T13:21:22Z");
+  CHECK(md::xmp_date_display("2026-10-26T13:21:22") == "2026-10-26T13:21:22");
+  CHECK(md::xmp_date_display("2026-10-26") == "2026-10-26");
+  CHECK(md::xmp_date_display("2026-10-26T13:21:22+3") == "2026-10-26T13:21:22+3");
+  CHECK(md::xmp_date_display("2026-10-26T13:21:22+99") == "2026-10-26T13:21:22+99");
+  CHECK(md::xmp_date_display("Model +03") == "Model +03");
+  CHECK(md::exif_offset_display("+03") == "+03:00");
+  CHECK(md::exif_offset_display("-11") == "-11:00");
+  CHECK(md::exif_offset_display("+03:00") == "+03:00");
+  CHECK(md::exif_offset_display("abc") == "abc");
+
+  const std::string packet = R"xmp(<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"
+    xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#"
+    xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
+    Iptc4xmpExt:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture">
+   <xmpMM:History><rdf:Seq>
+     <rdf:li stEvt:action="saved" stEvt:when="2026-10-26T13:50:44+03" stEvt:softwareAgent="GIMP 3.2.6 (Linux)"/>
+   </rdf:Seq></xmpMM:History>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>)xmp";
+  md::TiffStream gimp_gps;  // what GIMP writes: an altitude of 0/100 and no position
+  gimp_gps.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kSoftware, "GIMP 3.2.6");
+  gimp_gps.set_rational(md::IfdKind::Gps, md::exif_tag::kGpsAltitude, 0, 100);
+  const Bytes version{2, 3, 0, 0};
+  gimp_gps.set_undefined(md::IfdKind::Gps, 0, version);
+  gimp_gps.set_ascii(md::IfdKind::Exif, md::exif_tag::kOffsetTimeOriginal, "+03");
+  patchy::DocumentFileInfo info;
+  info.xmp = patchy::make_metadata_bytes(bytes_of(packet));
+  info.exif = patchy::make_metadata_bytes(md::write_tiff(gimp_gps));
+  const auto rows = md::describe_file_info(info, {});
+  const auto find = [&rows](std::string_view group, std::string_view name) -> const md::MetadataEntry* {
+    for (const auto& row : rows) {
+      if (row.group == group && row.name == name) {
+        return &row;
+      }
+    }
+    return nullptr;
+  };
+  CHECK(std::none_of(rows.begin(), rows.end(), [](const auto& row) { return row.group == "EXIF GPS"; }));
+  CHECK(std::none_of(rows.begin(), rows.end(),
+                     [](const auto& row) { return row.privacy == md::PrivacyClass::Location; }));
+  const auto* when = find("XMP xmpMM", "xmpMM:History[1]/stEvt:when");
+  CHECK(when != nullptr && when->value == "2026-10-26T13:50:44+03:00");
+  const auto* offset = find("EXIF Exif", "OffsetTimeOriginal");
+  CHECK(offset != nullptr && offset->value == "+03:00");
+  const auto history = md::summarize_edit_history(info);
+  CHECK(history.events.size() == 1 && history.events[0].when == "2026-10-26T13:50:44+03:00");
+  // digitalCapture is how a camera image was made: no AI summary, no aiPrompt privacy.
+  const auto* source = find("XMP Iptc4xmpExt", "Iptc4xmpExt:DigitalSourceType");
+  CHECK(source != nullptr && source->privacy == md::PrivacyClass::None);
+  const auto ai = md::summarize_ai_generation(info);
+  CHECK(ai.digital_source_type == "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture");
+  CHECK(!ai.present());
+  CHECK(md::is_ai_digital_source_type("http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"));
+  CHECK(md::is_ai_digital_source_type(
+      "http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia"));
+  CHECK(md::is_ai_digital_source_type("trainedAlgorithmicMedia"));
+  CHECK(!md::is_ai_digital_source_type("http://cv.iptc.org/newscodes/digitalsourcetype/digitalArt"));
+  CHECK(!md::is_ai_digital_source_type(""));
+  md::AiGenerationSummary generated;
+  generated.digital_source_type = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
+  CHECK(generated.present());
+
+  // GPS tags beside the placeholders still show, as does a real altitude; the version stays out.
+  md::TiffStream partial;
+  partial.set_rational(md::IfdKind::Gps, md::exif_tag::kGpsAltitude, 1250, 10);
+  partial.set_undefined(md::IfdKind::Gps, 0, version);
+  partial.set_ascii(md::IfdKind::Gps, 29, "2026:10:25");
+  patchy::DocumentFileInfo partial_info;
+  partial_info.exif = patchy::make_metadata_bytes(md::write_tiff(partial));
+  const auto partial_rows = md::describe_file_info(partial_info, {});
+  const auto has = [&partial_rows](std::string_view name) {
+    return std::any_of(partial_rows.begin(), partial_rows.end(),
+                       [name](const auto& row) { return row.group == "EXIF GPS" && row.name == name; });
+  };
+  CHECK(has("GPSAltitude") && has("GPSDateStamp") && !has("GPSVersionID"));
+  // With a position every GPS tag shows, the version included.
+  partial.set_rational(md::IfdKind::Gps, md::exif_tag::kGpsLatitude, 35, 1);
+  partial_info.exif = patchy::make_metadata_bytes(md::write_tiff(partial));
+  const auto located = md::describe_file_info(partial_info, {});
+  CHECK(std::any_of(located.begin(), located.end(),
+                    [](const auto& row) { return row.group == "EXIF GPS" && row.name == "GPSVersionID"; }));
+
+  // The stored values are unchanged.
+  const auto reread = md::parse_xmp(*info.xmp);
+  const auto* stored = reread ? reread->find(md::xmp_ns::kXmpMM, "History") : nullptr;
+  CHECK(stored != nullptr && !stored->value.items.empty());
+  bool raw_when = false;
+  for (const auto& field : stored->value.items.front().fields) {
+    raw_when = raw_when || (field.name == "when" && field.value.text == "2026-10-26T13:50:44+03");
+  }
+  CHECK(raw_when);
+  const auto exif = md::parse_tiff(*info.exif);
+  CHECK(exif && exif->find(md::IfdKind::Gps) != nullptr);
+}
+
 // #500: Raw XMP drops the packet padding but keeps the closing processing instruction.
 void metadata_raw_xmp_display_drops_the_padding() {
   const auto shown = [](const std::string& text) { return md::xmp_display_text(bytes_of(text)); };
@@ -1849,6 +1960,8 @@ std::vector<patchy::test::TestCase> file_info_metadata_tests() {
       {"metadata_exif_dates_carry_their_time_offsets", exif_dates_carry_their_time_offsets},
       {"metadata_dates_display_readably", metadata_dates_display_readably},
       {"metadata_raw_xmp_display_drops_the_padding", metadata_raw_xmp_display_drops_the_padding},
+      {"metadata_display_normalizes_offsets_gps_placeholders_and_ai_sources",
+       metadata_display_normalizes_offsets_gps_placeholders_and_ai_sources},
       {"metadata_edit_fields_follow_mwg_and_mirror_legacy_blocks", edit_fields_follow_mwg_and_mirror_legacy_blocks},
       {"metadata_strip_and_targeted_removals", strip_and_targeted_removals},
       {"metadata_orientation_bakes_and_saves_as_normal", orientation_bakes_and_saves_as_normal},

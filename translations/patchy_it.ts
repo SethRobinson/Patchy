@@ -13963,6 +13963,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>No tool groups: every tool gets its own button</source>
         <translation>Nessun gruppo di strumenti: ogni strumento ha il proprio pulsante</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>Alcuni livelli di testo hanno un contorno di GIMP. Restano modificabili, con il contorno come effetto Traccia, e Patchy ha disegnato il testo da sé, quindi può differire leggermente da quello di GIMP.</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>Alcuni livelli di testo hanno un contorno di GIMP fatto con un pattern o a tratteggio, che un effetto Traccia non può mostrare, quindi sono stati aperti come livelli di pixel.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

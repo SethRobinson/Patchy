@@ -35,6 +35,8 @@ namespace patchy::metadata {
 // Display form of an EXIF date: "YYYY:MM:DD HH:MM:SS" becomes "YYYY-MM-DD HH:MM:SS" and
 // "YYYY:MM:DD" (GPSDateStamp) "YYYY-MM-DD". Anything else is returned unchanged.
 [[nodiscard]] std::string exif_date_display(std::string text);
+// Display form of an OffsetTime* value: an hour-only "+03" becomes "+03:00" (#500).
+[[nodiscard]] std::string exif_offset_display(std::string text);
 
 // GPS latitude/longitude in signed decimal degrees (south/west negative).
 [[nodiscard]] std::optional<double> gps_latitude(const TiffStream& stream);

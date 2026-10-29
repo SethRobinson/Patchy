@@ -87,9 +87,9 @@ struct AiGenerationSummary {
   std::string workflow;  // raw JSON (ComfyUI prompt/workflow, InvokeAI)
   std::string digital_source_type;
   std::vector<std::pair<std::string, std::string>> raw;  // every text chunk that contributed
-  [[nodiscard]] bool present() const noexcept {
-    return !tool.empty() || !prompt.empty() || !workflow.empty() || !digital_source_type.empty() || !raw.empty();
-  }
+  // A generator record, or a DigitalSourceType naming a trained model. digitalCapture and
+  // other ordinary sources alone do not make a summary (they show under History and Provenance).
+  [[nodiscard]] bool present() const noexcept;
 };
 [[nodiscard]] AiGenerationSummary summarize_ai_generation(const DocumentFileInfo& info);
 // True for PNG text keys that generators use for prompts and workflows.

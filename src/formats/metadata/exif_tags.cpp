@@ -684,6 +684,14 @@ std::string exif_date_display(std::string text) {
   return text;
 }
 
+std::string exif_offset_display(std::string text) {
+  if (text.size() == 3 && (text[0] == '+' || text[0] == '-') && text[1] >= '0' && text[1] <= '2' && text[2] >= '0' &&
+      text[2] <= '9') {
+    text += ":00";
+  }
+  return text;
+}
+
 std::string format_exif_value(const TiffStream& stream, IfdKind kind, const TiffEntry& entry) {
   const auto u = [&](std::uint32_t index = 0) { return stream.unsigned_value(entry, index); };
   const auto real = [&](std::uint32_t index = 0) { return stream.real_value(entry, index); };
@@ -753,6 +761,10 @@ std::string format_exif_value(const TiffStream& stream, IfdKind kind, const Tiff
     case 36867:
     case 36868:
       return exif_date_display(generic_value(stream, entry));
+    case 36880:
+    case 36881:
+    case 36882:
+      return exif_offset_display(generic_value(stream, entry));
     case 700:
     case 33723:
     case 34377:

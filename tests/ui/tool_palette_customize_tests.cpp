@@ -2654,6 +2654,94 @@ void ui_tool_palette_customize_preview_fits_its_height() {
   CHECK(ran);
 }
 
+// Gray-level difference between the strongest ink in `rect` (viewport coordinates) and the
+// background at its right end: negative for dark text on a light list, positive for light
+// text on a dark one.
+int ink_against_background(QTreeWidget& tree, const QRect& rect) {
+  auto* viewport = tree.viewport();
+  const QImage image = viewport->grab().toImage();
+  const double scale = static_cast<double>(image.width()) / viewport->width();
+  const QRect pixels(qRound(rect.left() * scale), qRound(rect.top() * scale), qRound(rect.width() * scale),
+                     qRound(rect.height() * scale));
+  const QRect area = pixels.intersected(image.rect());
+  const int background = qGray(image.pixel(area.right() - 1, area.center().y()));
+  int strongest = 0;
+  for (int y = area.top(); y <= area.bottom(); ++y) {
+    for (int x = area.left(); x <= area.right(); ++x) {
+      const int difference = qGray(image.pixel(x, y)) - background;
+      if (std::abs(difference) > std::abs(strongest)) {
+        strongest = difference;
+      }
+    }
+  }
+  return strongest;
+}
+
+// GitHub issue 499 comment: the cluster headings (SELECT, PAINT...) and the shortcut keys
+// follow the color scheme the list is painted in, also when the scheme changes while the
+// dialog is open: dark text in Light, light text in Dark.
+void ui_tool_palette_customize_tree_text_follows_the_scheme() {
+  CustomizationSettingsGuard settings_guard;
+  ColorSchemeRestorer restore(patchy::ui::ColorSchemePreference::Dark);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  if (tool_palette(window) == nullptr) {
+    return;
+  }
+  for (const auto opened_in : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(opened_in);
+    bool ran = false;
+    when_customize_dialog_opens([&](QDialog& dialog) {
+      ran = true;
+      auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("toolPaletteCustomizeTree"));
+      CHECK(tree != nullptr && tree->topLevelItemCount() > 1);
+      if (tree == nullptr || tree->topLevelItemCount() < 2) {
+        dialog.reject();
+        return;
+      }
+      settle();
+      auto* heading = tree->topLevelItem(0);
+      auto* tool_row = heading->child(0);
+      CHECK(tool_row != nullptr && !tool_row->text(1).isEmpty());
+      if (tool_row == nullptr) {
+        dialog.reject();
+        return;
+      }
+      const auto check_scheme = [&](patchy::ui::ColorSchemePreference scheme, const char* label) {
+        ColorSchemeRestorer::apply(scheme);
+        settle();
+        tree->scrollToTop();
+        settle();
+        // Past the indentation: the expand sign is drawn in the scheme's colors either way.
+        const QRect heading_rect = tree->visualItemRect(heading).adjusted(tree->indentation(), 0, 0, 0);
+        const QRect key_rect = tree->visualRect(tree->model()->index(0, 1, tree->model()->index(0, 0)));
+        const int heading_ink = ink_against_background(*tree, heading_rect);
+        const int key_ink = ink_against_background(*tree, key_rect);
+        std::cout << "[INFO] " << label << " heading ink " << heading_ink << ", key ink " << key_ink << "\n";
+        if (scheme == patchy::ui::ColorSchemePreference::Light) {
+          CHECK(heading_ink < -80);
+          CHECK(key_ink < -80);
+        } else {
+          CHECK(heading_ink > 80);
+          CHECK(key_ink > 80);
+        }
+      };
+      if (opened_in == patchy::ui::ColorSchemePreference::Dark) {
+        check_scheme(patchy::ui::ColorSchemePreference::Dark, "dark");
+        check_scheme(patchy::ui::ColorSchemePreference::Light, "dark then light");
+        (void)capture_widget_artifact("ui_tool_palette_customize_tree_light_after_dark", dialog);
+      } else {
+        check_scheme(patchy::ui::ColorSchemePreference::Light, "light");
+        check_scheme(patchy::ui::ColorSchemePreference::Dark, "light then dark");
+        (void)capture_widget_artifact("ui_tool_palette_customize_tree_dark_after_light", dialog);
+      }
+      dialog.reject();
+    });
+    window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::Tools);
+    CHECK(ran);
+    settle();
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
@@ -2692,5 +2780,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
        ui_tool_palette_two_column_footer_sits_centered_under_the_tools},
       {"ui_tool_flyout_shortcut_keys_start_in_one_column", ui_tool_flyout_shortcut_keys_start_in_one_column},
       {"ui_tool_palette_customize_preview_fits_its_height", ui_tool_palette_customize_preview_fits_its_height},
+      {"ui_tool_palette_customize_tree_text_follows_the_scheme",
+       ui_tool_palette_customize_tree_text_follows_the_scheme},
   };
 }

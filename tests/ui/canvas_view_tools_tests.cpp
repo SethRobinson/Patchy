@@ -3002,6 +3002,27 @@ void ui_status_bar_document_info_keeps_one_width() {
   // The width holds room for the field's long sample line, not just this one.
   CHECK(info->contentsRect().width() >= info->reserved_text_width());
   CHECK(info->fontMetrics().horizontalAdvance(info->text()) < info->reserved_text_width());
+  // The shorter line sits centered in the field (issue 502): its ink leaves the same
+  // room on each side.
+  CHECK(info->alignment() == Qt::AlignCenter);
+  {
+    QImage ink(info->size(), QImage::Format_ARGB32_Premultiplied);
+    ink.fill(Qt::transparent);
+    info->render(&ink, QPoint(), QRegion(), QWidget::RenderFlags());
+    auto first = ink.width();
+    auto last = -1;
+    for (auto y = 0; y < ink.height(); ++y) {
+      for (auto x = 0; x < ink.width(); ++x) {
+        if (qAlpha(ink.pixel(x, y)) > 0) {
+          first = std::min(first, x);
+          last = std::max(last, x);
+        }
+      }
+    }
+    CHECK(last >= first);
+    CHECK(first > 8);
+    CHECK(std::abs(first - (ink.width() - 1 - last)) <= 3);
+  }
 
   // A line longer than the sample keeps the width and is elided; the tooltip has it all.
   patchy::ui::StatusDocumentInfoLabel field;

@@ -1126,7 +1126,24 @@ std::optional<QLineF> CanvasWidget::stroke_connect_preview_line() const {
       !tool_supports_shift_click_stroke_connect(effective_tool_for_input())) {
     return std::nullopt;
   }
-  return QLineF(widget_position_f(*last_stroke_end_document_), QPointF(stroke_connect_preview_pointer_));
+  // The line runs where the Shift+click paints it. Stroke points are pixel indices with the dab
+  // centered on the pixel's center (the core brushes measure coverage from the index), so each end
+  // maps through that center, not the pixel's top-left corner (GitHub issue 505). The 1 px brush and
+  // the other tools step whole pixels from the pixel under the pointer; larger Brush, Mixer, Pattern
+  // Stamp and Eraser strokes keep the pointer's fractional position (mousePressEvent's connect_from).
+  const auto tool = effective_tool_for_input();
+  const auto fractional = (tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush ||
+                           tool == CanvasTool::PatternStamp || tool == CanvasTool::Eraser) &&
+                          effective_brush_input().size != 1;
+  const auto pointer = stroke_connect_preview_pointer_;
+  const auto from = fractional ? *last_stroke_end_document_ : QPointF(last_stroke_end_document_->toPoint());
+  const auto to = fractional ? document_position_f(QPointF(pointer)) : QPointF(document_position(pointer));
+  // Ends snap to widget pixel centers so the 1 px line stays crisp on a pixel row.
+  const auto view_point = [this](QPointF stroke_point) {
+    const auto widget = widget_position_f(stroke_point + QPointF(0.5, 0.5));
+    return QPointF(std::floor(widget.x()) + 0.5, std::floor(widget.y()) + 0.5);
+  };
+  return QLineF(view_point(from), view_point(to));
 }
 
 QRect CanvasWidget::stroke_connect_preview_rect() const {
@@ -1172,9 +1189,6 @@ void CanvasWidget::draw_stroke_connect_preview(QPainter& painter) const {
   // A dark halo under a light line, the clone-source marker's pair, reads over any artwork.
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
-  // Pointer positions are whole widget pixels; the half-pixel shift centers the 1 px line on
-  // a pixel row instead of smearing it across two.
-  painter.translate(0.5, 0.5);
   for (const auto& pen : {QPen(QColor(20, 23, 28, 200), 3.0), QPen(QColor(245, 248, 252, 235), 1.0)}) {
     painter.setPen(pen);
     painter.drawLine(*line);

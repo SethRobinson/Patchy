@@ -13920,6 +13920,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>No tool groups: every tool gets its own button</source>
         <translation>도구 그룹 없음: 모든 도구에 고유한 버튼</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>일부 텍스트 레이어에 GIMP 윤곽선이 있습니다. 윤곽선을 획 효과로 바꿔 편집 가능한 상태로 열었으며, 텍스트는 Patchy가 직접 그렸으므로 GIMP와 약간 다를 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>일부 텍스트 레이어에 획 효과로 표현할 수 없는 패턴 또는 점선 GIMP 윤곽선이 있어 픽셀 레이어로 열렸습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
