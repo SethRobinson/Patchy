@@ -81,7 +81,7 @@ inline constexpr int kUiTextSizeStepPercent = 5;
 [[nodiscard]] int stored_ui_text_size_percent();
 void set_stored_ui_text_size_percent(int percent);
 
-// Toolbar icon size (Preferences, beside the interface scale): a multiplier on top of the
+// Toolbar icon size (Preferences, under the interface scale): a multiplier on top of the
 // interface scale for the tool palette's icons, buttons and footer (docs/tool-palette.md).
 // Named steps rather than percentages, because the interface scale already is one. Stored
 // under `preferences/toolbarIconSize` as the token, never the translated label; the key and
