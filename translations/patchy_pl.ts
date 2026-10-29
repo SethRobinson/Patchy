@@ -14463,26 +14463,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Odtwarzanie</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>Czas klatki:</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Jak długo wyświetla się każda klatka, gdy nazwa jej warstwy nie zawiera czasu. Eksport animowanego GIF, WebP i PNG używa tej samej wartości domyślnej.</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 s</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Własny</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>Typowe czasy klatek. Własny to każda inna wartość wpisana w polu.</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>Ignoruj czasy w nazwach warstw</translation>
     </message>
@@ -14533,6 +14513,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>No layers</source>
         <translation>Brak warstw</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>Domyślny czas klatki:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Jak długo wyświetla się każda klatka, gdy nazwa jej warstwy nie zawiera czasu. Wpisz wartość w sekundach lub wybierz ją z listy. Eksport animowanego GIF, WebP i PNG używa tej samej wartości domyślnej.</translation>
     </message>
 </context>
 <context>

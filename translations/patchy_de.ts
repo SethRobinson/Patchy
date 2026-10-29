@@ -14420,26 +14420,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Wiedergabe</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>Bilddauer:</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Wie lange jedes Bild angezeigt wird, wenn sein Ebenenname keine Zeit enthält. Der Export als animiertes GIF, WebP und PNG verwendet denselben Standardwert.</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 s</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Benutzerdefiniert</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>Übliche Bilddauern. Benutzerdefiniert ist jeder andere Wert, der im Feld eingegeben wird.</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>Zeiten in Ebenennamen ignorieren</translation>
     </message>
@@ -14490,6 +14470,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>No layers</source>
         <translation>Keine Ebenen</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>Standard-Bilddauer:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Wie lange jedes Bild angezeigt wird, wenn sein Ebenenname keine Zeit enthält. Geben Sie einen Wert in Sekunden ein oder wählen Sie einen aus der Liste. Der Export als animiertes GIF, WebP und PNG verwendet denselben Standardwert.</translation>
     </message>
 </context>
 <context>

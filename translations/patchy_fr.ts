@@ -14420,26 +14420,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Lecture</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>Durée d&apos;image :</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Durée d&apos;affichage de chaque image quand le nom de son calque n&apos;indique pas de durée. L&apos;export GIF, WebP et PNG animés utilise la même valeur par défaut.</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 s</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Personnalisée</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>Durées d&apos;image courantes. Personnalisée correspond à toute autre valeur saisie dans le champ.</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>Ignorer les durées dans les noms de calque</translation>
     </message>
@@ -14490,6 +14470,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>No layers</source>
         <translation>Aucun calque</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>Durée d&apos;image par défaut :</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Durée d&apos;affichage de chaque image quand le nom de son calque n&apos;indique pas de durée. Saisissez une valeur en secondes ou choisissez-en une dans la liste. L&apos;export GIF, WebP et PNG animés utilise la même valeur par défaut.</translation>
     </message>
 </context>
 <context>

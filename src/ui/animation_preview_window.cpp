@@ -12,6 +12,10 @@
 #include <QDialog>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QLineEdit>
+#include <QLocale>
+#include <QSignalBlocker>
+#include <QValidator>
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -30,6 +34,51 @@ namespace {
 constexpr int kMinimumFrameDelayMs = 10;
 
 constexpr std::array<int, 5> kFrameDelayPresetsMs{50, 100, 200, 500, 1000};
+
+// The delay field's text: a number of seconds (the locale's decimal point, at most three
+// decimals, 0 to kMaxFrameDelayMs), optionally followed by the unit suffix. nullopt for
+// anything else, empty text included.
+std::optional<int> parse_delay_field_text(QString text, const QString& suffix, const QLocale& locale) {
+  text = text.trimmed();
+  const auto unit = suffix.trimmed();
+  if (!unit.isEmpty() && text.endsWith(unit, Qt::CaseInsensitive)) {
+    text.chop(unit.size());
+    text = text.trimmed();
+  }
+  if (text.isEmpty()) return std::nullopt;
+  bool ok = false;
+  double seconds = locale.toDouble(text, &ok);
+  if (!ok) seconds = QLocale::c().toDouble(text, &ok);
+  if (!ok || !std::isfinite(seconds) || seconds < 0.0) return std::nullopt;
+  const auto delay_ms = std::llround(seconds * 1000.0);
+  if (delay_ms > animation::kMaxFrameDelayMs) return std::nullopt;
+  return static_cast<int>(delay_ms);
+}
+
+// Lets the delay field hold only a number of seconds and the unit while typing; fixup (Return
+// or focus leaving with incomplete text) puts the last committed value back.
+class DelayTextValidator : public QValidator {
+public:
+  DelayTextValidator(std::function<std::optional<int>(const QString&)> parse, std::function<QString()> fallback,
+                     QObject* parent)
+      : QValidator(parent), parse_(std::move(parse)), fallback_(std::move(fallback)) {}
+
+  State validate(QString& input, int&) const override {
+    if (parse_(input).has_value()) return Acceptable;
+    // Partial entries ("", "0.", "1 ") stay editable; letters other than the unit do not.
+    for (const QChar c : input) {
+      if (!c.isDigit() && !c.isSpace() && !c.isLetter() && c != QLatin1Char('.') && c != QLatin1Char(',')) {
+        return Invalid;
+      }
+    }
+    return Intermediate;
+  }
+  void fixup(QString& input) const override { input = fallback_(); }
+
+private:
+  std::function<std::optional<int>(const QString&)> parse_;
+  std::function<QString()> fallback_;
+};
 
 // Persisted settings keys (never rename one).
 constexpr const char* kIgnoreNameDelaysKey = "animationPreview/ignoreNameDelays";
@@ -60,31 +109,31 @@ AnimationPreviewWindow::AnimationPreviewWindow(
 
   auto* delay_row = new QHBoxLayout();
   delay_row->setSpacing(8);
-  auto* delay_label = new QLabel(tr("Frame delay:"), playback_group);
+  auto* delay_label = new QLabel(tr("Default frame delay:"), playback_group);
   delay_row->addWidget(delay_label);
-  delay_spin_ = new QDoubleSpinBox(playback_group);
-  delay_spin_->setObjectName(QStringLiteral("animationFrameDelaySpin"));
-  delay_spin_->setSuffix(tr(" s"));
-  delay_spin_->setRange(0.0, animation::kMaxFrameDelayMs / 1000.0);
-  delay_spin_->setDecimals(3);
-  delay_spin_->setSingleStep(0.05);
-  delay_spin_->setValue(load_image_save_option_defaults().animation_frame_delay_ms / 1000.0);
-  delay_spin_->setToolTip(tr("How long each frame shows when its layer name has no time. Animated GIF, "
-                             "WebP and PNG export use the same default."));
-  configure_dialog_spinbox(delay_spin_, 96);
-  delay_label->setBuddy(delay_spin_);
-  delay_row->addWidget(delay_spin_);
-  delay_preset_combo_ = new QComboBox(playback_group);
-  delay_preset_combo_->setObjectName(QStringLiteral("animationFrameDelayPresetCombo"));
+  // One field (GitHub issue 198 follow-up): type any delay in seconds, or open the list for
+  // a common one. The list never grows from typed values.
+  delay_combo_ = new QComboBox(playback_group);
+  delay_combo_->setObjectName(QStringLiteral("animationFrameDelayCombo"));
+  delay_combo_->setEditable(true);
+  delay_combo_->setInsertPolicy(QComboBox::NoInsert);
+  delay_combo_->setCompleter(nullptr);
   for (const int preset_ms : kFrameDelayPresetsMs) {
-    delay_preset_combo_->addItem(tr("%1 s").arg(locale().toString(preset_ms / 1000.0)), preset_ms);
+    delay_combo_->addItem(format_delay(preset_ms), preset_ms);
   }
-  delay_preset_combo_->addItem(tr("Custom"), -1);
-  delay_preset_combo_->setToolTip(tr("Common frame delays. Custom is any other value typed in the box."));
-  delay_row->addWidget(delay_preset_combo_);
+  delay_combo_->lineEdit()->setValidator(new DelayTextValidator(
+      [this](const QString& text) { return parse_delay_text(text); },
+      [this] { return format_delay(default_delay_ms_); }, delay_combo_));
+  delay_combo_->setToolTip(tr("How long each frame shows when its layer name has no time. Type a value in "
+                              "seconds or pick one from the list. Animated GIF, WebP and PNG export use the "
+                              "same default."));
+  delay_combo_->setMinimumContentsLength(7);
+  delay_combo_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  delay_label->setBuddy(delay_combo_);
+  delay_row->addWidget(delay_combo_);
   delay_row->addStretch(1);
   playback_layout->addLayout(delay_row);
-  sync_delay_preset();
+  set_default_delay_ms(static_cast<int>(load_image_save_option_defaults().animation_frame_delay_ms), false);
 
   ignore_name_delays_check_ = new QCheckBox(tr("Ignore delays in layer names"), playback_group);
   ignore_name_delays_check_->setObjectName(QStringLiteral("animationIgnoreNameDelaysCheck"));
@@ -126,7 +175,7 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   selection_time_spin_->setRange(0.0, animation::kMaxFrameDelayMs / 1000.0);
   selection_time_spin_->setDecimals(3);
   selection_time_spin_->setSingleStep(0.05);
-  selection_time_spin_->setValue(delay_spin_->value());
+  selection_time_spin_->setValue(default_delay_ms_ / 1000.0);
   selection_time_spin_->setToolTip(tr("The time Set Time writes at the end of layer names."));
   configure_dialog_spinbox(selection_time_spin_, 96);
   selection_row->addWidget(selection_time_spin_);
@@ -178,26 +227,15 @@ AnimationPreviewWindow::AnimationPreviewWindow(
       apply_frame_time_(std::nullopt, all_layers_check_->isChecked());
     }
   });
-  // The spin edits the shared default delay (the animated GIF export dialog reads the
-  // same key); the next frame advance picks a change up immediately.
-  connect(delay_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-    app_settings().setValue(QStringLiteral("saveOptions/animationFrameDelayMs"),
-                           static_cast<int>(std::llround(value * 1000.0)));
-    app_settings().setValue(
-        QStringLiteral("saveOptions/gifFrameDelayCs"),
-        static_cast<int>(std::clamp<long long>(std::llround(value * 100.0), 0, 0xffff)));
-    sync_delay_preset();
+  // The field edits the shared default delay (the animated GIF export dialog reads the
+  // same key); the next frame advance picks a change up immediately. activated is a pick
+  // from the list; editingFinished is Return or focus leaving after typing (the validator's
+  // fixup has already put the last valid value back for empty or out-of-range text).
+  connect(delay_combo_, &QComboBox::activated, this, [this](int index) {
+    set_default_delay_ms(delay_combo_->itemData(index).toInt(), true);
   });
-  // activated fires only for a user's pick, so sync_delay_preset's programmatic index
-  // changes never loop back into the spin.
-  connect(delay_preset_combo_, &QComboBox::activated, this, [this](int index) {
-    const int preset_ms = delay_preset_combo_->itemData(index).toInt();
-    if (preset_ms >= 0) {
-      delay_spin_->setValue(preset_ms / 1000.0);
-    } else {
-      delay_spin_->setFocus(Qt::OtherFocusReason);
-      delay_spin_->selectAll();
-    }
+  connect(delay_combo_->lineEdit(), &QLineEdit::editingFinished, this, [this] {
+    set_default_delay_ms(parse_delay_text(delay_combo_->currentText()).value_or(default_delay_ms_), true);
   });
   // Ignoring name delays applies from the next frame; a frame-list change restarts playback
   // so the new list takes effect at once.
@@ -216,6 +254,12 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   });
   timer_.setSingleShot(true);
   connect(&timer_, &QTimer::timeout, this, [this] { advance_frame(); });
+  // Return in the delay field (or a time box) only commits the value: a dialog otherwise
+  // hands Return to its first auto-default button, which here is Play.
+  for (auto* button : findChildren<QPushButton*>()) {
+    button->setAutoDefault(false);
+    button->setDefault(false);
+  }
 
   // Size to the content rather than a hardcoded height. The hint wraps to a different
   // number of lines depending on the platform's font, and a fixed height cut its last
@@ -337,7 +381,7 @@ void AnimationPreviewWindow::show_current_frame() {
 }
 
 std::uint32_t AnimationPreviewWindow::frame_delay_ms(std::size_t index) const {
-  const auto default_ms = static_cast<std::uint32_t>(std::llround(delay_spin_->value() * 1000.0));
+  const auto default_ms = static_cast<std::uint32_t>(default_delay_ms_);
   if (playback_document_ == nullptr || index >= frame_ids_.size() || ignore_name_delays_check_->isChecked()) {
     return default_ms;
   }
@@ -356,13 +400,29 @@ void AnimationPreviewWindow::update_playback_controls() {
   }
 }
 
-void AnimationPreviewWindow::sync_delay_preset() {
-  const auto delay_ms = static_cast<int>(std::llround(delay_spin_->value() * 1000.0));
-  int index = delay_preset_combo_->findData(delay_ms);
-  if (index < 0) {
-    index = delay_preset_combo_->findData(-1);
+void AnimationPreviewWindow::set_default_delay_ms(int delay_ms, bool persist) {
+  delay_ms = std::clamp(delay_ms, 0, static_cast<int>(animation::kMaxFrameDelayMs));
+  const bool changed = delay_ms != default_delay_ms_;
+  default_delay_ms_ = delay_ms;
+  {
+    const QSignalBlocker block(delay_combo_);
+    // An index of -1 clears an editable combo's text, so the text is set after it.
+    delay_combo_->setCurrentIndex(delay_combo_->findData(delay_ms));
+    delay_combo_->setEditText(format_delay(delay_ms));
   }
-  delay_preset_combo_->setCurrentIndex(index);
+  if (persist && changed) {
+    app_settings().setValue(QStringLiteral("saveOptions/animationFrameDelayMs"), delay_ms);
+    app_settings().setValue(QStringLiteral("saveOptions/gifFrameDelayCs"),
+                            std::clamp((delay_ms + 5) / 10, 0, 0xffff));
+  }
+}
+
+std::optional<int> AnimationPreviewWindow::parse_delay_text(const QString& text) const {
+  return parse_delay_field_text(text, tr(" s"), locale());
+}
+
+QString AnimationPreviewWindow::format_delay(int delay_ms) const {
+  return locale().toString(delay_ms / 1000.0, 'g', 6) + tr(" s");
 }
 
 void AnimationPreviewWindow::done(int result) {
