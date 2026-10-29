@@ -117,27 +117,27 @@
          the release drivers fail when it is behind docs/images/screenshots (packaging/linux/README.md). -->
     <screenshot type="default">
       <caption>Adjustment layers, Smart Filters and editable text in a layered document</caption>
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.21/docs/images/screenshots/smart_filters.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.23/docs/images/screenshots/smart_filters.png</image>
     </screenshot>
     <screenshot>
       <caption>Layer styles with several effects and blending controls</caption>
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.21/docs/images/screenshots/layer_styles.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.23/docs/images/screenshots/layer_styles.png</image>
     </screenshot>
     <screenshot>
       <caption>Editable vector paths with gradient and pattern paint</caption>
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.21/docs/images/screenshots/vector_tools.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.23/docs/images/screenshots/vector_tools.png</image>
     </screenshot>
     <screenshot>
       <caption>Warped text, mixed fonts in one paragraph and vertical Japanese</caption>
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.21/docs/images/screenshots/warp_text.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.23/docs/images/screenshots/warp_text.png</image>
     </screenshot>
     <screenshot>
       <caption>Palette mode for indexed-color pixel art</caption>
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.21/docs/images/screenshots/palette_mode.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.23/docs/images/screenshots/palette_mode.png</image>
     </screenshot>
     <screenshot>
       <caption>Brush tips and dynamics</caption>
-      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.21/docs/images/screenshots/brush_tips.png</image>
+      <image type="source" width="1600" height="1000">https://raw.githubusercontent.com/SethRobinson/Patchy/v1.23/docs/images/screenshots/brush_tips.png</image>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1"/>

@@ -15,6 +15,9 @@
 #include "psd/psd_text_runs.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_picker.hpp"
+#include "ui/brush_dynamics_popup.hpp"
+#include "ui/brush_stroke_preview.hpp"
+#include "ui/brush_tool_window.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/gradient_library.hpp"
@@ -56,6 +59,7 @@
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QSpinBox>
 #include <QSlider>
 #include <QTabWidget>
@@ -600,10 +604,19 @@ void shot_readme_layer_styles() {
   CHECK(captured);
 }
 
-// Bitmap brush tips: strokes painted with several of the built-in tips, with
-// the tip picker popup open over the canvas.
+// Bitmap brush tips and dynamics: strokes from plain and dynamics tips down the left of the
+// canvas, with the floating Brush Tips and Brush Dynamics and Effects windows parked on the
+// right (GitHub issue 506), as someone painting with both open would keep them.
 void shot_readme_brush_tips() {
   seed_default_brush_tips_for_readme_shot();
+  const auto clear_windows = [] {
+    for (const auto* key : {"brushes/settingsWindowOpen", "brushes/settingsWindowSize", "brushes/tipsWindowOpen",
+                            "brushes/tipsWindowSize"}) {
+      patchy::ui::app_settings().remove(QLatin1String(key));
+    }
+  };
+  clear_windows();
+  const auto cleanup = qScopeGuard(clear_windows);
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
   patchy::Document document(1180, 780, patchy::PixelFormat::rgb8());
@@ -618,54 +631,72 @@ void shot_readme_brush_tips() {
   canvas->set_brush_dynamics_test_seed(0xC0FFEEu);
   canvas->set_brush_softness(0);
 
+  // The windows cover the canvas right of about x 470, so most strokes stay left of it; the
+  // bottom two run the full width, below the windows.
   auto& library = window.brush_tip_library();
   struct StrokeSpec {
     const char* tip;
     QColor color;
     int size;
+    double x_end;
     double y_center;
     double amplitude;
     double cycles;
   };
   const StrokeSpec strokes[] = {
-      {"Chalk", QColor(0x2f, 0x6f, 0xb2), 56, 120.0, 44.0, 1.5},
-      {"Chain", QColor(0x63, 0x6d, 0x7a), 44, 250.0, 40.0, 1.5},
-      {"Leaf", QColor(0xc9, 0x6a, 0x1e), 52, 380.0, 42.0, 1.5},
-      {"Spatter", QColor(0x8e, 0x44, 0xad), 56, 500.0, 38.0, 1.5},
-      {"Stitches", QColor(0xc0, 0x39, 0x2b), 42, 610.0, 34.0, 1.5},
-      {"Grass", QColor(0x3f, 0x8f, 0x3f), 60, 715.0, 8.0, 0.5},
+      {"Chalk", QColor(0x2f, 0x6f, 0xb2), 52, 440.0, 70.0, 26.0, 1.0},
+      {"Chain", QColor(0x63, 0x6d, 0x7a), 40, 440.0, 160.0, 24.0, 1.0},
+      {"Snowflake", QColor(0x4a, 0xa3, 0xd8), 52, 440.0, 250.0, 26.0, 1.0},
+      {"Leaf", QColor(0xc9, 0x6a, 0x1e), 48, 440.0, 340.0, 26.0, 1.0},
+      {"Heart", QColor(0xe0, 0x50, 0x7a), 44, 440.0, 430.0, 26.0, 1.0},
+      {"Spatter", QColor(0x8e, 0x44, 0xad), 50, 440.0, 520.0, 24.0, 1.0},
+      {"Stitches", QColor(0xc0, 0x39, 0x2b), 40, 1090.0, 625.0, 22.0, 2.5},
+      {"Grass", QColor(0x3f, 0x8f, 0x3f), 58, 1090.0, 722.0, 6.0, 0.5},
   };
   for (const auto& stroke : strokes) {
     window.set_active_brush_tip(readme_tip_id_by_name(library, QString::fromLatin1(stroke.tip)), false);
     canvas->set_brush_size(stroke.size);
     canvas->set_primary_color(stroke.color);
-    paint_readme_polyline(*canvas,
-                          readme_wave_points(90.0, 1090.0, stroke.y_center, stroke.amplitude, stroke.cycles));
+    paint_readme_polyline(*canvas, readme_wave_points(70.0, stroke.x_end, stroke.y_center, stroke.amplitude,
+                                                      stroke.cycles));
   }
-
-  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
-  CHECK(picker != nullptr);
-  picker->click();
+  // Leaf carries its own dynamics, so the window's section dots, pages and preview show them.
+  window.set_active_brush_tip(readme_tip_id_by_name(library, QStringLiteral("Leaf")), false);
+  canvas->set_brush_size(48);
+  canvas->set_primary_color(QColor(0xc9, 0x6a, 0x1e));
   QApplication::processEvents();
-  QWidget* popup = nullptr;
-  for (auto* widget : QApplication::topLevelWidgets()) {
-    if (widget->objectName() == QStringLiteral("brushTipPickerPopup") && widget->isVisible()) {
-      popup = widget;
-    }
+
+  require_action(window, "windowBrushTipsAction")->trigger();
+  require_action(window, "windowBrushSettingsAction")->trigger();
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  auto* button = window.findChild<patchy::ui::BrushDynamicsButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(picker != nullptr && button != nullptr);
+  CHECK(process_events_until([&] {
+    return picker->tool_window() != nullptr && picker->tool_window()->isVisible() &&
+           button->tool_window() != nullptr && button->tool_window()->isVisible();
+  }));
+  if (picker->tool_window() == nullptr || button->tool_window() == nullptr) {
+    return;
   }
-  CHECK(popup != nullptr);
-  popup->resize(600, 470);
-  // Place the popup where it would drop from the options-bar Tip button; the
-  // offscreen platform's small virtual screen otherwise clamps it elsewhere.
-  const QPoint popup_offset(620, 86);
-  popup->move(window.geometry().topLeft() + popup_offset);
+  auto* tips_window = picker->tool_window();
+  auto* dynamics_window = button->tool_window();
+  tips_window->resize(466, 690);  // six columns, every tip in view
+  button->window_panel()->select_section(patchy::ui::BrushDynamicsPanel::Section::ShapeDynamics);
+  QApplication::processEvents();
+  button->window_panel()->preview()->rebuild_now();
   QApplication::processEvents();
 
   reset_readme_status_bar(window);
   auto base = window.grab().toImage();
-  draw_readme_overlay(base, popup->grab().toImage(), popup_offset);
+  const auto tips_image = tips_window->grab().toImage();
+  const auto dynamics_image = dynamics_window->grab().toImage();
+  const QPoint tips_at(base.width() - tips_image.width() - 12, 90);
+  const QPoint dynamics_at(tips_at.x() - dynamics_image.width() - 14, 90);
+  draw_readme_overlay(base, dynamics_image, dynamics_at);
+  draw_readme_overlay(base, tips_image, tips_at);
   save_readme_shot("shot_readme_brush_tips", base);
-  popup->close();
+  tips_window->close();
+  dynamics_window->close();
   QApplication::processEvents();
   clear_brush_tip_test_state();
 }
