@@ -2086,6 +2086,8 @@ struct LegacyShapeFixtureOptions {
   bool large_document{false};
   bool malformed_paint{false};
   bool empty_real_mask{false};
+  // The vstk descriptor class written as Photoshop's short "Strk" (psd-tools' issue397.psd).
+  bool short_stroke_class{false};
 };
 
 std::vector<std::uint8_t> legacy_stroke_only_shape_psd(
@@ -2157,7 +2159,7 @@ std::vector<std::uint8_t> legacy_stroke_only_shape_psd(
   patchy::psd::BigEndianWriter vstk;
   vstk.write_u32(16);
   patchy::psd::DescriptorObject stroke;
-  stroke.class_id = "strokeStyle";
+  stroke.class_id = options.short_stroke_class ? "Strk" : "strokeStyle";
   patchy::psd::DescriptorValue version;
   version.type = patchy::psd::DescriptorValue::Type::Integer;
   version.integer_value = 2;
@@ -2396,6 +2398,73 @@ void psd_legacy_vscg_stroke_only_shape_paint_fallback_and_lock() {
   CHECK(patchy::vector_lock_reason(locked) == "unparsed");
 }
 
+// A vstk whose descriptor class is "Strk" instead of "strokeStyle" (psd-tools'
+// issues/issue397.psd) is the same stroke. Refused as unparsed, the layer kept its stale
+// pixels; an unedited save still writes the original block byte for byte.
+void psd_stroke_block_with_short_class_parses() {
+  LegacyShapeFixtureOptions options;
+  options.short_stroke_class = true;
+  const auto original = legacy_stroke_only_shape_psd(true, true, options);
+  auto document = patchy::psd::DocumentIo::read(original, {});
+  CHECK(document.layers().size() == 1);
+  const auto& shape = std::as_const(document.layers()).front();
+  const auto* content = shape.vector_shape();
+  CHECK(content != nullptr);
+  if (content == nullptr) {
+    return;
+  }
+  CHECK(shape.metadata().count(patchy::kLayerMetadataVectorLock) == 0);
+  CHECK(content->stroke.enabled);
+  CHECK(std::fabs(content->stroke.width - 2.0) < 1e-9);
+  CHECK(content->stroke.content.color.red == 255 && content->stroke.content.color.green == 0);
+  CHECK(shape_alpha_at(shape, 2, 8) == 255);
+  CHECK(shape_alpha_at(shape, 8, 8) == 0);
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  check_vector_blocks_byte_equal(original, written, 0, {"vscg", "vstk", "vmsk"});
+}
+
+// psd-tools' issues/issue397.psd: a 300 ppi shape with a "Strk" stroke block (10 pt, round
+// joins, CMYK rich black) whose stored pixels sit far off the 240x186 canvas. Photoshop
+// redraws it from the path: a near-black rounded box spanning x 141..192, y 97..153.
+void psd_tools_issue397_short_stroke_class_shape_renders_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+                    "psd_files" / "issues" / "issue397.psd";
+  patchy::test::skip_unless_exists(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const patchy::Layer* shape = nullptr;
+  const std::function<void(const std::vector<patchy::Layer>&)> find = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer.vector_shape() != nullptr) shape = &layer;
+      find(layer.children());
+    }
+  };
+  find(document.layers());
+  CHECK(shape != nullptr);
+  if (shape == nullptr) {
+    return;
+  }
+  CHECK(std::fabs(shape->vector_shape()->stroke.width - 10.0 * 300.0 / 72.0) < 0.01);
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  int left = flat.width(), top = flat.height(), right = -1, bottom = -1;
+  for (std::int32_t y = 0; y < flat.height(); ++y) {
+    for (std::int32_t x = 0; x < flat.width(); ++x) {
+      const auto* pixel = flat.pixel(x, y);
+      if (pixel[0] + pixel[1] + pixel[2] < 600) {
+        left = std::min(left, x);
+        top = std::min(top, y);
+        right = std::max(right, x);
+        bottom = std::max(bottom, y);
+      }
+    }
+  }
+  std::cout << "[INFO] issue397 dark box " << left << "," << top << " to " << right << "," << bottom
+            << " (Photoshop 141,97 to 192,153)" << '\n';
+  CHECK(std::abs(left - 141) <= 2 && std::abs(top - 97) <= 2 && std::abs(right - 192) <= 2 &&
+        std::abs(bottom - 153) <= 2);
+  const auto* center = flat.pixel(166, 125);
+  CHECK(center[0] < 40 && center[1] < 40 && center[2] < 40);
+}
+
 void psd_legacy_vscg_gradient_fill_preserves_and_edits_psd_and_psb() {
   for (const bool large : {false, true}) {
     const auto original = legacy_stroke_only_shape_psd(true, true, {true, true, large});
@@ -2632,6 +2701,9 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_damaged_partial_vogk_import_heals_on_resave", psd_damaged_partial_vogk_import_heals_on_resave},
       {"psd_pattern_params_probe_render_parity_if_available",
        psd_pattern_params_probe_render_parity_if_available},
+      {"psd_stroke_block_with_short_class_parses", psd_stroke_block_with_short_class_parses},
+      {"psd_tools_issue397_short_stroke_class_shape_renders_if_available",
+       psd_tools_issue397_short_stroke_class_shape_renders_if_available},
       {"psd_interior_overlay_vs_stroke_probe_if_available",
        psd_interior_overlay_vs_stroke_probe_if_available},
       {"collect_referenced_pattern_resources_covers_vector_content",
