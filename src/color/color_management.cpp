@@ -65,6 +65,47 @@ const std::vector<std::uint8_t>& default_cmyk_profile() {
   return profile;
 }
 
+const std::vector<std::uint8_t>& assumed_gray_profile() {
+  static const auto profile = [] {
+    // Luminance of stored gray g (0 = black, 1 = white): ((g + o) / (1 + o))^gamma, less
+    // the offset's black so 0 stays black. Fitted to the sRGB levels of a Dot Gain 20%
+    // document (relative intent, black point compensation): within one level on all 256,
+    // exact on 236 (October 2026).
+    constexpr double kGamma = 1.7388;
+    constexpr double kOffset = 0.00043;
+    const double floor = std::pow(kOffset / (1.0 + kOffset), kGamma);
+    std::vector<cmsFloat32Number> samples(4096);
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+      const double gray = static_cast<double>(i) / static_cast<double>(samples.size() - 1U);
+      samples[i] = static_cast<cmsFloat32Number>(
+          std::clamp(std::pow((gray + kOffset) / (1.0 + kOffset), kGamma) - floor * (1.0 - gray), 0.0, 1.0));
+    }
+    std::vector<std::uint8_t> bytes;
+    const auto context = cmsCreateContext(nullptr, nullptr);
+    if (context == nullptr) return bytes;
+    if (auto* curve = cmsBuildTabulatedToneCurveFloat(context, static_cast<cmsUInt32Number>(samples.size()),
+                                                      samples.data())) {
+      if (auto* gray = cmsCreateGrayProfileTHR(context, cmsD50_xyY(), curve)) {
+        if (auto* description = cmsMLUalloc(context, 1)) {
+          cmsMLUsetASCII(description, "en", "US", "Dot Gain 20% (assumed)");
+          cmsWriteTag(gray, cmsSigProfileDescriptionTag, description);
+          cmsMLUfree(description);
+        }
+        cmsUInt32Number size = 0;
+        if (cmsSaveProfileToMem(gray, nullptr, &size) && size > 0) {
+          bytes.resize(size);
+          if (!cmsSaveProfileToMem(gray, bytes.data(), &size)) bytes.clear();
+        }
+        cmsCloseProfile(gray);
+      }
+      cmsFreeToneCurve(curve);
+    }
+    cmsDeleteContext(context);
+    return bytes;
+  }();
+  return profile;
+}
+
 namespace {
 
 // lcms reports recoverable errors through a callback; a bad profile must fall back to the

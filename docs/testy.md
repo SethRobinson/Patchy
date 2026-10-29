@@ -209,7 +209,8 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
 
 - Photoshop 2026 via COM (`Photoshop.Application`); techniques per docs/ps-compat.md.
   The driver opens each file once per probe: manifest walk (DOM + ActionManager by
-  layer id), duplicate-flatten-save render (copy-merged fallback for damaged files),
+  layer id), duplicate-flatten-save render (damaged and 32-bit files: copy merged, paste
+  in place),
   optional save-as-copy resave. Other versions can reopen every resave too:
   [testy-photoshop-versions.md](testy-photoshop-versions.md).
 - Krita 5.3.2 runs its own Python: `kritarunner.com -s testy_krita_export -f main <in>

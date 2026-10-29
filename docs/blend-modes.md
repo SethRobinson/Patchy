@@ -35,8 +35,8 @@ layer render revision and source-space identity. A layer at an uncached revision
 (the one being painted, or a Move override's pixels) separates only its part
 inside the render clip, so a brush dab costs its own rect; the profile's two
 Little CMS transforms are built once per source space (`ink_transforms`), never
-per render. Building them per render cost about 44 ms per dab on a 200 x 200
-file (GitHub issue 220's ag-psd sample), in CMYK Proof and RGB mode alike.
+per render. Building them per render cost 44 ms per dab (issue 220's sample),
+in CMYK Proof and RGB mode alike.
 `native_cmyk_render_stats` counts transform builds and separated pixels;
 `compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect` holds
 both per dab, and `patchy_perf_tests cmykbrush` times strokes on that sample
@@ -51,8 +51,8 @@ the committed `cmyk-render/calibration` fixture covers all 26 color modes.
 This coupled selection applies to layer and group blends. Non-Normal vector
 strokes require a coupled ink bake and currently select the RGB renderer.
 
-Masks, layer Opacity/Fill, isolated groups and faded Pass Through groups keep
-their native-channel composition. Normal-mode Threshold uses native inks too
+Masks, layer Opacity/Fill, isolated groups, faded Pass Through groups and artboards (over
+their paper's inks) keep their native-channel composition. Normal-mode Threshold uses native inks too
 ([adjustment calibration](adjustments-calibration.md)). Other adjustments, layer effects, clipping
 runs, knockout and rendered Blend If/channel restrictions currently select the
 existing RGB renderer for the whole stack. Noise/pattern fills and compound

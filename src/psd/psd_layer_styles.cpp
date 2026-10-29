@@ -228,6 +228,7 @@ LayerStyleGradient parse_layer_style_gradient(const DescriptorObject& effect, co
           gradient_noise_range(*gradient_object, "Mnm ", 0);
       gradient.noise.maximum =
           gradient_noise_range(*gradient_object, "Mxm ", 100);
+      gradient.noise.gray_output.table = cmyk.gray_display;
     }
     if (const auto* colors = descriptor_value(*gradient_object, "Clrs");
         colors != nullptr && colors->type == DescriptorValue::Type::List) {

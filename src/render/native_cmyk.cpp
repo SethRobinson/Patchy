@@ -152,7 +152,7 @@ void composite_native_layers(NativeTarget& target, const std::vector<Layer>& cmy
     } else if (layer.kind() != LayerKind::Group) {
       target.black_source = &black[i];
       render_detail::composite_pixel_layer(target, layer, clip, nullptr, true, nullptr);
-    } else if (layer.blend_mode() == BlendMode::PassThrough &&
+    } else if (layer.blend_mode() == BlendMode::PassThrough && !layer.artboard().has_value() &&
                render_detail::group_fill_factor_for_render(layer) == 1.0F) {
       std::optional<render_detail::CompositeSnapshot> before_cmy, before_black;
       if (layer.opacity() < 1.0F) {
@@ -166,9 +166,19 @@ void composite_native_layers(NativeTarget& target, const std::vector<Layer>& cmy
         render_detail::fade_toward_snapshot(target.black, *before_black, clip, layer.opacity());
       }
     } else {
-      const auto rect = intersect_rect(clip, layer_render_bounds(layer));
+      // An artboard always isolates: its children clip to its rect over its paper, inside
+      // the group, as on the RGB path (docs/artboards.md).
+      const auto& artboard = layer.artboard();
+      const auto rect = intersect_rect(clip, artboard ? artboard->rect : layer_render_bounds(layer));
       if (rect.empty()) continue;
       NativeTarget isolated(rect);
+      if (artboard && artboard->background == ArtboardBackground::Custom) {
+        const auto key = black[i].artboard()->color;
+        for (int y = rect.y; y < rect.y + rect.height; ++y) for (int x = rect.x; x < rect.x + rect.width; ++x) {
+          isolated.cmy.store_color(x, y, artboard->color, 1.0F);
+          isolated.black.store_color(x, y, key, 1.0F);
+        }
+      }
       composite_native_layers(isolated, layer.children(), black[i].children(), rect);
       for (int y = rect.y; y < rect.y + rect.height; ++y) for (int x = rect.x; x < rect.x + rect.width; ++x) {
         const auto color = isolated.cmy.sample_color(x, y);
@@ -413,6 +423,20 @@ bool prepare_layers(std::vector<Layer>& cmy, std::vector<Layer>& black,
     if (layer.kind() == LayerKind::Group) {
       if (!prepare_layers(cmy[i].children(), black[i].children(), layer.children(), document, clip, to_ink,
                           overrides)) return false;
+      // An artboard's paper separates like a solid fill; the channel copies carry its inks
+      // as a Custom background.
+      if (const auto& artboard = layer.artboard(); artboard.has_value()) {
+        if (const auto paper = artboard_background_rgba(*artboard); paper.has_value()) {
+          VectorFill fill;
+          fill.color = RgbColor{(*paper)[0], (*paper)[1], (*paper)[2]};
+          for (const bool key : {false, true}) {
+            auto inks = *artboard;
+            inks.background = ArtboardBackground::Custom;
+            inks.color = channel_fill(fill, key, to_ink).color;
+            (key ? black[i] : cmy[i]).set_artboard(std::move(inks));
+          }
+        }
+      }
       continue;
     }
     if (layer.kind() == LayerKind::Adjustment) {
@@ -459,8 +483,7 @@ std::optional<PixelBuffer> render_native_cmyk8(
   if (!space || space->mode != 4 || space->depth != BitDepth::UInt8 ||
       document.color_state().bit_depth != BitDepth::UInt8 ||
       !document.color_state().embedded_icc_profile.empty() ||
-      render_detail::raster_view_context != nullptr || !supported_layers(document.layers()) ||
-      document_has_artboards(document)) return std::nullopt;  // artboard paper is RGB: the RGB path draws it
+      render_detail::raster_view_context != nullptr || !supported_layers(document.layers())) return std::nullopt;
   // A flat PSD has already converted its composite through the source profile.
   // With no native layer records there is no ink blend to reconstruct; an RGB
   // round trip through the CMYK gamut would only damage that correct preview. Its

@@ -6,7 +6,7 @@
 
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
 - 8, 16, and 32-bit (linear HDR) editing: 16 and 32-bit PSD/PSB files edit and save at their depth, Image > Mode converts between depths (leaving 32 bits offers HDR Toning), and New Document starts at 8 bits with a Bit Depth choice. 16-bit PNG and TIFF open and export at 16 bits; 32-bit documents export float TIFF. The browser build stops at 16 bits and opens 32-bit files converted to 16
-- CMYK, Grayscale, Lab, Bitmap, Indexed, Duotone, and Multichannel Photoshop documents convert to RGB on open (an imported CMYK PSD saved without edits keeps its CMYK data)
+- CMYK, Grayscale, Lab, Bitmap, Indexed, Duotone, and Multichannel Photoshop documents convert to RGB on open (unedited CMYK PSDs save as CMYK; untagged Grayscale is Dot Gain 20%)
 - An opaque Background layer locks position and transparency like Photoshop's, so the Eraser paints the background color, and Image > Flatten Image merges the visible layers into it
 - Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold, Exposure, Channel Mixer, Photo Filter, Gradient Map, Black & White, Color Lookup from embedded tables or a .cube or .3dl file, Selective Color, and Vibrance) with live preview, editable settings, native Photoshop PSD data, and .acv Curves preset import and export
 - One-step Image > Adjustments commands with no dialog: Invert (Ctrl+I), Auto Tone, Auto Contrast, Auto Color, and Auto All, on the active layer or the selection

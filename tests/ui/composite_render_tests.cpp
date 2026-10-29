@@ -8,6 +8,7 @@
 // for the re-pin procedure.
 
 #include "composite_corpus_support.hpp"
+#include "color/color_management.hpp"
 #include "ui/canvas_widget.hpp"
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
@@ -458,13 +459,22 @@ void grayscale_smart_object_fallback_preserves_alpha_and_source() {
   auto space = std::make_shared<patchy::PsdNativeColorSpace>();
   space->mode = 1;
   document.metadata().psd_native_color_space = space;
-  for (const auto& profile : {std::vector<std::uint8_t>{}, std::vector<std::uint8_t>{1, 2, 3}}) {
-    space->profile = profile;
-    const auto gray = patchy::ui::smart_object_image_for_document(source, document);
-    CHECK(gray.pixelColor(0, 0) == QColor(77, 77, 77, 128));
-    CHECK(gray.pixelColor(1, 0) == QColor(28, 28, 28, 0));
-    CHECK(source.pixelColor(0, 0) == QColor(255, 0, 0, 128));
-  }
+  // An unusable profile falls back to deterministic luminance.
+  space->profile = {1, 2, 3};
+  const auto gray = patchy::ui::smart_object_image_for_document(source, document);
+  CHECK(gray.pixelColor(0, 0) == QColor(77, 77, 77, 128));
+  CHECK(gray.pixelColor(1, 0) == QColor(28, 28, 28, 0));
+  CHECK(source.pixelColor(0, 0) == QColor(255, 0, 0, 128));
+  // An untagged document converts through the assumed Dot Gain 20% gray, like a file that
+  // embeds it, keeping alpha.
+  space->profile.clear();
+  const auto untagged = patchy::ui::smart_object_image_for_document(source, document);
+  space->profile = patchy::assumed_gray_profile();
+  const auto tagged = patchy::ui::smart_object_image_for_document(source, document);
+  CHECK(untagged == tagged);
+  const auto red = untagged.pixelColor(0, 0);
+  CHECK(red.alpha() == 128 && red.red() == red.green() && red.green() == red.blue());
+  CHECK(source.pixelColor(0, 0) == QColor(255, 0, 0, 128));
 }
 
 }  // namespace
