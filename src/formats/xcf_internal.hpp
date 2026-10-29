@@ -7,7 +7,9 @@
 #include "core/layer.hpp"
 #include "formats/xcf_document_io.hpp"
 
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -44,6 +46,13 @@ inline constexpr std::uint64_t kMaxUnwrappedBytes = 16ULL << 30U;
 // The top-level (key value) forms of a serialized GimpConfig, in order: ("range", "all"),
 // ("hue", "0.25"), ... A value that is itself a list comes back empty.
 [[nodiscard]] std::vector<std::pair<std::string, std::string>> parse_config_forms(std::string_view text);
+
+// A GeglColor (its babl format name and its little-endian sample bytes) as sRGB-encoded
+// RGBA in 0..1: RGB and gray in any curve (premultiplied forms too), HSV, HSL, CIE Lab and
+// LCH(ab), in u8, u16, float or double (Lab and LCH in float or double). An embedded
+// profile is not read: the values are taken as sRGB. nullopt for another format.
+[[nodiscard]] std::optional<std::array<double, 4>> gegl_color_to_srgb(std::string_view format,
+                                                                      std::span<const std::uint8_t> bytes);
 
 // What the text mapping needs from the reader.
 struct TextLayerContext {

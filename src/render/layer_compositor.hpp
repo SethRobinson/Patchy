@@ -621,10 +621,16 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   }
   const auto paint_scale = layer_fill_opacity_for_render(layer) * layer.opacity();
   const auto clip_to_mask = layer_mask_clips_effect_output(layer);
+  // Quality > Contour maps the blurred mask before Opacity (DrSh TrnS).
+  const bool contoured = !style_contour_is_linear(shadow.contour);
+  const auto contour_lut = contoured ? build_style_contour_lut(shadow.contour) : std::array<std::uint8_t, 256>{};
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-      auto alpha = mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))] *
-                   shadow.opacity * layer.opacity();
+      auto coverage = mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
+      if (contoured) {
+        coverage = sample_style_contour_lut(contour_lut, coverage, shadow.anti_aliased);
+      }
+      auto alpha = coverage * shadow.opacity * layer.opacity();
       if (clip_to_mask) {
         alpha *= effect_output_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }

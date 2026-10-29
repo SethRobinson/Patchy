@@ -4,6 +4,7 @@
 // writes, read as data.
 
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "formats/xcf_internal.hpp"
 #include "psd/psd_text_runs.hpp"
 
@@ -166,82 +167,6 @@ private:
   return value;
 }
 
-[[nodiscard]] float little_float(const std::string& bytes, std::size_t index) {
-  float value = 0.0F;
-  if ((index + 1) * 4 <= bytes.size()) {
-    unsigned char raw[4];
-    for (int i = 0; i < 4; ++i) {
-      raw[i] = static_cast<unsigned char>(bytes[index * 4 + static_cast<std::size_t>(i)]);
-    }
-    const std::uint32_t bits = static_cast<std::uint32_t>(raw[0]) | (static_cast<std::uint32_t>(raw[1]) << 8U) |
-                               (static_cast<std::uint32_t>(raw[2]) << 16U) | (static_cast<std::uint32_t>(raw[3]) << 24U);
-    std::memcpy(&value, &bits, sizeof(value));
-  }
-  return value;
-}
-
-[[nodiscard]] double little_double(const std::string& bytes, std::size_t index) {
-  double value = 0.0;
-  if ((index + 1) * 8 <= bytes.size()) {
-    std::uint64_t bits = 0;
-    for (int i = 7; i >= 0; --i) {
-      bits = (bits << 8U) | static_cast<unsigned char>(bytes[index * 8 + static_cast<std::size_t>(i)]);
-    }
-    std::memcpy(&value, &bits, sizeof(value));
-  }
-  return value;
-}
-
-[[nodiscard]] double encode_srgb(double linear) {
-  linear = std::clamp(linear, 0.0, 1.0);
-  return linear <= 0.0031308 ? linear * 12.92 : 1.055 * std::pow(linear, 1.0 / 2.4) - 0.055;
-}
-
-enum class ColorModel { Rgb, Gray, Hsv, Hsl, Lab, Lch };
-
-// HSV and HSL in babl are the textbook models over the perceptual (encoded) RGB values: a
-// GIMP 3 text color picked in HSV matches the hex GIMP shows for it.
-[[nodiscard]] std::array<double, 3> rgb_from_hsv(double h, double s, double v) {
-  h = (h - std::floor(h)) * 6.0;
-  const int sector = std::min(5, static_cast<int>(h));
-  const double f = h - sector;
-  const double p = v * (1.0 - s);
-  const double q = v * (1.0 - s * f);
-  const double t = v * (1.0 - s * (1.0 - f));
-  switch (sector) {
-    case 0: return {v, t, p};
-    case 1: return {q, v, p};
-    case 2: return {p, v, t};
-    case 3: return {p, q, v};
-    case 4: return {t, p, v};
-    default: return {v, p, q};
-  }
-}
-
-[[nodiscard]] std::array<double, 3> rgb_from_hsl(double h, double s, double l) {
-  const double v = l + s * std::min(l, 1.0 - l);
-  const double sv = v <= 0.0 ? 0.0 : 2.0 * (1.0 - l / v);
-  return rgb_from_hsv(h, sv, v);
-}
-
-// CIE Lab with a D50 white to encoded sRGB through the Bradford-adapted matrix (the space
-// docs/xcf.md names for GIMP's LCh modes).
-[[nodiscard]] std::array<double, 3> rgb_from_lab(double l, double a, double b) {
-  const double fy = (l + 16.0) / 116.0;
-  const double fx = fy + a / 500.0;
-  const double fz = fy - b / 200.0;
-  const auto inverse = [](double f) {
-    constexpr double kEpsilon = 6.0 / 29.0;
-    return f > kEpsilon ? f * f * f : 3.0 * kEpsilon * kEpsilon * (f - 4.0 / 29.0);
-  };
-  const double x = 0.96422 * inverse(fx);
-  const double y = inverse(fy);
-  const double z = 0.82521 * inverse(fz);
-  return {encode_srgb(3.1338561 * x - 1.6168667 * y - 0.4906146 * z),
-          encode_srgb(-0.9787684 * x + 1.9161415 * y + 0.0334540 * z),
-          encode_srgb(0.0719453 * x - 0.2289914 * y + 1.4052427 * z)};
-}
-
 // A color value: GIMP 3's (color "<babl format>" <size> "<bytes>" <profile size> [profile])
 // or GIMP 2's (color-rgb r g b) / (color-rgba r g b a). Returns encoded sRGB RGBA. GIMP 3
 // keeps the model the color was picked in: "R'G'B'A float", "HSVA float", "CIE Lab float"...
@@ -260,79 +185,9 @@ enum class ColorModel { Rgb, Gray, Hsv, Hsl, Lab, Lch };
   if (head != "color" || node.items.size() < 4 || !node.items[1].quoted || !node.items[3].quoted) {
     return std::nullopt;
   }
-  const auto& format = node.items[1].atom;
   const auto& bytes = node.items[3].atom;
-  const auto starts = [&format](std::string_view prefix) { return format.rfind(prefix, 0) == 0; };
-  ColorModel model = ColorModel::Rgb;
-  if (starts("HSV")) {
-    model = ColorModel::Hsv;
-  } else if (starts("HSL")) {
-    model = ColorModel::Hsl;
-  } else if (starts("CIE LCH(ab)")) {
-    model = ColorModel::Lch;
-  } else if (starts("CIE Lab")) {
-    model = ColorModel::Lab;
-  } else if (starts("Y")) {
-    model = ColorModel::Gray;
-  } else if (!starts("R")) {
-    return std::nullopt;  // CMYK and other models: GIMP's raster shows the color until an edit
-  }
-  const bool perceptual = format.find('\'') != std::string::npos || format.find('~') != std::string::npos;
-  const bool gray = model == ColorModel::Gray;
-  const bool has_alpha = format.find("A ") != std::string::npos || format.find(" alpha") != std::string::npos;
-  const std::size_t channels = (gray ? 1U : 3U) + (has_alpha ? 1U : 0U);
-  std::array<double, 4> values{0.0, 0.0, 0.0, 1.0};
-  std::array<double, 4> raw{0.0, 0.0, 0.0, 1.0};
-  for (std::size_t c = 0; c < channels; ++c) {
-    if (format.find("double") != std::string::npos) {
-      raw[c] = little_double(bytes, c);
-    } else if (format.find("float") != std::string::npos) {
-      raw[c] = little_float(bytes, c);
-    } else if (format.find("u8") != std::string::npos) {
-      raw[c] = c < bytes.size() ? static_cast<unsigned char>(bytes[c]) / 255.0 : 0.0;
-    } else if (format.find("u16") != std::string::npos) {
-      raw[c] = c * 2 + 1 < bytes.size()
-                   ? (static_cast<unsigned char>(bytes[c * 2]) | (static_cast<unsigned char>(bytes[c * 2 + 1]) << 8U)) /
-                         65535.0
-                   : 0.0;
-    } else {
-      return std::nullopt;
-    }
-    if (!std::isfinite(raw[c])) {
-      raw[c] = 0.0;
-    }
-  }
-  const std::size_t color_count = gray ? 1U : 3U;
-  std::array<double, 3> rgb{};
-  switch (model) {
-    case ColorModel::Hsv:
-      rgb = rgb_from_hsv(raw[0], std::clamp(raw[1], 0.0, 1.0), std::clamp(raw[2], 0.0, 1.0));
-      break;
-    case ColorModel::Hsl:
-      rgb = rgb_from_hsl(raw[0], std::clamp(raw[1], 0.0, 1.0), std::clamp(raw[2], 0.0, 1.0));
-      break;
-    case ColorModel::Lab:
-      rgb = rgb_from_lab(raw[0], raw[1], raw[2]);
-      break;
-    case ColorModel::Lch: {
-      constexpr double kPi = 3.14159265358979323846;
-      const double hue = raw[2] * kPi / 180.0;
-      rgb = rgb_from_lab(raw[0], raw[1] * std::cos(hue), raw[1] * std::sin(hue));
-      break;
-    }
-    case ColorModel::Rgb:
-    case ColorModel::Gray:
-      for (std::size_t c = 0; c < 3; ++c) {
-        const double v = raw[gray ? 0 : c];
-        rgb[c] = perceptual ? v : encode_srgb(v);
-      }
-      break;
-  }
-  for (std::size_t c = 0; c < 3; ++c) {
-    values[c] = std::isfinite(rgb[c]) ? std::clamp(rgb[c], 0.0, 1.0) : 0.0;
-  }
-  values[3] = has_alpha ? std::clamp(raw[color_count], 0.0, 1.0) : 1.0;
-  return values;
+  return gegl_color_to_srgb(node.items[1].atom,
+                            std::span(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()));
 }
 
 [[nodiscard]] const Node* value_of(const Node& form) {
@@ -762,6 +617,168 @@ struct FontChoice {
 }
 
 }  // namespace
+
+std::optional<std::array<double, 4>> gegl_color_to_srgb(std::string_view format, std::span<const std::uint8_t> bytes) {
+  // "<model> <type>": the type is the last word.
+  const auto space = format.rfind(' ');
+  if (space == std::string_view::npos) {
+    return std::nullopt;
+  }
+  const auto model = format.substr(0, space);
+  const auto type = format.substr(space + 1);
+  std::size_t width = 0;
+  if (type == "float") {
+    width = 4;
+  } else if (type == "double") {
+    width = 8;
+  } else if (type == "u8") {
+    width = 1;
+  } else if (type == "u16") {
+    width = 2;
+  } else {
+    return std::nullopt;
+  }
+  const auto sample = [&](std::size_t index) {
+    double value = 0.0;
+    if ((index + 1) * width > bytes.size()) {
+      return value;
+    }
+    std::uint64_t bits = 0;
+    for (std::size_t i = width; i-- > 0;) {
+      bits = (bits << 8U) | bytes[index * width + i];  // little-endian
+    }
+    if (width == 4) {
+      float narrow = 0.0F;
+      const auto word = static_cast<std::uint32_t>(bits);
+      std::memcpy(&narrow, &word, sizeof(narrow));
+      value = narrow;
+    } else if (width == 8) {
+      std::memcpy(&value, &bits, sizeof(value));
+    } else {
+      value = static_cast<double>(bits) / (width == 1 ? 255.0 : 65535.0);
+    }
+    return std::isfinite(value) ? value : 0.0;
+  };
+  enum class Kind { Rgb, Gray, Hsv, Hsl, Lab, Lch };
+  Kind kind = Kind::Rgb;
+  bool alpha = false;
+  bool premultiplied = false;
+  bool linear = false;
+  if (model == "HSV" || model == "HSVA" || model == "HSL" || model == "HSLA") {
+    kind = model[2] == 'V' ? Kind::Hsv : Kind::Hsl;
+    alpha = model.size() == 4;
+  } else if (model == "CIE Lab" || model == "CIE Lab alpha" || model == "CIE LCH(ab)" ||
+             model == "CIE LCH(ab) alpha") {
+    if (width < 4) {
+      return std::nullopt;
+    }
+    kind = model.find("LCH") != std::string_view::npos ? Kind::Lch : Kind::Lab;
+    alpha = model.ends_with(" alpha");
+  } else {
+    // R'G'B'A, RGBA, R~G~B~, Y'A, RaGaBaA, ...: ' and ~ mark the sRGB curve (babl's
+    // perceptual curve is sRGB's), an "a" after a channel premultiplies it.
+    std::string letters;
+    for (const char c : model) {
+      if (c == '\'' || c == '~') {
+        continue;
+      }
+      if (c == 'a') {
+        premultiplied = true;
+        continue;
+      }
+      letters.push_back(c);
+    }
+    linear = model.find('\'') == std::string_view::npos && model.find('~') == std::string_view::npos;
+    if (letters == "RGB" || letters == "RGBA") {
+      alpha = letters.size() == 4;
+    } else if (letters == "Y" || letters == "YA") {
+      kind = Kind::Gray;
+      alpha = letters.size() == 2;
+    } else {
+      return std::nullopt;
+    }
+  }
+  const std::size_t colors = kind == Kind::Gray ? 1U : 3U;
+  std::array<double, 4> raw{0.0, 0.0, 0.0, 1.0};
+  for (std::size_t c = 0; c < colors + (alpha ? 1U : 0U); ++c) {
+    raw[c] = sample(c);
+  }
+  const double a = alpha ? std::clamp(raw[colors], 0.0, 1.0) : 1.0;
+  std::array<double, 4> rgba{0.0, 0.0, 0.0, a};
+  const auto from_linear = [](double v) { return srgb_encode(std::clamp(v, 0.0, 1.0)); };
+  switch (kind) {
+    case Kind::Rgb:
+    case Kind::Gray:
+      for (std::size_t c = 0; c < 3; ++c) {
+        double v = raw[kind == Kind::Gray ? 0 : c];
+        if (premultiplied) {
+          v = a > 0.0 ? v / a : 0.0;
+        }
+        rgba[c] = linear ? from_linear(v) : std::clamp(v, 0.0, 1.0);
+      }
+      break;
+    case Kind::Hsv:
+    case Kind::Hsl: {
+      // babl's HSV and HSL are on the sRGB-encoded values, the hue in turns.
+      const double h = raw[0] - std::floor(raw[0]);
+      const double s = std::clamp(raw[1], 0.0, 1.0);
+      const double v = std::clamp(raw[2], 0.0, 1.0);
+      const double chroma = kind == Kind::Hsv ? v * s : (1.0 - std::abs(2.0 * v - 1.0)) * s;
+      const double base = kind == Kind::Hsv ? v - chroma : v - chroma / 2.0;
+      const double sector = h * 6.0;
+      const double x = chroma * (1.0 - std::abs(std::fmod(sector, 2.0) - 1.0));
+      std::array<double, 3> rgb{};
+      switch (static_cast<int>(sector) % 6) {
+        case 0:
+          rgb = {chroma, x, 0.0};
+          break;
+        case 1:
+          rgb = {x, chroma, 0.0};
+          break;
+        case 2:
+          rgb = {0.0, chroma, x};
+          break;
+        case 3:
+          rgb = {0.0, x, chroma};
+          break;
+        case 4:
+          rgb = {x, 0.0, chroma};
+          break;
+        default:
+          rgb = {chroma, 0.0, x};
+          break;
+      }
+      for (std::size_t c = 0; c < 3; ++c) {
+        rgba[c] = std::clamp(rgb[c] + base, 0.0, 1.0);
+      }
+      break;
+    }
+    case Kind::Lab:
+    case Kind::Lch: {
+      // CIE Lab with a D50 white, to sRGB through the Bradford-adapted matrix.
+      double lab_a = raw[1];
+      double lab_b = raw[2];
+      if (kind == Kind::Lch) {
+        constexpr double kRadiansPerDegree = 3.14159265358979323846 / 180.0;
+        lab_a = raw[1] * std::cos(raw[2] * kRadiansPerDegree);
+        lab_b = raw[1] * std::sin(raw[2] * kRadiansPerDegree);
+      }
+      const auto inverse = [](double t) {
+        constexpr double kDelta = 6.0 / 29.0;
+        return t > kDelta ? t * t * t : 3.0 * kDelta * kDelta * (t - 4.0 / 29.0);
+      };
+      const double fy = (raw[0] + 16.0) / 116.0;
+      const double x = 0.96422 * inverse(fy + lab_a / 500.0);
+      const double y = inverse(fy);
+      const double z = 0.82521 * inverse(fy - lab_b / 200.0);
+      rgba[0] = from_linear(3.1338561 * x - 1.6168667 * y - 0.4906146 * z);
+      rgba[1] = from_linear(-0.9787684 * x + 1.9161415 * y + 0.0334540 * z);
+      rgba[2] = from_linear(0.0719453 * x - 0.2289914 * y + 1.4052427 * z);
+      break;
+    }
+  }
+  return rgba;
+}
 
 std::vector<std::pair<std::string, std::string>> parse_config_forms(std::string_view text) {
   std::vector<std::pair<std::string, std::string>> forms;

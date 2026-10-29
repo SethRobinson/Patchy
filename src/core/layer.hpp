@@ -365,6 +365,29 @@ struct LayerStyleGradient : GradientDefinition {
   friend bool operator==(const LayerStyleGradient&, const LayerStyleGradient&) = default;
 };
 
+// A layer-effect contour curve (the descriptor ShpC/CrPt shape shared by the
+// bevel gloss contour, the bevel Contour sub-option and the drop shadow's
+// Contour; the glow and satin contours are not modeled). Empty points mean the 2-point Linear
+// identity. Coordinates are 0..255 doubles in the file; corner points break the
+// smooth spline (Photoshop's contour editor "Corner" checkbox, stored per point
+// as Cnty=false). build_style_contour_lut (core/style_contour.hpp) renders it.
+struct StyleContourPoint {
+  float x{0.0F};
+  float y{0.0F};
+  bool corner{false};
+
+  friend bool operator==(const StyleContourPoint&, const StyleContourPoint&) = default;
+};
+
+struct StyleContour {
+  // Persisted display name (PS writes "Linear" for the default; imported names
+  // are kept verbatim so an untouched curve round-trips its label).
+  std::string name{"Linear"};
+  std::vector<StyleContourPoint> points;  // empty == Linear (0,0)-(255,255)
+
+  friend bool operator==(const StyleContour&, const StyleContour&) = default;
+};
+
 struct LayerDropShadow {
   bool enabled{false};
   BlendMode blend_mode{BlendMode::Multiply};
@@ -392,6 +415,11 @@ struct LayerDropShadow {
   // (0 = uniform, 100 = fades to nothing at Distance). Only used while
   // `continuous` is set.
   float fade{0.0F};
+  // Quality > Contour (DrSh TrnS/AntA): maps the blurred shadow mask before
+  // Opacity. GIMP imports use it to carry GEGL's linear-light shadow falloff
+  // (docs/xcf.md, "Layer effects").
+  StyleContour contour;
+  bool anti_aliased{false};
 };
 
 struct LayerInnerShadow {
@@ -482,29 +510,6 @@ struct LayerStroke {
   // knocks out the layer's own content and blends against the layers below.
   // On: the stroke blends over the layer's own content.
   bool overprint{false};
-};
-
-// A layer-effect contour curve (the descriptor ShpC/CrPt shape shared by the
-// bevel gloss contour, the bevel Contour sub-option, and — preservation-only —
-// the shadow/glow/satin contours). Empty points mean the 2-point Linear
-// identity. Coordinates are 0..255 doubles in the file; corner points break the
-// smooth spline (Photoshop's contour editor "Corner" checkbox, stored per point
-// as Cnty=false). build_style_contour_lut (core/style_contour.hpp) renders it.
-struct StyleContourPoint {
-  float x{0.0F};
-  float y{0.0F};
-  bool corner{false};
-
-  friend bool operator==(const StyleContourPoint&, const StyleContourPoint&) = default;
-};
-
-struct StyleContour {
-  // Persisted display name (PS writes "Linear" for the default; imported names
-  // are kept verbatim so an untouched curve round-trips its label).
-  std::string name{"Linear"};
-  std::vector<StyleContourPoint> points;  // empty == Linear (0,0)-(255,255)
-
-  friend bool operator==(const StyleContour&, const StyleContour&) = default;
 };
 
 // Bevel & Emboss "Contour" sub-option (ebbl useShape/MpgS/AntA/Inpr).

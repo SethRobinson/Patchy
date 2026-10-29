@@ -404,6 +404,9 @@ void psd_layer_styles_round_trip_patchy_effects() {
   shadow.spread = 15.0F;
   shadow.size = 6.0F;
   shadow.layer_conceals = false;
+  shadow.contour = patchy::StyleContour{"GIMP linear light", {{0.0F, 0.0F, false}, {128.0F, 90.5F, false},
+                                                              {255.0F, 172.25F, false}}};
+  shadow.anti_aliased = true;
   layer.layer_style().drop_shadows.push_back(shadow);
 
   patchy::LayerInnerShadow inner_shadow;
@@ -513,6 +516,8 @@ void psd_layer_styles_round_trip_patchy_effects() {
   CHECK(style.drop_shadows.front().color.red == 10);
   CHECK(style.drop_shadows.front().opacity == 0.6F);
   CHECK(!style.drop_shadows.front().layer_conceals);
+  CHECK(style.drop_shadows.front().contour == shadow.contour);
+  CHECK(style.drop_shadows.front().anti_aliased);
   CHECK(style.inner_shadows.size() == 2);
   CHECK(style.inner_shadows.front().color.blue == 10);
   CHECK(style.inner_shadows.front().choke == 20.0F);

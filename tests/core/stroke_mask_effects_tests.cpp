@@ -1136,6 +1136,28 @@ void drop_shadow_layer_conceals_hides_shadow_under_shape() {
   check_pixel_near(revealed, 32, 32, 87, 71, 55, 2);  // shadow shows through
 }
 
+// Quality > Contour (DrSh TrnS) maps the shadow's mask before Opacity: a contour that
+// tops out at 128 draws a hard black shadow at half strength.
+void drop_shadow_contour_maps_the_shadow_mask() {
+  const auto render = [](const patchy::StyleContour& contour) {
+    patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(64, 64, 255, 255, 255));
+    patchy::Layer layer(document.allocate_layer_id(), "Content", solid_rgba(32, 32, 110, 110, 110, 255));
+    layer.set_bounds(patchy::Rect{16, 16, 32, 32});
+    auto shadow = test_drop_shadow(10.0F, 0.0F, true);
+    shadow.blend_mode = patchy::BlendMode::Normal;
+    shadow.opacity = 1.0F;
+    shadow.contour = contour;
+    layer.layer_style().drop_shadows.push_back(shadow);
+    document.add_layer(std::move(layer));
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+  check_pixel_near(render(patchy::StyleContour{}), 50, 55, 0, 0, 0, 1);
+  const patchy::StyleContour half{"Half", {{0.0F, 0.0F, false}, {255.0F, 128.0F, false}}};
+  check_pixel_near(render(half), 50, 55, 127, 127, 127, 2);
+  check_pixel_near(render(half), 8, 8, 255, 255, 255, 0);
+}
+
 void drop_shadow_conceals_composes_with_stroke_knockout() {
   // The stroke_from_photoshop2.psd case: a 0%-opacity Overprint-off stroke
   // knocks the content out of the band, and layerConceals keeps the layer's
@@ -1425,6 +1447,7 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
        layer_stroke_zero_opacity_knockout_still_knocks_out},
       {"drop_shadow_layer_conceals_hides_shadow_under_shape",
        drop_shadow_layer_conceals_hides_shadow_under_shape},
+      {"drop_shadow_contour_maps_the_shadow_mask", drop_shadow_contour_maps_the_shadow_mask},
       {"drop_shadow_conceals_composes_with_stroke_knockout",
        drop_shadow_conceals_composes_with_stroke_knockout},
       {"layer_stroke_knockout_blend_mode_uses_backdrop", layer_stroke_knockout_blend_mode_uses_backdrop},

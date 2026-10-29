@@ -312,6 +312,8 @@ std::optional<bool> effect_instance_enabled(const DescriptorObject& effect) {
   return enabled;
 }
 
+StyleContour parse_shape_contour(const DescriptorObject& shape);
+
 std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect,
                                                  const CmykColorConverter& cmyk) {
   const auto enabled = effect_instance_enabled(effect);
@@ -330,6 +332,10 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect,
   shadow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
   shadow.layer_conceals = descriptor_bool(effect, "layerConceals", true);
+  if (const auto* contour = descriptor_object(effect, "TrnS"); contour != nullptr) {
+    shadow.contour = parse_shape_contour(*contour);
+  }
+  shadow.anti_aliased = descriptor_bool(effect, "AntA", false);
   return shadow;
 }
 
@@ -1557,8 +1563,13 @@ std::string_view inner_glow_source_descriptor_value(LayerInnerGlowSource source)
   return source == LayerInnerGlowSource::Center ? "SrcC" : "SrcE";
 }
 
+void write_shape_contour_descriptor_item(BigEndianWriter& writer, std::string_view key,
+                                         const StyleContour& contour);
+
 void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow& shadow) {
-  write_descriptor_object_header(writer, "", "DrSh", 12);
+  // TrnS only for a shaped contour: a Linear shadow keeps the pinned 12-item form.
+  const bool contoured = !style_contour_is_linear(shadow.contour);
+  write_descriptor_object_header(writer, "", "DrSh", contoured ? 13U : 12U);
   write_descriptor_bool_item(writer, "enab", shadow.enabled);
   write_blend_mode_descriptor_item(writer, "Md  ", shadow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", shadow.color);
@@ -1572,7 +1583,10 @@ void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, shadow.spread);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, shadow.size);
   write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
-  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_bool_item(writer, "AntA", shadow.anti_aliased);
+  if (contoured) {
+    write_shape_contour_descriptor_item(writer, "TrnS", shadow.contour);
+  }
   write_descriptor_bool_item(writer, "layerConceals", shadow.layer_conceals);
 }
 

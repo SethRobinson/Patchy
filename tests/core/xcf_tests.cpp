@@ -11,6 +11,7 @@
 #include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/style_contour.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/image_open_diagnosis.hpp"
@@ -1174,6 +1175,160 @@ void xcf_layer_effects_bake_or_become_styles() {
   CHECK(has("no Patchy equivalent"));
 }
 
+// A gegl:dropshadow color argument: a GeglColor (babl format, sample bytes in the file's
+// little-endian order, no profile).
+[[nodiscard]] builder::Property shadow_color(const std::string& format, const std::vector<std::uint8_t>& samples) {
+  builder::Bytes b;
+  b.string(format);
+  b.u32(static_cast<std::uint32_t>(samples.size()));
+  b.append(samples);
+  b.u32(0);
+  return filter_argument("color", 8, b.data);
+}
+
+[[nodiscard]] std::vector<std::uint8_t> little_floats(std::initializer_list<float> values) {
+  std::vector<std::uint8_t> bytes;
+  for (const float value : values) {
+    std::uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    for (int i = 0; i < 4; ++i) {
+      bytes.push_back(static_cast<std::uint8_t>(bits >> (8 * i)));
+    }
+  }
+  return bytes;
+}
+
+// #507: a drop shadow keeps GIMP's color (in any of its color models), opacity and mode.
+// GIMP's filter mode mixes the layer-over-shadow result with the layer: Normal, Replace,
+// Behind and Merge show the shadow, Dissolve dissolves it, other modes draw none. The
+// linear-light falloff rides the contour in 8 and 16-bit documents, never in 32-bit ones.
+void xcf_drop_shadow_keeps_color_mode_and_opacity() {
+  const auto shadow_effect = [](std::uint32_t mode, builder::Property color, float opacity) {
+    return builder::Effect{"Drop Shadow", "gegl:dropshadow",
+                           {builder::prop_u32(builder::kMode, mode), filter_argument("x", 3, f32_bytes(2.0F)),
+                            filter_argument("y", 3, f32_bytes(2.0F)), filter_argument("radius", 3, f32_bytes(1.0F)),
+                            std::move(color), filter_argument("opacity", 3, f32_bytes(opacity))}};
+  };
+  const auto black = [] { return shadow_color("R'G'B'A float", little_floats({0.0F, 0.0F, 0.0F, 1.0F})); };
+  builder::Image image;
+  image.version = 22;
+  image.width = 4;
+  image.height = 2;
+  const auto layer_with = [&](const std::string& name, builder::Effect effect) {
+    auto layer = pixel_layer(name, builder::solid(4, 2, {200, 100, 50, 255}));
+    layer.effects.push_back(std::move(effect));
+    return layer;
+  };
+  image.layers = {
+      // The reporter's green, GIMP's HSV float.
+      layer_with("hsv dissolve", shadow_effect(1, shadow_color("HSV float", little_floats({0.33155F, 0.88454F, 0.73944F})),
+                                               0.85F)),
+      layer_with("normal", shadow_effect(28, black(), 0.85F)),
+      layer_with("replace", shadow_effect(62, black(), 0.9F)),
+      layer_with("multiply", shadow_effect(3, black(), 0.5F)),
+      layer_with("grain merge", shadow_effect(47, black(), 0.5F)),
+      layer_with("lch", shadow_effect(28, shadow_color("CIE LCH(ab) float", little_floats({50.0F, 0.0F, 0.0F})), 0.5F)),
+      layer_with("u8 alpha", shadow_effect(28, shadow_color("R'G'B'A u8", {10, 20, 30, 51}), 0.5F)),
+      layer_with("linear", shadow_effect(28, shadow_color("RGB float", little_floats({0.21404F, 0.5F, 1.0F})), 0.5F)),
+  };
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+  const auto shadow_of = [&](const char* name) {
+    const auto& shadows = find_named(document.layers(), name)->layer_style().drop_shadows;
+    CHECK(shadows.size() == 1);
+    return shadows.front();
+  };
+  const auto color_is = [](const patchy::RgbColor& color, int r, int g, int b) {
+    return std::abs(color.red - r) <= 1 && std::abs(color.green - g) <= 1 && std::abs(color.blue - b) <= 1;
+  };
+
+  const auto dissolve = shadow_of("hsv dissolve");
+  CHECK(dissolve.enabled && dissolve.blend_mode == patchy::BlendMode::Dissolve);
+  CHECK(color_is(dissolve.color, 0x18, 0xbd, 0x16));
+  CHECK(std::abs(dissolve.opacity - 0.85F) < 1e-4F);
+  CHECK(patchy::style_contour_is_linear(dissolve.contour));  // dissolved pixels are opaque
+  CHECK(!dissolve.layer_conceals);
+
+  const auto normal = shadow_of("normal");
+  CHECK(normal.enabled && normal.blend_mode == patchy::BlendMode::Normal);
+  CHECK(std::abs(normal.opacity - 0.85F) < 1e-4F);
+  // GEGL's 85% black over white is 108: the contour's top makes Patchy's display mix match.
+  CHECK(!patchy::style_contour_is_linear(normal.contour));
+  const auto lut = patchy::build_style_contour_lut(normal.contour);
+  const double top = lut[255] / 255.0 * normal.opacity;
+  CHECK(std::abs(255.0 * (1.0 - top) - 108.0) <= 3.0);
+  CHECK(lut[0] == 0);
+  for (std::size_t i = 1; i < lut.size(); ++i) {
+    CHECK(lut[i] >= lut[i - 1]);
+  }
+
+  const auto replace = shadow_of("replace");
+  CHECK(replace.enabled && replace.blend_mode == patchy::BlendMode::Normal);
+  CHECK(std::abs(replace.opacity - 0.9F) < 1e-4F);
+
+  const auto multiply = shadow_of("multiply");
+  CHECK(!multiply.enabled && multiply.blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::abs(multiply.opacity - 0.5F) < 1e-4F);
+  const auto grain = shadow_of("grain merge");
+  CHECK(!grain.enabled && grain.blend_mode == patchy::BlendMode::LinearLight);
+
+  CHECK(color_is(shadow_of("lch").color, 119, 119, 119));
+  const auto u8 = shadow_of("u8 alpha");
+  CHECK(color_is(u8.color, 10, 20, 30));
+  CHECK(std::abs(u8.opacity - 0.1F) < 1e-3F);
+  CHECK(color_is(shadow_of("linear").color, 128, 188, 255));
+
+  // A 32-bit document mixes in linear light already: no contour.
+  patchy::set_deep_editing_override(true);
+  builder::Image deep;
+  deep.version = 22;
+  deep.width = 3;
+  deep.height = 2;
+  deep.precision = 650;
+  builder::Layer layer;
+  layer.name = "deep";
+  layer.drawable = precision_drawable(4, [](builder::Bytes& b, double v) { b.f32(static_cast<float>(v)); },
+                                      {0.25, 0.5, 1.0, 1.0});
+  layer.effects.push_back(shadow_effect(28, black(), 0.85F));
+  deep.layers.push_back(layer);
+  const auto deep_document = patchy::xcf::DocumentIo::read(builder::write(deep));
+  patchy::set_deep_editing_override(std::nullopt);
+  if (deep_document.color_state().bit_depth == patchy::BitDepth::Float32) {
+    const auto& deep_shadows = deep_document.layers()[0].layer_style().drop_shadows;
+    CHECK(deep_shadows.size() == 1 && patchy::style_contour_is_linear(deep_shadows.front().contour));
+    CHECK(std::abs(deep_shadows.front().opacity - 0.85F) < 1e-4F);
+  }
+}
+
+// #507: the reporter's file (each layer labelled with its GIMP drop shadow settings) and
+// one file per layer, against GIMP 3.2's merge of each (local-test-fixtures/xcf-issue-507,
+// README.txt there).
+void xcf_drop_shadow_issue_507_matches_gimp_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-507";
+  patchy::test::skip_unless_exists(dir / "drop-shadow.xcf");
+  struct Entry {
+    const char* name;
+    double max_mean;  // a little over the measured mean: 8.2, 7.6 (the dissolve pattern), 0.02, 0.07, 3.5
+  };
+  // Before #507 (half opacity, no color or mode): 14.2, 11.3, 0.32, 0.95 and 5.7.
+  for (const auto& entry : {Entry{"drop-shadow", 9.0}, Entry{"dissolve-green", 8.5}, Entry{"normal-black", 0.1},
+                            Entry{"replace-black", 0.2}, Entry{"replace-magenta", 4.0}}) {
+    const auto document = patchy::xcf::DocumentIo::read_file(dir / (std::string(entry.name) + ".xcf"));
+    const auto composite = composite_rgba8(document);
+    write_png_artifact("xcf-renders", std::string(entry.name) + "-507", composite);
+    if (std::string_view(entry.name) == "drop-shadow") {
+      // The PSD a save writes, for the Photoshop open and flatten checks of its contours.
+      const auto psd = patchy::psd::DocumentIo::write_layered_rgb8(document);
+      std::ofstream file(std::filesystem::path("test-artifacts") / "xcf-renders" / "drop-shadow-507.psd",
+                         std::ios::binary);
+      file.write(reinterpret_cast<const char*>(psd.data()), static_cast<std::streamsize>(psd.size()));
+    }
+    const auto difference = compare_with_png(composite, dir / (std::string(entry.name) + ".png"));
+    CHECK(difference.has_value());
+    std::cout << "  " << entry.name << ": mean " << difference->mean << ", worst " << difference->worst << "\n";
+    CHECK(difference->mean <= entry.max_mean);
+  }
+}
+
 // GIMP's renders of each color filter on the 4096-color sweep
 // (scripts/dev/xcf/make_effect_fixtures.py) against Patchy's baked result.
 void xcf_effect_fixtures_match_gimp_if_available() {
@@ -2245,6 +2400,8 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_metadata_sample_gps", xcf_metadata_sample_gps},
       {"xcf_metadata_sample_dicom", xcf_metadata_sample_dicom},
       {"xcf_layer_effects_bake_or_become_styles", xcf_layer_effects_bake_or_become_styles},
+      {"xcf_drop_shadow_keeps_color_mode_and_opacity", xcf_drop_shadow_keeps_color_mode_and_opacity},
+      {"xcf_drop_shadow_issue_507_matches_gimp_if_available", xcf_drop_shadow_issue_507_matches_gimp_if_available},
       {"xcf_effect_fixtures_match_gimp_if_available", xcf_effect_fixtures_match_gimp_if_available},
       {"xcf_unwraps_gzip_bzip2_and_xz", xcf_unwraps_gzip_bzip2_and_xz},
       {"xcf_hostile_input_never_crashes", xcf_hostile_input_never_crashes},
