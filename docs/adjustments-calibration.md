@@ -98,7 +98,8 @@ inks they match on 99.9 percent (worst channel miss 7/255 at the 16 pinned probe
   psd-tools' `levels_grayscale.psd` and `curves_grayscale.psd` is matched within 3/255 and
   1/255 (22/255 without the gray space, a visible tint before the copy). Pinned by
   `psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available`.
-- No profile, or one lcms2 cannot use: no ink space, RGB math as before.
+- An untagged Grayscale file gets the gray space of the assumed Dot Gain 20% profile ([file-formats.md](file-formats.md)), as Photoshop evaluates it in its working gray; `exposure_grayscale.psd` stripped of its profile renders within 2/255 of the tagged file (`psd_tools_untagged_grayscale_reads_like_dot_gain_20_if_available`).
+- No profile on CMYK without an installed default, or one lcms2 cannot use: no ink space, RGB math as before.
 - On RGB saves the black ink's record is never written: Photoshop 2026 silently turns a Levels layer
   of an RGB document into a plain empty layer, mask gone, when the `levl` block's fifth
   record is not the identity.

@@ -378,6 +378,30 @@ RgbColor lab_noise_to_rgb(double lightness, double a, double b) {
   return RgbColor{encode(red), encode(green), encode(blue)};
 }
 
+// HSB noise to unit RGB with the standard hexcone formula.
+std::array<double, 3> hsb_noise_to_unit_rgb(double h, double s, double v) {
+  const auto sector = h * 6.0;
+  const auto index = static_cast<int>(std::floor(sector)) % 6;
+  const auto fraction = sector - std::floor(sector);
+  const auto p = v * (1.0 - s);
+  const auto q = v * (1.0 - fraction * s);
+  const auto t = v * (1.0 - (1.0 - fraction) * s);
+  switch (index) {
+  case 0:
+    return {v, t, p};
+  case 1:
+    return {q, v, p};
+  case 2:
+    return {p, v, t};
+  case 3:
+    return {p, q, v};
+  case 4:
+    return {t, p, v};
+  default:
+    return {v, p, q};
+  }
+}
+
 double catmull_rom(double p0, double p1, double p2, double p3, double t) {
   const auto t2 = t * t;
   const auto t3 = t2 * t;
@@ -981,37 +1005,23 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
     auto noise_channel = [&](int channel) {
       return gradient_noise_channel(gradient.noise, channel, position);
     };
-    if (gradient.noise.color_model == GradientNoiseColorModel::HSB) {
-      const auto h = noise_channel(0);
-      const auto s = noise_channel(1);
-      const auto v = noise_channel(2);
-      const auto sector = h * 6.0;
-      const auto index = static_cast<int>(std::floor(sector)) % 6;
-      const auto fraction = sector - std::floor(sector);
-      const auto p = v * (1.0 - s);
-      const auto q = v * (1.0 - fraction * s);
-      const auto t = v * (1.0 - (1.0 - fraction) * s);
-      std::array<double, 3> rgb{};
-      switch (index) {
-      case 0:
-        rgb = {v, t, p};
-        break;
-      case 1:
-        rgb = {q, v, p};
-        break;
-      case 2:
-        rgb = {p, v, t};
-        break;
-      case 3:
-        rgb = {p, q, v};
-        break;
-      case 4:
-        rgb = {t, p, v};
-        break;
-      default:
-        rgb = {v, p, q};
-        break;
+    if (const auto& gray_table = gradient.noise.gray_output.table; gray_table != nullptr) {
+      // Grayscale documents (psd-tools' noise-gradient-grayscale.psd, Photoshop 2026): the
+      // stored gray is the Lab model's L, or the Rec. 601 luma of the RGB or HSB color (it
+      // matched 127, 154 and 153 exactly; 30/59/11 weights fit the same three).
+      double gray = 0.0;
+      if (gradient.noise.color_model == GradientNoiseColorModel::Lab) {
+        gray = noise_channel(0);
+      } else {
+        const auto color = gradient.noise.color_model == GradientNoiseColorModel::HSB
+            ? hsb_noise_to_unit_rgb(noise_channel(0), noise_channel(1), noise_channel(2))
+            : std::array<double, 3>{noise_channel(0), noise_channel(1), noise_channel(2)};
+        gray = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
       }
+      return (*gray_table)[clamp_byte(static_cast<float>(gray * 255.0))];
+    }
+    if (gradient.noise.color_model == GradientNoiseColorModel::HSB) {
+      const auto rgb = hsb_noise_to_unit_rgb(noise_channel(0), noise_channel(1), noise_channel(2));
       return RgbColor{clamp_byte(static_cast<float>(rgb[0] * 255.0)),
                       clamp_byte(static_cast<float>(rgb[1] * 255.0)),
                       clamp_byte(static_cast<float>(rgb[2] * 255.0))};

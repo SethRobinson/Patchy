@@ -3267,6 +3267,13 @@ bool has_notice_containing(const std::vector<std::string>& notices, std::string_
   });
 }
 
+// An untagged Grayscale PSD reads through the assumed Dot Gain 20% profile: what a gray value
+// shows as (black and white stay put).
+int untagged_gray_srgb(std::uint8_t gray) {
+  static const auto transform = patchy::GrayToRgbTransform::from_icc_profile(patchy::assumed_gray_profile());
+  return transform ? transform->convert_single(gray).red : gray;
+}
+
 void psd_flat_raw_gray8_imports_as_rgb() {
   const auto read = patchy::psd::DocumentIo::read(flat_psd_with_test_planes(false, 1, 2, 1, {{0, 200}}));
   CHECK(read.format() == patchy::PixelFormat::rgb8());
@@ -3276,7 +3283,9 @@ void psd_flat_raw_gray8_imports_as_rgb() {
   const auto* px0 = read.layers().front().pixels().pixel(0, 0);
   const auto* px1 = read.layers().front().pixels().pixel(1, 0);
   CHECK(px0[0] == 0 && px0[1] == 0 && px0[2] == 0);
-  CHECK(px1[0] == 200 && px1[1] == 200 && px1[2] == 200);
+  const auto shown = untagged_gray_srgb(200);
+  CHECK(shown > 200);  // Dot Gain 20% lifts the midtones
+  CHECK(px1[0] == shown && px1[1] == shown && px1[2] == shown);
 }
 
 void psd_flat_rle_gray8_imports_as_rgb() {
@@ -3285,7 +3294,8 @@ void psd_flat_rle_gray8_imports_as_rgb() {
   CHECK(read.layers().size() == 1);
   const auto* px0 = read.layers().front().pixels().pixel(0, 0);
   const auto* px1 = read.layers().front().pixels().pixel(1, 0);
-  CHECK(px0[0] == 37 && px0[1] == 37 && px0[2] == 37);
+  const auto shown = untagged_gray_srgb(37);
+  CHECK(px0[0] == shown && px0[1] == shown && px0[2] == shown);
   CHECK(px1[0] == 255 && px1[1] == 255 && px1[2] == 255);
 }
 
@@ -3304,7 +3314,8 @@ void psd_flat_gray16_imports_as_rgb() {
   CHECK(read.layers().size() == 1);
   const auto* px0 = read.layers().front().pixels().pixel(0, 0);
   const auto* px1 = read.layers().front().pixels().pixel(1, 0);
-  CHECK(px0[0] == 128 && px0[1] == 128 && px0[2] == 128);
+  // 16-bit samples convert at 16 bits, so the 8-bit reading may differ by one.
+  CHECK(std::abs(px0[0] - untagged_gray_srgb(128)) <= 1 && px0[0] == px0[1] && px0[1] == px0[2]);
   CHECK(px1[0] == 255 && px1[1] == 255 && px1[2] == 255);
 }
 
@@ -3373,7 +3384,8 @@ void psd_layered_gray8_imports_as_rgba() {
   const auto* px0 = layer.pixels().pixel(0, 0);
   const auto* px1 = layer.pixels().pixel(1, 0);
   CHECK(px0[0] == 0 && px0[1] == 0 && px0[2] == 0 && px0[3] == 255);
-  CHECK(px1[0] == 200 && px1[1] == 200 && px1[2] == 200 && px1[3] == 64);
+  const auto shown = untagged_gray_srgb(200);
+  CHECK(px1[0] == shown && px1[1] == shown && px1[2] == shown && px1[3] == 64);
 }
 
 void psd_gray_extra_plane_imports_as_saved_channel() {
@@ -3390,7 +3402,7 @@ void psd_gray_extra_plane_imports_as_saved_channel() {
     const auto read = patchy::psd::DocumentIo::read(bytes);
     CHECK(read.metadata().values.at("psd.color_mode") == "Grayscale");
     CHECK(read.layers().size() == 1);
-    CHECK(read.layers().front().pixels().pixel(1, 0)[0] == 250);
+    CHECK(read.layers().front().pixels().pixel(1, 0)[0] == untagged_gray_srgb(250));
     CHECK(read.channels().size() == 1);
     CHECK(read.channels().front().name() == "Spot");
     CHECK(read.channels().front().photoshop_identifier() == std::optional<std::uint32_t>{77});
@@ -3602,6 +3614,116 @@ void psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available() {
     CHECK(std::abs(static_cast<int>(pixel[0]) - expected.srgb) <= 2);
     CHECK(pixel[0] == pixel[1] && pixel[1] == pixel[2]);
   }
+}
+
+// Untagged Grayscale PSDs read through Patchy's own Dot Gain 20% model (Photoshop's default
+// gray working space). Its curve hits Photoshop's Convert to Profile of the 17 pinned grays
+// above exactly; no fixture needed.
+void psd_assumed_gray_profile_matches_photoshop_dot_gain_20() {
+  const auto transform = patchy::GrayToRgbTransform::from_icc_profile(patchy::assumed_gray_profile());
+  CHECK(transform.has_value());
+  if (!transform) return;
+  constexpr std::array<std::array<int, 2>, 17> kPhotoshop{{{0, 0},     {16, 22},    {32, 46},    {48, 66},    {64, 85},
+                                                           {80, 102},   {96, 119},   {112, 134},  {128, 149},  {144, 164},
+                                                           {160, 178},  {176, 192},  {192, 205},  {208, 218},  {224, 231},
+                                                           {240, 243},  {255, 255}}};
+  for (const auto& [gray, srgb] : kPhotoshop) {
+    const auto color = transform->convert_single(static_cast<std::uint8_t>(gray));
+    CHECK(std::abs(static_cast<int>(color.red) - srgb) <= 1);
+    CHECK(color.red == color.green && color.green == color.blue);
+  }
+}
+
+namespace {
+
+// `bytes` without image resource `id` (a PSD whose resource section is otherwise intact).
+std::vector<std::uint8_t> psd_without_image_resource(const std::vector<std::uint8_t>& bytes, std::uint16_t id) {
+  const auto u32 = [&bytes](std::size_t at) {
+    return (std::uint32_t{bytes[at]} << 24U) | (std::uint32_t{bytes[at + 1U]} << 16U) |
+           (std::uint32_t{bytes[at + 2U]} << 8U) | std::uint32_t{bytes[at + 3U]};
+  };
+  const std::size_t mode_length_at = 26U;
+  const std::size_t resources_length_at = mode_length_at + 4U + u32(mode_length_at);
+  const std::size_t resources_begin = resources_length_at + 4U;
+  const std::size_t resources_end = resources_begin + u32(resources_length_at);
+  std::vector<std::uint8_t> kept;
+  for (std::size_t at = resources_begin; at + 12U <= resources_end;) {
+    const std::size_t start = at;
+    const auto resource = static_cast<std::uint16_t>((bytes[at + 4U] << 8U) | bytes[at + 5U]);
+    std::size_t name_length = bytes[at + 6U] + 1U;
+    name_length += name_length % 2U;
+    const std::size_t size_at = at + 6U + name_length;
+    std::size_t data_length = u32(size_at);
+    data_length += data_length % 2U;
+    at = size_at + 4U + data_length;
+    if (resource != id) kept.insert(kept.end(), bytes.begin() + static_cast<std::ptrdiff_t>(start),
+                                    bytes.begin() + static_cast<std::ptrdiff_t>(at));
+  }
+  std::vector<std::uint8_t> out(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(resources_length_at));
+  const auto length = static_cast<std::uint32_t>(kept.size());
+  for (const int shift : {24, 16, 8, 0}) out.push_back(static_cast<std::uint8_t>(length >> shift));
+  out.insert(out.end(), kept.begin(), kept.end());
+  out.insert(out.end(), bytes.begin() + static_cast<std::ptrdiff_t>(resources_end), bytes.end());
+  return out;
+}
+
+}  // namespace
+
+// An untagged Grayscale file looks and adjusts as Photoshop shows it, through Dot Gain 20%:
+// psd-tools' exposure_grayscale.psd (embedded Dot Gain 20%) stripped of its profile renders
+// like the original, Exposure layers included (their gray space comes from the same model).
+void psd_tools_untagged_grayscale_reads_like_dot_gain_20_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+                    "psd_files" / "adjustments" / "exposure_grayscale.psd";
+  patchy::test::skip_unless_exists(path);
+  std::ifstream input(path, std::ios::binary);
+  const std::vector<std::uint8_t> tagged((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  const auto untagged = psd_without_image_resource(tagged, 1039);
+  CHECK(untagged.size() < tagged.size());
+  const auto expected = patchy::Compositor{}.flatten_rgb8(patchy::psd::DocumentIo::read(tagged));
+  const auto document = patchy::psd::DocumentIo::read(untagged);
+  const auto actual = patchy::Compositor{}.flatten_rgb8(document);
+  int worst = 0;
+  for (std::int32_t y = 0; y < actual.height(); ++y) {
+    for (std::int32_t x = 0; x < actual.width(); ++x) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        worst = std::max(worst, std::abs(actual.pixel(x, y)[c] - expected.pixel(x, y)[c]));
+      }
+    }
+  }
+  std::cout << "[INFO] untagged exposure_grayscale worst difference from the tagged file " << worst << '\n';
+  CHECK(worst <= 2);
+}
+
+// psd-tools' noise-gradient-grayscale.psd (untagged): three single-color noise Gradient
+// Fills, RGB (80, 40, 20%), HSB (30 degrees, 60, 80%) and Lab (60, 60, 60%). Photoshop bakes
+// them as gray 127, 154 and 153 (Rec. 601 luma, luma, L) and shows them through Dot Gain
+// 20% as 148, 173 and 172. They used to render in color.
+void psd_tools_grayscale_noise_gradients_render_gray_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+                    "psd_files" / "gradients" / "noise-gradient-grayscale.psd";
+  patchy::test::skip_unless_exists(path);
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  constexpr std::array<std::array<int, 2>, 3> kPhotoshop{{{4, 148}, {12, 173}, {20, 172}}};
+  const auto check = [&kPhotoshop](const patchy::PixelBuffer& flat, const char* what) {
+    for (const auto& [y, gray] : kPhotoshop) {
+      const auto* pixel = flat.pixel(4, y);
+      std::cout << "[INFO] noise-gradient-grayscale " << what << " row " << y << ": " << int(pixel[0]) << ","
+                << int(pixel[1]) << "," << int(pixel[2]) << " (Photoshop " << gray << ")\n";
+      CHECK(pixel[0] == pixel[1] && pixel[1] == pixel[2]);
+      // HSB: Patchy keeps whole percents, so the 8.33% hue reads 8% (one level darker).
+      CHECK(std::abs(static_cast<int>(pixel[0]) - gray) <= 1);
+    }
+  };
+  check(patchy::Compositor{}.flatten_rgb8(document), "baked pixels");
+  int regenerated = 0;
+  for (auto& layer : document.layers()) {
+    if (std::as_const(layer).vector_shape() == nullptr) continue;
+    patchy::update_vector_shape_raster(layer, {0, 0, document.width(), document.height()}, nullptr);
+    ++regenerated;
+  }
+  CHECK(regenerated == 3);
+  check(patchy::Compositor{}.flatten_rgb8(document), "re-rendered");
 }
 
 namespace {
@@ -3834,6 +3956,11 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
        psd_gray_descriptor_and_engine_colors_use_black_percentage},
       {"psd_issue39_grayscale_fixture_imports_if_available",
        psd_issue39_grayscale_fixture_imports_if_available},
+      {"psd_assumed_gray_profile_matches_photoshop_dot_gain_20", psd_assumed_gray_profile_matches_photoshop_dot_gain_20},
+      {"psd_tools_untagged_grayscale_reads_like_dot_gain_20_if_available",
+       psd_tools_untagged_grayscale_reads_like_dot_gain_20_if_available},
+      {"psd_tools_grayscale_noise_gradients_render_gray_if_available",
+       psd_tools_grayscale_noise_gradients_render_gray_if_available},
       {"psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available",
        psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available},
       {"psd_save_drops_print_resources_of_other_color_modes", psd_save_drops_print_resources_of_other_color_modes},

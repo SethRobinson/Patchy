@@ -407,6 +407,9 @@ struct CmykColorConverter {
   enum class InkView { Display, Cmy, Black };
   InkView ink_view{InkView::Display};
   const std::array<RgbColor, 256>* duotone_colors{nullptr};
+  // Grayscale documents: each stored gray value's sRGB color, for the noise gradients the
+  // document renders gray (GradientGrayOutput). Null for every other mode.
+  std::shared_ptr<const std::array<RgbColor, 256>> gray_display{};
 
   [[nodiscard]] RgbColor rgb_from_descriptor_rgb(double red, double green, double blue) const {
     const auto byte = [&](double value) {

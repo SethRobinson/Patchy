@@ -1663,13 +1663,20 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     }
   }
   // Grayscale sources convert through their embedded gray profile the same way (Dot Gain
-  // 20%, Photoshop's default gray working space, lifts a 128 to sRGB 149); without a
-  // usable profile the gray values copy to RGB unchanged. As with CMYK, the profile is not
-  // promoted into color_state(): it does not describe the converted RGB pixels.
+  // 20%, Photoshop's default gray working space, lifts a 128 to sRGB 149). An untagged
+  // Grayscale file reads through Patchy's model of that default, as Photoshop shows it
+  // (assumed_gray_profile); an unusable profile copies the gray values unchanged. As with
+  // CMYK, the profile is not promoted into color_state(): it does not describe the
+  // converted RGB pixels, and an untagged file stays untagged.
   std::optional<GrayToRgbTransform> gray_icc_transform;
+  std::optional<std::vector<std::uint8_t>> gray_profile_bytes;
   if (header.color_mode == kColorModeGrayscale || header.color_mode == kColorModeDuotone) {
-    if (auto icc_profile = find_image_resource_payload(image_resources, kImageResourceIccProfile);
-        icc_profile.has_value()) {
+    gray_profile_bytes = find_image_resource_payload(image_resources, kImageResourceIccProfile);
+    if (!gray_profile_bytes.has_value() && header.color_mode == kColorModeGrayscale &&
+        !assumed_gray_profile().empty()) {
+      gray_profile_bytes = assumed_gray_profile();
+      gray_icc_transform = GrayToRgbTransform::from_icc_profile(*gray_profile_bytes);
+    } else if (auto icc_profile = gray_profile_bytes; icc_profile.has_value()) {
       gray_icc_transform = GrayToRgbTransform::from_icc_profile(*icc_profile);
       if (options.notices != nullptr) {
         if (gray_icc_transform.has_value()) {
@@ -1706,8 +1713,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   }
   // A grayscale document with a usable gray profile gets the one-channel form.
   if (gray_icc_transform.has_value()) {
-    if (auto icc_profile = find_image_resource_payload(image_resources, kImageResourceIccProfile);
-        icc_profile.has_value()) {
+    if (const auto& icc_profile = gray_profile_bytes; icc_profile.has_value()) {
       std::uint64_t hash = 1469598103934665603ULL;  // FNV-1a
       for (const auto byte : *icc_profile) {
         hash = (hash ^ byte) * 1099511628211ULL;
@@ -1743,12 +1749,21 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       }
     }
   }
+  std::shared_ptr<std::array<RgbColor, 256>> gray_display;
+  if (header.color_mode == kColorModeGrayscale) {
+    gray_display = std::make_shared<std::array<RgbColor, 256>>();
+    for (std::size_t value = 0; value < gray_display->size(); ++value) {
+      const auto gray = static_cast<std::uint8_t>(value);
+      (*gray_display)[value] = gray_icc_transform.has_value() ? gray_icc_transform->convert_single(gray)
+                                                              : RgbColor{gray, gray, gray};
+    }
+  }
   const CmykColorConverter source_colors{
       cmyk_icc_transform.has_value() ? &*cmyk_icc_transform : nullptr,
       gray_icc_transform.has_value() ? &*gray_icc_transform : nullptr,
       header.color_mode == kColorModeIndexed && color_mode_data.size() >= 768U ? color_mode_data.data() : nullptr,
       ink_space,
-      header.depth == 32, CmykColorConverter::InkView::Display, duotone_colors.get()};
+      header.depth == 32, CmykColorConverter::InkView::Display, duotone_colors.get(), gray_display};
   const auto* cmyk_icc = source_colors.icc;
   if (auto resolution = find_image_resource_payload(image_resources, kImageResourceResolutionInfo);
       resolution.has_value()) {
@@ -2297,8 +2312,9 @@ std::optional<PixelBuffer> native_color_composite(const Document& document, cons
   }
   const auto color_mode = space->mode == kColorModeCmyk ? ColorMode::CMYK
                           : space->mode == kColorModeLab ? ColorMode::Lab : ColorMode::Grayscale;
-  const auto& conversion_profile = space->profile.empty() && color_mode == ColorMode::CMYK
-      ? default_cmyk_profile() : space->profile;
+  const auto& conversion_profile = !space->profile.empty() ? space->profile
+      : color_mode == ColorMode::CMYK ? default_cmyk_profile()
+      : color_mode == ColorMode::Grayscale ? assumed_gray_profile() : space->profile;
   return rgb_to_native_color_space(rgb, color_mode, conversion_profile);
 }
 

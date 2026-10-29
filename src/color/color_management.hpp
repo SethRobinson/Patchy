@@ -21,6 +21,11 @@ namespace patchy {
 // The conventional untagged-CMYK working profile, only when already installed.
 // Empty on systems without it; never calls Photoshop or downloads a profile.
 [[nodiscard]] const std::vector<std::uint8_t>& default_cmyk_profile();
+// The gray profile an untagged Grayscale PSD is read through: Patchy's own model of a
+// Dot Gain 20% gray (Photoshop's default gray working space), built in memory. Its tone
+// curve is a power law fitted to the converted output only (docs/file-formats.md), so no
+// third-party profile data is shipped.
+[[nodiscard]] const std::vector<std::uint8_t>& assumed_gray_profile();
 
 struct ColorTransformSpec {
   std::string source_profile_name{"document"};

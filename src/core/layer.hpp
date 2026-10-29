@@ -325,6 +325,16 @@ enum class GradientNoiseColorModel { RGB, HSB, Lab };
 
 enum class GradientInterpolationMethod { Classic, Perceptual, Linear };
 
+// A Grayscale document's noise gradient renders gray: each sample's gray value (luma of
+// the RGB/HSB color, L for Lab) through the document's gray-to-sRGB table. Set by the PSD
+// reader; render-only, so it never makes two gradients compare different (the writer's
+// unchanged check reparses blocks without it).
+struct GradientGrayOutput {
+  std::shared_ptr<const std::array<RgbColor, 256>> table;
+
+  friend bool operator==(const GradientGrayOutput&, const GradientGrayOutput&) { return true; }
+};
+
 struct GradientNoiseSettings {
   std::uint32_t seed{0};
   // Photoshop stores roughness in the descriptor's Smth field on a 0..4096
@@ -335,6 +345,7 @@ struct GradientNoiseSettings {
   GradientNoiseColorModel color_model{GradientNoiseColorModel::RGB};
   std::array<std::uint16_t, 4> minimum{0, 0, 0, 0};
   std::array<std::uint16_t, 4> maximum{100, 100, 100, 100};
+  GradientGrayOutput gray_output{};
 
   friend bool operator==(const GradientNoiseSettings&, const GradientNoiseSettings&) = default;
 };

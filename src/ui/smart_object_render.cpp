@@ -128,9 +128,11 @@ QImage smart_object_image_for_document(const QImage& image, const Document& docu
       std::copy_n(input + x * 4, 3, output.data() + x * 3);
     }
   }
-  const auto to_rgb = GrayToRgbTransform::from_icc_profile(space->profile);
+  // An untagged grayscale document reads through the assumed Dot Gain 20% gray.
+  const auto& profile = space->profile.empty() ? assumed_gray_profile() : space->profile;
+  const auto to_rgb = GrayToRgbTransform::from_icc_profile(profile);
   const auto gray = to_rgb.has_value()
-      ? rgb_to_native_color_space(rgb, ColorMode::Grayscale, space->profile) : std::nullopt;
+      ? rgb_to_native_color_space(rgb, ColorMode::Grayscale, profile) : std::nullopt;
   for (int y = 0; y < result.height(); ++y) {
     auto* output = result.scanLine(y);
     if (gray.has_value()) {
@@ -140,7 +142,7 @@ QImage smart_object_image_for_document(const QImage& image, const Document& docu
         std::copy_n(converted.data() + x * 3, 3, output + x * 4);
       }
     } else {
-      // Untagged/invalid-profile gray imports use neutral RGB. Keep the existing
+      // Invalid-profile gray imports use neutral RGB. Keep the existing
       // alpha and use deterministic luminance for colored embedded sources.
       for (int x = 0; x < result.width(); ++x) {
         auto* pixel = output + x * 4;

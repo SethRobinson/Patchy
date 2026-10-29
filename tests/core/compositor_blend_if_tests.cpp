@@ -3,6 +3,7 @@
 #include <string_view>
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/artboard.hpp"
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -1597,6 +1598,40 @@ void compositor_cmyk_noise_gradient_keeps_rgb_fallback() {
   CHECK(std::equal(actual.data().begin(), actual.data().end(), reference.data().begin()));
 }
 
+// Artboards no longer push a CMYK document onto the RGB renderer. psd-tools'
+// cmyk-blend-modes.psd puts every blend mode on two artboards; blended in RGB it sat 50 to
+// 84 levels off Photoshop in Difference and Exclusion. Compared with the composite
+// Photoshop saved in the file.
+void compositor_cmyk_artboards_blend_on_native_inks_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+                    "psd_files" / "blend-modes" / "cmyk-blend-modes.psd";
+  patchy::test::skip_unless_exists(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(patchy::document_has_artboards(document));
+  const auto native = patchy::render_native_cmyk8(document, {0, 0, document.width(), document.height()});
+  CHECK(native.has_value());
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto photoshop = patchy::Compositor{}.flatten_rgb8(patchy::psd::DocumentIo::read_file(path, flat_options));
+  const auto actual = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(photoshop.width() == actual.width() && photoshop.height() == actual.height());
+  double total = 0.0;
+  int worst = 0;
+  for (std::int32_t y = 0; y < actual.height(); ++y) {
+    for (std::int32_t x = 0; x < actual.width(); ++x) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        const auto miss = std::abs(actual.pixel(x, y)[c] - photoshop.pixel(x, y)[c]);
+        total += miss;
+        worst = std::max(worst, miss);
+      }
+    }
+  }
+  const auto mean = total / (3.0 * actual.width() * actual.height());
+  std::cout << "[INFO] cmyk-blend-modes mean channel miss against Photoshop's composite " << mean << ", worst "
+            << worst << '\n';
+  CHECK(mean <= 2.0);
+}
+
 void cmyk_profile_reader_accepts_unicode_paths_and_rejects_bad_data() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("cmyk-render/calibration.psd"));
@@ -1981,6 +2016,8 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
       {"compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect",
        compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect},
       {"compositor_cmyk_noise_gradient_keeps_rgb_fallback", compositor_cmyk_noise_gradient_keeps_rgb_fallback},
+      {"compositor_cmyk_artboards_blend_on_native_inks_if_available",
+       compositor_cmyk_artboards_blend_on_native_inks_if_available},
       {"compositor_cmyk_flat_preview_avoids_a_second_profile_conversion", compositor_cmyk_flat_preview_avoids_a_second_profile_conversion},
       {"cmyk_profile_reader_accepts_unicode_paths_and_rejects_bad_data", cmyk_profile_reader_accepts_unicode_paths_and_rejects_bad_data},
       {"blend_math_new_modes_match_photoshop_captures",

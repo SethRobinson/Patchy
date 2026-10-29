@@ -440,7 +440,12 @@ _PROBE_JSX = r"""
         doc.selection.copy(true);
         var flat = app.documents.add(doc.width, doc.height, doc.resolution, 'testy_flat',
                                      NewDocumentMode.RGB, DocumentFill.WHITE);
-        flat.paste();
+        // Paste in Place: a plain paste centers the clipboard, which Photoshop trims
+        // to the opaque pixels, so a 32-bit document (its PNG save always lands here)
+        // with transparent margins shifted (psd-tools' transparentbg.psd moved 23 px).
+        var place = new ActionDescriptor();
+        place.putBoolean(stringIDToTypeID('inPlace'), true);
+        executeAction(charIDToTypeID('past'), place, DialogModes.NO);
         flat.flatten();
         flat.saveAs(new File(pngPath), pngOptions(), true, Extension.LOWERCASE);
         flat.close(SaveOptions.DONOTSAVECHANGES);
