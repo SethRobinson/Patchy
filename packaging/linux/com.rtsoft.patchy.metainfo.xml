@@ -147,6 +147,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.21" date="2026-10-29">
+      <description>
+        <ul>
+          <li>New Stylize and Render filters, among them Wind at any angle, Lens Flare and Flame</li>
+          <li>An Edit &gt; Presets submenu and a Custom Shapes manager that imports .csh files</li>
+          <li>Merge Selected to New Layer, blend mode shortcuts and Select &gt; All Layers</li>
+          <li>A Text size preference for the interface, from 80% to 125%</li>
+          <li>Text that matches Photoshop more closely: Strong anti-aliasing, faux bold and tracking</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.20" date="2026-10-28">
       <description>
         <ul>
