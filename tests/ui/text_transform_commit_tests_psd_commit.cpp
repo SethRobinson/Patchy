@@ -1427,9 +1427,9 @@ void ui_psd_tools_small_tracking_centred_glyph_matches_photoshop_if_available() 
 // right-aligned in a box, ArialMT 30 px, tracking 0 / 15 / 40 / 75 / 200. Photoshop leaves the
 // tracking after the last glyph out of alignment at every amount, so a lone "A" does not move
 // at all and Patchy's offset from Photoshop must not change with the tracking (a trailing gap
-// counted at +200 moves a centred line 3 px). The offset itself is not pinned: these
-// documents also kern the last glyph against the paragraph end (calibration doc, "Tracking and
-// alignment"), which Patchy does not model.
+// counted at +200 moves a centred line 3 px). These World-Ready layers also align as if the last
+// glyph kerned with a following space (calibration doc, "Tracking and alignment"): without that
+// kern the lone "A" sat 0.83 px right of Photoshop's, so the offset itself is pinned too.
 void ui_psd_small_tracking_sweep_matches_photoshop_if_available() {
   const auto folder = patchy::test::local_psd_fixture_path("ps2026_text_tracking_small");
   patchy::test::skip_unless_exists(folder / "manifest.jsonl");
@@ -1475,11 +1475,16 @@ void ui_psd_small_tracking_sweep_matches_photoshop_if_available() {
   int mismatches = 0;
   for (const auto& [key, values] : offsets) {
     const auto [low, high] = std::minmax_element(values.begin(), values.end());
-    // One glyph of a word rounding to the next column moves its centroid about a quarter pixel.
-    const bool steady = values.size() == 5U && *high - *low <= (key.rfind("a_", 0) == 0 ? 0.02 : 0.35);
-    std::printf("  %-20s offset %+.3f..%+.3f over %zu trackings%s\n", key.c_str(), *low, *high, values.size(),
-                steady ? "" : "  MOVES WITH TRACKING");
-    mismatches += steady ? 0 : 1;
+    // Photoshop puts these Crisp glyphs on half pixels (the lone "A" steps 0.5 px as the box
+    // moves, at exactly the phases the kerned width predicts) and Patchy on whole ones, so a case
+    // sits up to half a pixel off, and a word's glyphs round apart as its tracking changes. The
+    // unkerned centred "A" sat 0.91 px left (column 15.45, as type-layer.psd's).
+    const bool single = key.rfind("a_", 0) == 0;
+    const bool steady = values.size() == 5U && *high - *low <= (single ? 0.02 : 0.6);
+    const bool placed = std::max(std::abs(*low), std::abs(*high)) <= (single ? 0.6 : 0.8);
+    std::printf("  %-20s offset %+.3f..%+.3f over %zu trackings%s%s\n", key.c_str(), *low, *high, values.size(),
+                steady ? "" : "  MOVES WITH TRACKING", placed ? "" : "  OFF PHOTOSHOP");
+    mismatches += steady && placed ? 0 : 1;
   }
   std::fflush(stdout);
   CHECK(mismatches == 0);

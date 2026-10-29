@@ -719,6 +719,7 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
     double space_after{0.0};
     double auto_lead_fraction{1.2};
     QString direction;  // "ltr" / "rtl", empty for auto
+    int composer{1};    // Photoshop's paragraph composer; 1 World-Ready (the default)
   };
   const auto normalized_metric = [](double value) {
     return std::isfinite(value) && std::abs(value) >= 0.0001 ? value : 0.0;
@@ -732,6 +733,7 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
   bool include_layout = false;
   bool include_fraction = false;
   bool include_direction = false;
+  bool include_composer = false;
   const int plain_length = static_cast<int>(document.toPlainText().size());
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
     const auto start = std::clamp(block.position(), 0, std::max(0, plain_length));
@@ -763,15 +765,23 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
       run.direction = QStringLiteral("rtl");
     }
     include_direction = include_direction || !run.direction.isEmpty();
+    if (format.hasProperty(kTextBlockComposerProperty)) {
+      run.composer = std::clamp(format.intProperty(kTextBlockComposerProperty), 0, 2);
+    }
+    include_composer = include_composer || run.composer != 1;
     run_lines.push_back(std::move(run));
   }
+  include_direction = include_direction || include_composer;
   include_fraction = include_fraction || include_direction;
   include_layout = include_layout || include_fraction;
 
   QStringList lines;
-  lines << (include_direction ? QStringLiteral("v4")
-                              : (include_fraction ? QStringLiteral("v3")
-                                                  : (include_layout ? QStringLiteral("v2") : QStringLiteral("v1"))));
+  lines << (include_composer
+                ? QStringLiteral("v5")
+                : (include_direction
+                       ? QStringLiteral("v4")
+                       : (include_fraction ? QStringLiteral("v3")
+                                           : (include_layout ? QStringLiteral("v2") : QStringLiteral("v1")))));
   for (const auto& run : run_lines) {
     auto line = QStringLiteral("%1\t%2\t%3").arg(run.start).arg(run.length).arg(run.alignment);
     if (include_layout) {
@@ -787,6 +797,9 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
     }
     if (include_direction) {
       line += QStringLiteral("\t%1").arg(run.direction.isEmpty() ? QStringLiteral("auto") : run.direction);
+    }
+    if (include_composer) {
+      line += QStringLiteral("\t%1").arg(run.composer);
     }
     lines << line;
   }
@@ -807,7 +820,7 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
     if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2") ||
-        line == QStringLiteral("v3") || line == QStringLiteral("v4")) {
+        line == QStringLiteral("v3") || line == QStringLiteral("v4") || line == QStringLiteral("v5")) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -846,6 +859,13 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
       if (fraction_ok && std::isfinite(fraction) && fraction > 0.01 && fraction < 10.0) {
         // Unscaled: the auto-leading fraction multiplies each run's own size at layout time.
         format.setProperty(kTextBlockAutoLeadFractionProperty, fraction);
+      }
+    }
+    if (fields.size() >= 11) {
+      bool composer_ok = false;
+      const auto composer = fields[10].toInt(&composer_ok);
+      if (composer_ok && composer != 1) {
+        format.setProperty(kTextBlockComposerProperty, std::clamp(composer, 0, 2));
       }
     }
     cursor.mergeBlockFormat(format);

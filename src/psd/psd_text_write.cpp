@@ -497,6 +497,9 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
     if (fields.size() >= 10U && (fields[9] == "ltr" || fields[9] == "rtl")) {
       run.direction = std::string(fields[9]);
     }
+    if (fields.size() >= 11U) {
+      run.composer = std::clamp(parse_int_or(fields[10], 1), 0, 2);
+    }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
     }
@@ -524,7 +527,11 @@ std::vector<PsdTextParagraphRun> paragraph_runs_for_layer(const Layer& layer, st
     const auto text_length = static_cast<int>(utf8_to_utf16(text).size());
     const auto& run = parsed.front();
     if (text_length > 0 && run.start == 0 && run.length >= text_length) {
-      return paragraph_runs_from_text_line_breaks(text, run.justification);
+      auto split = paragraph_runs_from_text_line_breaks(text, run.justification);
+      for (auto& paragraph : split) {
+        paragraph.composer = run.composer;
+      }
+      return split;
     }
   }
   return parsed;

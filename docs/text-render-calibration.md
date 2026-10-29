@@ -17,7 +17,7 @@ Probe PSDs `photoshop-text-*.psd`. The rules apply when `kLayerMetadataTextLayou
 - **Tracking = FontSize x tracking/1000 px per inter-glyph gap** (not after the last glyph), as absolute letter spacing; alignment: "Tracking and alignment".
 - **VerticalScale/HorizontalScale scale glyphs only**; auto leading stays 1.2 x FontSize, unscaled.
 
-Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; v4 appends the faux-bold flag, v5 the face/style name, v6 the faux-italic flag, v7 the rotated-Roman flag of vertical type; paragraph v3 appends the auto-leading fraction, v4 the direction. Runs v8 adds baseline shift (engine pixels, positive raises glyphs) in column 15; both TySh and Txt2 preserve it. The snapped horizontal glyph renderer applies it before device rounding. Every column is read by INDEX, so the version token rises only when a run needs the new column and existing files stay byte-identical. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
+Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; v4 appends the faux-bold flag, v5 the face/style name, v6 the faux-italic flag, v7 the rotated-Roman flag of vertical type; paragraph v3 appends the auto-leading fraction, v4 the direction, v5 the composer. Runs v8 adds baseline shift (engine pixels, positive raises glyphs) in column 15; both TySh and Txt2 preserve it. The snapped horizontal glyph renderer applies it before device rounding. Every column is read by INDEX, so the version token rises only when a run needs the new column and existing files stay byte-identical. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
 
 ## Faux bold is not the bold face
 
@@ -224,9 +224,9 @@ Arial "TEXT" and "A", point/box, left/centre/right, tracking -80 to +200.
   at top 40.10 lands on 74 and 40.15 on 75 ("d" 0.7158, typo 0.728). Calibri (0.678 vs typo
   0.750), Segoe UI, Times, Verdana, Georgia, Courier New and Tahoma at 30 to 72 px all fit "d".
   Baseline shift moves it exactly. Patchy-written blocks get cap height (above).
-- Gaps: layers PS 2026 creates align as if the last glyph kerned with a following space
-  ("A" -1.655 px; "TEXT" 121.80 vs Qt's 122.66: right lines a column left); older files
-  (`type-layer.psd`) do not, trigger unknown. A fractional box top can land a row off. Pinned by
+- **World-Ready paragraphs align the last line as if its last glyph kerned with a space** (Arial
+  30 px "A" -1.655 px; "TEXT" 121.80, not 122.66): Txt2 paragraph `/35` 1 or 2, [txt2.md](txt2.md).
+- Gap: a fractional box top can land a row off. Pinned by
   `ui_psd_centered_text_commit_rounds_line_start_like_photoshop` and `_if_available` tests.
 
 ## Pixel grid and fractional anchors

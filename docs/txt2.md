@@ -131,7 +131,7 @@ Paragraph sheet (`/1/1[i]/0/5/0[j]/0/0/5`, and `/0/6`, `/1/3`):
 | `/23` | KeepTogether | true |
 | `/24`, `/25` | KinsokuOrder, (unknown) | 0 |
 | `/33` | ParagraphDirection | 0 ltr, 1 rtl (`directionType` in Action Manager) |
-| `/35` | composer | 1 |
+| `/35` | composer | 0 Latin and East Asian, 1 World-Ready (`textOptycaComposer`; default, also for a file with no Txt2), 2 unnamed; read run, its sheet, then `/1/3`. 1 and 2 kern a paragraph's end ([text-render-calibration.md](text-render-calibration.md#tracking-and-alignment), COM byte-edits) |
 | `/32` | the paragraph style's character style | sparse style sheet; see below |
 | `/36` | list style | `/nil` none, else an index into `/0/9/0[]`: 0 numeric, 1 uppercase alpha, 5 bullet |
 | `/37` | listTier | 0, 1, 2 |

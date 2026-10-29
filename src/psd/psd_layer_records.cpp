@@ -662,6 +662,23 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
                                           static_cast<std::size_t>(type_geometry->text_index) < text_frames.size()
                                       ? &text_frames[static_cast<std::size_t>(type_geometry->text_index)]
                                       : nullptr;
+        // Each paragraph takes the composer of the Txt2 paragraph run its first character sits
+        // in; a paragraph no sheet names keeps World-Ready, as Photoshop 2026 lays it out.
+        const auto apply_paragraph_composers = [text_object](std::vector<PsdTextParagraphRun>& paragraphs) {
+          if (text_object == nullptr) {
+            return;
+          }
+          for (auto& paragraph : paragraphs) {
+            int start = 0;
+            for (const auto& entry : text_object->paragraph_composers) {
+              if (paragraph.start < start + entry.length) {
+                paragraph.composer = entry.composer.value_or(paragraph.composer);
+                break;
+              }
+              start += entry.length;
+            }
+          }
+        };
         if (!record.text.has_value()) {
           const auto frame = text_object != nullptr ? *text_object : TextFrameGeometry{};
           const bool native_area = has_text_engine &&
@@ -706,6 +723,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
             record.text_runs = serialize_patchy_text_runs(*runs);
             if (auto paragraph_runs = extract_engine_paragraph_runs(text_payload, *record.text);
                 paragraph_runs.has_value()) {
+              apply_paragraph_composers(*paragraph_runs);
               record.text_paragraph_runs = serialize_patchy_paragraph_runs(*paragraph_runs);
               record.text_html = html_from_text_runs(*record.text, *runs, *paragraph_runs);
             } else {
@@ -716,6 +734,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         if (record.text.has_value() && !record.text_paragraph_runs.has_value()) {
           if (auto paragraph_runs = extract_engine_paragraph_runs(text_payload, *record.text);
               paragraph_runs.has_value()) {
+            apply_paragraph_composers(*paragraph_runs);
             record.text_paragraph_runs = serialize_patchy_paragraph_runs(*paragraph_runs);
           }
         }

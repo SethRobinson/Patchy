@@ -108,6 +108,11 @@ struct PsdTextParagraphRun {
   // Patchy's own paragraph runs (v4 column 9) and is written to the engine data as
   // /ParagraphDirection for Photoshop's Middle Eastern composer.
   std::string direction;
+  // Photoshop's paragraph composer, Txt2 paragraph key /35 (never in the TySh): 0 Latin and East
+  // Asian, 1 World-Ready (Photoshop 2026's default, and what it uses for a file without a Txt2).
+  // World-Ready aligns a paragraph's last line as if its last glyph kerned with a following
+  // space (docs/text-render-calibration.md, "Tracking and alignment"). Paragraph runs v5 column 10.
+  int composer{1};
 };
 
 // Vertical (tategaki) text rasters are the cell union plus this bleed on every side, in
