@@ -37,6 +37,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -796,6 +797,220 @@ void xcf_text_layers_open_as_editable_text_over_gimps_raster() {
   CHECK(painted_layer != nullptr && !patchy::layer_is_text(*painted_layer));
   CHECK(std::any_of(notices.begin(), notices.end(),
                     [](const std::string& n) { return n.find("painted on") != std::string::npos; }));
+}
+
+// The text parasites of philipzae's GIMP 3.2 samples (GitHub issues 508 and 509; fonthash,
+// psname and the outline defaults trimmed). Each layer's name lists what was set in GIMP.
+constexpr const char* kCalibriParasite = R"((markup "<markup><u>Calibri Italics</u></markup>")
+(font "GimpFont" (fullname "Calibri Italic") (family "Calibri") (style "Italic") (weight 80) (slant 100))
+(font-size 62)
+(font-size-unit pixels)
+(antialias yes)
+(color (color "HSVA float" 16 "\253\73\215\75\23\265r\77\364\315\41\77\0\0\200\77" 0))
+(justify left)
+(box-mode dynamic)
+(outline-direction outer)
+(outline-custom-style solid-color)
+(outline-foreground (color "R'G'B'A float" 16 "s\200\0\77s\200\0\77s\200\0\77\0\0\200\77" 0))
+(outline-width 2)
+(outline-unit pixels)
+(outline-dash-info 0)
+)";
+
+constexpr const char* kVerdanaParasite =
+    R"((markup "<markup><s><span foreground=\"#0809a1\"><span size=\"12288\">This is a test of Verdana</span></span></s></markup>")
+(font "GimpFont" (fullname "Verdana Bold Italic") (family "Verdana") (style "Bold Italic") (weight 200) (slant 100))
+(font-size 62)
+(font-size-unit pixels)
+(antialias yes)
+(color (color "HSVA float" 16 "\215\213\52\77\23\265r\77\364\315\41\77\0\0\200\77" 0))
+(outline stroke-fill)
+(justify right)
+(line-spacing 20)
+(letter-spacing -3)
+(box-mode fixed)
+(box-width 426)
+(box-height 159.578125)
+(outline-direction outer)
+(box-unit pixels)
+(outline-custom-style solid-color)
+(outline-foreground (color "HSVA float" 16 "\0\0\0\0\323\263t\77A\275o\77\0\0\200\77" 0))
+(outline-width 10)
+(outline-unit pixels)
+(outline-dash-info 0)
+)";
+
+constexpr const char* kTimesParasite =
+    R"((markup "<markup><span font=\"font1136\"><i><span foreground=\"#253a02\"><span size=\"7372\"><span rise=\"17408\">Times New Roman (Fake Italics)\n</span></span></span></i></span><span font=\"font1136\"><b><span foreground=\"#253a02\"><span size=\"7372\"><span rise=\"17408\">Times New Roman (Fake Bold)</span></span></span></b></span></markup>"
+    (markupfont "font1136"
+        (font (fullname "Times New Roman") (family "Times New Roman") (style "Regular") (weight 80) (slant 0))))
+(font "GimpFont" (fullname "Calibri Italic") (family "Calibri") (style "Italic") (weight 80) (slant 100))
+(font-size 62)
+(font-size-unit pixels)
+(color (color "HSVA float" 16 "\253\73\215\75\23\265r\77\364\315\41\77\0\0\200\77" 0))
+(outline stroke-only)
+(justify center)
+(box-mode fixed)
+(box-width 445)
+(box-height 88.73828125)
+(outline-direction outer)
+(outline-custom-style solid-color)
+(outline-foreground (color "R'G'B'A float" 16 "w\200\0\77w\200\0\77w\200\0\77\0\0\200\77" 0))
+(outline-width 2)
+(outline-unit pixels)
+(outline-dash-info 0)
+)";
+
+[[nodiscard]] builder::Image issue_508_text_image() {
+  builder::Image image;
+  image.width = 500;
+  image.height = 300;
+  image.properties.push_back([] {
+    builder::Bytes b;
+    b.f32(300.0F);
+    b.f32(300.0F);
+    return builder::Property{builder::kResolution, b.data, std::nullopt};
+  }());
+  const auto text_layer = [](const std::string& name, const char* parasite, std::int32_t y) {
+    auto layer = pixel_layer(name, builder::solid(40, 20, {10, 20, 30, 255}), 30, y);
+    layer.properties.push_back(builder::prop_u32(builder::kTextLayerFlags, 1));
+    layer.properties.push_back(builder::prop_parasites({builder::text_parasite(parasite)}));
+    return layer;
+  };
+  image.layers.push_back(text_layer("Calibri", kCalibriParasite, 20));
+  image.layers.push_back(text_layer("Verdana", kVerdanaParasite, 100));
+  image.layers.push_back(text_layer("Times", kTimesParasite, 200));
+  image.layers.push_back(text_layer("Rise",
+                                    "(markup \"<markup>E = mc<span rise=\\\"5120\\\">2</span></markup>\")\n"
+                                    "(font \"Sans-serif\")\n(font-size 20)\n(font-size-unit pixels)\n",
+                                    260));
+  return image;
+}
+
+// GitHub issue 508: GIMP 3 keeps a text color in the model it was picked in (HSV here), names a
+// span's font through its markupfont table, and writes outlines; all of it is read.
+void xcf_text_parasite_reads_hsv_colors_span_fonts_and_outlines() {
+  const auto calibri = patchy::xcf::detail::parse_text_parasite(kCalibriParasite);
+  const auto to_byte = [](double v) { return static_cast<int>(std::lround(v * 255.0)); };
+  CHECK(calibri.have_color);
+  CHECK(to_byte(calibri.color[0]) == 0xa1 && to_byte(calibri.color[1]) == 0x48 && to_byte(calibri.color[2]) == 0x08);
+  CHECK(calibri.outline == "none");
+  const auto verdana = patchy::xcf::detail::parse_text_parasite(kVerdanaParasite);
+  CHECK(to_byte(verdana.color[0]) == 0x08 && to_byte(verdana.color[1]) == 0x09 && to_byte(verdana.color[2]) == 0xa1);
+  CHECK(verdana.outline == "stroke-fill" && verdana.outline_direction == "outer" && verdana.outline_width == 10.0);
+  CHECK(verdana.have_outline_color && to_byte(verdana.outline_color[0]) == 0xef &&
+        to_byte(verdana.outline_color[1]) == 0x0b && to_byte(verdana.outline_color[2]) == 0x0b);
+  const auto times = patchy::xcf::detail::parse_text_parasite(kTimesParasite);
+  CHECK(times.outline == "stroke-only" && !times.outline_dashed);
+  CHECK(times.markup_fonts.size() == 1 && times.markup_fonts[0].id == "font1136" &&
+        times.markup_fonts[0].family == "Times New Roman" && times.markup_fonts[0].style == "Regular");
+  CHECK(times.have_outline_color && to_byte(times.outline_color[0]) == 0x80);
+  // The other GIMP 3 color models: HSL, CIE Lab and LCh (D50 white, encoded sRGB out).
+  const auto color_of_parasite = [](const std::string& format, std::array<float, 4> values) {
+    std::string bytes;
+    for (const float value : values) {
+      std::uint32_t bits = 0;
+      std::memcpy(&bits, &value, sizeof(bits));
+      for (int i = 0; i < 4; ++i) {
+        char octal[5];
+        std::snprintf(octal, sizeof(octal), "\\%03o", static_cast<unsigned>((bits >> (8 * i)) & 0xFFU));
+        bytes += octal;
+      }
+    }
+    const auto parsed = patchy::xcf::detail::parse_text_parasite("(text \"x\")\n(color (color \"" + format +
+                                                                 "\" 16 \"" + bytes + "\" 0))\n");
+    return std::array<int, 3>{static_cast<int>(std::lround(parsed.color[0] * 255.0)),
+                              static_cast<int>(std::lround(parsed.color[1] * 255.0)),
+                              static_cast<int>(std::lround(parsed.color[2] * 255.0))};
+  };
+  CHECK((color_of_parasite("HSLA float", {0.0F, 1.0F, 0.25F, 1.0F}) == std::array<int, 3>{128, 0, 0}));
+  CHECK((color_of_parasite("HSVA float", {1.0F / 3.0F, 1.0F, 1.0F, 1.0F}) == std::array<int, 3>{0, 255, 0}));
+  const auto white = color_of_parasite("CIE Lab alpha float", {100.0F, 0.0F, 0.0F, 1.0F});
+  CHECK(white[0] >= 254 && white[1] >= 254 && white[2] >= 254);
+  // sRGB red is about Lab D50 (54.3, 80.8, 69.9), LCh (54.3, 106.8, 40.9).
+  const auto red = color_of_parasite("CIE LCH(ab) alpha float", {54.29F, 106.84F, 40.85F, 1.0F});
+  CHECK(red[0] >= 250 && red[1] <= 6 && red[2] <= 6);
+}
+
+// GitHub issues 508 and 509: what GIMP's text info carries reaches the editable text, so an
+// edited layer keeps it, and outlined layers stay text with the outline handed to MainWindow
+// (kLayerMetadataXcfPendingOutline) instead of opening as pixels.
+void xcf_text_layers_keep_gimp_styling_and_outlines() {
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(issue_508_text_image()), &notices);
+  const auto* calibri = find_named(document.layers(), "Calibri");
+  CHECK(calibri != nullptr && patchy::layer_is_text(*calibri));
+  if (calibri != nullptr) {
+    CHECK(metadata_of(*calibri, patchy::kLayerMetadataTextColor) == "#a14808");
+    CHECK(metadata_of(*calibri, patchy::kLayerMetadataTextFont) == "Calibri");
+    CHECK(metadata_of(*calibri, patchy::kLayerMetadataTextItalic) == "true");
+    CHECK(metadata_of(*calibri, patchy::kLayerMetadataTextRuns).find("underline") != std::string::npos);
+    CHECK(!calibri->metadata().contains(patchy::kLayerMetadataXcfPendingOutline));
+  }
+  const auto* verdana = find_named(document.layers(), "Verdana");
+  CHECK(verdana != nullptr && patchy::layer_is_text(*verdana));
+  if (verdana != nullptr) {
+    // size="12288" is 12 pt: 50 px at the image's 300 ppi, as GIMP draws it.
+    CHECK(metadata_of(*verdana, patchy::kLayerMetadataTextSize) == "50");
+    CHECK(metadata_of(*verdana, patchy::kLayerMetadataTextColor) == "#0809a1");
+    CHECK(metadata_of(*verdana, patchy::kLayerMetadataTextBold) == "true");
+    CHECK(metadata_of(*verdana, patchy::kLayerMetadataTextRuns).find("strikethrough") != std::string::npos);
+    CHECK(metadata_of(*verdana, patchy::kLayerMetadataXcfPendingOutline) == "outside 10 #ef0b0b 1 fill");
+  }
+  const auto* times = find_named(document.layers(), "Times");
+  CHECK(times != nullptr && patchy::layer_is_text(*times));
+  if (times != nullptr) {
+    CHECK(metadata_of(*times, patchy::kLayerMetadataText) ==
+          "Times New Roman (Fake Italics)\nTimes New Roman (Fake Bold)");
+    CHECK(metadata_of(*times, patchy::kLayerMetadataTextFont) == "Times New Roman");
+    CHECK(metadata_of(*times, patchy::kLayerMetadataTextSize) == "30");
+    CHECK(metadata_of(*times, patchy::kLayerMetadataTextItalic) == "true");
+    CHECK(metadata_of(*times, patchy::kLayerMetadataTextBold) == "false");
+    const auto runs = metadata_of(*times, patchy::kLayerMetadataTextRuns);
+    CHECK(runs.find("Times%20New%20Roman") != std::string::npos || runs.find("Times New Roman") != std::string::npos);
+    CHECK(runs.find("Calibri") == std::string::npos);
+    // rise="17408" (17 px) on all of the text: GIMP grows each line by it, the glyphs stay put.
+    CHECK(runs.find("\t17") == std::string::npos);
+    CHECK(metadata_of(*times, patchy::kLayerMetadataXcfPendingOutline) == "outside 2 #808080 1 nofill");
+  }
+  // A rise on part of a line is a baseline shift (5120 is 5 px).
+  const auto* rise = find_named(document.layers(), "Rise");
+  CHECK(rise != nullptr && metadata_of(*rise, patchy::kLayerMetadataTextRuns).find("\t5") != std::string::npos);
+  const auto has = [&](std::string_view text) {
+    return std::any_of(notices.begin(), notices.end(), [&](const std::string& n) { return n.find(text) != std::string::npos; });
+  };
+  CHECK(has("Stroke effect"));
+  CHECK(!has("could not be read as text"));
+  // Pattern and dashed outlines have no Stroke form: those layers stay pixels, with their reason.
+  auto image = issue_508_text_image();
+  for (auto& layer : image.layers) {
+    if (layer.name == "Verdana") {
+      layer.properties.back() = builder::prop_parasites({builder::text_parasite(
+          std::string(kVerdanaParasite) + "(outline-custom-style pattern)\n")});
+    }
+  }
+  notices.clear();
+  const auto patterned = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+  const auto* pattern_layer = find_named(patterned.layers(), "Verdana");
+  CHECK(pattern_layer != nullptr && !patchy::layer_is_text(*pattern_layer));
+  CHECK(has("pattern or dashes"));
+}
+
+// philipzae's files (local-test-fixtures/xcf-issue-508, README.txt there): every text layer
+// opens as text.
+void xcf_issue_508_509_samples_open_as_text_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-508";
+  patchy::test::skip_unless_exists(dir / "README.txt");
+  for (const std::string stem : {"text-editable", "text-turned-pixels"}) {
+    std::vector<std::string> notices;
+    const auto document = patchy::xcf::DocumentIo::read_file(dir / (stem + ".xcf"), &notices);
+    int text_layers = 0;
+    for (const auto& layer : document.layers()) {
+      text_layers += patchy::layer_is_text(layer) ? 1 : 0;
+    }
+    std::cout << "  " << stem << ": " << text_layers << " text layers\n";
+    CHECK(text_layers == 2);
+  }
 }
 
 void xcf_floating_selection_opens_above_its_layer() {
@@ -2013,6 +2228,9 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_maps_every_gimp_layer_mode", xcf_maps_every_gimp_layer_mode},
       {"xcf_text_parasites_parse_gimp_2_and_3_forms", xcf_text_parasites_parse_gimp_2_and_3_forms},
       {"xcf_text_layers_open_as_editable_text_over_gimps_raster", xcf_text_layers_open_as_editable_text_over_gimps_raster},
+      {"xcf_text_parasite_reads_hsv_colors_span_fonts_and_outlines", xcf_text_parasite_reads_hsv_colors_span_fonts_and_outlines},
+      {"xcf_text_layers_keep_gimp_styling_and_outlines", xcf_text_layers_keep_gimp_styling_and_outlines},
+      {"xcf_issue_508_509_samples_open_as_text_if_available", xcf_issue_508_509_samples_open_as_text_if_available},
       {"xcf_floating_selection_opens_above_its_layer", xcf_floating_selection_opens_above_its_layer},
       {"xcf_reads_channels_selection_paths_guides_and_metadata", xcf_reads_channels_selection_paths_guides_and_metadata},
       {"xcf_gimp_image_metadata_tag_list_fills_file_info", xcf_gimp_image_metadata_tag_list_fills_file_info},

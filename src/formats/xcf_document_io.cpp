@@ -1508,6 +1508,8 @@ enum class Notice : std::uint8_t {
   EraseAsMask,
   EffectsBaked,
   ClipToBackdropClipped,
+  TextOutlineRedrawn,
+  TextOutlineKept,
 };
 
 [[nodiscard]] const char* notice_text(Notice notice) {
@@ -1537,6 +1539,16 @@ enum class Notice : std::uint8_t {
     case Notice::TextUnreadable:
       return PATCHY_TRANSLATE_NOOP(
           "QObject", "Some text layers could not be read as text, so they opened as pixel layers.");
+    case Notice::TextOutlineRedrawn:
+      return PATCHY_TRANSLATE_NOOP(
+          "QObject",
+          "Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy "
+          "drew their text itself, so it can differ slightly from GIMP's.");
+    case Notice::TextOutlineKept:
+      return PATCHY_TRANSLATE_NOOP(
+          "QObject",
+          "Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so "
+          "they opened as pixel layers.");
     case Notice::EffectsNotApplied:
       return PATCHY_TRANSLATE_NOOP(
           "QObject",
@@ -2513,8 +2525,18 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
         const auto parsed = detail::parse_text_parasite(source);
         detail::TextLayerContext text_context{build.ppi, static_cast<std::int32_t>(record.width),
                                               static_cast<std::int32_t>(record.height)};
-        if (!detail::apply_text_parasite(parsed, text_context, layer)) {
-          build.notices.insert(Notice::TextUnreadable);
+        switch (detail::apply_text_parasite(parsed, text_context, layer)) {
+          case detail::TextImport::Editable:
+            break;
+          case detail::TextImport::OutlineRedrawn:
+            build.notices.insert(Notice::TextOutlineRedrawn);
+            break;
+          case detail::TextImport::Unreadable:
+            build.notices.insert(Notice::TextUnreadable);
+            break;
+          case detail::TextImport::OutlineUnsupported:
+            build.notices.insert(Notice::TextOutlineKept);
+            break;
         }
       } catch (const std::exception& error) {
         trace(std::string("text parasite: ") + error.what());

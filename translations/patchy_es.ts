@@ -13963,6 +13963,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>No tool groups: every tool gets its own button</source>
         <translation>Sin grupos de herramientas: cada herramienta tiene su propio botón</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>Algunas capas de texto tienen un contorno de GIMP. Siguen siendo editables, con el contorno como efecto Trazo, y Patchy dibujó su texto por sí mismo, así que puede diferir un poco del de GIMP.</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>Algunas capas de texto tienen un contorno de GIMP hecho con un motivo o con guiones, que un efecto Trazo no puede mostrar, así que se abrieron como capas de píxeles.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

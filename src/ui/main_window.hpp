@@ -1039,6 +1039,9 @@ private:
   // main_window.cpp (it needs the text render machinery there).
   void render_pending_svg_text_layers(Document& target);
   void render_pending_af_text_layers(Document& target);
+  // GIMP text layers with an outline (kLayerMetadataXcfPendingOutline, docs/xcf.md): redraws
+  // the text and adds the outline as a Stroke style.
+  void render_pending_xcf_text_layers(Document& target);
   // PDF post-open passes (same pattern): text layers render through the full text
   // matrix the reader stored (a PDF Tm may rotate or shear a run) with an x-scale
   // correction so a substituted font keeps the authored run width; image layers

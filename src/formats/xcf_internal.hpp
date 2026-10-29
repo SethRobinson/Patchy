@@ -52,8 +52,16 @@ struct TextLayerContext {
   std::int32_t layer_height{0};
 };
 
+enum class TextImport : std::uint8_t {
+  Editable,         // patchy.text.* written; GIMP's raster stays until the text is edited
+  OutlineRedrawn,   // editable; the outline becomes a Stroke style when MainWindow redraws it
+  Unreadable,       // nothing Patchy can edit: a pixel layer
+  OutlineUnsupported,  // a pattern or dashed outline: a pixel layer
+};
+
 // Writes the patchy.text.* metadata for a GIMP text layer onto `layer` (its pixels stay
-// GIMP's raster). Returns false when the parasite holds nothing Patchy can edit.
-[[nodiscard]] bool apply_text_parasite(const TextParasite& parasite, const TextLayerContext& context, Layer& layer);
+// GIMP's raster). An outlined layer also gets kLayerMetadataXcfPendingOutline.
+[[nodiscard]] TextImport apply_text_parasite(const TextParasite& parasite, const TextLayerContext& context,
+                                             Layer& layer);
 
 }  // namespace patchy::xcf::detail

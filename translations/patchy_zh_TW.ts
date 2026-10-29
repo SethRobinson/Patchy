@@ -13920,6 +13920,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>No tool groups: every tool gets its own button</source>
         <translation>不使用工具群組：每個工具都有自己的按鈕</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>部分文字圖層帶有 GIMP 輪廓。它們仍可編輯，輪廓轉為筆畫效果，文字由 Patchy 自行繪製，因此可能與 GIMP 略有不同。</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>部分文字圖層帶有以圖樣或虛線繪製的 GIMP 輪廓，筆畫效果無法顯示，因此已作為像素圖層開啟。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -2369,6 +2369,7 @@ int MainWindow::open_folder_path(const QString& directory) {
       }
       render_pending_svg_text_layers(loaded->document);
       render_pending_af_text_layers(loaded->document);
+      render_pending_xcf_text_layers(loaded->document);
       render_pending_pdf_text_layers(loaded->document);
       render_pending_pdf_image_layers(loaded->document);
       lay_out_raster_less_imported_text(loaded->document);
@@ -2549,6 +2550,7 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
       auto& document = loaded.document;
       render_pending_svg_text_layers(document);
       render_pending_af_text_layers(document);
+      render_pending_xcf_text_layers(document);
       render_pending_pdf_text_layers(document);
       render_pending_pdf_image_layers(document);
       lay_out_raster_less_imported_text(document);
@@ -3089,6 +3091,7 @@ void MainWindow::open_document_path(QString path) {
     }
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
+    render_pending_xcf_text_layers(loaded->document);
     render_pending_pdf_text_layers(loaded->document);
     render_pending_pdf_image_layers(loaded->document);
     if (loaded->pdf_merge != PdfPagesMerge::None) {
@@ -3430,6 +3433,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     }
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
+    render_pending_xcf_text_layers(loaded->document);
     render_pending_pdf_text_layers(loaded->document);
     render_pending_pdf_image_layers(loaded->document);
     if (loaded->pdf_merge != PdfPagesMerge::None) {
