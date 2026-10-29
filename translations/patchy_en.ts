@@ -28273,6 +28273,10 @@ Locked: %1</source>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Customize Layer Buttons</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -162,8 +162,9 @@ QString photoshop_style_template() {
     QToolButton[optionsBarMenuButton="true"]::menu-indicator {
       width: 0;
     }
-    /* The Color panel's settings gear sits in its 18 px title row (GitHub issue 404). */
-    QToolButton#colorPanelSettingsButton {
+    /* The Color and Layers panels' settings gears sit in their 18 px title rows
+       (GitHub issues 404 and 511). */
+    QToolButton#colorPanelSettingsButton, QToolButton#layersPanelSettingsButton {
       padding: 0;
       min-width: 18px;
       max-width: 18px;

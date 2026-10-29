@@ -28354,6 +28354,10 @@ Bloqueada: %1</translation>
         <source>Restart Patchy for the new text size to take effect.</source>
         <translation>Reinicie Patchy para que el nuevo tamaño del texto tenga efecto.</translation>
     </message>
+    <message>
+        <source>Customize Layer Buttons</source>
+        <translation>Personalizar botones de Capas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

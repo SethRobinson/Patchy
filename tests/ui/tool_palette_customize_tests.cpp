@@ -658,6 +658,95 @@ void ui_layer_footer_buttons_hide_from_their_menu() {
   CHECK(duplicate->isVisible());
 }
 
+// GitHub issue 511: a gear at the right end of the Layers panel's own title row (below the
+// tab bar, like the Color panel's) opens Customize Tool Palette on its Layers buttons tab.
+// It stays in the Layers title row when the panel is collapsed, leaves its tab group or
+// comes back to it.
+void ui_layers_panel_gear_opens_layer_button_customize() {
+  CustomizationSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  auto* gear = window.findChild<QToolButton*>(QStringLiteral("layersPanelSettingsButton"));
+  auto* title = window.findChild<QWidget*>(QStringLiteral("layersDockTitle"));
+  CHECK(column != nullptr && gear != nullptr && title != nullptr);
+  if (column == nullptr || gear == nullptr || title == nullptr) {
+    return;
+  }
+  const auto layers = QStringLiteral("layersDock");
+  const auto channels = QStringLiteral("channelsDock");
+  const auto paths = QStringLiteral("pathsDock");
+  const auto check_in_title_row = [&](const char* context) {
+    std::cout << "  gear: " << context << '\n';
+    CHECK(gear->parentWidget() == title);
+    CHECK(gear->isVisible() && gear->isEnabled());
+    CHECK(gear->geometry().right() >= title->width() - 12);
+    CHECK(title->rect().contains(gear->geometry()));
+  };
+  CHECK(column->in_tab_group(layers));
+  check_in_title_row("in the Layers tab group");
+  CHECK(gear->toolTip() == QStringLiteral("Customize Layer Buttons"));
+  CHECK(gear->accessibleName() == gear->toolTip());
+  CHECK(gear->menu() == nullptr);
+  // The Color panel's gear's size, from the same window sheet rule.
+  auto* color_gear = window.findChild<QToolButton*>(QStringLiteral("colorPanelSettingsButton"));
+  CHECK(color_gear != nullptr);
+  if (color_gear != nullptr) {
+    color_gear->ensurePolished();
+    std::cout << "  gear " << gear->width() << 'x' << gear->height() << ", Color gear " << color_gear->width()
+              << 'x' << color_gear->height() << '\n';
+    CHECK(gear->size() == color_gear->size());
+  }
+  // Every title row keeps one height.
+  auto* palette_title = window.findChild<QWidget*>(QStringLiteral("paletteDockTitle"));
+  CHECK(palette_title != nullptr && title->sizeHint().height() == palette_title->sizeHint().height());
+  if (auto* section = column->section_widget(layers); section != nullptr) {
+    (void)capture_widget_artifact("ui_layers_panel_gear", *section);
+  }
+
+  // A click opens the dialog on the Layers buttons tab; Cancel changes nothing.
+  const auto before = window.tool_palette_customization();
+  // The gear opens the dialog once the click returns, so the watcher is queued after it.
+  bool ran = false;
+  gear->click();
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("toolPaletteCustomizeTabs"));
+    CHECK(tabs != nullptr && tabs->currentIndex() == 1);
+    CHECK(dialog.findChild<QListWidget*>(QStringLiteral("layerFooterButtonsList")) != nullptr);
+    dialog.reject();
+  });
+  process_events_until([&] { return ran; });
+  CHECK(ran);
+  settle();
+  CHECK(window.tool_palette_customization().hidden_layer_buttons == before.hidden_layer_buttons);
+
+  // Collapsed, the title row and its gear stay.
+  column->set_panel_expanded(layers, false);
+  settle();
+  check_in_title_row("collapsed");
+  column->set_panel_expanded(layers, true);
+  settle();
+  // Out of its tab group and back in.
+  column->separate_panel(layers, 0);
+  settle();
+  CHECK(!column->in_tab_group(layers));
+  check_in_title_row("in a section of its own");
+  ran = false;
+  gear->click();
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    dialog.reject();
+  });
+  process_events_until([&] { return ran; });
+  CHECK(ran);
+  settle();
+  column->set_tab_groups({{layers, channels, paths}});
+  column->bring_to_front(layers);
+  settle();
+  CHECK(column->in_tab_group(layers));
+  check_in_title_row("back in its tab group");
+}
+
 // The dialog (mockup 1): ticks change the preview, OK applies and stores, Cancel changes
 // nothing, Reset to Default restores everything and clears the stored keys. The Window menu
 // and the palette's right-click menu open it; a new window reads the stored choice.
@@ -2753,6 +2842,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_tool_palette_scroll_mode_keeps_expand_button_reachable",
        ui_tool_palette_scroll_mode_keeps_expand_button_reachable},
       {"ui_layer_footer_buttons_hide_from_their_menu", ui_layer_footer_buttons_hide_from_their_menu},
+      {"ui_layers_panel_gear_opens_layer_button_customize", ui_layers_panel_gear_opens_layer_button_customize},
       {"ui_tool_palette_customize_dialog_applies_cancels_and_resets",
        ui_tool_palette_customize_dialog_applies_cancels_and_resets},
       {"ui_script_tool_palette_reads_and_sets", ui_script_tool_palette_reads_and_sets},
