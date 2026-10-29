@@ -15933,6 +15933,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
         <translation>向量圖遮色片還沒有可移動的路徑。請用筆型工具或形狀工具繪製一條。</translation>
     </message>
+    <message>
+        <source>Healing source cleared</source>
+        <translation>修復來源已清除</translation>
+    </message>
+    <message>
+        <source>Clone source cleared</source>
+        <translation>仿製來源已清除</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

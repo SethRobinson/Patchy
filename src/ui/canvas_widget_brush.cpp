@@ -622,6 +622,12 @@ bool CanvasWidget::brush_outline_uses_overlay() const {
   if (tool_ != CanvasTool::QuickSelect && !tool_uses_brush_footprint_cursor(tool_)) {
     return false;
   }
+  // Where a Clone or Healing press would be refused (no source yet) the pointer is the
+  // not-allowed cursor, so the footprint is painted on the canvas at every size: the
+  // circle stays while [ and ] resize it (GitHub issue 516).
+  if (retouch_source_tool_active() && !painting_ && retouch_press_would_refuse()) {
+    return true;
+  }
   if (active_outline_brush_size() <= 1) {
     return false;
   }
@@ -643,12 +649,15 @@ void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
     return;
   }
   const auto old_rect =
-      brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
+      (brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect())
+          .united(brush_outline_drawn_rect_);
   const auto old_overlay = clone_overlay_drawn_rect_;
   brush_hover_widget_position_ = widget_position;
   brush_hover_position_valid_ = true;
   if (brush_outline_uses_overlay()) {
     update(old_rect.united(brush_hover_outline_rect()).adjusted(-2, -2, 2, 2));
+  } else if (!old_rect.isEmpty()) {
+    update(old_rect.adjusted(-2, -2, 2, 2));  // an outline painted before the cursor took over
   }
   if (clone_overlay_active()) {
     update(old_overlay.united(clone_overlay_widget_rect()));
@@ -663,7 +672,7 @@ void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
 // outside it (they never get repainted). Erase the previous rect and, if the brush
 // is still large enough to use the overlay, the new one too.
 void CanvasWidget::invalidate_brush_hover_outline(const QRect& previous_outline) {
-  QRect region = previous_outline;
+  QRect region = previous_outline.united(brush_outline_drawn_rect_);
   if (brush_hover_position_valid_ && brush_outline_uses_overlay()) {
     region = region.united(brush_hover_outline_rect());
   }
@@ -673,6 +682,7 @@ void CanvasWidget::invalidate_brush_hover_outline(const QRect& previous_outline)
 }
 
 void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
+  brush_outline_drawn_rect_ = QRect();
   if (!brush_hover_position_valid_ || !brush_outline_uses_overlay() || brush_adjust_dragging_ ||
       spacebar_panning_ || !preview_points_.empty()) {
     return;
@@ -733,6 +743,7 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
   }
   paint_brush_center_cross(painter, center);
   painter.restore();
+  brush_outline_drawn_rect_ = brush_hover_outline_rect();
 }
 
 void CanvasWidget::begin_brush_adjust_drag(QPoint widget_position, bool from_tablet) {
@@ -2826,6 +2837,7 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
 
 void CanvasWidget::set_clone_source(QPoint point) {
   if (!document_contains(point)) {
+    clear_clone_source();  // Alt-click on the pasteboard turns the source off (GitHub issue 516)
     return;
   }
   clone_source_point_ = point;
@@ -2838,6 +2850,22 @@ void CanvasWidget::set_clone_source(QPoint point) {
                                                    : tr("Clone source set at %1, %2"))
                          .arg(point.x())
                          .arg(point.y()));
+  }
+  notify_clone_source_changed();
+}
+
+void CanvasWidget::clear_clone_source() {
+  if (!clone_source_set_ || painting_) {
+    return;
+  }
+  invalidate_clone_overlay();
+  clone_source_set_ = false;
+  clone_aligned_offset_set_ = false;
+  update();              // the source marker goes
+  update_tool_cursor();  // a press is refused again: the not-allowed cursor returns
+  invalidate_brush_hover_outline(QRect());
+  if (status_callback_) {
+    status_callback_(tool_ == CanvasTool::Healing ? tr("Healing source cleared") : tr("Clone source cleared"));
   }
   notify_clone_source_changed();
 }

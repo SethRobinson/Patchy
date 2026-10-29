@@ -16019,6 +16019,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
         <translation>У векторной маски пока нет контура для перемещения. Нарисуйте его инструментом «Перо» или инструментом фигуры.</translation>
     </message>
+    <message>
+        <source>Healing source cleared</source>
+        <translation>Источник восстановления сброшен</translation>
+    </message>
+    <message>
+        <source>Clone source cleared</source>
+        <translation>Источник клонирования сброшен</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

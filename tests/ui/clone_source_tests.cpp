@@ -21,6 +21,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QStringList>
 #include <QToolBar>
 #include <QToolButton>
 #include <algorithm>
@@ -861,6 +862,109 @@ void ui_clone_source_overlay_follows_drag_resize() {
   scene.check_overlay(scene.hover, dragged);
 }
 
+// With no source a Clone press is refused and the pointer is the not-allowed cursor, so
+// the brush footprint is painted on the canvas at every size (GitHub issue 516: below the
+// large-brush size [ left no circle and no centre cross at all).
+struct NoSourceCloneScene {
+  patchy::Document document{120, 80, patchy::PixelFormat::rgba8()};
+  CanvasWidget canvas;
+  QPoint hover;
+  double scale{1.0};
+
+  explicit NoSourceCloneScene(int brush_size) {
+    document.add_pixel_layer("Gray", solid_pixels(120, 80, patchy::PixelFormat::rgba8(), QColor(128, 128, 128, 255)));
+    prepare_clone_canvas(canvas, document, brush_size, 0, 100);
+    hover = canvas.widget_position_for_document_point(QPoint(60, 40));
+    scale = static_cast<double>(canvas.widget_position_for_document_point(QPoint(100, 0)).x() -
+                                canvas.widget_position_for_document_point(QPoint(0, 0)).x()) /
+            100.0;
+    send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+  }
+
+  // The painted outline crosses the row through the pointer at the brush radius, both sides.
+  [[nodiscard]] bool ring_shown(const QImage& image, int brush_size) const {
+    const auto radius = static_cast<int>(std::lround(static_cast<double>(brush_size) * scale / 2.0));
+    for (const int side : {-1, 1}) {
+      bool found = false;
+      for (int distance = radius - 3; distance <= radius + 2; ++distance) {
+        if (!color_close(image.pixelColor(hover.x() + side * distance, hover.y()), QColor(128, 128, 128), 40)) {
+          found = true;
+        }
+      }
+      if (!found) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+void ui_clone_source_no_source_bracket_resize_keeps_brush_outline() {
+  NoSourceCloneScene scene(48);
+  CHECK(scene.scale >= 1.0);
+  CHECK(scene.canvas.cursor().shape() == Qt::ForbiddenCursor);
+  CHECK(scene.ring_shown(scene.canvas.grab().toImage(), 48));
+  for (const int size : {24, 48, 24}) {
+    const auto last_frame = scene.canvas.grab().toImage();
+    PaintRegionRecorder recorder(&scene.canvas);
+    scene.canvas.installEventFilter(&recorder);
+    recorder.reset();
+    scene.canvas.set_brush_size(size);
+    QApplication::processEvents();
+    scene.canvas.removeEventFilter(&recorder);
+    const auto fresh = scene.canvas.grab().toImage();
+    CHECK(repaint_onto(last_frame, fresh, recorder.region()) == fresh);
+    CHECK(scene.ring_shown(fresh, size));
+    CHECK(scene.canvas.cursor().shape() == Qt::ForbiddenCursor);
+  }
+}
+
+// Alt-click on the pasteboard turns the source off (GitHub issue 516): the marker and the
+// overlay go, a press asks for a source again, and the Healing Brush does the same.
+void ui_clone_source_alt_click_outside_canvas_clears_source() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(30, 40, 210, 255));
+  fill_pixel_rect(pixels, QRect(0, 0, 48, 64), QColor(220, 40, 30, 255));
+  auto& layer = document.add_pixel_layer("Halves", std::move(pixels));
+  CanvasWidget canvas;
+  prepare_clone_canvas(canvas, document, 20, 0, 100);
+  canvas.set_clone_overlay_shown(true);
+  canvas.set_clone_overlay_opacity(100);
+  QStringList statuses;
+  canvas.set_status_callback([&statuses](QString message) { statuses << message; });
+  const auto outside = canvas.widget_position_for_document_point(QPoint(-12, 32));
+  CHECK(canvas.rect().contains(outside));
+  const auto alt_click_outside = [&canvas, outside] {
+    send_mouse(canvas, QEvent::MouseButtonPress, outside, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, outside, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    QApplication::processEvents();
+  };
+  const auto source_set = [&canvas] { return canvas.clone_source_slot_state(canvas.clone_source_slot()).set; };
+
+  alt_click(canvas, QPoint(20, 32));
+  CHECK(source_set());
+  alt_click_outside();
+  CHECK(!source_set());
+  CHECK(!statuses.isEmpty() && statuses.last() == QStringLiteral("Clone source cleared"));
+  // No overlay under the hovered brush: the target shows.
+  const auto hover = canvas.widget_position_for_document_point(QPoint(72, 32));
+  send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas.grab().toImage().pixelColor(hover + QPoint(2, 2)), QColor(30, 40, 210), 12));
+  // A press asks for a source and paints nothing.
+  click(canvas, QPoint(72, 32));
+  CHECK((pixel_at(layer, QPoint(72, 32)) == std::array<std::uint8_t, 4>{30, 40, 210, 255}));
+  CHECK(!statuses.isEmpty() && statuses.last().contains(QStringLiteral("to set a clone source")));
+
+  canvas.set_tool(CanvasTool::Healing);
+  alt_click(canvas, QPoint(20, 32));
+  CHECK(source_set());
+  alt_click_outside();
+  CHECK(!source_set());
+  CHECK(!statuses.isEmpty() && statuses.last() == QStringLiteral("Healing source cleared"));
+}
+
 // Captures for the issue: the canvas as shown after ] then [ (stale rims show when the
 // old overlay is not repainted), and during an Alt+right-drag resize.
 void ui_clone_source_overlay_resize_screenshot() {
@@ -891,6 +995,13 @@ void ui_clone_source_overlay_resize_screenshot() {
     send_mouse(scene.canvas, QEvent::MouseButtonRelease, scene.hover + QPoint(20, 0), Qt::RightButton,
                Qt::NoButton, Qt::AltModifier);
   }
+  {
+    // No source yet, after [ from 48 to 24 px: the brush circle and its centre cross.
+    NoSourceCloneScene scene(48);
+    scene.canvas.set_brush_size(24);
+    QApplication::processEvents();
+    save_image_artifact("ui_clone_no_source_outline_after_bracket", scene.canvas.grab().toImage());
+  }
 }
 
 }  // namespace
@@ -911,6 +1022,9 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_overlay_follows_bracket_resize", ui_clone_source_overlay_follows_bracket_resize},
       {"ui_clone_source_overlay_follows_drag_resize", ui_clone_source_overlay_follows_drag_resize},
       {"ui_clone_source_overlay_resize_screenshot", ui_clone_source_overlay_resize_screenshot},
+      {"ui_clone_source_no_source_bracket_resize_keeps_brush_outline",
+       ui_clone_source_no_source_bracket_resize_keeps_brush_outline},
+      {"ui_clone_source_alt_click_outside_canvas_clears_source", ui_clone_source_alt_click_outside_canvas_clears_source},
       {"ui_clone_source_flip_buttons_center_on_their_label", ui_clone_source_flip_buttons_center_on_their_label},
   };
 }

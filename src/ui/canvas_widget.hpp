@@ -428,6 +428,9 @@ public:
   [[nodiscard]] CloneSourceSlot clone_source_slot_state(int slot) const;
   // Alt-click's source pick, also for scripts and tests: ignored outside the document.
   void set_clone_source(QPoint point);
+  // Turns the active slot's source off (Alt-click outside the document); a press asks for
+  // a source again.
+  void clear_clone_source();
   // Fixes the active source's offset for the next strokes (they keep it while Aligned).
   void set_clone_source_offset(QPoint offset);
   void set_clone_source_transform(const patchy::CloneSourceTransform& transform);
@@ -3244,6 +3247,7 @@ private:
   bool brush_hover_position_valid_{false};
   mutable QImage brush_outline_overlay_image_;  // cached tip outline at display scale
   mutable QString brush_outline_overlay_key_;
+  mutable QRect brush_outline_drawn_rect_{};  // the hover outline as last painted
   GradientMethod gradient_method_{GradientMethod::Linear};
   bool gradient_reverse_{false};
   int gradient_opacity_{100};
