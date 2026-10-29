@@ -1971,6 +1971,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                            QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
     thumbnail->setToolTip(layer_content_thumbnail_tooltip(layer));
     thumbnail->setProperty("layerTargetActive", content_target_active);
+    // Folder and artboard glyphs are icons, not tiles, so they get no slot ring (#514).
+    thumbnail->setProperty("layerThumbnailSlot", layer.kind() != LayerKind::Group);
     // Thumbnails stay enabled even when the layer is hidden: a disabled QLabel
     // repaints its pixmap through the style's grayscale disabled-icon filter,
     // and Photoshop keeps hidden-layer thumbnails full color (the eye already

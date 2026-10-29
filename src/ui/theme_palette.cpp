@@ -178,6 +178,7 @@ const ThemePalette& dark_palette() {
       .layer_lock_badge_active = rgb(0xf2d77d),
       .layer_lock_badge_inherited = rgb(0x7e848c),
       .layer_thumbnail_border = rgb(0x969ea8),
+      .layer_thumbnail_outline = rgb(0x141517),
       .layer_mask_disabled_cross = rgb(0xe84646),
       .layer_clip_badge = rgb(0x96cdff),
       .layer_color_red = rgb(0xe5534b),
@@ -684,6 +685,11 @@ const ThemePalette& light_palette() {
     // the blue of a selected one.
     light.layer_clip_badge = rgb(0x1a73e8);
 
+    // The thumbnail slot ring is darker than the row in Dark; a flip would make it
+    // lighter than Light's row, where it vanishes. A mid gray reads on the plain
+    // row and on the blue of a selected one.
+    light.layer_thumbnail_outline = rgb(0xa9adb2);
+
     // Layer color labels: a step deeper than Dark's, so each strip holds its
     // hue against a near-white row instead of washing out.
     light.layer_color_red = rgb(0xd1342c);
@@ -889,6 +895,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(layer_lock_badge_active),
       PATCHY_THEME_ROLE(layer_lock_badge_inherited),
       PATCHY_THEME_ROLE(layer_thumbnail_border),
+      PATCHY_THEME_ROLE(layer_thumbnail_outline),
       PATCHY_THEME_ROLE(layer_mask_disabled_cross),
       PATCHY_THEME_ROLE(layer_clip_badge),
       PATCHY_THEME_ROLE(layer_color_red),
