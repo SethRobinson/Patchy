@@ -28278,10 +28278,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation type="unfinished"></translation>
     </message>
@@ -28291,6 +28287,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>Preview the layers as animation frames</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

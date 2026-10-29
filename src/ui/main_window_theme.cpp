@@ -178,7 +178,8 @@ QString photoshop_style_template() {
       min-width: 0;
       min-height: 0;
     }
-    QToolButton#colorPanelSettingsButton::menu-indicator {
+    QToolButton#colorPanelSettingsButton::menu-indicator,
+    QToolButton#layersPanelSettingsButton::menu-indicator {
       width: 0;
       image: none;
     }

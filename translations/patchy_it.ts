@@ -28359,10 +28359,6 @@ Bloccato: %1</translation>
         <translation>Riavvia Patchy per applicare la nuova dimensione del testo.</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>Personalizza pulsanti dei livelli</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>Opzioni strumento</translation>
     </message>
@@ -28373,6 +28369,14 @@ Bloccato: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Visualizza in anteprima i livelli come fotogrammi di animazione</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>Impostazioni del pannello Livelli</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>Personalizza pulsanti dei livelli...</translation>
     </message>
 </context>
 <context>

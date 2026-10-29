@@ -9,6 +9,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/layer_thumbnail_size.hpp"
 #include "ui/main_window.hpp"
 #include "ui/tool_palette_customization.hpp"
 #include "ui/tool_palette_footer.hpp"
@@ -658,18 +659,22 @@ void ui_layer_footer_buttons_hide_from_their_menu() {
   CHECK(duplicate->isVisible());
 }
 
-// GitHub issue 511: a gear at the right end of the Layers panel's own title row (below the
-// tab bar, like the Color panel's) opens Customize Tool Palette on its Layers buttons tab.
-// It stays in the Layers title row when the panel is collapsed, leaves its tab group or
-// comes back to it.
+// GitHub issue 511: the Layers panel settings gear at the right end of the panel's own title
+// row (below the tab bar, like the Color panel's) pops up Customize Layer Buttons... (Customize
+// Tool Palette on its Layers buttons tab), then the Thumbnail Size and Thumbnail Display
+// submenus, whose actions are the thumbnail menus' own. It stays in the Layers title row when
+// the panel is collapsed, leaves its tab group or comes back to it.
 void ui_layers_panel_gear_opens_layer_button_customize() {
   CustomizationSettingsGuard settings_guard;
+  SettingsValueRestorer restore_size{QString::fromLatin1(patchy::ui::kLayerThumbnailSizeSettingsKey)};
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kLayerThumbnailSizeSettingsKey));
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
   auto* gear = window.findChild<QToolButton*>(QStringLiteral("layersPanelSettingsButton"));
   auto* title = window.findChild<QWidget*>(QStringLiteral("layersDockTitle"));
-  CHECK(column != nullptr && gear != nullptr && title != nullptr);
-  if (column == nullptr || gear == nullptr || title == nullptr) {
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(column != nullptr && gear != nullptr && title != nullptr && layer_list != nullptr);
+  if (column == nullptr || gear == nullptr || title == nullptr || layer_list == nullptr) {
     return;
   }
   const auto layers = QStringLiteral("layersDock");
@@ -684,30 +689,151 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
   };
   CHECK(column->in_tab_group(layers));
   check_in_title_row("in the Layers tab group");
-  CHECK(gear->toolTip() == QStringLiteral("Customize Layer Buttons"));
+  CHECK(gear->toolTip() == QStringLiteral("Layers panel settings"));
   CHECK(gear->accessibleName() == gear->toolTip());
-  CHECK(gear->menu() == nullptr);
+  CHECK(gear->popupMode() == QToolButton::InstantPopup);
   // The Color panel's gear's size, from the same window sheet rule.
   auto* color_gear = window.findChild<QToolButton*>(QStringLiteral("colorPanelSettingsButton"));
   CHECK(color_gear != nullptr);
   if (color_gear != nullptr) {
     color_gear->ensurePolished();
-    std::cout << "  gear " << gear->width() << 'x' << gear->height() << ", Color gear " << color_gear->width()
-              << 'x' << color_gear->height() << '\n';
     CHECK(gear->size() == color_gear->size());
   }
   // Every title row keeps one height.
   auto* palette_title = window.findChild<QWidget*>(QStringLiteral("paletteDockTitle"));
   CHECK(palette_title != nullptr && title->sizeHint().height() == palette_title->sizeHint().height());
-  if (auto* section = column->section_widget(layers); section != nullptr) {
-    (void)capture_widget_artifact("ui_layers_panel_gear", *section);
+
+  // The menu: Customize Layer Buttons..., a separator, Thumbnail Size, Thumbnail Display.
+  auto* menu = gear->menu();
+  CHECK(menu != nullptr && menu->objectName() == QStringLiteral("layersPanelSettingsMenu"));
+  if (menu == nullptr) {
+    return;
+  }
+  const auto entries = menu->actions();
+  CHECK(entries.size() == 4);
+  if (entries.size() != 4) {
+    return;
+  }
+  auto* customize = entries[0];
+  CHECK(customize->objectName() == QStringLiteral("layersPanelCustomizeButtonsAction"));
+  CHECK(customize->text() == QStringLiteral("Customize Layer Buttons..."));
+  CHECK(entries[1]->isSeparator());
+  auto* size_menu = entries[2]->menu();
+  auto* display_menu = entries[3]->menu();
+  CHECK(size_menu != nullptr && size_menu->objectName() == QStringLiteral("layerThumbnailSizeMenu"));
+  CHECK(display_menu != nullptr && display_menu->objectName() == QStringLiteral("layerThumbnailDisplayMenu"));
+  if (size_menu == nullptr || display_menu == nullptr) {
+    return;
+  }
+  CHECK(size_menu->title() == QStringLiteral("Thumbnail Size"));
+  CHECK(display_menu->title() == QStringLiteral("Thumbnail Display"));
+  const auto checked_in = [](QMenu& submenu) {
+    QString name;
+    for (auto* action : submenu.actions()) {
+      if (action->isChecked()) {
+        name = action->objectName();
+      }
+    }
+    return name;
+  };
+  CHECK(size_menu->actions().size() == 4);
+  CHECK(display_menu->actions().size() == 2);
+  CHECK(checked_in(*size_menu) == QStringLiteral("layerThumbnailSizeMediumAction"));
+  // The shared actions, not copies.
+  auto* small = window.findChild<QAction*>(QStringLiteral("layerThumbnailSizeSmallAction"));
+  auto* whole_document = window.findChild<QAction*>(QStringLiteral("layerThumbnailBoundsDocumentAction"));
+  CHECK(small != nullptr && size_menu->actions().contains(small));
+  CHECK(whole_document != nullptr && display_menu->actions().contains(whole_document));
+  if (small == nullptr) {
+    return;
   }
 
-  // A click opens the dialog on the Layers buttons tab; Cancel changes nothing.
+  // The gear's menu open with Thumbnail Size beside it, painted over the Layers section.
+  bool shown = false;
+  QTimer::singleShot(0, [&] {
+    auto* open = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+    CHECK(open == menu);
+    if (open != menu) {
+      return;
+    }
+    shown = true;
+    auto* section = column->section_widget(layers);
+    // Placed for the picture as at the right edge of a screen: the menu right-aligned under
+    // the gear and the submenu opening to its left (the offscreen screen places them anywhere).
+    const auto gear_corner = gear->mapToGlobal(QPoint(gear->width(), gear->height()));
+    menu->move(gear_corner - QPoint(menu->width(), 0));
+    QApplication::processEvents();
+    const QRect size_row = menu->actionGeometry(entries[2]);
+    size_menu->popup(menu->mapToGlobal(QPoint(0, size_row.top())));
+    QApplication::processEvents();
+    size_menu->move(menu->mapToGlobal(QPoint(-size_menu->width() + 2, size_row.top() - 4)));
+    QApplication::processEvents();
+    if (section != nullptr) {
+      const auto origin = section->mapToGlobal(QPoint(0, 0));
+      const QRect menu_rect(menu->mapToGlobal(QPoint(0, 0)) - origin, menu->size());
+      const QRect size_rect(size_menu->mapToGlobal(QPoint(0, 0)) - origin, size_menu->size());
+      const QRect all = QRect(QPoint(0, 0), section->size()).united(menu_rect).united(size_rect);
+      QImage shot(all.size(), QImage::Format_ARGB32_Premultiplied);
+      shot.fill(Qt::transparent);
+      {
+        QPainter painter(&shot);
+        painter.drawPixmap(-all.topLeft(), section->grab());
+        painter.drawPixmap(menu_rect.topLeft() - all.topLeft(), menu->grab());
+        painter.drawPixmap(size_rect.topLeft() - all.topLeft(), size_menu->grab());
+      }
+      for (QWidget* captured : {static_cast<QWidget*>(section), static_cast<QWidget*>(menu),
+                                static_cast<QWidget*>(size_menu)}) {
+        CHECK(capture_theme_mismatch(*captured).isEmpty());
+      }
+      save_image_artifact("ui_layers_panel_gear_menu", shot);
+    }
+    size_menu->close();
+    menu->close();
+  });
+  gear->showMenu();
+  settle();
+  CHECK(shown);
+
+  // Small from the gear's menu resizes the rows, is stored, and shows ticked in the pixel
+  // thumbnail's own right-click menu.
+  small->trigger();
+  settle();
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->sizeHint().height() == 36);
+  CHECK(patchy::ui::app_settings().value(QLatin1String(patchy::ui::kLayerThumbnailSizeSettingsKey)).toString() ==
+        QStringLiteral("small"));
+  CHECK(checked_in(*size_menu) == QStringLiteral("layerThumbnailSizeSmallAction"));
+  QString thumbnail_menu_size;
+  QString thumbnail_menu_name;
+  QTimer::singleShot(0, [&] {
+    auto* open = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+    CHECK(open != nullptr);
+    if (open == nullptr) {
+      return;
+    }
+    thumbnail_menu_name = open->objectName();
+    if (auto* thumbnail_size = open->findChild<QMenu*>(QStringLiteral("layerThumbnailSizeMenu"));
+        thumbnail_size != nullptr) {
+      thumbnail_menu_size = checked_in(*thumbnail_size);
+    }
+    open->close();
+  });
+  auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Paint Layer")));
+  auto* thumbnail = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerContentThumbnail")) : nullptr;
+  CHECK(thumbnail != nullptr);
+  if (thumbnail != nullptr) {
+    const auto local = thumbnail->rect().center();
+    QContextMenuEvent event(QContextMenuEvent::Mouse, local, thumbnail->mapToGlobal(local));
+    QApplication::sendEvent(thumbnail, &event);
+  }
+  settle();
+  CHECK(thumbnail_menu_name == QStringLiteral("layerThumbnailMenu"));
+  CHECK(thumbnail_menu_size == QStringLiteral("layerThumbnailSizeSmallAction"));
+
+  // Customize Layer Buttons... opens the dialog on the Layers buttons tab; Cancel changes
+  // nothing. It opens once the menu has closed, so the watcher is queued after it.
   const auto before = window.tool_palette_customization();
-  // The gear opens the dialog once the click returns, so the watcher is queued after it.
   bool ran = false;
-  gear->click();
+  customize->trigger();
   when_customize_dialog_opens([&](QDialog& dialog) {
     ran = true;
     auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("toolPaletteCustomizeTabs"));
@@ -731,15 +857,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
   settle();
   CHECK(!column->in_tab_group(layers));
   check_in_title_row("in a section of its own");
-  ran = false;
-  gear->click();
-  when_customize_dialog_opens([&](QDialog& dialog) {
-    ran = true;
-    dialog.reject();
-  });
-  process_events_until([&] { return ran; });
-  CHECK(ran);
-  settle();
+  CHECK(gear->menu() == menu);
   column->set_tab_groups({{layers, channels, paths}});
   column->bring_to_front(layers);
   settle();

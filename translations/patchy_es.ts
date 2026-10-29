@@ -28359,10 +28359,6 @@ Bloqueada: %1</translation>
         <translation>Reinicie Patchy para que el nuevo tamaño del texto tenga efecto.</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>Personalizar botones de Capas</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>Opciones de herramienta</translation>
     </message>
@@ -28373,6 +28369,14 @@ Bloqueada: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Previsualizar las capas como fotogramas de animación</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>Ajustes del panel Capas</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>Personalizar botones de Capas...</translation>
     </message>
 </context>
 <context>
