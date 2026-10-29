@@ -110,6 +110,13 @@ All are u32 descriptorVersion 16 + a descriptor with class `null`:
 
 ## vstk (stroke)
 
+The reader also accepts the four-character class `Strk` with the same keys, which
+Photoshop opens as a shape (psd-tools' `issues/issue397.psd`; refused, the layer
+locked as unparsed and kept stale off-canvas pixels). An imported shape keeps
+Photoshop's stored pixels unless they lie wholly off the canvas while its path
+lands on it; then `finalize_vector_layers` redraws it from the path, as Photoshop
+does (that file's raster sits at 2352, 1548 on a 240x186 canvas). Patchy writes:
+
 u32 descriptorVersion 16 + descriptor class `strokeStyle`, 16 items in this
 exact order (PS-canonical): strokeStyleVersion (long 2), strokeEnabled,
 fillEnabled, strokeStyleLineWidth (#Pxl), strokeStyleLineDashOffset (#Pnt),

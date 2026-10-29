@@ -7,6 +7,7 @@
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_io_internal.hpp"
 
+#include "core/rect_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "psd/psd_layer_effects.hpp"
 
@@ -330,6 +331,17 @@ std::optional<VectorFill> parse_vector_fill_block(std::string_view key,
   return std::nullopt;
 }
 
+// Photoshop writes the vstk descriptor's class as "strokeStyle"; some files carry the
+// four-character "Strk" with the same keys, which Photoshop opens as a shape (psd-tools'
+// issues/issue397.psd). Read as an unparsed stroke, the layer kept its stale pixels.
+namespace {
+
+bool is_stroke_style_class(std::string_view class_id) noexcept {
+  return class_id == "strokeStyle" || class_id == "Strk";
+}
+
+}  // namespace
+
 std::optional<VectorStroke> parse_vector_stroke_block(std::span<const std::uint8_t> payload,
                                                       const CmykColorConverter& cmyk,
                                                       bool* content_present) {
@@ -337,7 +349,7 @@ std::optional<VectorStroke> parse_vector_stroke_block(std::span<const std::uint8
     *content_present = false;
   }
   const auto descriptor = read_block_descriptor(payload);
-  if (!descriptor.has_value() || descriptor->class_id != "strokeStyle") {
+  if (!descriptor.has_value() || !is_stroke_style_class(descriptor->class_id)) {
     return std::nullopt;
   }
   VectorStroke stroke;
@@ -934,7 +946,7 @@ std::vector<std::uint8_t> vector_stroke_block_payload(const VectorStroke& stroke
       return original->payload;
     }
     if (auto parsed = read_block_descriptor(original->payload);
-        parsed.has_value() && parsed->class_id == "strokeStyle") {
+        parsed.has_value() && is_stroke_style_class(parsed->class_id)) {
       descriptor = std::move(*parsed);
     }
   }
@@ -1309,7 +1321,16 @@ void finalize_vector_layers(Document& document) {
         continue;
       }
       if (layer.vector_shape() != nullptr) {
-        if (!has_visible_alpha(std::as_const(layer).pixels())) {
+        // Stored pixels wholly off the canvas cannot be Photoshop's render of a path that
+        // lands on it: psd-tools' issue397.psd keeps a stale raster at (2352, 1548) on a
+        // 240x186 canvas, and Photoshop draws the shape from its path. Only then is the
+        // path rasterized for the check, so a normal open does no extra work.
+        const bool stale_off_canvas =
+            intersect_rect(layer.bounds(), canvas).empty() &&
+            !rasterize_vector_shape(*std::as_const(layer).vector_shape(), canvas, &document.metadata().patterns,
+                                    &layer)
+                 .bounds.empty();
+        if (stale_off_canvas || !has_visible_alpha(std::as_const(layer).pixels())) {
           update_vector_shape_raster(layer, canvas, &document.metadata().patterns);
         } else {
           layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPhotoshop;
