@@ -28359,10 +28359,6 @@ Bloqueado: %1</translation>
         <translation>Reinicie o Patchy para que o novo tamanho do texto tenha efeito.</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>Personalizar botões de camadas</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>Opções da ferramenta</translation>
     </message>
@@ -28373,6 +28369,14 @@ Bloqueado: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Pré-visualizar as camadas como quadros de animação</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>Configurações do painel Camadas</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>Personalizar botões de camadas...</translation>
     </message>
 </context>
 <context>

@@ -28359,10 +28359,6 @@ Fixiert: %1</translation>
         <translation>Starten Sie Patchy neu, damit die neue Textgröße wirksam wird.</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>Ebenen-Schaltflächen anpassen</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>Werkzeugoptionen</translation>
     </message>
@@ -28373,6 +28369,14 @@ Fixiert: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Die Ebenen als Animationsbilder in der Vorschau zeigen</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>Einstellungen des Ebenenbedienfelds</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>Ebenen-Schaltflächen anpassen...</translation>
     </message>
 </context>
 <context>

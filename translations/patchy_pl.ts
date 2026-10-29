@@ -28441,10 +28441,6 @@ Zablokowano: %1</translation>
         <translation>Uruchom ponownie Patchy, aby nowy rozmiar tekstu zaczął obowiązywać.</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>Dostosuj przyciski warstw</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>Opcje narzędzia</translation>
     </message>
@@ -28455,6 +28451,14 @@ Zablokowano: %1</translation>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>Podgląd warstw jako klatek animacji</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>Ustawienia panelu Warstwy</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>Dostosuj przyciski warstw...</translation>
     </message>
 </context>
 <context>

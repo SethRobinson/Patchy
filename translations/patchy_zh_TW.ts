@@ -28277,10 +28277,6 @@ Locked: %1</source>
         <translation>請重新啟動 Patchy，新的文字大小才會生效。</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons</source>
-        <translation>自訂圖層按鈕</translation>
-    </message>
-    <message>
         <source>Tool Options</source>
         <translation>工具選項</translation>
     </message>
@@ -28291,6 +28287,14 @@ Locked: %1</source>
     <message>
         <source>Preview the layers as animation frames</source>
         <translation>將圖層作為動畫影格預視</translation>
+    </message>
+    <message>
+        <source>Layers panel settings</source>
+        <translation>圖層面板設定</translation>
+    </message>
+    <message>
+        <source>Customize Layer Buttons...</source>
+        <translation>自訂圖層按鈕...</translation>
     </message>
 </context>
 <context>
