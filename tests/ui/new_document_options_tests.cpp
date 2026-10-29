@@ -697,8 +697,16 @@ void ui_new_document_layout_lines_up_labels_fields_and_summary() {
       QStringLiteral(R"([{"id":"user-1","name":"Banner","w":1234,"h":567,"ppi":72}])"));
   patchy::ui::MainWindow window;
   show_window(window);
+  // Two Recent cards, as on a machine that has created documents.
+  for (const auto& size : {std::pair{800, 600}, std::pair{1920, 1080}}) {
+    accept_new_document_dialog(size.first, size.second);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+  }
   CHECK(with_new_document_dialog(window, [&](QDialog& dialog) {
+    QApplication::processEvents();
     auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentSearchEdit"));
+    auto* recent = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentRecentList"));
     auto* chip_row = dialog.findChild<QWidget*>(QStringLiteral("newDocumentChipRow"));
     auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentNameEdit"));
     auto* width = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
@@ -706,10 +714,11 @@ void ui_new_document_layout_lines_up_labels_fields_and_summary() {
     auto* save = dialog.findChild<QPushButton*>(QStringLiteral("newDocumentSavePresetButton"));
     auto* create = dialog.findChild<QPushButton*>(QStringLiteral("newDocumentCreateButton"));
     auto* cancel = dialog.findChild<QPushButton*>(QStringLiteral("newDocumentCancelButton"));
-    CHECK(search != nullptr && chip_row != nullptr && name != nullptr && width != nullptr && summary != nullptr &&
-          save != nullptr && create != nullptr);
-    if (search == nullptr || chip_row == nullptr || name == nullptr || width == nullptr || summary == nullptr ||
-        save == nullptr || create == nullptr) {
+    CHECK(search != nullptr && recent != nullptr && chip_row != nullptr && name != nullptr && width != nullptr &&
+          summary != nullptr && save != nullptr && create != nullptr);
+    if (search == nullptr || recent == nullptr || recent->count() != 2 || chip_row == nullptr || name == nullptr ||
+        width == nullptr || summary == nullptr || save == nullptr || create == nullptr) {
+      CHECK(recent != nullptr && recent->count() == 2);
       dialog.reject();
       return;
     }
@@ -733,6 +742,9 @@ void ui_new_document_layout_lines_up_labels_fields_and_summary() {
       CHECK(one_row);
       CHECK(in_dialog(search).right() < in_dialog(chip_row).left());
       CHECK(search->width() <= 400);
+      // The Name field lines up with the top of the first Recent card (4 is the card's inset in its cell).
+      const int first_card_top = in_dialog(recent).top() + recent->visualItemRect(recent->item(0)).top() + 4;
+      CHECK(std::abs(in_dialog(name).top() - first_card_top) <= 1);
     };
     check_top_row();
 

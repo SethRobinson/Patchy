@@ -106,6 +106,8 @@ QSize preset_grid_minimum() {
   return {5 * preset_card_cell().width() + 22, 3 * preset_card_cell().height() + 4};
 }
 int recent_row_height() { return preset_card_cell().height() + 2; }
+// A card's inset in its grid cell.
+constexpr int kPresetCardInset = 4;
 
 // The Last Used card's id (item data only, never written to settings) - never rename.
 // The Recent row's newest card carries it; the older ones are "recent-1" and up.
@@ -586,21 +588,24 @@ bool is_recent_card_id(const QString& id) {
   return id == kLastUsedPresetId || id.startsWith(QStringLiteral("recent-"));
 }
 
-// Calls `on_resize` whenever the watched widget resizes (the Recent row refits its cards).
+// Calls `on_event` whenever the watched widget resizes (the Recent row refits its cards), or
+// moves when `type` is QEvent::Move.
 class ResizeWatcher final : public QObject {
  public:
-  ResizeWatcher(QObject* parent, std::function<void()> on_resize) : QObject(parent), on_resize_(std::move(on_resize)) {}
+  ResizeWatcher(QObject* parent, std::function<void()> on_event, QEvent::Type type = QEvent::Resize)
+      : QObject(parent), on_event_(std::move(on_event)), type_(type) {}
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
-    if (event->type() == QEvent::Resize && on_resize_) {
-      on_resize_();
+    if (event->type() == type_ && on_event_) {
+      on_event_();
     }
     return QObject::eventFilter(watched, event);
   }
 
  private:
-  std::function<void()> on_resize_;
+  std::function<void()> on_event_;
+  QEvent::Type type_;
 };
 
 // The characters a file name cannot hold on Windows, the strictest file system.
@@ -675,7 +680,7 @@ class PresetCardDelegate final : public QStyledItemDelegate {
   void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
-    const QRect card = option.rect.adjusted(4, 4, -4, -4);
+    const QRect card = option.rect.adjusted(kPresetCardInset, kPresetCardInset, -kPresetCardInset, -kPresetCardInset);
     const bool enabled = (index.flags() & Qt::ItemIsEnabled) != 0;
     const bool selected = (option.state & QStyle::State_Selected) != 0;
     const bool hovered = (option.state & QStyle::State_MouseOver) != 0;
@@ -1062,7 +1067,16 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   const int unit_width = ui_text_length(128);
 
   auto* grid = new QGridLayout();
-  grid->setContentsMargins(0, 2, 0, 0);
+  // The Name field's top sits on the Recent cards' top (GitHub issue 497), measured wherever the
+  // laid-out Recent row lands, so it follows the caption's font and the text size.
+  const auto line_up_with_recent_cards = [grid, recent_list] {
+    const int top = recent_list->y() + kPresetCardInset;
+    if (grid->contentsMargins().top() != top) {
+      grid->setContentsMargins(0, top, 0, 0);
+    }
+  };
+  line_up_with_recent_cards();
+  recent_list->installEventFilter(new ResizeWatcher(recent_list, line_up_with_recent_cards, QEvent::Move));
   grid->setHorizontalSpacing(8);
   grid->setVerticalSpacing(9);
   right->addLayout(grid);
