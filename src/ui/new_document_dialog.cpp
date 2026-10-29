@@ -1067,10 +1067,12 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   const int unit_width = ui_text_length(128);
 
   auto* grid = new QGridLayout();
-  // The Name field's top sits on the Recent cards' top (GitHub issue 497), measured wherever the
-  // laid-out Recent row lands, so it follows the caption's font and the text size.
+  // The Name field's top sits halfway between the pane's top and the Recent cards' top (GitHub
+  // issue 497), measured wherever the laid-out Recent row lands, so it follows the caption's font
+  // and the text size.
   const auto line_up_with_recent_cards = [grid, recent_list] {
-    const int top = recent_list->y() + kPresetCardInset;
+    constexpr int kBaseTop = 2;
+    const int top = kBaseTop + (recent_list->y() + kPresetCardInset - kBaseTop) / 2;
     if (grid->contentsMargins().top() != top) {
       grid->setContentsMargins(0, top, 0, 0);
     }
