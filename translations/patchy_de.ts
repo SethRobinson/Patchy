@@ -13963,6 +13963,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>No tool groups: every tool gets its own button</source>
         <translation>Keine Werkzeuggruppen: jedes Werkzeug erhält eine eigene Schaltfläche</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>Einige Textebenen haben eine GIMP-Kontur. Sie bleiben bearbeitbar, mit der Kontur als Kontur-Effekt, und Patchy hat ihren Text selbst gezeichnet, daher kann er leicht von GIMPs Darstellung abweichen.</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>Einige Textebenen haben eine GIMP-Kontur aus einem Muster oder Strichen, die ein Kontur-Effekt nicht darstellen kann, und wurden deshalb als Pixelebenen geöffnet.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

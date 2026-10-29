@@ -14006,6 +14006,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>No tool groups: every tool gets its own button</source>
         <translation>Bez grup narzędzi: każde narzędzie ma własny przycisk</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>Niektóre warstwy tekstowe mają kontur z GIMP-a. Pozostają edytowalne, z konturem jako efektem Obrys, a Patchy narysował ich tekst samodzielnie, więc może się nieznacznie różnić od wersji z GIMP-a.</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>Niektóre warstwy tekstowe mają kontur z GIMP-a wykonany wzorkiem lub kreskami, którego efekt Obrys nie potrafi pokazać, więc otwarto je jako warstwy pikselowe.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14006,6 +14006,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>No tool groups: every tool gets its own button</source>
         <translation>Без групп инструментов: у каждого инструмента своя кнопка</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>У некоторых текстовых слоёв есть контур GIMP. Они остаются редактируемыми, контур стал эффектом «Обводка», а текст Patchy нарисовал сам, поэтому он может немного отличаться от GIMP.</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>У некоторых текстовых слоёв есть контур GIMP из узора или штрихов, который эффект «Обводка» не может показать, поэтому они открыты как пиксельные слои.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

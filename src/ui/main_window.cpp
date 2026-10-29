@@ -9336,6 +9336,61 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
   process(process, target.layers());
 }
 
+void MainWindow::render_pending_xcf_text_layers(Document& target) {
+  const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      auto& metadata = layer.metadata();
+      const auto found = metadata.find(kLayerMetadataXcfPendingOutline);
+      if (found == metadata.end()) {
+        continue;
+      }
+      const QStringList parts = QString::fromStdString(found->second).split(QLatin1Char(' '));
+      metadata.erase(found);
+      if (parts.size() < 5 || !layer_is_text(std::as_const(layer))) {
+        continue;
+      }
+      auto rendered_text = render_text_layer_from_metadata(layer);
+      if (!rendered_text.has_value() || rendered_text->pixels.empty()) {
+        continue;  // GIMP's raster, outline included, stays until the text is edited
+      }
+      LayerStroke stroke;
+      stroke.enabled = true;
+      stroke.position = parts[0] == QLatin1String("inside")    ? LayerStrokePosition::Inside
+                        : parts[0] == QLatin1String("outside") ? LayerStrokePosition::Outside
+                                                               : LayerStrokePosition::Center;
+      stroke.size = std::clamp(parts[1].toFloat(), 1.0F, 250.0F);
+      const QColor color(parts[2]);
+      if (color.isValid()) {
+        stroke.color = RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                                static_cast<std::uint8_t>(color.blue())};
+      }
+      stroke.opacity = std::clamp(parts[3].toFloat(), 0.0F, 1.0F);
+      // GIMP's text box starts at the layer's top-left; the buffer starts local_rect.topLeft()
+      // from the text origin (overhanging glyph ink).
+      const auto origin = std::as_const(layer).bounds();
+      auto pixels = convert_pixel_buffer_depth(rendered_text->pixels,
+                                               std::as_const(layer).pixels().format().bit_depth, SampleKind::Color);
+      const Rect placed{origin.x + static_cast<std::int32_t>(std::lround(rendered_text->local_rect.left())),
+                        origin.y + static_cast<std::int32_t>(std::lround(rendered_text->local_rect.top())),
+                        pixels.width(), pixels.height()};
+      // set_pixels resets bounds to the buffer at the origin, so the bounds
+      // must follow it (the text-commit ordering convention).
+      layer.set_pixels(std::move(pixels));
+      layer.set_bounds(placed);
+      store_text_layout_metrics(layer, rendered_text->metrics);
+      metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
+      layer.layer_style().strokes.push_back(stroke);
+      if (parts[4] == QLatin1String("nofill")) {
+        layer.set_fill_opacity(0.0F);
+      }
+    }
+  };
+  process(process, target.layers());
+}
+
 void MainWindow::render_pending_pdf_text_layers(Document& target) {
   const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
     for (auto& layer : layers) {

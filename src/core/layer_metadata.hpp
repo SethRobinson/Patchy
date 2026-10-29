@@ -120,6 +120,12 @@ inline constexpr const char* kLayerMetadataAfTextAlign = "patchy.af.text_align";
 // the standard patchy.text.transform. Frame/box text never carries this.
 inline constexpr const char* kLayerMetadataAfTextXfrm = "patchy.af.text_xfrm";
 
+// GIMP text outline handoff (docs/xcf.md, "Text layers"): GIMP's raster of an outlined text
+// layer has the outline baked in, so MainWindow::render_pending_xcf_text_layers redraws the
+// text post-open, adds the outline as a Stroke layer style and drops this key. Value:
+// "<outside|inside|center> <size px> <#rrggbb> <opacity 0..1> <fill|nofill>".
+inline constexpr const char* kLayerMetadataXcfPendingOutline = "patchy.xcf.pending_outline";
+
 // PDF vector import handoff (same pattern as SVG and .af). The Qt-free reader emits
 // the story under the standard patchy.text.* keys plus these markers, and
 // MainWindow::render_pending_pdf_text_layers renders post-open and drops them.

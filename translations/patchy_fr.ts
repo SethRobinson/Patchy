@@ -13963,6 +13963,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>No tool groups: every tool gets its own button</source>
         <translation>Pas de groupes d&apos;outils : chaque outil a son propre bouton</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>Certains calques de texte ont un contour GIMP. Ils restent modifiables, avec le contour en effet Contour, et Patchy a dessiné leur texte lui-même ; il peut donc différer légèrement de celui de GIMP.</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>Certains calques de texte ont un contour GIMP fait d&apos;un motif ou de tirets, qu&apos;un effet Contour ne peut pas afficher ; ils ont donc été ouverts comme calques de pixels.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

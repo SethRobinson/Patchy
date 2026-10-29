@@ -68,7 +68,24 @@ struct TextParasite {
   std::string base_direction{"ltr"};
   bool have_color{false};
   double color[4]{0.0, 0.0, 0.0, 1.0};  // encoded sRGB, 0..1
-  bool outline{false};                   // an outline style other than none (GIMP 3)
+  // GIMP 3's outline: "none", "stroke-only" or "stroke-fill", drawn outer, inner or centered
+  // on the glyph edges with `outline_width` in `outline_unit`.
+  std::string outline{"none"};
+  std::string outline_direction{"outer"};
+  double outline_width{0.0};
+  std::string outline_unit{"pixels"};
+  std::string outline_custom_style{"solid-color"};  // or "pattern"
+  bool outline_dashed{false};
+  bool have_outline_color{false};
+  double outline_color[4]{0.0, 0.0, 0.0, 1.0};  // encoded sRGB, 0..1
+  // GIMP 3's (markupfont "fontNNN" (font ...)) forms: markup spans name a font by that id.
+  struct MarkupFont {
+    std::string id;
+    std::string full_name;
+    std::string family;
+    std::string style;
+  };
+  std::vector<MarkupFont> markup_fonts;
 };
 [[nodiscard]] TextParasite parse_text_parasite(std::string_view text);
 

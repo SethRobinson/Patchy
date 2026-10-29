@@ -145,14 +145,33 @@ set to blend in another space than its default opens in its usual form with a no
 The `gimp-text-layer` parasite (GIMP 2's `(font "Sans Bold")` description and GIMP 3's
 font record with full name, family and style; `(color (color-rgb ...))` and GIMP 3's
 GeglColor with its babl format) becomes patchy.text.* metadata over GIMP's raster, which
-stays until the text is edited. Mapped: text or Pango markup (bold, italic, foreground,
-size in 1024ths, family), font family (the full name minus its style words when the family
-is a generic alias; generic names become Qt's), size and unit (pixels, points, inches,
-millimeters, picas at the image resolution), color, justification (fill as justify), indent,
-letter spacing (as tracking), line spacing (added to a 1.2 em leading), fixed boxes, right-to-
-left direction, antialiasing. A layer GIMP marks as painted on (PROP_TEXT_LAYER_FLAGS bit 2)
-or with an outline opens as pixels (notice). Patchy's redraw of an edited layer starts within
-a few pixels of GIMP's (`ui_xcf_text_layers_stay_editable`); its glyphs are Patchy's.
+stays until the text is edited. Mapped: text or Pango markup, font family (the full name
+minus its style words when the family is a generic alias; generic names become Qt's), size
+and unit (pixels, points, inches, millimeters, picas at the image resolution), color,
+justification (fill as justify), indent, letter spacing (as tracking), line spacing (added to
+a 1.2 em leading), fixed boxes, right-to-left direction, antialiasing. The layer-wide font,
+size and color follow the first run, since a span can restyle all of the text.
+
+- Markup (#508): `b`, `i`, `u`, `s`, and spans with `foreground`, `weight`, `style`,
+  `underline`, `strikethrough`, `font_family`/`face`, `size` (1024ths of a point at the image
+  resolution: GIMP's 50 px at 300 ppi is `12288`), `rise` and `letter_spacing` (1024ths of a
+  pixel; a rise on all of the text is dropped, since Pango grows the line by it and the glyphs
+  stay put, and a partial rise is a baseline shift), and `font`: GIMP 3 writes an id there that a `(markupfont "font1136" (font ...))`
+  form after the markup string resolves; other writers put a Pango description.
+- Colors (#508): GIMP 3 keeps the model the color was picked in. RGB and gray (perceptual
+  `'` or `~` formats as they are, linear ones encoded), HSV and HSL (textbook models over the
+  encoded values; HSV checked against GIMP's own hex), CIE Lab and LCH(ab) (D50, Bradford to
+  sRGB). Other models (CMYK) fall back to black, visible only after an edit.
+- Outlines (#509): GIMP 3's `outline` (`stroke-only`, `stroke-fill`), `outline-direction`
+  (outer, inner, else centered), `outline-width` and `outline-foreground` become a Stroke
+  style (Outside, Inside, Center; size the width: an outer width-w outline is a band w wide
+  outside the glyphs in GIMP 3.2's renders), with Fill opacity 0 for stroke only. GIMP's raster
+  has the outline baked in, so the reader writes `patchy.xcf.pending_outline` and
+  `MainWindow::render_pending_xcf_text_layers` redraws the text at open (origin at the layer's
+  top-left) and adds the style (notice). Pattern and dashed outlines open as pixels (notice).
+- A layer GIMP marks as painted on (PROP_TEXT_LAYER_FLAGS bit 2) opens as pixels (notice).
+  Patchy's redraw of an edited layer starts within a few pixels of GIMP's
+  (`ui_xcf_text_layers_stay_editable`); its glyphs are Patchy's.
 
 ## Layer effects (GIMP 3 filters)
 
@@ -269,10 +288,12 @@ adding files: `render_with_gimp.py DIR` and `dump_gimp_trees.py DIR` (both skip 
 
 Core (`tests/core/xcf_tests.cpp`, filter `xcf_`, files built by `tests/xcf_test_builder.hpp`):
 structure, every tile compression and pointer size, every precision, gray and indexed,
-every mode number, the text parasite forms and text metadata, the floating selection,
+every mode number, the text parasite forms and text metadata (color models, markup fonts,
+outlines; philipzae's #508/#509 files in `local-test-fixtures/xcf-issue-508`), the floating selection,
 channels, paths, guides and metadata, the wrappers, hostile input, the registry and
 open-by-content, a Unicode path, the committed GIMP files against GIMP's renders, the local
 fixture set and corpus when present, every local file's layer tree against GIMP's, the #487
 samples (Erase and Split layers, an active Split layer); `blend_math_gimp_*` pin the GIMP mode kernels. UI
 (`tests/ui/xcf_ui_tests.cpp`, filter `ui_xcf_`): opening by name, compressed name and content,
-GIMP modes in the Layers panel, editable text and its PSD save.
+GIMP modes in the Layers panel, editable text and its PSD save, outlined text redrawn with a
+Stroke style that an edit keeps.

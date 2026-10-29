@@ -13920,6 +13920,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>No tool groups: every tool gets its own button</source>
         <translation>ツールグループなし：各ツールに専用のボタン</translation>
     </message>
+    <message>
+        <source>Some text layers have a GIMP outline. They stay editable with the outline as a Stroke effect, and Patchy drew their text itself, so it can differ slightly from GIMP&apos;s.</source>
+        <translation>一部のテキストレイヤーには GIMP のアウトラインがあります。アウトラインを境界線効果にして編集可能なまま開き、テキストは Patchy が描画したため、GIMP の表示とわずかに異なる場合があります。</translation>
+    </message>
+    <message>
+        <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
+        <translation>一部のテキストレイヤーには、境界線効果では表現できないパターンまたは破線の GIMP アウトラインがあるため、ピクセルレイヤーとして開きました。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
