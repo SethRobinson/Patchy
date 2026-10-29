@@ -158,11 +158,14 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       }
       return out;
     }
-    case AdjustmentKind::Exposure:
+    case AdjustmentKind::Exposure: {
+      const bool gray = settings.ink_space != nullptr && settings.ink_space->is_gray();
       for (std::size_t c = 0; c < 3U; ++c) {
-        out[c] = clamp255(exposure_transfer(color[c], settings.exposure));
+        out[c] = clamp255(gray ? exposure_gray_transfer(color[c], settings.exposure)
+                               : exposure_transfer(color[c], settings.exposure));
       }
       return out;
+    }
   }
   return color;
 }

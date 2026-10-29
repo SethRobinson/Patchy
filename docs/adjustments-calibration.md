@@ -58,7 +58,7 @@ Fitted on a Photoshop 2026 COM probe (#250): a 256-step gray ramp plus a 16-leve
 
 - Math (`exposure_channel_value`), per channel on 8-bit values: `linear = (v/255)^2.2`, `exposed = linear * 2^exposure + offset`, `corrected = max(0, exposed)^(1/gamma)`, `out = 255 * clamp(corrected)^(1/2.2)`. Within 1/255 on every pixel of Photoshop's render of psd-tools' `adjustments/exposure_rgb.psd` for all four of its setting triples.
 - Refuted: the piecewise sRGB curve in place of the plain 2.2 power (up to 7/255 off at +2 stops).
-- Grayscale and CMYK documents run Exposure in their ink or gray space (next section); that output is unprobed against Photoshop. 16/32-bit documents use the continuous form (last section); 16-bit precision against Photoshop is not yet exact ([high-bit-depth.md](high-bit-depth.md)).
+- Grayscale documents run Exposure in the gray profile's linear light, not through the gray space below: on the profile-converted sRGB pixels that is the piecewise sRGB curve in place of gamma 2.2 (`exposure_gray_channel_value`, `exposure_gray_transfer`). Within 1/255 on every image pixel of Photoshop's composite of psd-tools' `adjustments/exposure_grayscale.psd` (Dot Gain 20%, the same four triples); gamma 2.2 on the stored gray value, the earlier path, was 21/255 off. `adjustment_depends_on_source_color_mode` still counts the layer for the RGB-save warnings. CMYK documents run the gamma 2.2 form on each ink; that output is unprobed against Photoshop. 16/32-bit documents use the continuous form (last section); 16-bit precision against Photoshop is not yet exact ([high-bit-depth.md](high-bit-depth.md)).
 
 ## Adjustment layers of CMYK documents
 
@@ -75,7 +75,7 @@ inks they match on 99.9 percent (worst channel miss 7/255 at the 16 pinned probe
   an id hashed from the profile bytes and stamps it on every adjustment layer it reads
   (`kLayerMetadataAdjustmentInkSpace`).
 - `adjustment_runs_in_ink_space`: Levels, Curves, Invert, Posterize, Brightness/Contrast
-  and Exposure. `apply_adjustment_to_color` then takes the color to the inks, maps each
+  and (CMYK only) Exposure. `apply_adjustment_to_color` then takes the color to the inks, maps each
   ink through a 256-entry table built from the ordinary per-channel math, and returns to
   sRGB. Cyan, magenta and yellow read the records an RGB document calls red, green and
   blue; the black ink has its own (`LevelsAdjustment::black_ink`, the `levl` block's

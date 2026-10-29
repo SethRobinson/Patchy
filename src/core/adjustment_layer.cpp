@@ -1,6 +1,7 @@
 #include "core/adjustment_layer.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/pixel_depth.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -2067,6 +2068,11 @@ std::uint8_t exposure_channel_value(std::uint8_t value, ExposureAdjustment setti
   return static_cast<std::uint8_t>(std::clamp(std::lround(encoded * 255.0), 0L, 255L));
 }
 
+std::uint8_t exposure_gray_channel_value(std::uint8_t value, ExposureAdjustment settings) {
+  return static_cast<std::uint8_t>(
+      std::clamp(std::lround(exposure_gray_transfer(static_cast<double>(value), settings)), 0L, 255L));
+}
+
 int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
   // Rounded half up: Photoshop 2026's Threshold adjustment layer and Smart Filter both
   // match it on every color of a 16-level cube at level 140, where the floored quotient
@@ -2486,6 +2492,16 @@ double exposure_transfer(double value, ExposureAdjustment settings) {
   const auto corrected =
       std::pow(std::max(0.0, exposed), 100.0 / static_cast<double>(settings.gamma_hundredths));
   return 255.0 * std::pow(std::clamp(corrected, 0.0, 1.0), 1.0 / kDisplayGamma);
+}
+
+double exposure_gray_transfer(double value, ExposureAdjustment settings) {
+  settings = clamp_exposure(settings);
+  const auto linear = srgb_decode(value / 255.0);
+  const auto exposed = linear * std::pow(2.0, static_cast<double>(settings.exposure_hundredths) / 100.0) +
+                       static_cast<double>(settings.offset_ten_thousandths) / 10000.0;
+  const auto corrected =
+      std::pow(std::max(0.0, exposed), 100.0 / static_cast<double>(settings.gamma_hundredths));
+  return 255.0 * srgb_encode(corrected);
 }
 
 bool layer_is_adjustment(const Layer& layer) {
@@ -3047,11 +3063,14 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     case AdjustmentKind::Invert:
     case AdjustmentKind::Posterize:
     case AdjustmentKind::BrightnessContrast:
-    case AdjustmentKind::Exposure:
       return true;
     // Threshold compares one value: on a single gray channel that is channel-wise.
     case AdjustmentKind::Threshold:
       return settings.ink_space->is_gray();
+    // Grayscale Exposure works in the gray profile's linear light, which the converted
+    // sRGB pixels already hold (exposure_gray_channel_value): no gray round trip.
+    case AdjustmentKind::Exposure:
+      return !settings.ink_space->is_gray();
     // Hue/Saturation and Color Balance mix channels (as does Threshold on four inks);
     // Photoshop's CMYK forms of them are not modeled, so they stay on the RGB math.
     case AdjustmentKind::HueSaturation:
@@ -3066,6 +3085,11 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
       return false;
   }
   return false;
+}
+
+bool adjustment_depends_on_source_color_mode(const AdjustmentSettings& settings) noexcept {
+  return adjustment_runs_in_ink_space(settings) ||
+         (settings.kind == AdjustmentKind::Exposure && settings.ink_space != nullptr && settings.ink_space->is_gray());
 }
 
 RgbColor apply_adjustment_to_color(RgbColor color, const AdjustmentSettings& settings) {
@@ -3111,6 +3135,11 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
                       brightness_contrast_channel_value(color.blue, brightness, contrast, use_legacy)};
     }
     case AdjustmentKind::Exposure:
+      if (settings.ink_space != nullptr && settings.ink_space->is_gray()) {
+        return RgbColor{exposure_gray_channel_value(color.red, settings.exposure),
+                        exposure_gray_channel_value(color.green, settings.exposure),
+                        exposure_gray_channel_value(color.blue, settings.exposure)};
+      }
       return RgbColor{exposure_channel_value(color.red, settings.exposure),
                       exposure_channel_value(color.green, settings.exposure),
                       exposure_channel_value(color.blue, settings.exposure)};

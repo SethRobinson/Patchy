@@ -2269,6 +2269,27 @@ void adjustment_exposure_math_metadata_and_psd_round_trip() {
   CHECK(lut.has_value());
   CHECK(lut->green[88] == patchy::exposure_channel_value(88, exposure.exposure));
 
+  // Grayscale documents: profile-converted gray in and out of Photoshop's composite of
+  // psd-tools' exposure_grayscale.psd, from strips one layer covers alone.
+  struct GrayProbe {
+    patchy::ExposureAdjustment settings;
+    int input;
+    int expected;
+  };
+  const GrayProbe gray_probes[] = {
+      {{-182, 1203, 100}, 2, 97},   {{-182, 1203, 100}, 63, 102},  {{-182, 1203, 100}, 128, 118},
+      {{-182, 1203, 100}, 200, 146}, {{-182, 1203, 100}, 248, 167}, {{125, 0, 152}, 4, 40},
+      {{125, 0, 152}, 32, 93},      {{125, 0, 152}, 64, 137},      {{125, 0, 152}, 129, 212},
+      {{125, 0, 152}, 171, 253},    {{125, 0, 152}, 200, 255},
+  };
+  for (const auto& probe : gray_probes) {
+    const auto result = patchy::exposure_gray_channel_value(static_cast<std::uint8_t>(probe.input), probe.settings);
+    CHECK(std::abs(static_cast<int>(result) - probe.expected) <= 1);
+  }
+  for (int value = 0; value < 256; ++value) {
+    CHECK(patchy::exposure_gray_channel_value(static_cast<std::uint8_t>(value), patchy::ExposureAdjustment{}) == value);
+  }
+
   // Out-of-range values clamp to Photoshop's field ranges.
   const auto clamped = patchy::clamp_exposure(patchy::ExposureAdjustment{99999, -99999, 0});
   CHECK(clamped.exposure_hundredths == 2000);

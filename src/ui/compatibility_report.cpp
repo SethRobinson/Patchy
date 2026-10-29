@@ -156,7 +156,7 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings, bool nativ
       warnings << QObject::tr("%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may "
                               "appear as an unsupported adjustment in other editors.")
                        .arg(QString::fromStdString(layer.name()));
-    } else if (!native_color_candidate && adjustment_runs_in_ink_space(*settings)) {
+    } else if (!native_color_candidate && adjustment_depends_on_source_color_mode(*settings)) {
       // The layer came from a CMYK document and is evaluated on its inks (InkSpace).
       // An RGB save cannot carry that meaning.
       warnings << (settings->ink_space->is_gray()

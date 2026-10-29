@@ -2050,7 +2050,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         [&](const std::vector<Layer>& layers) {
           for (const auto& layer : layers) {
             if (const auto settings = adjustment_settings_from_layer(layer);
-                settings.has_value() && adjustment_runs_in_ink_space(*settings)) {
+                settings.has_value() && adjustment_depends_on_source_color_mode(*settings)) {
               ++ink_adjustments;
             }
             count_ink_adjustments(layer.children());
