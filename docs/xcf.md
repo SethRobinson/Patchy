@@ -179,8 +179,13 @@ size and color follow the first run, since a span can restyle all of the text.
   angle, size three times its radius plus the grow radius (spread from the grow share, fitted
   on effects.xcf), its color in any GeglColor model (`gegl_color_to_srgb`: RGB and gray in
   any curve, HSV, HSL, CIE Lab and LCH; an embedded profile is read as sRGB), and its opacity
-  times the color's alpha and the filter's opacity. Layer Knocks Out is off: GEGL draws the
+  times the color's alpha and the filter's opacity (the effect record's FLOAT_OPACITY, the
+  Opacity under the filter's blending options). Layer Knocks Out is off: GEGL draws the
   layer over its shadow.
+- The filter's Clipping (FILTER_CLIP: 1 Clip, 0 Adjust) is not reproduced: the style always
+  draws past the layer's bounds, as Adjust does. Clip differs only where the shadow reaches
+  past the layer's edge (not in the reporter's blend-* files). A rectangle mask over the layer
+  bounds with Layer Mask Hides Effects would match it, but would also cut later edits off.
 - The filter's own mode mixes its result (the layer over the shadow) with the layer, so GIMP
   3.2 shows the shadow only in Normal, Replace, Behind and Merge (Patchy Normal) and Dissolve
   (Dissolve). Every other mode draws no shadow and changes only the layer's own pixels: the
@@ -196,7 +201,8 @@ size and color follow the first run, since a span can restyle all of the text.
   Against GIMP 3.2 (`xcf_drop_shadow_issue_507_matches_gimp_if_available`, the reporter's
   file and one file per layer in local-test-fixtures/xcf-issue-507): black shadows within
   0.1 level on average, a blurred magenta one 3.5, Dissolve 7.6 (its random pattern);
-  effects.xcf 0.21.
+  effects.xcf 0.21. The blend-* files (filter opacity 50% and 75%): Normal 0.01, Dissolve
+  9.9 with GIMP's dot count (502 against 520).
 - `gegl:gaussian-blur` is applied to the layer's pixels: premultiplied linear light, clamp or
   transparent edges, the layer grown when clip-extent is off. Sigmas over 3 use three box
   passes. Within about six levels of GIMP's own blur.

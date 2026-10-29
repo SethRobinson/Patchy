@@ -1307,11 +1307,15 @@ void xcf_drop_shadow_issue_507_matches_gimp_if_available() {
   patchy::test::skip_unless_exists(dir / "drop-shadow.xcf");
   struct Entry {
     const char* name;
-    double max_mean;  // a little over the measured mean: 8.2, 7.6 (the dissolve pattern), 0.02, 0.07, 3.5
+    double max_mean;  // a little over the measured mean: 8.2, 7.6 (the dissolve pattern), 0.02, 0.07, 3.5,
+                      // 10.2, 9.9 (the pattern again: GIMP and Patchy draw 520 and 502 dots), 0.01
   };
-  // Before #507 (half opacity, no color or mode): 14.2, 11.3, 0.32, 0.95 and 5.7.
+  // Before #507 (half opacity, no color or mode): 14.2, 11.3, 0.32, 0.95 and 5.7. The blend-*
+  // files (the reporter's follow-up) set the filter's own opacity below 100% on the top two
+  // layers, which multiplies into the shadow's opacity.
   for (const auto& entry : {Entry{"drop-shadow", 9.0}, Entry{"dissolve-green", 8.5}, Entry{"normal-black", 0.1},
-                            Entry{"replace-black", 0.2}, Entry{"replace-magenta", 4.0}}) {
+                            Entry{"replace-black", 0.2}, Entry{"replace-magenta", 4.0}, Entry{"blend-opacity", 11.0},
+                            Entry{"blend-dissolve", 10.5}, Entry{"blend-normal-clip", 0.05}}) {
     const auto document = patchy::xcf::DocumentIo::read_file(dir / (std::string(entry.name) + ".xcf"));
     const auto composite = composite_rgba8(document);
     write_png_artifact("xcf-renders", std::string(entry.name) + "-507", composite);
@@ -1327,6 +1331,25 @@ void xcf_drop_shadow_issue_507_matches_gimp_if_available() {
     std::cout << "  " << entry.name << ": mean " << difference->mean << ", worst " << difference->worst << "\n";
     CHECK(difference->mean <= entry.max_mean);
   }
+
+  // The filter's blending opacity (FLOAT_OPACITY on the effect record) times the shadow's own:
+  // Dissolve 85% at 50%, Normal 85% at 75% (both Clip and Adjust keep the style).
+  const auto document = patchy::xcf::DocumentIo::read_file(dir / "blend-opacity.xcf");
+  const auto shadow_named = [&](std::string_view prefix) -> const patchy::LayerDropShadow* {
+    for (const auto& layer : document.layers()) {
+      if (layer.name().starts_with(prefix) && layer.layer_style().drop_shadows.size() == 1) {
+        return &layer.layer_style().drop_shadows.front();
+      }
+    }
+    return nullptr;
+  };
+  const auto* dissolve = shadow_named("X/Y: 0px");
+  const auto* normal = shadow_named("X/Y: -2px");
+  CHECK(dissolve != nullptr && normal != nullptr);
+  CHECK(dissolve->enabled && dissolve->blend_mode == patchy::BlendMode::Dissolve);
+  CHECK(std::abs(dissolve->opacity - 0.85F * 0.5F) < 1e-3F);
+  CHECK(normal->enabled && normal->blend_mode == patchy::BlendMode::Normal);
+  CHECK(std::abs(normal->opacity - 0.85F * 0.75F) < 1e-3F);
 }
 
 // GIMP's renders of each color filter on the 4096-color sweep
