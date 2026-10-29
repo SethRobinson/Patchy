@@ -747,6 +747,45 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
   CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
 }
 
+// Every filter's name fits the list beside its thumbnail: the list never scrolls sideways
+// (1.21's Difference Clouds made it 2 px too narrow).
+void ui_filter_gallery_list_fits_every_name_without_side_scrolling() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  bool drove_dialog = false;
+
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    CHECK(looks != nullptr);
+    if (looks == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    CHECK(looks->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff);
+    const auto room = looks->viewport()->width() - 2 * looks->spacing();
+    for (int row = 0; row < looks->count(); ++row) {
+      const auto width = looks->sizeHintForIndex(looks->model()->index(row, 0)).width();
+      if (width > room) {
+        std::fprintf(stderr, "'%s' needs %d px, the list has %d\n", qPrintable(looks->item(row)->text()), width, room);
+      }
+      CHECK(width <= room);
+    }
+    drove_dialog = true;
+    dialog->reject();
+  });
+
+  const auto result = patchy::ui::request_visual_filter_gallery(
+      nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+      patchy::RgbColor{255, 255, 255});
+  CHECK(drove_dialog);
+  CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
+}
+
 void ui_filter_gallery_search_matches_localized_and_canonical_names() {
   GallerySettingsRestorer gallery_settings;
   LanguageRestorer language;
@@ -2237,7 +2276,9 @@ std::vector<patchy::test::TestCase> destructive_filters_gallery_tests_part2() {
        ui_filter_gallery_original_noop_and_selected_apply_undo_redo},
       {"ui_filter_gallery_categories_have_stable_tokens_and_exact_members",
        ui_filter_gallery_categories_have_stable_tokens_and_exact_members},
-      {"ui_filter_gallery_search_matches_localized_and_canonical_names",
+      {"ui_filter_gallery_list_fits_every_name_without_side_scrolling",
+     ui_filter_gallery_list_fits_every_name_without_side_scrolling},
+    {"ui_filter_gallery_search_matches_localized_and_canonical_names",
        ui_filter_gallery_search_matches_localized_and_canonical_names},
       {"ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen",
        ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen},

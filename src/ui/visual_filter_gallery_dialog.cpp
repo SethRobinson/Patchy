@@ -355,9 +355,12 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   auto* looks = new QListWidget(&dialog);
   looks->setObjectName(QStringLiteral("filterGalleryLooksList"));
   looks->setIconSize(QSize(128, 78));
-  looks->setMinimumWidth(ui_text_length(260));
+  // Wide enough for the longest English name ("Difference Clouds"); the list never scrolls
+  // sideways, so a longer translated name is cut at the edge instead.
+  looks->setMinimumWidth(ui_text_length(270));
   looks->setMaximumWidth(ui_text_length(280));
   looks->setSpacing(3);
+  looks->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   looks_column->addWidget(looks, 1);
   auto* empty_label = new QLabel(QObject::tr("No filters match this view."),
                                  &dialog);
