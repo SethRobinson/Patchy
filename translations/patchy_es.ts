@@ -15976,6 +15976,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
         <translation>La máscara vectorial aún no tiene un trazado que mover. Dibuje uno con la Pluma o una herramienta de forma.</translation>
     </message>
+    <message>
+        <source>Healing source cleared</source>
+        <translation>Origen de corrección borrado</translation>
+    </message>
+    <message>
+        <source>Clone source cleared</source>
+        <translation>Origen de clonación borrado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

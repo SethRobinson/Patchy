@@ -270,8 +270,12 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   play_hidden_check_->setChecked(app_settings().value(QString::fromLatin1(kPlayHiddenLayersKey), false).toBool());
   playback_layout->addWidget(play_hidden_check_, 2, 1);
 
-  // The frame counter reads beside Play while it runs.
+  // The frame counter reads beside Play while it runs. Each group's button row sits a little
+  // further from the checkbox above it than the option rows sit from each other (GitHub issue
+  // 198 follow-up: Set Time read as part of Apply to all layers).
+  constexpr int kButtonRowExtraGap = 6;
   auto* play_row = new QHBoxLayout();
+  play_row->setContentsMargins(0, kButtonRowExtraGap, 0, 0);
   play_row->setSpacing(8);
   status_label_ = new QLabel(playback_group);
   status_label_->setObjectName(QStringLiteral("animationFrameStatusLabel"));
@@ -313,6 +317,7 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   all_layers_check_->setChecked(app_settings().value(QString::fromLatin1(kApplyToAllLayersKey), false).toBool());
   names_layout->addWidget(all_layers_check_, 1, 1);
   auto* names_buttons = new QHBoxLayout();
+  names_buttons->setContentsMargins(0, kButtonRowExtraGap, 0, 0);
   names_buttons->setSpacing(8);
   names_buttons->addStretch(1);
   auto* set_time_button = new QPushButton(tr("Set Time"), names_group);

@@ -15976,6 +15976,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
         <translation>Die Vektormaske hat noch keinen Pfad zum Verschieben. Zeichnen Sie einen mit dem Zeichenstift oder einem Formwerkzeug.</translation>
     </message>
+    <message>
+        <source>Healing source cleared</source>
+        <translation>Reparaturquelle entfernt</translation>
+    </message>
+    <message>
+        <source>Clone source cleared</source>
+        <translation>Kopierquelle entfernt</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

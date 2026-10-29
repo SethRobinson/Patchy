@@ -15976,6 +15976,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
         <translation>A máscara vetorial ainda não tem um demarcador para mover. Desenhe um com a Caneta ou uma ferramenta de forma.</translation>
     </message>
+    <message>
+        <source>Healing source cleared</source>
+        <translation>Origem de recuperação removida</translation>
+    </message>
+    <message>
+        <source>Clone source cleared</source>
+        <translation>Fonte de clonagem removida</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

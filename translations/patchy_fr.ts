@@ -15976,6 +15976,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>The vector mask has no path to move yet. Draw one with the Pen or a shape tool.</source>
         <translation>Le masque vectoriel n&apos;a pas encore de tracé à déplacer. Dessinez-en un avec la Plume ou un outil de forme.</translation>
     </message>
+    <message>
+        <source>Healing source cleared</source>
+        <translation>Source de correction effacée</translation>
+    </message>
+    <message>
+        <source>Clone source cleared</source>
+        <translation>Source de duplication effacée</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
