@@ -895,6 +895,15 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
     }
     side->setFixedWidth(std::max(ui_text_length(250), side->sizeHint().width()));
   }
+  // Word-wrapped rows add no height to the window's minimum, so a window held to its minimum
+  // squeezed the output form under its fields (Japanese on Linux, at every text size). Once
+  // shown, with the sheet's fonts in place, hold the column at the height its wrapped text
+  // takes at its width.
+  QTimer::singleShot(0, &dialog, [side, side_layout] {
+    if (side_layout->hasHeightForWidth()) {
+      side->setMinimumHeight(side_layout->totalHeightForWidth(side->width()));
+    }
+  });
   // Validating accept: in a save mode the folder must exist (or be creatable)
   // before the dialog closes; on failure it stays open for a correction.
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, folder_edit, save_selected] {

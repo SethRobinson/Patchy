@@ -2388,6 +2388,22 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
   };
 
+  // The rows decide the list's floor too: the design width scaled by the text size falls
+  // short of the longest name in a wider face (German Bevel & Emboss at 125% on Linux).
+  const auto fit_categories_to_rows = [categories] {
+    int widest_row = 0;
+    for (int row = 0; row < categories->count(); ++row) {
+      if (auto* widget = categories->itemWidget(categories->item(row)); widget != nullptr) {
+        widest_row = std::max(widest_row, widget->sizeHint().width());
+      }
+    }
+    const int rows_width = widest_row + 2 * categories->frameWidth();
+    if (rows_width > categories->minimumWidth()) {
+      categories->setMinimumWidth(rows_width);
+      categories->setMaximumWidth(std::max(categories->maximumWidth(), rows_width));
+    }
+  };
+
   rebuild_category_list = [&](LayerStyleEffectKind select_kind, int select_index) {
     rebuilding_categories = true;
     const QSignalBlocker blocker(categories);
@@ -2514,6 +2530,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     // Signals are blocked during the rebuild, so sync the row selection styling
     // directly.
     restyle_category_rows();
+    fit_categories_to_rows();
+    // The sheet's text size reaches the rows once the dialog is shown: measure again then.
+    QTimer::singleShot(0, &dialog, fit_categories_to_rows);
     rebuilding_categories = false;
   };
 

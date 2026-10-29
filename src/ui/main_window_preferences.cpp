@@ -54,6 +54,7 @@
 #include "ui/theme_effects.hpp"
 #include "ui/theme_script_host.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui/unit_spin_box.hpp"
 #include "ui/user_fonts.hpp"
 #include "ui/scanner_import.hpp"
@@ -78,6 +79,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
@@ -120,6 +122,8 @@
 #include <QStackedWidget>
 #include <QString>
 #include <QStringList>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QStringLiteral>
 #include <QTimer>
 #include <QUrl>
@@ -1040,6 +1044,27 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     cmyk_profile_combo->insertSeparator(cmyk_profile_combo->count());
     cmyk_profile_combo->addItem(tr("Choose Profile File..."), kCmykChooseFile);
 #endif
+  }
+  // The minimum contents length counts average Latin characters, which a Japanese entry
+  // outgrows at a larger text size (GitHub issue 495): the entries Patchy names itself fit
+  // whole, up to the compact field width scaled the same way. Installed profile names can be
+  // any length and keep the 24-character floor; the default text size keeps its layout.
+  if (ui_text_size_percent() != 100) {
+    cmyk_profile_combo->ensurePolished();
+    const QFontMetrics metrics(cmyk_profile_combo->font());
+    int text_width = 0;
+    for (int row = 0; row < cmyk_profile_combo->count(); ++row) {
+      const auto choice = cmyk_profile_combo->itemData(row).toString();
+      if (choice.isEmpty() || choice == QLatin1String(kCmykProfileFormula) || choice == kCmykChooseFile) {
+        text_width = std::max(text_width, metrics.horizontalAdvance(cmyk_profile_combo->itemText(row)));
+      }
+    }
+    QStyleOptionComboBox option;
+    option.initFrom(cmyk_profile_combo);
+    const auto fitted = cmyk_profile_combo->style()->sizeFromContents(
+        QStyle::CT_ComboBox, &option, QSize(text_width, metrics.height()), cmyk_profile_combo);
+    cmyk_profile_combo->setMinimumWidth(
+        std::max(cmyk_profile_combo->minimumSizeHint().width(), std::min(fitted.width(), ui_text_length(340))));
   }
   // A chosen file outside the scanned folders gets its own row just above "No profile".
   const auto select_cmyk_profile = [cmyk_profile_combo, add_cmyk_profile_entry](const QString& stored) {
