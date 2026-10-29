@@ -849,7 +849,57 @@ std::vector<XmpRow> flatten_xmp(const XmpPacket& packet) {
     }
     flatten_value(packet, property.value, prefix + ":" + property.name, property, rows, packet.prefixes, 0);
   }
+  for (auto& row : rows) {
+    row.value = xmp_date_display(std::move(row.value));
+    if (row.ns == xmp_ns::kIptcExt && row.name == "DigitalSourceType" && !is_ai_digital_source_type(row.value)) {
+      row.privacy = PrivacyClass::None;  // a camera, scan or artwork source is not an AI record
+    }
+  }
   return rows;
+}
+
+std::string xmp_date_display(std::string text) {
+  const auto digit = [&text](std::size_t at) { return at < text.size() && text[at] >= '0' && text[at] <= '9'; };
+  const auto digits = [&digit](std::size_t from, std::size_t count) {
+    for (std::size_t i = from; i < from + count; ++i) {
+      if (!digit(i)) {
+        return false;
+      }
+    }
+    return true;
+  };
+  // YYYY-MM-DDThh:mm, then optional :ss and .fraction.
+  if (!(digits(0, 4) && text.size() > 16 && text[4] == '-' && digits(5, 2) && text[7] == '-' && digits(8, 2) &&
+        text[10] == 'T' && digits(11, 2) && text[13] == ':' && digits(14, 2))) {
+    return text;
+  }
+  std::size_t zone = 16;
+  if (text[zone] == ':' && digits(zone + 1, 2)) {
+    zone += 3;
+    if (zone < text.size() && text[zone] == '.' && digit(zone + 1)) {
+      ++zone;
+      while (digit(zone)) {
+        ++zone;
+      }
+    }
+  }
+  if (zone >= text.size() || (text[zone] != '+' && text[zone] != '-')) {
+    return text;
+  }
+  const auto rest = text.size() - zone - 1;
+  const auto pair = [&text](std::size_t at) { return (text[at] - '0') * 10 + (text[at + 1] - '0'); };
+  if (rest == 2 && digits(zone + 1, 2) && pair(zone + 1) <= 23) {
+    text += ":00";
+  } else if (rest == 4 && digits(zone + 1, 4) && pair(zone + 1) <= 23 && pair(zone + 3) <= 59) {
+    text.insert(zone + 3, 1, ':');
+  }
+  return text;
+}
+
+bool is_ai_digital_source_type(std::string_view value) noexcept {
+  const auto slash = value.find_last_of('/');
+  const auto code = slash == std::string_view::npos ? value : value.substr(slash + 1);
+  return code == "trainedAlgorithmicMedia" || code == "compositeWithTrainedAlgorithmicMedia";
 }
 
 }  // namespace patchy::metadata

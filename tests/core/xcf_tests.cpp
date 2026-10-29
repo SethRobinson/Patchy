@@ -18,6 +18,7 @@
 #include "formats/metadata/exif_tags.hpp"
 #include "formats/metadata/iptc_iim.hpp"
 #include "formats/metadata/metadata_edit.hpp"
+#include "formats/metadata/metadata_view.hpp"
 #include "formats/metadata/tiff_ifd.hpp"
 #include "formats/metadata/xmp.hpp"
 #include "formats/ora_document_io.hpp"
@@ -1932,6 +1933,14 @@ void xcf_metadata_sample_iptc_extension() {
   CHECK(xmp.text(md::xmp_ns::kIptcExt, "Event") == "event");
   CHECK(xmp.text(md::xmp_ns::kIptcExt, "DigitalSourceType") ==
         "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture");
+  // #500 follow-up: digitalCapture opens no AI Generation page; GIMP's GPS placeholder (an
+  // altitude of 0 without a position) and its "+03" history zone display cleanly.
+  CHECK(!md::summarize_ai_generation(document.file_info()).present());
+  const auto rows = md::describe_file_info(document.file_info(), {});
+  CHECK(std::none_of(rows.begin(), rows.end(), [](const auto& row) { return row.group == "EXIF GPS"; }));
+  const auto history = md::summarize_edit_history(document.file_info());
+  CHECK(!history.events.empty() && history.events.back().when.size() > 6 &&
+        history.events.back().when.substr(history.events.back().when.size() - 6) == "+03:00");
   const auto* shown = xmp.find(md::xmp_ns::kIptcExt, "LocationShown");
   CHECK(shown != nullptr && shown->value.kind == md::XmpValue::Kind::Bag && shown->value.items.size() == 2);
   if (shown != nullptr && shown->value.items.size() == 2) {
