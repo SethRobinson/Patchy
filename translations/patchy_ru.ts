@@ -20094,10 +20094,6 @@ RGB: -
         <source>%1 - %2</source>
         <translation>%1&#xa0;–&#xa0;%2</translation>
     </message>
-    <message>
-        <source>Opened %1</source>
-        <translation>Открыт %1</translation>
-    </message>
     <message numerus="yes">
         <source> (+%n more import note(s))</source>
         <translation>
@@ -20105,10 +20101,6 @@ RGB: -
             <numerusform> (ещё %n примечания об импорте)</numerusform>
             <numerusform> (ещё %n примечаний об импорте)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Opened %1. %2</source>
-        <translation>Открыт %1. %2</translation>
     </message>
     <message>
         <source>Opening page %1 of %2...</source>
@@ -20137,10 +20129,6 @@ RGB: -
     <message>
         <source>Reopened %1</source>
         <translation>Открыто повторно %1</translation>
-    </message>
-    <message>
-        <source>Reopened %1. %2</source>
-        <translation>Повторно открыт %1. %2</translation>
     </message>
     <message>
         <source>Import from Scanner</source>

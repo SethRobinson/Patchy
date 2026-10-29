@@ -19996,19 +19996,11 @@ RGB: -
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
-    <message>
-        <source>Opened %1</source>
-        <translation>%1을(를) 열었습니다</translation>
-    </message>
     <message numerus="yes">
         <source> (+%n more import note(s))</source>
         <translation>
             <numerusform> (추가 가져오기 참고 사항 %n개)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Opened %1. %2</source>
-        <translation>%1을(를) 열었습니다. %2</translation>
     </message>
     <message>
         <source>Opening page %1 of %2...</source>
@@ -20037,10 +20029,6 @@ RGB: -
     <message>
         <source>Reopened %1</source>
         <translation>%1을(를) 다시 열었습니다</translation>
-    </message>
-    <message>
-        <source>Reopened %1. %2</source>
-        <translation>%1을(를) 다시 열었습니다. %2</translation>
     </message>
     <message>
         <source>Import from Scanner</source>

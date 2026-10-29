@@ -18795,10 +18795,6 @@ RGB: -
         <translation>削除</translation>
     </message>
     <message>
-        <source>Opened %1</source>
-        <translation>%1 を開きました</translation>
-    </message>
-    <message>
         <source>Reopen Document</source>
         <translation>ドキュメントを開き直す</translation>
     </message>
@@ -18841,10 +18837,6 @@ RGB: -
     <message>
         <source>Reopened %1</source>
         <translation>%1 を開き直しました</translation>
-    </message>
-    <message>
-        <source>Reopened %1. %2</source>
-        <translation>%1 を開き直しました。%2</translation>
     </message>
     <message>
         <source>Untitled.psd</source>
@@ -19785,10 +19777,6 @@ To update, paste this into a terminal:
         <translation>
             <numerusform> (ほか %n 件のインポートノート)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Opened %1. %2</source>
-        <translation>%1 を開きました。%2</translation>
     </message>
     <message>
         <source>Show import warnings and notes in a popup (status bar otherwise)</source>

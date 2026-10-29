@@ -97,6 +97,13 @@ public:
   [[nodiscard]] bool error_message_active() const;
   [[nodiscard]] bool error_flash_running() const;
 
+  // The same flash, icon and persistence in the yellow notice colors
+  // (status_notice_*), for notes that block nothing but should not be missed:
+  // import notes when a file opens (GitHub issue 487).
+  void show_notice_message(const QString& text);
+  [[nodiscard]] bool notice_message_active() const;
+  [[nodiscard]] bool notice_flash_running() const;
+
 signals:
   // After every size change, so left-side widgets can refit their text.
   void resized();
@@ -109,12 +116,15 @@ protected:
 private:
   void position_left_widget();
   void paint_warning_icon(QPainter& painter, const QRect& icon_rect) const;
+  void show_highlighted_message(const QString& text, bool notice);
 
   QWidget* left_widget_{nullptr};
-  QString error_text_;
-  bool error_active_{false};
-  QTimer error_flash_timer_;
-  QElapsedTimer error_flash_clock_;
+  // The highlighted (error or notice) message, if one is showing.
+  QString highlight_text_;
+  bool highlight_active_{false};
+  bool highlight_is_notice_{false};
+  QTimer highlight_flash_timer_;
+  QElapsedTimer highlight_flash_clock_;
 };
 
 }  // namespace patchy::ui

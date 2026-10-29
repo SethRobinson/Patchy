@@ -25,7 +25,7 @@ Standing rules:
 - **No hex literals for chrome anywhere in `src/ui`.** Colors are named roles in `src/ui/theme_palette.hpp`. QSS writes them as `@role_name` tokens; painted widgets and delegates read `theme().role_name`. Adding a role means the member, a Dark value, and a row in the role table; `ui_theme_palettes_define_every_role` fails if you miss one.
 - **Dark is authored, Light is derived then corrected.** `light_palette()` mirrors the lightness of every Dark role, lifts the mirrored neutrals into Light's surface band, and then overrides the ones where that is wrong (the canvas backdrop, bevels, brand and state colors, icon ink). A new role therefore needs no Light decision unless it deserves one.
 - **The lift is what makes Light look lit.** Dark packs its surfaces into the bottom third of the value range, so a plain mirror reads medium gray. `lift_to_surface_band()` raises that end only (ink below the first stop passes through); it is monotonic, so roles cannot swap order, but it compresses near white.
-- **A mirror inverts an outline.** A line darker than its surface in Dark comes back lighter than it in Light, which on a near-white surface is no line at all. Those roles are corrected by hand in `light_palette()` (field wells, the tool column and dock outlines, the splitter groove); a line that is *lighter* than its surface in Dark is ink and mirrors correctly. When adding a role that draws a line, check which of the two it is.
+- **A mirror inverts an outline.** A line darker than its surface in Dark comes back lighter than it in Light, which on a near-white surface is no line at all. Those roles are corrected by hand in `light_palette()` (field wells, the tool column and dock outlines, the splitter groove); a line *lighter* than its surface in Dark is ink and mirrors correctly. Check which a new line role is.
 - **A mirror also inverts lightness that carries meaning.** A role that signals selection or control by sitting lighter than its neighbours loses the claim in the flip, so `light_palette()` restates it: the selected tab rises above the strip, unselected tabs drop below it, and the scroll-bar handle becomes the dark element in a light groove. A role whose lightness states state or elevation has to be re-decided for Light; a plain surface level mirrors correctly.
 - **A tint on a surface is not a brand color.** `flip_for_light()` chooses between lifting a role into Light's surface band and pulling it to a mid tone by saturation alone, so a near-black wearing a cool cast trips the chromatic branch and comes back as a mid tone of that hue. The About dialog's body, its secondary button, and that button's hover are restated in `light_palette()` as the light surface band with the cast kept. A new tinted surface needs the same check; a role whose chroma carries brand or state meaning does not.
 - **A widget that wants its own values gets its own roles.** A borrowed role is a coincidence that holds in one scheme; a named family states the relationship the corrections must preserve (the color picker's `picker_tab_*`). `ui_light_scheme_color_picker_selected_tab_reads_as_selected` renders the bar in both schemes and pins it.
@@ -94,7 +94,7 @@ A field's "Label:", the gap and the field are one scrub zone (issue 46): drags s
 
 A field with a length, percent, or degree suffix is a `UnitSpinBox` or `UnitIntSpinBox` (`src/ui/unit_spin_box.hpp`). The constructor takes the native `SpinUnit` and sets the suffix; `set_context_provider` supplies the document PPI and the percent basis (what 100% means for that field, 0 rejects percent). A typed unit token converts on entry while the display stays native; plain numbers keep the stock rules. Token table and conversion rules: [resolution-units.md](resolution-units.md).
 
-When the typed range exceeds the useful drag range, set `kToolbarSpinboxSliderMaxProperty` (`dialog_utils.hpp`) not a narrower range: Text Size accepts 10000 pt, its slider stops at 200 unless the value is higher.
+When the typed range exceeds the useful drag range, set `kToolbarSpinboxSliderMaxProperty` (`dialog_utils.hpp`), not a narrower range: Text Size takes 10000 pt, its slider stops at 200.
 
 Size-like sliders (brush, Quick Select and Liquify size, Feather, Line Weight, effect Size and Distance) use `SliderCurve::FineLowEnd` (`src/ui/curved_slider.hpp`): value grows with the position squared. Opt in with `bind_curved_slider`, `kToolbarSpinboxSliderCurvedProperty` (popups), or `add_dialog_slider_spin_row`'s `curve`. `QSlider::value()` is then a position: use `slider_value` and `set_slider_to_value`. Keep percentages, angles and color channels linear.
 
@@ -102,9 +102,9 @@ Application-wide tool state follows the `current_*` mirror pattern in MainWindow
 
 ## Status bar
 
-QStatusBar hides non-permanent widgets whenever a message is displayed. Patchy's left-side status widgets are manually positioned children of `ZoomStatusBar`; never add them with `addWidget()`.
+QStatusBar hides non-permanent widgets while a message shows, so Patchy's left-side status widgets are positioned children of `ZoomStatusBar`; never use `addWidget()`.
 
-Blocking refusals and failed operations use `MainWindow::show_status_error` or `CanvasWidget::report_status_error`, which add the red flash and warning icon. Informational confirmations, cancellations, no-op results, and readouts use `showMessage`. Status text reaches `currentMessage()` unchanged; tests may assert it.
+Blocking refusals and failed operations use `MainWindow::show_status_error` or `CanvasWidget::report_status_error`, which add the red flash and warning icon. Import notes on open use `show_import_notes_status`: the same in the yellow `status_notice_*` roles. Informational confirmations, cancellations, no-op results, and readouts use `showMessage`. Status text reaches `currentMessage()` unchanged; tests may assert it.
 
 ## Standing UI rules
 

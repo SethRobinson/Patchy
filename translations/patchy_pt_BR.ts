@@ -20045,20 +20045,12 @@ Retângulo: -</translation>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
-    <message>
-        <source>Opened %1</source>
-        <translation>Aberto %1</translation>
-    </message>
     <message numerus="yes">
         <source> (+%n more import note(s))</source>
         <translation>
             <numerusform> (+%n observação de importação adicional)</numerusform>
             <numerusform> (+%n observações de importação adicionais)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Opened %1. %2</source>
-        <translation>Aberto %1. %2</translation>
     </message>
     <message>
         <source>Opening page %1 of %2...</source>
@@ -20087,10 +20079,6 @@ Retângulo: -</translation>
     <message>
         <source>Reopened %1</source>
         <translation>Reaberto %1</translation>
-    </message>
-    <message>
-        <source>Reopened %1. %2</source>
-        <translation>Reaberto %1. %2</translation>
     </message>
     <message>
         <source>Import from Scanner</source>

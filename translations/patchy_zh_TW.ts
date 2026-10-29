@@ -19368,19 +19368,11 @@ RGB: -
         <source>Remember this choice</source>
         <translation>記住這個選擇</translation>
     </message>
-    <message>
-        <source>Opened %1</source>
-        <translation>已開啟 %1</translation>
-    </message>
     <message numerus="yes">
         <source> (+%n more import note(s))</source>
         <translation>
             <numerusform> (另有 %n 則匯入備註)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Opened %1. %2</source>
-        <translation>已開啟 %1。%2</translation>
     </message>
     <message>
         <source>File is missing</source>
@@ -19405,10 +19397,6 @@ RGB: -
     <message>
         <source>Reopened %1</source>
         <translation>已重新開啟 %1</translation>
-    </message>
-    <message>
-        <source>Reopened %1. %2</source>
-        <translation>已重新開啟 %1。%2</translation>
     </message>
     <message>
         <source>Import from Scanner</source>
