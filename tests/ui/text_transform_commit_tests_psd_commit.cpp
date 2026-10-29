@@ -5,6 +5,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/font_face_name_index.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/text_document.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -55,6 +56,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -1342,6 +1344,147 @@ void ui_psd_tools_tracked_box_text_matches_photoshop_if_available() {
   CHECK(mismatches == 0);
 }
 
+// Alpha-weighted centroid of a layer's raster in document space.
+std::optional<QPointF> alpha_centroid(const patchy::Layer& layer) {
+  const auto& pixels = layer.pixels();
+  const auto channels = pixels.format().channels;
+  if (pixels.empty() || (channels != 1U && channels < 4U)) {
+    return std::nullopt;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  double sum = 0.0;
+  double sum_x = 0.0;
+  double sum_y = 0.0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const double alpha = pixels.pixel(x, y)[alpha_channel];
+      sum += alpha;
+      sum_x += alpha * (layer.bounds().x + x);
+      sum_y += alpha * (layer.bounds().y + y);
+    }
+  }
+  if (sum <= 0.0) {
+    return std::nullopt;
+  }
+  return QPointF(sum_x / sum, sum_y / sum);
+}
+
+// psd-tools type-layer.psd (twice) and fill-opacity.psd: one "A", ArialMT 30 px, centred in a
+// 32 px box, tracking 15, Strong. Their TySh matrix has xx 1.0000000000000002, so the frame
+// measured 32.000000000000007 px and the edit session laid it out 33 px wide, half a pixel of
+// centring that the trailing-gap shift (+0.225) then rounded a whole column right (Testy
+// perceptual 100 -> 53). The frame must lay out 32 px wide and the re-render sit on Photoshop
+// 2026's ink centroid, which is also the stored raster's. The rows sit 0.1 px higher than
+// Photoshop's with or without the fix (Strong's weight), hence the looser y bound.
+void ui_psd_tools_small_tracking_centred_glyph_matches_photoshop_if_available() {
+  CHECK(patchy::ui::psd_text_frame_extent_pixels(32.000000000000007) == 32);
+  CHECK(patchy::ui::psd_text_frame_extent_pixels(121.84547) == 122);
+  CHECK(patchy::ui::psd_text_frame_extent_pixels(28.02122) == 29);
+  CHECK(patchy::ui::psd_text_frame_extent_pixels(3.0) == patchy::ui::kMinimumTextBoxDocumentSize);
+  const auto folder = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
+  patchy::test::skip_unless_exists(folder / "layers" / "type-layer.psd");
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  struct Case {
+    const char* file;
+    const char* artifact;
+  };
+  const std::array<Case, 3> cases{{
+      {"layers/type-layer.psd", "ui_psd_tools_type_layer_commit"},
+      {"layers-minimal/type-layer.psd", "ui_psd_tools_type_layer_minimal_commit"},
+      {"transparency/fill-opacity.psd", "ui_psd_tools_fill_opacity_commit"},
+  }};
+  constexpr double kPhotoshopX = 15.446;  // Photoshop 2026 ink centroid, document pixels
+  constexpr double kPhotoshopY = 16.844;
+  int mismatches = 0;
+  for (const auto& entry : cases) {
+    const auto probe = run_photoshop_text_commit_probe(folder / entry.file, "A", 1.0, entry.artifact, "Arial", 1,
+                                                       /*edit_and_restore*/ true);
+    if (!probe.has_value()) {
+      patchy::test::skip("Arial is not available for the corpus type");
+    }
+    if (!probe->committed_layer.has_value() || !probe->original_layer.has_value()) {
+      continue;
+    }
+    const auto centroid = alpha_centroid(*probe->committed_layer);
+    const auto stored = alpha_centroid(*probe->original_layer);
+    CHECK(centroid.has_value() && stored.has_value());
+    if (!centroid.has_value() || !stored.has_value()) {
+      continue;
+    }
+    const bool matches = std::abs(centroid->x() - kPhotoshopX) <= 0.05 && std::abs(stored->x() - kPhotoshopX) <= 0.01 &&
+                         std::abs(centroid->y() - kPhotoshopY) <= 0.15;
+    std::printf("  %-30s photoshop 2026 %.3f,%.3f (stored raster %.3f,%.3f) -> patchy %.3f,%.3f%s\n", entry.file,
+                kPhotoshopX, kPhotoshopY, stored->x(), stored->y(), centroid->x(), centroid->y(),
+                matches ? "" : "  MISMATCH");
+    std::fflush(stdout);
+    mismatches += matches ? 0 : 1;
+  }
+  CHECK(mismatches == 0);
+}
+
+// Small-tracking sweep (local-test-fixtures/psd/ps2026_text_tracking_small/,
+// scripts/dev/text-tracking/capture-tracking-small.jsx): "A", "AV" and "TEXT" centred or
+// right-aligned in a box, ArialMT 30 px, tracking 0 / 15 / 40 / 75 / 200. Photoshop leaves the
+// tracking after the last glyph out of alignment at every amount, so a lone "A" does not move
+// at all and Patchy's offset from Photoshop must not change with the tracking (a trailing gap
+// counted at +200 moves a centred line 3 px). The offset itself is not pinned: these
+// documents also kern the last glyph against the paragraph end (calibration doc, "Tracking and
+// alignment"), which Patchy does not model.
+void ui_psd_small_tracking_sweep_matches_photoshop_if_available() {
+  const auto folder = patchy::test::local_psd_fixture_path("ps2026_text_tracking_small");
+  patchy::test::skip_unless_exists(folder / "manifest.jsonl");
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  std::vector<std::filesystem::path> files;
+  for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+    const auto stem = patchy::path_to_utf8(entry.path().stem());
+    // Two box phases of the single-glyph cases are enough; the words keep all four.
+    const bool single = stem.rfind("a_", 0) == 0;
+    if (entry.path().extension() == ".psd" && (!single || stem.ends_with("_x0") || stem.ends_with("_x5"))) {
+      files.push_back(entry.path());
+    }
+  }
+  std::sort(files.begin(), files.end());
+  CHECK(!files.empty());
+  // Patchy minus Photoshop centroid x, per case with the tracking left out of its name.
+  std::map<std::string, std::vector<double>> offsets;
+  for (const auto& file : files) {
+    const auto stem = patchy::path_to_utf8(file.stem());
+    const char* needle = stem.rfind("a_", 0) == 0 ? "A" : stem.rfind("wAV", 0) == 0 ? "AV" : "TEXT";
+    const auto probe = run_photoshop_text_commit_probe(file, needle, 1.0, ("ui_small_tracking_" + stem).c_str(),
+                                                       "Arial", 1, /*edit_and_restore*/ true);
+    if (!probe.has_value()) {
+      patchy::test::skip("Arial is not available for the sweep's type");
+    }
+    if (!probe->original_layer.has_value() || !probe->committed_layer.has_value()) {
+      continue;
+    }
+    const auto ps = alpha_centroid(*probe->original_layer);
+    const auto ours = alpha_centroid(*probe->committed_layer);
+    CHECK(ps.has_value() && ours.has_value());
+    if (!ps.has_value() || !ours.has_value()) {
+      continue;
+    }
+    auto key = stem;
+    const auto tracking_at = key.find("_t");
+    key.erase(tracking_at, key.find('_', tracking_at + 1) - tracking_at);
+    offsets[key].push_back(ours->x() - ps->x());
+    std::printf("  %-26s photoshop x %.3f -> patchy x %.3f (%+.3f)\n", stem.c_str(), ps->x(), ours->x(),
+                ours->x() - ps->x());
+    std::fflush(stdout);
+  }
+  int mismatches = 0;
+  for (const auto& [key, values] : offsets) {
+    const auto [low, high] = std::minmax_element(values.begin(), values.end());
+    // One glyph of a word rounding to the next column moves its centroid about a quarter pixel.
+    const bool steady = values.size() == 5U && *high - *low <= (key.rfind("a_", 0) == 0 ? 0.02 : 0.35);
+    std::printf("  %-20s offset %+.3f..%+.3f over %zu trackings%s\n", key.c_str(), *low, *high, values.size(),
+                steady ? "" : "  MOVES WITH TRACKING");
+    mismatches += steady ? 0 : 1;
+  }
+  std::fflush(stdout);
+  CHECK(mismatches == 0);
+}
+
 // Total alpha of a layer's raster and its per-pixel distance from another raster, both read in
 // DOCUMENT space so rasters of different bounds compare where their ink actually lands.
 struct AlphaComparison {
@@ -1446,14 +1589,13 @@ void ui_psd_strong_anti_alias_commit_keeps_photoshop_weight_if_available() {
     double max_difference;
   };
   // clip-adjustment's "a" keeps a pre-existing half-pixel x offset (difference 0.41 either way).
-  // The two "A" layers are centred box text tracked +15: Photoshop 2026 keeps a lone centred
-  // glyph in place at every tracking, as the trailing-gap rule says, but Patchy centres this "A"
-  // one pixel right of it even untracked (difference 0.49). Before the rule, Qt's trailing gap
-  // happened to pull it back (0.06).
+  // The two "A" layers are centred box text tracked +15 whose 32 px frame once laid out 33 px
+  // wide (matrix noise), a column right (difference 0.49); position is pinned by
+  // ui_psd_tools_small_tracking_centred_glyph_matches_photoshop_if_available.
   const std::array<TestyCase, 3> testy{{
       {"clip-adjustment.psd", "a", "ui_psd_strong_aa_clip_adjustment", 0.12, 0.45},
-      {"layers/type-layer.psd", "A", "ui_psd_strong_aa_type_layer", 0.08, 0.50},
-      {"transparency/fill-opacity.psd", "A", "ui_psd_strong_aa_fill_opacity", 0.08, 0.50},
+      {"layers/type-layer.psd", "A", "ui_psd_strong_aa_type_layer", 0.08, 0.10},
+      {"transparency/fill-opacity.psd", "A", "ui_psd_strong_aa_fill_opacity", 0.08, 0.10},
   }};
   std::vector<bool> testy_within;
   for (const auto& entry : testy) {
@@ -4385,6 +4527,10 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_psd_tracked_text_sweep_matches_photoshop_if_available},
       {"ui_psd_tools_tracked_box_text_matches_photoshop_if_available",
        ui_psd_tools_tracked_box_text_matches_photoshop_if_available},
+      {"ui_psd_tools_small_tracking_centred_glyph_matches_photoshop_if_available",
+       ui_psd_tools_small_tracking_centred_glyph_matches_photoshop_if_available},
+      {"ui_psd_small_tracking_sweep_matches_photoshop_if_available",
+       ui_psd_small_tracking_sweep_matches_photoshop_if_available},
       {"ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available",
        ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available},
       {"ui_psd_strong_anti_alias_commit_keeps_photoshop_weight_if_available",
