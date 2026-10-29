@@ -35,9 +35,13 @@ folders ("Not a file:") and unsupported files go to the status line while the go
 open. With no document both actions are document actions turned on only while the
 clipboard text parses as paths (`refresh_paste_without_document_state`, on
 `QClipboard::dataChanged`). A focused line edit, spin box or the canvas text editor accepts
-the Ctrl+V ShortcutOverride, so the text pastes there and nothing opens. Compiled out on
+the Ctrl+V ShortcutOverride, so the text pastes there and nothing opens. The start panel's
+recent filter takes focus when the panel shows; a click on the panel's empty area or a
+label (the panel has `Qt::ClickFocus`) or Escape in the filter moves focus to the panel, so
+Ctrl+V opens the path. Compiled out on
 WebAssembly (no host paths). Tests: `ui_clipboard_text_paths_parse_quotes_urls_and_lines`,
 `ui_paste_text_path_*`, `ui_paste_in_place_text_path_adds_a_layer`,
+`ui_start_panel_background_click_frees_ctrl_v_for_path_paste`,
 `ui_unicode_paste_text_path_opens_unicode_name`.
 
 ## Edit > Copy and the system clipboard

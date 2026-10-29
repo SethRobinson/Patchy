@@ -869,6 +869,82 @@ void ui_start_panel_recent_filter_narrows_rows_and_opens_match() {
   CHECK(recent_list->count() == 3);
 }
 
+// A click on the empty start panel, or Escape, takes focus out of the recent filter,
+// so Ctrl+V reaches Edit > Paste and opens a copied file path instead of typing it.
+void ui_start_panel_background_click_frees_ctrl_v_for_path_paste() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  ensure_artifact_dir();
+  QApplication::clipboard()->clear();
+  const auto path = QFileInfo(QStringLiteral("test-artifacts/start_panel_focus_paste.png")).absoluteFilePath();
+  QImage image(7, 5, QImage::Format_RGB32);
+  image.fill(QColor(90, 160, 60));
+  CHECK(image.save(path));
+
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), QStringList{path});
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("startPanelRecentFilterEdit"));
+  auto* title = window.findChild<QLabel*>(QStringLiteral("startPanelTitle"));
+  CHECK(panel != nullptr);
+  CHECK(filter_edit != nullptr);
+  CHECK(title != nullptr);
+  if (panel == nullptr || filter_edit == nullptr || title == nullptr) return;
+  CHECK(window.focusWidget() == filter_edit);
+  const auto native_path = QDir::toNativeSeparators(path);
+  QApplication::clipboard()->setText(QStringLiteral("\"%1\"").arg(native_path));
+  QApplication::processEvents();
+
+  // Control: with the filter focused, Ctrl+V types the path into it.
+  QTest::keyClick(filter_edit, Qt::Key_V, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(filter_edit->text().contains(native_path));
+  CHECK(Access::session_count(window) == 0U);
+  filter_edit->clear();
+
+  // A click on the panel's empty margin moves focus to the panel itself.
+  QTest::mouseClick(panel, Qt::LeftButton, Qt::NoModifier, QPoint(4, 4));
+  QApplication::processEvents();
+  CHECK(window.focusWidget() == panel);
+  CHECK(!filter_edit->hasFocus());
+
+  // Clicking the filter takes focus back for typing; a click on a label leaves it again.
+  QTest::mouseClick(filter_edit, Qt::LeftButton, Qt::NoModifier, filter_edit->rect().center());
+  QApplication::processEvents();
+  CHECK(filter_edit->hasFocus());
+  QTest::keyClicks(filter_edit, QStringLiteral("zz"));
+  CHECK(filter_edit->text() == QStringLiteral("zz"));
+  filter_edit->clear();
+  QTest::mouseClick(title, Qt::LeftButton, Qt::NoModifier, title->rect().center());
+  QApplication::processEvents();
+  CHECK(window.focusWidget() == panel);
+
+  // Escape in the filter leaves it too.
+  filter_edit->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  CHECK(filter_edit->hasFocus());
+  QTest::keyClick(filter_edit, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(window.focusWidget() == panel);
+
+#ifndef Q_OS_WASM
+  // With the panel focused, Ctrl+V opens the copied path.
+  QTest::keyClick(panel, Qt::Key_V, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 1U);
+  const auto path_key = [](const QString& value) { return QDir::cleanPath(QDir::fromNativeSeparators(value)); };
+  CHECK(path_key(Access::active_session_path(window)) == path_key(path));
+  CHECK(filter_edit->text().isEmpty());
+#endif
+  QApplication::clipboard()->clear();
+}
+
 void ui_start_panel_shows_about_info_and_update_status() {
   patchy::ui::MainWindow window;
   show_window_empty(window);
@@ -5170,6 +5246,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_open_recent_menu_remove_keeps_place", ui_open_recent_menu_remove_keeps_place},
       {"ui_empty_workspace_disables_document_commands", ui_empty_workspace_disables_document_commands},
       {"ui_start_panel_recent_filter_narrows_rows_and_opens_match", ui_start_panel_recent_filter_narrows_rows_and_opens_match},
+      {"ui_start_panel_background_click_frees_ctrl_v_for_path_paste", ui_start_panel_background_click_frees_ctrl_v_for_path_paste},
       {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_layer_panel_new_layer_menu_lists_fills_and_adjustments", ui_layer_panel_new_layer_menu_lists_fills_and_adjustments},
