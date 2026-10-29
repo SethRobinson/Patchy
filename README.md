@@ -202,9 +202,9 @@ In the [October 29, 2026 Testy v2 run](https://www.rtsoft.com/testy/2026-10-29/)
 Patchy opened **all 309 files** of the psd-tools test collection, and Photoshop
 reopened **every Patchy save** with **all 43 text objects, 183 adjustment layers,
 172 Smart Objects, and 181 live effects** kept. Patchy's perceptual render match
-was **98.6%**, with 299 files within 10% of Photoshop's pixels, and its Photoshop
+was **98.7%**, with 299 files within 10% of Photoshop's pixels, and its Photoshop
 text score was **97.3%**, both the highest of the six programs tested against
-Photoshop's reference, using a Patchy 1.21 development build (commit `ed897894`).
+Photoshop's reference, using a Patchy 1.21 development build (commit `25822a64`).
 
 Testy v2 scores each program on what it draws itself: the baked pixels Photoshop
 stores for text, shapes, fills, and Smart Objects are removed first. That is

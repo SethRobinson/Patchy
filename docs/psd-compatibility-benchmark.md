@@ -2,7 +2,7 @@
 
 Patchy's Testy harness measures PSD interoperability against a licensed copy of Adobe Photoshop. It tests visual rendering and the editability of a PSD after another program saves it. Those are separate questions: a file can look correct while text, effects, masks, or other native data have been flattened or changed.
 
-This page records the Testy v2 run `20261029-201841`. The
+This page records the Testy v2 run `20261029-224716`. The
 [published report](https://www.rtsoft.com/testy/2026-10-29/) has every file's renders,
 difference maps, and per-cell details for all seven columns. It excludes the source
 documents and the resaved PSDs.
@@ -11,10 +11,10 @@ The benchmark measures one thing: how faithfully each program loads, renders, an
 
 ## Current snapshot
 
-- Run date: October 29, 2026. Photoshop's references for the 17 32-bit files were captured again in a separate pass earlier that day, after a fix to how Testy captures them (see "Photoshop reference render"). PhotoCraft 0.17.0 was measured afresh on every file; the other columns reuse the same day's results for the same builds
+- Run date: October 29, 2026. Photoshop's references for the 17 32-bit files were captured again in a separate pass earlier that day, after a fix to how Testy captures them (see "Photoshop reference render"). Patchy was measured afresh on every file; the other columns reuse the same day's results for the same builds, including PhotoCraft 0.17.0 measured on every file
 - Corpus: the [psd-tools](https://github.com/psd-tools/psd-tools) test collection (MIT license), commit `605ee1284952`: 309 small single-feature PSD and PSB files, 49.6 MB
 - Reference: Adobe Photoshop 27.11.0, which opened 307 of the 309 files
-- Patchy build: 1.21 development build, commit `ed897894`
+- Patchy build: 1.21 development build, commit `25822a64`
 - Comparison mode: perceptual
 - Affinity and psd-tools were not part of this run; their October 12 results are under "Earlier runs"
 - Thanks to the psd-tools authors for the collection ([issue 65](https://github.com/SethRobinson/Patchy/issues/65))
@@ -22,7 +22,7 @@ The benchmark measures one thing: how faithfully each program loads, renders, an
 | Program and tested build | Type | Opened | Files within 10% of Photoshop | Perceptual match | Byte match | Data kept in PSD save | Saves rejected by Photoshop |
 |---|---|---:|---:|---:|---:|---:|---:|
 | Photoshop 27.11.0 | Proprietary reference | 307 / 309 | 307 | 100.0% | 100.0% | 100.0% | 0 |
-| **Patchy 1.21 `ed897894`** | **Open source** | **309 / 309** | **299** | **98.6%** | **96.3%** | **100.0%** | **0** |
+| **Patchy 1.21 `25822a64`** | **Open source** | **309 / 309** | **299** | **98.7%** | **96.3%** | **100.0%** | **0** |
 | PhotoCraft 0.17.0 | Open source | 309 / 309 | 264 | 93.7% | 92.1% | 99.7% | 0 |
 | Photopea, web build in Chrome | Proprietary web app | 306 / 309 | 240 | 85.2% | 82.0% | 99.7% | 3 |
 | Krita 5.3.4.1, git `bd6e8d0` | Open source | 273 / 309 | 92 | 48.6% | 55.8% | 79.4% | 7 |
@@ -47,7 +47,7 @@ PhotoCraft 0.17.0 had no rejected saves; 0.7.0 had 42, most of them PSB sources 
 
 ### Without known limitations
 
-29 of the 309 files are 16-bit or 32-bit documents, which several programs do not claim to support. Leaving them out (280 files), the perceptual match is: Patchy 98.5%, PhotoCraft 95.5%, Photopea 86.1%, Krita 52.5%, GIMP 43.1%, PhotoDemon 41.3%.
+29 of the 309 files are 16-bit or 32-bit documents, which several programs do not claim to support. Leaving them out (280 files), the perceptual match is: Patchy 98.6%, PhotoCraft 95.5%, Photopea 86.1%, Krita 52.5%, GIMP 43.1%, PhotoDemon 41.3%.
 
 ### Photoshop text
 
