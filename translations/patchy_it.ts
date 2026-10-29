@@ -14420,26 +14420,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Riproduzione</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>Durata fotogramma:</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Quanto resta visibile ogni fotogramma quando il nome del suo livello non indica un tempo. L&apos;esportazione GIF, WebP e PNG animati usa lo stesso valore predefinito.</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 s</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Personalizzato</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>Durate comuni dei fotogrammi. Personalizzato è qualsiasi altro valore digitato nella casella.</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>Ignora i tempi nei nomi dei livelli</translation>
     </message>
@@ -14490,6 +14470,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>No layers</source>
         <translation>Nessun livello</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>Durata predefinita del fotogramma:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Quanto resta visibile ogni fotogramma quando il nome del suo livello non indica un tempo. Digita un valore in secondi o scegline uno dall&apos;elenco. L&apos;esportazione GIF, WebP e PNG animati usa lo stesso valore predefinito.</translation>
     </message>
 </context>
 <context>

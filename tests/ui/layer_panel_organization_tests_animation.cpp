@@ -30,9 +30,11 @@
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPointer>
 #include <QPushButton>
+#include <QTest>
 #include <QToolButton>
 #include <cstdio>
 #include <string>
@@ -82,6 +84,25 @@ patchy::ui::AnimationPreviewWindow* open_animation_preview(patchy::ui::MainWindo
   return window.findChild<patchy::ui::AnimationPreviewWindow*>(QStringLiteral("animationPreviewWindow"));
 }
 
+// Types into the "Default frame delay" field the way a user does: replace the text, then
+// Return (which commits it, or lets the validator put the last value back).
+void type_frame_delay(QComboBox& field, const QString& text) {
+  auto* edit = field.lineEdit();
+  CHECK(edit != nullptr);
+  if (edit == nullptr) return;
+  edit->setFocus(Qt::OtherFocusReason);
+  edit->selectAll();
+  QTest::keyClick(edit, Qt::Key_Delete);
+  if (!text.isEmpty()) QTest::keyClicks(edit, text);
+  QTest::keyClick(edit, Qt::Key_Return);
+  QApplication::processEvents();
+}
+
+// The field's text for a delay, in the panel's locale.
+QString frame_delay_text(const QWidget& panel, double seconds) {
+  return panel.locale().toString(seconds, 'g', 6) + QStringLiteral(" s");
+}
+
 // Visibility of the four layers bottom to top.
 std::vector<bool> top_level_visibility(patchy::ui::MainWindow& window) {
   std::vector<bool> visibility;
@@ -111,18 +132,21 @@ void ui_animation_preview_plays_visible_layers_and_restores() {
   CHECK(panel != nullptr);
   CHECK(panel->isVisible());
 
-  // The delay spin edits the shared export default.
-  auto* delay_spin = panel->findChild<QDoubleSpinBox*>(QStringLiteral("animationFrameDelaySpin"));
+  // The delay field edits the shared export default.
+  auto* delay_field = panel->findChild<QComboBox*>(QStringLiteral("animationFrameDelayCombo"));
   auto* play_button = panel->findChild<QPushButton*>(QStringLiteral("animationPlayButton"));
   auto* status_label = panel->findChild<QLabel*>(QStringLiteral("animationFrameStatusLabel"));
-  CHECK(delay_spin != nullptr);
+  CHECK(delay_field != nullptr);
   CHECK(play_button != nullptr);
   CHECK(status_label != nullptr);
-  CHECK(delay_spin->value() == 0.10);
-  delay_spin->setValue(0.033);
+  CHECK(panel->default_frame_delay_ms() == 100);
+  type_frame_delay(*delay_field, QStringLiteral("0.033"));
+  CHECK(panel->default_frame_delay_ms() == 33);
+  // Return commits the field and nothing else: it never presses Play.
+  CHECK(!panel->playing());
   CHECK(patchy::ui::app_settings().value(QStringLiteral("saveOptions/animationFrameDelayMs")).toInt() == 33);
   CHECK(patchy::ui::app_settings().value(QStringLiteral("saveOptions/gifFrameDelayCs")).toInt() == 3);
-  delay_spin->setValue(0.30);
+  type_frame_delay(*delay_field, QStringLiteral("0.30"));
   CHECK(patchy::ui::app_settings().value(QStringLiteral("saveOptions/gifFrameDelayCs")).toInt() == 30);
 
   const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
@@ -166,7 +190,8 @@ void ui_animation_preview_plays_visible_layers_and_restores() {
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
 
   // The playback timer really advances frames on its own.
-  delay_spin->setValue(0.01);
+  type_frame_delay(*delay_field, QStringLiteral("0.01"));
+  CHECK(panel->default_frame_delay_ms() == 10);
   play_button->click();
   CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, false, true}));
   CHECK(process_events_until(
@@ -274,7 +299,8 @@ void ui_animation_preview_sets_and_removes_frame_time_names() {
 
 // "Ignore delays in layer names" plays every frame at the frame delay; "Play hidden layers"
 // adds hidden top-level layers to the cycle (and restarts a running playback to pick them
-// up). Both persist, and the delay presets drive the same spin.
+// up). Both persist. The one "Default frame delay" field takes typed values and presets
+// from its list, and puts the last value back for text it cannot use.
 void ui_animation_preview_ignores_name_delays_and_plays_hidden_layers() {
   AnimationPreviewSettingsReset preview_settings;
   SettingsValueRestorer delay_setting(QStringLiteral("saveOptions/gifFrameDelayCs"));
@@ -287,14 +313,13 @@ void ui_animation_preview_ignores_name_delays_and_plays_hidden_layers() {
   show_window(window);
   auto* panel = open_animation_preview(window);
   CHECK(panel != nullptr);
-  auto* delay_spin = panel->findChild<QDoubleSpinBox*>(QStringLiteral("animationFrameDelaySpin"));
-  auto* presets = panel->findChild<QComboBox*>(QStringLiteral("animationFrameDelayPresetCombo"));
+  auto* delay_field = panel->findChild<QComboBox*>(QStringLiteral("animationFrameDelayCombo"));
   auto* ignore_check = panel->findChild<QCheckBox*>(QStringLiteral("animationIgnoreNameDelaysCheck"));
   auto* hidden_check = panel->findChild<QCheckBox*>(QStringLiteral("animationPlayHiddenLayersCheck"));
   auto* play_button = panel->findChild<QPushButton*>(QStringLiteral("animationPlayButton"));
   auto* status_label = panel->findChild<QLabel*>(QStringLiteral("animationFrameStatusLabel"));
-  CHECK(delay_spin != nullptr);
-  CHECK(presets != nullptr);
+  CHECK(delay_field != nullptr);
+  CHECK(delay_field->isEditable());
   CHECK(ignore_check != nullptr);
   CHECK(hidden_check != nullptr);
   CHECK(play_button != nullptr);
@@ -303,22 +328,50 @@ void ui_animation_preview_ignores_name_delays_and_plays_hidden_layers() {
   CHECK(!hidden_check->isChecked());
   CHECK(!ignore_check->toolTip().isEmpty());
   CHECK(!hidden_check->toolTip().isEmpty());
-  CHECK(!presets->toolTip().isEmpty());
+  CHECK(!delay_field->toolTip().isEmpty());
+  // The old spin and separate preset list are gone.
+  CHECK(panel->findChild<QDoubleSpinBox*>(QStringLiteral("animationFrameDelaySpin")) == nullptr);
+  CHECK(panel->findChild<QComboBox*>(QStringLiteral("animationFrameDelayPresetCombo")) == nullptr);
 
-  // The presets: 0.1 s (the default) shows as its preset, a typed value as Custom, and
-  // picking a preset sets the spin and the shared export default.
-  CHECK(presets->count() == 6);
-  CHECK(presets->currentData().toInt() == 100);
-  delay_spin->setValue(0.3);
-  CHECK(presets->currentData().toInt() == -1);
-  const int half_second = presets->findData(500);
+  // The list: five presets with their unit; 0.1 s (the default) shows as its preset.
+  CHECK(delay_field->count() == 5);
+  CHECK(delay_field->itemText(0) == frame_delay_text(*panel, 0.05));
+  CHECK(delay_field->itemText(4) == frame_delay_text(*panel, 1.0));
+  CHECK(delay_field->currentData().toInt() == 100);
+  CHECK(delay_field->currentText() == frame_delay_text(*panel, 0.1));
+
+  // A typed value commits, shows with its unit, matches no preset and never joins the list.
+  type_frame_delay(*delay_field, QStringLiteral("0.3"));
+  CHECK(panel->default_frame_delay_ms() == 300);
+  CHECK(delay_field->currentIndex() == -1);
+  CHECK(delay_field->currentText() == frame_delay_text(*panel, 0.3));
+  CHECK(delay_field->count() == 5);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("saveOptions/animationFrameDelayMs")).toInt() == 300);
+  // The unit may be typed too.
+  type_frame_delay(*delay_field, QStringLiteral("0.125 s"));
+  CHECK(panel->default_frame_delay_ms() == 125);
+
+  // Picking from the list sets the field and the shared export default.
+  const int half_second = delay_field->findData(500);
   CHECK(half_second >= 0);
-  presets->setCurrentIndex(half_second);
-  emit presets->activated(half_second);
-  CHECK(delay_spin->value() == 0.5);
+  delay_field->setCurrentIndex(half_second);
+  emit delay_field->activated(half_second);
+  CHECK(panel->default_frame_delay_ms() == 500);
+  CHECK(delay_field->currentText() == frame_delay_text(*panel, 0.5));
   CHECK(patchy::ui::app_settings().value(QStringLiteral("saveOptions/animationFrameDelayMs")).toInt() == 500);
-  delay_spin->setValue(0.2);
-  CHECK(presets->currentData().toInt() == 200);
+
+  // Text it cannot use (letters, nothing, past the maximum) puts the last value back.
+  for (const auto& bad : {QStringLiteral("abc"), QString(), QStringLiteral("99999")}) {
+    type_frame_delay(*delay_field, bad);
+    CHECK(panel->default_frame_delay_ms() == 500);
+    CHECK(delay_field->currentText() == frame_delay_text(*panel, 0.5));
+  }
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("saveOptions/animationFrameDelayMs")).toInt() == 500);
+
+  // A typed value that equals a preset selects that row.
+  type_frame_delay(*delay_field, QStringLiteral("0.2"));
+  CHECK(delay_field->currentData().toInt() == 200);
+  CHECK(panel->default_frame_delay_ms() == 200);
 
   // Ignoring name delays: "blink 0.25s" plays for the frame delay instead.
   play_button->click();

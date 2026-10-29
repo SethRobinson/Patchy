@@ -14377,26 +14377,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>播放</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>影格間隔:</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>圖層名稱中沒有時間時每個影格顯示的時長。動畫 GIF、WebP 和 PNG 匯出使用相同的預設值。</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 秒</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>自訂</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>常用的影格間隔。自訂是在方塊中輸入的其他任何值。</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>忽略圖層名稱中的時間</translation>
     </message>
@@ -14447,6 +14427,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>No layers</source>
         <translation>沒有圖層</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>預設影格間隔:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>圖層名稱中沒有時間時每個影格顯示的時長。輸入以秒為單位的值，或從清單中選擇。動畫 GIF、WebP 和 PNG 匯出使用相同的預設值。</translation>
     </message>
 </context>
 <context>

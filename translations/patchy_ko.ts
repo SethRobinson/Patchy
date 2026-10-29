@@ -14377,26 +14377,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>재생</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>프레임 지연:</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>레이어 이름에 시간이 없을 때 각 프레임이 표시되는 시간입니다. 애니메이션 GIF, WebP, PNG 내보내기도 같은 기본값을 사용합니다.</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 초</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>사용자 지정</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>자주 쓰는 프레임 지연입니다. 사용자 지정은 상자에 입력한 그 밖의 값입니다.</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>레이어 이름의 시간 무시</translation>
     </message>
@@ -14447,6 +14427,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>No layers</source>
         <translation>레이어가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>기본 프레임 지연:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>레이어 이름에 시간이 없을 때 각 프레임이 표시되는 시간입니다. 초 단위로 값을 입력하거나 목록에서 고르세요. 애니메이션 GIF, WebP, PNG 내보내기도 같은 기본값을 사용합니다.</translation>
     </message>
 </context>
 <context>

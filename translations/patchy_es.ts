@@ -14420,26 +14420,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Reproducción</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>Duración de fotograma:</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Cuánto se muestra cada fotograma cuando el nombre de su capa no tiene tiempo. La exportación de GIF, WebP y PNG animados usa el mismo valor predeterminado.</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 s</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Personalizado</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>Duraciones de fotograma habituales. Personalizado es cualquier otro valor escrito en el cuadro.</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>Ignorar tiempos en los nombres de capa</translation>
     </message>
@@ -14490,6 +14470,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>No layers</source>
         <translation>No hay capas</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>Duración de fotograma predeterminada:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Cuánto se muestra cada fotograma cuando el nombre de su capa no tiene tiempo. Escriba un valor en segundos o elija uno de la lista. La exportación de GIF, WebP y PNG animados usa el mismo valor predeterminado.</translation>
     </message>
 </context>
 <context>

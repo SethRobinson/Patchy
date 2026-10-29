@@ -14463,26 +14463,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Воспроизведение</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>Длительность кадра:</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Сколько показывается каждый кадр, если в имени его слоя нет времени. Экспорт анимированных GIF, WebP и PNG использует то же значение по умолчанию.</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 с</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Своё значение</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>Распространённые длительности кадра. Своё значение означает любое другое число, введённое в поле.</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>Игнорировать время в именах слоёв</translation>
     </message>
@@ -14533,6 +14513,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>No layers</source>
         <translation>Нет слоёв</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>Длительность кадра по умолчанию:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Сколько показывается каждый кадр, если в имени его слоя нет времени. Введите значение в секундах или выберите его из списка. Экспорт анимированных GIF, WebP и PNG использует то же значение по умолчанию.</translation>
     </message>
 </context>
 <context>

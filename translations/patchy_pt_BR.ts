@@ -14420,26 +14420,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Reprodução</translation>
     </message>
     <message>
-        <source>Frame delay:</source>
-        <translation>Duração do quadro:</translation>
-    </message>
-    <message>
-        <source>How long each frame shows when its layer name has no time. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Quanto tempo cada quadro aparece quando o nome da camada não tem tempo. A exportação de GIF, WebP e PNG animados usa o mesmo padrão.</translation>
-    </message>
-    <message>
-        <source>%1 s</source>
-        <translation>%1 s</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Personalizado</translation>
-    </message>
-    <message>
-        <source>Common frame delays. Custom is any other value typed in the box.</source>
-        <translation>Durações de quadro comuns. Personalizado é qualquer outro valor digitado na caixa.</translation>
-    </message>
-    <message>
         <source>Ignore delays in layer names</source>
         <translation>Ignorar tempos nos nomes das camadas</translation>
     </message>
@@ -14490,6 +14470,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>No layers</source>
         <translation>Sem camadas</translation>
+    </message>
+    <message>
+        <source>Default frame delay:</source>
+        <translation>Duração padrão do quadro:</translation>
+    </message>
+    <message>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Quanto tempo cada quadro aparece quando o nome da camada não tem tempo. Digite um valor em segundos ou escolha um da lista. A exportação de GIF, WebP e PNG animados usa o mesmo padrão.</translation>
     </message>
 </context>
 <context>
