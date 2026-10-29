@@ -15,8 +15,11 @@
 #include <QCheckBox>
 #include <QColor>
 #include <QDoubleSpinBox>
+#include <QFont>
+#include <QFontInfo>
 #include <QImage>
 #include <QLabel>
+#include <QLayout>
 #include <QMenu>
 #include <QPainter>
 #include <QPushButton>
@@ -746,6 +749,137 @@ void ui_clone_source_overlay_screenshot() {
   save_image_artifact("ui_clone_source_overlay_in_use", shot.copy(crop));
 }
 
+// The popup with a source set and Aligned off (GitHub issue 515): the "Aligned is off" note
+// wraps under the Offset fields at the width the fields set and the popup is tall enough for
+// it, also in a wide font (the reporter's Linux desktop: the theme pins the size, the family
+// sets the width) and when the note comes and goes while the popup is open. The Offset
+// fields start where Scale's does, X and Y sit beside their fields. The issue shots are the
+// popup in both fonts.
+void ui_clone_source_popup_fits_the_aligned_note() {
+  SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
+  const QFont base_font = QApplication::font();
+  struct AppFontRestorer {
+    QFont font;
+    ~AppFontRestorer() { QApplication::setFont(font); }
+  } restore_font{base_font};
+  register_test_fonts(patchy::test::TestFontRole::Verdana);
+  for (const bool wide_font : {false, true}) {
+    QFont font = base_font;
+    if (wide_font) {
+      font.setFamilies({QStringLiteral("Verdana"), QStringLiteral("DejaVu Sans")});
+    }
+    QApplication::setFont(font);
+    auto&& [window, canvas] = ShownWindowFixture{};
+    require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+    QApplication::processEvents();
+    auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
+    auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
+    auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
+    auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
+    CHECK(aligned != nullptr && gear != nullptr && menu != nullptr && panel != nullptr);
+    if (aligned == nullptr || gear == nullptr || menu == nullptr || panel == nullptr) {
+      return;
+    }
+    auto* note = panel->findChild<QLabel*>(QStringLiteral("cloneSourceOffsetNote"));
+    CHECK(note != nullptr);
+    if (note == nullptr) {
+      return;
+    }
+    const auto label_named = [panel](const QString& text) -> QLabel* {
+      for (auto* label : panel->findChildren<QLabel*>()) {
+        if (label->text() == text) {
+          return label;
+        }
+      }
+      return nullptr;
+    };
+    const auto rect_in_panel = [panel](const QWidget* widget) {
+      return QRect(widget->mapTo(panel, QPoint(0, 0)), widget->size());
+    };
+    const auto check_fits = [&](const char* when) {
+      QApplication::processEvents();
+      const auto note_rect = rect_in_panel(note);
+      const int needed = note->heightForWidth(note->width());
+      std::printf("  %s (%s), %s: panel %dx%d in menu %dx%d, note %dx%d (needs %d)\n",
+                  wide_font ? "wide font" : "default font",
+                  QFontInfo(note->font()).family().toStdString().c_str(), when, panel->width(), panel->height(),
+                  menu->width(), menu->height(), note->width(), note->height(), needed);
+      CHECK(note->isVisible());
+      CHECK(note->height() >= needed);
+      CHECK(panel->height() >= panel->layout()->totalHeightForWidth(panel->width()));
+      CHECK(rect_in_panel(panel->offset_x_spin()).bottom() < note_rect.top());
+      CHECK(note_rect.bottom() < rect_in_panel(panel->scale_spin()).top());
+      CHECK(QRect(QPoint(0, 0), panel->size()).contains(note_rect));
+      CHECK(QRect(QPoint(0, 0), menu->size()).contains(QRect(panel->mapTo(menu, QPoint(0, 0)), panel->size())));
+    };
+
+    aligned->setChecked(true);
+    canvas->set_brush_size(30);
+    alt_click(*canvas, QPoint(60, 60));
+    QApplication::processEvents();
+    aligned->setChecked(false);
+    QApplication::processEvents();
+    open_gear_popup(*gear, *menu);
+    save_window_popup_artifact(wide_font ? "issue515_aligned_off_popup_wide_font" : "issue515_aligned_off_popup",
+                               window, *gear, *menu);
+    CHECK(menu->isVisible());
+    CHECK(!panel->offset_x_spin()->isEnabled());
+    CHECK(note->text().startsWith(QStringLiteral("Aligned is off")));
+    check_fits("first open");
+
+    // Two clean field columns: Offset X under nothing but its caption, lined up with Scale;
+    // Y and Rotation on the second column; each caption right beside its field.
+    auto* x_label = label_named(QStringLiteral("X:"));
+    auto* y_label = label_named(QStringLiteral("Y:"));
+    auto* rotation_label = label_named(QStringLiteral("Rotation:"));
+    CHECK(x_label != nullptr && y_label != nullptr && rotation_label != nullptr);
+    if (x_label != nullptr && y_label != nullptr && rotation_label != nullptr) {
+      const auto x_spin = rect_in_panel(panel->offset_x_spin());
+      const auto y_spin = rect_in_panel(panel->offset_y_spin());
+      CHECK(x_spin.left() == rect_in_panel(panel->scale_spin()).left());
+      CHECK(y_spin.left() == rect_in_panel(panel->rotation_spin()).left());
+      CHECK(x_spin.width() == rect_in_panel(panel->scale_spin()).width());
+      CHECK(rect_in_panel(note).left() == x_spin.left());
+      const auto caption_gap = [&](const QLabel* label, const QRect& field) {
+        const auto text_right = rect_in_panel(label).left() +
+                                (label->alignment() & Qt::AlignRight ? label->width()
+                                                                     : label->fontMetrics().horizontalAdvance(label->text()));
+        return field.left() - text_right;
+      };
+      CHECK(caption_gap(x_label, x_spin) <= 12);
+      CHECK(caption_gap(y_label, y_spin) <= 12);
+      CHECK(caption_gap(rotation_label, rect_in_panel(panel->rotation_spin())) <= 12);
+      CHECK(rect_in_panel(panel->reset_button()).left() == y_spin.left());
+    }
+
+    // An empty slot drops the note and the popup shrinks; back on the set slot it returns.
+    const int tall = menu->height();
+    panel->slot_button(1)->click();
+    QApplication::processEvents();
+    CHECK(note->isHidden());
+    CHECK(menu->height() < tall);
+    panel->slot_button(0)->click();
+    check_fits("note back while open");
+    CHECK(menu->height() == tall);
+    menu->close();
+    QApplication::processEvents();
+
+    // Closed with Aligned on (the offset note until a stroke sets it), then opened with it
+    // off again.
+    aligned->setChecked(true);
+    open_gear_popup(*gear, *menu);
+    CHECK(note->text() == QStringLiteral("Your next stroke sets the offset."));
+    check_fits("Aligned on");
+    menu->close();
+    QApplication::processEvents();
+    aligned->setChecked(false);
+    open_gear_popup(*gear, *menu);
+    check_fits("reopened");
+    menu->close();
+    QApplication::processEvents();
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> clone_source_tests() {
@@ -762,5 +896,6 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_overlay_check_lives_in_the_popup", ui_clone_source_overlay_check_lives_in_the_popup},
       {"ui_clone_source_overlay_screenshot", ui_clone_source_overlay_screenshot},
       {"ui_clone_source_flip_buttons_center_on_their_label", ui_clone_source_flip_buttons_center_on_their_label},
+      {"ui_clone_source_popup_fits_the_aligned_note", ui_clone_source_popup_fits_the_aligned_note},
   };
 }
