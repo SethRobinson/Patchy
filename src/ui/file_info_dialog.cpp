@@ -5,6 +5,7 @@
 #include "formats/metadata/iptc_iim.hpp"
 #include "formats/metadata/metadata_edit.hpp"
 #include "formats/metadata/metadata_view.hpp"
+#include "formats/metadata/xmp.hpp"
 #include "render/compositor.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/object_selection_model_download.hpp"
@@ -285,8 +286,8 @@ struct Editors {
     copyright_status->setCurrentIndex(static_cast<int>(fields.copyright_status));
     copyright_notice->setPlainText(utf8(fields.copyright_notice));
     copyright_url->setText(utf8(fields.copyright_url));
-    created->setText(utf8(fields.created));
-    modified->setText(utf8(fields.modified));
+    created->setText(utf8(md::xmp_date_display(fields.created)));
+    modified->setText(utf8(md::xmp_date_display(fields.modified)));
     creator_tool->setText(utf8(fields.creator_tool));
     headline->setText(utf8(fields.headline));
     date_created->setText(utf8(fields.date_created));
@@ -941,6 +942,11 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
     rows.row(QObject::tr("Instance ID:"), history.instance_id);
     rows.row(QObject::tr("Original document ID:"), history.original_document_id);
     rows.row(QObject::tr("Derived from:"), history.derived_from);
+    // How the image was made; an AI source shows on the AI Generation page instead.
+    if (const auto source = md::summarize_ai_generation(working).digital_source_type;
+        !md::is_ai_digital_source_type(source)) {
+      rows.row(QObject::tr("Digital source type:"), source);
+    }
     if (!history.events.empty()) {
       rows.heading(QObject::tr("History"));
       auto* tree = make_tree(content,

@@ -263,6 +263,15 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
   `13:18:05+02:00` (`iim_display_text`). A value that does not match the specification's
   pattern is shown as stored. These rows are read-only; the editable Date Created field is
   XMP photoshop:DateCreated, converted to IIM by `apply_fields` as before.
+- Time zones: an XMP date whose zone is hour-only (`+03`, as GIMP writes xmpMM:History
+  `stEvt:when`) or basic (`+0300`) shows as `+03:00` in All Metadata, the History page and the
+  Created/Modified labels (`xmp_date_display`), and EXIF OffsetTime* `+03` as `+03:00`
+  (`exif_offset_display`). `Z` and `+03:00` stay as they are; stored values never change.
+- GPS placeholders: when the EXIF GPS IFD has no GPSLatitude and no GPSLongitude, All Metadata
+  leaves out GPSVersionID and a zero GPSAltitude with its GPSAltitudeRef (GIMP writes
+  GPSAltitude 0/100 into every file); other GPS tags, a nonzero altitude included, still show.
+  With nothing left the EXIF GPS group and the location privacy class disappear. The block is
+  still saved as it is; Remove Location still drops it.
 - Raw XMP and Copy XMP show `xmp_display_text`: the packet without its padding (whitespace and
   NULs at the end and before the closing `<?xpacket end=...?>`, which stays on its own line).
   The packet in the document and in saved files keeps its padding.
@@ -271,7 +280,10 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
   aiPrompt, provenance, watermark. The banner lists every class present except timestamps.
 - AI Generation reads Automatic1111/Forge `parameters` (also from EXIF UserComment),
   ComfyUI `prompt`/`workflow`, InvokeAI, NovelAI, Fooocus, IPTC DigitalSourceType and
-  C2PA actions.
+  C2PA actions. The page shows only for a generator record or a DigitalSourceType naming a
+  trained model (`is_ai_digital_source_type`: trainedAlgorithmicMedia,
+  compositeWithTrainedAlgorithmicMedia). Any other source type (digitalCapture, digitalArt, ...)
+  shows as "Digital source type" on the History and Provenance page with no privacy class.
 
 ## Watermarks
 
@@ -282,7 +294,8 @@ by Image > Add Invisible Watermark, is in [watermarks.md](watermarks.md).
 - Declared in metadata: a C2PA `c2pa.soft-binding` assertion (its `alg`, such as
   `com.adobe.trustmark.Q`) or an action named `c2pa.watermarked*` (`summarize_jumbf`) adds the
   observed item "Watermark declared in Content Credentials", privacy `watermark`. IPTC
-  DigitalSourceType says how an image was made, not that it carries a mark, and stays aiPrompt.
+  DigitalSourceType says how an image was made, not that it carries a mark: aiPrompt for a
+  trained-model source, none otherwise.
 - Pixel scan: the Watermarks page's Scan for Watermarks (`fileInfoScanWatermarksButton`,
   per-kind results in [watermarks.md](watermarks.md#scan-results)) and `doc.scanForWatermarks()`. It runs only on that
   request, never at open or per repaint: `Compositor::flatten_rgb8` of the document as it is
