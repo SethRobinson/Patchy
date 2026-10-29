@@ -1399,6 +1399,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/wayland_popup_anchor.cpp
       src/ui/wayland_pointer_cursor.hpp
       src/ui/wayland_pointer_cursor.cpp
+      src/ui/blocked_window_cursor.hpp
+      src/ui/blocked_window_cursor.cpp
       src/ui/main_window_history.cpp
       src/ui/main_window_layer_ops.cpp
       src/ui/main_window_ai_selection.cpp

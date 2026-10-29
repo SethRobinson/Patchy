@@ -184,6 +184,8 @@ disabled) to the pointer's window, unsetting it first because `QWindow::setCurso
 shape the window already holds. It does nothing while an application override cursor is
 set, which shows everywhere by design. The fix covers every window, modal or not, and the
 reverse case of a dialog widget changing its cursor while the pointer is on the canvas.
+Where it runs, `install_blocked_window_cursor_fix()` (issue 504, the arrow on windows a
+modal blocks) stays off: setting a blocked window's cursor would show it over the dialog.
 
 `ui_wayland_pointer_cursor_fix_keeps_the_dialog_cursor` drives the filter offscreen with
 the Enter and Leave events Qt sends and checks the cursor each window holds, which is what
