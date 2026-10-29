@@ -648,7 +648,7 @@ void sweep_command(SweepPass& pass, const std::function<void()>& trigger, const 
     QApplication::processEvents();
   }
   // Non-modal windows stay open after the trigger returns.
-  (void)process_events_until(
+  const bool closed = process_events_until(
       [&] {
         for (auto* top : QApplication::topLevelWidgets()) {
           if (!before.contains(top) && is_dialog_window(top)) {
@@ -661,6 +661,10 @@ void sweep_command(SweepPass& pass, const std::function<void()>& trigger, const 
   watcher.stop();
   for (auto* top : QApplication::topLevelWidgets()) {
     if (!before.contains(top) && is_dialog_window(top)) {
+      if (!closed) {
+        std::cerr << "text size sweep: " << state.toStdString() << " left "
+                  << top->metaObject()->className() << " '" << top->objectName().toStdString() << "' open\n";
+      }
       top->close();
     }
   }
@@ -764,6 +768,13 @@ void sweep_language(const QString& language) {
     patchy::test::register_test_fonts(role);
   }
   TextSizeScope scope;
+  // Qt's static pickers (Open Folder's getExistingDirectory) go to the desktop portal inside
+  // the Linux Flatpak SDK, where nothing answers a headless run and the call never returns.
+  // The sweep skips file dialogs anyway, so keep them on Qt's own widgets, which it closes.
+  const bool native_dialogs_were_off = QCoreApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
+  QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs, true);
+  const auto restore_native_dialogs = qScopeGuard(
+      [native_dialogs_were_off] { QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs, native_dialogs_were_off); });
   QList<int> sizes;
   for (const auto& size : sweep_list_from_env(
            "PATCHY_TEXT_SIZE_SIZES", {QString::number(patchy::ui::kMinUiTextSizePercent),
