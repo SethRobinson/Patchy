@@ -179,11 +179,13 @@ struct ShadowPageControls {
   QSpinBox* shadow_fade{};
   std::function<void()> sync_continuous_controls{};
   QCheckBox* shadow_conceals{};
+  QComboBox* shadow_contour{};
+  QCheckBox* shadow_anti_aliased{};
   RgbColorRowWidgets shadow_rows{};
   QSpinBox* shadow_red{};
   QSpinBox* shadow_green{};
   QSpinBox* shadow_blue{};
 };
-ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow);
+ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow, const StyleContour& custom_shadow_contour);
 
 }  // namespace patchy::ui::layer_style_detail

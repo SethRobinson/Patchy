@@ -156,10 +156,28 @@ a few pixels of GIMP's (`ui_xcf_text_layers_stay_editable`); its glyphs are Patc
 
 ## Layer effects (GIMP 3 filters)
 
-- `gegl:dropshadow` becomes a Drop Shadow style: GEGL's x/y offset as distance and angle,
-  size three times its radius plus the grow radius (spread from the grow share), Normal, half
-  its opacity, its color. The factors were fitted on effects.xcf (mean 0.9 levels in the
-  shadow area): GEGL composites the shadow in linear light.
+- `gegl:dropshadow` becomes a Drop Shadow style (#507): GEGL's x/y offset as distance and
+  angle, size three times its radius plus the grow radius (spread from the grow share, fitted
+  on effects.xcf), its color in any GeglColor model (`gegl_color_to_srgb`: RGB and gray in
+  any curve, HSV, HSL, CIE Lab and LCH; an embedded profile is read as sRGB), and its opacity
+  times the color's alpha and the filter's opacity. Layer Knocks Out is off: GEGL draws the
+  layer over its shadow.
+- The filter's own mode mixes its result (the layer over the shadow) with the layer, so GIMP
+  3.2 shows the shadow only in Normal, Replace, Behind and Merge (Patchy Normal) and Dissolve
+  (Dissolve). Every other mode draws no shadow and changes only the layer's own pixels: the
+  shadow opens switched off with the nearest Photoshop mode (GIMP-only modes map to the
+  Photoshop mode of the same family); the change to the layer is not reproduced.
+- GEGL mixes the shadow in linear light, Patchy's 8 and 16-bit documents in display values
+  (85% black over white: 108 against 38). A Normal shadow there gets the contour "GIMP
+  linear light" (`linear_light_shadow_contour`, 9 smooth points): at each mask level the
+  display coverage that best gives GEGL's mix of its color over white, 75% and 50% gray,
+  divided by the opacity, so the dialog keeps GIMP's opacity. Exact for black over white;
+  a colored shadow keeps some difference, since one coverage cannot serve all three
+  channels. 32-bit documents (linear already) and Dissolve (opaque pixels) get none.
+  Against GIMP 3.2 (`xcf_drop_shadow_issue_507_matches_gimp_if_available`, the reporter's
+  file and one file per layer in local-test-fixtures/xcf-issue-507): black shadows within
+  0.1 level on average, a blurred magenta one 3.5, Dissolve 7.6 (its random pattern);
+  effects.xcf 0.21.
 - `gegl:gaussian-blur` is applied to the layer's pixels: premultiplied linear light, clamp or
   transparent edges, the layer grown when clip-extent is off. Sigmas over 3 use three box
   passes. Within about six levels of GIMP's own blur.

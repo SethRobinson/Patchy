@@ -828,6 +828,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   // the original custom curve and only a deliberate preset pick replaces it.
   StyleContour custom_gloss_contour = bevel.gloss_contour;
   StyleContour custom_bevel_sub_contour = bevel.contour.contour;
+  StyleContour custom_shadow_contour = shadow.contour;
   // A Noise gradient has no stops by design: keep its seed and ranges and let
   // the controls show the Noise page (a Photoshop file's noise overlay opened as
   // the default white-to-black ramp, GitHub issue 262). Only a stop gradient
@@ -1661,7 +1662,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& outer_glow_green = outer_glow_page.outer_glow_green;
   auto& outer_glow_blue = outer_glow_page.outer_glow_blue;
 
-  auto shadow_page = build_shadow_page(page_context, shadow_layout, shadow);
+  auto shadow_page = build_shadow_page(page_context, shadow_layout, shadow, custom_shadow_contour);
   auto& shadow_blend = shadow_page.shadow_blend;
   auto& shadow_opacity = shadow_page.shadow_opacity;
   auto& shadow_angle = shadow_page.shadow_angle;
@@ -1672,6 +1673,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& shadow_fade = shadow_page.shadow_fade;
   auto& sync_continuous_controls = shadow_page.sync_continuous_controls;
   auto& shadow_conceals = shadow_page.shadow_conceals;
+  auto& shadow_contour = shadow_page.shadow_contour;
+  auto& shadow_anti_aliased = shadow_page.shadow_anti_aliased;
   auto& shadow_rows = shadow_page.shadow_rows;
   auto& shadow_red = shadow_page.shadow_red;
   auto& shadow_green = shadow_page.shadow_green;
@@ -1994,6 +1997,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.size = static_cast<float>(shadow_size->value());
         target.spread = static_cast<float>(shadow_spread->value());
         target.layer_conceals = shadow_conceals->isChecked();
+        target.contour = contour_combo_value(shadow_contour, custom_shadow_contour);
+        target.anti_aliased = shadow_anti_aliased->isChecked();
         target.continuous = shadow_continuous->isChecked();
         target.fade = static_cast<float>(shadow_fade->value());
         target.color = RgbColor{static_cast<std::uint8_t>(shadow_red->value()),
@@ -2222,6 +2227,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         shadow_size->setValue(static_cast<int>(std::round(value.size)));
         shadow_spread->setValue(static_cast<int>(std::round(value.spread)));
         shadow_conceals->setChecked(value.layer_conceals);
+        if (find_builtin_contour_preset(value.contour) == nullptr) {
+          custom_shadow_contour = value.contour;
+        }
+        set_contour_combo_value(shadow_contour, value.contour);
+        shadow_anti_aliased->setChecked(value.anti_aliased);
         shadow_continuous->setChecked(value.continuous);
         shadow_fade->setValue(static_cast<int>(std::round(value.fade)));
         sync_continuous_controls();
@@ -3064,6 +3074,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(shadow_conceals, &QCheckBox::toggled, &dialog,
                    [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(shadow_contour, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(shadow_anti_aliased, &QCheckBox::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(shadow_continuous, &QCheckBox::toggled, &dialog, [&emit_preview, sync_continuous_controls](bool) {
     sync_continuous_controls();
     emit_preview(true);
@@ -3341,6 +3355,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(shadow_size, LayerStyleEffectKind::DropShadow, "size");
     effect(shadow_spread, LayerStyleEffectKind::DropShadow, "spread");
     effect(shadow_conceals, LayerStyleEffectKind::DropShadow, "layer_conceals");
+    effect(shadow_contour, LayerStyleEffectKind::DropShadow, "contour");
+    effect(shadow_anti_aliased, LayerStyleEffectKind::DropShadow, "anti_aliased");
     effect(shadow_continuous, LayerStyleEffectKind::DropShadow, "continuous");
     effect(shadow_fade, LayerStyleEffectKind::DropShadow, "fade");
     effect(inner_shadow_blend, LayerStyleEffectKind::InnerShadow, "blend_mode");

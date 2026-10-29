@@ -341,6 +341,8 @@ void add_effect_fields(const EffectFields<LayerDropShadow>& fields) {
   EFFECT_FIELD(use_global_light);
   EFFECT_FIELD(continuous);
   EFFECT_FIELD(fade);
+  EFFECT_FIELD(contour);
+  EFFECT_FIELD(anti_aliased);
 }
 
 void add_effect_fields(const EffectFields<LayerInnerShadow>& fields) {

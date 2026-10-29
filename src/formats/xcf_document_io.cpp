@@ -471,6 +471,8 @@ struct EffectRecord {
   std::string operation;
   bool visible{true};
   float opacity{1.0F};
+  std::uint32_t mode{28};        // PROP_MODE: how the filter's result mixes with the layer
+  std::int32_t blend_space{0};   // PROP_BLEND_SPACE, 0 or negative for Auto
   std::uint32_t region{1};  // 0: the selection at the time (the mask below), 1: the whole drawable
   std::vector<EffectArgument> arguments;
   std::uint64_t mask{0};    // a channel record: where the effect applies
@@ -623,6 +625,12 @@ struct PathRecord {
         break;
       case kPropFilterRegion:
         effect.region = payload_u32(reader, property, 1);
+        break;
+      case kPropMode:
+        effect.mode = payload_u32(reader, property, 28);
+        break;
+      case kPropBlendSpace:
+        effect.blend_space = static_cast<std::int32_t>(payload_u32(reader, property, 0));
         break;
       case kPropFilterArgument: {
         Cursor argument(reader, property.offset, property.offset + property.length);
@@ -1680,12 +1688,106 @@ void account(Build& build, std::uint64_t width, std::uint64_t height) {
   return mask;
 }
 
-// GEGL's drop shadow as a Photoshop-style Drop Shadow. GEGL's x/y offset becomes the
-// distance and light angle, its blur radius the size (docs/xcf.md, "Layer effects").
-[[nodiscard]] std::optional<LayerDropShadow> drop_shadow_from_effect(const EffectRecord& effect) {
+// The Photoshop mode nearest a GIMP-only one, for an effect, whose Blend Mode list offers
+// only Photoshop's modes.
+[[nodiscard]] BlendMode photoshop_effect_mode(BlendMode mode) {
+  using M = BlendMode;
+  switch (mode) {
+    case M::LinearMultiply:
+      return M::Multiply;
+    case M::LinearAddition:
+      return M::LinearDodge;
+    case M::LinearSubtract:
+    case M::GrainExtract:
+      return M::Subtract;
+    case M::LinearDivide:
+      return M::Divide;
+    case M::GrainMerge:
+      return M::LinearLight;
+    case M::HsvHue:
+    case M::LchHue:
+      return M::Hue;
+    case M::HsvSaturation:
+    case M::LchChroma:
+      return M::Saturation;
+    case M::HslColor:
+    case M::LchColor:
+      return M::Color;
+    case M::HsvValue:
+    case M::LchLightness:
+    case M::Luminance:
+      return M::Luminosity;
+    case M::LumaDarkenOnly:
+      return M::DarkerColor;
+    case M::LumaLightenOnly:
+      return M::LighterColor;
+    case M::PassThrough:
+      return M::Normal;
+    default:
+      return mode;
+  }
+}
+
+// GEGL mixes the shadow in linear light, Patchy's 8 and 16-bit documents in display
+// values, where the same opacity reads darker. The contour carries the difference so the
+// dialog keeps GIMP's opacity: at each mask level m it holds the display coverage that best
+// gives GEGL's mix of `color` at `opacity * m` over white, 75% and 50% gray (least squares
+// over the three channels and backdrops), divided by `opacity` (docs/xcf.md, "Layer effects").
+[[nodiscard]] StyleContour linear_light_shadow_contour(RgbColor color, double opacity) {
+  constexpr int kPoints = 9;
+  constexpr std::array<double, 3> kBackdrops{1.0, 0.75, 0.5};
+  const std::array<double, 3> channels{color.red / 255.0, color.green / 255.0, color.blue / 255.0};
+  StyleContour contour;
+  contour.name = "GIMP linear light";
+  for (int i = 0; i < kPoints; ++i) {
+    const double level = static_cast<double>(i) / (kPoints - 1);
+    const double alpha = opacity * level;
+    double numerator = 0.0;
+    double denominator = 0.0;
+    for (const double backdrop : kBackdrops) {
+      const double backdrop_linear = srgb_decode(backdrop);
+      for (const double channel : channels) {
+        const double gimp = srgb_encode(srgb_decode(channel) * alpha + backdrop_linear * (1.0 - alpha));
+        numerator += (channel - backdrop) * (gimp - backdrop);
+        denominator += (channel - backdrop) * (channel - backdrop);
+      }
+    }
+    const double coverage = denominator > 0.0 ? numerator / denominator : alpha;
+    const double output = opacity > 0.0 ? std::clamp(coverage / opacity, 0.0, 1.0) : level;
+    contour.points.push_back(StyleContourPoint{static_cast<float>(level * 255.0),
+                                               static_cast<float>(std::round(output * 25500.0) / 100.0), false});
+  }
+  return contour;
+}
+
+// GEGL's drop shadow as a Photoshop-style Drop Shadow (docs/xcf.md, "Layer effects"):
+// GEGL's x/y offset becomes the distance and light angle, its blur radius the size, and
+// its color and opacity carry over. The filter's own mode mixes its result (the layer over
+// the shadow) with the layer: Normal, Replace, Behind and Merge show a plain shadow, Dissolve
+// a dissolved one, and every other mode none (the shadow opens switched off with the
+// nearest Photoshop mode). `linear_light` is true for documents Patchy mixes in linear
+// light; the others get linear_light_shadow_contour.
+[[nodiscard]] std::optional<LayerDropShadow> drop_shadow_from_effect(const EffectRecord& effect,
+                                                                     bool linear_light) {
   LayerDropShadow shadow;
   shadow.enabled = true;
   shadow.blend_mode = BlendMode::Normal;
+  switch (effect.mode) {
+    case 0:
+    case 2:
+    case 28:
+    case 29:
+    case 59:
+    case 62:
+      break;
+    case 1:
+      shadow.blend_mode = BlendMode::Dissolve;
+      break;
+    default:
+      shadow.enabled = false;
+      shadow.blend_mode = photoshop_effect_mode(map_mode(effect.mode, false, effect.blend_space).mode);
+      break;
+  }
   double dx = 20.0;
   double dy = 20.0;
   double radius = 10.0;
@@ -1702,6 +1804,7 @@ void account(Build& build, std::uint64_t width, std::uint64_t height) {
     std::memcpy(&value, &bits, sizeof(value));
     return std::isfinite(value) ? static_cast<double>(value) : fallback;
   };
+  double color_alpha = 1.0;
   for (const auto& argument : effect.arguments) {
     if (argument.name == "x") {
       dx = f32_of(argument, dx);
@@ -1721,17 +1824,12 @@ void account(Build& build, std::uint64_t width, std::uint64_t height) {
         const auto format = cursor.string();
         const auto size = cursor.u32();
         const auto bytes = cursor.bytes(size);
-        if ((format == "R'G'B'A float" || format == "RGBA float") && size >= 16) {
-          float values[4]{};
-          std::memcpy(values, bytes.data(), sizeof(values));  // native (little-endian) floats
-          const bool linear = format == "RGBA float";
-          const auto channel = [&](float v) {
-            return linear ? static_cast<float>(srgb_encode(std::clamp(v, 0.0F, 1.0F))) : v;
-          };
-          shadow.color = color_from_unit(channel(values[0]), channel(values[1]), channel(values[2]));
-          if (std::isfinite(values[3])) {
-            opacity *= std::clamp(static_cast<double>(values[3]), 0.0, 1.0);
-          }
+        if (const auto rgba = detail::gegl_color_to_srgb(format, bytes)) {
+          shadow.color = color_from_unit(static_cast<float>((*rgba)[0]), static_cast<float>((*rgba)[1]),
+                                         static_cast<float>((*rgba)[2]));
+          color_alpha = (*rgba)[3];
+        } else {
+          trace("a drop shadow color in an unknown format: " + format);
         }
       } catch (const ImportError&) {
       }
@@ -1742,14 +1840,18 @@ void account(Build& build, std::uint64_t width, std::uint64_t height) {
   shadow.angle_degrees =
       distance > 0.0 ? static_cast<float>(std::atan2(dy, -dx) * 180.0 / 3.14159265358979323846) : 120.0F;
   // Fitted on effects.xcf against GIMP 3.2's render (docs/xcf.md, "Layer effects"): a size
-  // of three times GEGL's blur radius, and half its opacity, because GEGL composites the
-  // shadow in linear light and Patchy in display values, which reads darker.
+  // of three times GEGL's blur radius plus the grow radius, the grow share as spread.
   const double size = 3.0 * radius + grow;
   shadow.size = static_cast<float>(std::clamp(size, 0.0, 250.0));
   shadow.spread = size > 0.0 ? static_cast<float>(std::clamp(grow / size * 100.0, 0.0, 100.0))
                                       : 0.0F;
-  shadow.opacity = static_cast<float>(std::clamp(0.5 * opacity * effect.opacity, 0.0, 1.0));
-  shadow.layer_conceals = true;
+  const double total = std::clamp(opacity * color_alpha * static_cast<double>(effect.opacity), 0.0, 1.0);
+  shadow.opacity = static_cast<float>(total);
+  // GEGL draws the layer over its shadow, which shows through the layer's soft edges.
+  shadow.layer_conceals = false;
+  if (shadow.enabled && shadow.blend_mode == BlendMode::Normal && !linear_light) {
+    shadow.contour = linear_light_shadow_contour(shadow.color, total);
+  }
   return shadow;
 }
 
@@ -2396,7 +2498,7 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
       continue;
     }
     if (effect.operation == "gegl:dropshadow") {
-      if (const auto shadow = drop_shadow_from_effect(effect)) {
+      if (const auto shadow = drop_shadow_from_effect(effect, build.depth == BitDepth::Float32)) {
         layer.layer_style().drop_shadows.push_back(*shadow);
         continue;
       }

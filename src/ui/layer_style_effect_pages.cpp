@@ -643,8 +643,9 @@ OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBo
   return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue};
 }
 
-ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow) {
+ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow, const StyleContour& custom_shadow_contour) {
   auto& controls = context.controls;
+  auto& make_contour_combo = context.make_contour_combo;
   auto& patchy_only_banner = context.patchy_only_banner;
   auto& continuous_shadow_explanation = context.continuous_shadow_explanation;
   auto* shadow_group = new QGroupBox(QObject::tr("Drop Shadow"), controls);
@@ -709,6 +710,18 @@ ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout
       "Hide the shadow under the layer's own shape so it never shows through knocked-out or "
       "semi-transparent content, like Photoshop"));
   shadow_form->addRow(QString(), shadow_conceals);
+  auto* shadow_contour_row = new QWidget(shadow_group);
+  auto* shadow_contour_layout = new QHBoxLayout(shadow_contour_row);
+  shadow_contour_layout->setContentsMargins(0, 0, 0, 0);
+  shadow_contour_layout->setSpacing(8);
+  auto* shadow_contour = make_contour_combo(shadow_contour_row, QStringLiteral("layerStyleDropShadowContourCombo"),
+                                            shadow.contour, custom_shadow_contour);
+  shadow_contour_layout->addWidget(shadow_contour, 1);
+  auto* shadow_anti_aliased = new QCheckBox(QObject::tr("Anti-aliased"), shadow_contour_row);
+  shadow_anti_aliased->setObjectName(QStringLiteral("layerStyleDropShadowAntiAliasedCheck"));
+  shadow_anti_aliased->setChecked(shadow.anti_aliased);
+  shadow_contour_layout->addWidget(shadow_anti_aliased);
+  shadow_form->addRow(QObject::tr("Contour"), shadow_contour_row);
   const auto shadow_rows =
       make_color_rows(shadow_form, shadow_group, QStringLiteral("layerStyleDropShadow"), shadow.color);
   auto* shadow_red = shadow_rows.red;
@@ -717,7 +730,7 @@ ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout
   shadow_layout->addWidget(shadow_group);
   shadow_layout->addStretch(1);
 
-  return {shadow_blend, shadow_opacity, shadow_angle, shadow_distance, shadow_size, shadow_spread, shadow_continuous, shadow_fade, sync_continuous_controls, shadow_conceals, shadow_rows, shadow_red, shadow_green, shadow_blue};
+  return {shadow_blend, shadow_opacity, shadow_angle, shadow_distance, shadow_size, shadow_spread, shadow_continuous, shadow_fade, sync_continuous_controls, shadow_conceals, shadow_contour, shadow_anti_aliased, shadow_rows, shadow_red, shadow_green, shadow_blue};
 }
 
 }  // namespace patchy::ui::layer_style_detail

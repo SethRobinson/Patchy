@@ -6,6 +6,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/gradient_stops_editor.hpp"
+#include "formats/xcf_document_io.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/theme_palette.hpp"
@@ -55,6 +56,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include "local_psd_fixtures.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
@@ -1919,6 +1921,73 @@ void ui_layer_style_continuous_shadow_controls_map_to_settings_and_mark_patchy_o
   CHECK(result.distance == 40.0F);
 }
 
+// The Drop Shadow page's Contour row (#507): an imported custom curve shows as Custom,
+// survives OK untouched, and Anti-aliased maps to the setting. With the reporter's file
+// present, the dialog for its magenta GIMP shadow is saved for the desk card.
+void ui_layer_style_drop_shadow_contour_keeps_a_custom_curve() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Shadowed",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  const auto fixture = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-507" / "replace-magenta.xcf";
+  const bool imported = std::filesystem::exists(fixture);
+  if (imported) {
+    const auto gimp = patchy::xcf::DocumentIo::read_file(fixture);
+    for (const auto& candidate : gimp.layers()) {
+      if (candidate.visible() && !candidate.layer_style().drop_shadows.empty()) {  // the magenta one
+        layer.layer_style() = candidate.layer_style();
+      }
+    }
+  } else {
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.blend_mode = patchy::BlendMode::Normal;
+    shadow.color = patchy::RgbColor{0xda, 0x11, 0xc9};
+    shadow.opacity = 0.75F;
+    shadow.contour = patchy::StyleContour{"GIMP linear light", {{0.0F, 0.0F, false}, {127.5F, 96.4F, false},
+                                                                {255.0F, 182.9F, false}}};
+    layer.layer_style().drop_shadows.push_back(shadow);
+  }
+  CHECK(layer.layer_style().drop_shadows.size() == 1);
+  const auto original = layer.layer_style().drop_shadows.front();
+  CHECK(original.opacity == 0.75F);
+  CHECK(original.contour.points.size() >= 3);
+
+  QTimer::singleShot(0, [imported] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* contour = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleDropShadowContourCombo"));
+    auto* anti_aliased = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleDropShadowAntiAliasedCheck"));
+    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowOpacitySpin"));
+    CHECK(categories != nullptr);
+    CHECK(contour != nullptr);
+    CHECK(anti_aliased != nullptr);
+    CHECK(opacity != nullptr);
+    const auto shadow_items = categories->findItems(QStringLiteral("Drop Shadow"), Qt::MatchExactly);
+    CHECK(!shadow_items.empty());
+    categories->setCurrentItem(shadow_items.front());
+    QApplication::processEvents();
+    CHECK(!contour->visibleRegion().isEmpty());
+    CHECK(opacity->value() == 75);
+    CHECK(!anti_aliased->isChecked());
+    if (imported) {
+      std::filesystem::create_directories("test-artifacts");
+      dialog->grab().save(QStringLiteral("test-artifacts/issue507_layer_style_drop_shadow.png"));
+    }
+    anti_aliased->setChecked(true);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(settings.has_value());
+  CHECK(settings->style.drop_shadows.size() == 1);
+  const auto& result = settings->style.drop_shadows.front();
+  CHECK(result.contour == original.contour);
+  CHECK(result.anti_aliased);
+  CHECK(result.opacity == 0.75F);
+  CHECK(result.color == original.color);
+}
+
 void ui_layer_style_inner_glow_technique_and_range_map_to_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Glow Styled",
@@ -2466,6 +2535,7 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_outer_glow_technique_and_range_map_to_settings},
       {"ui_layer_style_continuous_shadow_controls_map_to_settings_and_mark_patchy_only",
        ui_layer_style_continuous_shadow_controls_map_to_settings_and_mark_patchy_only},
+      {"ui_layer_style_drop_shadow_contour_keeps_a_custom_curve", ui_layer_style_drop_shadow_contour_keeps_a_custom_curve},
       {"ui_layer_style_inner_glow_technique_and_range_map_to_settings",
        ui_layer_style_inner_glow_technique_and_range_map_to_settings},
       {"ui_layer_style_pattern_warning_follows_resolvability",
