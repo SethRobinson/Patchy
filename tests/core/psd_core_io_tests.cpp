@@ -2040,8 +2040,8 @@ void psd_tools_cmyk_levels_run_on_the_inks_if_available() {
 
 // A grayscale document's Levels record and curve sit in the slot an RGB document calls red.
 // Applied to red alone they tinted the picture; they belong to the one gray channel.
-// Photoshop 2026's flatten of psd-tools' levels_grayscale.psd and curves_grayscale.psd
-// (four masked adjustment layers each), sampled in every strip.
+// Photoshop 2026's flatten of psd-tools' levels_grayscale.psd, curves_grayscale.psd and
+// exposure_grayscale.psd (four masked adjustment layers each), sampled in every strip.
 void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
                     "psd_files" / "adjustments";
@@ -2056,7 +2056,9 @@ void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
   };
   // (Threshold too: four layers with four different levels, which also pins that each
   // layer gets its own table. One table reused for all of them turned the picture white.)
-  const std::array<Case, 3> cases{{
+  // Exposure works in the gray profile's linear light, not on the stored gray through
+  // gamma 2.2 (21/255 off at (175, 185)).
+  const std::array<Case, 4> cases{{
       {"threshold_grayscale.psd",
        {{{25, 40, 0}, {25, 100, 255}, {25, 150, 255}, {25, 185, 255}, {75, 40, 255}, {75, 100, 255}, {75, 150, 0},
          {75, 185, 0}, {125, 40, 0}, {125, 100, 0}, {125, 150, 0}, {125, 185, 0}, {175, 40, 0}, {175, 100, 0},
@@ -2069,6 +2071,10 @@ void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
        {{{25, 40, 42}, {25, 100, 90}, {25, 150, 103}, {25, 185, 84}, {75, 40, 142}, {75, 100, 198}, {75, 150, 78},
          {75, 185, 125}, {125, 40, 205}, {125, 100, 186}, {125, 150, 123}, {125, 185, 182}, {175, 40, 70},
          {175, 100, 158}, {175, 150, 44}, {175, 185, 166}}}},
+      {"exposure_grayscale.psd",
+       {{{25, 40, 103}, {25, 100, 120}, {25, 150, 125}, {25, 185, 119}, {75, 40, 225}, {75, 100, 255}, {75, 150, 153},
+         {75, 185, 212}, {125, 40, 172}, {125, 100, 159}, {125, 150, 126}, {125, 185, 161}, {175, 40, 145},
+         {175, 100, 219}, {175, 150, 129}, {175, 185, 255}}}},
   }};
   int checked = 0;
   for (const auto& entry : cases) {
@@ -2098,6 +2104,9 @@ void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
     // A threshold is all or nothing per pixel, so a probe beside an edge may flip; the
     // other files are smooth and every probe has to be close.
     CHECK(std::string_view(entry.name).starts_with("threshold") ? far_off <= 1 : worst <= 12);
+    if (std::string_view(entry.name).starts_with("exposure")) {
+      CHECK(worst <= 2);
+    }
     ++checked;
   }
 }

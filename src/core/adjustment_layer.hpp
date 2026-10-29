@@ -342,6 +342,11 @@ struct ExposureAdjustment {
 // 2^exposure, add the offset, apply 1/gamma, encode again. Within 1/255 of Photoshop's
 // render of psd-tools' exposure_rgb.psd on all four of its setting triples.
 [[nodiscard]] std::uint8_t exposure_channel_value(std::uint8_t value, ExposureAdjustment settings);
+// A Grayscale document's Exposure: the same stages in the gray profile's linear light,
+// which on the profile-converted sRGB pixels means the piecewise sRGB curve in place of
+// gamma 2.2. Within 1/255 of Photoshop's render of psd-tools' exposure_grayscale.psd
+// (Dot Gain 20%) on all four of its triples; run on the stored gray value it was 21/255 off.
+[[nodiscard]] std::uint8_t exposure_gray_channel_value(std::uint8_t value, ExposureAdjustment settings);
 
 // Photoshop's Channel Mixer ('mixr'): each output channel is a percentage mix of the
 // red, green and blue inputs (-200..200) plus a constant (-200..200, percent of full
@@ -553,6 +558,9 @@ struct AdjustmentSettings {
 };
 // True when `settings` runs in its ink space (it has one and its kind is channel-wise).
 [[nodiscard]] bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept;
+// True when Photoshop evaluates `settings` in the source CMYK or gray space, so an RGB save
+// changes its result: the ink-space kinds plus a Grayscale document's Exposure.
+[[nodiscard]] bool adjustment_depends_on_source_color_mode(const AdjustmentSettings& settings) noexcept;
 
 // Levels record math shared by the UI dialogs and the PSD lvls codec: the
 // single source of truth for the clamp ranges (black_input 0..254,
@@ -626,6 +634,7 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 [[nodiscard]] double levels_record_transfer(double value, LevelsRecord record);
 [[nodiscard]] double brightness_contrast_transfer(double value, int brightness, int contrast, bool use_legacy);
 [[nodiscard]] double exposure_transfer(double value, ExposureAdjustment settings);
+[[nodiscard]] double exposure_gray_transfer(double value, ExposureAdjustment settings);
 // Photoshop's deep (16 and 32-bit) Hue/Saturation as a continuous map of 0..255
 // values: apply_hue_saturation's 1530-step wheel and in-gamut chroma limit, with the
 // deep rules Photoshop 2026 uses instead of its 8-bit ones (exact lightness percent,
