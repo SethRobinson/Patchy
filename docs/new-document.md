@@ -24,12 +24,12 @@ Layout (GitHub issues 342 and 497): one row across the top holds the search fiel
 `newDocumentChipRow` that never wraps: chips that do not fit beside the narrowest search field,
 a longer translation or a larger font, widen the dialog); below it the template list frame and
 the settings pane start at the same top, and the settings grid's top margin (measured where the
-laid-out Recent row lands) puts the Name field level with the top of the Recent cards. The
+laid-out Recent row lands) puts the Name field halfway between the pane's top and the top of the Recent cards. The
 settings labels are left aligned and end in a colon; the summary (template name, size, memory) starts at the fields' left edge, with Save
 in the label column to its left, so the Create/Cancel row never widens the column.
 `ui_new_document_dialog_fits_short_screens` pins the top row, the five columns, every group
-unscrolled, the dialog's height and the Name field on the first Recent card's top; `ui_new_document_layout_lines_up_labels_fields_and_summary`
-pins the one-row chips (Saved chip shown) and the Name field on the Recent cards at the opening and
+unscrolled, the dialog's height and the Name field halfway down to the first Recent card's top; `ui_new_document_layout_lines_up_labels_fields_and_summary`
+pins the one-row chips (Saved chip shown) and the Name field's halfway offset at the opening and
 minimum widths, the label edge,
 the summary and Save placement.
 
