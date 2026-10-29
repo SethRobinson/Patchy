@@ -14,10 +14,10 @@ Probe PSDs `photoshop-text-*.psd`. The rules apply when `kLayerMetadataTextLayou
 - **Leading is per-character; a line's baseline advance = the max effective leading among the ENTERED line's characters.** Fixed leading applies only with `/AutoLeading false`; otherwise the recorded `/Leading` is stale and the effective value is the paragraph auto-leading fraction (default 1.2) x FontSize, sub-pixel exact. It may be smaller than the em.
 - **Point text anchors the FIRST baseline at the transform translation (tx, ty)**; justification decides whether tx is line start, middle, or end. No leading on the first line.
 - **Box text puts the first baseline at box top + Ascent x size, rounded** (largest run on line 1; Ascent is the lowercase "d" height, "Tracking and alignment"). Leading does not move it.
-- **Tracking = FontSize x tracking/1000 px per inter-glyph gap** (not after the last glyph), as absolute letter spacing; centred and right lines align on the width without a trailing gap.
+- **Tracking = FontSize x tracking/1000 px per inter-glyph gap** (not after the last glyph), as absolute letter spacing; alignment: "Tracking and alignment".
 - **VerticalScale/HorizontalScale scale glyphs only**; auto leading stays 1.2 x FontSize, unscaled.
 
-Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; v4 appends the faux-bold flag, v5 the face/style name, v6 the faux-italic flag, v7 the rotated-Roman flag of vertical type; paragraph v3 appends the auto-leading fraction, v4 the direction. Runs v8 adds baseline shift (engine pixels, positive raises glyphs) in column 15; both TySh and Txt2 preserve it. The snapped horizontal glyph renderer applies it before device rounding. Every column is read by INDEX, so the version token rises only when a run needs the new column and existing files stay byte-identical. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
+Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; v4 appends the faux-bold flag, v5 the face/style name, v6 the faux-italic flag, v7 the rotated-Roman flag of vertical type; paragraph v3 appends the auto-leading fraction, v4 the direction, v5 the composer. Runs v8 adds baseline shift (engine pixels, positive raises glyphs) in column 15; both TySh and Txt2 preserve it. The snapped horizontal glyph renderer applies it before device rounding. Every column is read by INDEX, so the version token rises only when a run needs the new column and existing files stay byte-identical. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
 
 ## Faux bold is not the bold face
 
@@ -118,7 +118,7 @@ re-laid out through `textItem.contents`, ink bounds from the DOM) established th
   nothing.
 - Qt's line pitch is `QTextLine::height()` (ascent + descent + line gap, ~1.15 em for Arial)
   while Photoshop's auto leading is 1.2 x size, and the old point-text anchor was the ink
-  BOTTOM (one descent low for descenders, lines low for multi-line text).
+  BOTTOM.
 
 The renderer records what it drew (`text_layout_metrics_for_plan`, stored by
 `store_text_layout_metrics` at every site that gives a layer a text render, editor commits and
@@ -130,9 +130,8 @@ transform re-renders included) and the Qt-free writer turns it into geometry:
   raster's top row for box text. `point_text_baseline_offset` anchors ty there; the ink-bottom
   scan stays the fallback for rasters no Patchy render measured. `patchy.text.raster_top`
   (point text: `local_rect.top()`) tells the writer whether ty is still that origin (the raster
-  sits raster_top from it: anchor) or already the baseline (a reopened layer: leave it); the
-  old "ink starts above ty" test read a grown buffer as anchored and wrote the CoreText "M"
-  of issue 20 an ascent high (`psd_writer_point_text_grown_raster_still_anchors_baseline`).
+  sits raster_top from it: anchor) or already the baseline (a reopened layer: leave it), never
+  "ink starts above ty" (`psd_writer_point_text_grown_raster_still_anchors_baseline`).
 - `patchy.text.box_baseline_inset` (Qt-natural box text only): Qt's first baseline minus
   (space before + the line's max `QFontMetricsF::capHeight`), rounded to 1/64 px (QFixed's grid,
   exact in binary). The writer moves the TRANSFORM ORIGIN down by it (`translate_text_geometry_local`),
@@ -212,21 +211,23 @@ without MS Gothic) and `psd_vertical_*captures*` in tests/core.
 
 ## Tracking and alignment
 
-PS 2026 COM sweep (`scripts/dev/text-tracking/`, captures `test-fixtures/psd/photoshop-text-track-*.psd`):
-"TEXT", Arial 48 px, point/box, left/centre/right, tracking -80 to +200.
+PS 2026 COM sweeps (`scripts/dev/text-tracking/`, captures `test-fixtures/psd/photoshop-text-track-*.psd`):
+Arial "TEXT" and "A", point/box, left/centre/right, tracking -80 to +200.
 
-- **Alignment uses the width without the trailing gap.** Qt's letter spacing follows the last
-  glyph too, so `photoshop_text_layout_plan` moves each centred or right left-to-right line by
-  its share of that tracking (point text: against its widest line); others never move.
+- **Alignment uses the width without the trailing gap**, at any tracking (a lone centred "A"
+  never moves): `photoshop_text_layout_plan` moves each centred or right left-to-right line by
+  its share of the tracking Qt adds after the last glyph (point text: against its widest line).
+- **The box lays out at the frame width rounded up, ignoring matrix noise**
+  (`psd_text_frame_extent_pixels`; psd-tools `type-layer.psd`'s xx 1.0000000000000002 made 32 px 33).
 - **Box first baseline = round(box top + Ascent x size)**, halves up, Ascent being the top of
   the lowercase "d" (`photoshop_ascender_fraction`; typo ascender only without a "d"): Arial 48
   at top 40.10 lands on 74 and 40.15 on 75 ("d" 0.7158, typo 0.728). Calibri (0.678 vs typo
   0.750), Segoe UI, Times, Verdana, Georgia, Courier New and Tahoma at 30 to 72 px all fit "d".
   Baseline shift moves it exactly. Patchy-written blocks get cap height (above).
-- Gaps: Qt's untracked "TEXT" advance is 122.66 px to PS 121.80 (right lines sit a
-  column left), psd-tools `type-layer.psd`'s centred "A" a column right, and a fractional box
-  top a row off. Pinned by
-  `ui_psd_centered_text_commit_rounds_line_start_like_photoshop` and two `_if_available` tests.
+- **World-Ready paragraphs align the last line as if its last glyph kerned with a space** (Arial
+  30 px "A" -1.655 px; "TEXT" 121.80, not 122.66): Txt2 paragraph `/35` 1 or 2, [txt2.md](txt2.md).
+- Gap: a fractional box top can land a row off. Pinned by
+  `ui_psd_centered_text_commit_rounds_line_start_like_photoshop` and `_if_available` tests.
 
 ## Pixel grid and fractional anchors
 
@@ -275,8 +276,7 @@ PS 27.9 COM captures: "Hg", Arial 48 px, Sharp, placed at x or y 100.0 / 100.3 /
   every pinned raster untouched. Local (0, 0) stays the line start / first line top, so the
   transform still names the pen and the buffer starts at transform + `local_rect.topLeft()`
   (`rendered_text_bounds_for_editor`, the resample offset in commit and preview, the SVG and
-  Affinity placements); the PSD pins convert buffer-space ink to local space before comparing
-  (clipping the overhang slides the text by the bearing on an unchanged apply, issue 20). Pinned by
+  Affinity placements); the PSD pins convert buffer-space ink to local space before comparing. Pinned by
   `ui_point_text_render_keeps_glyph_overhang` (Arial Italic "jf": transform at the pen, re-entry
   byte-identical, TySh tx at the pen) and, with the reporter's file and font in the local
   fixtures, `ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available` (ink within 1 px of

@@ -1979,13 +1979,17 @@ std::string serialize_paragraph_metric(double value) {
 }
 
 // v1: start len alignment; v2: + indent/space metrics; v3: + auto-leading fraction;
-// v4: + paragraph direction ("auto", "ltr" or "rtl"). Every column is read by index and the
-// version token rises only when a run needs the column, so files without an explicit direction
-// stay byte-identical.
+// v4: + paragraph direction ("auto", "ltr" or "rtl"); v5: + composer (Txt2 /35, written only
+// when a paragraph is not World-Ready). Every column is read by index and the version token rises
+// only when a run needs the column, so files without an explicit direction stay byte-identical.
 std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun> runs) {
-  const bool include_direction = std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) {
-    return run.direction == "ltr" || run.direction == "rtl";
+  const bool include_composer = std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) {
+    return run.composer != 1;
   });
+  const bool include_direction = include_composer ||
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) {
+        return run.direction == "ltr" || run.direction == "rtl";
+      });
   const bool include_fraction = include_direction ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) {
         return std::abs(run.auto_leading_fraction - 1.2) > 0.0001;
@@ -1993,8 +1997,9 @@ std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun>
   const bool include_layout =
       include_fraction ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) { return paragraph_run_has_layout(run); });
-  std::string serialized =
-      include_direction ? "v4" : (include_fraction ? "v3" : (include_layout ? "v2" : "v1"));
+  std::string serialized = include_composer
+      ? "v5"
+      : (include_direction ? "v4" : (include_fraction ? "v3" : (include_layout ? "v2" : "v1")));
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
@@ -2021,6 +2026,10 @@ std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun>
     if (include_direction) {
       serialized += '\t';
       serialized += run.direction == "ltr" || run.direction == "rtl" ? run.direction : "auto";
+    }
+    if (include_composer) {
+      serialized += '\t';
+      serialized += std::to_string(run.composer);
     }
   }
   return serialized;

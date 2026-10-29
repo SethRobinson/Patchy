@@ -64,7 +64,7 @@ EngineNode paragraph_sheet(const PsdTextParagraphRun& run) {
       {"28", engine_nil()},
       {"29", engine_bool(false)},
       {"33", engine_integer(run.direction == "rtl" ? 1 : 0)},
-      {"35", engine_integer(1)},
+      {"35", engine_integer(std::clamp(run.composer, 0, 2))},
       {"36", engine_nil()},
       {"37", engine_integer(0)},
       {"40", engine_integer(2)},
@@ -355,6 +355,41 @@ std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::si
   return result;
 }
 
+std::vector<TextParagraphComposer> TextEngineBlock::object_paragraph_composers(std::size_t index) const {
+  std::vector<TextParagraphComposer> result;
+  const auto* list = objects();
+  const auto* runs = list != nullptr && index < list->list.size() ? list->list[index].at_path({"0", "5", "0"}) : nullptr;
+  if (runs == nullptr || !runs->is_list()) return result;
+  const auto* sheets = root_.at_path({"0", "6", "0"});
+  const auto composer = [](const EngineNode* paragraph_sheet) -> std::optional<int> {
+    const auto* node = paragraph_sheet != nullptr ? paragraph_sheet->find("35") : nullptr;
+    const auto value = node != nullptr ? node->integer() : std::nullopt;
+    if (value && *value >= 0 && *value <= 2) return static_cast<int>(*value);
+    return std::nullopt;
+  };
+  const auto document_default = composer(root_.at_path({"1", "3"}));
+  bool any = false;
+  for (const auto& run : runs->list) {
+    TextParagraphComposer entry;
+    const auto* length = run.at_path({"1"});
+    entry.length = static_cast<int>(std::clamp<long long>(length ? length->integer().value_or(0) : 0, 0, 1 << 30));
+    const auto* sheet = run.at_path({"0", "0"});
+    entry.composer = composer(sheet != nullptr ? sheet->at_path({"5"}) : nullptr);
+    if (!entry.composer && sheet != nullptr && sheets != nullptr && sheets->is_list()) {
+      const auto* parent = sheet->at_path({"6"});
+      const auto parent_index = parent != nullptr ? parent->integer() : std::nullopt;
+      if (parent_index && *parent_index >= 0 && static_cast<std::size_t>(*parent_index) < sheets->list.size()) {
+        entry.composer = composer(sheets->list[static_cast<std::size_t>(*parent_index)].at_path({"0", "5"}));
+      }
+    }
+    if (!entry.composer) entry.composer = document_default;
+    any = any || entry.composer.has_value();
+    result.push_back(entry);
+  }
+  if (!any) result.clear();
+  return result;
+}
+
 std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::uint8_t> payload) {
   std::vector<TextFrameGeometry> result;
   if (const auto engine = TextEngineBlock::parse(payload)) {
@@ -363,6 +398,7 @@ std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::u
       auto geometry = engine->object_geometry(i);
       geometry.paragraph_font_sizes = engine->object_paragraph_font_sizes(i);
       geometry.style_features = engine->object_style_features(i);
+      geometry.paragraph_composers = engine->object_paragraph_composers(i);
       result.push_back(std::move(geometry));
     }
     return result;

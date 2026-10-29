@@ -107,6 +107,9 @@ inline constexpr int kTextFractionsFormatProperty = QTextFormat::UserProperty + 
 // spacing the fragment had before that correction, which the featured shaping uses.
 inline constexpr int kTextRenderFeaturesFormatProperty = QTextFormat::UserProperty + 50;
 inline constexpr int kTextRenderBaseLetterSpacingFormatProperty = QTextFormat::UserProperty + 51;
+// Block property: Photoshop's paragraph composer (paragraph runs v5, Txt2 /35), set only when a
+// paragraph is not World-Ready (1, the default): 0 is the Latin and East Asian composer.
+inline constexpr int kTextBlockComposerProperty = QTextFormat::UserProperty + 52;
 
 // One visual line as the renderer draws it: the line, the origin it is drawn at, and the
 // rect it is clipped to. `block_position` is the owning block's document position, which
@@ -182,7 +185,9 @@ struct PhotoshopLineMetrics {
 // sits the ascender below the box top for box text; every following baseline advances by the
 // *entered* line's max leading (auto = paragraph fraction x size) plus paragraph spacing.
 // Line x positions are Qt's own (alignment against the layout width) less each centred or
-// right-aligned line's share of the tracking Qt adds after its last glyph.
+// right-aligned line's share of the tracking Qt adds after its last glyph, plus, for a paragraph's
+// last line under the World-Ready composer, its share of the kern between its last glyph and a
+// space.
 [[nodiscard]] PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document, bool boxed);
 
 // Union of the INK boxes of every glyph a line draws (QRawFont::boundingRect per glyph, the

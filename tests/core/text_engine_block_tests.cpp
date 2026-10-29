@@ -575,6 +575,88 @@ void text_engine_issue341_every_object_keeps_a_cache_key_if_available() {
   CHECK(retyped_objects == 1);
 }
 
+// Photoshop's paragraph composer lives only in the Txt2 (paragraph key /35, never the TySh):
+// World-Ready (1) aligns a paragraph's last line with its last glyph kerned against a space,
+// Latin and East Asian (0) without (docs/text-render-calibration.md, "Tracking and alignment").
+// A World-Ready import keeps the shorter paragraph runs; a Latin one survives the import as the
+// v5 column and a regenerating save as its /35.
+void text_engine_paragraph_composer_round_trips() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-track-box-right-m80.psd");
+  auto bytes = read_all(path);
+  const auto text_layer = [](const patchy::Document& document) -> const patchy::Layer* {
+    for (const auto& layer : document.layers()) {
+      if (patchy::layer_is_text(layer)) {
+        return &layer;
+      }
+    }
+    return nullptr;
+  };
+  const auto paragraph_runs = [](const patchy::Layer& layer) {
+    const auto found = layer.metadata().find(patchy::kLayerMetadataTextParagraphRuns);
+    return found != layer.metadata().end() ? found->second : std::string();
+  };
+  const auto saved_composers = [](patchy::Document& document) {
+    for (auto& layer : document.layers()) {
+      if (patchy::layer_is_text(layer)) {
+        layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+      }
+    }
+    const auto payload = text_engine_payload(patchy::psd::DocumentIo::write_layered_rgb8(document));
+    const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+    std::vector<int> composers;
+    if (block.has_value() && block->object_count() > 0) {
+      for (const auto& entry : block->object_paragraph_composers(0)) {
+        composers.push_back(entry.composer.value_or(-1));
+      }
+    }
+    return composers;
+  };
+
+  auto world_ready = patchy::psd::DocumentIo::read(bytes);
+  const auto* layer = text_layer(world_ready);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  CHECK(paragraph_runs(*layer).rfind("v5", 0) != 0);
+  CHECK(saved_composers(world_ready) == std::vector<int>{1});
+
+  // The same file with its paragraph run switched to the Latin composer (one byte: "1" -> "0").
+  const auto payload = text_engine_payload(bytes);
+  auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+  CHECK(block.has_value() && block->object_count() == 1);
+  if (!block.has_value() || block->object_count() != 1) {
+    return;
+  }
+  CHECK(block->object_paragraph_composers(0).size() == 1 && block->object_paragraph_composers(0)[0].composer == 1);
+  auto* sheet = block->root().at_path({"1", "1", "0", "0", "5", "0", "0", "0", "0", "5"});
+  auto* composer = sheet != nullptr ? sheet->find("35") : nullptr;
+  CHECK(composer != nullptr && composer->raw == "1");
+  if (composer == nullptr) {
+    return;
+  }
+  composer->raw = "0";
+  const auto edited = block->serialize();
+  CHECK(edited.size() == payload->size());
+  if (edited.size() != payload->size()) {
+    return;
+  }
+  static constexpr std::string_view kMarker = "8BIMTxt2";
+  const auto at = std::search(bytes.begin(), bytes.end(), kMarker.begin(), kMarker.end());
+  std::copy(edited.begin(), edited.end(), at + static_cast<std::ptrdiff_t>(kMarker.size() + 4));
+
+  auto latin = patchy::psd::DocumentIo::read(bytes);
+  layer = text_layer(latin);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto runs = paragraph_runs(*layer);
+  CHECK(runs.rfind("v5\n", 0) == 0);
+  CHECK(runs.size() >= 2 && runs.substr(runs.size() - 2) == "\t0");
+  CHECK(saved_composers(latin) == std::vector<int>{0});
+}
+
 std::vector<patchy::test::TestCase> text_engine_block_tests() {
   return {
       {"text_engine_area_frames_preserve_native_contours", text_engine_area_frames_preserve_native_contours},
@@ -586,6 +668,7 @@ std::vector<patchy::test::TestCase> text_engine_block_tests() {
       {"text_engine_syntax_parses_and_authors_tokens", text_engine_syntax_parses_and_authors_tokens},
       {"text_engine_patchy_born_document_writes_a_block", text_engine_patchy_born_document_writes_a_block},
       {"text_engine_retyped_layer_replaces_its_object_in_place", text_engine_retyped_layer_replaces_its_object_in_place},
+      {"text_engine_paragraph_composer_round_trips", text_engine_paragraph_composer_round_trips},
       {"text_engine_issue341_every_object_keeps_a_cache_key_if_available",
        text_engine_issue341_every_object_keeps_a_cache_key_if_available},
   };

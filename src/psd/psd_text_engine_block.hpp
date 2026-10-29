@@ -58,6 +58,13 @@ struct TextStyleRunFeatures {
   bool fractions{false};
 };
 
+// The composer (paragraph key /35) one paragraph run of a text object resolves to: its own sheet,
+// else its parent ParagraphSheetSet entry, else the document's default paragraph sheet (/1/3).
+struct TextParagraphComposer {
+  int length{0};
+  std::optional<int> composer;
+};
+
 struct TextFrameGeometry {
   enum class Kind { Point, Box, Area, Unsupported };
   Kind kind{Kind::Unsupported};
@@ -66,6 +73,8 @@ struct TextFrameGeometry {
   std::vector<TextParagraphFontSize> paragraph_font_sizes{};
   // One entry per style run of the object; empty when no run turns a feature on.
   std::vector<TextStyleRunFeatures> style_features{};
+  // One entry per paragraph run of the object; empty when no sheet names a composer.
+  std::vector<TextParagraphComposer> paragraph_composers{};
 };
 
 // Unaddressed TySh index for regenerated text beside a verbatim legacy engine,
@@ -97,6 +106,7 @@ class TextEngineBlock {
   [[nodiscard]] TextFrameGeometry object_geometry(std::size_t index) const;
   [[nodiscard]] std::vector<TextParagraphFontSize> object_paragraph_font_sizes(std::size_t index) const;
   [[nodiscard]] std::vector<TextStyleRunFeatures> object_style_features(std::size_t index) const;
+  [[nodiscard]] std::vector<TextParagraphComposer> object_paragraph_composers(std::size_t index) const;
 
   // Authors a text object from the inputs and stores it at `index` (replacing the object and
   // its frame there, or appending when `index` is past the end); fonts join the FontSet as

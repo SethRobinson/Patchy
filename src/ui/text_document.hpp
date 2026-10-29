@@ -8,11 +8,24 @@
 #include <QString>
 #include <QTextDocument>
 #include <QTextCharFormat>
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <optional>
 namespace patchy::ui {
 inline constexpr int kMinimumTextBoxDocumentSize = 16;
+
+// The whole-pixel layout width (or height) of a Photoshop text frame edge: BoxBounds mapped
+// through the TySh matrix, rounded up so a fractional box (100.3) never wraps a line Photoshop
+// fits. The matrix doubles carry rounding noise (psd-tools type-layer.psd: xx
+// 1.0000000000000002 makes its 32 px box 32.000000000000007), which a plain ceil grew to 33,
+// and Qt then centred the line half a pixel right of Photoshop's
+// (docs/text-render-calibration.md, "Tracking and alignment").
+[[nodiscard]] inline int psd_text_frame_extent_pixels(double extent) {
+  constexpr double kMatrixNoise = 1e-6;
+  return std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::ceil(extent - kMatrixNoise)));
+}
 struct TextToolSettings {
   QString text;
   QString html;

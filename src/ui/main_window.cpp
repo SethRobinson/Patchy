@@ -6587,10 +6587,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
       } else if (using_psd_frame) {
         document_point = QPoint(snapped_pixel_coordinate(psd_frame->left()),
                                 snapped_pixel_coordinate(psd_frame->top()));
-        document_editor_width =
-            std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::ceil(psd_frame->width())));
-        document_editor_height =
-            std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::ceil(psd_frame->height())));
+        document_editor_width = psd_text_frame_extent_pixels(psd_frame->width());
+        document_editor_height = psd_text_frame_extent_pixels(psd_frame->height());
       } else {
         document_point = QPoint(layer->bounds().x, layer->bounds().y);
       }

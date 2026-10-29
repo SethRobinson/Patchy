@@ -95,6 +95,42 @@ double photoshop_line_trailing_tracking(const QTextBlock& block, const QTextLine
   return std::isfinite(gap) ? gap : 0.0;
 }
 
+// Photoshop's World-Ready composer (Txt2 paragraph composer 1, Photoshop 2026's default) aligns a
+// paragraph's last line as if a space followed its last glyph: that pair's kern joins the width
+// (Arial "A" + space, -113 units: a lone "A" centred 0.83 px right at 30 px; PS 2026 COM probes,
+// docs/text-render-calibration.md, "Tracking and alignment"). Qt shapes nothing after the
+// paragraph end, so this is what its line lacks. 0 for other lines, the Latin composer, and a
+// line ending in a space (Qt kerned the glyph against it already).
+double photoshop_paragraph_end_kern(const QTextBlock& block, const QTextLine& line) {
+  const auto block_format = block.blockFormat();
+  if (block.layout() == nullptr || line.lineNumber() != block.layout()->lineCount() - 1 ||
+      (block_format.hasProperty(kTextBlockComposerProperty) && block_format.intProperty(kTextBlockComposerProperty) == 0)) {
+    return 0.0;
+  }
+  const auto text = block.text();
+  const auto end = std::min<int>(line.textStart() + line.textLength(), static_cast<int>(text.size()));
+  auto last = end - 1;
+  if (last < line.textStart() || text.at(last).isSpace()) {
+    return 0.0;
+  }
+  if (text.at(last).isLowSurrogate() && last > line.textStart() && text.at(last - 1).isHighSurrogate()) {
+    --last;
+  }
+  const auto format = line_last_char_format(block, line);
+  if (!format.has_value()) {
+    return 0.0;
+  }
+  // Tracking and faux-bold spacing ride the letter spacing; the kern is the shaped pair alone.
+  auto font = format->font();
+  font.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+  font.setWordSpacing(0.0);
+  const QFontMetricsF metrics(font);
+  const auto glyph = text.mid(last, end - last);
+  const auto kern = metrics.horizontalAdvance(glyph + QLatin1Char(' ')) - metrics.horizontalAdvance(glyph) -
+                    metrics.horizontalAdvance(QLatin1Char(' '));
+  return std::isfinite(kern) && std::abs(kern) > 0.0001 ? kern : 0.0;
+}
+
 }  // namespace
 
 double photoshop_ascender_fraction(const QFont& font) {
@@ -288,8 +324,9 @@ PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document
 
   struct LineWidths {
     double natural{0.0};   // Qt's width, trailing letter spacing included
-    double trailing{0.0};  // the tracking Qt added after the line's last glyph
-    double fraction{0.0};  // 0.5 centred, 1 right, 0 otherwise (or no trailing gap)
+    double trailing{0.0};  // what Qt counts and Photoshop does not: the tracking after the last
+                           // glyph, less any paragraph-end kern
+    double fraction{0.0};  // 0.5 centred, 1 right, 0 otherwise (or nothing to remove)
   };
   std::vector<LineWidths> widths;
   bool first_line = true;
@@ -338,7 +375,7 @@ PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document
       const auto offset_y = target_top - natural_rect.top();
       const auto block_origin = block_rect.topLeft() + QPointF(0.0, offset_y);
       plan.lines.push_back(BoxTextLineRenderItem{line, block_origin, QRectF(), block.position()});
-      const auto trailing = photoshop_line_trailing_tracking(block, line);
+      const auto trailing = photoshop_line_trailing_tracking(block, line) - photoshop_paragraph_end_kern(block, line);
       widths.push_back(LineWidths{line.naturalTextWidth(), trailing,
                                   trailing != 0.0 ? photoshop_alignment_fraction(block) : 0.0});
     }
@@ -346,9 +383,10 @@ PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document
   // Photoshop tracks only the gaps BETWEEN glyphs, while Qt's absolute letter spacing also
   // follows the last glyph, so Qt centres and right-aligns a line one trailing gap too wide
   // (tracking -80 at 48 px: the centred line sat 1.92 px right of Photoshop's; PS 2026 sweep,
-  // docs/text-render-calibration.md, "Tracking and alignment"). Move each centred or right
-  // line by its fraction of the trailing gap. Box text aligns in the fixed frame; point text
-  // aligns in its widest line, whose own trailing gap Qt counted as well.
+  // docs/text-render-calibration.md, "Tracking and alignment"), and a World-Ready paragraph's
+  // last line one paragraph-end kern too wide. Move each centred or right line by its fraction
+  // of the difference. Box text aligns in the fixed frame; point text aligns in its widest line,
+  // whose own difference Qt counted as well.
   double qt_width = 0.0;
   double photoshop_width = 0.0;
   for (const auto& entry : widths) {
