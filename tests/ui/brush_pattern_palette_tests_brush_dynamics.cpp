@@ -64,6 +64,10 @@ namespace {
 
 using namespace patchy::test::ui;
 
+bool tool_settings_saved_brush_tip(const QString& tip_id) {
+  return patchy::ui::app_settings().value(QStringLiteral("tools/brushTip")).toString() == tip_id;
+}
+
 void ui_brush_tip_manager_edits_dynamics() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
@@ -401,7 +405,9 @@ void ui_brush_tip_picker_keeps_a_fixed_width() {
     CHECK(picker->toolTip().contains(QStringLiteral("An Unusually Long Imported Brush Tip Name")));
 
     window.set_active_brush_tip(brick_road_id, true);
-    process_events_for(400);  // the debounced tool-settings save records the tip
+    for (int waited = 0; waited < 5000 && !tool_settings_saved_brush_tip(brick_road_id); waited += 100) {
+      process_events_for(100);  // the debounced tool-settings save records the tip
+    }
     CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushTip")).toString() == brick_road_id);
   }
   {
@@ -1926,7 +1932,9 @@ void ui_brush_tip_restores_on_startup() {
     CHECK(!tip_id.isEmpty());
     window.set_active_brush_tip(tip_id, false);
     CHECK(require_canvas(window)->has_brush_tip());
-    process_events_for(400);  // the debounced tool-settings save records the tip
+    for (int waited = 0; waited < 5000 && !tool_settings_saved_brush_tip(tip_id); waited += 100) {
+      process_events_for(100);  // the debounced tool-settings save records the tip
+    }
     CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushTip")).toString() == tip_id);
   }
   {
