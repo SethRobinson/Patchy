@@ -536,6 +536,11 @@ void CanvasWidget::update_tool_cursor() {
     apply_zoom_cursor(zoom_tool_zoom_out_active(QApplication::keyboardModifiers()));
     return;
   }
+  if (brush_outline_hidden()) {
+    // Show Outline is off (GitHub issue 517): a plain crosshair keeps the pointer visible.
+    setCursor(Qt::CrossCursor);
+    return;
+  }
   if (brush_outline_uses_overlay()) {
     // Too big for an OS cursor: the outline follows the pointer as a canvas overlay instead.
     setCursor(Qt::CrossCursor);

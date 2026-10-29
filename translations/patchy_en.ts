@@ -28369,6 +28369,10 @@ Locked: %1</source>
         <source>Opacity of the brush overlay</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show Outline</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

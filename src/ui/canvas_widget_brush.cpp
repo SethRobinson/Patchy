@@ -629,6 +629,9 @@ bool CanvasWidget::brush_outline_uses_overlay() const {
   if (tool_ != CanvasTool::QuickSelect && !tool_uses_brush_footprint_cursor(tool_)) {
     return false;
   }
+  if (brush_outline_hidden()) {
+    return false;  // Show Outline is off: no outline at any size (GitHub issue 517)
+  }
   // Where a Clone or Healing press would be refused (no source yet) the pointer is the
   // not-allowed cursor, so the footprint is painted on the canvas at every size: the
   // circle stays while [ and ] resize it (GitHub issue 516).
@@ -3067,6 +3070,22 @@ void CanvasWidget::set_brush_overlay_shown(bool shown) {
   invalidate_brush_overlay();
   brush_overlay_shown_ = shown;
   invalidate_brush_overlay();
+}
+
+void CanvasWidget::set_brush_outline_shown(bool shown) {
+  if (brush_outline_shown_ == shown) {
+    return;
+  }
+  // Erase a large brush's canvas outline before it goes, and repaint it when it returns.
+  const auto previous =
+      brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
+  brush_outline_shown_ = shown;
+  update_tool_cursor();
+  invalidate_brush_hover_outline(previous);
+}
+
+bool CanvasWidget::brush_outline_hidden() const noexcept {
+  return !brush_outline_shown_ && tool_ == CanvasTool::Brush;
 }
 
 void CanvasWidget::set_brush_overlay_opacity(int percent) {

@@ -28450,6 +28450,10 @@ Fixiert: %1</translation>
         <source>Opacity of the brush overlay</source>
         <translation>Deckkraft der Pinselüberlagerung</translation>
     </message>
+    <message>
+        <source>Show Outline</source>
+        <translation>Umriss anzeigen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

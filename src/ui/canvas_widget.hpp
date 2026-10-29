@@ -447,6 +447,9 @@ public:
   [[nodiscard]] bool brush_overlay_shown() const noexcept { return brush_overlay_shown_; }
   void set_brush_overlay_opacity(int percent);
   [[nodiscard]] int brush_overlay_opacity() const noexcept { return brush_overlay_opacity_; }
+  // The Brush tool's outline cursor (GitHub issue 517 follow-up): off leaves a plain crosshair.
+  void set_brush_outline_shown(bool shown);
+  [[nodiscard]] bool brush_outline_shown() const noexcept { return brush_outline_shown_; }
   // Runs after any change to the sources, the active slot, an offset or the transform.
   void set_clone_source_changed_callback(std::function<void()> callback) {
     clone_source_changed_callback_ = std::move(callback);
@@ -2160,6 +2163,8 @@ private:
   // under the hovered brush, rendered once per tip, size, color and zoom into
   // brush_overlay_image_ and only blitted per repaint.
   [[nodiscard]] bool brush_overlay_active() const;
+  // Show Outline is off and the Brush tool is active: no outline cursor or canvas outline.
+  [[nodiscard]] bool brush_outline_hidden() const noexcept;
   [[nodiscard]] QPointF brush_overlay_center_widget() const;
   [[nodiscard]] QRect brush_overlay_widget_rect() const;
   void draw_brush_dab_overlay(QPainter& painter) const;
@@ -3761,6 +3766,7 @@ private:
   int clone_overlay_opacity_{100};
   mutable QRect clone_overlay_drawn_rect_{};
   bool brush_overlay_shown_{false};
+  bool brush_outline_shown_{true};
   int brush_overlay_opacity_{100};
   mutable QRect brush_overlay_drawn_rect_{};
   mutable QImage brush_overlay_image_;  // the dab at brush_overlay_image_scale_ pixels per document pixel

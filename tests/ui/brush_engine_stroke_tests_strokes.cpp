@@ -6,6 +6,7 @@
 #include <QMenu>
 
 #include "ui/canvas_widget.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/tool_cursors.hpp"
 #include "core/layer_metadata.hpp"
@@ -3807,16 +3808,19 @@ void ui_brush_smoothing_options_bar_round_trips_settings() {
   CHECK(!gear->isVisible());
 }
 
-// The Brush overlay (GitHub issue 517) lives in the Brush tool's gear: Show Overlay and its
-// opacity, off at 100% with no saved setting, reaching the canvas and persisting. The Mixer
-// Brush and the Eraser share the gear but not the overlay, so their menu hides the entries.
+// The Brush overlay (GitHub issue 517) lives in the Brush tool's gear: Show Outline (on) above
+// Show Overlay and its opacity (off at 100%) with no saved setting, reaching the canvas and
+// persisting. Overlay Opacity scrubs from its label and its field like every numeric option.
+// The Mixer Brush and the Eraser share the gear but not these, so their menu hides the entries.
 void ui_brush_overlay_gear_defaults_off_and_persists() {
   SettingsValueRestorer restore_overlay(QStringLiteral("tools/brushOverlay"));
   SettingsValueRestorer restore_opacity(QStringLiteral("tools/brushOverlayOpacity"));
+  SettingsValueRestorer restore_outline(QStringLiteral("tools/brushOutline"));
   {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("tools/brushOverlay"));
     settings.remove(QStringLiteral("tools/brushOverlayOpacity"));
+    settings.remove(QStringLiteral("tools/brushOutline"));
     settings.sync();
   }
   patchy::ui::MainWindow window;
@@ -3825,22 +3829,27 @@ void ui_brush_overlay_gear_defaults_off_and_persists() {
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   QApplication::processEvents();
   auto* gear = window.findChild<QToolButton*>(QStringLiteral("brushSmoothingOptionsButton"));
+  auto* outline = window.findChild<QAction*>(QStringLiteral("brushOutlineAction"));
   auto* overlay = window.findChild<QAction*>(QStringLiteral("brushOverlayAction"));
   auto* opacity_action = window.findChild<QAction*>(QStringLiteral("brushOverlayOpacityAction"));
   auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOverlayOpacitySpin"));
-  CHECK(gear != nullptr && gear->menu() != nullptr && overlay != nullptr && opacity_action != nullptr &&
-        opacity != nullptr);
-  if (gear == nullptr || gear->menu() == nullptr || overlay == nullptr || opacity_action == nullptr ||
-      opacity == nullptr) {
+  CHECK(gear != nullptr && gear->menu() != nullptr && outline != nullptr && overlay != nullptr &&
+        opacity_action != nullptr && opacity != nullptr);
+  if (gear == nullptr || gear->menu() == nullptr || outline == nullptr || overlay == nullptr ||
+      opacity_action == nullptr || opacity == nullptr) {
     return;
   }
   auto* menu = gear->menu();
-  CHECK(menu->actions().contains(overlay) && menu->actions().contains(opacity_action));
+  const auto actions = menu->actions();
+  CHECK(actions.contains(outline) && actions.contains(overlay) && actions.contains(opacity_action));
+  CHECK(actions.indexOf(outline) + 1 == actions.indexOf(overlay));  // Show Outline sits above Show Overlay
+  CHECK(canvas->brush_outline_shown());
   CHECK(!canvas->brush_overlay_shown());
   CHECK(canvas->brush_overlay_opacity() == 100);
   menu->popup(gear->mapToGlobal(QPoint(0, gear->height())));
   QApplication::processEvents();
-  CHECK(overlay->isVisible() && opacity_action->isVisible());
+  CHECK(outline->isVisible() && overlay->isVisible() && opacity_action->isVisible());
+  CHECK(outline->isCheckable() && outline->isChecked());
   CHECK(overlay->isCheckable() && !overlay->isChecked());
   CHECK(opacity->value() == 100);
   CHECK(!opacity->isEnabled());  // nothing to fade while the overlay is off
@@ -3851,6 +3860,46 @@ void ui_brush_overlay_gear_defaults_off_and_persists() {
   CHECK(opacity->isEnabled());
   opacity->setValue(40);
   CHECK(canvas->brush_overlay_opacity() == 40);
+
+  // Overlay Opacity scrubs: a drag on its label, then on its field.
+  CHECK(opacity->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
+  QLabel* opacity_label = nullptr;
+  for (auto* label : menu->findChildren<QLabel*>()) {
+    if (label->buddy() == opacity) {
+      opacity_label = label;
+    }
+  }
+  CHECK(opacity_label != nullptr);
+  const int drag_start = QApplication::startDragDistance();
+  const auto scrub = [&](QWidget& handle, int dx) {
+    const auto origin = handle.rect().center();
+    send_mouse(handle, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(handle, QEvent::MouseMove, origin + QPoint(dx, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(handle, QEvent::MouseButtonRelease, origin + QPoint(dx, 0), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  if (opacity_label != nullptr) {
+    CHECK(opacity_label->cursor().shape() == Qt::SizeHorCursor);
+    scrub(*opacity_label, drag_start + 10);
+    CHECK(opacity->value() == 40 + drag_start + 10);
+    CHECK(canvas->brush_overlay_opacity() == opacity->value());
+  }
+  if (auto* editor = opacity->findChild<QLineEdit*>(); editor != nullptr) {
+    opacity->setValue(40);
+    scrub(*editor, -(drag_start + 10));
+    CHECK(opacity->value() == 40 - drag_start - 10);
+    CHECK(canvas->brush_overlay_opacity() == opacity->value());
+  } else {
+    CHECK(false);
+  }
+  opacity->setValue(40);
+  CHECK(canvas->brush_overlay_opacity() == 40);
+
+  outline->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!canvas->brush_outline_shown());
+  menu->popup(gear->mapToGlobal(QPoint(0, gear->height())));
+  QApplication::processEvents();
   save_window_popup_artifact("issue517_brush_overlay_gear", window, *gear, *menu);
   menu->close();
   QApplication::processEvents();
@@ -3859,6 +3908,7 @@ void ui_brush_overlay_gear_defaults_off_and_persists() {
     auto settings = patchy::ui::app_settings();
     CHECK(settings.value(QStringLiteral("tools/brushOverlay")).toBool());
     CHECK(settings.value(QStringLiteral("tools/brushOverlayOpacity")).toInt() == 40);
+    CHECK(!settings.value(QStringLiteral("tools/brushOutline"), true).toBool());
   }
 
   for (const auto* tool_name : {"Mixer Brush", "Eraser"}) {
@@ -3866,7 +3916,7 @@ void ui_brush_overlay_gear_defaults_off_and_persists() {
     QApplication::processEvents();
     menu->popup(gear->mapToGlobal(QPoint(0, gear->height())));
     QApplication::processEvents();
-    CHECK(!overlay->isVisible() && !opacity_action->isVisible());
+    CHECK(!outline->isVisible() && !overlay->isVisible() && !opacity_action->isVisible());
     menu->close();
     QApplication::processEvents();
   }
@@ -3877,6 +3927,83 @@ void ui_brush_overlay_gear_defaults_off_and_persists() {
   auto* reopened_canvas = require_canvas(reopened);
   CHECK(reopened_canvas->brush_overlay_shown());
   CHECK(reopened_canvas->brush_overlay_opacity() == 40);
+  CHECK(!reopened_canvas->brush_outline_shown());
+}
+
+// Show Outline off (GitHub issue 517 follow-up): the Brush tool's pointer is a plain crosshair
+// instead of the outline cursor, and a brush too large for an OS cursor draws no canvas outline.
+// The Eraser keeps its outline; turning the option back on restores both.
+void ui_brush_overlay_show_outline_off_removes_outline() {
+  patchy::Document document(400, 300, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paper", solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(600, 420);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_brush_softness(0);
+  canvas.set_brush_size(20);
+  canvas.show();
+  QApplication::processEvents();
+  const auto hover = canvas.widget_position_for_document_point(QPoint(200, 150));
+  send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas.brush_outline_shown());
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);  // the outline cursor
+
+  canvas.set_brush_outline_shown(false);
+  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+  canvas.set_tool(patchy::ui::CanvasTool::Eraser);
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);  // only the Brush follows the option
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+
+  // A 200 px brush outgrows the OS cursor: its outline is drawn on the canvas.
+  canvas.set_brush_size(200);
+  const auto darkest_on_rim = [&canvas, hover] {
+    send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto image = canvas.grab().toImage();
+    int darkest = 255;
+    for (int dx = 95; dx <= 105; ++dx) {
+      darkest = std::min(darkest, image.pixelColor(hover + QPoint(dx, 0)).red());
+    }
+    return darkest;
+  };
+  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+  CHECK(darkest_on_rim() > 240);
+  canvas.set_brush_outline_shown(true);
+  CHECK(canvas.cursor().shape() == Qt::CrossCursor);  // the large-brush pointer, outline on the canvas
+  CHECK(darkest_on_rim() < 200);
+}
+
+// The gear's Overlay Opacity row sits on the menu's own background in both schemes (GitHub
+// issue 517 follow-up: the row painted the darker window background).
+void ui_brush_overlay_opacity_row_matches_menu_background() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    auto* gear = window.findChild<QToolButton*>(QStringLiteral("brushSmoothingOptionsButton"));
+    auto* row = window.findChild<QWidget*>(QStringLiteral("brushOverlayOpacityRow"));
+    auto* outline = window.findChild<QAction*>(QStringLiteral("brushOutlineAction"));
+    CHECK(gear != nullptr && gear->menu() != nullptr && row != nullptr && outline != nullptr);
+    if (gear == nullptr || gear->menu() == nullptr || row == nullptr || outline == nullptr) {
+      return;
+    }
+    auto* menu = gear->menu();
+    menu->popup(gear->mapToGlobal(QPoint(0, gear->height())));
+    QApplication::processEvents();
+    const auto image = menu->grab().toImage();
+    // The empty right end of the row and of the Show Outline item (its check mark is at the left).
+    const auto row_point = QPoint(menu->width() - 8, row->mapTo(menu, QPoint(0, row->height() / 2)).y());
+    const auto item_point = QPoint(row_point.x(), menu->actionGeometry(outline).center().y());
+    CHECK(image.pixelColor(row_point) == image.pixelColor(item_point));
+    menu->close();
+    QApplication::processEvents();
+  }
 }
 
 // With the overlay on, the canvas shows one dab of the current tip under the hovered Brush in
@@ -4493,6 +4620,9 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_brush_smoothing_options_bar_round_trips_settings},
       {"ui_brush_overlay_gear_defaults_off_and_persists", ui_brush_overlay_gear_defaults_off_and_persists},
       {"ui_brush_overlay_draws_dab_in_foreground_color", ui_brush_overlay_draws_dab_in_foreground_color},
+      {"ui_brush_overlay_show_outline_off_removes_outline", ui_brush_overlay_show_outline_off_removes_outline},
+      {"ui_brush_overlay_opacity_row_matches_menu_background",
+       ui_brush_overlay_opacity_row_matches_menu_background},
       {"ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab",
        ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab},
       {"ui_brush_smoothing_catch_up_on_end_completes_stroke",

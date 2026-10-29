@@ -28450,6 +28450,10 @@ Verrouillé : %1</translation>
         <source>Opacity of the brush overlay</source>
         <translation>Opacité de la superposition du pinceau</translation>
     </message>
+    <message>
+        <source>Show Outline</source>
+        <translation>Afficher le contour</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

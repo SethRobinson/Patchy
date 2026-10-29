@@ -28368,6 +28368,10 @@ Locked: %1</source>
         <source>Opacity of the brush overlay</source>
         <translation>브러시 오버레이의 불투명도</translation>
     </message>
+    <message>
+        <source>Show Outline</source>
+        <translation>윤곽선 표시</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

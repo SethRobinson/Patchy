@@ -28532,6 +28532,10 @@ Locked: %1</source>
         <source>Opacity of the brush overlay</source>
         <translation>Непрозрачность наложения кисти</translation>
     </message>
+    <message>
+        <source>Show Outline</source>
+        <translation>Показывать контур</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

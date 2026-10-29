@@ -2359,6 +2359,9 @@ void MainWindow::load_tool_settings() {
       settings.value(QStringLiteral("tools/brushOverlayOpacity"), current_brush_overlay_opacity_).toInt(), 1, 100);
   canvas_->set_brush_overlay_shown(current_brush_overlay_shown_);
   canvas_->set_brush_overlay_opacity(current_brush_overlay_opacity_);
+  current_brush_outline_shown_ =
+      settings.value(QStringLiteral("tools/brushOutline"), current_brush_outline_shown_).toBool();
+  canvas_->set_brush_outline_shown(current_brush_outline_shown_);
   sync_brush_overlay_menu();
   {
     // The retouch Sample choice (GitHub issue 382); before it, a bool that still maps on
@@ -2793,12 +2796,26 @@ void MainWindow::apply_brush_overlay_settings(bool shown, int opacity) {
   sync_brush_overlay_menu();
 }
 
+void MainWindow::apply_brush_outline_shown(bool shown) {
+  current_brush_outline_shown_ = shown;
+  for (auto* canvas : findChildren<CanvasWidget*>()) {
+    canvas->set_brush_outline_shown(current_brush_outline_shown_);
+  }
+  schedule_save_tool_settings();
+  sync_brush_overlay_menu();
+}
+
 void MainWindow::sync_brush_overlay_menu() {
   const bool brush = current_tool_ == CanvasTool::Brush;
-  for (auto* action : {brush_overlay_separator_, brush_overlay_action_, brush_overlay_opacity_action_}) {
+  for (auto* action :
+       {brush_overlay_separator_, brush_outline_action_, brush_overlay_action_, brush_overlay_opacity_action_}) {
     if (action != nullptr) {
       action->setVisible(brush);
     }
+  }
+  if (brush_outline_action_ != nullptr) {
+    const QSignalBlocker blocker(brush_outline_action_);
+    brush_outline_action_->setChecked(current_brush_outline_shown_);
   }
   if (brush_overlay_action_ != nullptr) {
     const QSignalBlocker blocker(brush_overlay_action_);
@@ -2991,6 +3008,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cloneOverlayOpacity"), current_clone_overlay_opacity_);
   settings.setValue(QStringLiteral("tools/brushOverlay"), current_brush_overlay_shown_);
   settings.setValue(QStringLiteral("tools/brushOverlayOpacity"), current_brush_overlay_opacity_);
+  settings.setValue(QStringLiteral("tools/brushOutline"), current_brush_outline_shown_);
   settings.setValue(QStringLiteral("tools/retouchSampleLayers"),
                     QString::fromLatin1(sample_layers_token(canvas_->retouch_sample_layers())));
   // Older builds read only the bool: Current & Below reads there as All Layers.

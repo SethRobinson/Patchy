@@ -28450,6 +28450,10 @@ Bloqueado: %1</translation>
         <source>Opacity of the brush overlay</source>
         <translation>Opacidade da sobreposição do pincel</translation>
     </message>
+    <message>
+        <source>Show Outline</source>
+        <translation>Mostrar contorno</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

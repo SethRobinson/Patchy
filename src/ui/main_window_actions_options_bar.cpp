@@ -2872,10 +2872,17 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           window.canvas_->set_brush_smoothing_zoom_adjust(on);
         }
       });
-  // The Brush overlay (GitHub issue 517): a live dab of the tip in the foreground color
-  // under the pointer, off at 100% by default. The Mixer Brush and the Eraser share this
-  // gear; sync_brush_overlay_menu shows these entries for the Brush only.
+  // The Brush overlay (GitHub issue 517): Show Outline (on by default; off leaves a plain
+  // crosshair) and a live dab of the tip in the foreground color under the pointer, off at
+  // 100% by default. The Mixer Brush and the Eraser share this gear; sync_brush_overlay_menu
+  // shows these entries for the Brush only.
   brush_overlay_separator_ = smoothing_menu->addSeparator();
+  brush_outline_action_ = smoothing_menu->addAction(tr("Show Outline"));
+  brush_outline_action_->setObjectName(QStringLiteral("brushOutlineAction"));
+  bind_action_text(brush_outline_action_, QT_TR_NOOP("Show Outline"));
+  brush_outline_action_->setCheckable(true);
+  brush_outline_action_->setChecked(current_brush_outline_shown_);
+  connect(brush_outline_action_, &QAction::toggled, this, [this](bool on) { apply_brush_outline_shown(on); });
   brush_overlay_action_ = smoothing_menu->addAction(tr("Show Overlay"));
   brush_overlay_action_->setObjectName(QStringLiteral("brushOverlayAction"));
   bind_action_text(brush_overlay_action_, QT_TR_NOOP("Show Overlay"));
@@ -2902,6 +2909,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     row_layout->addWidget(label);
     row_layout->addWidget(brush_overlay_opacity_spin_);
     row_layout->addStretch(1);
+    // Label and field scrub like every other numeric option (built after the bar's
+    // install_scrub_labels_in pass, which never reaches a menu).
+    install_scrub_label(label, brush_overlay_opacity_spin_);
     auto* opacity_action = new QWidgetAction(smoothing_menu);
     opacity_action->setObjectName(QStringLiteral("brushOverlayOpacityAction"));
     opacity_action->setDefaultWidget(row);

@@ -260,6 +260,10 @@ QString photoshop_style_template() {
     QMenu#layerFooterButtonsMenu QWidget#layerFooterToggleRow, QMenu#layerFooterButtonsMenu QCheckBox {
       background: transparent;
     }
+    /* So does the Brush gear's Overlay Opacity row (GitHub issue 517). */
+    QMenu QWidget#brushOverlayOpacityRow, QMenu QWidget#brushOverlayOpacityRow QLabel {
+      background: transparent;
+    }
     /* The two-column rows only arrange buttons: the bar shows through. */
     QToolBar#toolPalette QWidget#toolPaletteRow {
       background: transparent;

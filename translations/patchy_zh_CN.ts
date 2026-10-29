@@ -28368,6 +28368,10 @@ Locked: %1</source>
         <source>Opacity of the brush overlay</source>
         <translation>画笔叠加的不透明度</translation>
     </message>
+    <message>
+        <source>Show Outline</source>
+        <translation>显示轮廓</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

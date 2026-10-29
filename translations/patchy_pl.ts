@@ -28532,6 +28532,10 @@ Zablokowano: %1</translation>
         <source>Opacity of the brush overlay</source>
         <translation>Krycie nakładki pędzla</translation>
     </message>
+    <message>
+        <source>Show Outline</source>
+        <translation>Pokaż obrys</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
