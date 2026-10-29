@@ -620,9 +620,6 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // steps and a drop-down of presets beside it (GitHub issue 333: an editable combo did not
   // read as one that takes typed values). stored_gui_scale_percent() is already clamped to
   // the range, so the field shows exactly what startup applies.
-  // It shares one row with the toolbar icon size below: both are short controls about how
-  // big the chrome is. The form label's buddy is the scale field; the icon size label
-  // beside it is its own combo's buddy.
   auto* scale_row = new QWidget(application_group);
   scale_row->setObjectName(QStringLiteral("preferencesInterfaceScaleRow"));
   auto* scale_layout = new QHBoxLayout(scale_row);
@@ -670,7 +667,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // The tool palette's icons and buttons on top of the interface scale, as named steps
   // (a second percentage beside the first would read as the same setting). Applied live
   // on OK; the item data is the stored token.
-  auto* toolbar_icon_size_combo = new QComboBox(scale_row);
+  auto* toolbar_icon_size_combo = new QComboBox(application_group);
   toolbar_icon_size_combo->setObjectName(QStringLiteral("preferencesToolbarIconSizeCombo"));
   toolbar_icon_size_combo->setToolTip(
       tr("Size of the tool palette's icons and buttons, relative to the interface scale."));
@@ -681,7 +678,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   toolbar_icon_size_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   toolbar_icon_size_combo->setCurrentIndex(
       std::max(0, toolbar_icon_size_combo->findData(toolbar_icon_size_token(stored_toolbar_icon_size()))));
-  auto* toolbar_icon_size_label = new QLabel(tr("Toolbar icon size:"), scale_row);
+  auto* toolbar_icon_size_label = new QLabel(tr("Toolbar icon size:"), application_group);
   toolbar_icon_size_label->setObjectName(QStringLiteral("preferencesToolbarIconSizeLabel"));
   toolbar_icon_size_label->setBuddy(toolbar_icon_size_combo);
   // The presets button sits against the field, as its drop-down.
@@ -690,16 +687,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   gui_scale_field->setSpacing(1);
   gui_scale_field->addWidget(gui_scale_spin);
   gui_scale_field->addWidget(gui_scale_presets_button);
-  // Tight: at Preferences' minimum width the Spanish and Russian rows have only a few
-  // pixels to spare (ui_preferences_minimum_width_fits_and_fields_stay_compact).
   scale_layout->addLayout(gui_scale_field);
-  scale_layout->addSpacing(2);
-  scale_layout->addWidget(toolbar_icon_size_label);
-  scale_layout->addWidget(toolbar_icon_size_combo);
   scale_layout->addStretch(1);
   auto* gui_scale_label = new QLabel(tr("Interface scale:"), application_group);
   gui_scale_label->setBuddy(gui_scale_spin);
   application_form->addRow(gui_scale_label, scale_row);
+  // On its own row right under the scale (desk card local-024): beside the scale field it
+  // wrapped badly when the dialog was narrowed.
+  application_form->addRow(toolbar_icon_size_label, toolbar_icon_size_combo);
   // The interface's text alone, on top of the interface scale (GitHub issue 495): a percent
   // of the default text size, typed or stepped like the scale field. Read at startup, so it
   // applies on the next launch with the same notice. kMin/kMaxUiTextSizePercent is the range
@@ -743,9 +738,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* tool_flyout_open_label = new QLabel(tr("Open tool groups on:"), application_group);
   tool_flyout_open_label->setBuddy(tool_flyout_open_combo);
   application_form->addRow(tool_flyout_open_label, tool_flyout_open_combo);
-  // Customize Tool Palette right under the toolbar icon size (GitHub issue 213), on a line of
-  // its own: the scale row is already full in the longer languages. It opens as a child of
-  // Preferences and applies its own choice on its own OK.
+  // Customize Tool Palette under the tool palette settings (GitHub issue 213), on a line of
+  // its own. It opens as a child of Preferences and applies its own choice on its own OK.
   auto* customize_palette_row = new QWidget(application_group);
   customize_palette_row->setObjectName(QStringLiteral("preferencesCustomizeToolPaletteRow"));
   auto* customize_palette_layout = new QHBoxLayout(customize_palette_row);

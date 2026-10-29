@@ -2535,10 +2535,11 @@ void ui_preferences_interval_combos_fit_their_longest_entry() {
   });
 }
 
-// The interface scale and the toolbar icon size share one form row, each combo the buddy of
-// its own label, and in every shipped language the row fits the dialog's default width
-// without being what sets it (the row keeps spare room on its right).
-void ui_preferences_interface_scale_and_icon_size_share_a_row() {
+// Desk card local-024: the toolbar icon size has its own form row right under Interface
+// scale (beside the scale field it wrapped badly in a narrowed dialog), each field the buddy
+// of its own form label. In every shipped language both rows fit the default width and the
+// minimum width with every control whole and on one line.
+void ui_preferences_toolbar_icon_size_row_under_interface_scale() {
   SettingsValueRestorer restore_size(QStringLiteral("preferences/dialogSize"));
   {
     auto settings = patchy::ui::app_settings();
@@ -2567,40 +2568,55 @@ void ui_preferences_interface_scale_and_icon_size_share_a_row() {
       }
       CHECK(scale->parentWidget() == row);
       CHECK(presets->parentWidget() == row);
-      CHECK(icons->parentWidget() == row);
-      CHECK(icons_label->parentWidget() == row);
+      CHECK(icons->parentWidget() != row);
       CHECK(icons_label->buddy() == icons);
       auto* form = qobject_cast<QFormLayout*>(row->parentWidget()->layout());
       CHECK(form != nullptr);
-      if (form != nullptr) {
-        auto* row_label = qobject_cast<QLabel*>(form->labelForField(row));
-        CHECK(row_label != nullptr);
-        CHECK(row_label != nullptr && row_label->buddy() == scale);
+      if (form == nullptr) {
+        return;
       }
-      // One line, left to right, nothing squeezed: the field shows its widest value whole.
-      CHECK(scale->geometry().right() < presets->geometry().left());
-      CHECK(presets->geometry().right() < icons_label->geometry().left());
-      CHECK(scale->width() >= scale->sizeHint().width());
-      // The typing area shows the widest value whole, clear of the - and + buttons.
-      if (auto* scale_edit = scale->findChild<QLineEdit*>(); scale_edit != nullptr) {
-        const QString widest = scale->prefix() + QString::number(scale->maximum()) + scale->suffix();
-        CHECK(scale_edit->width() >= scale_edit->fontMetrics().horizontalAdvance(widest));
-      }
-      CHECK(std::abs(scale->geometry().center().y() - presets->geometry().center().y()) <= 1);
-      CHECK(icons_label->geometry().right() < icons->geometry().left());
-      CHECK(std::abs(scale->geometry().center().y() - icons->geometry().center().y()) <= 1);
-      CHECK(icons_label->width() >= icons_label->sizeHint().width());
-      CHECK(icons->width() >= icons->sizeHint().width());
-      std::printf("  %s: row %d (hint %d), scale %d, presets %d, label %d, icons %d, dialog %d\n",
-                  qPrintable(language.code), row->width(), row->sizeHint().width(), scale->width(), presets->width(),
-                  icons_label->width(), icons->width(), dialog.width());
-      CHECK(row->width() > row->sizeHint().width());
-      if (language.code == QStringLiteral("en") || language.code == QStringLiteral("de") ||
-          language.code == QStringLiteral("es") || language.code == QStringLiteral("fr") ||
-          language.code == QStringLiteral("ru")) {
+      auto* row_label = qobject_cast<QLabel*>(form->labelForField(row));
+      CHECK(row_label != nullptr && row_label->buddy() == scale);
+      CHECK(form->labelForField(icons) == icons_label);
+      // The very next form row after Interface scale.
+      int scale_index = -1;
+      int icons_index = -1;
+      QFormLayout::ItemRole role{};
+      form->getWidgetPosition(row, &scale_index, &role);
+      form->getWidgetPosition(icons, &icons_index, &role);
+      CHECK(scale_index >= 0 && icons_index == scale_index + 1);
+      const auto settle = [] {
+        for (int pass = 0; pass < 4; ++pass) {
+          QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+          QApplication::processEvents();
+        }
+      };
+      const auto check_layout = [&](const char* width_name) {
+        const auto top_of = [&](const QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)); };
+        // Below the scale row, label and combo on one line, nothing squeezed.
+        CHECK(top_of(icons).y() >= top_of(row).y() + row->height());
+        CHECK(std::abs((top_of(icons_label).y() + icons_label->height() / 2) -
+                       (top_of(icons).y() + icons->height() / 2)) <= 2);
+        CHECK(top_of(icons_label).x() + icons_label->width() <= top_of(icons).x());
+        // The combo starts in the field column, lined up with the scale field.
+        CHECK(top_of(icons).x() == top_of(scale).x());
+        CHECK(icons_label->width() >= icons_label->sizeHint().width());
+        CHECK(icons->width() >= icons->sizeHint().width());
+        CHECK(scale->width() >= scale->sizeHint().width());
+        CHECK(scale->geometry().right() < presets->geometry().left());
+        CHECK(std::abs(scale->geometry().center().y() - presets->geometry().center().y()) <= 1);
+        std::printf("  %s %s: dialog %d, scale row %d (hint %d), label %d (hint %d), icons %d (hint %d)\n",
+                    qPrintable(language.code), width_name, dialog.width(), row->width(), row->sizeHint().width(),
+                    icons_label->width(), icons_label->sizeHint().width(), icons->width(), icons->sizeHint().width());
+      };
+      check_layout("default");
+      const bool capture = language.code == QStringLiteral("en") || language.code == QStringLiteral("de") ||
+                           language.code == QStringLiteral("es") || language.code == QStringLiteral("fr") ||
+                           language.code == QStringLiteral("ru");
+      if (capture) {
         const auto image =
             capture_widget_artifact("preferences_interface_scale_row_" + language.code.toStdString(), dialog);
-        // The row container is transparent: the empty space right of the combos matches
+        // The row container is transparent: the empty space right of the scale field matches
         // the panel in the gap just above the row, not the global QWidget background.
         const auto probe = row->mapTo(&dialog, QPoint(row->width() - 4, row->height() / 2));
         const auto above = row->mapTo(&dialog, QPoint(row->width() - 4, -2));
@@ -2609,6 +2625,16 @@ void ui_preferences_interface_scale_and_icon_size_share_a_row() {
           CHECK(image.pixelColor(probe) == image.pixelColor(above));
         }
       }
+      const auto default_size = dialog.size();
+      dialog.resize(dialog.minimumWidth(), default_size.height());
+      settle();
+      check_layout("narrow");
+      if (capture) {
+        (void)capture_widget_artifact("preferences_interface_scale_row_narrow_" + language.code.toStdString(),
+                                      dialog);
+      }
+      dialog.resize(default_size);
+      settle();
     });
   }
   CHECK(manager.set_language(QStringLiteral("en"), false));
@@ -4088,7 +4114,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_preferences_page_list_switches_pages_and_remembers_the_last",
        ui_preferences_page_list_switches_pages_and_remembers_the_last},
       {"ui_preferences_interval_combos_fit_their_longest_entry", ui_preferences_interval_combos_fit_their_longest_entry},
-      {"ui_preferences_interface_scale_and_icon_size_share_a_row", ui_preferences_interface_scale_and_icon_size_share_a_row},
+      {"ui_preferences_toolbar_icon_size_row_under_interface_scale", ui_preferences_toolbar_icon_size_row_under_interface_scale},
       {"ui_preferences_hotkey_is_ctrl_k_off_macos", ui_preferences_hotkey_is_ctrl_k_off_macos},
       {"ui_preferences_combo_lists_fit_their_entries", ui_preferences_combo_lists_fit_their_entries},
       {"ui_preferences_minimum_width_fits_and_fields_stay_compact",
