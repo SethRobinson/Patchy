@@ -375,6 +375,9 @@ private:
 // right edge, where the scrollbar sits (GitHub issue 213 follow-up). An item-view QSS
 // padding-right only widens the column's size hint; the style still draws to the cell edge.
 // The row's background is drawn across the whole cell, the text in the inset rect.
+// The keys and the cluster headings take text_secondary when painted, not as item data set
+// when the dialog is built: a scheme change while it is open repaints them in the new
+// scheme (GitHub issue 499 comment: Light kept Dark's light headings).
 class ShortcutColumnDelegate final : public QStyledItemDelegate {
 public:
   static constexpr int kGap = 12;
@@ -398,6 +401,25 @@ public:
     auto size = QStyledItemDelegate::sizeHint(option, index);
     size.rwidth() += kGap;
     return size;
+  }
+
+protected:
+  void initStyleOption(QStyleOptionViewItem* option, const QModelIndex& index) const override {
+    QStyledItemDelegate::initStyleOption(option, index);
+    option->palette.setColor(QPalette::Text, theme().text_secondary);
+  }
+};
+
+class HeadingColumnDelegate final : public QStyledItemDelegate {
+public:
+  using QStyledItemDelegate::QStyledItemDelegate;
+
+protected:
+  void initStyleOption(QStyleOptionViewItem* option, const QModelIndex& index) const override {
+    QStyledItemDelegate::initStyleOption(option, index);
+    if (!index.parent().isValid()) {
+      option->palette.setColor(QPalette::Text, theme().text_secondary);
+    }
   }
 };
 
@@ -701,6 +723,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   tree->header()->setStretchLastSection(false);
   tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
   tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+  tree->setItemDelegateForColumn(0, new HeadingColumnDelegate(tree));
   tree->setItemDelegateForColumn(1, new ShortcutColumnDelegate(tree));
   // Short enough for a small screen: the dialog is resizable and the list grows with it.
   tree->setMinimumSize(340, 200);
@@ -879,7 +902,6 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     header->setFlags(Qt::ItemIsEnabled);
     header->setFirstColumnSpanned(true);
     header->setFont(0, heading_font);
-    header->setForeground(0, theme().text_secondary);
     // Padding above and below the heading, from the font rather than a fixed height.
     header->setSizeHint(0, QSize(0, QFontMetrics(heading_font).height() + 18));
     header->setTextAlignment(0, Qt::AlignLeft | Qt::AlignBottom);
@@ -890,7 +912,6 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
       row->setIcon(0, lead.icon);
       row->setText(1, entry.shortcut);
       row->setTextAlignment(1, Qt::AlignLeft | Qt::AlignVCenter);
-      row->setForeground(1, theme().text_secondary);
       if (entry.flyout) {
         row->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
         for (const auto& member : entry.members) {
@@ -899,7 +920,6 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
           child->setIcon(0, member.icon);
           child->setText(1, member.shortcut);
           child->setTextAlignment(1, Qt::AlignLeft | Qt::AlignVCenter);
-          child->setForeground(1, theme().text_secondary);
           child->setData(0, kIdRole, member.id);
           child->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
           child->setCheckState(0, Qt::Checked);
