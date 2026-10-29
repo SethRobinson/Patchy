@@ -1244,9 +1244,15 @@ void ui_layer_rows_with_every_badge_fit_narrow_and_wide() {
         const auto label = scheme_name + "_" + size_name + "_" + std::to_string(width);
         save_widget_artifact("issue494_all_badges_" + label, *layers_dock);
         // Every indicator at once cannot fit beside Medium or Large thumbnails in the narrowest
-        // panel, nor beside Large ones at 460 px: the list scrolls sideways there.
+        // panel, nor beside Large ones at 460 px: the list scrolls sideways there. macOS's wider
+        // system font adds Small thumbnails in the narrowest panel to that (accepted for 1.21).
+#ifdef Q_OS_MACOS
+        const bool small_fits = width >= 460;
+#else
+        const bool small_fits = true;
+#endif
         const bool must_fit = size == patchy::ui::LayerThumbnailSize::None ||
-                              size == patchy::ui::LayerThumbnailSize::Small ||
+                              (size == patchy::ui::LayerThumbnailSize::Small && small_fits) ||
                               (width >= 460 && size == patchy::ui::LayerThumbnailSize::Medium);
         check_rows(QString::fromStdString(label), must_fit);
       }
