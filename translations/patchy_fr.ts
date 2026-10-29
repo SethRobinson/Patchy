@@ -14444,10 +14444,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Inclut les calques masqués de premier niveau comme images. Aperçu seulement : l&apos;export utilise toujours les calques visibles.</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>Durée d&apos;image dans les noms de calque</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>La durée que Définir la durée écrit à la fin des noms de calque.</translation>
     </message>
@@ -14484,8 +14480,20 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Durée d&apos;image par défaut :</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Durée d&apos;affichage de chaque image quand le nom de son calque n&apos;indique pas de durée. Saisissez une valeur en secondes ou choisissez-en une dans la liste. L&apos;export GIF, WebP et PNG animés utilise la même valeur par défaut.</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Durée d&apos;affichage de chaque image quand le nom de son calque n&apos;indique pas de durée. Saisissez une valeur en secondes, utilisez les boutons - et +, ou choisissez-en une dans la liste. L&apos;export GIF, WebP et PNG animés utilise la même valeur par défaut.</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>Préréglages de durée d&apos;image</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>Noms des calques</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Durée d&apos;image :</translation>
     </message>
 </context>
 <context>

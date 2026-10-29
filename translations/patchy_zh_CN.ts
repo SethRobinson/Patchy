@@ -14401,10 +14401,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>将隐藏的顶层图层也作为帧播放。仅限预览：导出仍只使用可见图层。</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>图层名称中的帧时间</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>“设置时间”写在图层名称末尾的时间。</translation>
     </message>
@@ -14441,8 +14437,20 @@ Each item&apos;s own View setting still applies.</source>
         <translation>默认帧间隔:</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>图层名称中没有时间时每帧显示的时长。输入以秒为单位的值，或从列表中选择。动画 GIF、WebP 和 PNG 导出使用相同的默认值。</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>图层名称中没有时间时每帧显示的时长。输入以秒为单位的值，使用 - 和 + 按钮，或从列表中选择。动画 GIF、WebP 和 PNG 导出使用相同的默认值。</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>帧间隔预设</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>图层名称</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>帧间隔:</translation>
     </message>
 </context>
 <context>

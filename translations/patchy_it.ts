@@ -14444,10 +14444,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Include i livelli nascosti di primo livello come fotogrammi. Solo anteprima: l&apos;esportazione usa ancora i livelli visibili.</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>Tempo fotogramma nei nomi dei livelli</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>Il tempo che Imposta tempo scrive alla fine dei nomi dei livelli.</translation>
     </message>
@@ -14484,8 +14480,20 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Durata predefinita del fotogramma:</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Quanto resta visibile ogni fotogramma quando il nome del suo livello non indica un tempo. Digita un valore in secondi o scegline uno dall&apos;elenco. L&apos;esportazione GIF, WebP e PNG animati usa lo stesso valore predefinito.</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Quanto resta visibile ogni fotogramma quando il nome del suo livello non indica un tempo. Digita un valore in secondi, usa i pulsanti - e + oppure scegline uno dall&apos;elenco. L&apos;esportazione GIF, WebP e PNG animati usa lo stesso valore predefinito.</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>Valori predefiniti della durata del fotogramma</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>Nomi dei livelli</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Durata del fotogramma:</translation>
     </message>
 </context>
 <context>

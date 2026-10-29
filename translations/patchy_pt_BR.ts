@@ -14444,10 +14444,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Inclui as camadas ocultas de nível superior como quadros. Só na prévia: a exportação continua usando as camadas visíveis.</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>Duração do quadro nos nomes das camadas</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>A duração que Definir duração escreve no final dos nomes das camadas.</translation>
     </message>
@@ -14484,8 +14480,20 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Duração padrão do quadro:</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Quanto tempo cada quadro aparece quando o nome da camada não tem tempo. Digite um valor em segundos ou escolha um da lista. A exportação de GIF, WebP e PNG animados usa o mesmo padrão.</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Quanto tempo cada quadro aparece quando o nome da camada não tem tempo. Digite um valor em segundos, use os botões - e + ou escolha um da lista. A exportação de GIF, WebP e PNG animados usa o mesmo padrão.</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>Predefinições de duração do quadro</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>Nomes de camadas</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Duração do quadro:</translation>
     </message>
 </context>
 <context>

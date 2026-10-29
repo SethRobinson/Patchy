@@ -14427,10 +14427,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14467,7 +14463,19 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

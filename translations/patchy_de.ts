@@ -14444,10 +14444,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Nimmt ausgeblendete Ebenen auf oberster Ebene als Bilder auf. Nur Vorschau: Der Export verwendet weiterhin die sichtbaren Ebenen.</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>Frame-Zeit in Ebenennamen</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>Die Zeit, die &quot;Zeit festlegen&quot; an das Ende der Ebenennamen schreibt.</translation>
     </message>
@@ -14484,8 +14480,20 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Standard-Bilddauer:</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Wie lange jedes Bild angezeigt wird, wenn sein Ebenenname keine Zeit enthält. Geben Sie einen Wert in Sekunden ein oder wählen Sie einen aus der Liste. Der Export als animiertes GIF, WebP und PNG verwendet denselben Standardwert.</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Wie lange jedes Bild angezeigt wird, wenn sein Ebenenname keine Zeit enthält. Geben Sie einen Wert in Sekunden ein, verwenden Sie die Schaltflächen - und + oder wählen Sie einen aus der Liste. Der Export als animiertes GIF, WebP und PNG verwendet denselben Standardwert.</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>Vorgaben für die Bilddauer</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>Ebenennamen</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Bilddauer:</translation>
     </message>
 </context>
 <context>

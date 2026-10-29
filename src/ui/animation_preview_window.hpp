@@ -12,10 +12,10 @@
 #include <vector>
 
 class QCheckBox;
-class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
 class QPushButton;
+class QShowEvent;
 
 namespace patchy::ui {
 
@@ -24,8 +24,8 @@ namespace patchy::ui {
 // visible when playback started (every top-level layer with "Play hidden layers"), top to
 // bottom (the GIF and WebP export order); Stop restores the visibility captured at start.
 // A trailing "0.25s" layer-name token overrides the default frame delay, matching the
-// export, unless "Ignore delays in layer names" is on; the "Default frame delay" field (one
-// editable combo: type seconds or pick a preset) edits the shared
+// export, unless "Ignore delays in layer names" is on; the "Default frame delay" field (a
+// seconds spin box with 0.1 s steps and a presets drop-down) edits the shared
 // saveOptions/animationFrameDelayMs default. Both checkboxes affect the preview
 // only, never what export writes. Playback
 // mutates visibility directly (visibility is deliberately non-undoable and does not dirty
@@ -72,23 +72,25 @@ public:
   // header note: never override reject() to call close()).
   void done(int result) override;
 
+protected:
+  void showEvent(QShowEvent* event) override;
+
 private:
   void show_current_frame();
   [[nodiscard]] std::uint32_t frame_delay_ms(std::size_t index) const;
   void update_playback_controls();
-  // Commits a default delay (clamped): field text, the preset row it matches, and the
-  // shared settings keys when persist is set.
+  // Commits a default delay (clamped): the field's value, and the shared settings keys
+  // when persist is set.
   void set_default_delay_ms(int delay_ms, bool persist);
-  // Reads the field's text as milliseconds; nullopt for empty or out-of-range text.
-  [[nodiscard]] std::optional<int> parse_delay_text(const QString& text) const;
-  [[nodiscard]] QString format_delay(int delay_ms) const;
 
   std::function<Document*()> provider_;
   std::function<void(bool final_refresh)> visuals_changed_;
   std::function<void(std::optional<std::uint32_t> delay_ms, bool all_layers)> apply_frame_time_;
   QTimer timer_;
   QPushButton* play_button_{nullptr};
-  QComboBox* delay_combo_{nullptr};
+  QDoubleSpinBox* delay_spin_{nullptr};
+  QLabel* delay_label_{nullptr};
+  QLabel* time_label_{nullptr};
   int default_delay_ms_{0};
   QCheckBox* ignore_name_delays_check_{nullptr};
   QCheckBox* play_hidden_check_{nullptr};

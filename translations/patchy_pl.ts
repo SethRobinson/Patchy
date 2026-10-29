@@ -14487,10 +14487,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Dołącza ukryte warstwy najwyższego poziomu jako klatki. Tylko podgląd: eksport nadal używa widocznych warstw.</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>Czas klatki w nazwach warstw</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>Czas, który Ustaw czas dopisuje na końcu nazw warstw.</translation>
     </message>
@@ -14527,8 +14523,20 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Domyślny czas klatki:</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>Jak długo wyświetla się każda klatka, gdy nazwa jej warstwy nie zawiera czasu. Wpisz wartość w sekundach lub wybierz ją z listy. Eksport animowanego GIF, WebP i PNG używa tej samej wartości domyślnej.</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>Jak długo wyświetla się każda klatka, gdy nazwa jej warstwy nie zawiera czasu. Wpisz wartość w sekundach, użyj przycisków - i + albo wybierz ją z listy. Eksport animowanego GIF, WebP i PNG używa tej samej wartości domyślnej.</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>Ustawienia czasu klatki</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>Nazwy warstw</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Czas klatki:</translation>
     </message>
 </context>
 <context>

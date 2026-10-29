@@ -14401,10 +14401,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>숨긴 최상위 레이어도 프레임에 포함합니다. 미리 보기 전용: 내보내기는 계속 보이는 레이어를 사용합니다.</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>레이어 이름의 프레임 시간</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>시간 설정이 레이어 이름 끝에 쓰는 시간입니다.</translation>
     </message>
@@ -14441,8 +14437,20 @@ Each item&apos;s own View setting still applies.</source>
         <translation>기본 프레임 지연:</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>레이어 이름에 시간이 없을 때 각 프레임이 표시되는 시간입니다. 초 단위로 값을 입력하거나 목록에서 고르세요. 애니메이션 GIF, WebP, PNG 내보내기도 같은 기본값을 사용합니다.</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>레이어 이름에 시간이 없을 때 각 프레임이 표시되는 시간입니다. 초 단위로 값을 입력하거나, - 및 + 버튼을 사용하거나, 목록에서 고르세요. 애니메이션 GIF, WebP, PNG 내보내기도 같은 기본값을 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>프레임 지연 사전 설정</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>레이어 이름</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>프레임 지연:</translation>
     </message>
 </context>
 <context>

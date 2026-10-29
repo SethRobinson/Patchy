@@ -14401,10 +14401,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>非表示の最上位レイヤーもフレームに含めます。プレビューのみ: 書き出しでは引き続き表示中のレイヤーを使います。</translation>
     </message>
     <message>
-        <source>Frame time in layer names</source>
-        <translation>レイヤー名のフレーム時間</translation>
-    </message>
-    <message>
         <source>The time Set Time writes at the end of layer names.</source>
         <translation>「時間を設定」がレイヤー名の末尾に書き込む時間です。</translation>
     </message>
@@ -14441,8 +14437,20 @@ Each item&apos;s own View setting still applies.</source>
         <translation>既定のフレーム表示時間:</translation>
     </message>
     <message>
-        <source>How long each frame shows when its layer name has no time. Type a value in seconds or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
-        <translation>レイヤー名に時間がないフレームの表示時間です。秒単位で値を入力するか、リストから選びます。アニメーション GIF、WebP、PNG の書き出しも同じ既定値を使います。</translation>
+        <source>How long each frame shows when its layer name has no time. Type a value in seconds, use the - and + buttons, or pick one from the list. Animated GIF, WebP and PNG export use the same default.</source>
+        <translation>レイヤー名に時間がないフレームの表示時間です。秒単位で値を入力するか、- と + ボタンを使うか、リストから選びます。アニメーション GIF、WebP、PNG の書き出しも同じ既定値を使います。</translation>
+    </message>
+    <message>
+        <source>Frame delay presets</source>
+        <translation>フレーム表示時間のプリセット</translation>
+    </message>
+    <message>
+        <source>Layer names</source>
+        <translation>レイヤー名</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>フレーム表示時間:</translation>
     </message>
 </context>
 <context>
