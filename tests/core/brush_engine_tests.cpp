@@ -677,6 +677,118 @@ void tool_brush_tip_controls_at_full_value_change_nothing() {
   }
 }
 
+// GitHub issue 506: the Dynamics popup's section switches. An off section keeps its values but
+// paints as its defaults (no draws, no effect), and a brush saved before the switches existed
+// has them all on.
+void brush_dynamics_section_switches_skip_sections() {
+  const patchy::BrushDynamics defaults;
+  CHECK(defaults.shape_dynamics_enabled);
+  CHECK(defaults.scattering_enabled);
+  CHECK(defaults.transfer_enabled);
+  CHECK(patchy::brush_dynamics_sections_all_enabled(defaults));
+
+  CHECK((!patchy::BrushDynamics{.shape_dynamics_enabled = false, .size_jitter = 0.5}.active()));
+  CHECK((!patchy::BrushDynamics{.shape_dynamics_enabled = false,
+                                .angle_control = patchy::BrushDynamicControl::Direction}
+             .active()));
+  CHECK((!patchy::BrushDynamics{.scattering_enabled = false, .scatter = 0.5, .count = 3}.active()));
+  CHECK((!patchy::BrushDynamics{.transfer_enabled = false, .opacity_jitter = 0.4}.active()));
+  // Another section still on keeps the per-dab path.
+  CHECK((patchy::BrushDynamics{.scattering_enabled = false, .size_jitter = 0.5, .scatter = 0.5}.active()));
+  CHECK((!patchy::angle_follows_direction(
+      patchy::BrushDynamics{.shape_dynamics_enabled = false,
+                            .angle_control = patchy::BrushDynamicControl::Direction})));
+
+  patchy::BrushDynamics configured;
+  configured.size_jitter = 0.5;
+  configured.minimum_diameter = 0.3;
+  configured.angle_jitter = 0.4;
+  configured.scatter = 0.8;
+  configured.scatter_both_axes = true;
+  configured.count = 3;
+  configured.count_jitter = 0.5;
+  configured.opacity_jitter = 0.4;
+  configured.flow_jitter = 0.3;
+  configured.texture_enabled = true;
+  configured.pen_pressure = 0.6;
+  configured.seed = 4242;
+
+  // The effective copy resets only the switched-off section and turns its switch back on.
+  auto scattering_off = configured;
+  scattering_off.scattering_enabled = false;
+  const auto effective = patchy::effective_brush_dynamics(scattering_off);
+  CHECK(effective.scattering_enabled);
+  CHECK(effective.scatter == 0.0);
+  CHECK(effective.count == 1);
+  CHECK(!effective.scatter_both_axes);
+  CHECK(effective.size_jitter == 0.5);
+  CHECK(effective.opacity_jitter == 0.4);
+  CHECK(effective.texture_enabled);
+  CHECK(effective.pen_pressure == 0.6);
+  CHECK(effective.seed == 4242U);
+  // The values themselves survive in the stored settings.
+  CHECK(scattering_off.scatter == 0.8);
+  CHECK(scattering_off.count == 3);
+
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+  const auto paint = [&scaled](const patchy::BrushDynamics& dynamics) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 0.5;
+    options.brush_dynamics = dynamics;
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    (void)patchy::paint_brush_segment(document, layer, 10.0, 20.0, 44.0, 30.0, options, false, state);
+    (void)patchy::finish_brush_tip_stroke(document, layer, options, false, state);
+    const auto& pixels = document.find_layer(layer)->pixels();
+    std::vector<std::uint8_t> alpha;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        alpha.push_back(pixels.pixel(x, y)[3]);
+      }
+    }
+    return alpha;
+  };
+
+  // Each switched-off section paints exactly like the same brush with that section zeroed,
+  // and differs from the section left on.
+  const auto check_section = [&](patchy::BrushDynamicsSection section, bool patchy::BrushDynamics::*flag) {
+    auto off = configured;
+    off.*flag = false;
+    auto zeroed = configured;
+    patchy::reset_brush_dynamics_section(zeroed, section);
+    const auto off_pixels = paint(off);
+    CHECK(off_pixels == paint(zeroed));
+    CHECK(off_pixels != paint(configured));
+  };
+  check_section(patchy::BrushDynamicsSection::ShapeDynamics,
+                &patchy::BrushDynamics::shape_dynamics_enabled);
+  check_section(patchy::BrushDynamicsSection::Scattering, &patchy::BrushDynamics::scattering_enabled);
+  check_section(patchy::BrushDynamicsSection::Transfer, &patchy::BrushDynamics::transfer_enabled);
+
+  // Per-section reset and default checks leave the section's switch alone.
+  auto reset = configured;
+  reset.scattering_enabled = false;
+  reset.texture_depth = 0.9;
+  CHECK(!patchy::brush_dynamics_section_is_default(reset, patchy::BrushDynamicsSection::Scattering));
+  CHECK(!patchy::brush_dynamics_section_is_default(reset, patchy::BrushDynamicsSection::Texture));
+  patchy::reset_brush_dynamics_section(reset, patchy::BrushDynamicsSection::Scattering);
+  patchy::reset_brush_dynamics_section(reset, patchy::BrushDynamicsSection::Texture);
+  CHECK(patchy::brush_dynamics_section_is_default(reset, patchy::BrushDynamicsSection::Scattering));
+  CHECK(patchy::brush_dynamics_section_is_default(reset, patchy::BrushDynamicsSection::Texture));
+  CHECK(!reset.scattering_enabled);
+  CHECK(reset.texture_enabled);
+  CHECK(reset.texture_seed == configured.texture_seed);
+  CHECK(reset.size_jitter == 0.5);  // other sections untouched
+  CHECK(patchy::brush_dynamics_section_is_default(defaults, patchy::BrushDynamicsSection::BrushEffects));
+  CHECK(!patchy::brush_dynamics_section_is_default(patchy::BrushDynamics{.wet_edges = true},
+                                                  patchy::BrushDynamicsSection::BrushEffects));
+}
+
 void tool_brush_tip_size_control_pressure_scales_dabs() {
   const auto tip = make_bar_brush_tip();
   const auto mips = patchy::build_brush_tip_mips(tip);
@@ -2111,6 +2223,7 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"brush_dynamics_control_values", brush_dynamics_control_values},
       {"tool_brush_tip_controls_at_full_value_change_nothing",
        tool_brush_tip_controls_at_full_value_change_nothing},
+      {"brush_dynamics_section_switches_skip_sections", brush_dynamics_section_switches_skip_sections},
       {"tool_brush_tip_size_control_pressure_scales_dabs", tool_brush_tip_size_control_pressure_scales_dabs},
       {"tool_brush_tip_opacity_control_respects_minimum", tool_brush_tip_opacity_control_respects_minimum},
       {"tool_brush_tip_inactive_dynamics_change_nothing", tool_brush_tip_inactive_dynamics_change_nothing},

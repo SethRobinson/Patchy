@@ -14815,10 +14815,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Tekstura</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>Włącz teksturę</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>Ziarno:</translation>
     </message>
@@ -14851,10 +14847,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Podwójny pędzel</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>Włącz podwójny pędzel</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>Rozmiar dodatkowy:</translation>
     </message>
@@ -14869,10 +14861,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Color Dynamics</source>
         <translation>Dynamika kolorów</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>Włącz dynamikę kolorów</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14915,12 +14903,40 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Gromadzi farbę przy krawędziach pociągnięcia, dając efekt akwareli. Nie rozmazuje kolorów płótna; do tego służy Smuga.</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>Przywróć</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>Zresetuj kształt końcówki i całą dynamikę do wartości domyślnych</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>Podgląd pociągnięcia piórem z tymi ustawieniami</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>Resetuj sekcję</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>Przywróć domyślne ustawienia tej sekcji</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>Resetuj wszystko</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>Zmiany są stosowane na bieżąco.</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>Zmieniono względem wartości domyślnych</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>Włącz lub wyłącz: %1. Ustawienia są zachowywane, gdy sekcja jest wyłączona.</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>Używaj: %1</translation>
     </message>
 </context>
 <context>

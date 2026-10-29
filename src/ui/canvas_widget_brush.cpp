@@ -336,7 +336,10 @@ patchy::BrushShape CanvasWidget::brush_shape() const noexcept {
 }
 
 void CanvasWidget::set_brush_dynamics(const patchy::BrushDynamics& dynamics) noexcept {
-  brush_dynamics_ = dynamics;
+  // Switched-off sections become their defaults here, once, so the global-pen precedence
+  // checks below see what the engine paints (a Shape Dynamics section that is off leaves the
+  // global pen size preference in charge, as a brush without one does).
+  brush_dynamics_ = patchy::effective_brush_dynamics(dynamics);
 }
 
 const patchy::BrushDynamics& CanvasWidget::brush_dynamics() const noexcept {

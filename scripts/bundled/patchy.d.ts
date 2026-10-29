@@ -84,6 +84,8 @@ type PatchyBrushControl = "off" | "fade" | "penPressure" | "penTilt" | "penRotat
  *  reduction and Bicubic Smoother for an enlargement. */
 type PatchyResampleMethod = "automatic" | "nearest" | "bilinear" | "bicubic" | "bicubicSmoother" | "bicubicSharper";
 interface PatchyBrushDynamics {
+  /** Section switches (default true). Off keeps the section's values but paints without them. */
+  shapeDynamicsEnabled?: boolean; scatteringEnabled?: boolean; transferEnabled?: boolean;
   sizeJitter?: number; minimumDiameter?: number;
   sizeControl?: PatchyBrushControl | "global"; sizeFadeSteps?: number;
   angleJitter?: number; angleControl?: PatchyBrushControl | "direction" | "initialDirection"; angleFadeSteps?: number;

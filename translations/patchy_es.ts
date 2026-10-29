@@ -14772,10 +14772,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Textura</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>Activar textura</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>Grano:</translation>
     </message>
@@ -14808,10 +14804,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Pincel doble</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>Activar pincel doble</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>Tamaño secundario:</translation>
     </message>
@@ -14826,10 +14818,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Color Dynamics</source>
         <translation>Dinámica de color</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>Activar dinámica de color</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14872,12 +14860,40 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Acumula pintura en los bordes del trazo para lograr una aguada de acuarela. No difumina los colores del lienzo; para eso use la herramienta Dedo.</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>Restaurar</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>Restaura la forma de la punta y toda la dinámica a los valores por defecto</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>Vista previa de un trazo de lápiz con estos ajustes</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>Restablecer sección</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>Restablecer los ajustes de esta sección a sus valores predeterminados</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>Restablecer todo</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>Los cambios se aplican al editar.</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>Cambiado respecto a los valores predeterminados</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>Activar o desactivar %1. Sus ajustes se conservan mientras está desactivado.</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>Usar %1</translation>
     </message>
 </context>
 <context>

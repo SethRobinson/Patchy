@@ -34,6 +34,13 @@ enum class BrushTextureStyle : std::uint8_t {
 // Default-constructed = disabled: the stamp engine takes its historical path bit-for-bit and
 // consumes no randomness. Fractions are 0..1 of the Photoshop percent unless noted.
 struct BrushDynamics {
+  // Section switches (the Dynamics popup's tab checkboxes). Off keeps the section's values but
+  // makes the engine treat the section as its defaults (effective_brush_dynamics). They default
+  // to on so every brush saved before the switches existed paints unchanged.
+  bool shape_dynamics_enabled{true};  // size/angle/roundness jitter, controls and flips
+  bool scattering_enabled{true};      // scatter, both axes, count and count jitter
+  bool transfer_enabled{true};        // opacity and flow jitter, minimums and controls
+
   double size_jitter{0.0};
   double minimum_diameter{0.0};  // floor for the per-dab size scale; size jitter only shrinks
   BrushDynamicControl size_control{BrushDynamicControl::GlobalDefault};
@@ -117,6 +124,30 @@ struct BrushDynamics {
   [[nodiscard]] bool active() const noexcept;
 };
 
+// The popup's sections, in tab order after Tip Shape (which lives outside BrushDynamics).
+enum class BrushDynamicsSection : std::uint8_t {
+  ShapeDynamics = 0,
+  Scattering,
+  Transfer,
+  Texture,
+  DualBrush,
+  ColorDynamics,
+  BrushEffects,
+};
+
+// The dynamics the engine paints with: every switched-off Shape Dynamics, Scattering or
+// Transfer section reset to its defaults and its switch turned back on. Identity (a plain copy)
+// when all three are on. sample_dab_count/sample_dab_variation/active() apply it themselves;
+// callers that read section fields directly (the canvas's global-pen precedence) apply it once.
+[[nodiscard]] BrushDynamics effective_brush_dynamics(const BrushDynamics& dynamics) noexcept;
+[[nodiscard]] bool brush_dynamics_sections_all_enabled(const BrushDynamics& dynamics) noexcept;
+
+// Per-section values. The section switch (shape_dynamics_enabled, texture_enabled, ...) is not
+// a value: resetting a section keeps it, and a section counts as default regardless of it.
+void reset_brush_dynamics_section(BrushDynamics& dynamics, BrushDynamicsSection section) noexcept;
+[[nodiscard]] bool brush_dynamics_section_is_default(const BrushDynamics& dynamics,
+                                                     BrushDynamicsSection section) noexcept;
+
 // Deterministic splitmix64 generator with explicit uniform mapping. std::uniform_*_distribution
 // output is implementation-defined, which would break cross-toolchain pixel-exact tests, so all
 // draws go through these helpers.
@@ -188,7 +219,8 @@ struct BrushDabVariation {
 //  12. saturation jitter       (signed) iff Color Dynamics + saturation jitter > 0
 //  13. brightness jitter       (signed) iff Color Dynamics + brightness jitter > 0
 // When color_per_tip is false, draws 10-13 happen on the first dab only and the sampled values
-// are reused for the rest of the stroke.
+// are reused for the rest of the stroke. A switched-off Shape Dynamics, Scattering or Transfer
+// section draws nothing: its gates read the section's defaults (effective_brush_dynamics).
 // The per-dynamic controls never draw: each control value is computed deterministically from the
 // pen inputs / fade step and only scales the result, so the gates above stay keyed on static
 // configuration and adding a control cannot shift any draw.

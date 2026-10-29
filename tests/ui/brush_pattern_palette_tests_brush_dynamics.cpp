@@ -1,6 +1,8 @@
 #include <QScrollBar>
 
 #include "ui/canvas_widget.hpp"
+#include "ui/brush_dynamics_popup.hpp"
+#include "ui/brush_stroke_preview.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -18,6 +20,7 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QSizeGrip>
 #include <QSlider>
 #include <QIODevice>
@@ -26,6 +29,7 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QStringList>
 #include <QScrollArea>
 #include <QTimer>
@@ -703,10 +707,12 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   CHECK(wet_edges->toolTip().contains(QStringLiteral("Smudge")));
   wet_edges->setChecked(true);
   QApplication::processEvents();
+  auto* panel = popup->findChild<patchy::ui::BrushDynamicsPanel*>();
+  CHECK(panel != nullptr);
+  panel->select_section(patchy::ui::BrushDynamicsPanel::Section::ShapeDynamics);
+  QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup", *popup);
-  auto* scroll_area = popup->findChild<QScrollArea*>();
-  CHECK(scroll_area != nullptr);
-  scroll_area->verticalScrollBar()->setValue(scroll_area->verticalScrollBar()->maximum());
+  panel->select_section(patchy::ui::BrushDynamicsPanel::Section::Transfer);
   QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup_transfer", *popup);
   popup->close();
@@ -808,10 +814,9 @@ void ui_brush_dynamics_popup_control_edits_persist() {
     }
   }
   CHECK(popup != nullptr);
-  // The popup sizes from the panel's hint, clamped to the screen. On the 600px offscreen
-  // display that means the full clamp height — QScrollArea::sizeHint's ~24-font-height cap
-  // must not shrink it (the "needless scrollbar on a big monitor" bug).
-  CHECK(popup->height() >= 450);
+  // A fixed size of about 520 x 600 (GitHub issue 506), clamped to the screen.
+  CHECK(popup->height() <= 600);
+  CHECK(popup->width() >= 520);
 
   const auto select_control = [popup](const char* combo_name, patchy::BrushDynamicControl control) {
     auto* combo = popup->findChild<QComboBox*>(QLatin1String(combo_name));
@@ -833,15 +838,15 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   CHECK(minimum_flow != nullptr);
   CHECK(flow_fade != nullptr);
   CHECK(minimum_flow->isEnabled());
-  CHECK(flow_fade->isVisible());
+  CHECK(!flow_fade->isHidden());  // on the Transfer page, which need not be the current tab
   minimum_flow->setValue(15);
   flow_fade->setValue(45);
   auto* scatter_fade = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterFadeStepsSpin"));
   CHECK(scatter_fade != nullptr);
-  CHECK(!scatter_fade->isVisible());
+  CHECK(scatter_fade->isHidden());
   select_control("dynamicsScatterControlCombo", patchy::BrushDynamicControl::Fade);
   QApplication::processEvents();
-  CHECK(scatter_fade->isVisible());  // fade steps appear only for a Fade control
+  CHECK(!scatter_fade->isHidden());  // fade steps appear only for a Fade control
   scatter_fade->setValue(40);
   QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup_controls", *popup);
@@ -905,6 +910,276 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   QApplication::processEvents();
   CHECK(!off_only.active());
   CHECK(button->property("dynamicsActive").toBool());
+  clear_brush_tip_test_state();
+}
+
+namespace {
+
+QWidget* open_brush_dynamics_popup(patchy::ui::MainWindow& window) {
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+  if (button == nullptr) {
+    return nullptr;
+  }
+  button->click();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  return popup;
+}
+
+void close_brush_dynamics_popup(QWidget* popup) {
+  popup->close();
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  process_events_for(350);  // past the button's dismissal-swallow window
+}
+
+}  // namespace
+
+// GitHub issue 506: the popup is a fixed ~520 x 600 with section tabs; no page needs a
+// scrollbar at that size, and the last tab comes back on the next opening.
+void ui_brush_dynamics_popup_tabs_switch_and_remember() {
+  clear_brush_tip_test_state();
+  patchy::ui::app_settings().remove(QStringLiteral("brushes/dynamicsSection"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  window.set_active_brush_tip(tip_id, false);
+
+  auto* popup = open_brush_dynamics_popup(window);
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  CHECK(popup->height() <= 600);
+  CHECK(popup->width() >= 520);
+  CHECK(popup->width() <= 600);  // about 520; the control combos and labels set the floor
+  auto* panel = popup->findChild<patchy::ui::BrushDynamicsPanel*>();
+  CHECK(panel != nullptr);
+  // Every page fits a 600 px popup: the panel's whole-content height is within it.
+  CHECK(panel->sizeHint().height() + 2 * qobject_cast<QFrame*>(popup)->frameWidth() <= 600);
+  CHECK(panel->current_section() == patchy::ui::BrushDynamicsPanel::Section::TipShape);
+  // The preview strip paints the active tip without touching the document.
+  CHECK(panel->preview() != nullptr);
+  CHECK(panel->preview()->isVisible());
+  panel->preview()->rebuild_now();
+  CHECK(!panel->preview()->stroke_image().isNull());
+
+  using Section = patchy::ui::BrushDynamicsPanel::Section;
+  const std::array<std::pair<Section, const char*>, 8> sections{{
+      {Section::TipShape, "TipShape"},
+      {Section::ShapeDynamics, "ShapeDynamics"},
+      {Section::Scattering, "Scattering"},
+      {Section::Transfer, "Transfer"},
+      {Section::Texture, "Texture"},
+      {Section::DualBrush, "DualBrush"},
+      {Section::ColorDynamics, "ColorDynamics"},
+      {Section::BrushEffects, "BrushEffects"},
+  }};
+  auto* stack = popup->findChild<QStackedWidget*>(QStringLiteral("dynamicsSectionStack"));
+  CHECK(stack != nullptr);
+  for (const auto& [section, name] : sections) {
+    auto* tab = popup->findChild<QPushButton*>(QStringLiteral("dynamicsTab%1").arg(QLatin1String(name)));
+    CHECK(tab != nullptr);
+    tab->click();
+    QApplication::processEvents();
+    CHECK(panel->current_section() == section);
+    CHECK(tab->isChecked());
+    auto* page = qobject_cast<QScrollArea*>(stack->currentWidget());
+    CHECK(page != nullptr);
+    CHECK(page->objectName() == QStringLiteral("dynamics%1Page").arg(QLatin1String(name)));
+    CHECK(!page->verticalScrollBar()->isVisible());
+    panel->preview()->rebuild_now();
+    save_widget_artifact(
+        QStringLiteral("ui_brush_dynamics_popup_tab_%1").arg(QLatin1String(name)).toStdString(), *popup);
+  }
+  // Switchable sections carry their on/off box in the tab; Tip Shape and Brush Effects do not.
+  for (const auto* name : {"ShapeDynamics", "Scattering", "Transfer", "DualBrush"}) {
+    auto* row = popup->findChild<QWidget*>(QStringLiteral("dynamicsTab%1Row").arg(QLatin1String(name)));
+    CHECK(row != nullptr);
+    CHECK(row->findChild<QCheckBox*>() != nullptr);
+  }
+  CHECK(popup->findChild<QWidget*>(QStringLiteral("dynamicsTabTextureRow"))
+            ->findChild<QCheckBox*>(QStringLiteral("dynamicsTextureEnabledCheck")) != nullptr);
+  CHECK(popup->findChild<QWidget*>(QStringLiteral("dynamicsTabColorDynamicsRow"))
+            ->findChild<QCheckBox*>(QStringLiteral("dynamicsColorEnabledCheck")) != nullptr);
+  for (const auto* name : {"TipShape", "BrushEffects"}) {
+    auto* row = popup->findChild<QWidget*>(QStringLiteral("dynamicsTab%1Row").arg(QLatin1String(name)));
+    CHECK(row != nullptr);
+    for (auto* check : row->findChildren<QCheckBox*>()) {
+      CHECK(check->isHidden());  // only an alignment stand-in
+    }
+  }
+
+  // Rows a jitter/control combination makes meaningless are disabled.
+  auto* minimum_diameter = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsMinimumDiameterSpin"));
+  CHECK(!minimum_diameter->isEnabled());
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsSizeJitterSpin"))->setValue(30);
+  CHECK(minimum_diameter->isEnabled());
+  auto* count_jitter = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsCountJitterSpin"));
+  CHECK(!count_jitter->isEnabled());
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsCountSpin"))->setValue(2);
+  CHECK(count_jitter->isEnabled());
+
+  panel->select_section(Section::Scattering);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/dynamicsSection")).toString() ==
+        QStringLiteral("scattering"));
+  close_brush_dynamics_popup(popup);
+  auto* reopened = open_brush_dynamics_popup(window);
+  CHECK(reopened != nullptr);
+  if (reopened != nullptr) {
+    auto* reopened_panel = reopened->findChild<patchy::ui::BrushDynamicsPanel*>();
+    CHECK(reopened_panel->current_section() == Section::Scattering);
+    close_brush_dynamics_popup(reopened);
+  }
+  patchy::ui::app_settings().remove(QStringLiteral("brushes/dynamicsSection"));
+  clear_brush_tip_test_state();
+}
+
+// A section switched off keeps its values (saved with the tip) while the canvas and the
+// preview paint without it; switched back on, both return.
+void ui_brush_dynamics_section_switch_keeps_values() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  window.set_active_brush_tip(tip_id, false);
+
+  auto* popup = open_brush_dynamics_popup(window);
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  auto* panel = popup->findChild<patchy::ui::BrushDynamicsPanel*>();
+  panel->select_section(patchy::ui::BrushDynamicsPanel::Section::Scattering);
+  auto* scatter = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterSpin"));
+  scatter->setValue(300);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsCountSpin"))->setValue(3);
+  CHECK(process_events_until([canvas] { return canvas->brush_dynamics().count == 3; }, 5000));
+  panel->preview()->rebuild_now();
+  const auto with_scatter = panel->preview()->stroke_image();
+
+  auto* enabled = popup->findChild<QCheckBox*>(QStringLiteral("dynamicsScatteringEnabledCheck"));
+  CHECK(enabled != nullptr);
+  CHECK(enabled->isChecked());
+  enabled->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!scatter->isEnabled());    // the page's rows read as inactive
+  CHECK(scatter->value() == 300);  // but keep their values
+  panel->preview()->rebuild_now();
+  save_widget_artifact("ui_brush_dynamics_popup_scattering_off", *popup);
+  const auto without_scatter = panel->preview()->stroke_image();
+  CHECK(!without_scatter.isNull());
+  CHECK(without_scatter != with_scatter);
+  CHECK(process_events_until([canvas] { return canvas->brush_dynamics().count == 1; }, 5000));
+  CHECK(canvas->brush_dynamics().scatter == 0.0);
+  const auto* entry = library.find_entry(tip_id);
+  CHECK(entry != nullptr);
+  CHECK(!entry->dynamics.scattering_enabled);
+  CHECK(std::abs(entry->dynamics.scatter - 3.0) < 1e-9);
+  CHECK(entry->dynamics.count == 3);
+  // The sidecar carries the switch under its own key...
+  const auto json = patchy::ui::brush_dynamics_to_json(entry->dynamics);
+  CHECK(!json.value(QStringLiteral("scatteringEnabled")).toBool(true));
+  CHECK(json.value(QStringLiteral("shapeDynamicsEnabled")).toBool(false));
+  CHECK(!patchy::ui::brush_dynamics_from_json(json).scattering_enabled);
+  // ...and a brush saved before the switches existed loads with every section on.
+  const auto legacy = patchy::ui::brush_dynamics_from_json(
+      QJsonObject{{QStringLiteral("scatter"), 1.0}, {QStringLiteral("opacityJitter"), 0.5}});
+  CHECK(legacy.shape_dynamics_enabled && legacy.scattering_enabled && legacy.transfer_enabled);
+  CHECK(legacy.active());
+
+  enabled->setChecked(true);
+  QApplication::processEvents();
+  CHECK(scatter->isEnabled());
+  panel->preview()->rebuild_now();
+  CHECK(panel->preview()->stroke_image() == with_scatter);
+  CHECK(process_events_until([canvas] { return canvas->brush_dynamics().count == 3; }, 5000));
+  CHECK(std::abs(canvas->brush_dynamics().scatter - 3.0) < 1e-9);
+  close_brush_dynamics_popup(popup);
+  clear_brush_tip_test_state();
+}
+
+// Reset Section resets one page; the tab dots mark the sections that differ from defaults.
+void ui_brush_dynamics_reset_section_and_default_dots() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  window.set_active_brush_tip(tip_id, false);
+  auto* popup = open_brush_dynamics_popup(window);
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  using Section = patchy::ui::BrushDynamicsPanel::Section;
+  auto* panel = popup->findChild<patchy::ui::BrushDynamicsPanel*>();
+  for (int index = 0; index < patchy::ui::BrushDynamicsPanel::kSectionCount; ++index) {
+    CHECK(!panel->section_marked_changed(static_cast<Section>(index)));
+  }
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsSizeJitterSpin"))->setValue(30);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterSpin"))->setValue(120);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsBaseAngleSpin"))->setValue(45);
+  popup->findChild<QCheckBox*>(QStringLiteral("dynamicsWetEdgesCheck"))->setChecked(true);
+  CHECK(panel->section_marked_changed(Section::TipShape));
+  CHECK(panel->section_marked_changed(Section::ShapeDynamics));
+  CHECK(panel->section_marked_changed(Section::Scattering));
+  CHECK(panel->section_marked_changed(Section::BrushEffects));
+  CHECK(!panel->section_marked_changed(Section::Transfer));
+  CHECK(!panel->section_marked_changed(Section::Texture));
+  // Switching Texture on alone changes no value: no dot, the box itself shows it is on.
+  popup->findChild<QCheckBox*>(QStringLiteral("dynamicsTextureEnabledCheck"))->setChecked(true);
+  CHECK(!panel->section_marked_changed(Section::Texture));
+  panel->select_section(Section::Scattering);
+  QApplication::processEvents();
+  panel->preview()->rebuild_now();
+  save_widget_artifact("ui_brush_dynamics_popup_changed_dots", *popup);
+
+  auto* stack = popup->findChild<QStackedWidget*>(QStringLiteral("dynamicsSectionStack"));
+  auto* reset = stack->currentWidget()->findChild<QPushButton*>(QStringLiteral("dynamicsResetSectionButton"));
+  CHECK(reset != nullptr);
+  CHECK(reset->isEnabled());
+  reset->click();
+  QApplication::processEvents();
+  CHECK(popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterSpin"))->value() == 0);
+  CHECK(popup->findChild<QSpinBox*>(QStringLiteral("dynamicsSizeJitterSpin"))->value() == 30);
+  CHECK(!panel->section_marked_changed(Section::Scattering));
+  CHECK(panel->section_marked_changed(Section::ShapeDynamics));
+  CHECK(!reset->isEnabled());  // nothing left to reset on this page
+  CHECK(process_events_until(
+      [canvas] {
+        return canvas->brush_dynamics().scatter == 0.0 && canvas->brush_dynamics().size_jitter > 0.29;
+      },
+      5000));
+
+  panel->select_section(Section::TipShape);
+  stack->currentWidget()->findChild<QPushButton*>(QStringLiteral("dynamicsResetSectionButton"))->click();
+  CHECK(popup->findChild<QSpinBox*>(QStringLiteral("dynamicsBaseAngleSpin"))->value() == 0);
+  CHECK(!panel->section_marked_changed(Section::TipShape));
+  CHECK(panel->section_marked_changed(Section::BrushEffects));
+
+  popup->findChild<QPushButton*>(QStringLiteral("dynamicsResetButton"))->click();
+  for (int index = 0; index < patchy::ui::BrushDynamicsPanel::kSectionCount; ++index) {
+    CHECK(!panel->section_marked_changed(static_cast<Section>(index)));
+  }
+  CHECK(!popup->findChild<QCheckBox*>(QStringLiteral("dynamicsTextureEnabledCheck"))->isChecked());
+  close_brush_dynamics_popup(popup);
   clear_brush_tip_test_state();
 }
 
@@ -1696,6 +1971,10 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_dynamics_popup_edits_apply_and_persist", ui_brush_dynamics_popup_edits_apply_and_persist},
       {"ui_brush_dynamics_popup_control_edits_persist", ui_brush_dynamics_popup_control_edits_persist},
       {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
+      {"ui_brush_dynamics_popup_tabs_switch_and_remember", ui_brush_dynamics_popup_tabs_switch_and_remember},
+      {"ui_brush_dynamics_section_switch_keeps_values", ui_brush_dynamics_section_switch_keeps_values},
+      {"ui_brush_dynamics_reset_section_and_default_dots",
+       ui_brush_dynamics_reset_section_and_default_dots},
       {"ui_brush_dynamics_stroke_scatters_with_seed", ui_brush_dynamics_stroke_scatters_with_seed},
       {"ui_brush_direction_first_dab_follows_stroke", ui_brush_direction_first_dab_follows_stroke},
       {"ui_brush_color_dynamics_reaches_stroke_compositor",

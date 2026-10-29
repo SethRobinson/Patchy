@@ -14772,10 +14772,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Texture</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>Attiva texture</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>Grana:</translation>
     </message>
@@ -14808,10 +14804,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Doppio pennello</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>Attiva doppio pennello</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>Dimensione secondaria:</translation>
     </message>
@@ -14826,10 +14818,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Color Dynamics</source>
         <translation>Dinamica colore</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>Attiva dinamica colore</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14872,12 +14860,40 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Accumula il colore lungo i bordi del tratto per un effetto acquerello. Non sfuma i colori della tela; a tale scopo usate Sfumino.</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>Ripristina</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>Ripristina la forma della punta e tutte le dinamiche ai valori predefiniti</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>Anteprima di un tratto di penna con queste impostazioni</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>Ripristina sezione</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>Ripristina i valori predefiniti delle impostazioni di questa sezione</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>Ripristina tutto</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>Le modifiche si applicano mentre modifichi.</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>Modificato rispetto ai valori predefiniti</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>Attiva o disattiva %1. Le impostazioni vengono mantenute mentre è disattivato.</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>Usa %1</translation>
     </message>
 </context>
 <context>

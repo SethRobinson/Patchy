@@ -14772,10 +14772,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Struktur</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>Struktur aktivieren</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>Körnung:</translation>
     </message>
@@ -14808,10 +14804,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Dualer Pinsel</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>Dualen Pinsel aktivieren</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>Sekundäre Größe:</translation>
     </message>
@@ -14826,10 +14818,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Color Dynamics</source>
         <translation>Farbeinstellungen</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>Farbeinstellungen aktivieren</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14872,12 +14860,40 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Baut Farbe entlang der Strichkanten für eine Aquarell-Lasur auf. Die Farben der Leinwand werden dabei nicht verwischt; verwenden Sie dafür den Wischfinger.</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>Zurücksetzen</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>Pinselspitzenform und alle Dynamikeinstellungen auf die Standardwerte zurücksetzen</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>Vorschau eines Stiftstrichs mit diesen Einstellungen</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>Abschnitt zurücksetzen</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>Die Einstellungen dieses Abschnitts auf die Standardwerte zurücksetzen</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>Alles zurücksetzen</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>Änderungen gelten sofort.</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>Von den Standardwerten geändert</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>%1 ein- oder ausschalten. Die Einstellungen bleiben erhalten, solange der Abschnitt aus ist.</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>%1 verwenden</translation>
     </message>
 </context>
 <context>

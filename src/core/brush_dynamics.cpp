@@ -69,7 +69,143 @@ constexpr double kDirectionSmoothing = 0.35;
 
 }  // namespace
 
+BrushDynamics effective_brush_dynamics(const BrushDynamics& dynamics) noexcept {
+  auto effective = dynamics;
+  if (!dynamics.shape_dynamics_enabled) {
+    reset_brush_dynamics_section(effective, BrushDynamicsSection::ShapeDynamics);
+  }
+  if (!dynamics.scattering_enabled) {
+    reset_brush_dynamics_section(effective, BrushDynamicsSection::Scattering);
+  }
+  if (!dynamics.transfer_enabled) {
+    reset_brush_dynamics_section(effective, BrushDynamicsSection::Transfer);
+  }
+  effective.shape_dynamics_enabled = true;
+  effective.scattering_enabled = true;
+  effective.transfer_enabled = true;
+  return effective;
+}
+
+bool brush_dynamics_sections_all_enabled(const BrushDynamics& dynamics) noexcept {
+  return dynamics.shape_dynamics_enabled && dynamics.scattering_enabled &&
+         dynamics.transfer_enabled;
+}
+
+void reset_brush_dynamics_section(BrushDynamics& dynamics, BrushDynamicsSection section) noexcept {
+  const BrushDynamics defaults;
+  switch (section) {
+    case BrushDynamicsSection::ShapeDynamics:
+      dynamics.size_jitter = defaults.size_jitter;
+      dynamics.minimum_diameter = defaults.minimum_diameter;
+      dynamics.size_control = defaults.size_control;
+      dynamics.size_fade_steps = defaults.size_fade_steps;
+      dynamics.angle_jitter = defaults.angle_jitter;
+      dynamics.angle_control = defaults.angle_control;
+      dynamics.angle_fade_steps = defaults.angle_fade_steps;
+      dynamics.roundness_jitter = defaults.roundness_jitter;
+      dynamics.minimum_roundness = defaults.minimum_roundness;
+      dynamics.roundness_control = defaults.roundness_control;
+      dynamics.roundness_fade_steps = defaults.roundness_fade_steps;
+      dynamics.flip_x_jitter = defaults.flip_x_jitter;
+      dynamics.flip_y_jitter = defaults.flip_y_jitter;
+      break;
+    case BrushDynamicsSection::Scattering:
+      dynamics.scatter = defaults.scatter;
+      dynamics.scatter_both_axes = defaults.scatter_both_axes;
+      dynamics.scatter_control = defaults.scatter_control;
+      dynamics.scatter_fade_steps = defaults.scatter_fade_steps;
+      dynamics.count = defaults.count;
+      dynamics.count_jitter = defaults.count_jitter;
+      dynamics.count_control = defaults.count_control;
+      dynamics.count_fade_steps = defaults.count_fade_steps;
+      break;
+    case BrushDynamicsSection::Transfer:
+      dynamics.opacity_jitter = defaults.opacity_jitter;
+      dynamics.minimum_opacity = defaults.minimum_opacity;
+      dynamics.opacity_control = defaults.opacity_control;
+      dynamics.opacity_fade_steps = defaults.opacity_fade_steps;
+      dynamics.flow_jitter = defaults.flow_jitter;
+      dynamics.minimum_flow = defaults.minimum_flow;
+      dynamics.flow_control = defaults.flow_control;
+      dynamics.flow_fade_steps = defaults.flow_fade_steps;
+      break;
+    case BrushDynamicsSection::Texture:
+      // texture_seed is an imported pattern's identity, not a value the user edits.
+      dynamics.texture_style = defaults.texture_style;
+      dynamics.texture_scale = defaults.texture_scale;
+      dynamics.texture_depth = defaults.texture_depth;
+      dynamics.texture_invert = defaults.texture_invert;
+      break;
+    case BrushDynamicsSection::DualBrush:
+      dynamics.dual_brush_size = defaults.dual_brush_size;
+      dynamics.dual_brush_hardness = defaults.dual_brush_hardness;
+      dynamics.dual_brush_spacing = defaults.dual_brush_spacing;
+      break;
+    case BrushDynamicsSection::ColorDynamics:
+      dynamics.foreground_background_jitter = defaults.foreground_background_jitter;
+      dynamics.color_control = defaults.color_control;
+      dynamics.color_fade_steps = defaults.color_fade_steps;
+      dynamics.hue_jitter = defaults.hue_jitter;
+      dynamics.saturation_jitter = defaults.saturation_jitter;
+      dynamics.brightness_jitter = defaults.brightness_jitter;
+      dynamics.purity = defaults.purity;
+      dynamics.color_per_tip = defaults.color_per_tip;
+      break;
+    case BrushDynamicsSection::BrushEffects:
+      dynamics.wet_edges = defaults.wet_edges;
+      break;
+  }
+}
+
+bool brush_dynamics_section_is_default(const BrushDynamics& dynamics,
+                                       BrushDynamicsSection section) noexcept {
+  const BrushDynamics d;
+  const auto& v = dynamics;
+  switch (section) {
+    case BrushDynamicsSection::ShapeDynamics:
+      return v.size_jitter == d.size_jitter && v.minimum_diameter == d.minimum_diameter &&
+             v.size_control == d.size_control && v.size_fade_steps == d.size_fade_steps &&
+             v.angle_jitter == d.angle_jitter && v.angle_control == d.angle_control &&
+             v.angle_fade_steps == d.angle_fade_steps && v.roundness_jitter == d.roundness_jitter &&
+             v.minimum_roundness == d.minimum_roundness &&
+             v.roundness_control == d.roundness_control &&
+             v.roundness_fade_steps == d.roundness_fade_steps &&
+             v.flip_x_jitter == d.flip_x_jitter && v.flip_y_jitter == d.flip_y_jitter;
+    case BrushDynamicsSection::Scattering:
+      return v.scatter == d.scatter && v.scatter_both_axes == d.scatter_both_axes &&
+             v.scatter_control == d.scatter_control &&
+             v.scatter_fade_steps == d.scatter_fade_steps && v.count == d.count &&
+             v.count_jitter == d.count_jitter && v.count_control == d.count_control &&
+             v.count_fade_steps == d.count_fade_steps;
+    case BrushDynamicsSection::Transfer:
+      return v.opacity_jitter == d.opacity_jitter && v.minimum_opacity == d.minimum_opacity &&
+             v.opacity_control == d.opacity_control &&
+             v.opacity_fade_steps == d.opacity_fade_steps && v.flow_jitter == d.flow_jitter &&
+             v.minimum_flow == d.minimum_flow && v.flow_control == d.flow_control &&
+             v.flow_fade_steps == d.flow_fade_steps;
+    case BrushDynamicsSection::Texture:
+      return v.texture_style == d.texture_style && v.texture_scale == d.texture_scale &&
+             v.texture_depth == d.texture_depth && v.texture_invert == d.texture_invert;
+    case BrushDynamicsSection::DualBrush:
+      return v.dual_brush_size == d.dual_brush_size &&
+             v.dual_brush_hardness == d.dual_brush_hardness &&
+             v.dual_brush_spacing == d.dual_brush_spacing;
+    case BrushDynamicsSection::ColorDynamics:
+      return v.foreground_background_jitter == d.foreground_background_jitter &&
+             v.color_control == d.color_control && v.color_fade_steps == d.color_fade_steps &&
+             v.hue_jitter == d.hue_jitter && v.saturation_jitter == d.saturation_jitter &&
+             v.brightness_jitter == d.brightness_jitter && v.purity == d.purity &&
+             v.color_per_tip == d.color_per_tip;
+    case BrushDynamicsSection::BrushEffects:
+      return v.wet_edges == d.wet_edges;
+  }
+  return true;
+}
+
 bool BrushDynamics::active() const noexcept {
+  if (!brush_dynamics_sections_all_enabled(*this)) {
+    return effective_brush_dynamics(*this).active();
+  }
   return size_jitter > 0.0 || angle_jitter > 0.0 ||
          (angle_control != BrushDynamicControl::Off &&
           angle_control != BrushDynamicControl::GlobalDefault) ||
@@ -139,12 +275,16 @@ void advance_stroke_direction(BrushDynamicsStrokeContext& context, double dx, do
 }
 
 bool angle_follows_direction(const BrushDynamics& dynamics) noexcept {
-  return dynamics.angle_control == BrushDynamicControl::Direction ||
-         dynamics.angle_control == BrushDynamicControl::InitialDirection;
+  return dynamics.shape_dynamics_enabled &&
+         (dynamics.angle_control == BrushDynamicControl::Direction ||
+          dynamics.angle_control == BrushDynamicControl::InitialDirection);
 }
 
 int sample_dab_count(const BrushDynamics& dynamics, BrushDynamicsRng& rng,
                      const BrushDynamicsStrokeContext& context) noexcept {
+  if (!dynamics.scattering_enabled) {
+    return 1;  // Count is a Scattering setting: an off section stamps one dab per step
+  }
   const auto count = std::clamp(dynamics.count, 1, 16);
   auto base = static_cast<double>(count);
   if (count > 1 && control_has_source(dynamics.count_control)) {
@@ -164,6 +304,10 @@ int sample_dab_count(const BrushDynamics& dynamics, BrushDynamicsRng& rng,
 BrushDabVariation sample_dab_variation(const BrushDynamics& dynamics, BrushDynamicsRng& rng,
                                        BrushDynamicsStrokeContext& context,
                                        int brush_size) noexcept {
+  if (!brush_dynamics_sections_all_enabled(dynamics)) {
+    const auto effective = effective_brush_dynamics(dynamics);
+    return sample_dab_variation(effective, rng, context, brush_size);
+  }
   BrushDabVariation variation;
 
   if (dynamics.scatter > 0.0) {

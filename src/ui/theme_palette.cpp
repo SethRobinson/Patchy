@@ -385,6 +385,7 @@ const ThemePalette& dark_palette() {
       .info_banner_border = rgb(0x3f6f9a),
       .info_banner_text = rgb(0xbfe0ff),
       .swatch_border = rgb(0x9aa4b2),
+      .brush_dynamics_changed_dot = rgb(0xe8a33d),
 
       // Shared button and surface families.
       .primary_bg = rgb(0x354960),
@@ -1075,6 +1076,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(info_banner_border),
       PATCHY_THEME_ROLE(info_banner_text),
       PATCHY_THEME_ROLE(swatch_border),
+      PATCHY_THEME_ROLE(brush_dynamics_changed_dot),
 
       PATCHY_THEME_ROLE(primary_bg),
       PATCHY_THEME_ROLE(primary_border),

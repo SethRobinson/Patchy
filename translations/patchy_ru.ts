@@ -14815,10 +14815,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Текстура</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>Включить текстуру</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>Зерно:</translation>
     </message>
@@ -14851,10 +14847,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Двойная кисть</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>Включить двойную кисть</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>Вторичный размер:</translation>
     </message>
@@ -14869,10 +14861,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Color Dynamics</source>
         <translation>Динамика цвета</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>Включить цветовую динамику</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14915,12 +14903,40 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Накапливает краску по краям мазка для эффекта акварели. Не размазывает цвета холста; для этого используйте «Палец».</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>Сбросить</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>Сбросить форму отпечатка и всю динамику по умолчанию</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>Предпросмотр штриха пером с этими настройками</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>Сбросить раздел</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>Вернуть настройки этого раздела к значениям по умолчанию</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>Сбросить всё</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>Изменения применяются сразу.</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>Изменено относительно значений по умолчанию</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>Включить или выключить: %1. Настройки сохраняются, пока раздел выключен.</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>Использовать: %1</translation>
     </message>
 </context>
 <context>

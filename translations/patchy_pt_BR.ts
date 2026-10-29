@@ -14772,10 +14772,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Textura</translation>
     </message>
     <message>
-        <source>Enable Texture</source>
-        <translation>Ativar textura</translation>
-    </message>
-    <message>
         <source>Grain:</source>
         <translation>Grão:</translation>
     </message>
@@ -14808,10 +14804,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Pincel duplo</translation>
     </message>
     <message>
-        <source>Enable Dual Brush</source>
-        <translation>Ativar pincel duplo</translation>
-    </message>
-    <message>
         <source>Secondary Size:</source>
         <translation>Tamanho secundário:</translation>
     </message>
@@ -14826,10 +14818,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Color Dynamics</source>
         <translation>Dinâmica de cores</translation>
-    </message>
-    <message>
-        <source>Enable Color Dynamics</source>
-        <translation>Ativar dinâmica de cores</translation>
     </message>
     <message>
         <source>Foreground/Background Jitter:</source>
@@ -14872,12 +14860,40 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Acumula tinta nas bordas das pinceladas para um efeito de aquarela. Não arrasta as cores da tela; use Borrar para isso.</translation>
     </message>
     <message>
-        <source>Reset</source>
-        <translation>Redefinir</translation>
-    </message>
-    <message>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>Redefinir o formato da ponta e todas as dinâmicas para os padrões</translation>
+    </message>
+    <message>
+        <source>Preview of a pen stroke with these settings</source>
+        <translation>Prévia de um traço de caneta com estas configurações</translation>
+    </message>
+    <message>
+        <source>Reset Section</source>
+        <translation>Redefinir seção</translation>
+    </message>
+    <message>
+        <source>Reset this section&apos;s settings to their defaults</source>
+        <translation>Redefine as configurações desta seção para os padrões</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>Redefinir tudo</translation>
+    </message>
+    <message>
+        <source>Changes apply as you edit.</source>
+        <translation>As alterações são aplicadas enquanto você edita.</translation>
+    </message>
+    <message>
+        <source>Changed from the defaults</source>
+        <translation>Alterado em relação aos padrões</translation>
+    </message>
+    <message>
+        <source>Turn %1 on or off. Its settings are kept while it is off.</source>
+        <translation>Ativar ou desativar %1. As configurações são mantidas enquanto estiver desativado.</translation>
+    </message>
+    <message>
+        <source>Use %1</source>
+        <translation>Usar %1</translation>
     </message>
 </context>
 <context>

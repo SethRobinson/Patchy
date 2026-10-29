@@ -14,6 +14,11 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-29 (additive): brush dynamics objects (`drawStrokes` `dynamics`, `patchy.brushes` settings
+and tip records) take `shapeDynamicsEnabled`, `scatteringEnabled` and `transferEnabled` (booleans,
+true by default): the Dynamics popup's section switches. Off keeps the section's values and paints
+as if it were at defaults (GitHub issue 506, [brush-dynamics.md](brush-dynamics.md)). Permanent
+identifiers: the three keys. Pinned by `ui_brush_dynamics_section_switch_keeps_values`.
 2026-10-28 (additive): `patchy.ui.toolPalette.ungroupTools` (boolean, false by default): Customize
 Tool Palette's "No tool groups", every tool on its own button (GitHub issue 499,
 [tool-palette.md](tool-palette.md#customizing-the-palette)). Permanent identifier: the key. Pinned by

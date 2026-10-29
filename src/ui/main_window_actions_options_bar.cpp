@@ -2500,6 +2500,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
 
   brush_dynamics_button_ = new BrushDynamicsButton(toolbar);
+  brush_dynamics_button_->set_preview_tip_provider(
+      [this](const QString& tip_id) { return brush_tip_library().tip(tip_id); });
   add_option_widget(brush_dynamics_button_, {CanvasTool::Brush});
   connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
           [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,
