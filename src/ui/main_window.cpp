@@ -39,6 +39,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/brush_dynamics_popup.hpp"
+#include "ui/brush_tip_picker.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/filter_workflows.hpp"
@@ -5716,6 +5717,14 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // lingers headless with only the preview on screen.
   if (tile_preview_window_ != nullptr) {
     tile_preview_window_->close();
+  }
+  // The floating brush windows are Qt::Tool windows too; hidden without recording them
+  // closed, so the ones open now come back with the next launch.
+  if (brush_tip_picker_ != nullptr) {
+    brush_tip_picker_->hide_window_for_shutdown();
+  }
+  if (brush_dynamics_button_ != nullptr) {
+    brush_dynamics_button_->hide_window_for_shutdown();
   }
   // Same hazard: the animation preview is a Qt::Tool window too (closing it also stops
   // playback and restores layer visibility while the sessions are still alive).

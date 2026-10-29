@@ -2762,8 +2762,16 @@ private:
   // Clone source settings (GitHub issue 424, docs/healing.md "Clone source settings"):
   // the gear popup's panel follows the active canvas.
   void refresh_clone_source_panel();
-  // Window > Brush Settings: picks the Brush tool from any other tool and opens its Dynamics popup.
-  void show_brush_settings_popup();
+  // Window > Brush Settings: picks the Brush tool from any other tool and opens the floating
+  // Brush Settings window (the Dynamics popup's panel; GitHub issue 506 follow-up).
+  void show_brush_settings_window();
+  // Window > Brush Tips: the floating tip chooser, picking the Brush tool first when the active
+  // tool takes no tip.
+  void show_brush_tips_window();
+  // Which brush windows the active tool can use; called from refresh_options_bar.
+  void refresh_brush_tool_windows(bool edit_allowed);
+  // Reopens the brush windows that were open when Patchy last quit (first show only).
+  void restore_brush_tool_windows();
   // Applies the shared overlay settings to every canvas and both checkboxes, and saves them.
   void apply_clone_overlay_settings(bool shown, int opacity);
   // The Sample choice for the document info lines ("active layer", ...).
@@ -3074,6 +3082,8 @@ private:
   QMenu* clone_source_menu_{nullptr};
   CloneSourcePanel* clone_source_panel_{nullptr};
   QAction* window_brush_settings_action_{nullptr};
+  QAction* window_brush_tips_action_{nullptr};
+  bool brush_tool_windows_restored_{false};
   // The overlay settings every canvas shares (tools/cloneOverlay, tools/cloneOverlayOpacity).
   bool current_clone_overlay_shown_{true};
   int current_clone_overlay_opacity_{100};

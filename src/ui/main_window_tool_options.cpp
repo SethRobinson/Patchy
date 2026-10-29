@@ -40,6 +40,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/brush_dynamics_popup.hpp"
+#include "ui/brush_tool_window.hpp"
 #include "ui/brush_presets.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -2799,16 +2800,67 @@ void MainWindow::refresh_clone_source_panel() {
   clone_source_panel_->set_state(state);
 }
 
-void MainWindow::show_brush_settings_popup() {
+void MainWindow::show_brush_settings_window() {
   if (brush_dynamics_button_ == nullptr || canvas_ == nullptr) {
     return;
   }
-  // The Dynamics button sits on the Brush tool's bar only.
+  // Dynamics are the Brush tool's alone.
   if (canvas_->tool() != CanvasTool::Brush) {
     activate_tool(CanvasTool::Brush);
   }
-  if (brush_dynamics_button_->isEnabled()) {
-    brush_dynamics_button_->open_popup();
+  brush_dynamics_button_->open_window();
+}
+
+namespace {
+
+// The tools whose options bar carries the Tip picker (build_options_bar).
+[[nodiscard]] bool tool_takes_brush_tip(CanvasTool tool) {
+  return tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush || tool == CanvasTool::PatternStamp ||
+         tool == CanvasTool::Eraser;
+}
+
+}  // namespace
+
+void MainWindow::show_brush_tips_window() {
+  if (brush_tip_picker_ == nullptr || canvas_ == nullptr) {
+    return;
+  }
+  if (!tool_takes_brush_tip(canvas_->tool())) {
+    activate_tool(CanvasTool::Brush);
+  }
+  brush_tip_picker_->open_window();
+}
+
+void MainWindow::refresh_brush_tool_windows(bool edit_allowed) {
+  const auto no_document = !has_active_document();
+  if (brush_tip_picker_ != nullptr) {
+    brush_tip_picker_->set_tool_supported(
+        edit_allowed && tool_takes_brush_tip(current_tool_),
+        no_document ? tr("Open a document to choose a brush tip.")
+                    : !edit_allowed ? tr("Brush tips can be changed again once the open dialog closes.")
+                                    : tr("The active tool has no brush tip."));
+  }
+  if (brush_dynamics_button_ != nullptr) {
+    brush_dynamics_button_->set_tool_supported(
+        edit_allowed && current_tool_ == CanvasTool::Brush,
+        no_document ? tr("Open a document to change the brush settings.")
+                    : !edit_allowed ? tr("Brush settings can be changed again once the open dialog closes.")
+                                    : tr("Brush settings apply to the Brush tool."));
+  }
+}
+
+void MainWindow::restore_brush_tool_windows() {
+  if (brush_tool_windows_restored_) {
+    return;
+  }
+  brush_tool_windows_restored_ = true;
+  // Reopened without taking the keyboard from the main window.
+  if (brush_tip_picker_ != nullptr && BrushToolWindow::remembered_open(QStringLiteral("brushes/tipsWindow"))) {
+    brush_tip_picker_->open_window(std::nullopt, false);
+  }
+  if (brush_dynamics_button_ != nullptr &&
+      BrushToolWindow::remembered_open(QStringLiteral("brushes/settingsWindow"))) {
+    brush_dynamics_button_->open_window(std::nullopt, false);
   }
 }
 
@@ -3721,6 +3773,8 @@ void MainWindow::refresh_options_bar() {
       button->defaultAction()->setEnabled(allowed_while_locked ? has_document : edit_allowed);
     }
   }
+
+  refresh_brush_tool_windows(edit_allowed);
 
   // The numeric transform controls show only while a session is actually active
   // (Photoshop): the Move tool's passive box swaps them in the instant a handle

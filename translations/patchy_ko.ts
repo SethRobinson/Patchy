@@ -14577,6 +14577,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Brush dynamics and effects for the Round brush (this session only; resets on the next launch)</source>
         <translation>라운드 브러시에 대한 브러시 동적 설정 및 효과(이 세션에만 해당, 다음 실행 시 재설정됨)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>활성 브러시 팁이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>브러시 설정</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>열어 두기</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>그리는 동안 열려 있는 창에서 브러시 설정을 엽니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -14925,6 +14941,26 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Manage…</source>
         <translation>관리…</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>필터</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>이름이나 폴더에 이 텍스트가 들어 있는 팁을 표시합니다</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>열어 두기</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>그리는 동안 열려 있는 창에서 브러시 팁을 엽니다</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>브러시 팁</translation>
     </message>
 </context>
 <context>
@@ -28295,6 +28331,34 @@ Locked: %1</source>
     <message>
         <source>Customize Layer Buttons...</source>
         <translation>레이어 버튼 사용자 지정...</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>브러시 팁</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>브러시 팁을 선택하려면 문서를 여세요.</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>열려 있는 대화 상자가 닫히면 브러시 팁을 다시 바꿀 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>활성 도구에 브러시 팁이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>브러시 설정을 바꾸려면 문서를 여세요.</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>열려 있는 대화 상자가 닫히면 브러시 설정을 다시 바꿀 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>브러시 설정은 브러시 도구에 적용됩니다.</translation>
     </message>
 </context>
 <context>

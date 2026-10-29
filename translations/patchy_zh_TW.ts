@@ -14577,6 +14577,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
         <translation>方形筆刷的筆刷動態與效果 (僅限本次工作階段,下次啟動時會重設)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>沒有使用中的筆刷筆尖。</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>筆刷設定</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>保持開啟</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>在繪畫時保持開啟的視窗中開啟筆刷設定</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -14925,6 +14941,26 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1 - %2 (%3×%4)</source>
         <translation>%1:%2 (%3×%4)</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>篩選</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>顯示名稱或資料夾包含此文字的筆尖</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>保持開啟</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>在繪畫時保持開啟的視窗中開啟筆刷筆尖</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>筆刷筆尖</translation>
     </message>
 </context>
 <context>
@@ -28295,6 +28331,34 @@ Locked: %1</source>
     <message>
         <source>Customize Layer Buttons...</source>
         <translation>自訂圖層按鈕...</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>筆刷筆尖</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>開啟文件以選擇筆刷筆尖。</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>關閉目前開啟的對話方塊後即可再次變更筆刷筆尖。</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>目前的工具沒有筆刷筆尖。</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>開啟文件以變更筆刷設定。</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>關閉目前開啟的對話方塊後即可再次變更筆刷設定。</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>筆刷設定適用於筆刷工具。</translation>
     </message>
 </context>
 <context>

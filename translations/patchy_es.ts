@@ -14620,6 +14620,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
         <translation>Dinámica y efectos de pincel para el pincel Cuadrado (solo en esta sesión; se restablecen en el próximo inicio)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>No hay ninguna punta de pincel activa.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Ajustes de pincel</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Mantener abierto</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>Abrir los ajustes del pincel en una ventana que sigue abierta mientras pintas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -14968,6 +14984,26 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>%1 - %2 (%3×%4)</source>
         <translation>%1: %2 (%3×%4)</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtrar</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>Mostrar las puntas cuyo nombre o carpeta contiene este texto</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Mantener abierto</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>Abrir las puntas de pincel en una ventana que sigue abierta mientras pintas</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Puntas de pincel</translation>
     </message>
 </context>
 <context>
@@ -28377,6 +28413,34 @@ Bloqueada: %1</translation>
     <message>
         <source>Customize Layer Buttons...</source>
         <translation>Personalizar botones de Capas...</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Puntas de pincel</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>Abre un documento para elegir una punta de pincel.</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>Las puntas de pincel se podrán cambiar de nuevo cuando se cierre el cuadro de diálogo abierto.</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>La herramienta activa no tiene punta de pincel.</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>Abre un documento para cambiar los ajustes del pincel.</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>Los ajustes del pincel se podrán cambiar de nuevo cuando se cierre el cuadro de diálogo abierto.</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>Los ajustes del pincel se aplican a la herramienta Pincel.</translation>
     </message>
 </context>
 <context>

@@ -794,8 +794,19 @@ void MainWindow::install_window_panel_entries() {
   register_hotkey(window_brush_settings_action_, "window.brush_settings", QKeySequence());
   register_document_action(window_brush_settings_action_);
   connect(window_brush_settings_action_, &QAction::triggered, this,
-          [this] { QTimer::singleShot(0, this, [this] { show_brush_settings_popup(); }); });
+          [this] { QTimer::singleShot(0, this, [this] { show_brush_settings_window(); }); });
   window_panel_actions_.push_back(window_brush_settings_action_);
+  // Brush Tips opens the tip picker's chooser as a floating window (GitHub issue 506
+  // follow-up); no default key.
+  window_brush_tips_action_ = new QAction(window_menu);
+  window_brush_tips_action_->setObjectName(QStringLiteral("windowBrushTipsAction"));
+  window_brush_tips_action_->setMenuRole(QAction::NoRole);
+  bind_action_text(window_brush_tips_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush Tips"));
+  register_hotkey(window_brush_tips_action_, "window.brush_tips", QKeySequence());
+  register_document_action(window_brush_tips_action_);
+  connect(window_brush_tips_action_, &QAction::triggered, this,
+          [this] { QTimer::singleShot(0, this, [this] { show_brush_tips_window(); }); });
+  window_panel_actions_.push_back(window_brush_tips_action_);
   // The two toolbars follow the sorted panels as a fixed pair between separators (GitHub
   // issue 513); the Reset Panels separator closes the pair.
   window_toolbars_separator_ = new QAction(window_menu);

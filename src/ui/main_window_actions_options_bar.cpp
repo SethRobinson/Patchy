@@ -2480,6 +2480,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_tip_picker_,
                     {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
                      CanvasTool::Eraser});
+  // The floating Brush Tips window hands the keys it does not use to the active canvas.
+  brush_tip_picker_->set_window_key_target([this]() -> QWidget* { return canvas_; });
   connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
           [this](const QString& id) { set_active_brush_tip(id, true); });
   connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,
@@ -2502,6 +2504,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_dynamics_button_ = new BrushDynamicsButton(toolbar);
   brush_dynamics_button_->set_preview_tip_provider(
       [this](const QString& tip_id) { return brush_tip_library().tip(tip_id); });
+  brush_dynamics_button_->set_window_key_target([this]() -> QWidget* { return canvas_; });
   add_option_widget(brush_dynamics_button_, {CanvasTool::Brush});
   connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
           [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,

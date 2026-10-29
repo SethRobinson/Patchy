@@ -14620,6 +14620,22 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
         <translation>Dynamique de forme et effets pour la forme Carré (cette session uniquement ; réinitialisé au prochain lancement)</translation>
     </message>
+    <message>
+        <source>No brush tip is active.</source>
+        <translation>Aucune pointe de pinceau n&apos;est active.</translation>
+    </message>
+    <message>
+        <source>Brush Settings</source>
+        <translation>Paramètres du pinceau</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Garder ouvert</translation>
+    </message>
+    <message>
+        <source>Open the brush settings in a window that stays open while you paint</source>
+        <translation>Ouvrir les paramètres du pinceau dans une fenêtre qui reste ouverte pendant que vous peignez</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
@@ -14968,6 +14984,26 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>%1 - %2 (%3×%4)</source>
         <translation>%1 : %2 (%3×%4)</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtrer</translation>
+    </message>
+    <message>
+        <source>Show the tips whose name or folder contains this text</source>
+        <translation>Afficher les pointes dont le nom ou le dossier contient ce texte</translation>
+    </message>
+    <message>
+        <source>Keep Open</source>
+        <translation>Garder ouvert</translation>
+    </message>
+    <message>
+        <source>Open the brush tips in a window that stays open while you paint</source>
+        <translation>Ouvrir les pointes de pinceau dans une fenêtre qui reste ouverte pendant que vous peignez</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Pointes de pinceau</translation>
     </message>
 </context>
 <context>
@@ -28377,6 +28413,34 @@ Verrouillé : %1</translation>
     <message>
         <source>Customize Layer Buttons...</source>
         <translation>Personnaliser les boutons des calques...</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>Pointes de pinceau</translation>
+    </message>
+    <message>
+        <source>Open a document to choose a brush tip.</source>
+        <translation>Ouvrez un document pour choisir une pointe de pinceau.</translation>
+    </message>
+    <message>
+        <source>Brush tips can be changed again once the open dialog closes.</source>
+        <translation>Les pointes de pinceau pourront de nouveau être changées une fois la boîte de dialogue fermée.</translation>
+    </message>
+    <message>
+        <source>The active tool has no brush tip.</source>
+        <translation>L&apos;outil actif n&apos;a pas de pointe de pinceau.</translation>
+    </message>
+    <message>
+        <source>Open a document to change the brush settings.</source>
+        <translation>Ouvrez un document pour modifier les paramètres du pinceau.</translation>
+    </message>
+    <message>
+        <source>Brush settings can be changed again once the open dialog closes.</source>
+        <translation>Les paramètres du pinceau pourront de nouveau être changés une fois la boîte de dialogue fermée.</translation>
+    </message>
+    <message>
+        <source>Brush settings apply to the Brush tool.</source>
+        <translation>Les paramètres du pinceau s&apos;appliquent à l&apos;outil Pinceau.</translation>
     </message>
 </context>
 <context>
