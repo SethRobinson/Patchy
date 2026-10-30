@@ -60,7 +60,11 @@ so the default interface is unchanged.
 
 ## Verification
 
-`tests/ui/ui_text_size_tests.cpp`. `ui_text_size_sweep_keeps_text_fitting_<en|de|fr|ru|ja>`
+`tests/ui/ui_text_size_tests.cpp`. `ui_text_size_scales_every_text_widget_once` compares the font
+pixel size of every visible text widget on the home screen, the main window and Preferences at
+80% and 125% against 100%: each must be the 100% size times the factor within a pixel, so a font
+scaled twice (application font plus sheet, or a scaled font scaled again) or left unscaled fails.
+`ui_text_size_sweep_keeps_text_fitting_<en|de|fr|ru|ja>`
 opens the home screen, the main window (every tool's options bar, every panel tab), the
 Preferences pages, the Update prompt and the dialog of every `...` menu command and every filter
 (printing, scanning, scripts, plug-ins, Free Transform and Qt's own file dialog left out) at 100%

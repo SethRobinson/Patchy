@@ -61,6 +61,7 @@
 #include <QUrl>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -198,6 +199,140 @@ void ui_text_size_preferences_field_stores_and_notifies() {
     auto* spin = dialog.findChild<QSpinBox*>(QStringLiteral("preferencesUiTextSizeSpin"));
     CHECK(spin != nullptr && spin->value() == 120);
   });
+}
+
+// ---------------------------------------------------------------------------------------
+// The scale itself (card i495-fu): every text widget's font grows by the text size once. A
+// font scaled through both the application font and a stylesheet, or a size derived from an
+// already scaled font and scaled again, would show here as more than 125%.
+
+bool shows_text(const QWidget& widget) {
+  if (const auto* label = qobject_cast<const QLabel*>(&widget)) {
+    return !label->text().trimmed().isEmpty();
+  }
+  if (const auto* button = qobject_cast<const QAbstractButton*>(&widget)) {
+    return !button->text().trimmed().isEmpty();
+  }
+  return qobject_cast<const QLineEdit*>(&widget) != nullptr ||
+         qobject_cast<const QComboBox*>(&widget) != nullptr ||
+         qobject_cast<const QTabBar*>(&widget) != nullptr ||
+         qobject_cast<const QMenuBar*>(&widget) != nullptr ||
+         qobject_cast<const QAbstractItemView*>(&widget) != nullptr;
+}
+
+// The font pixel size of every visible text widget under `root`, keyed by its place in the
+// widget tree (object names where there are some), so two runs line up widget by widget.
+void collect_text_font_sizes(QWidget& widget, const QString& path, std::map<QString, int>& out) {
+  if (!widget.isVisible()) {
+    return;
+  }
+  widget.ensurePolished();
+  if (shows_text(widget)) {
+    out[path] = QFontInfo(widget.font()).pixelSize();
+  }
+  std::map<QString, int> seen;
+  for (auto* child : widget.findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+    if (child == nullptr || child->isWindow()) {
+      continue;
+    }
+    const auto name = child->objectName().isEmpty() ? QString::fromLatin1(child->metaObject()->className())
+                                                    : child->objectName();
+    const int index = seen[name]++;
+    collect_text_font_sizes(*child, path + QLatin1Char('/') + name + QLatin1Char('#') + QString::number(index), out);
+  }
+}
+
+std::map<QString, int> text_font_sizes(QWidget& root) {
+  std::map<QString, int> sizes;
+  collect_text_font_sizes(root, root.objectName(), sizes);
+  return sizes;
+}
+
+// Each widget's size at `percent` is its 100% size times the factor, give or take the
+// whole-pixel rounding: never a second step.
+int count_off_scale_fonts(const QString& state, const std::map<QString, int>& base, const std::map<QString, int>& scaled,
+                          int percent) {
+  int compared = 0;
+  int off = 0;
+  for (const auto& [path, base_px] : base) {
+    const auto found = scaled.find(path);
+    if (found == scaled.end() || base_px <= 0) {
+      continue;
+    }
+    ++compared;
+    const double expected = base_px * percent / 100.0;
+    if (std::abs(found->second - expected) > 1.0) {
+      ++off;
+      std::cerr << state.toStdString() << ": " << path.toStdString() << " is " << found->second << " px at "
+                << percent << "%, " << base_px << " px at 100% (expected about " << expected << ")\n";
+    }
+  }
+  std::cerr << state.toStdString() << ": " << compared << " text widgets compared at " << percent << "%\n";
+  CHECK(compared >= 20);
+  return off;
+}
+
+// A few named widgets, printed so a person can read the numbers.
+void print_named_font_sizes(const QString& state, const std::map<QString, int>& base,
+                            const std::map<QString, int>& scaled, const QStringList& names) {
+  for (const auto& name : names) {
+    for (const auto& [path, base_px] : base) {
+      if (!path.contains(name)) {
+        continue;
+      }
+      const auto found = scaled.find(path);
+      std::cerr << state.toStdString() << " " << name.toStdString() << ": " << base_px << " px -> "
+                << (found == scaled.end() ? -1 : found->second) << " px\n";
+      break;
+    }
+  }
+}
+
+void ui_text_size_scales_every_text_widget_once() {
+  TextSizeScope scope;
+  constexpr int kPercents[] = {patchy::ui::kMinUiTextSizePercent, 125};
+  static_assert(patchy::ui::kMaxUiTextSizePercent >= 125);
+  struct Sizes {
+    std::map<QString, int> start;
+    std::map<QString, int> main;
+    std::map<QString, int> preferences;
+  };
+  const auto measure = [](int percent) {
+    SettingsValueRestorer restore_text_size(QStringLiteral("preferences/uiTextSizePercent"));
+    patchy::ui::set_stored_ui_text_size_percent(percent);
+    Sizes sizes;
+    {
+      patchy::ui::MainWindow empty;
+      show_window_empty(empty);
+      empty.resize(1280, 800);
+      QApplication::processEvents();
+      sizes.start = text_font_sizes(empty);
+    }
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1280, 800);
+    QApplication::processEvents();
+    sizes.main = text_font_sizes(window);
+    run_preferences_dialog(window, false, [&](QDialog& dialog) { sizes.preferences = text_font_sizes(dialog); });
+    return sizes;
+  };
+  scope.apply(100);
+  const auto base = measure(100);
+  const QStringList named{QStringLiteral("QMenuBar"), QStringLiteral("QTabBar"), QStringLiteral("layerList"),
+                          QStringLiteral("toolOptions"), QStringLiteral("QStatusBar")};
+  int off = 0;
+  for (const int percent : kPercents) {
+    scope.apply(percent);
+    const auto scaled = measure(percent);
+    off += count_off_scale_fonts(QStringLiteral("start %1%").arg(percent), base.start, scaled.start, percent);
+    off += count_off_scale_fonts(QStringLiteral("main %1%").arg(percent), base.main, scaled.main, percent);
+    off += count_off_scale_fonts(QStringLiteral("preferences %1%").arg(percent), base.preferences,
+                                 scaled.preferences, percent);
+    print_named_font_sizes(QStringLiteral("main %1%").arg(percent), base.main, scaled.main, named);
+    print_named_font_sizes(QStringLiteral("preferences %1%").arg(percent), base.preferences, scaled.preferences,
+                           {QStringLiteral("QLabel")});
+  }
+  CHECK(off == 0);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -836,6 +971,7 @@ std::vector<patchy::test::TestCase> ui_text_size_tests() {
       {"ui_text_size_setting_round_trips_and_clamps", ui_text_size_setting_round_trips_and_clamps},
       {"ui_text_size_resolves_stylesheet_font_sizes", ui_text_size_resolves_stylesheet_font_sizes},
       {"ui_text_size_preferences_field_stores_and_notifies", ui_text_size_preferences_field_stores_and_notifies},
+      {"ui_text_size_scales_every_text_widget_once", ui_text_size_scales_every_text_widget_once},
       {"ui_text_size_sweep_keeps_text_fitting_en", [] { sweep_language(QStringLiteral("en")); }},
       {"ui_text_size_sweep_keeps_text_fitting_de", [] { sweep_language(QStringLiteral("de")); }},
       {"ui_text_size_sweep_keeps_text_fitting_fr", [] { sweep_language(QStringLiteral("fr")); }},
