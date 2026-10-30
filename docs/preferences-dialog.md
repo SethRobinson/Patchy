@@ -43,7 +43,9 @@ vertical-only `preferencesTabScroll`.
   `addRow(QString(), field)`, which squeezes it. The Hotkeys panel, built on first visit,
   re-runs the minimum-width fit.
 - **Field widths.** `keep_preferences_fields_compact` runs after the dialog sheet: a combo is as
-  wide as its longest entry, at most 320 px (a longer list elides, down to 16 characters), spin
+  wide as its longest entry, at least 90 px (issue 526: "Lines"/"Dots" made a tiny box;
+  `ui_preferences_combos_keep_a_minimum_width` checks every language and captures every page in
+  six) and at most 320 px (a longer list elides, down to 16 characters), spin
   boxes stop at 160 px, one-line text fields at 360 px, and a button with the
   `preferencesTextWidthButton` property at its text. Lists (plug-in folders) still stretch. Do
   not undo it with an Expanding policy.

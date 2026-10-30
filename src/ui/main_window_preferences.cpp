@@ -360,7 +360,10 @@ QString preferences_page_list_text(const QString& title) {
 // hint) and one-line text fields at kPreferencesTextFieldMaxWidth, unless the page set a
 // smaller maximum itself. Lists (the plug-in folders) still stretch. Run after the dialog
 // sheet: its paddings are part of every size hint.
+// GitHub issue 526: no combo is narrower than kPreferencesComboMinWidth (logical pixels, so it
+// scales with the interface), however short its entries ("Lines" and "Dots").
 constexpr int kPreferencesFieldMaxWidth = 320;
+constexpr int kPreferencesComboMinWidth = 90;
 constexpr int kPreferencesComboMinimumCharacters = 16;
 constexpr int kPreferencesSpinMaxWidth = 160;
 constexpr int kPreferencesTextFieldMaxWidth = 360;
@@ -376,9 +379,12 @@ void keep_preferences_fields_compact(QWidget& pages) {
       combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
       combo->setMinimumContentsLength(kPreferencesComboMinimumCharacters);
     }
+    // An explicit minimum replaces the size hint's in the layout: keep the larger.
+    combo->setMinimumWidth(std::max(combo->minimumSizeHint().width(), kPreferencesComboMinWidth));
     combo->setMaximumWidth(combo->sizeAdjustPolicy() == QComboBox::AdjustToMinimumContentsLengthWithIcon
                                ? std::max(kPreferencesFieldMaxWidth, combo->minimumSizeHint().width())
-                               : std::max(combo->sizeHint().width(), combo->minimumSizeHint().width()));
+                               : std::max({combo->sizeHint().width(), combo->minimumSizeHint().width(),
+                                           kPreferencesComboMinWidth}));
     // The open list shows every entry whole, however compact the box (GitHub issue 489).
     fit_combo_popup_to_entries(*combo);
   }
@@ -1958,6 +1964,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     plugin_folders_list->addItem(QDir::toNativeSeparators(folder));
   }
   auto* plugin_folder_buttons = new QWidget(plugin_folders_field);
+  plugin_folder_buttons->setObjectName(QStringLiteral("preferencesPluginFolderButtons"));
   auto* plugin_folder_buttons_layout = new QHBoxLayout(plugin_folder_buttons);
   plugin_folder_buttons_layout->setContentsMargins(0, 0, 0, 0);
   auto* add_plugin_folder = new QPushButton(tr("Add Folder..."), plugin_folder_buttons);
@@ -2151,6 +2158,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataModesRow,
     QDialog#patchyPreferencesDialog QWidget#preferencesThemeButtons,
     QDialog#patchyPreferencesDialog QWidget#preferencesPluginFoldersField,
+    QDialog#patchyPreferencesDialog QWidget#preferencesPluginFolderButtons,
     QDialog#patchyPreferencesDialog QWidget#preferencesSavedMetadataCopyrightRow {
       background: transparent;
     }

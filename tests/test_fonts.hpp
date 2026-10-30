@@ -30,6 +30,7 @@ enum class TestFontRole {
   Georgia,         // Dungeon Scroll fixture heading face (Georgia-Italic + faux bold)
   BookmanOldStyle, // Dungeon Scroll fixture button face (BookmanOldStyle-Italic)
   JapaneseGothic,  // a Japanese-writing-system family (font picker preview tests)
+  ChineseUi,       // Simplified and Traditional Chinese UI families (Preferences captures)
   Wingdings,       // a symbol-writing-system family (font picker preview tests)
   TimesNewRoman,   // .af mixed-run text fixture face
   CourierNew,      // .af mixed-run text fixture face
@@ -167,6 +168,18 @@ inline QStringList test_font_candidates(TestFontRole role) {
               QStringLiteral("/run/host/fonts/opentype/noto/NotoSansCJK-Regular.ttc")};
 #else
       return {};  // macOS ships Hiragino under non-ASCII paths; tests skip with a reason
+#endif
+    case TestFontRole::ChineseUi:
+#if defined(Q_OS_WIN)
+      return {
+          QStringLiteral("C:/Windows/Fonts/msyh.ttc"),
+          QStringLiteral("C:/Windows/Fonts/msjh.ttc"),
+      };
+#elif defined(Q_OS_LINUX)
+      return {QStringLiteral("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+              QStringLiteral("/run/host/fonts/opentype/noto/NotoSansCJK-Regular.ttc")};
+#else
+      return {};
 #endif
     case TestFontRole::Wingdings:
 #if defined(Q_OS_WIN)

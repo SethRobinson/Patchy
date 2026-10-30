@@ -2611,9 +2611,10 @@ void ui_preferences_toolbar_icon_size_row_under_interface_scale() {
         CHECK(scale->width() >= scale->sizeHint().width());
         CHECK(scale->geometry().right() < presets->geometry().left());
         CHECK(std::abs(scale->geometry().center().y() - presets->geometry().center().y()) <= 1);
-        std::printf("  %s %s: dialog %d, scale row %d (hint %d), label %d (hint %d), icons %d (hint %d)\n",
+        std::printf("  %s %s: dialog %d, scale row %d (hint %d), label %d (hint %d), icons %d (hint %d), x %d/%d\n",
                     qPrintable(language.code), width_name, dialog.width(), row->width(), row->sizeHint().width(),
-                    icons_label->width(), icons_label->sizeHint().width(), icons->width(), icons->sizeHint().width());
+                    icons_label->width(), icons_label->sizeHint().width(), icons->width(), icons->sizeHint().width(),
+                    top_of(icons).x(), top_of(scale).x());
       };
       check_layout("default");
       const bool capture = language.code == QStringLiteral("en") || language.code == QStringLiteral("de") ||
@@ -2779,6 +2780,106 @@ void ui_preferences_minimum_width_fits_and_fields_stay_compact() {
     });
   }
   CHECK(manager.set_language(QStringLiteral("en"), false));
+}
+
+// GitHub issue 526: no Preferences combo is narrower than 90 px (Grid style's "Lines" and
+// "Dots" made a tiny box), at the default width and the minimum width, in every shipped
+// language; a combo that needs more keeps its own width. Every page is captured in English,
+// German, French, Russian, Japanese and Simplified Chinese for a look over the layouts.
+void ui_preferences_combos_keep_a_minimum_width() {
+  SettingsValueRestorer restore_size(QStringLiteral("preferences/dialogSize"));
+  SettingsValueRestorer restore_page(QStringLiteral("preferences/lastPage"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("preferences/dialogSize"));
+    settings.sync();
+  }
+  constexpr int kMinimumComboWidth = 90;
+  // Offscreen runs see no system fonts: without these the CJK captures show empty boxes.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::JapaneseGothic);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ChineseUi);
+  const auto expect = [](bool ok, const std::string& message) {
+    if (!ok) {
+      patchy::test::report_failure(message);
+    }
+  };
+  const auto settle = [] {
+    for (int pass = 0; pass < 6; ++pass) {
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+      QApplication::processEvents();
+    }
+  };
+  const QStringList captured_languages{QStringLiteral("en"), QStringLiteral("de"), QStringLiteral("fr"),
+                                       QStringLiteral("ru"), QStringLiteral("ja"), QStringLiteral("zh_CN")};
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  int checked = 0;
+  bool saw_grid_style = false;
+  for (const auto& language : manager.languages()) {
+    CHECK(manager.set_language(language.code, false));
+    QApplication::processEvents();
+    const auto lang = language.code.toStdString();
+    run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+      auto* list = preferences_page_list(dialog);
+      CHECK(list != nullptr);
+      if (list == nullptr) {
+        return;
+      }
+      const auto default_size = dialog.size();
+      for (const auto* width_name : {"default", "minimum"}) {
+        if (std::string(width_name) == "minimum") {
+          dialog.resize(dialog.minimumWidth(), default_size.height());
+        }
+        settle();
+        for (int row = 0; row < list->count(); ++row) {
+          list->setCurrentRow(row);
+          settle();
+          auto* page = preferences_current_page(dialog);
+          if (page == nullptr) {
+            continue;
+          }
+          const auto where = lang + " " + width_name + " / " + list->item(row)->text().toStdString() + " / ";
+          for (auto* combo : page->findChildren<QComboBox*>()) {
+            if (!combo->isVisibleTo(page)) {
+              continue;
+            }
+            ++checked;
+            saw_grid_style = saw_grid_style || combo->objectName() == QStringLiteral("preferencesGridStyleCombo");
+            expect(combo->width() >= kMinimumComboWidth,
+                   where + combo->objectName().toStdString() + " is " + std::to_string(combo->width()) + " px wide");
+            expect(combo->width() >= combo->minimumSizeHint().width(),
+                   where + combo->objectName().toStdString() + " is squeezed: " + std::to_string(combo->width()) +
+                       " px, needs " + std::to_string(combo->minimumSizeHint().width()));
+          }
+          if (std::string(width_name) == "default" && captured_languages.contains(language.code)) {
+            const auto key = list->item(row)->data(Qt::UserRole).toString().toStdString();
+            const auto shot =
+                capture_widget_artifact("preferences_page_" + std::to_string(row) + "_" + key + "_" + lang, dialog);
+            // The plug-in folder buttons' row is transparent: right of Remove it matches the
+            // panel beside the row, not the global QWidget background (a dark band before).
+            if (auto* buttons = page->findChild<QWidget*>(QStringLiteral("preferencesPluginFolderButtons"));
+                buttons != nullptr && buttons->isVisibleTo(page) && !shot.isNull()) {
+              const auto inside = buttons->mapTo(&dialog, QPoint(buttons->width() - 4, buttons->height() / 2));
+              const auto beside = buttons->mapTo(&dialog, QPoint(-4, buttons->height() / 2));
+              expect(shot.pixelColor(inside) == shot.pixelColor(beside),
+                     where + "the plug-in folder buttons' row has its own background");
+            }
+            // The whole page, the part below the fold included.
+            if (auto* scroll = page->findChild<QScrollArea*>(); scroll != nullptr && scroll->widget() != nullptr) {
+              (void)capture_widget_artifact(
+                  "preferences_page_content_" + std::to_string(row) + "_" + key + "_" + lang, *scroll->widget());
+            }
+          }
+        }
+      }
+      dialog.resize(default_size);
+      settle();
+    });
+  }
+  CHECK(manager.set_language(QStringLiteral("en"), false));
+  CHECK(saw_grid_style);
+  CHECK(checked > 0);
 }
 
 // GitHub issue 489: an open combo list shows every entry whole. Every combo on every
@@ -4125,6 +4226,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_preferences_combo_lists_fit_their_entries", ui_preferences_combo_lists_fit_their_entries},
       {"ui_preferences_minimum_width_fits_and_fields_stay_compact",
        ui_preferences_minimum_width_fits_and_fields_stay_compact},
+      {"ui_preferences_combos_keep_a_minimum_width", ui_preferences_combos_keep_a_minimum_width},
       {"ui_update_check_interval_gates_the_startup_check", ui_update_check_interval_gates_the_startup_check},
       {"ui_update_startup_check_honors_stored_interval", ui_update_startup_check_honors_stored_interval},
       {"ui_update_preference_persists_check_interval", ui_update_preference_persists_check_interval},
