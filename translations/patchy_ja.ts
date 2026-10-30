@@ -28372,6 +28372,114 @@ Locked: %1</source>
         <source>Show Outline</source>
         <translation>輪郭を表示</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>描画モード: 通常</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>描画モード: ディザ合成</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>描画モード: 比較(暗)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>描画モード: 乗算</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>描画モード: 焼き込みカラー</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>描画モード: 焼き込み(リニア)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>描画モード: 比較(明)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>描画モード: 画面</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>描画モード: 覆い焼きカラー</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>描画モード: 覆い焼き (リニア) - 加算</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>描画モード: オーバーレイ</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>描画モード: ソフトライト</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>描画モード: ハードライト</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>描画モード: ビビッドライト</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>描画モード: リニアライト</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>描画モード: ピンライト</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>描画モード: ハードミックス</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>描画モード: 差の絶対値</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>描画モード: 除外</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>描画モード: 色相</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>描画モード: 彩度</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>描画モード: 色</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>描画モード: 輝度</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>ブラシを柔らかく</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>ブラシを硬く</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>ブラシの硬さ: %1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>レイヤーの不透明度: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

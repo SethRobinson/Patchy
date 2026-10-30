@@ -4410,6 +4410,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   layer_opacity_idle_timer_->setSingleShot(true);
   layer_opacity_idle_timer_->setInterval(kLayerOpacityIdleFinishDelayMs);
   connect(layer_opacity_idle_timer_, &QTimer::timeout, this, [this] { finish_pending_layer_opacity_edit(); });
+  // Outlasts the canvas's two-digit window (800 ms), so "0" then "5" stays one undo entry.
+  layer_opacity_digit_finish_timer_ = new QTimer(this);
+  layer_opacity_digit_finish_timer_->setSingleShot(true);
+  layer_opacity_digit_finish_timer_->setInterval(1000);
+  connect(layer_opacity_digit_finish_timer_, &QTimer::timeout, this, [this] { finish_pending_layer_opacity_edit(); });
   layer_fill_opacity_apply_timer_ = new QTimer(this);
   layer_fill_opacity_apply_timer_->setSingleShot(true);
   layer_fill_opacity_apply_timer_->setInterval(kLayerOpacityApplyDelayMs);
@@ -5121,6 +5126,14 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         key_event->accept();
         return true;
       }
+#if defined(Q_OS_MACOS)
+      // Option(+Shift)+letter types accented letters and symbols on a Mac, so it stays text
+      // here rather than a Shift+Option blend mode key (#531).
+      if (modifiers == Qt::AltModifier && !key_event->text().isEmpty() && key_event->text().front().isPrint()) {
+        key_event->accept();
+        return true;
+      }
+#endif
     }
   }
 
@@ -6061,6 +6074,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin")) != nullptr
           ? findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"))->value()
           : 0);
+  canvas->set_layer_opacity_digit_callback([this, canvas](int percent) {
+    if (canvas == canvas_) {
+      set_layer_opacity_from_digit_keys(percent);
+    }
+  });
   canvas->set_active_layer_changed_callback([this, canvas](LayerId layer_id) {
     if (canvas != canvas_) {
       return;

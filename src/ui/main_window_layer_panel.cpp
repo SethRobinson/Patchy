@@ -4845,6 +4845,9 @@ void MainWindow::refresh_layer_controls() {
     if (layer_prevent_auto_nesting_action_ != nullptr) {
       layer_prevent_auto_nesting_action_->setChecked(false);
     }
+    if (layer_lock_transparent_pixels_action_ != nullptr) {
+      layer_lock_transparent_pixels_action_->setChecked(false);
+    }
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(false);
     }
@@ -4988,6 +4991,9 @@ void MainWindow::refresh_layer_controls() {
   set_layer_lock_control_state(lock_all_button_, all_lock, any_lock && !all_lock, tr("Lock all"));
   if (layer_prevent_auto_nesting_action_ != nullptr) {
     layer_prevent_auto_nesting_action_->setChecked(lock_state_for_flag(kLayerLockArtboardAutonest).first);
+  }
+  if (layer_lock_transparent_pixels_action_ != nullptr) {
+    layer_lock_transparent_pixels_action_->setChecked(transparent_all);
   }
   const auto edit_allowed = !preview_dialog_edit_locked();
   if (layer_blending_options_action_ != nullptr) {

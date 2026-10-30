@@ -28454,6 +28454,114 @@ Bloqueado: %1</translation>
         <source>Show Outline</source>
         <translation>Mostrar contorno</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>Modo de mesclagem: Normal</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>Modo de mesclagem: Dissolver</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>Modo de mesclagem: Escurecer</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>Modo de mesclagem: Multiplicação</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>Modo de mesclagem: Superexposição de cores</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>Modo de mesclagem: Superexposição linear</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>Modo de mesclagem: Clarear</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>Modo de mesclagem: Tela</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>Modo de mesclagem: Subexposição de cores</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>Modo de mesclagem: Subexposição linear (Adicionar)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>Modo de mesclagem: Sobrepor</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>Modo de mesclagem: Luz indireta</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>Modo de mesclagem: Luz direta</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>Modo de mesclagem: Luz brilhante</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>Modo de mesclagem: Luz linear</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>Modo de mesclagem: Luz do pino</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>Modo de mesclagem: Mistura sólida</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>Modo de mesclagem: Diferença</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>Modo de mesclagem: Exclusão</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>Modo de mesclagem: Matiz</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>Modo de mesclagem: Saturação</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>Modo de mesclagem: Cor</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>Modo de mesclagem: Luminosidade</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>Pincel mais suave</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>Pincel mais duro</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>Dureza do pincel: %1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>Opacidade da camada: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

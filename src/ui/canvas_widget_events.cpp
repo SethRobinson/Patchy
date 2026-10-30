@@ -134,6 +134,43 @@ bool tool_supports_opacity_digit_keys(CanvasTool tool) noexcept {
   }
 }
 
+// Tools without an opacity, strength or exposure of their own: there the bare digit keys
+// set the selected layers' opacity, as in Photoshop (GitHub issue 527). The Fill, toning,
+// focus, Mixer and Spot Healing tools keep ignoring them (their own amounts may take the
+// keys one day), and the crop tools stay out while a crop box may be pending.
+bool tool_sets_layer_opacity_with_digit_keys(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Move:
+    case CanvasTool::Artboard:
+    case CanvasTool::Marquee:
+    case CanvasTool::EllipticalMarquee:
+    case CanvasTool::Lasso:
+    case CanvasTool::PolygonLasso:
+    case CanvasTool::MagneticLasso:
+    case CanvasTool::MagicWand:
+    case CanvasTool::QuickSelect:
+    case CanvasTool::ObjectSelect:
+    case CanvasTool::Eyedropper:
+    case CanvasTool::Ruler:
+    case CanvasTool::Text:
+    case CanvasTool::Pan:
+    case CanvasTool::Zoom:
+    case CanvasTool::Pen:
+    case CanvasTool::AddAnchor:
+    case CanvasTool::DeleteAnchor:
+    case CanvasTool::ConvertPoint:
+    case CanvasTool::PathSelect:
+    case CanvasTool::DirectSelect:
+    case CanvasTool::Polygon:
+    case CanvasTool::CustomShape:
+    case CanvasTool::PatchTool:
+    case CanvasTool::RedEye:
+      return true;
+    default:
+      return false;
+  }
+}
+
 constexpr int kAirbrushTimerIntervalMs = 50;
 
 // The rects one move event's stroke samples wrote, as a few bounding boxes: a
@@ -4527,8 +4564,15 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   // while Airbrush is on, when bare digits set Flow and Shift+digits set
   // Opacity. Pattern Stamp uses bare digits for Opacity and Shift+digits for
   // Flow. Other painting tools keep the historical bare-digit Opacity path.
-  if (auto_repeat || key < Qt::Key_0 || key > Qt::Key_9 ||
-      !tool_supports_opacity_digit_keys(tool_)) {
+  if (auto_repeat || key < Qt::Key_0 || key > Qt::Key_9) {
+    return false;
+  }
+  // Tools with no opacity of their own set the selected layers' instead (GitHub issue 527),
+  // never in the middle of a drag or a transform, whose commit owns the next history entry.
+  const bool targets_layer = !tool_supports_opacity_digit_keys(tool_);
+  if (targets_layer &&
+      (!tool_sets_layer_opacity_with_digit_keys(tool_) || !layer_opacity_digit_callback_ ||
+       pointer_gesture_active() || free_transform_active() || warp_transform_active() || path_transform_active())) {
     return false;
   }
   const auto semantic_modifiers = modifiers & ~Qt::KeypadModifier;
@@ -4540,11 +4584,13 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   const auto targets_flow =
       (tool_ == CanvasTool::Brush && (brush_build_up_ ? !shift : shift)) ||
       (tool_ == CanvasTool::PatternStamp && shift);
-  if (opacity_pending_digit_ >= 0 && targets_flow != opacity_digit_targets_flow_) {
+  if (opacity_pending_digit_ >= 0 &&
+      (targets_flow != opacity_digit_targets_flow_ || targets_layer != opacity_digit_targets_layer_)) {
     opacity_pending_digit_ = -1;
     opacity_digit_timer_.invalidate();
   }
   opacity_digit_targets_flow_ = targets_flow;
+  opacity_digit_targets_layer_ = targets_layer;
   constexpr qint64 kDigitPairWindowMs = 800;
   const auto digit = key - Qt::Key_0;
   int value = 0;
@@ -4562,6 +4608,10 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
     opacity_digit_timer_.start();
   }
   value = std::clamp(value, 1, 100);
+  if (targets_layer) {
+    layer_opacity_digit_callback_(value);
+    return true;
+  }
   if (targets_flow) {
     set_brush_flow(value);
     if (status_callback_) {

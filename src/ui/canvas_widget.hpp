@@ -1445,6 +1445,9 @@ public:
   // of the gesture reaches it.
   bool begin_text_layer_move(LayerId id, QPoint widget_point, std::function<void()> finished = {});
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
+  // Digit keys with a tool that has no opacity of its own (Move, the selection and path
+  // tools; GitHub issue 527) ask the host to set the selected layers' opacity to `percent`.
+  void set_layer_opacity_digit_callback(std::function<void(int)> callback);
   // The canvas asks the host (the layer panel is the selection's source of
   // truth) to make exactly these layers selected with active_id current; the
   // host pushes the result back through set_selected_layer_ids. Move-tool
@@ -3332,6 +3335,7 @@ private:
   QElapsedTimer opacity_digit_timer_{};
   int opacity_pending_digit_{-1};
   bool opacity_digit_targets_flow_{false};
+  bool opacity_digit_targets_layer_{false};
   bool drawing_shape_{false};
   bool dragging_text_rect_{false};
   bool dragging_text_entry_selection_{false};
@@ -4167,6 +4171,7 @@ private:
   std::function<void(QPoint, QRect)> text_requested_callback_;
   std::function<bool(QPointF, bool)> text_entry_selection_drag_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
+  std::function<void(int)> layer_opacity_digit_callback_;
   std::function<void(std::vector<LayerId>, LayerId)> layer_selection_requested_callback_;
   std::function<bool(std::vector<LayerId>)> move_duplicate_requested_callback_;
   std::function<void(QString)> status_callback_;

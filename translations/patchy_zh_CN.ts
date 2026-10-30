@@ -28372,6 +28372,114 @@ Locked: %1</source>
         <source>Show Outline</source>
         <translation>显示轮廓</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>混合模式：正常</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>混合模式：溶解</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>混合模式：变暗</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>混合模式：正片叠底</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>混合模式：颜色加深</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>混合模式：线性加深</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>混合模式：变亮</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>混合模式：屏幕</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>混合模式：颜色减淡</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>混合模式：线性减淡(添加)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>混合模式：叠加</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>混合模式：柔光</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>混合模式：强光</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>混合模式：亮光</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>混合模式：线性光</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>混合模式：点光</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>混合模式：实色混合</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>混合模式：差值</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>混合模式：排除</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>混合模式：色相</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>混合模式：饱和度</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>混合模式：颜色</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>混合模式：明度</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>画笔更柔和</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>画笔更硬</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>画笔硬度：%1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>图层不透明度：%1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

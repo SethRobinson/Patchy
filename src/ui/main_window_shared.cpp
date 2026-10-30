@@ -673,6 +673,37 @@ int proportional_brush_step(int size, int direction, bool coarse) {
   return std::max(min_step, static_cast<int>(std::lround(basis)));
 }
 
+int stepped_brush_hardness(int hardness, int direction) {
+  constexpr int kStop = 25;
+  const int clamped = std::clamp(hardness, 0, 100);
+  const int stepped = direction < 0 ? ((clamped + kStop - 1) / kStop - 1) * kStop : (clamped / kStop + 1) * kStop;
+  return std::clamp(stepped, 0, 100);
+}
+
+bool tool_shows_brush_softness(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::MixerBrush:
+    case CanvasTool::PatternStamp:
+    case CanvasTool::Clone:
+    case CanvasTool::Healing:
+    case CanvasTool::SpotHealing:
+    case CanvasTool::Smudge:
+    case CanvasTool::Dodge:
+    case CanvasTool::Burn:
+    case CanvasTool::Sponge:
+    case CanvasTool::BlurBrush:
+    case CanvasTool::SharpenBrush:
+    case CanvasTool::Eraser:
+    case CanvasTool::Line:
+    case CanvasTool::Rectangle:
+    case CanvasTool::Ellipse:
+      return true;
+    default:
+      return false;
+  }
+}
+
 QString default_startup_brush_preset_id() {
   // 25 px hard round, the startup brush since before issue 482 renamed its preset.
   return QStringLiteral("hard_round");

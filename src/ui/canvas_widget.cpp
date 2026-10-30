@@ -1615,6 +1615,10 @@ void CanvasWidget::set_active_layer_changed_callback(std::function<void(LayerId)
   active_layer_changed_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_layer_opacity_digit_callback(std::function<void(int)> callback) {
+  layer_opacity_digit_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_layer_selection_requested_callback(
     std::function<void(std::vector<LayerId>, LayerId)> callback) {
   layer_selection_requested_callback_ = std::move(callback);

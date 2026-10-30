@@ -28454,6 +28454,114 @@ Fixiert: %1</translation>
         <source>Show Outline</source>
         <translation>Umriss anzeigen</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>Füllmethode: Normal</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>Füllmethode: Sprenkeln</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>Füllmethode: Abdunkeln</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>Füllmethode: Multiplizieren</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>Füllmethode: Farbig nachbelichten</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>Füllmethode: Linear nachbelichten</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>Füllmethode: Aufhellen</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>Füllmethode: Bildschirm</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>Füllmethode: Farbig abwedeln</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>Füllmethode: Linear abwedeln (Addieren)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>Füllmethode: Ineinanderkopieren</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>Füllmethode: Weiches Licht</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>Füllmethode: Hartes Licht</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>Füllmethode: Strahlendes Licht</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>Füllmethode: Lineares Licht</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>Füllmethode: Lichtpunkt</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>Füllmethode: Hart mischen</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>Füllmethode: Differenz</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>Füllmethode: Ausschluss</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>Füllmethode: Farbton</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>Füllmethode: Sättigung</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>Füllmethode: Farbe</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>Füllmethode: Luminanz</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>Pinsel weicher</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>Pinsel härter</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>Pinselhärte: %1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>Ebenendeckkraft: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
