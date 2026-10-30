@@ -413,6 +413,14 @@ void drag(QWidget& widget, QPoint from, QPoint to, Qt::KeyboardModifiers modifie
 void drag_document_path(patchy::ui::CanvasWidget& canvas, const std::vector<QPoint>& document_path,
                         int steps_per_segment, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
 
+// The widget point at a document pixel's center. A brush stroke point is a pixel index (the dab
+// centers on that pixel), so a pointer here passes exactly the integer point a script names.
+QPoint widget_center_of_document_pixel(const patchy::ui::CanvasWidget& canvas, QPoint document_point);
+
+// drag_document_path through pixel centers: native strokes that must match a script's points.
+void drag_document_pixel_centers(patchy::ui::CanvasWidget& canvas, const std::vector<QPoint>& document_path,
+                                 int steps_per_segment, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+
 void save_image_artifact(const std::string& name, const QImage& image);
 
 void send_double_click(QWidget& widget, QPoint position, Qt::KeyboardModifiers modifiers = Qt::NoModifier);

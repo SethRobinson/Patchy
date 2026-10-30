@@ -1895,6 +1895,11 @@ private:
   void apply_zoom_cursor(bool zoom_out);
   [[nodiscard]] QPoint document_position(const QPoint& widget_position) const;
   [[nodiscard]] QPointF document_position_f(QPointF widget_position) const;
+  // The fractional stroke point under a widget point, and back. Stroke points are pixel
+  // indices: the core brushes center a dab at index n on pixel n's center (n + 0.5 in
+  // document coordinates), so a drag dab sits on the pointer like the click dab.
+  [[nodiscard]] QPointF stroke_position_f(QPointF widget_position) const;
+  [[nodiscard]] QPointF widget_position_for_stroke_point(QPointF stroke_point) const;
   [[nodiscard]] QPoint widget_position(const QPoint& document_position) const;
   [[nodiscard]] QPoint snapped_document_point(QPoint point) const;
   // Layers a pending Free Transform session owns: their pre-session edges are
@@ -2133,6 +2138,7 @@ private:
   void begin_mixer_brush_stroke();
   [[nodiscard]] EditColor sample_mixer_pickup(double x, double y, int brush_size) const;
   [[nodiscard]] EffectiveBrushInput effective_brush_input() const noexcept;
+  [[nodiscard]] patchy::BrushShape dab_stroke_brush_shape() const noexcept;
   [[nodiscard]] EditOptions current_brush_edit_options(const EffectiveBrushInput& brush) const;
   [[nodiscard]] QRect draw_brush_segment(QPointF from, QPointF to, bool erase,
                                          bool stamp_endpoint = false);

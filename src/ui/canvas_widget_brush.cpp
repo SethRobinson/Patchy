@@ -1092,8 +1092,8 @@ QRect CanvasWidget::stroke_leash_overlay_rect() const {
   }
   const auto raw = stroke_stabilizer_.raw();
   const auto output = stroke_stabilizer_.output();
-  const auto raw_widget = widget_position_f(QPointF(raw.x, raw.y));
-  const auto output_widget = widget_position_f(QPointF(output.x, output.y));
+  const auto raw_widget = widget_position_for_stroke_point(QPointF(raw.x, raw.y));
+  const auto output_widget = widget_position_for_stroke_point(QPointF(output.x, output.y));
   const auto radius = stroke_stabilizer_leash_radius() * zoom_;
   auto bounds = QRectF(raw_widget, output_widget).normalized();
   bounds = bounds.united(
@@ -1119,8 +1119,8 @@ void CanvasWidget::draw_stroke_leash_overlay(QPainter& painter) const {
   }
   const auto raw = stroke_stabilizer_.raw();
   const auto output = stroke_stabilizer_.output();
-  const auto raw_widget = widget_position_f(QPointF(raw.x, raw.y));
-  const auto output_widget = widget_position_f(QPointF(output.x, output.y));
+  const auto raw_widget = widget_position_for_stroke_point(QPointF(raw.x, raw.y));
+  const auto output_widget = widget_position_for_stroke_point(QPointF(output.x, output.y));
   const auto radius = stroke_stabilizer_leash_radius() * zoom_;
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
@@ -1166,17 +1166,17 @@ std::optional<QLineF> CanvasWidget::stroke_connect_preview_line() const {
   // centered on the pixel's center (the core brushes measure coverage from the index), so each end
   // maps through that center, not the pixel's top-left corner (GitHub issue 505). The 1 px brush and
   // the other tools step whole pixels from the pixel under the pointer; larger Brush, Mixer, Pattern
-  // Stamp and Eraser strokes keep the pointer's fractional position (mousePressEvent's connect_from).
+  // Stamp and Eraser strokes keep the pointer's fractional stroke point (stroke_position_f).
   const auto tool = effective_tool_for_input();
   const auto fractional = (tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush ||
                            tool == CanvasTool::PatternStamp || tool == CanvasTool::Eraser) &&
                           effective_brush_input().size != 1;
   const auto pointer = stroke_connect_preview_pointer_;
   const auto from = fractional ? *last_stroke_end_document_ : QPointF(last_stroke_end_document_->toPoint());
-  const auto to = fractional ? document_position_f(QPointF(pointer)) : QPointF(document_position(pointer));
+  const auto to = fractional ? stroke_position_f(QPointF(pointer)) : QPointF(document_position(pointer));
   // Ends snap to widget pixel centers so the 1 px line stays crisp on a pixel row.
   const auto view_point = [this](QPointF stroke_point) {
-    const auto widget = widget_position_f(stroke_point + QPointF(0.5, 0.5));
+    const auto widget = widget_position_for_stroke_point(stroke_point);
     return QPointF(std::floor(widget.x()) + 0.5, std::floor(widget.y()) + 0.5);
   };
   return QLineF(view_point(from), view_point(to));
@@ -1368,6 +1368,7 @@ QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool 
   }
 
   auto options = current_brush_edit_options(brush);
+  options.brush_shape = dab_stroke_brush_shape();
   install_brush_stroke_compositor(options, erase);
 
   const auto spacing = brush_stamp_spacing(brush);
@@ -2160,6 +2161,13 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
   return brush;
 }
 
+// The dab-spaced path (Soft, Flow, Build-up, Mixer; never a bitmap tip) stamps the procedural
+// footprint, so it takes the Square the way apply_brush_tip_to_options gives it to the other
+// paths: on the Brush and Eraser only (docs/brushes.md).
+patchy::BrushShape CanvasWidget::dab_stroke_brush_shape() const noexcept {
+  return tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser ? brush_shape_ : patchy::BrushShape::Round;
+}
+
 EditOptions CanvasWidget::current_brush_edit_options(const EffectiveBrushInput& brush) const {
   const auto opacity = tool_ == CanvasTool::MixerBrush ? 100 : brush.opacity;
   return edit_options(primary_color_, secondary_color_, brush.size, opacity, brush.softness, fill_shapes_,
@@ -2258,6 +2266,7 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   const auto brush = effective_brush_input();
   auto options = current_brush_edit_options(brush);
   if (brush_uses_dab_stroke(brush, erase)) {
+    options.brush_shape = dab_stroke_brush_shape();
     install_brush_stroke_compositor(options, erase);
     const auto point_f = QPointF(point);
     const auto dirty = draw_brush_dab(point_f, erase, options);
@@ -3182,8 +3191,11 @@ void CanvasWidget::draw_brush_dab_overlay(QPainter& painter) const {
     const auto extent = 2 * half + 1;
     QImage image(extent, extent, QImage::Format_ARGB32_Premultiplied);
     // Below 100% each screen pixel averages four samples, so a hard edge does not stair-step.
+    // Each sample reads the document pixel it falls in, the coverage the paint writes there, so
+    // a dab of a pixel or two still shows as the fraction of the screen pixel it paints.
     const bool supersample = scale < 1.0 && extent <= 1025;
     constexpr std::array<double, 2> kSubOffsets = {-0.25, 0.25};
+    const auto pixel_offset = [scale](double image_offset) { return std::floor(image_offset / scale + 0.5); };
     for (int y = 0; y < extent; ++y) {
       auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
       for (int x = 0; x < extent; ++x) {
@@ -3191,7 +3203,8 @@ void CanvasWidget::draw_brush_dab_overlay(QPainter& painter) const {
         if (supersample) {
           for (const auto sub_y : kSubOffsets) {
             for (const auto sub_x : kSubOffsets) {
-              coverage += patchy::brush_dab_coverage((x - half + sub_x) / scale, (y - half + sub_y) / scale, options);
+              coverage += patchy::brush_dab_coverage(pixel_offset(x - half + sub_x), pixel_offset(y - half + sub_y),
+                                                     options);
             }
           }
           coverage /= 4.0F;

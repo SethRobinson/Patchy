@@ -511,14 +511,14 @@ void drag(QWidget& widget, QPoint from, QPoint to, Qt::KeyboardModifiers modifie
   send_mouse(widget, QEvent::MouseButtonRelease, to, button, Qt::NoButton, modifiers);
 }
 
-void drag_document_path(patchy::ui::CanvasWidget& canvas, const std::vector<QPoint>& document_path,
-                        int steps_per_segment, Qt::KeyboardModifiers modifiers) {
+namespace {
+
+void drag_document_path_through(patchy::ui::CanvasWidget& canvas, const std::vector<QPoint>& document_path,
+                                int steps_per_segment, Qt::KeyboardModifiers modifiers,
+                                const std::function<QPoint(QPoint)>& widget_point) {
   if (document_path.size() < 2 || steps_per_segment < 1) {
     return;
   }
-  const auto widget_point = [&canvas](QPoint document_point) {
-    return canvas.widget_position_for_document_point(document_point);
-  };
   send_mouse(canvas, QEvent::MouseButtonPress, widget_point(document_path.front()), Qt::LeftButton,
              Qt::LeftButton, modifiers);
   for (std::size_t segment = 0; segment + 1 < document_path.size(); ++segment) {
@@ -533,6 +533,26 @@ void drag_document_path(patchy::ui::CanvasWidget& canvas, const std::vector<QPoi
   }
   send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(document_path.back()), Qt::LeftButton,
              Qt::NoButton, modifiers);
+}
+
+}  // namespace
+
+void drag_document_path(patchy::ui::CanvasWidget& canvas, const std::vector<QPoint>& document_path,
+                        int steps_per_segment, Qt::KeyboardModifiers modifiers) {
+  drag_document_path_through(canvas, document_path, steps_per_segment, modifiers, [&canvas](QPoint point) {
+    return canvas.widget_position_for_document_point(point);
+  });
+}
+
+QPoint widget_center_of_document_pixel(const patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  return canvas.widget_position_f(QPointF(document_point) + QPointF(0.5, 0.5)).toPoint();
+}
+
+void drag_document_pixel_centers(patchy::ui::CanvasWidget& canvas, const std::vector<QPoint>& document_path,
+                                 int steps_per_segment, Qt::KeyboardModifiers modifiers) {
+  drag_document_path_through(canvas, document_path, steps_per_segment, modifiers, [&canvas](QPoint point) {
+    return widget_center_of_document_pixel(canvas, point);
+  });
 }
 
 void save_image_artifact(const std::string& name, const QImage& image) {
