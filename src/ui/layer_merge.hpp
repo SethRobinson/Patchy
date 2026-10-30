@@ -76,8 +76,12 @@ struct LayerMergePlan {
 [[nodiscard]] Document selected_document_for_merge_copy(const Document& document, const std::vector<LayerId>& ids);
 // Merge Visible in place (docs/layer-merging.md, "Merge Visible"). A layer draws when it and
 // every ancestor are visible and it is not clipped to a hidden base.
-// Layers other than groups that draw; Merge Visible needs two, like Photoshop.
+// Layers other than groups that draw.
 [[nodiscard]] std::size_t merge_visible_layer_count(const Document& document);
+// Whether Merge Visible changes anything: two layers that draw, or one that is not already
+// a plain Normal, 100%, unclipped pixel layer with no mask, style or Smart Filters, or that
+// sits in a visible group (GitHub issue 519: one masked layer bakes its mask).
+[[nodiscard]] bool merge_visible_available(const Document& document);
 // The layer whose id, name and stack slot the merged result takes: a visible Background,
 // else the active layer when it draws, else the topmost layer that draws (0 when none does).
 [[nodiscard]] LayerId merge_visible_target(const Document& document);

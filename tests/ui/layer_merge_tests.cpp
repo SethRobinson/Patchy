@@ -1826,6 +1826,144 @@ void ui_merge_visible_menu_placement_and_captures() {
   capture_window("issue294_after_dark", "issue294_after_light");
 }
 
+// GitHub issue 519: Merge Visible works with one layer that draws when the merge applies
+// something (a mask, style, text, shape, opacity, blending or a visible group); a single plain
+// pixel layer keeps it off. The masked layer becomes one plain layer with the mask in its
+// alpha, the same id and name, in one undo step that brings the mask back.
+void ui_merge_visible_single_layer_applies_mask_and_undoes() {
+  const auto opaque_layer = [](Document& doc, const char* name, RgbColor color) {
+    PixelBuffer pixels(doc.width(), doc.height(), PixelFormat::rgba8());
+    for (int y = 0; y < doc.height(); ++y) {
+      for (int x = 0; x < doc.width(); ++x) {
+        auto* p = pixels.pixel(x, y);
+        p[0] = color.red; p[1] = color.green; p[2] = color.blue; p[3] = 255;
+      }
+    }
+    return Layer(doc.allocate_layer_id(), name, std::move(pixels));
+  };
+  // The enable rule, one layer at a time.
+  {
+    Document plain(24, 20, PixelFormat::rgba8());
+    plain.add_layer(opaque_layer(plain, "Plain", {200, 40, 40}));
+    CHECK(merge_visible_layer_count(plain) == 1U);
+    CHECK(!merge_visible_available(plain));
+    auto hidden = pixel_layer(plain, 2, 2, {0, 0, 255});
+    hidden.set_visible(false);
+    plain.add_layer(std::move(hidden));
+    CHECK(!merge_visible_available(plain));  // a hidden layer adds nothing to merge
+    const auto variant = [&](const std::function<void(Layer&)>& change) {
+      Document doc = plain;
+      change(*doc.find_layer(std::as_const(doc).layers().front().id()));
+      return merge_visible_available(doc);
+    };
+    CHECK(variant([](Layer& layer) {
+      LayerMask mask;
+      mask.bounds = layer.bounds();
+      mask.pixels = PixelBuffer(layer.bounds().width, layer.bounds().height, PixelFormat::gray8());
+      layer.mask() = std::move(mask);
+    }));
+    CHECK(variant([](Layer& layer) {
+      LayerDropShadow shadow;
+      shadow.enabled = true;
+      layer.layer_style().drop_shadows = {shadow};
+    }));
+    CHECK(variant([](Layer& layer) { layer.set_opacity(0.5F); }));
+    CHECK(variant([](Layer& layer) { layer.set_fill_opacity(0.5F); }));
+    CHECK(variant([](Layer& layer) { layer.set_blend_mode(BlendMode::Multiply); }));
+    Document text = plain;
+    text.layers().front() = Layer(std::as_const(text).layers().front().id(), "Text", LayerKind::Text);
+    CHECK(merge_visible_available(text));
+    Document shape = plain;
+    shape.layers().front() = named(vector_layer(shape, rectangle(2, 2, 10, 8)), "Shape");
+    CHECK(merge_visible_available(shape));
+    Document grouped(24, 20, PixelFormat::rgba8());
+    Layer group(grouped.allocate_layer_id(), "Group", LayerKind::Group);
+    group.add_child(opaque_layer(grouped, "Inside", {20, 150, 90}));
+    grouped.add_layer(std::move(group));
+    CHECK(merge_visible_available(grouped));  // the visible group dissolves
+    Document background(24, 20, PixelFormat::rgb8());
+    PixelBuffer white(24, 20, PixelFormat::rgb8());
+    white.clear(255);
+    auto& back = background.add_pixel_layer("Background", std::move(white));
+    set_layer_locks_position(back, true);
+    set_layer_locks_transparent_pixels(back, true);
+    CHECK(!merge_visible_available(background));
+  }
+
+  MainWindow window;
+  show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = Document(160, 120, PixelFormat::rgba8());
+  auto photo = opaque_layer(doc, "Photo", {220, 90, 40});
+  // A transparent PNG opened with its alpha as a mask: a soft ellipse, clear outside.
+  LayerMask mask;
+  mask.bounds = photo.bounds();
+  mask.pixels = PixelBuffer(160, 120, PixelFormat::gray8());
+  mask.default_color = 0;
+  for (int y = 0; y < 120; ++y) {
+    for (int x = 0; x < 160; ++x) {
+      const double dx = (x - 80) / 60.0;
+      const double dy = (y - 60) / 42.0;
+      const double d = std::sqrt(dx * dx + dy * dy);
+      mask.pixels.pixel(x, y)[0] = static_cast<std::uint8_t>(std::clamp((1.0 - d) * 4.0, 0.0, 1.0) * 255.0);
+    }
+  }
+  photo.mask() = std::move(mask);
+  photo.set_color_label(kLayerColorBlue);
+  const auto photo_id = photo.id();
+  doc.add_layer(std::move(photo));
+  doc.set_active_layer(photo_id);
+  const Document original = doc;
+  const auto expected = qimage_from_document(original, true);
+  auto* canvas = require_canvas(window);
+  canvas->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  auto* action = require_action(window, "layerMergeVisibleLayersAction");
+  CHECK(action->isEnabled());
+  auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu"));
+  CHECK(layer_menu != nullptr);
+  for (const auto scheme : {ColorSchemePreference::Dark, ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    layer_menu->popup(window.mapToGlobal(QPoint(120, 40)));
+    QApplication::processEvents();
+    CHECK(action->isEnabled());  // the menu's aboutToShow refresh keeps it on
+    save_widget_artifact(scheme == ColorSchemePreference::Dark ? "issue519_layer_menu_dark" : "issue519_layer_menu_light",
+                         *layer_menu);
+    layer_menu->hide();
+    QApplication::processEvents();
+    save_widget_artifact(scheme == ColorSchemePreference::Dark ? "issue519_before_dark" : "issue519_before_light", window);
+  }
+  const auto history = MainWindowTestAccess::active_session_undo_depth(window);
+
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history + 1);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Merged the visible layers"));
+  const auto& layers = std::as_const(doc).layers();
+  CHECK(layers.size() == 1U);
+  const auto& merged = layers.front();
+  CHECK(merged.id() == photo_id && merged.name() == "Photo" && doc.active_layer_id() == photo_id);
+  CHECK(merged.kind() == LayerKind::Pixel && !merged.mask().has_value());
+  CHECK(merged.color_label() == kLayerColorBlue);
+  CHECK(merged.pixels().format() == PixelFormat::rgba8());
+  CHECK(merged.pixels().pixel(80, 60)[3] == 255);  // the mask is in the alpha now
+  CHECK(merged.pixels().pixel(2, 2)[3] == 0);
+  check_close_images(expected, qimage_from_document(doc, true), 0);
+  CHECK(!action->isEnabled());  // a plain layer is left
+  for (const auto scheme : {ColorSchemePreference::Dark, ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    QApplication::processEvents();
+    save_widget_artifact(scheme == ColorSchemePreference::Dark ? "issue519_after_dark" : "issue519_after_light", window);
+  }
+
+  MainWindowTestAccess::undo(window);
+  CHECK(std::as_const(doc).layers().size() == 1U);
+  CHECK(std::as_const(doc).layers().front().mask().has_value());
+  check_close_images(expected, qimage_from_document(doc, true), 0);
+  CHECK(action->isEnabled());
+}
+
 // GitHub issue 389: Duplicate on a folder, then Merge Down on a child of the
 // copy (and of the original), driven through Layers panel clicks.
 std::string dump_tree(const std::vector<Layer>& layers, int depth = 0) {
@@ -1982,6 +2120,7 @@ std::vector<patchy::test::TestCase> layer_merge_tests() {
        ui_merge_visible_merges_in_place_keeps_hidden_layers_and_undoes},
       {"ui_merge_visible_background_clipping_and_disabled_state", ui_merge_visible_background_clipping_and_disabled_state},
       {"ui_merge_visible_menu_placement_and_captures", ui_merge_visible_menu_placement_and_captures},
+      {"ui_merge_visible_single_layer_applies_mask_and_undoes", ui_merge_visible_single_layer_applies_mask_and_undoes},
       {"ui_layer_merge_compound_geometry_and_processing", ui_layer_merge_compound_geometry_and_processing},
       {"ui_layer_selection_little_everywhere_shift_range_if_available", ui_layer_selection_little_everywhere_shift_range_if_available},
       {"ui_layer_merge_mixed_group_keeps_vectors_order_opacity_and_psd", ui_layer_merge_mixed_group_keeps_vectors_order_opacity_and_psd},

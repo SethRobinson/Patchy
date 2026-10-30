@@ -3795,7 +3795,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   merge_menu->setObjectName(QStringLiteral("layerContextMergeMenu"));
   auto* merge_visible_layers_action = merge_menu->addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible"));
   merge_visible_layers_action->setObjectName(QStringLiteral("layerContextMergeVisibleLayersAction"));
-  merge_visible_layers_action->setEnabled(merge_visible_layer_count(std::as_const(document())) >= 2U);
+  merge_visible_layers_action->setEnabled(merge_visible_available(std::as_const(document())));
   auto* merge_visible_action =
       merge_menu->addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer (Copy)"));
   // Off here when nothing selected draws; the window's hotkey stays live (the command reports it).
@@ -4284,7 +4284,7 @@ void MainWindow::show_background_context_menu(QPoint global_position) {
   menu.addSeparator();
   auto* merge_visible_layers_action = menu.addAction(tr("Merge Visible"));
   merge_visible_layers_action->setObjectName(QStringLiteral("layerContextMergeVisibleLayersAction"));
-  merge_visible_layers_action->setEnabled(merge_visible_layer_count(std::as_const(document())) >= 2U);
+  merge_visible_layers_action->setEnabled(merge_visible_available(std::as_const(document())));
   auto* merge_visible_action = menu.addAction(tr("Merge Visible to New Layer (Copy)"));
   merge_visible_action->setObjectName(QStringLiteral("layerContextMergeVisibleAction"));
   merge_visible_action->setEnabled(other_layers);
@@ -4514,20 +4514,21 @@ void MainWindow::refresh_smart_object_action_states() {
 void MainWindow::refresh_merge_visible_action_state() {
   if (layer_merge_visible_layers_action_ != nullptr) {
     layer_merge_visible_layers_action_->setEnabled(has_active_document() && !preview_dialog_edit_locked() &&
-                                                   merge_visible_layer_count(std::as_const(document())) >= 2U);
+                                                   merge_visible_available(std::as_const(document())));
   }
 }
 
 // Photoshop's Merge Visible (GitHub issue 294; docs/layer-merging.md): the visible composite
 // replaces every layer that draws, in the target's slot (merge_visible_target), as one pixel
 // layer, rasterizing text, shapes, Smart Objects, adjustments and styles. Hidden layers stay.
+// One layer that draws merges too when it has something to apply, such as a mask (issue 519).
 void MainWindow::merge_visible_layers() {
   if (canvas_ != nullptr) { canvas_->finish_free_transform(); }
   finish_active_text_editor();
   if (active_session() == nullptr) { return; }
   const auto session_id = active_session()->session_id;
   const Document source = std::as_const(document());
-  if (merge_visible_layer_count(source) < 2U) {
+  if (!merge_visible_available(source)) {
     show_status_error(tr("Merge Visible needs at least two visible layers"));
     return;
   }

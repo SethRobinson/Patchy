@@ -111,9 +111,14 @@ Objects, adjustments, masks and styles rasterize, as in Photoshop. The planning 
 `layer_merge.cpp` and matches Photoshop 2026, probed over COM in October 2026:
 
 - A layer *draws* when it and its ancestors are visible and it is not clipped to a hidden base.
-  `merge_visible_layer_count` counts the non-group layers that draw; under two, the action is
-  off (`refresh_merge_visible_action_state`, on every layer refresh and document change) and the
-  command refuses. Photoshop calls it "not currently available" there.
+  `merge_visible_layer_count` counts the non-group layers that draw. `merge_visible_available`
+  enables the action (`refresh_merge_visible_action_state`, on every layer refresh, document
+  change and Layer menu show) for two or more, or for one that the merge changes (#519): a
+  mask, vector mask, style, Smart Filters, clipping, Blend If or channel restriction, a
+  non-pixel or procedural layer (text, shape, Smart Object, adjustment), a blend mode other
+  than Normal, opacity or Fill under 100%, or a visible group around it (it dissolves). One
+  plain pixel layer, a Background included, leaves it off and the command refuses, as
+  Photoshop's "not currently available".
 - `merge_visible_target`: a visible Background takes the merge and stays the Background (opaque
   RGB via `composite_onto_white`, its position and transparency locks, its name). Otherwise the
   active layer when it draws (group or layer, its id and name kept), else the topmost layer that
@@ -127,7 +132,8 @@ Objects, adjustments, masks and styles rasterize, as in Photoshop. The planning 
 
 Tests: `ui_merge_visible_merges_in_place_keeps_hidden_layers_and_undoes`,
 `ui_merge_visible_background_clipping_and_disabled_state`,
-`ui_merge_visible_menu_placement_and_captures`, and the hotkey move in
+`ui_merge_visible_menu_placement_and_captures`, `ui_merge_visible_single_layer_applies_mask_and_undoes`,
+and the hotkey move in
 `ui_new_layer_and_merge_visible_keys_moved_defaults_only`.
 
 ## Flatten Image
