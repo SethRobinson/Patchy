@@ -2215,6 +2215,10 @@ private:
   void apply_pending_layer_opacity();
   void finish_pending_layer_opacity_edit();
   void reset_pending_layer_opacity_edit();
+  // Digit keys with a tool that has no opacity of its own (GitHub issue 527): the selected
+  // layers' opacity through the Layers panel's field. A run of digits (a two-digit entry
+  // included) is one undo entry; it ends a second after the last digit.
+  void set_layer_opacity_from_digit_keys(int percent);
   void set_active_layer_fill_opacity(int value);
   void apply_pending_layer_fill_opacity();
   void finish_pending_layer_fill_opacity_edit();
@@ -2223,6 +2227,12 @@ private:
   // Next (+1) or previous (-1) blend mode of the selected layers (GitHub issue 476): one step
   // of the Layers panel's mode list, through set_active_layer_blend.
   void step_layer_blend_mode(int direction);
+  // Shift+Alt+letter (GitHub issue 531): sets `mode` on the selected layers, or on the active
+  // tool's Mode list as step_layer_blend_mode decides. A mode the list lacks is ignored.
+  void set_blend_mode_from_shortcut(BlendMode mode);
+  // The options-bar Mode list Next / Previous Blend Mode and the Shift+Alt+letter keys act on
+  // instead of the layer's (Brush, Healing Brush), or nullptr.
+  [[nodiscard]] QComboBox* blend_mode_shortcut_tool_combo() const;
   void finish_pending_layer_blend_edit();
   // Live blend preview while the panel's blend list is open (GitHub issue 367).
   void begin_layer_blend_preview();
@@ -2911,6 +2921,9 @@ private:
   // Prevent Auto-Nesting, checked when every selected layer has the lock
   // (refresh_layer_controls); shared with the layer context menu's Lock submenu.
   QAction* layer_prevent_auto_nesting_action_{nullptr};
+  // Lock Transparent Pixels (GitHub issue 529): "/" by default; on the window and in the layer
+  // context menu's Lock submenu.
+  QAction* layer_lock_transparent_pixels_action_{nullptr};
   // Layer > Merge Visible (refresh_merge_visible_action_state).
   QAction* layer_merge_visible_layers_action_{nullptr};
   // Merge Selected to New Layer (Copy): the layer context menu's Merge submenu and the window.
@@ -2931,6 +2944,7 @@ private:
   QSpinBox* fill_opacity_spin_{nullptr};
   QTimer* layer_opacity_apply_timer_{nullptr};
   QTimer* layer_opacity_idle_timer_{nullptr};
+  QTimer* layer_opacity_digit_finish_timer_{nullptr};
   QTimer* layer_fill_opacity_apply_timer_{nullptr};
   QTimer* layer_fill_opacity_idle_timer_{nullptr};
   QTimer* layer_blend_idle_timer_{nullptr};

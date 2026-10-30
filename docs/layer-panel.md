@@ -1,6 +1,6 @@
 # Layers panel
 
-Read this before changing anything in the Layers panel. Generic item-widget row rules stay in [ui-conventions.md](ui-conventions.md). Artboard rows (glyph, `layerRowArtboard`, drop rules): [artboards.md](artboards.md). Shape and style editors opened from a selected row or badge keep an existing multi-selection; an unselected row becomes the sole target ([batch-appearance.md](batch-appearance.md)).
+Item-widget row rules: [ui-conventions.md](ui-conventions.md). Layer keys (digits, "/", modes): [layer-shortcuts.md](layer-shortcuts.md). Artboard rows (glyph, `layerRowArtboard`, drop rules): [artboards.md](artboards.md). Shape and style editors opened from a selected row or badge keep an existing multi-selection; an unselected row becomes the sole target ([batch-appearance.md](batch-appearance.md)).
 
 ## Row styling
 

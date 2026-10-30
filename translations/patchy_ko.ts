@@ -28372,6 +28372,114 @@ Locked: %1</source>
         <source>Show Outline</source>
         <translation>윤곽선 표시</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>혼합 모드: 표준</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>혼합 모드: 디졸브</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>혼합 모드: 어둡게 하기</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>혼합 모드: 곱하기</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>혼합 모드: 색상 번</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>혼합 모드: 선형 번</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>혼합 모드: 밝게 하기</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>혼합 모드: 화면</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>혼합 모드: 색상 닷지</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>혼합 모드: 선형 닷지(추가)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>혼합 모드: 오버레이</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>혼합 모드: 소프트 라이트</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>혼합 모드: 하드 라이트</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>혼합 모드: 선명한 라이트</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>혼합 모드: 선형 라이트</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>혼합 모드: 핀 라이트</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>혼합 모드: 하드 혼합</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>혼합 모드: 차이</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>혼합 모드: 제외</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>혼합 모드: 색조</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>혼합 모드: 채도</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>혼합 모드: 색상</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>혼합 모드: 광도</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>브러시 부드럽게</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>브러시 단단하게</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>브러시 경도: %1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>레이어 불투명도: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

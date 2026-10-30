@@ -28373,6 +28373,114 @@ Locked: %1</source>
         <source>Show Outline</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

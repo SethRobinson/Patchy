@@ -117,6 +117,7 @@
 #include <QtGlobal>
 
 #include <algorithm>
+#include <tuple>
 #include <array>
 #include <cstddef>
 #include <numeric>
@@ -3771,8 +3772,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_much_larger_action->setObjectName(QStringLiteral("brushMuchLargerAction"));
   register_hotkey(brush_smaller_action, "brush.smaller", QKeySequence(Qt::Key_BracketLeft), QStringLiteral("brush"));
   register_hotkey(brush_larger_action, "brush.larger", QKeySequence(Qt::Key_BracketRight), QStringLiteral("brush"));
-  register_hotkey(brush_much_smaller_action, "brush.much_smaller", QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft), QStringLiteral("brush"));
-  register_hotkey(brush_much_larger_action, "brush.much_larger", QKeySequence(Qt::SHIFT | Qt::Key_BracketRight), QStringLiteral("brush"));
+  // Much Smaller / Much Larger gave Shift+[ and Shift+] to the hardness steps below
+  // (GitHub issue 522); they keep their ids and can be bound again in Keyboard Shortcuts.
+  register_hotkey(brush_much_smaller_action, "brush.much_smaller", QKeySequence(), QStringLiteral("brush"));
+  register_hotkey(brush_much_larger_action, "brush.much_larger", QKeySequence(), QStringLiteral("brush"));
   addAction(brush_smaller_action);
   addAction(brush_larger_action);
   addAction(brush_much_smaller_action);
@@ -3798,6 +3801,34 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           [adjust_brush_size] { adjust_brush_size(1, true); });
   for (auto* action : {brush_smaller_action, brush_larger_action, brush_much_smaller_action,
                        brush_much_larger_action}) {
+    register_document_action(action);
+  }
+  // Photoshop's Shift+[ / Shift+] (GitHub issue 522): brush hardness down or up a quarter,
+  // landing on 0, 25, 50, 75 or 100% hardness. Patchy's bar shows Soft (100 - hardness), so the
+  // step moves that field the other way. Only tools whose bar shows Soft react (a shape tool in
+  // Pixels mode included); the others ignore the keys.
+  for (const auto& [object_name, text, hotkey_id, key, direction] :
+       {std::tuple{"brushSofterAction", QT_TR_NOOP("Brush Softer"), "brush.softer", Qt::Key_BracketLeft, -1},
+        std::tuple{"brushHarderAction", QT_TR_NOOP("Brush Harder"), "brush.harder", Qt::Key_BracketRight, 1}}) {
+    auto* action = new QAction(tr(text), this);
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QLatin1String(hotkey_id), QKeySequence(Qt::SHIFT | key), QStringLiteral("brush"));
+    const int hardness_direction = direction;
+    connect(action, &QAction::triggered, brush_softness, [this, brush_softness, hardness_direction] {
+      if (!tool_shows_brush_softness(current_tool_)) {
+        return;
+      }
+      const bool shape_tool = current_tool_ == CanvasTool::Line || current_tool_ == CanvasTool::Rectangle ||
+                              current_tool_ == CanvasTool::Ellipse;
+      if (shape_tool && current_vector_tool_mode_ != VectorToolMode::Pixels) {
+        return;
+      }
+      brush_softness->setValue(100 - stepped_brush_hardness(100 - brush_softness->value(), hardness_direction));
+      statusBar()->showMessage(tr("Brush hardness: %1%").arg(100 - brush_softness->value()));
+    });
+    addAction(action);
     register_document_action(action);
   }
 

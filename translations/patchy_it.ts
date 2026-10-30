@@ -28454,6 +28454,114 @@ Bloccato: %1</translation>
         <source>Show Outline</source>
         <translation>Mostra contorno</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>Metodo di fusione: Normale</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>Metodo di fusione: Dissolvi</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>Metodo di fusione: Scurisci</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>Metodo di fusione: Moltiplica</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>Metodo di fusione: Brucia colore</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>Metodo di fusione: Brucia lineare</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>Metodo di fusione: Schiarisci</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>Metodo di fusione: Schermo</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>Metodo di fusione: Scherma colore</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>Metodo di fusione: Scherma lineare (Aggiungi)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>Metodo di fusione: Sovrapponi</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>Metodo di fusione: Luce soffusa</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>Metodo di fusione: Luce intensa</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>Metodo di fusione: Luce vivida</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>Metodo di fusione: Luce lineare</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>Metodo di fusione: Luce puntiforme</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>Metodo di fusione: Sovrapponi colori</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>Metodo di fusione: Differenza</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>Metodo di fusione: Esclusione</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>Metodo di fusione: Tonalità</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>Metodo di fusione: Saturazione</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>Metodo di fusione: Colore</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>Metodo di fusione: Luminosità</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>Pennello più morbido</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>Pennello più duro</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>Durezza pennello: %1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>Opacità livello: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

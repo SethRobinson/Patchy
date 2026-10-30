@@ -28536,6 +28536,114 @@ Locked: %1</source>
         <source>Show Outline</source>
         <translation>Показывать контур</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>Режим наложения: Обычный</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>Режим наложения: Растворение</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>Режим наложения: Затемнение</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>Режим наложения: Умножение</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>Режим наложения: Затемнение основы</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>Режим наложения: Линейный затемнитель</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>Режим наложения: Замена светлым</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>Режим наложения: Экран</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>Режим наложения: Осветление основы</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>Режим наложения: Линейный осветлитель (Добавить)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>Режим наложения: Перекрытие</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>Режим наложения: Мягкий свет</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>Режим наложения: Жёсткий свет</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>Режим наложения: Яркий свет</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>Режим наложения: Линейный свет</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>Режим наложения: Точечный свет</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>Режим наложения: Жёсткое смешение</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>Режим наложения: Разница</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>Режим наложения: Исключение</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>Режим наложения: Цветовой тон</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>Режим наложения: Насыщенность</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>Режим наложения: Цветность</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>Режим наложения: Яркость</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>Кисть мягче</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>Кисть жёстче</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>Жёсткость кисти: %1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>Непрозрачность слоя: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

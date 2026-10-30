@@ -3852,9 +3852,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
       return layer != nullptr && (layer_lock_flags(*layer) & flag) == flag;
     });
   };
-  auto* transparent_lock_action = lock_menu->addAction(tr("Lock Transparent Pixels"));
-  transparent_lock_action->setCheckable(true);
-  transparent_lock_action->setChecked(all_selected_have_lock(kLayerLockTransparentPixels));
+  // The shared registered action (its "/" shows here, GitHub issue 529); it runs from its own
+  // triggered signal, so the dispatch below has no branch for it.
+  if (layer_lock_transparent_pixels_action_ != nullptr) {
+    layer_lock_transparent_pixels_action_->setChecked(all_selected_have_lock(kLayerLockTransparentPixels));
+    lock_menu->addAction(layer_lock_transparent_pixels_action_);
+  }
   auto* image_lock_action = lock_menu->addAction(tr("Lock Image Pixels"));
   image_lock_action->setCheckable(true);
   image_lock_action->setChecked(all_selected_have_lock(kLayerLockImagePixels));
@@ -4043,8 +4046,6 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     merge_visible_layers();
   } else if (chosen == merge_visible_action) {
     merge_visible_to_new_layer();
-  } else if (chosen == transparent_lock_action) {
-    set_active_layer_lock_flag(kLayerLockTransparentPixels, transparent_lock_action->isChecked());
   } else if (chosen == image_lock_action) {
     set_active_layer_lock_flag(kLayerLockImagePixels, image_lock_action->isChecked());
   } else if (chosen == position_lock_action) {

@@ -1350,9 +1350,45 @@ void MainWindow::finish_pending_layer_opacity_edit() {
 }
 
 void MainWindow::reset_pending_layer_opacity_edit() {
+  if (layer_opacity_digit_finish_timer_ != nullptr) {
+    layer_opacity_digit_finish_timer_->stop();
+  }
   pending_layer_opacity_ids_.clear();
   pending_layer_opacity_value_.reset();
   pending_layer_opacity_edit_active_ = false;
+}
+
+void MainWindow::set_layer_opacity_from_digit_keys(int percent) {
+  if (!has_active_document() || opacity_spin_ == nullptr || !opacity_spin_->isEnabled()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto value = std::clamp(percent, 0, 100);
+  const auto ids = selected_or_active_layer_ids();
+  const auto& doc = std::as_const(document());
+  const bool unchanged = std::all_of(ids.begin(), ids.end(), [&doc, value](LayerId id) {
+    const auto* layer = doc.find_layer(id);
+    return layer == nullptr || static_cast<int>(std::lround(layer->opacity() * 100.0F)) == value;
+  });
+  if (!unchanged) {
+    // The field's own path: the panel shows the value and a run is one undo entry.
+    if (opacity_spin_->value() != value) {
+      opacity_spin_->setValue(value);
+    } else {
+      set_active_layer_opacity(value);  // the active layer has it; other selected layers do not
+    }
+    // The digit timer, not the field's short idle pause, ends the run.
+    if (layer_opacity_idle_timer_ != nullptr) {
+      layer_opacity_idle_timer_->stop();
+    }
+    if (pending_layer_opacity_edit_active_ && layer_opacity_digit_finish_timer_ != nullptr) {
+      layer_opacity_digit_finish_timer_->start();
+    }
+  }
+  statusBar()->showMessage(tr("Layer opacity: %1%").arg(value));
 }
 
 void MainWindow::set_active_layer_fill_opacity(int value) {
@@ -1473,21 +1509,22 @@ void MainWindow::set_active_layer_blend(int index) {
 // the combo, so a run of presses is one undo entry like a run of arrow-key steps. With a tool
 // whose options bar has a blend Mode list (Brush, Healing Brush) the keys step that list instead,
 // saved like a choice from it.
-void MainWindow::step_layer_blend_mode(int direction) {
-  QComboBox* tool_mode_combo = nullptr;
-  if (canvas_ != nullptr) {
-    switch (canvas_->tool()) {
-      case CanvasTool::Brush:
-        tool_mode_combo = brush_mode_combo_;
-        break;
-      case CanvasTool::Healing:
-        tool_mode_combo = healing_mode_combo_;
-        break;
-      default:
-        break;
-    }
+QComboBox* MainWindow::blend_mode_shortcut_tool_combo() const {
+  if (canvas_ == nullptr) {
+    return nullptr;
   }
-  if (tool_mode_combo != nullptr) {
+  switch (canvas_->tool()) {
+    case CanvasTool::Brush:
+      return brush_mode_combo_;
+    case CanvasTool::Healing:
+      return healing_mode_combo_;
+    default:
+      return nullptr;
+  }
+}
+
+void MainWindow::step_layer_blend_mode(int direction) {
+  if (auto* tool_mode_combo = blend_mode_shortcut_tool_combo(); tool_mode_combo != nullptr) {
     if (!tool_mode_combo->isEnabled() || tool_mode_combo->view()->isVisible()) {
       return;
     }
@@ -1514,6 +1551,68 @@ void MainWindow::step_layer_blend_mode(int direction) {
     return;
   }
   step_blend_mode_combo_to(blend_combo_, index);
+  statusBar()->showMessage(tr("Blend mode: %1").arg(blend_combo_->itemText(index)));
+}
+
+void MainWindow::set_blend_mode_from_shortcut(BlendMode mode) {
+  const auto row_enabled = [](const QComboBox* combo, int index) {
+    const auto* model = combo->model();
+    return index >= 0 && (model->flags(model->index(index, combo->modelColumn())) & Qt::ItemIsEnabled) != 0;
+  };
+  if (auto* tool_mode_combo = blend_mode_shortcut_tool_combo(); tool_mode_combo != nullptr) {
+    if (!tool_mode_combo->isEnabled() || tool_mode_combo->view()->isVisible()) {
+      return;
+    }
+    int index = -1;
+    if (tool_mode_combo == brush_mode_combo_) {
+      index = tool_mode_combo->findData(paint_mode_item_data(PaintMode::of(mode)));
+    } else {
+      // The Healing Brush lists a few modes, plus Replace, which is not a blend mode.
+      for (int row = 0; row < tool_mode_combo->count() && index < 0; ++row) {
+        const auto healing = static_cast<HealingMode>(tool_mode_combo->itemData(row).toInt());
+        if (healing != HealingMode::Replace && healing_mode_blend(healing) == mode) {
+          index = row;
+        }
+      }
+    }
+    if (!row_enabled(tool_mode_combo, index)) {
+      return;
+    }
+    if (index != tool_mode_combo->currentIndex()) {
+      step_blend_mode_combo_to(tool_mode_combo, index);
+    }
+    statusBar()->showMessage(tr("Blend mode: %1").arg(tool_mode_combo->itemText(index)));
+    return;
+  }
+  if (!has_active_document() || blend_combo_ == nullptr || !blend_combo_->isEnabled() ||
+      blend_combo_->view()->isVisible()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    return;
+  }
+  const auto index = blend_combo_->findData(static_cast<int>(mode));
+  if (!row_enabled(blend_combo_, index)) {
+    return;
+  }
+  if (index != blend_combo_->currentIndex()) {
+    step_blend_mode_combo_to(blend_combo_, index);
+  } else {
+    // The active layer already uses the mode; other selected layers may not.
+    const auto& doc = std::as_const(document());
+    const bool all_set = std::all_of(ids.begin(), ids.end(), [&doc, mode](LayerId id) {
+      const auto* layer = doc.find_layer(id);
+      return layer == nullptr || layer->blend_mode() == mode;
+    });
+    if (!all_set) {
+      set_active_layer_blend(index);
+    }
+  }
   statusBar()->showMessage(tr("Blend mode: %1").arg(blend_combo_->itemText(index)));
 }
 
@@ -1695,7 +1794,13 @@ void MainWindow::set_active_layer_lock_flag(LayerLockFlags flag, bool locked) {
     }
     set_layer_lock_flag(*layer, flag, locked);
   }
+  // The rebuild keeps only the active row; a multi-selection stays selected, so a second
+  // press of a lock (or of "/", GitHub issue 529) acts on the same layers.
+  const auto active = std::as_const(doc).active_layer_id();
   refresh_layer_list();
+  if (ids.size() > 1) {
+    select_layers_in_layer_list(ids, active.value_or(ids.front()));
+  }
   refresh_layer_controls();
   if (flag == kLayerLockArtboardAutonest) {
     statusBar()->showMessage(locked ? tr("Auto-nesting prevented") : tr("Auto-nesting allowed"));

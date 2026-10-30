@@ -28536,6 +28536,114 @@ Zablokowano: %1</translation>
         <source>Show Outline</source>
         <translation>Pokaż obrys</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>Tryb mieszania: Zwykły</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>Tryb mieszania: Rozpuszczanie</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>Tryb mieszania: Ciemniej</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>Tryb mieszania: Mnożenie</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>Tryb mieszania: Ściemnianie</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>Tryb mieszania: Ściemnianie liniowe</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>Tryb mieszania: Jaśniej</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>Tryb mieszania: Ekran</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>Tryb mieszania: Rozjaśnianie</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>Tryb mieszania: Rozjaśnianie liniowe (dodaj)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>Tryb mieszania: Nakładka</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>Tryb mieszania: Łagodne światło</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>Tryb mieszania: Ostre światło</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>Tryb mieszania: Światło jaskrawe</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>Tryb mieszania: Światło liniowe</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>Tryb mieszania: Światło punktowe</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>Tryb mieszania: Mieszanie twarde</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>Tryb mieszania: Różnica</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>Tryb mieszania: Wykluczenie</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>Tryb mieszania: Barwa</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>Tryb mieszania: Nasycenie</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>Tryb mieszania: Kolor</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>Tryb mieszania: Jasność</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>Pędzel bardziej miękki</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>Pędzel bardziej twardy</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>Twardość pędzla: %1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>Krycie warstwy: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

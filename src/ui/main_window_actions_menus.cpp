@@ -1597,6 +1597,30 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
           [this](bool checked) { set_active_layer_lock_flag(kLayerLockArtboardAutonest, checked); });
   addAction(layer_prevent_auto_nesting_action_);
   register_document_action(layer_prevent_auto_nesting_action_);
+  // Lock Transparent Pixels (GitHub issue 529): Photoshop's "/", the Layers panel's
+  // checkerboard lock as a command. It toggles: the selected layers lock unless every one
+  // already is, then they unlock (one undo entry, like the panel button).
+  layer_lock_transparent_pixels_action_ = new QAction(tr("Lock Transparent Pixels"), this);
+  layer_lock_transparent_pixels_action_->setObjectName(QStringLiteral("layerLockTransparentPixelsAction"));
+  bind_action_text(layer_lock_transparent_pixels_action_, QT_TR_NOOP("Lock Transparent Pixels"));
+  layer_lock_transparent_pixels_action_->setMenuRole(QAction::NoRole);
+  layer_lock_transparent_pixels_action_->setCheckable(true);
+  register_hotkey(layer_lock_transparent_pixels_action_, "layer.lock_transparent_pixels",
+                  QKeySequence(Qt::Key_Slash));
+  connect(layer_lock_transparent_pixels_action_, &QAction::triggered, this, [this] {
+    if (!has_active_document()) {
+      return;
+    }
+    const auto ids = selected_or_active_layer_ids();
+    const auto& doc = std::as_const(document());
+    const bool all_locked = !ids.empty() && std::all_of(ids.begin(), ids.end(), [&doc](LayerId id) {
+      const auto* layer = doc.find_layer(id);
+      return layer != nullptr && (layer_lock_flags(*layer) & kLayerLockTransparentPixels) != kLayerLockNone;
+    });
+    set_active_layer_lock_flag(kLayerLockTransparentPixels, !all_locked);
+  });
+  addAction(layer_lock_transparent_pixels_action_);
+  register_document_action(layer_lock_transparent_pixels_action_);
   // Merge Selected to New Layer (Copy) (GitHub issue 475): Photoshop's Ctrl+Alt+E. In the layer
   // context menu's Merge submenu and on the window (the Layer menu's row count is pinned).
   layer_merge_selected_to_new_action_ = new QAction(tr("Merge Selected to New Layer (Copy)"), this);
@@ -1628,6 +1652,51 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
                                   : QList<QKeySequence>{QKeySequence(Qt::SHIFT | Qt::Key_Minus)});
     const int step = direction;
     connect(action, &QAction::triggered, this, [this, step] { step_layer_blend_mode(step); });
+    addAction(action);
+    register_document_action(action);
+  }
+  // One command per mode (GitHub issue 531): Photoshop's Shift+Alt+letter keys (Shift+Option
+  // on macOS) set the mode directly, on the same target as Next / Previous Blend Mode. The ids
+  // are permanent; a mode the target's list lacks (most of them for the Healing Brush) is ignored.
+  struct BlendModeShortcut {
+    BlendMode mode;
+    const char* object_name;
+    const char* text;
+    const char* hotkey_id;
+    Qt::Key key;
+  };
+  for (const auto& shortcut : std::initializer_list<BlendModeShortcut>{
+           {BlendMode::Normal, "layerBlendNormalAction", QT_TR_NOOP("Blend Mode: Normal"), "layer.blend_mode.normal", Qt::Key_N},
+           {BlendMode::Dissolve, "layerBlendDissolveAction", QT_TR_NOOP("Blend Mode: Dissolve"), "layer.blend_mode.dissolve", Qt::Key_I},
+           {BlendMode::Darken, "layerBlendDarkenAction", QT_TR_NOOP("Blend Mode: Darken"), "layer.blend_mode.darken", Qt::Key_K},
+           {BlendMode::Multiply, "layerBlendMultiplyAction", QT_TR_NOOP("Blend Mode: Multiply"), "layer.blend_mode.multiply", Qt::Key_M},
+           {BlendMode::ColorBurn, "layerBlendColorBurnAction", QT_TR_NOOP("Blend Mode: Color Burn"), "layer.blend_mode.color_burn", Qt::Key_B},
+           {BlendMode::LinearBurn, "layerBlendLinearBurnAction", QT_TR_NOOP("Blend Mode: Linear Burn"), "layer.blend_mode.linear_burn", Qt::Key_A},
+           {BlendMode::Lighten, "layerBlendLightenAction", QT_TR_NOOP("Blend Mode: Lighten"), "layer.blend_mode.lighten", Qt::Key_G},
+           {BlendMode::Screen, "layerBlendScreenAction", QT_TR_NOOP("Blend Mode: Screen"), "layer.blend_mode.screen", Qt::Key_S},
+           {BlendMode::ColorDodge, "layerBlendColorDodgeAction", QT_TR_NOOP("Blend Mode: Color Dodge"), "layer.blend_mode.color_dodge", Qt::Key_D},
+           {BlendMode::LinearDodge, "layerBlendLinearDodgeAction", QT_TR_NOOP("Blend Mode: Linear Dodge (Add)"), "layer.blend_mode.linear_dodge", Qt::Key_W},
+           {BlendMode::Overlay, "layerBlendOverlayAction", QT_TR_NOOP("Blend Mode: Overlay"), "layer.blend_mode.overlay", Qt::Key_O},
+           {BlendMode::SoftLight, "layerBlendSoftLightAction", QT_TR_NOOP("Blend Mode: Soft Light"), "layer.blend_mode.soft_light", Qt::Key_F},
+           {BlendMode::HardLight, "layerBlendHardLightAction", QT_TR_NOOP("Blend Mode: Hard Light"), "layer.blend_mode.hard_light", Qt::Key_H},
+           {BlendMode::VividLight, "layerBlendVividLightAction", QT_TR_NOOP("Blend Mode: Vivid Light"), "layer.blend_mode.vivid_light", Qt::Key_V},
+           {BlendMode::LinearLight, "layerBlendLinearLightAction", QT_TR_NOOP("Blend Mode: Linear Light"), "layer.blend_mode.linear_light", Qt::Key_J},
+           {BlendMode::PinLight, "layerBlendPinLightAction", QT_TR_NOOP("Blend Mode: Pin Light"), "layer.blend_mode.pin_light", Qt::Key_Z},
+           {BlendMode::HardMix, "layerBlendHardMixAction", QT_TR_NOOP("Blend Mode: Hard Mix"), "layer.blend_mode.hard_mix", Qt::Key_L},
+           {BlendMode::Difference, "layerBlendDifferenceAction", QT_TR_NOOP("Blend Mode: Difference"), "layer.blend_mode.difference", Qt::Key_E},
+           {BlendMode::Exclusion, "layerBlendExclusionAction", QT_TR_NOOP("Blend Mode: Exclusion"), "layer.blend_mode.exclusion", Qt::Key_X},
+           {BlendMode::Hue, "layerBlendHueAction", QT_TR_NOOP("Blend Mode: Hue"), "layer.blend_mode.hue", Qt::Key_U},
+           {BlendMode::Saturation, "layerBlendSaturationAction", QT_TR_NOOP("Blend Mode: Saturation"), "layer.blend_mode.saturation", Qt::Key_T},
+           {BlendMode::Color, "layerBlendColorAction", QT_TR_NOOP("Blend Mode: Color"), "layer.blend_mode.color", Qt::Key_C},
+           {BlendMode::Luminosity, "layerBlendLuminosityAction", QT_TR_NOOP("Blend Mode: Luminosity"), "layer.blend_mode.luminosity", Qt::Key_Y},
+       }) {
+    auto* action = new QAction(tr(shortcut.text), this);
+    action->setObjectName(QLatin1String(shortcut.object_name));
+    bind_action_text(action, shortcut.text);
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QLatin1String(shortcut.hotkey_id), QKeySequence(Qt::SHIFT | Qt::ALT | shortcut.key));
+    const auto mode = shortcut.mode;
+    connect(action, &QAction::triggered, this, [this, mode] { set_blend_mode_from_shortcut(mode); });
     addAction(action);
     register_document_action(action);
   }

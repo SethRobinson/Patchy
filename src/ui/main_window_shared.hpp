@@ -243,6 +243,14 @@ constexpr auto kScriptsMenuProperty = "patchy.scriptsMenu";
 // by (1+f); shrinking scales by 1/(1+f) so ] then [ lands back on the same size.
 [[nodiscard]] int proportional_brush_step(int size, int direction, bool coarse);
 
+// Shift+[ / Shift+] (GitHub issue 522): the next quarter-step hardness (0, 25, 50, 75, 100%)
+// below (direction < 0) or above `hardness`, clamped to 0..100. A value between stops moves
+// to the nearest stop in that direction.
+[[nodiscard]] int stepped_brush_hardness(int hardness, int direction);
+// The tools whose options bar shows the Soft field (brush hardness): the painting and
+// retouch brushes, and the shape tools while they draw pixels.
+[[nodiscard]] bool tool_shows_brush_softness(CanvasTool tool) noexcept;
+
 // The Round brush preset every launch starts from (the active tip is deliberately
 // not persisted).
 [[nodiscard]] QString default_startup_brush_preset_id();

@@ -2914,10 +2914,11 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Zoom"))->shortcut() == QKeySequence(Qt::Key_Z));
   CHECK(require_action(window, "brushSmallerAction")->shortcut() == QKeySequence(Qt::Key_BracketLeft));
   CHECK(require_action(window, "brushLargerAction")->shortcut() == QKeySequence(Qt::Key_BracketRight));
-  CHECK(require_action(window, "brushMuchSmallerAction")->shortcut() ==
-        QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft));
-  CHECK(require_action(window, "brushMuchLargerAction")->shortcut() ==
-        QKeySequence(Qt::SHIFT | Qt::Key_BracketRight));
+  // Shift+[ / Shift+] step hardness (GitHub issue 522); Much Smaller / Much Larger have no key.
+  CHECK(require_action(window, "brushMuchSmallerAction")->shortcut().isEmpty());
+  CHECK(require_action(window, "brushMuchLargerAction")->shortcut().isEmpty());
+  CHECK(require_action(window, "brushSofterAction")->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft));
+  CHECK(require_action(window, "brushHarderAction")->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_BracketRight));
   const auto tooltip_matches_shortcut = [](QAction* action) {
     const auto shortcut = action->shortcut().toString(QKeySequence::NativeText);
     CHECK(!shortcut.isEmpty());
@@ -4000,6 +4001,60 @@ void ui_hotkey_defaults_have_no_conflicts() {
   }
   CHECK(resolved.suppressions.empty());
 }
+// GitHub issue 522: Shift+[ and Shift+] step brush hardness by a quarter (Soft moves the other
+// way), landing on 0, 25, 50, 75 and 100%, for the tools whose bar shows Soft. Other tools
+// ignore them.
+void ui_brush_hardness_shortcuts_step_by_quarters() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  patchy::ui::MainWindow window;
+  window.add_document_session(patchy::Document(64, 48, patchy::PixelFormat::rgba8()), QStringLiteral("Hardness"));
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto* softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+  CHECK(softness != nullptr);
+  auto* softer = require_hotkey_action(window, QStringLiteral("brush.softer"));
+  auto* harder = require_hotkey_action(window, QStringLiteral("brush.harder"));
+  CHECK(softer->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft));
+  CHECK(harder->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_BracketRight));
+  CHECK(require_hotkey_action(window, QStringLiteral("brush.much_smaller"))->shortcut().isEmpty());
+  CHECK(require_hotkey_action(window, QStringLiteral("brush.much_larger"))->shortcut().isEmpty());
+
+  softness->setValue(0);  // 100% hardness
+  for (const int expected : {25, 50, 75, 100, 100}) {
+    softer->trigger();
+    CHECK(softness->value() == expected);
+    CHECK(canvas->brush_softness() == expected);
+  }
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Brush hardness: 0%"));
+  harder->trigger();
+  CHECK(softness->value() == 75);
+  // Between stops a step lands on the next stop in its direction: 60% hardness goes to 75 or 50.
+  softness->setValue(40);
+  harder->trigger();
+  CHECK(softness->value() == 25);
+  softness->setValue(40);
+  softer->trigger();
+  CHECK(softness->value() == 50);
+  softness->setValue(0);
+  harder->trigger();
+  CHECK(softness->value() == 0);
+
+  // The Eraser shares the field; the Move tool has none and ignores the keys.
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  QApplication::processEvents();
+  softer->trigger();
+  CHECK(softness->value() == 25);
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  const int resting = canvas->brush_softness();
+  softer->trigger();
+  CHECK(canvas->brush_softness() == resting);
+  harder->trigger();
+  CHECK(canvas->brush_softness() == resting);
+}
 // A saved override that puts Shift+<letter> back on a flyout member keeps the
 // old direct binding: overrides win the sequence and the cycle default is
 // suppressed rather than left ambiguous.
@@ -4722,6 +4777,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
+      {"ui_brush_hardness_shortcuts_step_by_quarters", ui_brush_hardness_shortcuts_step_by_quarters},
       {"ui_new_layer_and_merge_visible_keys_moved_defaults_only", ui_new_layer_and_merge_visible_keys_moved_defaults_only},
       {"ui_tool_cycle_yields_to_member_override", ui_tool_cycle_yields_to_member_override},
       {"ui_hotkey_override_applies_at_startup", ui_hotkey_override_applies_at_startup},

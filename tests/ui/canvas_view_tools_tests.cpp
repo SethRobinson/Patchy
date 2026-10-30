@@ -4,6 +4,7 @@
 #include "ai/segmentation_engine.hpp"
 #include "ui/main_window_shared.hpp"
 #include "core/palette.hpp"
+#include "core/layer_metadata.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -9388,6 +9389,225 @@ void ui_tool_blend_mode_next_previous_commands_step_the_tool_mode() {
   CHECK(brush_mode->currentText() == QStringLiteral("Normal"));
 }
 
+// GitHub issue 531: Shift+Alt+letter sets a blend mode directly, on the same target as Next /
+// Previous Blend Mode: the selected layers (one undo entry), or the Brush / Healing Brush Mode
+// list while that tool is active. A mode the list lacks is ignored.
+void ui_blend_mode_shortcuts_set_the_layer_or_tool_mode() {
+  SettingsValueRestorer saved_brush_mode(QStringLiteral("tools/brushMode"));
+  SettingsValueRestorer saved_healing_mode(QStringLiteral("tools/healingMode"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/brushMode"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/healingMode"));
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  std::vector<patchy::LayerId> ids;
+  for (const char* name : {"Lower", "Upper"}) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+                        solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+    layer.set_bounds(patchy::Rect{20, 20, 60, 40});
+    ids.push_back(document.add_layer(std::move(layer)).id());
+  }
+  document.set_active_layer(ids.back());
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Blend Mode Keys"));
+  show_window(window);
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto blend_of = [&window](patchy::LayerId id) {
+    const auto* layer = std::as_const(Access::document(window)).find_layer(id);
+    return layer != nullptr ? layer->blend_mode() : patchy::BlendMode::PassThrough;
+  };
+  auto* multiply = require_hotkey_action(window, QStringLiteral("layer.blend_mode.multiply"));
+  auto* screen = require_hotkey_action(window, QStringLiteral("layer.blend_mode.screen"));
+  auto* overlay = require_hotkey_action(window, QStringLiteral("layer.blend_mode.overlay"));
+  auto* normal = require_hotkey_action(window, QStringLiteral("layer.blend_mode.normal"));
+  CHECK(multiply->shortcut() == QKeySequence(Qt::SHIFT | Qt::ALT | Qt::Key_M));
+  CHECK(normal->shortcut() == QKeySequence(Qt::SHIFT | Qt::ALT | Qt::Key_N));
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.blend_mode.luminosity"))->shortcut() ==
+        QKeySequence(Qt::SHIFT | Qt::ALT | Qt::Key_Y));
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.blend_mode.linear_dodge"))->shortcut() ==
+        QKeySequence(Qt::SHIFT | Qt::ALT | Qt::Key_W));
+
+  Access::select_layers(window, ids, ids.back());
+  QApplication::processEvents();
+  const auto depth_before = Access::active_session_undo_depth(window);
+  multiply->trigger();
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Multiply && blend_of(ids.back()) == patchy::BlendMode::Multiply);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Blend mode: Multiply"));
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr && blend_combo->currentText() == QStringLiteral("Multiply"));
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
+  // The active layer already multiplies; the other selected one is brought along.
+  Access::select_layers(window, {ids.front()}, ids.front());
+  QApplication::processEvents();
+  screen->trigger();
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Screen && blend_of(ids.back()) == patchy::BlendMode::Multiply);
+  Access::select_layers(window, ids, ids.back());
+  QApplication::processEvents();
+  multiply->trigger();
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Multiply && blend_of(ids.back()) == patchy::BlendMode::Multiply);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(blend_of(ids.front()) == patchy::BlendMode::Screen);
+
+  // With Brush active the keys set the brush Mode; the layers keep theirs.
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* brush_mode = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+  CHECK(brush_mode != nullptr);
+  const auto layer_depth = Access::active_session_undo_depth(window);
+  overlay->trigger();
+  CHECK(brush_mode->currentText() == QStringLiteral("Overlay"));
+  CHECK(require_canvas(window)->brush_paint_mode() == patchy::PaintMode::of(patchy::BlendMode::Overlay));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushMode")).toString() == QStringLiteral("overlay"));
+  normal->trigger();
+  CHECK(brush_mode->currentText() == QStringLiteral("Normal"));
+  CHECK(Access::active_session_undo_depth(window) == layer_depth);
+
+  // The Healing Brush lists only some modes: Multiply is there, Overlay is not.
+  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
+  QApplication::processEvents();
+  auto* healing_mode = window.findChild<QComboBox*>(QStringLiteral("healingModeCombo"));
+  CHECK(healing_mode != nullptr);
+  multiply->trigger();
+  CHECK(require_canvas(window)->healing_mode() == patchy::ui::HealingMode::Multiply);
+  overlay->trigger();
+  CHECK(require_canvas(window)->healing_mode() == patchy::ui::HealingMode::Multiply);
+  CHECK(Access::active_session_undo_depth(window) == layer_depth);
+}
+
+// GitHub issue 529: Lock Transparent Pixels is a command ("/" by default) that toggles the
+// selected layers' lock like the Layers panel button: it locks them unless every one already
+// is, then unlocks them, one undo entry each time.
+void ui_lock_transparent_pixels_command_toggles_selected_layers() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  std::vector<patchy::LayerId> ids;
+  for (const char* name : {"Lower", "Upper"}) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+                        solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+    layer.set_bounds(patchy::Rect{20, 20, 60, 40});
+    ids.push_back(document.add_layer(std::move(layer)).id());
+  }
+  document.set_active_layer(ids.back());
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Lock Key"));
+  show_window(window);
+  QApplication::processEvents();
+
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto locked = [&window](patchy::LayerId id) {
+    const auto* layer = std::as_const(Access::document(window)).find_layer(id);
+    return layer != nullptr &&
+           (patchy::layer_lock_flags(*layer) & patchy::kLayerLockTransparentPixels) != patchy::kLayerLockNone;
+  };
+  auto* lock = require_hotkey_action(window, QStringLiteral("layer.lock_transparent_pixels"));
+  CHECK(lock == require_action(window, "layerLockTransparentPixelsAction"));
+  CHECK(lock->shortcut() == QKeySequence(Qt::Key_Slash));
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("layerLockTransparentButton"));
+  CHECK(button != nullptr);
+
+  Access::select_layers(window, ids, ids.back());
+  QApplication::processEvents();
+  const auto depth_before = Access::active_session_undo_depth(window);
+  lock->trigger();
+  CHECK(locked(ids.front()) && locked(ids.back()));
+  CHECK(button->isChecked() && lock->isChecked());
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
+  lock->trigger();
+  CHECK(!locked(ids.front()) && !locked(ids.back()));
+  CHECK(!button->isChecked() && !lock->isChecked());
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 2);
+  // A mixed selection locks every layer.
+  Access::select_layers(window, {ids.front()}, ids.front());
+  QApplication::processEvents();
+  lock->trigger();
+  CHECK(locked(ids.front()) && !locked(ids.back()));
+  Access::select_layers(window, ids, ids.back());
+  QApplication::processEvents();
+  lock->trigger();
+  CHECK(locked(ids.front()) && locked(ids.back()));
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(locked(ids.front()) && !locked(ids.back()));
+}
+
+// GitHub issue 527: with a tool that has no opacity of its own (Move here), the digit keys set
+// the selected layers' opacity the way painting tools set theirs (5 = 50%, a quick second digit
+// refines it, 0 = 100%). The Layers panel field follows, and a run of digits is one undo entry.
+// Painting tools keep the keys for their own opacity.
+void ui_layer_opacity_digit_keys_with_move_tool() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  std::vector<patchy::LayerId> ids;
+  for (const char* name : {"Lower", "Upper"}) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+                        solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+    layer.set_bounds(patchy::Rect{20, 20, 60, 40});
+    ids.push_back(document.add_layer(std::move(layer)).id());
+  }
+  document.set_active_layer(ids.back());
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Opacity Digits"));
+  show_window(window);
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto opacity_of = [&window](patchy::LayerId id) {
+    const auto* layer = std::as_const(Access::document(window)).find_layer(id);
+    return layer != nullptr ? static_cast<int>(std::lround(layer->opacity() * 100.0F)) : -1;
+  };
+  auto* canvas = require_canvas(window);
+  auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
+  CHECK(opacity_spin != nullptr);
+  Access::select_layers(window, ids, ids.back());
+  QApplication::processEvents();
+  const auto depth_before = Access::active_session_undo_depth(window);
+
+  send_key(*canvas, Qt::Key_5);
+  process_events_for(60);
+  CHECK(opacity_of(ids.front()) == 50 && opacity_of(ids.back()) == 50);
+  CHECK(opacity_spin->value() == 50);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Layer opacity: 50%"));
+  send_key(*canvas, Qt::Key_7);  // inside the pair window: 57%
+  process_events_for(60);
+  CHECK(opacity_of(ids.front()) == 57 && opacity_of(ids.back()) == 57);
+  CHECK(opacity_spin->value() == 57);
+  // The run stays open past the field's own short pause and ends a second after the last digit.
+  process_events_for(400);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
+  process_events_for(900);
+  send_key(*canvas, Qt::Key_0);
+  process_events_for(60);
+  CHECK(opacity_of(ids.front()) == 100 && opacity_spin->value() == 100);
+  send_key(*canvas, Qt::Key_5);  // "0" then "5" is 5%
+  process_events_for(60);
+  CHECK(opacity_of(ids.front()) == 5 && opacity_of(ids.back()) == 5);
+  process_events_for(1100);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 2);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(opacity_of(ids.front()) == 57 && opacity_of(ids.back()) == 57);
+  // Shift+digit means nothing here.
+  send_key(*canvas, Qt::Key_3, Qt::ShiftModifier);
+  process_events_for(60);
+  CHECK(opacity_of(ids.back()) == 57);
+
+  // A painting tool sets its own opacity, never the layer's.
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  process_events_for(900);
+  send_key(*canvas, Qt::Key_3);
+  process_events_for(60);
+  CHECK(canvas->brush_opacity() == 30);
+  CHECK(opacity_of(ids.back()) == 57);
+}
+
 // GitHub issue 476 follow-up: fast Next Blend Mode presses never wait on the compositor. Each
 // press sets the mode at once (document, panel and status); the canvas renders on a worker and,
 // while one render is in flight, only the newest mode, so seven quick presses render at most
@@ -10834,6 +11054,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_layer_blend_mode_next_previous_commands_step_the_list},
       {"ui_tool_blend_mode_next_previous_commands_step_the_tool_mode",
        ui_tool_blend_mode_next_previous_commands_step_the_tool_mode},
+      {"ui_blend_mode_shortcuts_set_the_layer_or_tool_mode", ui_blend_mode_shortcuts_set_the_layer_or_tool_mode},
+      {"ui_lock_transparent_pixels_command_toggles_selected_layers",
+       ui_lock_transparent_pixels_command_toggles_selected_layers},
+      {"ui_layer_opacity_digit_keys_with_move_tool", ui_layer_opacity_digit_keys_with_move_tool},
       {"ui_layer_blend_mode_fast_steps_render_only_the_landing_mode",
        ui_layer_blend_mode_fast_steps_render_only_the_landing_mode},
       {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",

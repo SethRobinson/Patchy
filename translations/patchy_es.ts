@@ -28454,6 +28454,114 @@ Bloqueada: %1</translation>
         <source>Show Outline</source>
         <translation>Mostrar contorno</translation>
     </message>
+    <message>
+        <source>Blend Mode: Normal</source>
+        <translation>Modo de fusión: Normal</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Dissolve</source>
+        <translation>Modo de fusión: Disolver</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Darken</source>
+        <translation>Modo de fusión: Oscurecer</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Multiply</source>
+        <translation>Modo de fusión: Multiplicar</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Burn</source>
+        <translation>Modo de fusión: Subexponer color</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Burn</source>
+        <translation>Modo de fusión: Subexposición lineal</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Lighten</source>
+        <translation>Modo de fusión: Aclarar</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Screen</source>
+        <translation>Modo de fusión: Pantalla</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color Dodge</source>
+        <translation>Modo de fusión: Sobreexponer color</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Dodge (Add)</source>
+        <translation>Modo de fusión: Sobreexposición lineal (Añadir)</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Overlay</source>
+        <translation>Modo de fusión: Superponer</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Soft Light</source>
+        <translation>Modo de fusión: Luz suave</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Light</source>
+        <translation>Modo de fusión: Luz fuerte</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Vivid Light</source>
+        <translation>Modo de fusión: Luz intensa</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Linear Light</source>
+        <translation>Modo de fusión: Luz lineal</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Pin Light</source>
+        <translation>Modo de fusión: Luz focal</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hard Mix</source>
+        <translation>Modo de fusión: Mezcla definida</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Difference</source>
+        <translation>Modo de fusión: Diferencia</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Exclusion</source>
+        <translation>Modo de fusión: Exclusión</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Hue</source>
+        <translation>Modo de fusión: Tono</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Saturation</source>
+        <translation>Modo de fusión: Saturación</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Color</source>
+        <translation>Modo de fusión: Color</translation>
+    </message>
+    <message>
+        <source>Blend Mode: Luminosity</source>
+        <translation>Modo de fusión: Luminosidad</translation>
+    </message>
+    <message>
+        <source>Brush Softer</source>
+        <translation>Pincel más suave</translation>
+    </message>
+    <message>
+        <source>Brush Harder</source>
+        <translation>Pincel más duro</translation>
+    </message>
+    <message>
+        <source>Brush hardness: %1%</source>
+        <translation>Dureza del pincel: %1%</translation>
+    </message>
+    <message>
+        <source>Layer opacity: %1%</source>
+        <translation>Opacidad de la capa: %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
