@@ -14014,6 +14014,74 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>У некоторых текстовых слоёв есть контур GIMP из узора или штрихов, который эффект «Обводка» не может показать, поэтому они открыты как пиксельные слои.</translation>
     </message>
+    <message>
+        <source>Hearts and Stars</source>
+        <translation>Сердца и звёзды</translation>
+    </message>
+    <message>
+        <source>Animals</source>
+        <translation>Животные</translation>
+    </message>
+    <message>
+        <source>Nature</source>
+        <translation>Природа</translation>
+    </message>
+    <message>
+        <source>Weather and Elements</source>
+        <translation>Погода и стихии</translation>
+    </message>
+    <message>
+        <source>Space and Science</source>
+        <translation>Космос и наука</translation>
+    </message>
+    <message>
+        <source>People and Body</source>
+        <translation>Люди и тело</translation>
+    </message>
+    <message>
+        <source>Food and Drink</source>
+        <translation>Еда и напитки</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>Музыка</translation>
+    </message>
+    <message>
+        <source>Clothing</source>
+        <translation>Одежда</translation>
+    </message>
+    <message>
+        <source>Vehicles and Machines</source>
+        <translation>Транспорт и машины</translation>
+    </message>
+    <message>
+        <source>Buildings</source>
+        <translation>Здания</translation>
+    </message>
+    <message>
+        <source>Tools and Objects</source>
+        <translation>Инструменты и предметы</translation>
+    </message>
+    <message>
+        <source>Fantasy</source>
+        <translation>Фэнтези</translation>
+    </message>
+    <message>
+        <source>Weapons and Armor</source>
+        <translation>Оружие и доспехи</translation>
+    </message>
+    <message>
+        <source>Symbols and Signs</source>
+        <translation>Символы и знаки</translation>
+    </message>
+    <message>
+        <source>Abstract and Ornaments</source>
+        <translation>Абстракции и орнаменты</translation>
+    </message>
+    <message>
+        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <translation>Встроенные фигуры в тематических папках взяты с game-icons.net (CC BY 3.0), авторы: %1. Встроенные фигуры доступны только для чтения; «Дублировать» создаёт редактируемую копию.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16356,6 +16424,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Could not save the custom shape</source>
         <translation>Не удалось сохранить пользовательскую фигуру.</translation>
+    </message>
+    <message>
+        <source>By %1, game-icons.net (%2)</source>
+        <translation>Автор: %1, game-icons.net (%2)</translation>
     </message>
 </context>
 <context>

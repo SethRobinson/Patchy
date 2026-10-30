@@ -36,6 +36,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/custom_shape_manager_dialog.hpp"
+#include "ui/custom_shape_picker.hpp"
 #include "ui/default_custom_shapes.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
@@ -1433,7 +1434,29 @@ CustomShapeLibrary& MainWindow::custom_shape_library() {
   return *custom_shape_library_;
 }
 
+CustomShapeLibrary& MainWindow::custom_shape_library_with_bundled() {
+  auto& library = custom_shape_library();
+  if (!library.bundled_shapes_loaded()) {
+    library.ensure_bundled_shapes_loaded();
+    // Its folders start closed in the picker, once: after that the user's choice sticks.
+    auto settings = app_settings();
+    const auto seeded_key = QStringLiteral("shapes/bundledFoldersClosedSeeded");
+    if (!settings.value(seeded_key, false).toBool()) {
+      auto closed = settings.value(QLatin1String(kCustomShapePickerCollapsedFoldersKey)).toStringList();
+      for (const auto* folder : bundled_custom_shape_folders()) {
+        if (!closed.contains(QLatin1String(folder))) {
+          closed.append(QString::fromLatin1(folder));
+        }
+      }
+      settings.setValue(QLatin1String(kCustomShapePickerCollapsedFoldersKey), closed);
+      settings.setValue(seeded_key, true);
+    }
+  }
+  return library;
+}
+
 void MainWindow::open_custom_shape_manager(QWidget* parent) {
+  custom_shape_library_with_bundled();
   const auto initial =
       custom_shape_combo_ != nullptr ? custom_shape_combo_->currentData().toString() : QString();
   const auto storage_id =

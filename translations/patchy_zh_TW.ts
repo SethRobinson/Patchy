@@ -13928,6 +13928,74 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>部分文字圖層帶有以圖樣或虛線繪製的 GIMP 輪廓，筆畫效果無法顯示，因此已作為像素圖層開啟。</translation>
     </message>
+    <message>
+        <source>Hearts and Stars</source>
+        <translation>愛心和星星</translation>
+    </message>
+    <message>
+        <source>Animals</source>
+        <translation>動物</translation>
+    </message>
+    <message>
+        <source>Nature</source>
+        <translation>自然</translation>
+    </message>
+    <message>
+        <source>Weather and Elements</source>
+        <translation>天氣和元素</translation>
+    </message>
+    <message>
+        <source>Space and Science</source>
+        <translation>太空和科學</translation>
+    </message>
+    <message>
+        <source>People and Body</source>
+        <translation>人物和身體</translation>
+    </message>
+    <message>
+        <source>Food and Drink</source>
+        <translation>食物和飲料</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>音樂</translation>
+    </message>
+    <message>
+        <source>Clothing</source>
+        <translation>服裝</translation>
+    </message>
+    <message>
+        <source>Vehicles and Machines</source>
+        <translation>交通工具和機器</translation>
+    </message>
+    <message>
+        <source>Buildings</source>
+        <translation>建築</translation>
+    </message>
+    <message>
+        <source>Tools and Objects</source>
+        <translation>工具和物品</translation>
+    </message>
+    <message>
+        <source>Fantasy</source>
+        <translation>奇幻</translation>
+    </message>
+    <message>
+        <source>Weapons and Armor</source>
+        <translation>武器和盔甲</translation>
+    </message>
+    <message>
+        <source>Symbols and Signs</source>
+        <translation>符號和標誌</translation>
+    </message>
+    <message>
+        <source>Abstract and Ornaments</source>
+        <translation>抽象和裝飾</translation>
+    </message>
+    <message>
+        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <translation>主題資料夾中的內建形狀來自 game-icons.net (CC BY 3.0)，作者為 %1。內建形狀為唯讀；「複製」會建立可編輯的副本。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16270,6 +16338,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Could not save the custom shape</source>
         <translation>無法儲存自訂形狀</translation>
+    </message>
+    <message>
+        <source>By %1, game-icons.net (%2)</source>
+        <translation>作者：%1，game-icons.net (%2)</translation>
     </message>
 </context>
 <context>

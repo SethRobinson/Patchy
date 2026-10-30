@@ -1938,6 +1938,9 @@ private:
   std::optional<LayerId> insert_image_trace_layers(LayerId source_id, const patchy::ImageTraceResult& result);
   // Custom shapes (main_window_vector.cpp).
   [[nodiscard]] CustomShapeLibrary& custom_shape_library();
+  // The library with the bundled game-icons pack loaded (GitHub #521): the picker, the Shapes
+  // Manager and scripts. The first load also closes the pack's folders in the picker once.
+  CustomShapeLibrary& custom_shape_library_with_bundled();
   void refresh_custom_shape_combo();
   void apply_custom_shape_selection();
   void define_custom_shape_from_path();

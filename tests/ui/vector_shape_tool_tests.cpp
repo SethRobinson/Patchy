@@ -13,6 +13,8 @@
 #include "ui/app_settings.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
+#include <QSet>
+#include <QElapsedTimer>
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
@@ -1407,6 +1409,7 @@ void ui_custom_shape_manager_edits_reach_the_shape_picker() {
   auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
   CHECK(combo != nullptr);
   auto& library = patchy::ui::MainWindowTestAccess::custom_shape_library(window);
+  library.ensure_bundled_shapes_loaded(QStringLiteral(":/no-shape-pack"));  // builtins only: the pack has its own tests (GitHub #521)
   // A copy: add_shape reallocates the entry vector.
   const auto heart_path = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.heart"))->path;
   const auto storage_id = library.add_shape(QStringLiteral("Manager Shape"), heart_path);
@@ -1681,6 +1684,18 @@ QTreeWidgetItem* shape_tree_entry_row(QTreeWidget& tree, const QString& storage_
   return nullptr;
 }
 
+// The picker's remembered closed folders, minus the bundled pack's (GitHub #521), which start
+// closed and are stored with them.
+QStringList picker_collapsed_folders_without_bundled() {
+  auto folders = patchy::ui::app_settings()
+                     .value(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey))
+                     .toStringList();
+  for (const auto* bundled : patchy::ui::bundled_custom_shape_folders()) {
+    folders.removeAll(QString::fromLatin1(bundled));
+  }
+  return folders;
+}
+
 void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
   // GitHub issue 486 (Seth, October 28, 2026): the Shape picker's dropdown is a folder tree
   // whose folders open and close (remembered), with search and a Shapes Manager... button.
@@ -1703,6 +1718,7 @@ void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
     return;
   }
   auto& library = patchy::ui::MainWindowTestAccess::custom_shape_library(window);
+  library.ensure_bundled_shapes_loaded(QStringLiteral(":/no-shape-pack"));  // builtins only: the pack has its own tests (GitHub #521)
   const auto heart_storage = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.heart"))->storage_id;
   const auto star_storage = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.star"))->storage_id;
   combo->setCurrentIndex(combo->findData(QStringLiteral("shape.builtin.heart")));
@@ -1743,9 +1759,7 @@ void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
     arrows->setExpanded(false);
   }
   QApplication::processEvents();
-  CHECK(patchy::ui::app_settings()
-            .value(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey))
-            .toStringList() == QStringList{QStringLiteral("Arrows")});
+  CHECK(picker_collapsed_folders_without_bundled() == QStringList{QStringLiteral("Arrows")});
   close_popup();
   tree = open_popup();
   CHECK(tree != nullptr);
@@ -1773,9 +1787,7 @@ void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
   CHECK(combo->currentData().toString() == QStringLiteral("shape.builtin.star"));
   CHECK(picker->picker_popup() == nullptr || !picker->picker_popup()->isVisible());
   // Searching never overwrote the remembered folders.
-  CHECK(patchy::ui::app_settings()
-            .value(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey))
-            .toStringList() == QStringList{QStringLiteral("Arrows")});
+  CHECK(picker_collapsed_folders_without_bundled() == QStringList{QStringLiteral("Arrows")});
   close_popup();
 
   // Shapes Manager... opens the manager on the current shape.
@@ -2079,6 +2091,7 @@ void ui_custom_shape_picker_grid_view_picks_and_folds() {
     return;
   }
   auto& library = patchy::ui::MainWindowTestAccess::custom_shape_library(window);
+  library.ensure_bundled_shapes_loaded(QStringLiteral(":/no-shape-pack"));  // builtins only: the pack has its own tests (GitHub #521)
   const auto heart_storage = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.heart"))->storage_id;
   const auto star_storage = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.star"))->storage_id;
   combo->setCurrentIndex(combo->findData(QStringLiteral("shape.builtin.heart")));
@@ -2129,9 +2142,7 @@ void ui_custom_shape_picker_grid_view_picks_and_folds() {
   QApplication::processEvents();
   CHECK(!patchy::ui::PresetGridWidget::is_folder_expanded(arrows));
   CHECK(shape_grid_folder_cells(*grid, QStringLiteral("Arrows")).front()->isHidden());
-  CHECK(patchy::ui::app_settings()
-            .value(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey))
-            .toStringList() == QStringList{QStringLiteral("Arrows")});
+  CHECK(picker_collapsed_folders_without_bundled() == QStringList{QStringLiteral("Arrows")});
   grid->scrollToTop();
   QApplication::processEvents();
   save_widget_artifact("ui_custom_shape_picker_grid", *popup);
@@ -2193,6 +2204,167 @@ int shape_grid_first_row_columns(patchy::ui::PresetGridWidget& grid, const QStri
   return static_cast<int>(std::count_if(cells.begin(), cells.end(), [&](QListWidgetItem* cell) {
     return !cell->isHidden() && grid.visualItemRect(cell).top() == top;
   }));
+}
+
+// GitHub #521: the bundled game-icons.net pack is loaded only on request, once; its shapes
+// are read-only, their ids unique and stable, each a closed outline in the unit box, credited.
+void ui_custom_shape_bundled_pack_loads_on_request() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::CustomShapeLibrary library(directory.filePath(QStringLiteral("shapes")));
+  CHECK(library.restore_default_shapes() > 0);
+  const auto before = library.entries().size();
+  CHECK(!library.bundled_shapes_loaded());
+  const auto rook_id = QStringLiteral("shape.gameicons.skoll.chess-rook");
+  CHECK(library.find_entry_by_shape_id(rook_id) == nullptr);
+  int changes = 0;
+  QObject::connect(&library, &patchy::ui::CustomShapeLibrary::changed, [&changes] { ++changes; });
+  QElapsedTimer timer;
+  timer.start();
+  CHECK(library.ensure_bundled_shapes_loaded());
+  const auto load_ms = timer.elapsed();
+  CHECK(!library.ensure_bundled_shapes_loaded());  // once
+  CHECK(changes == 1);
+  const auto bundled = static_cast<int>(library.entries().size() - before);
+  std::printf("[INFO] bundled custom shapes: %d loaded in %lld ms\n", bundled, static_cast<long long>(load_ms));
+  CHECK(bundled >= 600 && bundled <= 800);
+  CHECK(load_ms < 3000);
+  // Permanent ids (documents and settings name them): a few pinned from the manifest.
+  for (const auto* id : {"shape.gameicons.skoll.chess-rook", "shape.gameicons.delapouite.banjo",
+                         "shape.gameicons.delapouite.spiky-wing"}) {
+    CHECK(library.find_entry_by_shape_id(QLatin1String(id)) != nullptr);
+  }
+  QSet<QString> ids;
+  QSet<QString> names;
+  QStringList folders;
+  for (const auto* folder : patchy::ui::bundled_custom_shape_folders()) {
+    folders.append(QString::fromLatin1(folder));
+  }
+  for (const auto& entry : library.entries()) {
+    if (!entry.bundled) {
+      continue;
+    }
+    CHECK(patchy::ui::is_bundled_custom_shape_id(entry.id));
+    CHECK(entry.storage_id == entry.id);
+    CHECK(!ids.contains(entry.id));
+    CHECK(!names.contains(entry.name));
+    ids.insert(entry.id);
+    names.insert(entry.name);
+    CHECK(folders.contains(entry.folder));
+    CHECK(!entry.author.isEmpty());
+    CHECK(entry.thumbnail.isNull());  // drawn when painted
+    CHECK(!entry.path.subpaths.empty());
+    for (const auto& subpath : entry.path.subpaths) {
+      CHECK(subpath.closed && subpath.anchors.size() >= 2 && subpath.shape_group == 0);
+    }
+    const auto bounds = entry.path.bounds();
+    CHECK(bounds.has_value());
+    if (bounds.has_value()) {
+      CHECK(bounds->left > -1e-6 && bounds->top > -1e-6 && bounds->right < 1.0 + 1e-6 && bounds->bottom < 1.0 + 1e-6);
+      CHECK(std::abs(std::max(bounds->right - bounds->left, bounds->bottom - bounds->top) - 1.0) < 1e-6);
+    }
+  }
+  // Read-only: no rename, move or delete; Duplicate makes an editable user copy.
+  const auto* rook = library.find_entry_by_shape_id(rook_id);
+  CHECK(rook != nullptr);
+  if (rook == nullptr) {
+    return;
+  }
+  const auto rook_storage = rook->storage_id;
+  const auto rook_name = rook->name;
+  CHECK(!library.rename_shape(rook_storage, QStringLiteral("Mine")));
+  CHECK(!library.set_shape_folder(rook_storage, QStringLiteral("Mine")));
+  CHECK(library.move_shapes_to_folder({rook_storage}, QStringLiteral("Mine")) == 0);
+  CHECK(library.remove_shapes({rook_storage}) == 0);
+  CHECK(library.find_entry(rook_storage) != nullptr && library.find_entry(rook_storage)->name == rook_name);
+  const auto copy_storage = library.duplicate_shape(rook_storage);
+  CHECK(!copy_storage.isEmpty());
+  const auto* copy = library.find_entry(copy_storage);
+  CHECK(copy != nullptr && !copy->bundled && copy->id.startsWith(QStringLiteral("shape.user.")));
+  CHECK(copy != nullptr && copy->path == library.find_entry(rook_storage)->path);
+  CHECK(patchy::ui::custom_shape_tool_tip(*library.find_entry(rook_storage)).contains(QStringLiteral("game-icons.net")));
+  CHECK(!patchy::ui::custom_shape_icon(*library.find_entry(rook_storage)).pixmap(32, 32).isNull());
+  // A library made afresh holds no bundled shape until asked (nothing reaches the sidecars).
+  patchy::ui::CustomShapeLibrary reopened(directory.filePath(QStringLiteral("shapes")));
+  CHECK(reopened.find_entry_by_shape_id(rook_id) == nullptr);
+  CHECK(reopened.find_entry(copy_storage) != nullptr);
+}
+
+// GitHub #521: the Shape picker opens quickly with the bundled pack, its folders closed; a
+// folder opens to thumbnails with the author in the tooltip, and a pick stamps the shape.
+void ui_custom_shape_picker_opens_with_the_bundled_pack() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  SettingsValueRestorer saved_collapsed{QString::fromLatin1(patchy::ui::kCustomShapePickerCollapsedFoldersKey)};
+  SettingsValueRestorer saved_view{QString::fromLatin1(patchy::ui::kCustomShapePickerGridViewKey)};
+  SettingsValueRestorer saved_size{QString::fromLatin1(patchy::ui::kCustomShapePickerSizeKey)};
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerCollapsedFoldersKey));
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kCustomShapePickerGridViewKey));
+  patchy::ui::app_settings().setValue(QLatin1String(patchy::ui::kCustomShapePickerSizeKey), QSize(420, 460));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_tool(patchy::ui::CanvasTool::CustomShape);
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  auto* picker = dynamic_cast<patchy::ui::CustomShapePickerCombo*>(combo);
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return;
+  }
+  CHECK(!patchy::ui::MainWindowTestAccess::custom_shape_library(window).bundled_shapes_loaded());
+  QElapsedTimer timer;
+  timer.start();
+  picker->showPopup();
+  QApplication::processEvents();
+  const auto open_ms = timer.elapsed();
+  std::printf("[INFO] Shape picker first opening with the bundled pack: %lld ms\n", static_cast<long long>(open_ms));
+  CHECK(open_ms < 2500);
+  auto* popup = picker->picker_popup();
+  CHECK(popup != nullptr && popup->isVisible());
+  if (popup == nullptr) {
+    return;
+  }
+  auto* grid = static_cast<patchy::ui::PresetGridWidget*>(popup->findChild<QListWidget*>(QStringLiteral("customShapeComboGrid")));
+  CHECK(grid != nullptr);
+  if (grid == nullptr) {
+    return;
+  }
+  for (const auto* folder : patchy::ui::bundled_custom_shape_folders()) {
+    auto* header = grid->folder_item(QString::fromLatin1(folder));
+    CHECK(header != nullptr && !patchy::ui::PresetGridWidget::is_folder_expanded(header));
+  }
+  grid->scrollToTop();
+  QApplication::processEvents();
+  save_widget_artifact("ui_i521_picker_bundled_folders", *popup);
+  auto* animals = grid->folder_item(QStringLiteral("Animals"));
+  CHECK(animals != nullptr);
+  if (animals == nullptr) {
+    return;
+  }
+  QTest::mouseClick(grid->viewport(), Qt::LeftButton, {}, grid->visualItemRect(animals).center());
+  QApplication::processEvents();
+  CHECK(patchy::ui::PresetGridWidget::is_folder_expanded(animals));
+  const auto cells = shape_grid_folder_cells(*grid, QStringLiteral("Animals"));
+  CHECK(cells.size() >= 40);
+  CHECK(!cells.empty() && !cells.front()->isHidden());
+  CHECK(!cells.empty() && cells.front()->toolTip().contains(QStringLiteral("game-icons.net")));
+  grid->scrollToItem(animals, QAbstractItemView::PositionAtTop);
+  QApplication::processEvents();
+  save_widget_artifact("ui_i521_picker_animals_open", *popup);
+  // A pick stamps the shape with the Custom Shape tool.
+  if (!cells.empty()) {
+    const auto picked = patchy::ui::PresetGridWidget::item_entry_id(cells.front());
+    QTest::mouseClick(grid->viewport(), Qt::LeftButton, {}, grid->visualItemRect(cells.front()).center());
+    QApplication::processEvents();
+    CHECK(combo->currentData().toString() == picked);
+    CHECK(patchy::ui::is_bundled_custom_shape_id(combo->currentData().toString()));
+  }
+  QTest::qWait(300);
+  const auto layers_before = document.layers().size();
+  shape_drag(*canvas, QPoint(100, 100), QPoint(260, 260));
+  CHECK(document.layers().size() == layers_before + 1);
+  const auto* stamped = std::as_const(document).find_layer(*document.active_layer_id());
+  CHECK(stamped != nullptr && stamped->vector_shape() != nullptr && !stamped->vector_shape()->path.empty());
 }
 
 void ui_custom_shape_picker_resizes_and_remembers_its_size() {
@@ -7380,6 +7552,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_custom_shape_manager_grid_view_toggles_and_organizes},
       {"ui_custom_shape_picker_grid_view_picks_and_folds", ui_custom_shape_picker_grid_view_picks_and_folds},
       {"ui_custom_shape_picker_resizes_and_remembers_its_size", ui_custom_shape_picker_resizes_and_remembers_its_size},
+      {"ui_custom_shape_bundled_pack_loads_on_request", ui_custom_shape_bundled_pack_loads_on_request},
+      {"ui_custom_shape_picker_opens_with_the_bundled_pack", ui_custom_shape_picker_opens_with_the_bundled_pack},
       {"ui_edit_define_menu_holds_the_define_commands", ui_edit_define_menu_holds_the_define_commands},
       {"ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes",
        ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes},

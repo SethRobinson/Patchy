@@ -13971,6 +13971,74 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>Algunas capas de texto tienen un contorno de GIMP hecho con un motivo o con guiones, que un efecto Trazo no puede mostrar, así que se abrieron como capas de píxeles.</translation>
     </message>
+    <message>
+        <source>Hearts and Stars</source>
+        <translation>Corazones y estrellas</translation>
+    </message>
+    <message>
+        <source>Animals</source>
+        <translation>Animales</translation>
+    </message>
+    <message>
+        <source>Nature</source>
+        <translation>Naturaleza</translation>
+    </message>
+    <message>
+        <source>Weather and Elements</source>
+        <translation>Clima y elementos</translation>
+    </message>
+    <message>
+        <source>Space and Science</source>
+        <translation>Espacio y ciencia</translation>
+    </message>
+    <message>
+        <source>People and Body</source>
+        <translation>Personas y cuerpo</translation>
+    </message>
+    <message>
+        <source>Food and Drink</source>
+        <translation>Comida y bebida</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>Música</translation>
+    </message>
+    <message>
+        <source>Clothing</source>
+        <translation>Ropa</translation>
+    </message>
+    <message>
+        <source>Vehicles and Machines</source>
+        <translation>Vehículos y máquinas</translation>
+    </message>
+    <message>
+        <source>Buildings</source>
+        <translation>Edificios</translation>
+    </message>
+    <message>
+        <source>Tools and Objects</source>
+        <translation>Herramientas y objetos</translation>
+    </message>
+    <message>
+        <source>Fantasy</source>
+        <translation>Fantasía</translation>
+    </message>
+    <message>
+        <source>Weapons and Armor</source>
+        <translation>Armas y armaduras</translation>
+    </message>
+    <message>
+        <source>Symbols and Signs</source>
+        <translation>Símbolos y señales</translation>
+    </message>
+    <message>
+        <source>Abstract and Ornaments</source>
+        <translation>Abstracto y ornamentos</translation>
+    </message>
+    <message>
+        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <translation>Las formas integradas de las carpetas temáticas son de game-icons.net (CC BY 3.0), creadas por %1. Las formas integradas son de solo lectura; Duplicar crea una copia editable.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16313,6 +16381,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Could not save the custom shape</source>
         <translation>No se pudo guardar la forma personalizada</translation>
+    </message>
+    <message>
+        <source>By %1, game-icons.net (%2)</source>
+        <translation>Por %1, game-icons.net (%2)</translation>
     </message>
 </context>
 <context>

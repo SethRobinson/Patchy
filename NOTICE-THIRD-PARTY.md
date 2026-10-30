@@ -349,6 +349,49 @@ Each asset page is `https://polyhaven.com/a/<asset id>`. CC0 requires no
 attribution; the authors are credited here voluntarily (authors marked
 "(Poly Haven)" are listed on the asset pages).
 
+## Bundled custom shapes (game-icons.net, CC BY 3.0)
+
+The 699 shapes in the Custom Shape picker's topic folders (Animals, Nature,
+Hearts and Stars and the rest; ids `shape.gameicons.*`, embedded as
+`src/ui/shapes/game-icons.json`) are outlines from the game-icons.net collection
+(https://game-icons.net, repository https://github.com/game-icons/icons at commit
+`82d948812bfe3f269ef8f731dcdb07b08160edc4`), drawn by the people below (no AI generation, per
+docs/legal-constraints.md). They are licensed under the Creative Commons Attribution 3.0
+Unported license (https://creativecommons.org/licenses/by/3.0/), except Viscious Speed's and
+Zeromancer's, which are CC0. Changes: the black background square was removed, the outlines
+were renamed, sorted into Patchy's own folders and scaled to a unit box; the selection list is
+`scripts/dev/gameicons/game_icons_manifest.tsv`. The collection asks for the credit "Icons
+made by {author}"; Patchy shows each shape's author in its tooltip and the authors in the
+Shapes Manager.
+
+Icons made by:
+
+| Author | Shapes |
+| --- | --- |
+| Delapouite | 343 |
+| Lorc | 195 |
+| Skoll | 44 |
+| Sbed | 36 |
+| Caro Asercion | 32 |
+| Viscious Speed | 10 |
+| Cathelineau | 8 |
+| Aussiesim | 5 |
+| DarkZaitzev | 4 |
+| Lord Berandas | 3 |
+| Faithtoken | 2 |
+| Lucas | 2 |
+| PriorBlue | 2 |
+| Quoting | 2 |
+| Willdabeast | 2 |
+| Zeromancer | 2 |
+| Andy Meneely | 1 |
+| GeneralAce135 | 1 |
+| Guard13007 | 1 |
+| Irongamer | 1 |
+| Pierre Leducq | 1 |
+| Rihlsul | 1 |
+| Zajkonur | 1 |
+
 ## Test fixtures (not distributed with the application)
 
 Files under `test-fixtures/` are used only by the automated test suites and are

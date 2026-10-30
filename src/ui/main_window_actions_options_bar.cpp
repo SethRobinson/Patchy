@@ -4343,7 +4343,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       add_option_label(QT_TR_NOOP("Shape:"), {CanvasTool::CustomShape}));
   // A folder-tree popup with search and a Shapes Manager... button (GitHub issue 486).
   custom_shape_combo_ = new CustomShapePickerCombo(
-      [this]() -> const CustomShapeLibrary* { return &custom_shape_library(); },
+      [this]() -> const CustomShapeLibrary* { return &custom_shape_library_with_bundled(); },
       [this] { open_custom_shape_manager(nullptr); }, toolbar);
   custom_shape_combo_->setObjectName(QStringLiteral("customShapeCombo"));
   custom_shape_combo_->setIconSize(QSize(24, 24));

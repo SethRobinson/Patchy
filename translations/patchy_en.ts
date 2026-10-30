@@ -13954,6 +13954,74 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Hearts and Stars</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Animals</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nature</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Weather and Elements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Space and Science</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>People and Body</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Food and Drink</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clothing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vehicles and Machines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Buildings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tools and Objects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fantasy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Weapons and Armor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Symbols and Signs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Abstract and Ornaments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16295,6 +16363,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Could not save the custom shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>By %1, game-icons.net (%2)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
