@@ -12,7 +12,7 @@
 - Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold, Exposure, Channel Mixer, Photo Filter, Gradient Map, Black & White with presets, Color Lookup (.cube, .3dl or embedded), Selective Color, and Vibrance) with live preview, editable settings, native PSD data, and .acv Curves preset import/export; each also applies from Image > Adjustments
 - One-step Image > Adjustments with no dialog: Invert (Ctrl+I), Auto Tone, Auto Contrast, Auto Color, and Auto All
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (blur, sharpen, noise, distort, stylize, pixelate and render filters plus Image > Adjustments commands) with paintable shared masks and per-filter blending
-- Photoshop-compatible layer style, pattern, and gradient preset libraries with .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures; Edit > Presets (or Preferences) opens all managers, Shapes Manager (.csh, grids, resizable picker, 699 game-icons.net shapes)
+- Photoshop-compatible layer style, pattern, and gradient preset libraries with .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures; Edit > Presets (or Preferences) opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
 - Continuous long shadows for type and shapes. This Patchy-specific layer-style setting falls back to a normal drop shadow in Photoshop; see the [example](screenshots.md).
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 

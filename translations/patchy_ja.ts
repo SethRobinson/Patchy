@@ -14037,16 +14037,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>武器と防具</translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation>記号とサイン</translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation>抽象と装飾</translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
-        <translation>テーマ別フォルダーの組み込みシェイプは game-icons.net (CC BY 3.0) のもので、作者は %1 です。組み込みシェイプは読み取り専用です。複製すると編集可能なコピーが作られます。</translation>
+        <source>Games</source>
+        <translation>ゲーム</translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
+        <translation>ツールチップに作者名があるシェイプは game-icons.net (CC BY 3.0) のもので、作者は %1 です。読み取り専用です。複製すると編集可能なコピーが作られます。</translation>
     </message>
 </context>
 <context>

@@ -14080,16 +14080,16 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Waffen und Rüstungen</translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation>Symbole und Zeichen</translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation>Abstraktes und Ornamente</translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
-        <translation>Die mitgelieferten Formen in den Themenordnern stammen von game-icons.net (CC BY 3.0), erstellt von %1. Mitgelieferte Formen sind schreibgeschützt; Duplizieren erstellt eine bearbeitbare Kopie.</translation>
+        <source>Games</source>
+        <translation>Spiele</translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
+        <translation>Formen, deren Tooltip einen Autor nennt, stammen von game-icons.net (CC BY 3.0), erstellt von %1. Sie sind schreibgeschützt; Duplizieren erstellt eine bearbeitbare Kopie.</translation>
     </message>
 </context>
 <context>

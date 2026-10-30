@@ -36,7 +36,6 @@ shape.gameicons.lorc.bull-horns	lorc/bull-horns.svg	lorc	Animals	Bull Horns
 shape.gameicons.lorc.butterfly	lorc/butterfly.svg	lorc	Animals	Butterfly
 shape.gameicons.caro-asercion.canadian-goose	caro-asercion/canadian-goose.svg	caro-asercion	Animals	Canadian Goose
 shape.gameicons.caro-asercion.capybara	caro-asercion/capybara.svg	caro-asercion	Animals	Capybara
-shape.gameicons.skoll.chess-knight	skoll/chess-knight.svg	skoll	Animals	Chess Knight
 shape.gameicons.sbed.claw	sbed/claw.svg	sbed	Animals	Claw
 shape.gameicons.lorc.crab-claw	lorc/crab-claw.svg	lorc	Animals	Crab Claw
 shape.gameicons.lorc.distraction	lorc/distraction.svg	lorc	Animals	Distraction
@@ -60,7 +59,6 @@ shape.gameicons.caro-asercion.hedgehog	caro-asercion/hedgehog.svg	caro-asercion	
 shape.gameicons.caro-asercion.heron	caro-asercion/heron.svg	caro-asercion	Animals	Heron
 shape.gameicons.delapouite.hummingbird	delapouite/hummingbird.svg	delapouite	Animals	Hummingbird
 shape.gameicons.delapouite.incubator	delapouite/incubator.svg	delapouite	Animals	Incubator
-shape.gameicons.delapouite.kenku-head	delapouite/kenku-head.svg	delapouite	Animals	Kenku Head
 shape.gameicons.delapouite.kiwi-bird	delapouite/kiwi-bird.svg	delapouite	Animals	Kiwi Bird
 shape.gameicons.lorc.lizard-tongue	lorc/lizard-tongue.svg	lorc	Animals	Lizard Tongue
 shape.gameicons.caro-asercion.mole	caro-asercion/mole.svg	caro-asercion	Animals	Mole
@@ -93,13 +91,60 @@ shape.gameicons.lorc.vulture	lorc/vulture.svg	lorc	Animals	Vulture
 shape.gameicons.delapouite.whale-tail	delapouite/whale-tail.svg	delapouite	Animals	Whale Tail
 shape.gameicons.lorc.winged-leg	lorc/winged-leg.svg	lorc	Animals	Winged Leg
 shape.gameicons.lorc.wolf-howl	lorc/wolf-howl.svg	lorc	Animals	Wolf Howl
+shape.gameicons.delapouite.anticlockwise-rotation	delapouite/anticlockwise-rotation.svg	delapouite	Arrows	Anticlockwise Rotation
+shape.gameicons.delapouite.arrow-cursor	delapouite/arrow-cursor.svg	delapouite	Arrows	Arrow Cursor
+shape.gameicons.lorc.arrow-dunk	lorc/arrow-dunk.svg	lorc	Arrows	Arrow Dunk
+shape.gameicons.lorc.back-forth	lorc/back-forth.svg	lorc	Arrows	Back and Forth
+shape.gameicons.delapouite.backward-time	delapouite/backward-time.svg	delapouite	Arrows	Backward Time
+shape.gameicons.lorc.bottom-right-3d-arrow	lorc/bottom-right-3d-arrow.svg	lorc	Arrows	Bottom Right 3d Arrow
+shape.gameicons.skoll.click	skoll/click.svg	skoll	Arrows	Click
+shape.gameicons.delapouite.clockwise-rotation	delapouite/clockwise-rotation.svg	delapouite	Arrows	Clockwise Rotation
+shape.gameicons.delapouite.cloud-download	delapouite/cloud-download.svg	delapouite	Arrows	Cloud Download
+shape.gameicons.delapouite.cloud-upload	delapouite/cloud-upload.svg	delapouite	Arrows	Cloud Upload
+shape.gameicons.delapouite.contract	delapouite/contract.svg	delapouite	Arrows	Contract
+shape.gameicons.delapouite.convergence-target	delapouite/convergence-target.svg	delapouite	Arrows	Convergence Target
+shape.gameicons.lorc.crosshair-arrow	lorc/crosshair-arrow.svg	lorc	Arrows	Crosshair Arrow
+shape.gameicons.lorc.cycle	lorc/cycle.svg	lorc	Arrows	Cycle
+shape.gameicons.delapouite.expand	delapouite/expand.svg	delapouite	Arrows	Expand
+shape.gameicons.sbed.expander	sbed/expander.svg	sbed	Arrows	Expander
+shape.gameicons.lorc.fast-arrow	lorc/fast-arrow.svg	lorc	Arrows	Fast Arrow
+shape.gameicons.delapouite.fast-backward-button	delapouite/fast-backward-button.svg	delapouite	Arrows	Fast Backward Button
+shape.gameicons.delapouite.fast-forward-button	delapouite/fast-forward-button.svg	delapouite	Arrows	Fast Forward Button
+shape.gameicons.delapouite.horizontal-flip	delapouite/horizontal-flip.svg	delapouite	Arrows	Horizontal Flip
+shape.gameicons.lorc.imbricated-arrows	lorc/imbricated-arrows.svg	lorc	Arrows	Imbricated Arrows
+shape.gameicons.lorc.interleaved-arrows	lorc/interleaved-arrows.svg	lorc	Arrows	Interleaved Arrows
+shape.gameicons.delapouite.join	delapouite/join.svg	delapouite	Arrows	Join
+shape.gameicons.delapouite.load	delapouite/load.svg	delapouite	Arrows	Load
+shape.gameicons.lorc.lob-arrow	lorc/lob-arrow.svg	lorc	Arrows	Lob Arrow
+shape.gameicons.lorc.middle-arrow	lorc/middle-arrow.svg	lorc	Arrows	Middle Arrow
+shape.gameicons.delapouite.misdirection	delapouite/misdirection.svg	delapouite	Arrows	Misdirection
+shape.gameicons.delapouite.move	delapouite/move.svg	delapouite	Arrows	Move
+shape.gameicons.delapouite.multi-directions	delapouite/multi-directions.svg	delapouite	Arrows	Multi Directions
+shape.gameicons.delapouite.next-button	delapouite/next-button.svg	delapouite	Arrows	Next Button
+shape.gameicons.lorc.orb-direction	lorc/orb-direction.svg	lorc	Arrows	Orb Direction
+shape.gameicons.guard13007.pause-button	guard13007/pause-button.svg	guard13007	Arrows	Pause Button
+shape.gameicons.lorc.pentarrows-tornado	lorc/pentarrows-tornado.svg	lorc	Arrows	Pentarrows Tornado
+shape.gameicons.delapouite.plain-arrow	delapouite/plain-arrow.svg	delapouite	Arrows	Plain Arrow
+shape.gameicons.guard13007.play-button	guard13007/play-button.svg	guard13007	Arrows	Play Button
+shape.gameicons.delapouite.previous-button	delapouite/previous-button.svg	delapouite	Arrows	Previous Button
+shape.gameicons.delapouite.progression	delapouite/progression.svg	delapouite	Arrows	Progression
+shape.gameicons.delapouite.resize	delapouite/resize.svg	delapouite	Arrows	Resize
+shape.gameicons.lorc.return-arrow	lorc/return-arrow.svg	lorc	Arrows	Return Arrow
+shape.gameicons.delapouite.save-arrow	delapouite/save-arrow.svg	delapouite	Arrows	Save Arrow
+shape.gameicons.delapouite.share	delapouite/share.svg	delapouite	Arrows	Share
+shape.gameicons.lorc.smash-arrows	lorc/smash-arrows.svg	lorc	Arrows	Smash Arrows
+shape.gameicons.delapouite.split-arrows	delapouite/split-arrows.svg	delapouite	Arrows	Split Arrows
+shape.gameicons.lorc.star-cycle	lorc/star-cycle.svg	lorc	Arrows	Star Cycle
+shape.gameicons.lorc.striking-arrows	lorc/striking-arrows.svg	lorc	Arrows	Striking Arrows
+shape.gameicons.delapouite.vertical-flip	delapouite/vertical-flip.svg	delapouite	Arrows	Vertical Flip
+shape.gameicons.lorc.wide-arrow-dunk	lorc/wide-arrow-dunk.svg	lorc	Arrows	Wide Arrow Dunk
+shape.gameicons.lorc.zig-arrow	lorc/zig-arrow.svg	lorc	Arrows	Zig Arrow
 shape.gameicons.delapouite.ancient-columns	delapouite/ancient-columns.svg	delapouite	Buildings	Ancient Columns
 shape.gameicons.sbed.arena	sbed/arena.svg	sbed	Buildings	Arena
 shape.gameicons.delapouite.barracks-tent	delapouite/barracks-tent.svg	delapouite	Buildings	Barracks Tent
 shape.gameicons.delapouite.boxing-ring	delapouite/boxing-ring.svg	delapouite	Buildings	Boxing Ring
 shape.gameicons.delapouite.broken-wall	delapouite/broken-wall.svg	delapouite	Buildings	Broken Wall
 shape.gameicons.delapouite.bus-doors	delapouite/bus-doors.svg	delapouite	Buildings	Bus Doors
-shape.gameicons.skoll.chess-rook	skoll/chess-rook.svg	skoll	Buildings	Chess Rook
 shape.gameicons.delapouite.control-tower	delapouite/control-tower.svg	delapouite	Buildings	Control Tower
 shape.gameicons.quoting.damaged-house	quoting/damaged-house.svg	quoting	Buildings	Damaged House
 shape.gameicons.delapouite.door	delapouite/door.svg	delapouite	Buildings	Door
@@ -138,8 +183,6 @@ shape.gameicons.lorc.boot-prints	lorc/boot-prints.svg	lorc	Clothing	Boot Prints
 shape.gameicons.skoll.brodie-helmet	skoll/brodie-helmet.svg	skoll	Clothing	Brodie Helmet
 shape.gameicons.delapouite.captain-hat-profile	delapouite/captain-hat-profile.svg	delapouite	Clothing	Captain Hat Profile
 shape.gameicons.delapouite.chelsea-boot	delapouite/chelsea-boot.svg	delapouite	Clothing	Chelsea Boot
-shape.gameicons.skoll.chess-king	skoll/chess-king.svg	skoll	Clothing	Chess King
-shape.gameicons.skoll.chess-queen	skoll/chess-queen.svg	skoll	Clothing	Chess Queen
 shape.gameicons.delapouite.clothes	delapouite/clothes.svg	delapouite	Clothing	Clothes
 shape.gameicons.lorc.cracked-helm	lorc/cracked-helm.svg	lorc	Clothing	Cracked Helm
 shape.gameicons.delapouite.crenel-crown	delapouite/crenel-crown.svg	delapouite	Clothing	Crenel Crown
@@ -158,7 +201,6 @@ shape.gameicons.lorc.hood	lorc/hood.svg	lorc	Clothing	Hood
 shape.gameicons.delapouite.intricate-necklace	delapouite/intricate-necklace.svg	delapouite	Clothing	Intricate Necklace
 shape.gameicons.delapouite.kimono	delapouite/kimono.svg	delapouite	Clothing	Kimono
 shape.gameicons.delapouite.large-dress	delapouite/large-dress.svg	delapouite	Clothing	Large Dress
-shape.gameicons.lorc.medal	lorc/medal.svg	lorc	Clothing	Medal
 shape.gameicons.delapouite.necklace-display	delapouite/necklace-display.svg	delapouite	Clothing	Necklace Display
 shape.gameicons.delapouite.ninja-armor	delapouite/ninja-armor.svg	delapouite	Clothing	Ninja Armor
 shape.gameicons.delapouite.pope-crown	delapouite/pope-crown.svg	delapouite	Clothing	Pope Crown
@@ -189,6 +231,7 @@ shape.gameicons.lorc.flaming-claw	lorc/flaming-claw.svg	lorc	Fantasy	Flaming Cla
 shape.gameicons.lorc.flat-paw-print	lorc/flat-paw-print.svg	lorc	Fantasy	Flat Paw Print
 shape.gameicons.caro-asercion.goblin	caro-asercion/goblin.svg	caro-asercion	Fantasy	Goblin
 shape.gameicons.lorc.grim-reaper	lorc/grim-reaper.svg	lorc	Fantasy	Grim Reaper
+shape.gameicons.skoll.hasty-grave	skoll/hasty-grave.svg	skoll	Fantasy	Hasty Grave
 shape.gameicons.lorc.imp-laugh	lorc/imp-laugh.svg	lorc	Fantasy	Imp Laugh
 shape.gameicons.delapouite.liberty-wing	delapouite/liberty-wing.svg	delapouite	Fantasy	Liberty Wing
 shape.gameicons.lorc.monster-grasp	lorc/monster-grasp.svg	lorc	Fantasy	Monster Grasp
@@ -258,6 +301,54 @@ shape.gameicons.delapouite.tangerine	delapouite/tangerine.svg	delapouite	Food an
 shape.gameicons.delapouite.vending-machine	delapouite/vending-machine.svg	delapouite	Food and Drink	Vending Machine
 shape.gameicons.delapouite.window	delapouite/window.svg	delapouite	Food and Drink	Window
 shape.gameicons.lorc.wine-glass	lorc/wine-glass.svg	lorc	Food and Drink	Wine Glass
+shape.gameicons.delapouite.abbot-meeple	delapouite/abbot-meeple.svg	delapouite	Games	Abbot Meeple
+shape.gameicons.delapouite.buy-card	delapouite/buy-card.svg	delapouite	Games	Buy Card
+shape.gameicons.aussiesim.card-4-diamonds	aussiesim/card-4-diamonds.svg	aussiesim	Games	Card 4 of Diamonds
+shape.gameicons.aussiesim.card-4-hearts	aussiesim/card-4-hearts.svg	aussiesim	Games	Card 4 of Hearts
+shape.gameicons.aussiesim.card-4-spades	aussiesim/card-4-spades.svg	aussiesim	Games	Card 4 of Spades
+shape.gameicons.aussiesim.card-7-diamonds	aussiesim/card-7-diamonds.svg	aussiesim	Games	Card 7 of Diamonds
+shape.gameicons.aussiesim.card-ace-clubs	aussiesim/card-ace-clubs.svg	aussiesim	Games	Card Ace of Clubs
+shape.gameicons.aussiesim.card-ace-diamonds	aussiesim/card-ace-diamonds.svg	aussiesim	Games	Card Ace of Diamonds
+shape.gameicons.aussiesim.card-ace-hearts	aussiesim/card-ace-hearts.svg	aussiesim	Games	Card Ace of Hearts
+shape.gameicons.aussiesim.card-ace-spades	aussiesim/card-ace-spades.svg	aussiesim	Games	Card Ace of Spades
+shape.gameicons.faithtoken.card-discard	faithtoken/card-discard.svg	faithtoken	Games	Card Discard
+shape.gameicons.aussiesim.card-jack-hearts	aussiesim/card-jack-hearts.svg	aussiesim	Games	Card Jack of Hearts
+shape.gameicons.delapouite.card-joker	delapouite/card-joker.svg	delapouite	Games	Card Joker
+shape.gameicons.aussiesim.card-king-hearts	aussiesim/card-king-hearts.svg	aussiesim	Games	Card King of Hearts
+shape.gameicons.quoting.card-play	quoting/card-play.svg	quoting	Games	Card Play
+shape.gameicons.aussiesim.card-queen-hearts	aussiesim/card-queen-hearts.svg	aussiesim	Games	Card Queen of Hearts
+shape.gameicons.skoll.chess-bishop	skoll/chess-bishop.svg	skoll	Games	Chess Bishop
+shape.gameicons.skoll.chess-king	skoll/chess-king.svg	skoll	Games	Chess King
+shape.gameicons.skoll.chess-knight	skoll/chess-knight.svg	skoll	Games	Chess Knight
+shape.gameicons.skoll.chess-pawn	skoll/chess-pawn.svg	skoll	Games	Chess Pawn
+shape.gameicons.skoll.chess-queen	skoll/chess-queen.svg	skoll	Games	Chess Queen
+shape.gameicons.skoll.chess-rook	skoll/chess-rook.svg	skoll	Games	Chess Rook
+shape.gameicons.skoll.clubs	skoll/clubs.svg	skoll	Games	Clubs
+shape.gameicons.caro-asercion.coinflip	caro-asercion/coinflip.svg	caro-asercion	Games	Coinflip
+shape.gameicons.delapouite.coins	delapouite/coins.svg	delapouite	Games	Coins
+shape.gameicons.delapouite.coins-pile	delapouite/coins-pile.svg	delapouite	Games	Coins Pile
+shape.gameicons.lorc.crown-coin	lorc/crown-coin.svg	lorc	Games	Crown Coin
+shape.gameicons.skoll.diamonds	skoll/diamonds.svg	skoll	Games	Diamonds
+shape.gameicons.delapouite.dice-twenty-faces-twenty	delapouite/dice-twenty-faces-twenty.svg	delapouite	Games	Dice 20 Faces 20
+shape.gameicons.skoll.d4	skoll/d4.svg	skoll	Games	Dice 4
+shape.gameicons.delapouite.dice-six-faces-one	delapouite/dice-six-faces-one.svg	delapouite	Games	Dice 6 Faces 1
+shape.gameicons.delapouite.dice-six-faces-two	delapouite/dice-six-faces-two.svg	delapouite	Games	Dice 6 Faces 2
+shape.gameicons.delapouite.dice-six-faces-three	delapouite/dice-six-faces-three.svg	delapouite	Games	Dice 6 Faces 3
+shape.gameicons.delapouite.dice-six-faces-four	delapouite/dice-six-faces-four.svg	delapouite	Games	Dice 6 Faces 4
+shape.gameicons.delapouite.dice-six-faces-five	delapouite/dice-six-faces-five.svg	delapouite	Games	Dice 6 Faces 5
+shape.gameicons.delapouite.dice-six-faces-six	delapouite/dice-six-faces-six.svg	delapouite	Games	Dice 6 Faces 6
+shape.gameicons.delapouite.domino-tiles	delapouite/domino-tiles.svg	delapouite	Games	Domino Tiles
+shape.gameicons.delapouite.empty-chessboard	delapouite/empty-chessboard.svg	delapouite	Games	Empty Chessboard
+shape.gameicons.delapouite.gamepad	delapouite/gamepad.svg	delapouite	Games	Gamepad
+shape.gameicons.delapouite.joystick	delapouite/joystick.svg	delapouite	Games	Joystick
+shape.gameicons.delapouite.perspective-dice-six-faces-random	delapouite/perspective-dice-six-faces-random.svg	delapouite	Games	Perspective Dice 6 Faces Random
+shape.gameicons.delapouite.rolling-dices	delapouite/rolling-dices.svg	delapouite	Games	Rolling Dice
+shape.gameicons.delapouite.sell-card	delapouite/sell-card.svg	delapouite	Games	Sell Card
+shape.gameicons.skoll.spades	skoll/spades.svg	skoll	Games	Spades
+shape.gameicons.lorc.suits	lorc/suits.svg	lorc	Games	Suits
+shape.gameicons.caro-asercion.tarot-09-the-hermit	caro-asercion/tarot-09-the-hermit.svg	caro-asercion	Games	Tarot 09 the Hermit
+shape.gameicons.delapouite.token	delapouite/token.svg	delapouite	Games	Token
+shape.gameicons.delapouite.two-coins	delapouite/two-coins.svg	delapouite	Games	Two Coins
 shape.gameicons.skoll.allied-star	skoll/allied-star.svg	skoll	Hearts and Stars	Allied Star
 shape.gameicons.lorc.ball-heart	lorc/ball-heart.svg	lorc	Hearts and Stars	Ball Heart
 shape.gameicons.delapouite.boat-horizon	delapouite/boat-horizon.svg	delapouite	Hearts and Stars	Boat Horizon
@@ -318,7 +409,6 @@ shape.gameicons.delapouite.musical-notes	delapouite/musical-notes.svg	delapouite
 shape.gameicons.delapouite.old-microphone	delapouite/old-microphone.svg	delapouite	Music	Old Microphone
 shape.gameicons.caro-asercion.pianist	caro-asercion/pianist.svg	caro-asercion	Music	Pianist
 shape.gameicons.delapouite.piano-keys	delapouite/piano-keys.svg	delapouite	Music	Piano Keys
-shape.gameicons.delapouite.ringing-alarm	delapouite/ringing-alarm.svg	delapouite	Music	Ringing Alarm
 shape.gameicons.lorc.silence	lorc/silence.svg	lorc	Music	Silence
 shape.gameicons.skoll.sound-waves	skoll/sound-waves.svg	skoll	Music	Sound Waves
 shape.gameicons.caro-asercion.trombone	caro-asercion/trombone.svg	caro-asercion	Music	Trombone
@@ -335,11 +425,7 @@ shape.gameicons.delapouite.crucifix	delapouite/crucifix.svg	delapouite	Nature	Cr
 shape.gameicons.lorc.crystal-cluster	lorc/crystal-cluster.svg	lorc	Nature	Crystal Cluster
 shape.gameicons.lorc.crystal-growth	lorc/crystal-growth.svg	lorc	Nature	Crystal Growth
 shape.gameicons.lorc.cut-diamond	lorc/cut-diamond.svg	lorc	Nature	Cut Diamond
-shape.gameicons.delapouite.diamond-trophy	delapouite/diamond-trophy.svg	delapouite	Nature	Diamond Trophy
-shape.gameicons.delapouite.direction-sign	delapouite/direction-sign.svg	delapouite	Nature	Direction Sign
-shape.gameicons.delapouite.direction-signs	delapouite/direction-signs.svg	delapouite	Nature	Direction Signs
 shape.gameicons.delapouite.dough-roller	delapouite/dough-roller.svg	delapouite	Nature	Dough Roller
-shape.gameicons.lorc.ent-mouth	lorc/ent-mouth.svg	lorc	Nature	Ent Mouth
 shape.gameicons.delapouite.fire-gem	delapouite/fire-gem.svg	delapouite	Nature	Fire Gem
 shape.gameicons.lorc.floating-crystal	lorc/floating-crystal.svg	lorc	Nature	Floating Crystal
 shape.gameicons.delapouite.fuji	delapouite/fuji.svg	delapouite	Nature	Fuji
@@ -348,7 +434,6 @@ shape.gameicons.delapouite.ginkgo-leaf	delapouite/ginkgo-leaf.svg	delapouite	Nat
 shape.gameicons.delapouite.grass	delapouite/grass.svg	delapouite	Nature	Grass
 shape.gameicons.delapouite.half-log	delapouite/half-log.svg	delapouite	Nature	Half Log
 shape.gameicons.delapouite.hand-saw	delapouite/hand-saw.svg	delapouite	Nature	Hand Saw
-shape.gameicons.delapouite.hanging-sign	delapouite/hanging-sign.svg	delapouite	Nature	Hanging Sign
 shape.gameicons.delapouite.hills	delapouite/hills.svg	delapouite	Nature	Hills
 shape.gameicons.delapouite.horizon-road	delapouite/horizon-road.svg	delapouite	Nature	Horizon Road
 shape.gameicons.delapouite.mountain-road	delapouite/mountain-road.svg	delapouite	Nature	Mountain Road
@@ -357,7 +442,6 @@ shape.gameicons.lorc.new-shoot	lorc/new-shoot.svg	lorc	Nature	New Shoot
 shape.gameicons.delapouite.packed-planks	delapouite/packed-planks.svg	delapouite	Nature	Packed Planks
 shape.gameicons.delapouite.park-bench	delapouite/park-bench.svg	delapouite	Nature	Park Bench
 shape.gameicons.lorc.peaks	lorc/peaks.svg	lorc	Nature	Peaks
-shape.gameicons.lorc.recycle	lorc/recycle.svg	lorc	Nature	Recycle
 shape.gameicons.delapouite.solid-leaf	delapouite/solid-leaf.svg	delapouite	Nature	Solid Leaf
 shape.gameicons.delapouite.stakes-fence	delapouite/stakes-fence.svg	delapouite	Nature	Stakes Fence
 shape.gameicons.lorc.stalagtite	lorc/stalagtite.svg	lorc	Nature	Stalactite
@@ -372,14 +456,11 @@ shape.gameicons.lorc.valley	lorc/valley.svg	lorc	Nature	Valley
 shape.gameicons.delapouite.water-diviner-stick	delapouite/water-diviner-stick.svg	delapouite	Nature	Water Diviner Stick
 shape.gameicons.delapouite.wood-stick	delapouite/wood-stick.svg	delapouite	Nature	Wood Stick
 shape.gameicons.lorc.wooden-fence	lorc/wooden-fence.svg	lorc	Nature	Wooden Fence
-shape.gameicons.lorc.wooden-sign	lorc/wooden-sign.svg	lorc	Nature	Wooden Sign
 shape.gameicons.delapouite.3d-glasses	delapouite/3d-glasses.svg	delapouite	People and Body	3d Glasses
-shape.gameicons.delapouite.abbot-meeple	delapouite/abbot-meeple.svg	delapouite	People and Body	Abbot Meeple
 shape.gameicons.lorc.alligator-clip	lorc/alligator-clip.svg	lorc	People and Body	Alligator Clip
 shape.gameicons.delapouite.arm	delapouite/arm.svg	delapouite	People and Body	Arm
 shape.gameicons.lorc.bell-shield	lorc/bell-shield.svg	lorc	People and Body	Bell Shield
 shape.gameicons.delapouite.body-height	delapouite/body-height.svg	delapouite	People and Body	Body Height
-shape.gameicons.quoting.card-play	quoting/card-play.svg	quoting	People and Body	Card Play
 shape.gameicons.delapouite.character	delapouite/character.svg	delapouite	People and Body	Character
 shape.gameicons.lorc.cowled	lorc/cowled.svg	lorc	People and Body	Cowled
 shape.gameicons.lorc.crossed-bones	lorc/crossed-bones.svg	lorc	People and Body	Crossed Bones
@@ -430,7 +511,6 @@ shape.gameicons.delapouite.antibody	delapouite/antibody.svg	delapouite	Space and
 shape.gameicons.delapouite.calculator	delapouite/calculator.svg	delapouite	Space and Science	Calculator
 shape.gameicons.delapouite.cpu	delapouite/cpu.svg	delapouite	Space and Science	Cpu
 shape.gameicons.lorc.disc	lorc/disc.svg	lorc	Space and Science	Disc
-shape.gameicons.delapouite.energy-tank	delapouite/energy-tank.svg	delapouite	Space and Science	Energy Tank
 shape.gameicons.delapouite.exploding-planet	delapouite/exploding-planet.svg	delapouite	Space and Science	Exploding Planet
 shape.gameicons.lorc.forward-field	lorc/forward-field.svg	lorc	Space and Science	Forward Field
 shape.gameicons.caro-asercion.fridge	caro-asercion/fridge.svg	caro-asercion	Space and Science	Fridge
@@ -463,46 +543,121 @@ shape.gameicons.caro-asercion.test-tube-rack	caro-asercion/test-tube-rack.svg	ca
 shape.gameicons.sbed.vial	sbed/vial.svg	sbed	Space and Science	Vial
 shape.gameicons.delapouite.video-conference	delapouite/video-conference.svg	delapouite	Space and Science	Video Conference
 shape.gameicons.delapouite.walkie-talkie	delapouite/walkie-talkie.svg	delapouite	Space and Science	Walkie Talkie
-shape.gameicons.lorc.ankh	lorc/ankh.svg	lorc	Symbols and Signs	Ankh
-shape.gameicons.delapouite.axe-sword	delapouite/axe-sword.svg	delapouite	Symbols and Signs	Axe Sword
-shape.gameicons.delapouite.buy-card	delapouite/buy-card.svg	delapouite	Symbols and Signs	Buy Card
-shape.gameicons.aussiesim.card-4-diamonds	aussiesim/card-4-diamonds.svg	aussiesim	Symbols and Signs	Card 4 of Diamonds
-shape.gameicons.aussiesim.card-4-hearts	aussiesim/card-4-hearts.svg	aussiesim	Symbols and Signs	Card 4 of Hearts
-shape.gameicons.aussiesim.card-4-spades	aussiesim/card-4-spades.svg	aussiesim	Symbols and Signs	Card 4 of Spades
-shape.gameicons.aussiesim.card-7-diamonds	aussiesim/card-7-diamonds.svg	aussiesim	Symbols and Signs	Card 7 of Diamonds
-shape.gameicons.aussiesim.card-ace-diamonds	aussiesim/card-ace-diamonds.svg	aussiesim	Symbols and Signs	Card Ace of Diamonds
-shape.gameicons.faithtoken.card-discard	faithtoken/card-discard.svg	faithtoken	Symbols and Signs	Card Discard
-shape.gameicons.skoll.chess-bishop	skoll/chess-bishop.svg	skoll	Symbols and Signs	Chess Bishop
-shape.gameicons.skoll.chess-pawn	skoll/chess-pawn.svg	skoll	Symbols and Signs	Chess Pawn
-shape.gameicons.skoll.clubs	skoll/clubs.svg	skoll	Symbols and Signs	Clubs
-shape.gameicons.lorc.crossed-slashes	lorc/crossed-slashes.svg	lorc	Symbols and Signs	Crossed Slashes
-shape.gameicons.skoll.d4	skoll/d4.svg	skoll	Symbols and Signs	Dice 4
-shape.gameicons.skoll.diamonds	skoll/diamonds.svg	skoll	Symbols and Signs	Diamonds
-shape.gameicons.delapouite.dice-six-faces-five	delapouite/dice-six-faces-five.svg	delapouite	Symbols and Signs	Dice 6 Faces 5
-shape.gameicons.delapouite.dice-six-faces-four	delapouite/dice-six-faces-four.svg	delapouite	Symbols and Signs	Dice 6 Faces 4
-shape.gameicons.delapouite.dice-six-faces-one	delapouite/dice-six-faces-one.svg	delapouite	Symbols and Signs	Dice 6 Faces 1
-shape.gameicons.delapouite.dice-six-faces-six	delapouite/dice-six-faces-six.svg	delapouite	Symbols and Signs	Dice 6 Faces 6
-shape.gameicons.delapouite.dice-six-faces-three	delapouite/dice-six-faces-three.svg	delapouite	Symbols and Signs	Dice 6 Faces 3
-shape.gameicons.delapouite.dice-six-faces-two	delapouite/dice-six-faces-two.svg	delapouite	Symbols and Signs	Dice 6 Faces 2
-shape.gameicons.lorc.dig-dug	lorc/dig-dug.svg	lorc	Symbols and Signs	Dig Dug
-shape.gameicons.delapouite.eye-target	delapouite/eye-target.svg	delapouite	Symbols and Signs	Eye Target
-shape.gameicons.skoll.hasty-grave	skoll/hasty-grave.svg	skoll	Symbols and Signs	Hasty Grave
-shape.gameicons.skoll.headshot	skoll/headshot.svg	skoll	Symbols and Signs	Headshot
-shape.gameicons.delapouite.hell-crosses	delapouite/hell-crosses.svg	delapouite	Symbols and Signs	Hell Crosses
-shape.gameicons.lorc.hospital-cross	lorc/hospital-cross.svg	lorc	Symbols and Signs	Hospital Cross
-shape.gameicons.delapouite.human-target	delapouite/human-target.svg	delapouite	Symbols and Signs	Human Target
-shape.gameicons.lorc.james-bond-aperture	lorc/james-bond-aperture.svg	lorc	Symbols and Signs	James Bond Aperture
-shape.gameicons.delapouite.jerusalem-cross	delapouite/jerusalem-cross.svg	delapouite	Symbols and Signs	Jerusalem Cross
-shape.gameicons.delapouite.knight-banner	delapouite/knight-banner.svg	delapouite	Symbols and Signs	Knight Banner
-shape.gameicons.delapouite.sell-card	delapouite/sell-card.svg	delapouite	Symbols and Signs	Sell Card
-shape.gameicons.skoll.spades	skoll/spades.svg	skoll	Symbols and Signs	Spades
-shape.gameicons.lorc.split-cross	lorc/split-cross.svg	lorc	Symbols and Signs	Split Cross
-shape.gameicons.lorc.suits	lorc/suits.svg	lorc	Symbols and Signs	Suits
-shape.gameicons.sbed.targeted	sbed/targeted.svg	sbed	Symbols and Signs	Targeted
-shape.gameicons.caro-asercion.tarot-09-the-hermit	caro-asercion/tarot-09-the-hermit.svg	caro-asercion	Symbols and Signs	Tarot 09 the Hermit
-shape.gameicons.delapouite.templar-shield	delapouite/templar-shield.svg	delapouite	Symbols and Signs	Templar Shield
-shape.gameicons.delapouite.token	delapouite/token.svg	delapouite	Symbols and Signs	Token
-shape.gameicons.delapouite.two-coins	delapouite/two-coins.svg	delapouite	Symbols and Signs	Two Coins
+shape.gameicons.lorc.aerial-signal	lorc/aerial-signal.svg	lorc	Symbols	Aerial Signal
+shape.gameicons.delapouite.alarm-clock	delapouite/alarm-clock.svg	delapouite	Symbols	Alarm Clock
+shape.gameicons.lorc.anchor	lorc/anchor.svg	lorc	Symbols	Anchor
+shape.gameicons.lorc.ankh	lorc/ankh.svg	lorc	Symbols	Ankh
+shape.gameicons.lorc.archery-target	lorc/archery-target.svg	lorc	Symbols	Archery Target
+shape.gameicons.sbed.battery-pack	sbed/battery-pack.svg	sbed	Symbols	Battery Pack
+shape.gameicons.sbed.battery-pack-alt	sbed/battery-pack-alt.svg	sbed	Symbols	Battery Pack Empty
+shape.gameicons.lorc.biohazard	lorc/biohazard.svg	lorc	Symbols	Biohazard
+shape.gameicons.lorc.black-flag	lorc/black-flag.svg	lorc	Symbols	Black Flag
+shape.gameicons.lorc.bookmark	lorc/bookmark.svg	lorc	Symbols	Bookmark
+shape.gameicons.sbed.cancel	sbed/cancel.svg	sbed	Symbols	Cancel
+shape.gameicons.delapouite.charging	delapouite/charging.svg	delapouite	Symbols	Charging
+shape.gameicons.delapouite.chat-bubble	delapouite/chat-bubble.svg	delapouite	Symbols	Chat Bubble
+shape.gameicons.delapouite.check-mark	delapouite/check-mark.svg	delapouite	Symbols	Check Mark
+shape.gameicons.lorc.checkbox-tree	lorc/checkbox-tree.svg	lorc	Symbols	Checkbox Tree
+shape.gameicons.delapouite.checkered-flag	delapouite/checkered-flag.svg	delapouite	Symbols	Checkered Flag
+shape.gameicons.delapouite.checklist	delapouite/checklist.svg	delapouite	Symbols	Checklist
+shape.gameicons.lorc.cog	lorc/cog.svg	lorc	Symbols	Cog
+shape.gameicons.skoll.combination-lock	skoll/combination-lock.svg	skoll	Symbols	Combination Lock
+shape.gameicons.lorc.compass	lorc/compass.svg	lorc	Symbols	Compass
+shape.gameicons.delapouite.confirmed	delapouite/confirmed.svg	delapouite	Symbols	Confirmed
+shape.gameicons.lorc.conversation	lorc/conversation.svg	lorc	Symbols	Conversation
+shape.gameicons.delapouite.corner-flag	delapouite/corner-flag.svg	delapouite	Symbols	Corner Flag
+shape.gameicons.lorc.cross-mark	lorc/cross-mark.svg	lorc	Symbols	Cross Mark
+shape.gameicons.delapouite.crosshair	delapouite/crosshair.svg	delapouite	Symbols	Crosshair
+shape.gameicons.priorblue.battery-minus	priorblue/battery-minus.svg	priorblue	Symbols	Decreasing Battery
+shape.gameicons.delapouite.dial-padlock	delapouite/dial-padlock.svg	delapouite	Symbols	Dial Padlock
+shape.gameicons.delapouite.diamond-trophy	delapouite/diamond-trophy.svg	delapouite	Symbols	Diamond Trophy
+shape.gameicons.delapouite.direction-sign	delapouite/direction-sign.svg	delapouite	Symbols	Direction Sign
+shape.gameicons.delapouite.direction-signs	delapouite/direction-signs.svg	delapouite	Symbols	Direction Signs
+shape.gameicons.lorc.dove	lorc/dove.svg	lorc	Symbols	Dove
+shape.gameicons.priorblue.battery-0	priorblue/battery-0.svg	priorblue	Symbols	Empty Battery
+shape.gameicons.delapouite.eye-target	delapouite/eye-target.svg	delapouite	Symbols	Eye Target
+shape.gameicons.delapouite.flag-objective	delapouite/flag-objective.svg	delapouite	Symbols	Flag Objective
+shape.gameicons.lorc.flying-flag	lorc/flying-flag.svg	lorc	Symbols	Flying Flag
+shape.gameicons.lorc.freedom-dove	lorc/freedom-dove.svg	lorc	Symbols	Freedom Dove
+shape.gameicons.priorblue.battery-100	priorblue/battery-100.svg	priorblue	Symbols	Full Battery
+shape.gameicons.lorc.gears	lorc/gears.svg	lorc	Symbols	Gears
+shape.gameicons.lorc.globe	lorc/globe.svg	lorc	Symbols	Globe
+shape.gameicons.delapouite.golf-flag	delapouite/golf-flag.svg	delapouite	Symbols	Golf Flag
+shape.gameicons.delapouite.green-power	delapouite/green-power.svg	delapouite	Symbols	Green Power
+shape.gameicons.priorblue.battery-50	priorblue/battery-50.svg	priorblue	Symbols	Half Battery
+shape.gameicons.skoll.halt	skoll/halt.svg	skoll	Symbols	Halt
+shape.gameicons.delapouite.hamburger-menu	delapouite/hamburger-menu.svg	delapouite	Symbols	Hamburger Menu
+shape.gameicons.delapouite.hanging-sign	delapouite/hanging-sign.svg	delapouite	Symbols	Hanging Sign
+shape.gameicons.lorc.hazard-sign	lorc/hazard-sign.svg	lorc	Symbols	Hazard Sign
+shape.gameicons.delapouite.hell-crosses	delapouite/hell-crosses.svg	delapouite	Symbols	Hell Crosses
+shape.gameicons.delapouite.hospital	delapouite/hospital.svg	delapouite	Symbols	Hospital
+shape.gameicons.lorc.hospital-cross	lorc/hospital-cross.svg	lorc	Symbols	Hospital Cross
+shape.gameicons.priorblue.battery-plus	priorblue/battery-plus.svg	priorblue	Symbols	Increasing Battery
+shape.gameicons.delapouite.info	delapouite/info.svg	delapouite	Symbols	Info
+shape.gameicons.lorc.interdiction	lorc/interdiction.svg	lorc	Symbols	Interdiction
+shape.gameicons.delapouite.jerusalem-cross	delapouite/jerusalem-cross.svg	delapouite	Symbols	Jerusalem Cross
+shape.gameicons.lorc.key	lorc/key.svg	lorc	Symbols	Key
+shape.gameicons.sbed.key	sbed/key.svg	sbed	Symbols	Key (Sbed)
+shape.gameicons.delapouite.key-lock	delapouite/key-lock.svg	delapouite	Symbols	Key Lock
+shape.gameicons.delapouite.knight-banner	delapouite/knight-banner.svg	delapouite	Symbols	Knight Banner
+shape.gameicons.lorc.laser-warning	lorc/laser-warning.svg	lorc	Symbols	Laser Warning
+shape.gameicons.lorc.laurel-crown	lorc/laurel-crown.svg	lorc	Symbols	Laurel Crown
+shape.gameicons.lorc.laurels	lorc/laurels.svg	lorc	Symbols	Laurels
+shape.gameicons.delapouite.laurels-trophy	delapouite/laurels-trophy.svg	delapouite	Symbols	Laurels Trophy
+shape.gameicons.lorc.light-bulb	lorc/light-bulb.svg	lorc	Symbols	Light Bulb
+shape.gameicons.lorc.magnifying-glass	lorc/magnifying-glass.svg	lorc	Symbols	Magnifying Glass
+shape.gameicons.lorc.medal	lorc/medal.svg	lorc	Symbols	Medal
+shape.gameicons.delapouite.medallist	delapouite/medallist.svg	delapouite	Symbols	Medallist
+shape.gameicons.delapouite.network-bars	delapouite/network-bars.svg	delapouite	Symbols	Network Bars
+shape.gameicons.lorc.on-target	lorc/on-target.svg	lorc	Symbols	On Target
+shape.gameicons.lorc.over-infinity	lorc/over-infinity.svg	lorc	Symbols	Over Infinity
+shape.gameicons.lorc.padlock	lorc/padlock.svg	lorc	Symbols	Padlock
+shape.gameicons.delapouite.padlock-open	delapouite/padlock-open.svg	delapouite	Symbols	Padlock Open
+shape.gameicons.delapouite.party-flags	delapouite/party-flags.svg	delapouite	Symbols	Party Flags
+shape.gameicons.delapouite.peace-dove	delapouite/peace-dove.svg	delapouite	Symbols	Peace Dove
+shape.gameicons.delapouite.pin	delapouite/pin.svg	delapouite	Symbols	Pin
+shape.gameicons.delapouite.plain-padlock	delapouite/plain-padlock.svg	delapouite	Symbols	Plain Padlock
+shape.gameicons.delapouite.position-marker	delapouite/position-marker.svg	delapouite	Symbols	Position Marker
+shape.gameicons.lord-berandas.power-button	lord-berandas/power-button.svg	lord-berandas	Symbols	Power Button
+shape.gameicons.delapouite.price-tag	delapouite/price-tag.svg	delapouite	Symbols	Price Tag
+shape.gameicons.delapouite.puzzle	delapouite/puzzle.svg	delapouite	Symbols	Puzzle
+shape.gameicons.lorc.radioactive	lorc/radioactive.svg	lorc	Symbols	Radioactive
+shape.gameicons.lorc.recycle	lorc/recycle.svg	lorc	Symbols	Recycle
+shape.gameicons.lorc.ribbon	lorc/ribbon.svg	lorc	Symbols	Ribbon
+shape.gameicons.delapouite.ribbon-medal	delapouite/ribbon-medal.svg	delapouite	Symbols	Ribbon Medal
+shape.gameicons.delapouite.ringing-alarm	delapouite/ringing-alarm.svg	delapouite	Symbols	Ringing Alarm
+shape.gameicons.lorc.ringing-bell	lorc/ringing-bell.svg	lorc	Symbols	Ringing Bell
+shape.gameicons.delapouite.save	delapouite/save.svg	delapouite	Symbols	Save
+shape.gameicons.delapouite.settings-knobs	delapouite/settings-knobs.svg	delapouite	Symbols	Settings Knobs
+shape.gameicons.lorc.skeleton-key	lorc/skeleton-key.svg	lorc	Symbols	Skeleton Key
+shape.gameicons.delapouite.sound-off	delapouite/sound-off.svg	delapouite	Symbols	Sound Off
+shape.gameicons.delapouite.sound-on	delapouite/sound-on.svg	delapouite	Symbols	Sound on
+shape.gameicons.delapouite.speaker	delapouite/speaker.svg	delapouite	Symbols	Speaker
+shape.gameicons.delapouite.speaker-off	delapouite/speaker-off.svg	delapouite	Symbols	Speaker Off
+shape.gameicons.lorc.split-cross	lorc/split-cross.svg	lorc	Symbols	Split Cross
+shape.gameicons.delapouite.sport-medal	delapouite/sport-medal.svg	delapouite	Symbols	Sport Medal
+shape.gameicons.delapouite.stop-sign	delapouite/stop-sign.svg	delapouite	Symbols	Stop Sign
+shape.gameicons.lorc.stopwatch	lorc/stopwatch.svg	lorc	Symbols	Stopwatch
+shape.gameicons.skoll.talk	skoll/talk.svg	skoll	Symbols	Talk
+shape.gameicons.delapouite.target-prize	delapouite/target-prize.svg	delapouite	Symbols	Target Prize
+shape.gameicons.sbed.targeted	sbed/targeted.svg	sbed	Symbols	Targeted
+shape.gameicons.lorc.targeting	lorc/targeting.svg	lorc	Symbols	Targeting
+shape.gameicons.lorc.tattered-banner	lorc/tattered-banner.svg	lorc	Symbols	Tattered Banner
+shape.gameicons.seregacthtuf.thought-bubble	seregacthtuf/thought-bubble.svg	seregacthtuf	Symbols	Thought Bubble
+shape.gameicons.delapouite.thumb-down	delapouite/thumb-down.svg	delapouite	Symbols	Thumb Down
+shape.gameicons.delapouite.thumb-up	delapouite/thumb-up.svg	delapouite	Symbols	Thumb Up
+shape.gameicons.delapouite.toggles	delapouite/toggles.svg	delapouite	Symbols	Toggles
+shape.gameicons.delapouite.trash-can	delapouite/trash-can.svg	delapouite	Symbols	Trash Can
+shape.gameicons.delapouite.triangle-target	delapouite/triangle-target.svg	delapouite	Symbols	Triangle Target
+shape.gameicons.lorc.triple-lock	lorc/triple-lock.svg	lorc	Symbols	Triple Lock
+shape.gameicons.lorc.trophy	lorc/trophy.svg	lorc	Symbols	Trophy
+shape.gameicons.delapouite.trophy-cup	delapouite/trophy-cup.svg	delapouite	Symbols	Trophy Cup
+shape.gameicons.lorc.unlocking	lorc/unlocking.svg	lorc	Symbols	Unlocking
+shape.gameicons.delapouite.vertical-banner	delapouite/vertical-banner.svg	delapouite	Symbols	Vertical Banner
+shape.gameicons.delapouite.water-recycling	delapouite/water-recycling.svg	delapouite	Symbols	Water Recycling
+shape.gameicons.delapouite.wireframe-globe	delapouite/wireframe-globe.svg	delapouite	Symbols	Wireframe Globe
+shape.gameicons.lorc.wooden-sign	lorc/wooden-sign.svg	lorc	Symbols	Wooden Sign
+shape.gameicons.delapouite.yin-yang	delapouite/yin-yang.svg	delapouite	Symbols	Yin Yang
 shape.gameicons.delapouite.3d-hammer	delapouite/3d-hammer.svg	delapouite	Tools and Objects	3d Hammer
 shape.gameicons.lorc.anvil	lorc/anvil.svg	lorc	Tools and Objects	Anvil
 shape.gameicons.lorc.anvil-impact	lorc/anvil-impact.svg	lorc	Tools and Objects	Anvil Impact
@@ -510,35 +665,61 @@ shape.gameicons.delapouite.banging-gavel	delapouite/banging-gavel.svg	delapouite
 shape.gameicons.delapouite.beach-bucket	delapouite/beach-bucket.svg	delapouite	Tools and Objects	Beach Bucket
 shape.gameicons.lorc.black-bar	lorc/black-bar.svg	lorc	Tools and Objects	Black Bar
 shape.gameicons.delapouite.bookshelf	delapouite/bookshelf.svg	delapouite	Tools and Objects	Bookshelf
+shape.gameicons.delapouite.calendar	delapouite/calendar.svg	delapouite	Tools and Objects	Calendar
 shape.gameicons.delapouite.calendar-half-year	delapouite/calendar-half-year.svg	delapouite	Tools and Objects	Calendar Half Year
+shape.gameicons.delapouite.chart	delapouite/chart.svg	delapouite	Tools and Objects	Chart
 shape.gameicons.caro-asercion.cootie-catcher	caro-asercion/cootie-catcher.svg	caro-asercion	Tools and Objects	Cootie Catcher
 shape.gameicons.caro-asercion.easel	caro-asercion/easel.svg	caro-asercion	Tools and Objects	Easel
+shape.gameicons.lorc.envelope	lorc/envelope.svg	lorc	Tools and Objects	Envelope
+shape.gameicons.lorc.eyedropper	lorc/eyedropper.svg	lorc	Tools and Objects	Eyedropper
+shape.gameicons.delapouite.family-tree	delapouite/family-tree.svg	delapouite	Tools and Objects	Family Tree
+shape.gameicons.delapouite.files	delapouite/files.svg	delapouite	Tools and Objects	Files
 shape.gameicons.lorc.fishhook-fork	lorc/fishhook-fork.svg	lorc	Tools and Objects	Fishhook Fork
 shape.gameicons.lorc.flat-hammer	lorc/flat-hammer.svg	lorc	Tools and Objects	Flat Hammer
 shape.gameicons.delapouite.foundry-bucket	delapouite/foundry-bucket.svg	delapouite	Tools and Objects	Foundry Bucket
+shape.gameicons.delapouite.full-folder	delapouite/full-folder.svg	delapouite	Tools and Objects	Full Folder
+shape.gameicons.delapouite.funnel	delapouite/funnel.svg	delapouite	Tools and Objects	Funnel
 shape.gameicons.delapouite.furnace	delapouite/furnace.svg	delapouite	Tools and Objects	Furnace
 shape.gameicons.lorc.gavel	lorc/gavel.svg	lorc	Tools and Objects	Gavel
 shape.gameicons.willdabeast.gold-bar	willdabeast/gold-bar.svg	willdabeast	Tools and Objects	Gold Bar
 shape.gameicons.lorc.grapple	lorc/grapple.svg	lorc	Tools and Objects	Grapple
 shape.gameicons.delapouite.hammer-break	delapouite/hammer-break.svg	delapouite	Tools and Objects	Hammer Break
 shape.gameicons.lorc.hammer-drop	lorc/hammer-drop.svg	lorc	Tools and Objects	Hammer Drop
+shape.gameicons.delapouite.highlighter	delapouite/highlighter.svg	delapouite	Tools and Objects	Highlighter
+shape.gameicons.delapouite.histogram	delapouite/histogram.svg	delapouite	Tools and Objects	Histogram
+shape.gameicons.delapouite.house	delapouite/house.svg	delapouite	Tools and Objects	House
+shape.gameicons.delapouite.id-card	delapouite/id-card.svg	delapouite	Tools and Objects	Id Card
 shape.gameicons.delapouite.ladders-platform	delapouite/ladders-platform.svg	delapouite	Tools and Objects	Ladders Platform
 shape.gameicons.lorc.letter-bomb	lorc/letter-bomb.svg	lorc	Tools and Objects	Letter Bomb
 shape.gameicons.delapouite.lock-picking	delapouite/lock-picking.svg	delapouite	Tools and Objects	Lock Picking
+shape.gameicons.delapouite.mailbox	delapouite/mailbox.svg	delapouite	Tools and Objects	Mailbox
 shape.gameicons.lorc.metal-bar	lorc/metal-bar.svg	lorc	Tools and Objects	Metal Bar
 shape.gameicons.delapouite.metal-plate	delapouite/metal-plate.svg	delapouite	Tools and Objects	Metal Plate
 shape.gameicons.lorc.metal-scales	lorc/metal-scales.svg	lorc	Tools and Objects	Metal Scales
 shape.gameicons.lorc.nails	lorc/nails.svg	lorc	Tools and Objects	Nails
+shape.gameicons.lorc.open-book	lorc/open-book.svg	lorc	Tools and Objects	Open Book
+shape.gameicons.delapouite.open-folder	delapouite/open-folder.svg	delapouite	Tools and Objects	Open Folder
+shape.gameicons.delapouite.organigram	delapouite/organigram.svg	delapouite	Tools and Objects	Organigram
+shape.gameicons.delapouite.paint-brush	delapouite/paint-brush.svg	delapouite	Tools and Objects	Paint Brush
+shape.gameicons.delapouite.paint-bucket	delapouite/paint-bucket.svg	delapouite	Tools and Objects	Paint Bucket
+shape.gameicons.delapouite.paint-roller	delapouite/paint-roller.svg	delapouite	Tools and Objects	Paint Roller
+shape.gameicons.delapouite.palette	delapouite/palette.svg	delapouite	Tools and Objects	Palette
 shape.gameicons.delapouite.paper-plane	delapouite/paper-plane.svg	delapouite	Tools and Objects	Paper Plane
 shape.gameicons.lorc.papers	lorc/papers.svg	lorc	Tools and Objects	Papers
+shape.gameicons.delapouite.pencil	delapouite/pencil.svg	delapouite	Tools and Objects	Pencil
+shape.gameicons.delapouite.phone	delapouite/phone.svg	delapouite	Tools and Objects	Phone
+shape.gameicons.delapouite.photo-camera	delapouite/photo-camera.svg	delapouite	Tools and Objects	Photo Camera
+shape.gameicons.delapouite.pie-chart	delapouite/pie-chart.svg	delapouite	Tools and Objects	Pie Chart
 shape.gameicons.delapouite.pitchfork	delapouite/pitchfork.svg	delapouite	Tools and Objects	Pitchfork
 shape.gameicons.delapouite.plunger	delapouite/plunger.svg	delapouite	Tools and Objects	Plunger
 shape.gameicons.lorc.quill-ink	lorc/quill-ink.svg	lorc	Tools and Objects	Quill and Ink
 shape.gameicons.skoll.read	skoll/read.svg	skoll	Tools and Objects	Read
 shape.gameicons.lorc.scalpel	lorc/scalpel.svg	lorc	Tools and Objects	Scalpel
 shape.gameicons.lorc.scythe	lorc/scythe.svg	lorc	Tools and Objects	Scythe
+shape.gameicons.delapouite.shopping-cart	delapouite/shopping-cart.svg	delapouite	Tools and Objects	Shopping Cart
 shape.gameicons.delapouite.sickle	delapouite/sickle.svg	delapouite	Tools and Objects	Sickle
 shape.gameicons.lorc.spanner	lorc/spanner.svg	lorc	Tools and Objects	Spanner
+shape.gameicons.delapouite.stack	delapouite/stack.svg	delapouite	Tools and Objects	Stack
 shape.gameicons.delapouite.stamper	delapouite/stamper.svg	delapouite	Tools and Objects	Stamper
 shape.gameicons.caro-asercion.stapler	caro-asercion/stapler.svg	caro-asercion	Tools and Objects	Stapler
 shape.gameicons.caro-asercion.stapler-heavy-duty	caro-asercion/stapler-heavy-duty.svg	caro-asercion	Tools and Objects	Stapler Heavy Duty
@@ -550,6 +731,8 @@ shape.gameicons.delapouite.thor-hammer	delapouite/thor-hammer.svg	delapouite	Too
 shape.gameicons.delapouite.ticket	delapouite/ticket.svg	delapouite	Tools and Objects	Ticket
 shape.gameicons.delapouite.toolbox	delapouite/toolbox.svg	delapouite	Tools and Objects	Toolbox
 shape.gameicons.sbed.trample	sbed/trample.svg	sbed	Tools and Objects	Trample
+shape.gameicons.delapouite.video-camera	delapouite/video-camera.svg	delapouite	Tools and Objects	Video Camera
+shape.gameicons.delapouite.wallet	delapouite/wallet.svg	delapouite	Tools and Objects	Wallet
 shape.gameicons.sbed.weight-crush	sbed/weight-crush.svg	sbed	Tools and Objects	Weight Crush
 shape.gameicons.willdabeast.white-book	willdabeast/white-book.svg	willdabeast	Tools and Objects	White Book
 shape.gameicons.sbed.wrench	sbed/wrench.svg	sbed	Tools and Objects	Wrench
@@ -574,7 +757,6 @@ shape.gameicons.delapouite.iceberg	delapouite/iceberg.svg	delapouite	Vehicles an
 shape.gameicons.skoll.jeep	skoll/jeep.svg	skoll	Vehicles and Machines	Jeep
 shape.gameicons.sbed.jet-pack	sbed/jet-pack.svg	sbed	Vehicles and Machines	Jet Pack
 shape.gameicons.delapouite.kick-scooter	delapouite/kick-scooter.svg	delapouite	Vehicles and Machines	Kick Scooter
-shape.gameicons.lorc.light-bulb	lorc/light-bulb.svg	lorc	Vehicles and Machines	Light Bulb
 shape.gameicons.lord-berandas.light-fighter	lord-berandas/light-fighter.svg	lord-berandas	Vehicles and Machines	Light Fighter
 shape.gameicons.caro-asercion.orrery	caro-asercion/orrery.svg	caro-asercion	Vehicles and Machines	Orrery
 shape.gameicons.delapouite.power-generator	delapouite/power-generator.svg	delapouite	Vehicles and Machines	Power Generator
@@ -600,6 +782,7 @@ shape.gameicons.delapouite.wind-turbine	delapouite/wind-turbine.svg	delapouite	V
 shape.gameicons.delapouite.wood-canoe	delapouite/wood-canoe.svg	delapouite	Vehicles and Machines	Wood Canoe
 shape.gameicons.sbed.ammo-box	sbed/ammo-box.svg	sbed	Weapons and Armor	Ammo Box
 shape.gameicons.lorc.assassin-pocket	lorc/assassin-pocket.svg	lorc	Weapons and Armor	Assassin Pocket
+shape.gameicons.delapouite.axe-sword	delapouite/axe-sword.svg	delapouite	Weapons and Armor	Axe Sword
 shape.gameicons.delapouite.baseball-bat	delapouite/baseball-bat.svg	delapouite	Weapons and Armor	Baseball Bat
 shape.gameicons.sbed.blast	sbed/blast.svg	sbed	Weapons and Armor	Blast
 shape.gameicons.sbed.blaster	sbed/blaster.svg	sbed	Weapons and Armor	Blaster
@@ -615,7 +798,7 @@ shape.gameicons.lorc.cracked-shield	lorc/cracked-shield.svg	lorc	Weapons and Arm
 shape.gameicons.lorc.crenulated-shield	lorc/crenulated-shield.svg	lorc	Weapons and Armor	Crenulated Shield
 shape.gameicons.skoll.crescent-blade	skoll/crescent-blade.svg	skoll	Weapons and Armor	Crescent Blade
 shape.gameicons.lorc.croc-sword	lorc/croc-sword.svg	lorc	Weapons and Armor	Croc Sword
-shape.gameicons.delapouite.crosshair	delapouite/crosshair.svg	delapouite	Weapons and Armor	Crosshair
+shape.gameicons.lorc.crossed-slashes	lorc/crossed-slashes.svg	lorc	Weapons and Armor	Crossed Slashes
 shape.gameicons.lorc.demolish	lorc/demolish.svg	lorc	Weapons and Armor	Demolish
 shape.gameicons.delapouite.detonator	delapouite/detonator.svg	delapouite	Weapons and Armor	Detonator
 shape.gameicons.sbed.duel	sbed/duel.svg	sbed	Weapons and Armor	Duel
@@ -642,6 +825,7 @@ shape.gameicons.lorc.striking-splinter	lorc/striking-splinter.svg	lorc	Weapons a
 shape.gameicons.lorc.sword-in-stone	lorc/sword-in-stone.svg	lorc	Weapons and Armor	Sword in Stone
 shape.gameicons.lorc.tearing	lorc/tearing.svg	lorc	Weapons and Armor	Tearing
 shape.gameicons.skoll.telescopic-baton	skoll/telescopic-baton.svg	skoll	Weapons and Armor	Telescopic Baton
+shape.gameicons.delapouite.templar-shield	delapouite/templar-shield.svg	delapouite	Weapons and Armor	Templar Shield
 shape.gameicons.darkzaitzev.three-pointed-shuriken	darkzaitzev/three-pointed-shuriken.svg	darkzaitzev	Weapons and Armor	Three Pointed Shuriken
 shape.gameicons.delapouite.torpedo	delapouite/torpedo.svg	delapouite	Weapons and Armor	Torpedo
 shape.gameicons.sbed.turret	sbed/turret.svg	sbed	Weapons and Armor	Turret
@@ -651,12 +835,8 @@ shape.gameicons.lorc.zeus-sword	lorc/zeus-sword.svg	lorc	Weapons and Armor	Zeus 
 shape.gameicons.sbed.acid	sbed/acid.svg	sbed	Weather and Elements	Acid
 shape.gameicons.delapouite.airplane-arrival	delapouite/airplane-arrival.svg	delapouite	Weather and Elements	Airplane Arrival
 shape.gameicons.delapouite.antarctica	delapouite/antarctica.svg	delapouite	Weather and Elements	Antarctica
-shape.gameicons.priorblue.battery-0	priorblue/battery-0.svg	priorblue	Weather and Elements	Empty Battery
-shape.gameicons.priorblue.battery-minus	priorblue/battery-minus.svg	priorblue	Weather and Elements	Decreasing Battery
-shape.gameicons.sbed.battery-pack-alt	sbed/battery-pack-alt.svg	sbed	Weather and Elements	Battery Pack Empty
 shape.gameicons.delapouite.bolt-drop	delapouite/bolt-drop.svg	delapouite	Weather and Elements	Bolt Drop
 shape.gameicons.delapouite.car-battery	delapouite/car-battery.svg	delapouite	Weather and Elements	Car Battery
-shape.gameicons.delapouite.charging	delapouite/charging.svg	delapouite	Weather and Elements	Charging
 shape.gameicons.delapouite.curling-stone	delapouite/curling-stone.svg	delapouite	Weather and Elements	Curling Stone
 shape.gameicons.delapouite.dam	delapouite/dam.svg	delapouite	Weather and Elements	Dam
 shape.gameicons.lorc.drop	lorc/drop.svg	lorc	Weather and Elements	Drop
@@ -676,7 +856,6 @@ shape.gameicons.delapouite.kitchen-tap	delapouite/kitchen-tap.svg	delapouite	Wea
 shape.gameicons.delapouite.life-buoy	delapouite/life-buoy.svg	delapouite	Weather and Elements	Life Buoy
 shape.gameicons.lorc.lightning-helix	lorc/lightning-helix.svg	lorc	Weather and Elements	Lightning Helix
 shape.gameicons.lorc.lightning-trio	lorc/lightning-trio.svg	lorc	Weather and Elements	Lightning Trio
-shape.gameicons.sbed.lucifer-cannon	sbed/lucifer-cannon.svg	sbed	Weather and Elements	Lucifer Cannon
 shape.gameicons.lorc.moon	lorc/moon.svg	lorc	Weather and Elements	Moon
 shape.gameicons.delapouite.mooring-bollard	delapouite/mooring-bollard.svg	delapouite	Weather and Elements	Mooring Bollard
 shape.gameicons.delapouite.night-sleep	delapouite/night-sleep.svg	delapouite	Weather and Elements	Night Sleep

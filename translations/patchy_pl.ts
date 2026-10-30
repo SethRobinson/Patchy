@@ -14123,16 +14123,16 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Broń i zbroje</translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation>Symbole i znaki</translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation>Abstrakcje i ornamenty</translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
-        <translation>Wbudowane kształty w folderach tematycznych pochodzą z game-icons.net (CC BY 3.0), autorzy: %1. Wbudowane kształty są tylko do odczytu; Duplikuj tworzy edytowalną kopię.</translation>
+        <source>Games</source>
+        <translation>Gry</translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
+        <translation>Kształty, których podpowiedź podaje autora, pochodzą z game-icons.net (CC BY 3.0), autorzy: %1. Są tylko do odczytu; Duplikuj tworzy edytowalną kopię.</translation>
     </message>
 </context>
 <context>

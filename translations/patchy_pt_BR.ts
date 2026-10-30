@@ -14080,16 +14080,16 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Armas e armaduras</translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation>Símbolos e sinais</translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation>Abstrato e ornamentos</translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
-        <translation>As formas integradas das pastas temáticas são do game-icons.net (CC BY 3.0), feitas por %1. As formas integradas são somente leitura; Duplicar cria uma cópia editável.</translation>
+        <source>Games</source>
+        <translation>Jogos</translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
+        <translation>As formas cuja dica cita um autor são do game-icons.net (CC BY 3.0), feitas por %1. São somente leitura; Duplicar cria uma cópia editável.</translation>
     </message>
 </context>
 <context>

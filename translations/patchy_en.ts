@@ -14063,15 +14063,15 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <source>Games</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

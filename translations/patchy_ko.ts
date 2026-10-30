@@ -14037,16 +14037,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>무기와 갑옷</translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation>기호와 표지</translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation>추상과 장식</translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
-        <translation>주제 폴더의 기본 제공 모양은 game-icons.net(CC BY 3.0)에서 가져왔으며 제작자는 %1입니다. 기본 제공 모양은 읽기 전용이며, 복제하면 편집 가능한 사본이 만들어집니다.</translation>
+        <source>Games</source>
+        <translation>게임</translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
+        <translation>도구 설명에 제작자가 표시된 모양은 game-icons.net(CC BY 3.0)에서 가져왔으며 제작자는 %1입니다. 읽기 전용이며, 복제하면 편집 가능한 사본이 만들어집니다.</translation>
     </message>
 </context>
 <context>

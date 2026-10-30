@@ -42,7 +42,8 @@ inline constexpr const char* kBundledCustomShapeIdPrefix = "shape.gameicons.";
 // a drawable outline are skipped. Empty, with `error` set, when the document is unusable.
 [[nodiscard]] std::vector<CustomShapeLibraryEntry> read_bundled_custom_shapes(const QByteArray& json,
                                                                                QString* error = nullptr);
-// The pack's folder names in display order (English; translated for display).
+// The folders only the pack fills, in display order (English; translated for display). Its
+// arrows and signs join the builtin Arrows and Symbols folders, which stay open.
 [[nodiscard]] const std::vector<const char*>& bundled_custom_shape_folders();
 
 struct CustomShapeLibraryTraits {

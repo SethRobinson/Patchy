@@ -162,27 +162,31 @@ popup's maximum).
 
 ### Bundled game-icons.net shapes
 
-GitHub #521: 699 curated shapes from game-icons.net (CC BY 3.0; Viscious Speed and Zeromancer
+GitHub #521: 878 curated shapes from game-icons.net (CC BY 3.0; Viscious Speed and Zeromancer
 CC0), all drawn by people, ship inside the app as the Qt resource
 `:/shapes/game-icons.json` (`src/ui/shapes.qrc`, compressed by rcc), so the installer, macOS
 bundle, Flatpak, AppImage and web build carry them with no file to copy. The pick is
 `scripts/dev/gameicons/game_icons_manifest.tsv` (id, source, author, folder, name; edit it by
-hand, never change an id) and `curate_game_icons.py` (`select` seeds it from the site's tags,
-`build` writes the pack from a clone at the pinned commit). Ids `shape.gameicons.<author>.<file>`
-are permanent and append-only. Rules: credited authors only (badges/ and various-artists/ name
+hand, never change an id) and `curate_game_icons.py` (`select` was the first pick from the
+site's tags; `extend` applies its REMOVED, MOVES and ADDITIONS lists to the manifest; `build`
+writes the pack from a clone at the pinned commit). Ids `shape.gameicons.<author>.<file>` are
+permanent and append-only (the second pass removed eight never-pushed franchise or violent
+picks). Its arrows and signs join the builtin Arrows and Symbols folders (one folder per name in
+the picker, already translated, still open by default); cards, dice, chess and tarot are in Games. Rules: credited authors only (badges/ and various-artists/ name
 none), no shape tied to another company's property, brand or logo, no gore or game-UI glyphs,
 thinned variant runs, nothing too fine for a thumbnail, and only outlines that fill the same
 even-odd as nonzero (custom shapes fill even-odd).
 `CustomShapeLibrary::ensure_bundled_shapes_loaded` adds them, read-only (`bundled`, no
-sidecar: no rename, move or delete; Duplicate makes a user copy), the first time the picker,
+sidecar: no rename, move or delete, and a folder holding one cannot be renamed; Duplicate
+makes a user copy), the first time the picker,
 the Shapes Manager or a script asks (`MainWindow::custom_shape_library_with_bundled`; a
 remembered `tools/customShapeId` from the pack loads it at start). Paths are SVG path data
 parsed by `svg::parse_svg_path_data`, one even-odd group, normalized to the unit box.
 Thumbnails draw on first paint (`custom_shape_icon`, a caching icon engine), so only visible
-cells cost anything. The pack's 16 folders start closed in the picker (never-toggled default,
+cells cost anything. The 16 folders only the pack fills start closed in the picker (never-toggled default,
 plus a one-time merge into an existing `tools/customShapePickerCollapsedFolders`) and the
 manager. Folder names are translated (`bundled_custom_shape_folders`); shape names stay the
-authors' English titles (699 names in 11 languages is out of proportion; search runs on them).
+authors' English titles (878 names in 11 languages is out of proportion; search runs on them).
 Credits (binding, docs/legal-constraints.md): the author and license in every tooltip
 (`custom_shape_tool_tip`), the authors in the Shapes Manager (`customShapeManagerCreditLabel`)
 and `NOTICE-THIRD-PARTY.md`. A stamped shape is a plain path in documents and PSDs. Tests:

@@ -115,8 +115,8 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
       }
     }
     authors.sort(Qt::CaseInsensitive);
-    credit->setText(QObject::tr("Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), "
-                                "made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.")
+    credit->setText(QObject::tr("Shapes that name an author in their tooltip are from game-icons.net "
+                                "(CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.")
                         .arg(authors.join(QStringLiteral(", "))));
     credit->setVisible(!authors.isEmpty());
   }

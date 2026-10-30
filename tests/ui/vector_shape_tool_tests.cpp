@@ -2227,7 +2227,7 @@ void ui_custom_shape_bundled_pack_loads_on_request() {
   CHECK(changes == 1);
   const auto bundled = static_cast<int>(library.entries().size() - before);
   std::printf("[INFO] bundled custom shapes: %d loaded in %lld ms\n", bundled, static_cast<long long>(load_ms));
-  CHECK(bundled >= 600 && bundled <= 800);
+  CHECK(bundled >= 800 && bundled <= 1000);
   CHECK(load_ms < 3000);
   // Permanent ids (documents and settings name them): a few pinned from the manifest.
   for (const auto* id : {"shape.gameicons.skoll.chess-rook", "shape.gameicons.delapouite.banjo",
@@ -2240,7 +2240,13 @@ void ui_custom_shape_bundled_pack_loads_on_request() {
   for (const auto* folder : patchy::ui::bundled_custom_shape_folders()) {
     folders.append(QString::fromLatin1(folder));
   }
+  // The pack's arrows and signs join the builtin folders (GitHub #521 follow-up).
+  folders << QStringLiteral("Arrows") << QStringLiteral("Symbols");
+  int arrows = 0;
+  int symbols = 0;
   for (const auto& entry : library.entries()) {
+    arrows += entry.bundled && entry.folder == QStringLiteral("Arrows") ? 1 : 0;
+    symbols += entry.bundled && entry.folder == QStringLiteral("Symbols") ? 1 : 0;
     if (!entry.bundled) {
       continue;
     }
@@ -2263,6 +2269,14 @@ void ui_custom_shape_bundled_pack_loads_on_request() {
       CHECK(bounds->left > -1e-6 && bounds->top > -1e-6 && bounds->right < 1.0 + 1e-6 && bounds->bottom < 1.0 + 1e-6);
       CHECK(std::abs(std::max(bounds->right - bounds->left, bounds->bottom - bounds->top) - 1.0) < 1e-6);
     }
+  }
+  CHECK(arrows >= 40 && symbols >= 90);
+  for (const auto* id : {"shape.gameicons.lorc.james-bond-aperture", "shape.gameicons.lorc.dig-dug"}) {
+    CHECK(library.find_entry_by_shape_id(QLatin1String(id)) == nullptr);  // franchise pieces: removed
+  }
+  for (const auto* id : {"shape.gameicons.delapouite.check-mark", "shape.gameicons.lorc.hazard-sign",
+                         "shape.gameicons.delapouite.plain-arrow"}) {
+    CHECK(library.find_entry_by_shape_id(QLatin1String(id)) != nullptr);
   }
   // Read-only: no rename, move or delete; Duplicate makes an editable user copy.
   const auto* rook = library.find_entry_by_shape_id(rook_id);
@@ -2336,6 +2350,16 @@ void ui_custom_shape_picker_opens_with_the_bundled_pack() {
   grid->scrollToTop();
   QApplication::processEvents();
   save_widget_artifact("ui_i521_picker_bundled_folders", *popup);
+  // The builtin Symbols folder stays open and holds the pack's signs too.
+  if (auto* symbols = grid->folder_item(QStringLiteral("Symbols")); symbols != nullptr) {
+    CHECK(patchy::ui::PresetGridWidget::is_folder_expanded(symbols));
+    CHECK(shape_grid_folder_cells(*grid, QStringLiteral("Symbols")).size() >= 100);
+    grid->scrollToItem(symbols, QAbstractItemView::PositionAtTop);
+    QApplication::processEvents();
+    save_widget_artifact("ui_i521_picker_symbols_open", *popup);
+  } else {
+    CHECK(false);
+  }
   auto* animals = grid->folder_item(QStringLiteral("Animals"));
   CHECK(animals != nullptr);
   if (animals == nullptr) {

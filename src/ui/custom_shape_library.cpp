@@ -99,7 +99,7 @@ const std::vector<const char*>& bundled_custom_shape_folders() {
       PATCHY_TRANSLATE_NOOP("QObject", "Tools and Objects"),
       PATCHY_TRANSLATE_NOOP("QObject", "Fantasy"),
       PATCHY_TRANSLATE_NOOP("QObject", "Weapons and Armor"),
-      PATCHY_TRANSLATE_NOOP("QObject", "Symbols and Signs"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Games"),
       PATCHY_TRANSLATE_NOOP("QObject", "Abstract and Ornaments"),
   };
   return folders;

@@ -351,8 +351,9 @@ attribution; the authors are credited here voluntarily (authors marked
 
 ## Bundled custom shapes (game-icons.net, CC BY 3.0)
 
-The 699 shapes in the Custom Shape picker's topic folders (Animals, Nature,
-Hearts and Stars and the rest; ids `shape.gameicons.*`, embedded as
+The 878 shapes in the Custom Shape picker that name an author in their tooltip (the topic
+folders such as Animals, Nature and Games, plus most of Arrows and Symbols; ids
+`shape.gameicons.*`, embedded as
 `src/ui/shapes/game-icons.json`) are outlines from the game-icons.net collection
 (https://game-icons.net, repository https://github.com/game-icons/icons at commit
 `82d948812bfe3f269ef8f731dcdb07b08160edc4`), drawn by the people below (no AI generation, per
@@ -368,28 +369,29 @@ Icons made by:
 
 | Author | Shapes |
 | --- | --- |
-| Delapouite | 343 |
-| Lorc | 195 |
-| Skoll | 44 |
-| Sbed | 36 |
-| Caro Asercion | 32 |
+| Delapouite | 447 |
+| Lorc | 250 |
+| Skoll | 47 |
+| Sbed | 39 |
+| Caro Asercion | 33 |
+| Aussiesim | 11 |
 | Viscious Speed | 10 |
 | Cathelineau | 8 |
-| Aussiesim | 5 |
+| PriorBlue | 5 |
 | DarkZaitzev | 4 |
-| Lord Berandas | 3 |
+| Lord Berandas | 4 |
+| Guard13007 | 3 |
 | Faithtoken | 2 |
 | Lucas | 2 |
-| PriorBlue | 2 |
 | Quoting | 2 |
 | Willdabeast | 2 |
 | Zeromancer | 2 |
 | Andy Meneely | 1 |
 | GeneralAce135 | 1 |
-| Guard13007 | 1 |
 | Irongamer | 1 |
 | Pierre Leducq | 1 |
 | Rihlsul | 1 |
+| SeregaCthtuf | 1 |
 | Zajkonur | 1 |
 
 ## Test fixtures (not distributed with the application)

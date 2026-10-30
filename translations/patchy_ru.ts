@@ -14123,16 +14123,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Оружие и доспехи</translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation>Символы и знаки</translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation>Абстракции и орнаменты</translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
-        <translation>Встроенные фигуры в тематических папках взяты с game-icons.net (CC BY 3.0), авторы: %1. Встроенные фигуры доступны только для чтения; «Дублировать» создаёт редактируемую копию.</translation>
+        <source>Games</source>
+        <translation>Игры</translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
+        <translation>Фигуры, в подсказке которых указан автор, взяты с game-icons.net (CC BY 3.0), авторы: %1. Они доступны только для чтения; «Дублировать» создаёт редактируемую копию.</translation>
     </message>
 </context>
 <context>

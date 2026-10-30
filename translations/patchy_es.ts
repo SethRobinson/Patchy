@@ -14080,16 +14080,16 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Armas y armaduras</translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation>Símbolos y señales</translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation>Abstracto y ornamentos</translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
-        <translation>Las formas integradas de las carpetas temáticas son de game-icons.net (CC BY 3.0), creadas por %1. Las formas integradas son de solo lectura; Duplicar crea una copia editable.</translation>
+        <source>Games</source>
+        <translation>Juegos</translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
+        <translation>Las formas que nombran a un autor en su información sobre herramientas son de game-icons.net (CC BY 3.0), creadas por %1. Son de solo lectura; Duplicar crea una copia editable.</translation>
     </message>
 </context>
 <context>

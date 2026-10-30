@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """Curates and packs the bundled game-icons.net custom shapes (GitHub #521).
 
-Two steps, both deterministic:
+Three steps, all deterministic:
 
-  select  Reads the game-icons.net repository (one folder per author, 512x512 SVGs) and the
+  select  The first pick (October 2026; refuses to overwrite the manifest without --force). Reads the game-icons.net repository (one folder per author, 512x512 SVGs) and the
           site's tag pages, and writes the reviewed pick list, game_icons_manifest.tsv:
           id, source file, author, folder, name. Edit the manifest by hand to add, drop,
           rename or move a shape; never change an existing id (shape ids are permanent).
+  extend  Applies REMOVED, MOVES and ADDITIONS below to the existing manifest: ids never change,
+          a removed id was never pushed, every addition passes the same checks as the first pick.
+          The second pass (GitHub #521, October 30, 2026) added the useful arrows and signs the
+          per-folder caps had left out and moved cards, dice, chess and tarot into Games.
   build   Reads the manifest and the repository and writes src/ui/shapes/game-icons.json,
           the pack Patchy embeds: per shape its id, name, folder, author and the outline as
           SVG path data in the 512 box (the black background square removed, numbers rounded
           to 1/100 px).
 
   python -I scripts/dev/gameicons/curate_game_icons.py select --source <icons clone> --tags <tag pages>
+  python -I scripts/dev/gameicons/curate_game_icons.py extend --source <icons clone> --tags <tag pages>
   python -I scripts/dev/gameicons/curate_game_icons.py build --source <icons clone>
 
 <icons clone> is https://github.com/game-icons/icons at the commit in PINNED_COMMIT; <tag pages>
@@ -481,6 +486,184 @@ def select(source: Path, tag_dir: Path) -> None:
     print(f"{len(rows)} shapes -> {MANIFEST}")
 
 
+# --- extend: the second pass ---------------------------------------------------------------
+
+# Brand or franchise pieces and violent targets the first pick let through (never pushed).
+REMOVED = {
+    "lorc/james-bond-aperture", "lorc/dig-dug", "delapouite/kenku-head", "lorc/ent-mouth",
+    "delapouite/energy-tank", "sbed/lucifer-cannon", "skoll/headshot", "delapouite/human-target",
+}
+
+# Pack shapes join the builtin Arrows and Symbols folders (one folder each in the picker, already
+# translated) rather than sitting beside them under a near-identical name.
+MOVES = {
+    "Symbols and Signs": "Symbols",
+}
+SHAPE_MOVES = {
+    # Cards, dice, chess, tarot, coins: Games.
+    **{key: "Games" for key in (
+        "delapouite/buy-card", "aussiesim/card-4-diamonds", "aussiesim/card-4-hearts", "aussiesim/card-4-spades",
+        "aussiesim/card-7-diamonds", "aussiesim/card-ace-diamonds", "faithtoken/card-discard", "skoll/chess-bishop",
+        "skoll/chess-pawn", "skoll/clubs", "skoll/d4", "skoll/diamonds", "delapouite/dice-six-faces-five",
+        "delapouite/dice-six-faces-four", "delapouite/dice-six-faces-one", "delapouite/dice-six-faces-six",
+        "delapouite/dice-six-faces-three", "delapouite/dice-six-faces-two", "delapouite/sell-card", "skoll/spades",
+        "lorc/suits", "caro-asercion/tarot-09-the-hermit", "delapouite/token", "delapouite/two-coins",
+        "skoll/chess-knight", "skoll/chess-rook", "skoll/chess-king", "skoll/chess-queen", "quoting/card-play",
+        "delapouite/abbot-meeple")},
+    "delapouite/axe-sword": "Weapons and Armor", "lorc/crossed-slashes": "Weapons and Armor",
+    "delapouite/templar-shield": "Weapons and Armor", "skoll/hasty-grave": "Fantasy",
+    # Signs that landed in topic folders by their tags.
+    **{key: "Symbols" for key in (
+        "delapouite/direction-sign", "delapouite/direction-signs", "delapouite/hanging-sign", "lorc/wooden-sign",
+        "lorc/recycle", "delapouite/crosshair", "lorc/medal", "delapouite/diamond-trophy", "delapouite/ringing-alarm",
+        "priorblue/battery-0", "priorblue/battery-minus", "sbed/battery-pack-alt", "delapouite/charging",
+        "lorc/light-bulb")},
+}
+
+# Additions, checked on contact sheets: general, clean signs and UI-style glyphs.
+ADDITIONS = {
+    "Arrows": [
+        "delapouite/plain-arrow", "delapouite/arrow-cursor", "delapouite/anticlockwise-rotation",
+        "delapouite/clockwise-rotation", "delapouite/split-arrows", "delapouite/multi-directions",
+        "delapouite/expand", "delapouite/contract", "delapouite/resize", "delapouite/move",
+        "delapouite/horizontal-flip", "delapouite/vertical-flip", "delapouite/join", "delapouite/share",
+        "delapouite/progression", "delapouite/cloud-download", "delapouite/cloud-upload", "delapouite/load",
+        "delapouite/save-arrow", "delapouite/next-button", "delapouite/previous-button",
+        "delapouite/fast-forward-button", "delapouite/fast-backward-button", "delapouite/backward-time",
+        "delapouite/convergence-target", "delapouite/misdirection", 
+        "lorc/back-forth", "lorc/bottom-right-3d-arrow", "lorc/cycle", "lorc/fast-arrow",
+        "lorc/imbricated-arrows", "lorc/interleaved-arrows", "lorc/return-arrow",
+        "lorc/wide-arrow-dunk", "lorc/arrow-dunk", "lorc/zig-arrow", "lorc/lob-arrow",
+        "lorc/middle-arrow", "lorc/striking-arrows", "lorc/smash-arrows", "lorc/star-cycle",
+        "lorc/crosshair-arrow", "lorc/orb-direction", "lorc/pentarrows-tornado", "sbed/expander",
+        "guard13007/play-button", "guard13007/pause-button", "skoll/click",
+    ],
+    "Symbols": [
+        "delapouite/check-mark", "delapouite/confirmed", "lorc/cross-mark", "sbed/cancel", "delapouite/info",
+        "lorc/interdiction", "skoll/halt", "delapouite/stop-sign", "lorc/hazard-sign", "lorc/laser-warning",
+        "lorc/biohazard", "lorc/radioactive", "delapouite/water-recycling", "lord-berandas/power-button",
+        "delapouite/green-power", "lorc/over-infinity", "lorc/padlock", "delapouite/padlock-open",
+        "delapouite/plain-padlock", "delapouite/dial-padlock", "skoll/combination-lock", "lorc/key",
+        "lorc/skeleton-key", "delapouite/key-lock", "lorc/unlocking", "lorc/triple-lock", "sbed/key",
+        "lorc/magnifying-glass", "delapouite/chat-bubble", "seregacthtuf/thought-bubble", "lorc/conversation",
+        "skoll/talk", "delapouite/checkered-flag", "lorc/flying-flag", "lorc/black-flag",
+        "delapouite/flag-objective", "delapouite/golf-flag", "delapouite/corner-flag", "delapouite/party-flags",
+        "delapouite/vertical-banner", "lorc/tattered-banner", "delapouite/ribbon-medal",
+        "delapouite/sport-medal", "delapouite/medallist", "lorc/ribbon", "lorc/laurels", "lorc/laurel-crown",
+        "delapouite/laurels-trophy", "lorc/trophy", "delapouite/trophy-cup", "delapouite/target-prize",
+        "lorc/on-target", "lorc/archery-target", "delapouite/triangle-target", "lorc/targeting",
+        "delapouite/peace-dove", "lorc/dove", "lorc/freedom-dove", "delapouite/hospital",
+        "priorblue/battery-100", "priorblue/battery-50", "priorblue/battery-plus", "sbed/battery-pack",
+        "delapouite/alarm-clock", "lorc/ringing-bell", "lorc/stopwatch", "lorc/compass", "lorc/anchor",
+        "lorc/globe", "delapouite/wireframe-globe", "delapouite/pin", "delapouite/position-marker",
+        "lorc/bookmark", "delapouite/price-tag", "delapouite/puzzle", "lorc/cog", "lorc/gears",
+        "delapouite/settings-knobs", "delapouite/toggles", "delapouite/hamburger-menu", "delapouite/trash-can",
+        "delapouite/save", 
+        "delapouite/checklist", "lorc/checkbox-tree", "delapouite/thumb-up", "delapouite/thumb-down",
+        "delapouite/sound-on", "delapouite/sound-off", "delapouite/speaker", "delapouite/speaker-off",
+        "lorc/aerial-signal", "delapouite/network-bars", "delapouite/yin-yang", 
+        
+        
+        
+        
+        
+        
+        
+    ],
+    "Tools and Objects": [
+        "delapouite/house",
+        "delapouite/funnel",
+        "delapouite/pie-chart",
+        "delapouite/histogram",
+        "delapouite/chart",
+        "delapouite/family-tree",
+        "delapouite/organigram",
+        "delapouite/stack",
+        "delapouite/files",
+        "delapouite/open-folder",
+        "delapouite/full-folder",
+        "delapouite/id-card",
+        "delapouite/shopping-cart",
+        "delapouite/wallet",
+        "delapouite/photo-camera",
+        "delapouite/video-camera",
+        "lorc/eyedropper",
+        "delapouite/pencil",
+        "delapouite/paint-brush",
+        "delapouite/paint-bucket",
+        "delapouite/paint-roller",
+        "delapouite/palette",
+        "delapouite/highlighter",
+        "lorc/open-book",
+        "delapouite/phone",
+        "delapouite/calendar",
+        "delapouite/mailbox",
+        "lorc/envelope",
+    ],
+    "Games": [
+        "delapouite/card-joker", "aussiesim/card-ace-spades", "aussiesim/card-ace-hearts", "aussiesim/card-ace-clubs",
+        "aussiesim/card-king-hearts", "aussiesim/card-queen-hearts", "aussiesim/card-jack-hearts",
+        "delapouite/dice-twenty-faces-twenty", "delapouite/rolling-dices", "delapouite/perspective-dice-six-faces-random",
+        "delapouite/domino-tiles", "delapouite/empty-chessboard", "delapouite/gamepad", "delapouite/joystick",
+        "delapouite/coins", "delapouite/coins-pile", "caro-asercion/coinflip",
+        "lorc/crown-coin",
+    ],
+}
+
+
+def write_manifest(rows) -> None:
+    lines = ["# id\tsource\tauthor\tfolder\tname  (game-icons.net, commit " + PINNED_COMMIT + ")"]
+    lines += ["\t".join(row) for row in sorted(rows, key=lambda r: (r[3], r[4].lower(), r[0]))]
+    MANIFEST.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
+def extend(source: Path, tag_dir: Path) -> None:
+    _, hints = read_tags(tag_dir)
+    rows = []
+    for shape_id, file, author, folder, name in read_manifest():
+        key = file[:-4]
+        if key in REMOVED:
+            continue
+        folder = SHAPE_MOVES.get(key, MOVES.get(folder, folder))
+        rows.append((shape_id, file, author, folder, name))
+    have = {row[1][:-4] for row in rows}
+    for key in SHAPE_MOVES:
+        if key not in have:
+            print(f"move: {key} is not in the manifest", file=sys.stderr)
+    names = {row[4] for row in rows}
+    added = {folder: 0 for folder in ADDITIONS}
+    for folder, keys in ADDITIONS.items():
+        for key in keys:
+            author, stem = key.split("/")
+            if key in have or key in REMOVED or author not in AUTHORS:
+                continue
+            svg = source / f"{key}.svg"
+            if not svg.exists():
+                print(f"missing {key}", file=sys.stderr)
+                continue
+            outline = icon_outline(svg.read_text(encoding="utf-8"))
+            if outline is None or len(outline) > MAX_PATH_DATA:
+                print(f"skip {key}: no outline or too detailed", file=sys.stderr)
+                continue
+            if not fill_rules_agree(parse_path(outline)):
+                print(f"skip {key}: needs the nonzero fill rule", file=sys.stderr)
+                continue
+            name = title_case(hints.get(key, stem.replace("-", " ")))
+            if name in names:
+                name = f"{name} ({AUTHORS[author]})"
+            names.add(name)
+            have.add(key)
+            rows.append((f"shape.gameicons.{author}.{stem}", f"{key}.svg", author, folder, name))
+            added[folder] += 1
+    write_manifest(rows)
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row[3]] = counts.get(row[3], 0) + 1
+    for folder in sorted(counts):
+        print(f"{folder}: {counts[folder]}" + (f" (+{added[folder]})" if added.get(folder) else ""))
+    print(f"{len(rows)} shapes -> {MANIFEST}")
+
+
 def read_manifest():
     rows = []
     for line in MANIFEST.read_text(encoding="utf-8").splitlines():
@@ -516,14 +699,19 @@ def build(source: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=["select", "build"])
+    parser.add_argument("step", choices=["select", "extend", "build"])
+    parser.add_argument("--force", action="store_true", help="select: overwrite the manifest")
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--tags", type=Path)
     args = parser.parse_args()
+    if args.step in ("select", "extend") and args.tags is None:
+        parser.error(f"{args.step} needs --tags")
     if args.step == "select":
-        if args.tags is None:
-            parser.error("select needs --tags")
+        if MANIFEST.exists() and not args.force:
+            parser.error("the manifest exists: its ids are permanent; use extend, or --force to start over")
         select(args.source, args.tags)
+    elif args.step == "extend":
+        extend(args.source, args.tags)
     else:
         build(args.source)
 

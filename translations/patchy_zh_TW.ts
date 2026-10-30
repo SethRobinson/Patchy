@@ -14037,16 +14037,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>武器和盔甲</translation>
     </message>
     <message>
-        <source>Symbols and Signs</source>
-        <translation>符號和標誌</translation>
-    </message>
-    <message>
         <source>Abstract and Ornaments</source>
         <translation>抽象和裝飾</translation>
     </message>
     <message>
-        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
-        <translation>主題資料夾中的內建形狀來自 game-icons.net (CC BY 3.0)，作者為 %1。內建形狀為唯讀；「複製」會建立可編輯的副本。</translation>
+        <source>Games</source>
+        <translation>遊戲</translation>
+    </message>
+    <message>
+        <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
+        <translation>工具提示中註明作者的形狀來自 game-icons.net (CC BY 3.0)，作者為 %1。它們為唯讀；「複製」會建立可編輯的副本。</translation>
     </message>
 </context>
 <context>
