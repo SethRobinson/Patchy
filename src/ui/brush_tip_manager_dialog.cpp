@@ -303,9 +303,9 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     refresh_details();
   });
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
-    const auto path = get_open_file_name(&dialog, QObject::tr("Import Photoshop Brushes"), QString(),
-                                         QObject::tr("Photoshop Brushes (*.abr)"), nullptr,
-                                         QStringLiteral("brushTipManagerImportFileDialog"));
+    const auto path = get_abr_import_file_name(&dialog, QObject::tr("Import Photoshop Brushes"),
+                                               QObject::tr("Photoshop Brushes (*.abr)"),
+                                               QStringLiteral("brushTipManagerImportFileDialog"));
     if (path.isEmpty()) {
       return;
     }

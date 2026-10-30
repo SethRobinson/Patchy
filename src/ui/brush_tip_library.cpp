@@ -3,6 +3,7 @@
 #include "psd/abr_reader.hpp"
 #include "ui/default_brush_tips.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/localization.hpp"
 
 #include <QCryptographicHash>
@@ -185,6 +186,29 @@ QImage coverage_image_from_brush_tip(const patchy::BrushTip& tip) {
     std::copy_n(tip.mask.data() + static_cast<std::size_t>(y) * tip.width, tip.width, row);
   }
   return image;
+}
+
+namespace {
+constexpr char kAbrImportDirectoryKey[] = "brushes/lastImportDirectory";
+}  // namespace
+
+QString brush_tip_import_directory() {
+  const auto directory = app_settings().value(QLatin1String(kAbrImportDirectoryKey)).toString();
+  return !directory.isEmpty() && QFileInfo(directory).isDir() ? directory : QString();
+}
+
+QString get_abr_import_file_name(QWidget* parent, const QString& caption, const QString& filter,
+                                 const QString& object_name) {
+  QString browsed_directory;
+  auto path = get_open_file_name(parent, caption, brush_tip_import_directory(), filter, nullptr, object_name,
+                                 FilterNameDetails::Shown, &browsed_directory);
+  if (!path.isEmpty()) {
+    browsed_directory = QFileInfo(path).absolutePath();
+  }
+  if (!browsed_directory.isEmpty()) {
+    app_settings().setValue(QLatin1String(kAbrImportDirectoryKey), browsed_directory);
+  }
+  return path;
 }
 
 QString abr_import_summary(int imported, const QStringList& warnings) {

@@ -12,7 +12,9 @@
 #include "ui/default_brush_tips.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/qt_paths.hpp"
 #include "test_harness.hpp"
+#include "unicode_path_names.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QApplication>
 #include <QTest>
@@ -22,7 +24,10 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDir>
 #include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QImage>
 #include <QLabel>
 #include <QListWidget>
@@ -1280,6 +1285,81 @@ bool window_forwards_keys_to(QWidget& tool_window, QWidget& canvas) {
 
 }  // namespace
 
+// GitHub issue 520: Import Brushes opens in the folder its dialog showed last, whether the user
+// picked a file or cancelled; a remembered folder that is gone falls back to the default.
+void ui_brush_tip_import_remembers_last_folder() {
+  clear_brush_tip_test_state();
+  const QString key = QStringLiteral("brushes/lastImportDirectory");
+  patchy::ui::app_settings().remove(key);
+  const auto cleanup = qScopeGuard([&key] { patchy::ui::app_settings().remove(key); });
+  const auto root =
+      patchy::ui::to_qstring(std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"abr-import-folder")));
+  const auto browsed = root + QStringLiteral("/browsed");
+  const auto picked = root + QStringLiteral("/") +
+                      patchy::ui::to_qstring(patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem));
+  CHECK(QDir().mkpath(browsed));
+  CHECK(QDir().mkpath(picked));
+  const auto abr_path = picked + QStringLiteral("/tips.abr");
+  {
+    QFile file(abr_path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write("8BIM");
+  }
+  CHECK(patchy::ui::brush_tip_import_directory().isEmpty());
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // Runs the dialog; `act` sees it open and closes it. Returns the folder it opened in.
+  const auto run_dialog = [&window](const std::function<void(QFileDialog&)>& act, QString* result) {
+    QString opened_in;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("brushTipImportFileDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      opened_in = dialog->directory().absolutePath();
+      act(*dialog);
+    });
+    *result = patchy::ui::get_abr_import_file_name(&window, QStringLiteral("Import Photoshop Brushes"),
+                                                   QStringLiteral("Photoshop Brushes (*.abr)"),
+                                                   QStringLiteral("brushTipImportFileDialog"));
+    return opened_in;
+  };
+
+  // Cancelled after browsing: the browsed folder is remembered.
+  QString result;
+  run_dialog(
+      [&browsed](QFileDialog& dialog) {
+        dialog.setDirectory(browsed);
+        dialog.reject();
+      },
+      &result);
+  CHECK(result.isEmpty());
+  CHECK(QDir(patchy::ui::brush_tip_import_directory()) == QDir(browsed));
+
+  // The next import opens there; picking a file remembers the file's folder (a Unicode path).
+  auto opened_in = run_dialog(
+      [&abr_path](QFileDialog& dialog) {
+        dialog.selectFile(abr_path);
+        static_cast<QDialog&>(dialog).accept();  // QFileDialog::accept is protected
+      },
+      &result);
+  CHECK(QDir(opened_in) == QDir(browsed));
+  CHECK(QFileInfo(result) == QFileInfo(abr_path));
+  CHECK(QDir(patchy::ui::brush_tip_import_directory()) == QDir(picked));
+  opened_in = run_dialog([](QFileDialog& dialog) { dialog.reject(); }, &result);
+  CHECK(QDir(opened_in) == QDir(picked));
+
+  // A remembered folder that no longer exists is not used.
+  patchy::ui::app_settings().setValue(key, root + QStringLiteral("/gone"));
+  CHECK(patchy::ui::brush_tip_import_directory().isEmpty());
+  opened_in = run_dialog([](QFileDialog& dialog) { dialog.reject(); }, &result);
+  CHECK(QDir(opened_in) != QDir(root + QStringLiteral("/gone")));
+  CHECK(remove_test_scratch_dir(root));
+  clear_brush_tip_test_state();
+}
+
 // GitHub issue 506 follow-up: the tip chooser's Filter field narrows by name or folder with the
 // folder combo, takes the keyboard as the popup opens, Enter picks the first match and Escape
 // clears before it closes. The folder is remembered; the text is not.
@@ -2505,6 +2585,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_dynamics_popup_control_edits_persist", ui_brush_dynamics_popup_control_edits_persist},
       {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
       {"ui_brush_tip_picker_filter_narrows_and_picks", ui_brush_tip_picker_filter_narrows_and_picks},
+      {"ui_brush_tip_import_remembers_last_folder", ui_brush_tip_import_remembers_last_folder},
       {"ui_brush_tips_window_floats_and_follows_the_tool", ui_brush_tips_window_floats_and_follows_the_tool},
       {"ui_brush_settings_window_floats_and_edits_live", ui_brush_settings_window_floats_and_edits_live},
       {"shot_brush_floating_windows", shot_brush_floating_windows},

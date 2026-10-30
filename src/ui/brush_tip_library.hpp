@@ -10,6 +10,8 @@
 #include <QSize>
 #include <QString>
 
+class QWidget;
+
 #include <memory>
 #include <functional>
 #include <optional>
@@ -164,6 +166,14 @@ private:
 // features (texture, dual brush, color dynamics) and will paint differently. Classifies the
 // abr_reader warning strings; the full list still belongs in the dialog's detailed text.
 [[nodiscard]] QString abr_import_summary(int imported, const QStringList& warnings);
+
+// The .abr file dialog of Import Brushes (the tip picker's and the Brush Tips manager's): it
+// opens in the folder it showed last, picked or cancelled (`brushes/lastImportDirectory`,
+// GitHub issue 520), or at the platform default when none is stored or that folder is gone.
+// Empty when cancelled.
+[[nodiscard]] QString get_abr_import_file_name(QWidget* parent, const QString& caption, const QString& filter,
+                                               const QString& object_name);
+[[nodiscard]] QString brush_tip_import_directory();
 
 // Shared conversion helpers (also used by the manager dialog preview and define-brush capture).
 [[nodiscard]] patchy::BrushTip brush_tip_from_coverage_image(const QImage& coverage_mask,
