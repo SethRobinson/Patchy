@@ -247,8 +247,10 @@ Code comments cite these phase numbers. Each phase lands as verified commits.
    precision, every other pixel keeps its depth. Known gap: a float membrane solver
    would make those fills full precision.
 6. **Adjustments and filters** (partly done; `tests/core/deep_filter_tests.cpp`,
-   `ui_script_bit_depth_and_deep_filters`). Destructive Levels, Curves, Hue/Saturation
-   and Color Balance run `DeepAdjuster` at depth (`apply_adjustment_to_deep_pixels`).
+   `ui_script_bit_depth_and_deep_filters`). Destructive Levels, Curves, Hue/Saturation,
+   Color Balance and the adjustment-layer kinds of Image > Adjustments
+   ([adjustment-kinds.md](adjustment-kinds.md#image--adjustments)) run `DeepAdjuster` at
+   depth (`apply_adjustment_to_deep_pixels`).
    `deep_filter_support` (filters/filter_engine.hpp) decides how a filter runs:
    - Deep kernels (`filters/deep_filters.cpp`: the 8-bit math in float without its
      intermediate rounding; Gaussian, High Pass and Unsharp share the calibrated line

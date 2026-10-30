@@ -9,7 +9,10 @@
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/filter_workflows.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "formats/acv_curves_io.hpp"
+#include "formats/document_flatten.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/ico_document_io.hpp"
@@ -31,6 +34,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
+#include <QKeySequence>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
@@ -51,6 +55,7 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <filesystem>
@@ -4159,6 +4164,303 @@ void ui_levels_exception_restores_preview_pixels_and_unlocks_edits() {
   CHECK(require_action(window, "imageAdjustLevelsAction")->isEnabled());
 }
 
+// Image > Adjustments for the kinds that used to exist only as adjustment layers (#528):
+// each command opens the kind's adjustment-layer dialog and writes the layer's transfer
+// into the active pixel layer, so the result equals the flattened adjustment layer of the
+// same dialog settings, in one undo step.
+namespace {
+
+constexpr std::int32_t kDirectAdjustmentWidth = 48;
+constexpr std::int32_t kDirectAdjustmentHeight = 32;
+
+patchy::PixelBuffer direct_adjustment_source_pixels() {
+  patchy::PixelBuffer pixels(kDirectAdjustmentWidth, kDirectAdjustmentHeight, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < kDirectAdjustmentHeight; ++y) {
+    for (std::int32_t x = 0; x < kDirectAdjustmentWidth; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 255 / (kDirectAdjustmentWidth - 1));
+      px[1] = static_cast<std::uint8_t>(y * 255 / (kDirectAdjustmentHeight - 1));
+      px[2] = static_cast<std::uint8_t>((x * 37 + y * 71) % 256);
+      px[3] = 255;
+    }
+  }
+  return pixels;
+}
+
+struct DirectAdjustmentCase {
+  const char* direct_action;
+  const char* layer_action;
+  const char* dialog_name;
+  // Moves the dialog off its defaults (null keeps them).
+  std::function<void(QDialog&)> edit;
+};
+
+bool run_adjustment_dialog_action(patchy::ui::MainWindow& window, const char* action,
+                                  const DirectAdjustmentCase& adjustment) {
+  bool dialog_seen = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QString::fromLatin1(adjustment.dialog_name)));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    if (adjustment.edit) {
+      adjustment.edit(*dialog);
+    }
+    process_events_for(80);
+    dialog_seen = true;
+    dialog->accept();
+  });
+  require_action(window, action)->trigger();
+  QApplication::processEvents();
+  return dialog_seen;
+}
+
+// The flattened document of an adjustment layer over the source, from the same dialog edits.
+patchy::PixelBuffer adjustment_layer_reference(const DirectAdjustmentCase& adjustment) {
+  patchy::Document source(kDirectAdjustmentWidth, kDirectAdjustmentHeight, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", direct_adjustment_source_pixels());
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Layer"));
+  show_window(window);
+  CHECK(run_adjustment_dialog_action(window, adjustment.layer_action, adjustment));
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  if (document.active_layer_id().has_value()) {
+    const auto* layer = document.find_layer(*document.active_layer_id());
+    CHECK(layer != nullptr && patchy::adjustment_settings_from_layer(*layer).has_value());
+  }
+  return patchy::flatten_document_rgba8(document);
+}
+
+int max_rgb_difference(const patchy::PixelBuffer& lhs, const patchy::PixelBuffer& rhs) {
+  int worst = 0;
+  for (std::int32_t y = 0; y < kDirectAdjustmentHeight; ++y) {
+    for (std::int32_t x = 0; x < kDirectAdjustmentWidth; ++x) {
+      const auto* a = lhs.pixel(x, y);
+      const auto* b = rhs.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        worst = std::max(worst, std::abs(int{a[channel]} - int{b[channel]}));
+      }
+    }
+  }
+  return worst;
+}
+
+void check_direct_adjustment_matches_layer(const DirectAdjustmentCase& adjustment) {
+  const auto source_pixels = direct_adjustment_source_pixels();
+  const auto expected = adjustment_layer_reference(adjustment);
+
+  patchy::Document source(kDirectAdjustmentWidth, kDirectAdjustmentHeight, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", source_pixels);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Direct"));
+  show_window(window);
+  CHECK(run_adjustment_dialog_action(window, adjustment.direct_action, adjustment));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(std::as_const(document).layers().size() == 1);
+  const auto& after = std::as_const(document).layers().front().pixels();
+  CHECK(after.width() == kDirectAdjustmentWidth && after.height() == kDirectAdjustmentHeight);
+  CHECK(after.format() == patchy::PixelFormat::rgba8());
+  if (after.width() != kDirectAdjustmentWidth || after.height() != kDirectAdjustmentHeight ||
+      expected.width() != kDirectAdjustmentWidth || expected.height() != kDirectAdjustmentHeight) {
+    return;
+  }
+  CHECK(!patchy::ui::pixel_buffers_equal(after, source_pixels));
+  const auto difference = max_rgb_difference(after, expected);
+  if (difference != 0) {
+    std::cerr << adjustment.direct_action << ": max difference to the adjustment layer " << difference << '\n';
+  }
+  CHECK(difference == 0);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 1);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(patchy::ui::pixel_buffers_equal(std::as_const(document).layers().front().pixels(), source_pixels));
+}
+
+void set_spin(QDialog& dialog, const char* name, int value) {
+  auto* spin = dialog.findChild<QSpinBox*>(QString::fromLatin1(name));
+  CHECK(spin != nullptr);
+  if (spin != nullptr) {
+    spin->setValue(value);
+  }
+}
+
+void set_double_spin(QDialog& dialog, const char* name, double value) {
+  auto* spin = dialog.findChild<QDoubleSpinBox*>(QString::fromLatin1(name));
+  CHECK(spin != nullptr);
+  if (spin != nullptr) {
+    spin->setValue(value);
+  }
+}
+
+}  // namespace
+
+// Black & White also gets the reporter's Ctrl+Shift+Alt+B, honours a selection, and keeps a
+// 16-bit layer at 16 bits within one level of the 8-bit result.
+void ui_image_adjustments_black_white_matches_adjustment_layer() {
+  const DirectAdjustmentCase black_white{"imageAdjustBlackWhiteAction", "layerNewBlackWhiteAdjustmentAction",
+                                         "patchyBlackWhiteDialog", [](QDialog& dialog) {
+                                           set_spin(dialog, "blackWhiteRedsSpin", -50);
+                                           set_spin(dialog, "blackWhiteBluesSpin", 140);
+                                         }};
+  check_direct_adjustment_matches_layer(black_white);
+
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    CHECK(require_action(window, "imageAdjustBlackWhiteAction")->shortcut() ==
+          QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::ALT | Qt::Key_B));
+    if (auto* menu = window.findChild<QMenu*>(QStringLiteral("imageAdjustmentsMenu")); menu != nullptr) {
+      menu->popup(window.mapToGlobal(QPoint(40, 40)));
+      process_events_for(80);
+      save_widget_artifact("ui_image_adjustments_menu", *menu);
+      menu->hide();
+    }
+  }
+
+  // A selection over the left half leaves the right half untouched.
+  {
+    const auto source_pixels = direct_adjustment_source_pixels();
+    patchy::Document source(kDirectAdjustmentWidth, kDirectAdjustmentHeight, patchy::PixelFormat::rgba8());
+    source.add_pixel_layer("Paint", source_pixels);
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(source), QStringLiteral("Selection"));
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    patchy::PixelBuffer coverage(kDirectAdjustmentWidth / 2, kDirectAdjustmentHeight, patchy::PixelFormat::gray8());
+    coverage.clear(255);
+    canvas->set_selection_from_coverage(QRect(0, 0, kDirectAdjustmentWidth / 2, kDirectAdjustmentHeight), coverage);
+    CHECK(run_adjustment_dialog_action(window, "imageAdjustBlackWhiteAction", {nullptr, nullptr,
+                                                                               "patchyBlackWhiteDialog", {}}));
+    const auto& after = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().front().pixels();
+    const auto* inside = after.pixel(5, 20);
+    CHECK(inside[0] == inside[1] && inside[1] == inside[2]);
+    const auto* outside = after.pixel(40, 20);
+    const auto* original = source_pixels.pixel(40, 20);
+    CHECK(std::equal(outside, outside + 4, original));
+  }
+
+  // 16 bits: the layer stays 16-bit, turns neutral, and matches the 8-bit adjustment layer.
+  {
+    const DirectAdjustmentCase defaults{"imageAdjustBlackWhiteAction", "layerNewBlackWhiteAdjustmentAction",
+                                        "patchyBlackWhiteDialog", {}};
+    const auto expected = adjustment_layer_reference(defaults);
+    patchy::Document source(kDirectAdjustmentWidth, kDirectAdjustmentHeight, patchy::PixelFormat::rgba8());
+    source.add_pixel_layer("Paint", direct_adjustment_source_pixels());
+    patchy::convert_document_depth(source, patchy::BitDepth::UInt16);
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(source), QStringLiteral("Deep"));
+    show_window(window);
+    CHECK(run_adjustment_dialog_action(window, "imageAdjustBlackWhiteAction", defaults));
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto& after = document.layers().front().pixels();
+    CHECK(after.format().bit_depth == patchy::BitDepth::UInt16);
+    bool neutral = true;
+    for (std::int32_t y = 0; y < after.height(); ++y) {
+      for (std::int32_t x = 0; x < after.width(); ++x) {
+        const auto value = patchy::load_pixel(after.format(), after.pixel(x, y));
+        neutral = neutral && std::abs(value[0] - value[1]) < 1e-3F && std::abs(value[1] - value[2]) < 1e-3F;
+      }
+    }
+    CHECK(neutral);
+    const auto flattened = patchy::flatten_document_rgba8(document);
+    CHECK(flattened.width() == kDirectAdjustmentWidth && flattened.height() == kDirectAdjustmentHeight);
+    if (flattened.width() == kDirectAdjustmentWidth && flattened.height() == kDirectAdjustmentHeight &&
+        expected.width() == kDirectAdjustmentWidth) {
+      CHECK(max_rgb_difference(flattened, expected) <= 1);
+    }
+  }
+}
+
+void ui_image_adjustments_vibrance_matches_adjustment_layer() {
+  check_direct_adjustment_matches_layer({"imageAdjustVibranceAction", "layerNewVibranceAdjustmentAction",
+                                         "patchyVibranceDialog", [](QDialog& dialog) {
+                                           set_spin(dialog, "vibranceAmountSpin", 60);
+                                           set_spin(dialog, "vibranceSaturationSpin", -20);
+                                         }});
+}
+
+void ui_image_adjustments_exposure_matches_adjustment_layer() {
+  check_direct_adjustment_matches_layer({"imageAdjustExposureAction", "layerNewExposureAdjustmentAction",
+                                         "patchyExposureDialog", [](QDialog& dialog) {
+                                           set_double_spin(dialog, "exposureValueSpin", 0.7);
+                                           set_double_spin(dialog, "exposureGammaSpin", 1.2);
+                                         }});
+}
+
+void ui_image_adjustments_channel_mixer_matches_adjustment_layer() {
+  check_direct_adjustment_matches_layer({"imageAdjustChannelMixerAction", "layerNewChannelMixerAdjustmentAction",
+                                         "patchyChannelMixerDialog", [](QDialog& dialog) {
+                                           set_spin(dialog, "channelMixerRedSpin", 60);
+                                           set_spin(dialog, "channelMixerGreenSpin", 40);
+                                           set_spin(dialog, "channelMixerConstantSpin", 10);
+                                         }});
+}
+
+void ui_image_adjustments_photo_filter_matches_adjustment_layer() {
+  check_direct_adjustment_matches_layer({"imageAdjustPhotoFilterAction", "layerNewPhotoFilterAdjustmentAction",
+                                         "patchyPhotoFilterDialog", [](QDialog& dialog) {
+                                           set_spin(dialog, "photoFilterDensitySpin", 63);
+                                         }});
+}
+
+void ui_image_adjustments_gradient_map_matches_adjustment_layer() {
+  // The dialog's default black-to-white map already changes every colored pixel.
+  check_direct_adjustment_matches_layer({"imageAdjustGradientMapAction", "layerNewGradientMapAdjustmentAction",
+                                         "patchyGradientMapDialog", {}});
+}
+
+void ui_image_adjustments_selective_color_matches_adjustment_layer() {
+  check_direct_adjustment_matches_layer({"imageAdjustSelectiveColorAction",
+                                         "layerNewSelectiveColorAdjustmentAction", "patchySelectiveColorDialog",
+                                         [](QDialog& dialog) {
+                                           set_spin(dialog, "selectiveColorCyanSpin", 30);
+                                           auto* colors =
+                                               dialog.findChild<QComboBox*>(QStringLiteral("selectiveColorRangeCombo"));
+                                           CHECK(colors != nullptr);
+                                           if (colors != nullptr) {
+                                             colors->setCurrentIndex(7);  // Neutrals
+                                           }
+                                           set_spin(dialog, "selectiveColorBlackSpin", 20);
+                                         }});
+}
+
+void ui_image_adjustments_color_lookup_matches_adjustment_layer() {
+  const auto dir = patchy::test::unicode_artifact_dir(u8"direct-color-lookup");
+  const auto file = dir / std::filesystem::path(u8"direct-look.cube");
+  {
+    std::ofstream out(file, std::ios::binary);
+    out << "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n0.5 0.25 0.1\n";
+  }
+  const auto dir_name = patchy::ui::to_qstring(dir);
+  const auto file_name = patchy::ui::to_qstring(file.filename());
+  check_direct_adjustment_matches_layer(
+      {"imageAdjustColorLookupAction", "layerNewColorLookupAdjustmentAction", "patchyColorLookupDialog",
+       [dir_name, file_name](QDialog& dialog) {
+         auto* load = dialog.findChild<QPushButton*>(QStringLiteral("colorLookupLoadButton"));
+         CHECK(load != nullptr);
+         if (load == nullptr) {
+           return;
+         }
+         QTimer::singleShot(0, [dir_name, file_name] {
+           auto* picker = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("colorLookupFileDialog")));
+           CHECK(picker != nullptr);
+           if (picker == nullptr) {
+             return;
+           }
+           picker->setDirectory(dir_name);
+           if (auto* edit = picker->findChild<QLineEdit*>(QStringLiteral("fileNameEdit")); edit != nullptr) {
+             edit->setText(file_name);
+           }
+           QApplication::processEvents();
+           static_cast<QDialog*>(picker)->accept();
+         });
+         load->click();
+       }});
+  patchy::test::remove_test_scratch_tree(dir);
+}
+
 std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
   return {
       {"ui_image_adjustments_menu_applies_active_layer_filters",
@@ -4240,6 +4542,14 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_curves_clipped_adjustment_reedit_disables_auto",
        ui_curves_clipped_adjustment_reedit_disables_auto},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
+      {"ui_image_adjustments_black_white_matches_adjustment_layer", ui_image_adjustments_black_white_matches_adjustment_layer},
+      {"ui_image_adjustments_vibrance_matches_adjustment_layer", ui_image_adjustments_vibrance_matches_adjustment_layer},
+      {"ui_image_adjustments_exposure_matches_adjustment_layer", ui_image_adjustments_exposure_matches_adjustment_layer},
+      {"ui_image_adjustments_channel_mixer_matches_adjustment_layer", ui_image_adjustments_channel_mixer_matches_adjustment_layer},
+      {"ui_image_adjustments_photo_filter_matches_adjustment_layer", ui_image_adjustments_photo_filter_matches_adjustment_layer},
+      {"ui_image_adjustments_gradient_map_matches_adjustment_layer", ui_image_adjustments_gradient_map_matches_adjustment_layer},
+      {"ui_image_adjustments_selective_color_matches_adjustment_layer", ui_image_adjustments_selective_color_matches_adjustment_layer},
+      {"ui_image_adjustments_color_lookup_matches_adjustment_layer", ui_image_adjustments_color_lookup_matches_adjustment_layer},
       {"ui_color_balance_dialog_tone_selector_edits_each_range", ui_color_balance_dialog_tone_selector_edits_each_range},
       {"ui_channel_mixer_dialog_edits_each_output_row", ui_channel_mixer_dialog_edits_each_output_row},
       {"ui_photo_filter_dialog_picks_color_and_density", ui_photo_filter_dialog_picks_color_and_density},

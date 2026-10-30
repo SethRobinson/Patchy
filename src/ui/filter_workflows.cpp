@@ -1474,6 +1474,38 @@ static void apply_color_balance_to_pixels_hard(PixelBuffer& pixels, Rect bounds,
   for_each_selected_row_span(pixels, bounds, selection, progress, apply_span);
 }
 
+static void apply_adjustment_settings_to_pixels_hard(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
+                                                    const AdjustmentSettings& adjustment,
+                                                    const FilterProgress* progress) {
+  // The same per-pixel functions the compositor runs for an adjustment layer of this kind,
+  // so the destructive command matches the layer exactly (Color Balance's pattern).
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    apply_adjustment_to_deep_pixels(pixels, bounds, selection, adjustment, progress);
+    return;
+  }
+  const auto lut = build_adjustment_lut(adjustment);
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  const auto apply_span = [&](std::int32_t y, std::int32_t x_begin, std::int32_t x_end) {
+    auto* px = pixels.row(y).data() + static_cast<std::size_t>(x_begin) * pixel_bytes;
+    for (std::int32_t x = x_begin; x < x_end; ++x, px += pixel_bytes) {
+      if (lut.has_value()) {
+        px[0] = lut->red[px[0]];
+        px[1] = lut->green[px[1]];
+        px[2] = lut->blue[px[2]];
+        continue;
+      }
+      const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, adjustment);
+      px[0] = adjusted.red;
+      px[1] = adjusted.green;
+      px[2] = adjusted.blue;
+    }
+  };
+  if (apply_row_spans_in_parallel(pixels, selection, progress, apply_span)) {
+    return;
+  }
+  for_each_selected_row_span(pixels, bounds, selection, progress, apply_span);
+}
+
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection, LevelsSettings settings,
                             const FilterProgress* progress) {
   apply_with_selection_coverage(pixels, bounds, selection,
@@ -1496,6 +1528,13 @@ void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const Filte
                                    const FilterProgress* progress) {
   apply_with_selection_coverage(pixels, bounds, selection,
                                 [&] { apply_color_balance_to_pixels_hard(pixels, bounds, selection, settings, progress); });
+}
+
+void apply_adjustment_settings_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection,
+                                         const AdjustmentSettings& settings, const FilterProgress* progress) {
+  apply_with_selection_coverage(pixels, bounds, selection, [&] {
+    apply_adjustment_settings_to_pixels_hard(pixels, bounds, selection, settings, progress);
+  });
 }
 
 void apply_camera_raw_filter_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection,

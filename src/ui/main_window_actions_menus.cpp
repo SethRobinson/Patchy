@@ -1827,8 +1827,25 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     register_document_action(action);
     return action;
   };
-  add_adjustment_action(QT_TR_NOOP("&Invert"), QStringLiteral("imageAdjustInvertAction"),
-                        QStringLiteral("patchy.filters.invert"), QKeySequence(Qt::CTRL | Qt::Key_I));
+  // The kinds that also exist as adjustment layers open that layer's dialog and apply its
+  // transfer to the active layer (#528). Labels share the New Adjustment Layer menu's text.
+  const auto add_adjustment_dialog_action = [this, adjustments_menu](const char* source, const QString& object_name,
+                                                                     const QString& identifier,
+                                                                     const QString& icon_label,
+                                                                     void (MainWindow::*open_dialog)(),
+                                                                     const QKeySequence& shortcut = {}) {
+    auto* action = adjustments_menu->addAction(tr(source));
+    bind_action_text(action, source);
+    action->setObjectName(object_name);
+    action->setIcon(simple_icon(icon_label));
+    register_hotkey(action, identifier, shortcut);
+    connect(action, &QAction::triggered, this, [this, open_dialog] { (this->*open_dialog)(); });
+    register_document_action(action);
+    return action;
+  };
+  // Tonal commands first, then color, then the remapping commands, then the one-step autos.
+  add_adjustment_action(QT_TR_NOOP("&Brightness/Contrast..."), QStringLiteral("imageAdjustBrightnessContrastAction"),
+                        QStringLiteral("patchy.filters.brightness_contrast"));
   auto* levels_action = adjustments_menu->addAction(tr("&Levels..."));
   levels_action->setObjectName(QStringLiteral("imageAdjustLevelsAction"));
   levels_action->setIcon(simple_icon(QStringLiteral("LVL")));
@@ -1841,6 +1858,11 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(curves_action, "image.curves", QKeySequence(Qt::CTRL | Qt::Key_M));
   connect(curves_action, &QAction::triggered, this, [this] { curves_dialog(); });
   register_document_action(curves_action);
+  add_adjustment_dialog_action(QT_TR_NOOP("&Exposure..."), QStringLiteral("imageAdjustExposureAction"),
+                               QStringLiteral("image.exposure"), QStringLiteral("EXP"), &MainWindow::exposure_dialog);
+  adjustments_menu->addSeparator();
+  add_adjustment_dialog_action(QT_TR_NOOP("&Vibrance..."), QStringLiteral("imageAdjustVibranceAction"),
+                               QStringLiteral("image.vibrance"), QStringLiteral("VIB"), &MainWindow::vibrance_dialog);
   auto* hue_saturation_action = adjustments_menu->addAction(tr("&Hue/Saturation..."));
   hue_saturation_action->setObjectName(QStringLiteral("imageAdjustHueSaturationAction"));
   hue_saturation_action->setIcon(simple_icon(QStringLiteral("HSL")));
@@ -1853,6 +1875,33 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(color_balance_action, "image.color_balance", QKeySequence(Qt::CTRL | Qt::Key_B));
   connect(color_balance_action, &QAction::triggered, this, [this] { color_balance_dialog(); });
   register_document_action(color_balance_action);
+  add_adjustment_dialog_action(QT_TR_NOOP("Blac&k && White..."), QStringLiteral("imageAdjustBlackWhiteAction"),
+                               QStringLiteral("image.black_white"), QStringLiteral("BW"),
+                               &MainWindow::black_white_dialog,
+                               QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::ALT | Qt::Key_B));
+  add_adjustment_dialog_action(QT_TR_NOOP("Photo &Filter..."), QStringLiteral("imageAdjustPhotoFilterAction"),
+                               QStringLiteral("image.photo_filter"), QStringLiteral("PHF"),
+                               &MainWindow::photo_filter_dialog);
+  add_adjustment_dialog_action(QT_TR_NOOP("Channel &Mixer..."), QStringLiteral("imageAdjustChannelMixerAction"),
+                               QStringLiteral("image.channel_mixer"), QStringLiteral("MIX"),
+                               &MainWindow::channel_mixer_dialog);
+  add_adjustment_dialog_action(QT_TR_NOOP("Color L&ookup..."), QStringLiteral("imageAdjustColorLookupAction"),
+                               QStringLiteral("image.color_lookup"), QStringLiteral("LUT"),
+                               &MainWindow::color_lookup_dialog);
+  adjustments_menu->addSeparator();
+  add_adjustment_action(QT_TR_NOOP("&Invert"), QStringLiteral("imageAdjustInvertAction"),
+                        QStringLiteral("patchy.filters.invert"), QKeySequence(Qt::CTRL | Qt::Key_I));
+  add_adjustment_action(QT_TR_NOOP("&Posterize"), QStringLiteral("imageAdjustPosterizeAction"),
+                        QStringLiteral("patchy.filters.posterize"));
+  add_adjustment_action(QT_TR_NOOP("&Threshold"), QStringLiteral("imageAdjustThresholdAction"),
+                        QStringLiteral("patchy.filters.threshold"));
+  add_adjustment_dialog_action(QT_TR_NOOP("&Gradient Map..."), QStringLiteral("imageAdjustGradientMapAction"),
+                               QStringLiteral("image.gradient_map"), QStringLiteral("GRM"),
+                               &MainWindow::gradient_map_dialog);
+  add_adjustment_dialog_action(QT_TR_NOOP("&Selective Color..."), QStringLiteral("imageAdjustSelectiveColorAction"),
+                               QStringLiteral("image.selective_color"), QStringLiteral("SC"),
+                               &MainWindow::selective_color_dialog);
+  adjustments_menu->addSeparator();
   add_adjustment_action(QT_TR_NOOP("&Desaturate"), QStringLiteral("imageAdjustDesaturateAction"),
                         QStringLiteral("patchy.filters.desaturate"),
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
@@ -1872,13 +1921,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(auto_all_action, "image.auto_all");
   connect(auto_all_action, &QAction::triggered, this, [this] { auto_all_adjustments(); });
   register_document_action(auto_all_action);
-  adjustments_menu->addSeparator();
-  add_adjustment_action(QT_TR_NOOP("&Brightness/Contrast..."), QStringLiteral("imageAdjustBrightnessContrastAction"),
-                        QStringLiteral("patchy.filters.brightness_contrast"));
-  add_adjustment_action(QT_TR_NOOP("&Threshold"), QStringLiteral("imageAdjustThresholdAction"),
-                        QStringLiteral("patchy.filters.threshold"));
-  add_adjustment_action(QT_TR_NOOP("&Posterize"), QStringLiteral("imageAdjustPosterizeAction"),
-                        QStringLiteral("patchy.filters.posterize"));
   image_menu->addSeparator();
 
   auto* image_size_action = image_menu->addAction(tr("&Image Size..."));
