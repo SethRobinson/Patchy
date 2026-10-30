@@ -161,11 +161,17 @@ void CustomShapePickerCombo::showPopup() {
     std::vector<PresetTreeEntry> rows;
     for (const auto& entry : library->entries()) {
       const auto name = custom_shape_display_name(entry);
-      rows.push_back({entry.storage_id, name, QIcon(entry.thumbnail), name, entry.folder});
+      rows.push_back({entry.storage_id, name, custom_shape_icon(entry), custom_shape_tool_tip(entry), entry.folder});
     }
     return rows;
   });
-  tree->set_collapsed_folders(app_settings().value(QLatin1String(kCustomShapePickerCollapsedFoldersKey)).toStringList());
+  // Never toggled: the bundled pack's folders start closed (GitHub #521).
+  QStringList bundled_closed;
+  for (const auto* folder : bundled_custom_shape_folders()) {
+    bundled_closed.append(QString::fromLatin1(folder));
+  }
+  tree->set_collapsed_folders(
+      app_settings().value(QLatin1String(kCustomShapePickerCollapsedFoldersKey), bundled_closed).toStringList());
   tree->set_grid_view(app_settings().value(QLatin1String(kCustomShapePickerGridViewKey), true).toBool());
   tree->connect_view_buttons(list_view_button, grid_view_button, [](bool grid) {
     app_settings().setValue(QLatin1String(kCustomShapePickerGridViewKey), grid);

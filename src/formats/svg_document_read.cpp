@@ -2631,6 +2631,10 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
   return importer.run();
 }
 
+VectorPath parse_svg_path_data(std::string_view data) {
+  return parse_path_data(data);
+}
+
 const std::vector<std::string>& svg_extensions() {
   static const std::vector<std::string> extensions{".svg", ".svgz"};
   return extensions;

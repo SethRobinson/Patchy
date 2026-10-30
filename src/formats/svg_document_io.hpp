@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace patchy::svg {
@@ -56,6 +57,11 @@ public:
   // servers), so a save loses nothing and needs no flatten warning.
   [[nodiscard]] static std::vector<BakedContent> baked_content(const Document& document);
 };
+
+// The importer's path-data grammar on its own (M/L/H/V/C/S/Q/T/A/Z, relative forms, implicit
+// repeats; quadratics and arcs become cubics): each subpath in its own shape_group, open unless
+// closed by Z. The bundled custom shapes (GitHub #521) store their outlines this way.
+[[nodiscard]] VectorPath parse_svg_path_data(std::string_view data);
 
 // Includes the leading dot, matching the format-registry convention. SVGZ is
 // read-only; the UI advertises only .svg when saving.

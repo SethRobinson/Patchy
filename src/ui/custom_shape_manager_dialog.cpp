@@ -67,10 +67,18 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     std::vector<PresetTreeEntry> rows;
     for (const auto& entry : library.entries()) {
       const auto name = custom_shape_display_name(entry);
-      rows.push_back({entry.storage_id, name, QIcon(entry.thumbnail), name, entry.folder});
+      rows.push_back({entry.storage_id, name, custom_shape_icon(entry), custom_shape_tool_tip(entry), entry.folder});
     }
     return rows;
   });
+  // The bundled pack's folders start closed (GitHub #521): hundreds of shapes stay one row each.
+  {
+    QStringList closed;
+    for (const auto* folder : bundled_custom_shape_folders()) {
+      closed.append(QString::fromLatin1(folder));
+    }
+    tree->set_collapsed_folders(closed);
+  }
   tree->set_grid_view(app_settings().value(QLatin1String(kCustomShapeManagerGridViewKey), true).toBool());
   tree->connect_view_buttons(list_view_button, grid_view_button, [](bool grid) {
     app_settings().setValue(QLatin1String(kCustomShapeManagerGridViewKey), grid);
@@ -95,6 +103,24 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
       QObject::tr("Folder for the selected shape(s); leave empty to remove them from folders"));
   form->addRow(QObject::tr("Folder:"), folder_edit);
   scaffold.right()->addLayout(form);
+  // CC BY 3.0 asks for the authors' credit wherever the shapes are used (docs/legal-constraints.md).
+  auto* credit = new QLabel(&dialog);
+  credit->setObjectName(QStringLiteral("customShapeManagerCreditLabel"));
+  credit->setWordWrap(true);
+  {
+    QStringList authors;
+    for (const auto& entry : library.entries()) {
+      if (entry.bundled && !entry.author.isEmpty() && !authors.contains(entry.author)) {
+        authors.append(entry.author);
+      }
+    }
+    authors.sort(Qt::CaseInsensitive);
+    credit->setText(QObject::tr("Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), "
+                                "made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.")
+                        .arg(authors.join(QStringLiteral(", "))));
+    credit->setVisible(!authors.isEmpty());
+  }
+  scaffold.right()->addWidget(credit);
 
   auto* import_button = new QPushButton(QObject::tr("Import…"), &dialog);
   import_button->setObjectName(QStringLiteral("customShapeManagerImportButton"));
@@ -137,12 +163,22 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
     const auto* entry = ids.size() == 1 ? library.find_entry(ids.front()) : nullptr;
     const auto single = entry != nullptr;
     const auto any = !ids.isEmpty();
-    name_edit->setEnabled(single);
-    folder_edit->setEnabled(any);
-    new_folder_button->setEnabled(any);
-    rename_folder_button->setEnabled(!tree->current_folder().isEmpty());
+    // Bundled shapes (GitHub #521) are read-only: no rename, move or delete.
+    const bool bundled = std::any_of(ids.begin(), ids.end(), [&library](const QString& id) {
+      const auto* selected = library.find_entry(id);
+      return selected != nullptr && selected->bundled;
+    });
+    const auto folder = tree->current_folder();
+    const bool bundled_folder = std::any_of(library.entries().begin(), library.entries().end(),
+                                            [&folder](const CustomShapeLibraryEntry& candidate) {
+                                              return candidate.bundled && candidate.folder == folder;
+                                            });
+    name_edit->setEnabled(single && !bundled);
+    folder_edit->setEnabled(any && !bundled);
+    new_folder_button->setEnabled(any && !bundled);
+    rename_folder_button->setEnabled(!folder.isEmpty() && !bundled_folder);
     duplicate_button->setEnabled(single);
-    delete_button->setEnabled(any);
+    delete_button->setEnabled(any && !bundled);
     use_button->setEnabled(single);
     if (!any) {
       name_edit->clear();

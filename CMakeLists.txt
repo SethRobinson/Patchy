@@ -1669,6 +1669,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/themes.qrc
       "${CMAKE_CURRENT_BINARY_DIR}/theme_packages.qrc"
       src/ui/color_profiles.qrc
+      src/ui/shapes.qrc
     )
     # The G'MIC Filter Library (docs/gmic.md). Its interface compiles in every build;
     # the filter library text is embedded only when the engine is built.

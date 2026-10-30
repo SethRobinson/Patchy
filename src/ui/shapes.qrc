@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/shapes">
+    <file alias="game-icons.json">shapes/game-icons.json</file>
+  </qresource>
+</RCC>

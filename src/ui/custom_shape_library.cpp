@@ -2,6 +2,7 @@
 
 #include "core/document.hpp"
 #include "formats/svg_document_io.hpp"
+#include "support/translate_noop.hpp"
 #include "psd/csh_io.hpp"
 #include "ui/default_custom_shapes.hpp"
 #include "ui/localization.hpp"
@@ -11,6 +12,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QIconEngine>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
@@ -21,9 +24,20 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <map>
 #include <exception>
 #include <span>
 #include <utility>
+
+// Q_INIT_RESOURCE must run from outside any namespace. Naming the generated initializer also
+// pulls the pack's resource object out of the static patchy_ui library (photo_pattern_presets.cpp).
+static void ensure_bundled_shape_resources_registered() {
+  static const bool registered = [] {
+    Q_INIT_RESOURCE(shapes);
+    return true;
+  }();
+  (void)registered;
+}
 
 namespace patchy::ui {
 
@@ -38,12 +52,131 @@ const BuiltinCustomShape* builtin_shape(const QString& shape_id) {
   return nullptr;
 }
 
+// Draws a shape's thumbnail on first paint at each size (bundled shapes, GitHub #521).
+class CustomShapeIconEngine final : public QIconEngine {
+public:
+  explicit CustomShapeIconEngine(VectorPath path) : path_(std::move(path)) {}
+
+  void paint(QPainter* painter, const QRect& rect, QIcon::Mode mode, QIcon::State state) override {
+    painter->drawPixmap(rect, pixmap(rect.size(), mode, state));
+  }
+
+  QPixmap pixmap(const QSize& size, QIcon::Mode, QIcon::State) override {
+    const int extent = std::max(1, std::min(size.width(), size.height()));
+    auto& cached = cache_[extent];
+    if (cached.isNull()) {
+      cached = custom_shape_thumbnail(path_, extent);
+    }
+    return cached;
+  }
+
+  QIconEngine* clone() const override { return new CustomShapeIconEngine(*this); }
+
+private:
+  VectorPath path_;
+  std::map<int, QPixmap> cache_;
+};
+
 }  // namespace
+
+bool is_bundled_custom_shape_id(const QString& shape_id) {
+  return shape_id.startsWith(QLatin1String(kBundledCustomShapeIdPrefix));
+}
+
+const std::vector<const char*>& bundled_custom_shape_folders() {
+  static const std::vector<const char*> folders{
+      PATCHY_TRANSLATE_NOOP("QObject", "Hearts and Stars"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Animals"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Nature"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Weather and Elements"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Space and Science"),
+      PATCHY_TRANSLATE_NOOP("QObject", "People and Body"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Food and Drink"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Music"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Clothing"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Vehicles and Machines"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Buildings"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Tools and Objects"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Fantasy"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Weapons and Armor"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Symbols and Signs"),
+      PATCHY_TRANSLATE_NOOP("QObject", "Abstract and Ornaments"),
+  };
+  return folders;
+}
+
+std::vector<CustomShapeLibraryEntry> read_bundled_custom_shapes(const QByteArray& json, QString* error) {
+  std::vector<CustomShapeLibraryEntry> entries;
+  QJsonParseError parse_error;
+  const auto document = QJsonDocument::fromJson(json, &parse_error);
+  const auto root = document.object();
+  if (parse_error.error != QJsonParseError::NoError || root.value(QStringLiteral("format")).toString() !=
+                                                           QStringLiteral("patchy-shape-pack") ||
+      root.value(QStringLiteral("version")).toInt() != 1) {
+    if (error != nullptr) {
+      *error = QStringLiteral("not a version 1 shape pack");
+    }
+    return entries;
+  }
+  const auto authors = root.value(QStringLiteral("authors")).toObject();
+  const auto shapes = root.value(QStringLiteral("shapes")).toArray();
+  entries.reserve(static_cast<std::size_t>(shapes.size()));
+  for (const auto& value : shapes) {
+    const auto shape = value.toObject();
+    CustomShapeLibraryEntry entry;
+    entry.id = shape.value(QStringLiteral("id")).toString();
+    entry.storage_id = entry.id;
+    entry.name = shape.value(QStringLiteral("name")).toString();
+    entry.folder = shape.value(QStringLiteral("folder")).toString();
+    const auto author = shape.value(QStringLiteral("author")).toString();
+    entry.author = authors.value(author).toString(author);
+    entry.bundled = true;
+    if (!is_bundled_custom_shape_id(entry.id) || entry.name.isEmpty()) {
+      continue;
+    }
+    // One outline filled even-odd: every contour joins one group, like a .csh shape's cut-outs.
+    entry.path = svg::parse_svg_path_data(shape.value(QStringLiteral("d")).toString().toStdString());
+    for (auto& subpath : entry.path.subpaths) {
+      subpath.shape_group = 0;
+      subpath.op = PathCombineOp::Add;
+      subpath.closed = true;
+    }
+    std::erase_if(entry.path.subpaths, [](const PathSubpath& subpath) { return subpath.anchors.size() < 2; });
+    if (!normalize_custom_shape_path(entry.path)) {
+      continue;
+    }
+    entries.push_back(std::move(entry));
+  }
+  return entries;
+}
+
+QIcon custom_shape_icon(const CustomShapeLibraryEntry& entry) {
+  if (!entry.thumbnail.isNull()) {
+    return QIcon(entry.thumbnail);
+  }
+  return QIcon(new CustomShapeIconEngine(entry.path));
+}
+
+QString custom_shape_tool_tip(const CustomShapeLibraryEntry& entry) {
+  const auto name = custom_shape_display_name(entry);
+  if (!entry.bundled) {
+    return name;
+  }
+  const bool cc0 = entry.author == QLatin1String("Viscious Speed") || entry.author == QLatin1String("Zeromancer");
+  return name + QLatin1Char('\n') +
+         QCoreApplication::translate("patchy::ui::CustomShapeLibrary", "By %1, game-icons.net (%2)")
+             .arg(entry.author, cc0 ? QStringLiteral("CC0") : QStringLiteral("CC BY 3.0"));
+}
 
 QString custom_shape_folder_display_name(const QString& folder) {
   for (const auto& builtin : builtin_custom_shapes()) {
     if (folder == QLatin1String(builtin.english_folder)) {
       return translate_data_text(builtin.english_folder);
+    }
+  }
+  for (const auto* bundled : bundled_custom_shape_folders()) {
+    if (folder == QLatin1String(bundled)) {
+      return translate_data_text(bundled);
     }
   }
   return folder;
@@ -161,7 +294,7 @@ void populate_custom_shape_combo(QComboBox& combo, const CustomShapeLibrary& lib
   combo.setIconSize(QSize(24, 24));
   combo.clear();
   for (const auto& entry : library.entries()) {
-    combo.addItem(QIcon(entry.thumbnail), custom_shape_display_name(entry), entry.id);
+    combo.addItem(custom_shape_icon(entry), custom_shape_display_name(entry), entry.id);
   }
   if (const auto index = combo.findData(previous); index >= 0) {
     combo.setCurrentIndex(index);
@@ -203,7 +336,35 @@ void CustomShapeLibrary::reload() {
   sort_entries();
 }
 
+bool CustomShapeLibrary::ensure_bundled_shapes_loaded(const QString& resource) {
+  if (bundled_loaded_) {
+    return false;
+  }
+  bundled_loaded_ = true;
+  ensure_bundled_shape_resources_registered();
+  QFile file(resource);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return false;
+  }
+  auto bundled = read_bundled_custom_shapes(file.readAll());
+  if (bundled.empty()) {
+    return false;
+  }
+  for (auto& entry : bundled) {
+    // An id already in the library (never expected) keeps the existing entry.
+    if (find_entry_by_shape_id(entry.id) == nullptr) {
+      entries_.push_back(std::move(entry));
+    }
+  }
+  sort_entries();
+  emit changed();
+  return true;
+}
+
 bool CustomShapeLibrary::write_sidecar(const CustomShapeLibraryEntry& entry) const {
+  if (entry.bundled) {
+    return false;  // read-only: the pack lives in the app
+  }
   if (!QDir().mkpath(storage_dir_)) {
     return false;
   }
@@ -315,7 +476,7 @@ int CustomShapeLibrary::move_shapes_to_folder(const QStringList& storage_ids, co
   const auto target = folder.trimmed();
   int moved = 0;
   for (auto& entry : entries_) {
-    if (!storage_ids.contains(entry.storage_id) || entry.folder == target) {
+    if (entry.bundled || !storage_ids.contains(entry.storage_id) || entry.folder == target) {
       continue;
     }
     auto updated = entry;
@@ -339,7 +500,7 @@ int CustomShapeLibrary::rename_folder(const QString& from, const QString& to) {
   }
   QStringList ids;
   for (const auto& entry : entries_) {
-    if (entry.folder == from) {
+    if (entry.folder == from && !entry.bundled) {
       ids.append(entry.storage_id);
     }
   }
@@ -350,7 +511,14 @@ bool CustomShapeLibrary::remove_shape(const QString& storage_id) {
   return remove_shapes({storage_id}) == 1;
 }
 
-int CustomShapeLibrary::remove_shapes(const QStringList& storage_ids) {
+int CustomShapeLibrary::remove_shapes(const QStringList& requested_ids) {
+  // Bundled shapes are read-only: they stay.
+  QStringList storage_ids;
+  for (const auto& storage_id : requested_ids) {
+    if (const auto* entry = find_entry(storage_id); entry != nullptr && !entry->bundled) {
+      storage_ids.append(storage_id);
+    }
+  }
   return remove_entries(storage_ids, [this](const QString& storage_id) {
     const auto file = json_path(storage_id);
     return !QFile::exists(file) || QFile::remove(file);

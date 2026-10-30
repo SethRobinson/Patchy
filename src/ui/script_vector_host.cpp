@@ -11,7 +11,9 @@
 namespace patchy::ui {
 PatternLibrary& ScriptEngineHost::vector_pattern_library() { return window_.pattern_library(); }
 GradientLibrary& ScriptEngineHost::vector_gradient_library() { return window_.gradient_library(); }
-CustomShapeLibrary& ScriptEngineHost::vector_custom_shape_library() { return window_.custom_shape_library(); }
+CustomShapeLibrary& ScriptEngineHost::vector_custom_shape_library() {
+  return window_.custom_shape_library_with_bundled();  // scripts list and stamp the bundled pack too
+}
 
 void ScriptEngineHost::note_vector_changed(std::int64_t id, const QRect& dirty, bool structure) {
   auto& pending = pending_refresh_[id];

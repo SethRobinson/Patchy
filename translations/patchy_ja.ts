@@ -13980,6 +13980,74 @@ Each item&apos;s own View setting still applies.</source>
         <source>Bars: how much of this image each slider acts on.</source>
         <translation>バー：各スライダーがこの画像のどれだけに作用するか。</translation>
     </message>
+    <message>
+        <source>Hearts and Stars</source>
+        <translation>ハートと星</translation>
+    </message>
+    <message>
+        <source>Animals</source>
+        <translation>動物</translation>
+    </message>
+    <message>
+        <source>Nature</source>
+        <translation>自然</translation>
+    </message>
+    <message>
+        <source>Weather and Elements</source>
+        <translation>天気と元素</translation>
+    </message>
+    <message>
+        <source>Space and Science</source>
+        <translation>宇宙と科学</translation>
+    </message>
+    <message>
+        <source>People and Body</source>
+        <translation>人と体</translation>
+    </message>
+    <message>
+        <source>Food and Drink</source>
+        <translation>食べ物と飲み物</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>音楽</translation>
+    </message>
+    <message>
+        <source>Clothing</source>
+        <translation>衣服</translation>
+    </message>
+    <message>
+        <source>Vehicles and Machines</source>
+        <translation>乗り物と機械</translation>
+    </message>
+    <message>
+        <source>Buildings</source>
+        <translation>建物</translation>
+    </message>
+    <message>
+        <source>Tools and Objects</source>
+        <translation>道具と物</translation>
+    </message>
+    <message>
+        <source>Fantasy</source>
+        <translation>ファンタジー</translation>
+    </message>
+    <message>
+        <source>Weapons and Armor</source>
+        <translation>武器と防具</translation>
+    </message>
+    <message>
+        <source>Symbols and Signs</source>
+        <translation>記号とサイン</translation>
+    </message>
+    <message>
+        <source>Abstract and Ornaments</source>
+        <translation>抽象と装飾</translation>
+    </message>
+    <message>
+        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <translation>テーマ別フォルダーの組み込みシェイプは game-icons.net (CC BY 3.0) のもので、作者は %1 です。組み込みシェイプは読み取り専用です。複製すると編集可能なコピーが作られます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16322,6 +16390,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Could not save the custom shape</source>
         <translation>カスタムシェイプを保存できませんでした</translation>
+    </message>
+    <message>
+        <source>By %1, game-icons.net (%2)</source>
+        <translation>作者: %1、game-icons.net (%2)</translation>
     </message>
 </context>
 <context>

@@ -14066,6 +14066,74 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Bars: how much of this image each slider acts on.</source>
         <translation>Paski: jak dużą część tego obrazu zmienia każdy suwak.</translation>
     </message>
+    <message>
+        <source>Hearts and Stars</source>
+        <translation>Serca i gwiazdy</translation>
+    </message>
+    <message>
+        <source>Animals</source>
+        <translation>Zwierzęta</translation>
+    </message>
+    <message>
+        <source>Nature</source>
+        <translation>Natura</translation>
+    </message>
+    <message>
+        <source>Weather and Elements</source>
+        <translation>Pogoda i żywioły</translation>
+    </message>
+    <message>
+        <source>Space and Science</source>
+        <translation>Kosmos i nauka</translation>
+    </message>
+    <message>
+        <source>People and Body</source>
+        <translation>Ludzie i ciało</translation>
+    </message>
+    <message>
+        <source>Food and Drink</source>
+        <translation>Jedzenie i picie</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>Muzyka</translation>
+    </message>
+    <message>
+        <source>Clothing</source>
+        <translation>Ubrania</translation>
+    </message>
+    <message>
+        <source>Vehicles and Machines</source>
+        <translation>Pojazdy i maszyny</translation>
+    </message>
+    <message>
+        <source>Buildings</source>
+        <translation>Budynki</translation>
+    </message>
+    <message>
+        <source>Tools and Objects</source>
+        <translation>Narzędzia i przedmioty</translation>
+    </message>
+    <message>
+        <source>Fantasy</source>
+        <translation>Fantasy</translation>
+    </message>
+    <message>
+        <source>Weapons and Armor</source>
+        <translation>Broń i zbroje</translation>
+    </message>
+    <message>
+        <source>Symbols and Signs</source>
+        <translation>Symbole i znaki</translation>
+    </message>
+    <message>
+        <source>Abstract and Ornaments</source>
+        <translation>Abstrakcje i ornamenty</translation>
+    </message>
+    <message>
+        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <translation>Wbudowane kształty w folderach tematycznych pochodzą z game-icons.net (CC BY 3.0), autorzy: %1. Wbudowane kształty są tylko do odczytu; Duplikuj tworzy edytowalną kopię.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16408,6 +16476,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Could not save the custom shape</source>
         <translation>Nie można zapisać kształtu niestandardowego</translation>
+    </message>
+    <message>
+        <source>By %1, game-icons.net (%2)</source>
+        <translation>Autor: %1, game-icons.net (%2)</translation>
     </message>
 </context>
 <context>

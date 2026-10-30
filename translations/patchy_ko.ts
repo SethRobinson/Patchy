@@ -13980,6 +13980,74 @@ Each item&apos;s own View setting still applies.</source>
         <source>Bars: how much of this image each slider acts on.</source>
         <translation>막대: 각 슬라이더가 이 이미지에 얼마나 작용하는지 보여 줍니다.</translation>
     </message>
+    <message>
+        <source>Hearts and Stars</source>
+        <translation>하트와 별</translation>
+    </message>
+    <message>
+        <source>Animals</source>
+        <translation>동물</translation>
+    </message>
+    <message>
+        <source>Nature</source>
+        <translation>자연</translation>
+    </message>
+    <message>
+        <source>Weather and Elements</source>
+        <translation>날씨와 원소</translation>
+    </message>
+    <message>
+        <source>Space and Science</source>
+        <translation>우주와 과학</translation>
+    </message>
+    <message>
+        <source>People and Body</source>
+        <translation>사람과 신체</translation>
+    </message>
+    <message>
+        <source>Food and Drink</source>
+        <translation>음식과 음료</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>음악</translation>
+    </message>
+    <message>
+        <source>Clothing</source>
+        <translation>의류</translation>
+    </message>
+    <message>
+        <source>Vehicles and Machines</source>
+        <translation>탈것과 기계</translation>
+    </message>
+    <message>
+        <source>Buildings</source>
+        <translation>건물</translation>
+    </message>
+    <message>
+        <source>Tools and Objects</source>
+        <translation>도구와 물건</translation>
+    </message>
+    <message>
+        <source>Fantasy</source>
+        <translation>판타지</translation>
+    </message>
+    <message>
+        <source>Weapons and Armor</source>
+        <translation>무기와 갑옷</translation>
+    </message>
+    <message>
+        <source>Symbols and Signs</source>
+        <translation>기호와 표지</translation>
+    </message>
+    <message>
+        <source>Abstract and Ornaments</source>
+        <translation>추상과 장식</translation>
+    </message>
+    <message>
+        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <translation>주제 폴더의 기본 제공 모양은 game-icons.net(CC BY 3.0)에서 가져왔으며 제작자는 %1입니다. 기본 제공 모양은 읽기 전용이며, 복제하면 편집 가능한 사본이 만들어집니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16322,6 +16390,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Could not save the custom shape</source>
         <translation>맞춤 모양을 저장할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>By %1, game-icons.net (%2)</source>
+        <translation>제작: %1, game-icons.net (%2)</translation>
     </message>
 </context>
 <context>

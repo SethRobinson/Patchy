@@ -14023,6 +14023,74 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Bars: how much of this image each slider acts on.</source>
         <translation>Balken: wie viel dieses Bildes jeder Regler beeinflusst.</translation>
     </message>
+    <message>
+        <source>Hearts and Stars</source>
+        <translation>Herzen und Sterne</translation>
+    </message>
+    <message>
+        <source>Animals</source>
+        <translation>Tiere</translation>
+    </message>
+    <message>
+        <source>Nature</source>
+        <translation>Natur</translation>
+    </message>
+    <message>
+        <source>Weather and Elements</source>
+        <translation>Wetter und Elemente</translation>
+    </message>
+    <message>
+        <source>Space and Science</source>
+        <translation>Weltraum und Wissenschaft</translation>
+    </message>
+    <message>
+        <source>People and Body</source>
+        <translation>Menschen und Körper</translation>
+    </message>
+    <message>
+        <source>Food and Drink</source>
+        <translation>Essen und Trinken</translation>
+    </message>
+    <message>
+        <source>Music</source>
+        <translation>Musik</translation>
+    </message>
+    <message>
+        <source>Clothing</source>
+        <translation>Kleidung</translation>
+    </message>
+    <message>
+        <source>Vehicles and Machines</source>
+        <translation>Fahrzeuge und Maschinen</translation>
+    </message>
+    <message>
+        <source>Buildings</source>
+        <translation>Gebäude</translation>
+    </message>
+    <message>
+        <source>Tools and Objects</source>
+        <translation>Werkzeuge und Gegenstände</translation>
+    </message>
+    <message>
+        <source>Fantasy</source>
+        <translation>Fantasy</translation>
+    </message>
+    <message>
+        <source>Weapons and Armor</source>
+        <translation>Waffen und Rüstungen</translation>
+    </message>
+    <message>
+        <source>Symbols and Signs</source>
+        <translation>Symbole und Zeichen</translation>
+    </message>
+    <message>
+        <source>Abstract and Ornaments</source>
+        <translation>Abstraktes und Ornamente</translation>
+    </message>
+    <message>
+        <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
+        <translation>Die mitgelieferten Formen in den Themenordnern stammen von game-icons.net (CC BY 3.0), erstellt von %1. Mitgelieferte Formen sind schreibgeschützt; Duplizieren erstellt eine bearbeitbare Kopie.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16365,6 +16433,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Could not save the custom shape</source>
         <translation>Die eigene Form konnte nicht gespeichert werden</translation>
+    </message>
+    <message>
+        <source>By %1, game-icons.net (%2)</source>
+        <translation>Von %1, game-icons.net (%2)</translation>
     </message>
 </context>
 <context>

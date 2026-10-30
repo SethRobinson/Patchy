@@ -39,6 +39,7 @@
 #include "core/pixel_tools.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/custom_shape_library.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tool_window.hpp"
 #include "ui/brush_presets.hpp"
@@ -2758,6 +2759,9 @@ void MainWindow::load_tool_settings() {
   }
   if (custom_shape_combo_ != nullptr) {
     const auto stored_shape = settings.value(QStringLiteral("tools/customShapeId")).toString();
+    if (is_bundled_custom_shape_id(stored_shape)) {
+      custom_shape_library_with_bundled();  // the remembered shape is in the pack
+    }
     if (!stored_shape.isEmpty()) {
       if (const auto index = custom_shape_combo_->findData(stored_shape); index >= 0) {
         QSignalBlocker blocker(custom_shape_combo_);
