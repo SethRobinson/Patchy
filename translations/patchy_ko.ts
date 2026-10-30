@@ -28480,6 +28480,14 @@ Locked: %1</source>
         <source>Layer opacity: %1%</source>
         <translation>레이어 불투명도: %1%</translation>
     </message>
+    <message>
+        <source>Open image transparency as a layer mask</source>
+        <translation>이미지 투명도를 레이어 마스크로 열기</translation>
+    </message>
+    <message>
+        <source>When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable layer mask over opaque colors, and saving the image writes the mask back as its transparency. When disabled, the image opens as an ordinary transparent layer.</source>
+        <translation>사용하면 PNG, WebP, TIFF 또는 기타 평면 이미지의 투명도가 불투명한 색상 위의 편집 가능한 레이어 마스크로 열리고, 이미지를 저장하면 마스크가 다시 투명도로 기록됩니다. 사용하지 않으면 이미지가 일반 투명 레이어로 열립니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

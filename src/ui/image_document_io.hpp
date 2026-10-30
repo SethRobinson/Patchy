@@ -40,9 +40,14 @@ struct RenderedDocumentPatch {
 // (explicit_qimage_density_ppi), else kUntaggedImportPpi.
 void apply_imported_image_density(Document& document, std::span<const std::uint8_t> file_bytes,
                                   const QImage& image);
-// If the document is a single flat pixel layer whose alpha channel carries a meaningful
-// mask, move that alpha into an editable grayscale layer mask and make the layer pixels
-// opaque RGB. Returns true when a mask was created. Multi-layer documents are left intact.
+// A flat image's per-pixel alpha on open (GitHub issue 534). For a single flat pixel layer:
+// alpha that is uniform (all opaque, or all zero, which flat formats use as unused padding)
+// is stripped to opaque RGB. Meaningful alpha stays plain layer transparency, unless
+// `alpha_as_layer_mask` (the imports/flatAlphaAsLayerMask preference) moves it into an
+// editable grayscale layer mask with the document-alpha marker over opaque RGB. Returns
+// true when a mask was created. Multi-layer documents are left intact.
+bool prepare_flat_image_alpha(Document& document, bool alpha_as_layer_mask);
+// prepare_flat_image_alpha with the layer-mask option on.
 bool promote_flat_alpha_to_layer_mask(Document& document);
 // An rgba8 PixelBuffer from any image (deep images narrow through Qt's conversion).
 [[nodiscard]] PixelBuffer pixels_from_image_rgba(const QImage& image);

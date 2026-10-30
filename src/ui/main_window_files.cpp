@@ -1850,9 +1850,10 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   } else {
     load_via_qt();
   }
-  // Flat images (BMP/PNG/TIFF) carry their alpha as a per-pixel channel. Move a
-  // meaningful alpha into an editable layer mask so it is visible and paintable,
-  // matching Photoshop's "Alpha 1". PSD/PSB sources are excluded: flat ones are
+  // Flat images (BMP/PNG/TIFF) carry their alpha as a per-pixel channel. A meaningful
+  // alpha opens as plain layer transparency (GitHub issue 534); the
+  // imports/flatAlphaAsLayerMask preference (off by default) moves it into an editable
+  // layer mask instead, the older behavior. PSD/PSB sources are excluded: flat ones are
   // promoted inside the reader (saved alpha channels), while a layered file's single
   // layer OWNS its transparency; promoting it grew a phantom mask on single-text-layer
   // files like the table tent's Content.psb and would push authored transparency into
@@ -1866,7 +1867,8 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   }
   if (!opened.metadata().values.contains("psd.version") && !is_svg_extension(extension) &&
       extension != QStringLiteral("ora") && !is_kra_extension(extension) && !is_xcf_extension(extension)) {
-    promote_flat_alpha_to_layer_mask(opened);
+    prepare_flat_image_alpha(opened,
+                             app_settings().value(QStringLiteral("imports/flatAlphaAsLayerMask"), false).toBool());
   }
   capture_file_info(opened, path, pixels_in_source_space, orientation_applied);
   convert_opened_rgb_profile(opened, import_notices, cmyk_source);

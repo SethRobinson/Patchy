@@ -863,6 +863,17 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   convert_rgb_profiles_check->setChecked(
       settings.value(QStringLiteral("imports/convertRgbProfilesToSrgb"), true).toBool());
   application_form->addRow(convert_rgb_profiles_check);
+  // GitHub issue 534: a flat image's transparency opens as plain layer transparency; this
+  // keeps the older layer mask for those who edit the alpha as a mask.
+  auto* flat_alpha_mask_check =
+      new WrappingCheckBox(tr("Open image transparency as a layer mask"), application_group);
+  flat_alpha_mask_check->setObjectName(QStringLiteral("preferencesFlatAlphaAsLayerMaskCheck"));
+  flat_alpha_mask_check->setToolTip(
+      tr("When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable "
+         "layer mask over opaque colors, and saving the image writes the mask back as its transparency. "
+         "When disabled, the image opens as an ordinary transparent layer."));
+  flat_alpha_mask_check->setChecked(settings.value(QStringLiteral("imports/flatAlphaAsLayerMask"), false).toBool());
+  application_form->addRow(flat_alpha_mask_check);
   // GitHub issue 363: File > New can leave the document as the Background alone.
   auto* new_document_layer_check =
       new WrappingCheckBox(tr("Add an empty layer above the Background in new documents"), application_group);
@@ -2343,6 +2354,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/convertRgbProfilesToSrgb"), convert_rgb_profiles_check->isChecked());
+    settings.setValue(QStringLiteral("imports/flatAlphaAsLayerMask"), flat_alpha_mask_check->isChecked());
     settings.setValue(QStringLiteral("newDocument/addEmptyLayer"), new_document_layer_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), missing_fonts_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), missing_links_check->isChecked());

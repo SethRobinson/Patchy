@@ -55,6 +55,7 @@
 #include <QList>
 #include <QTemporaryDir>
 #include <QMessageBox>
+#include <QPainter>
 #include <QIODevice>
 #include <QPushButton>
 #include <QRadioButton>
@@ -91,6 +92,22 @@
 namespace {
 
 using namespace patchy::test::ui;
+
+const QString kFlatAlphaMaskSetting = QStringLiteral("imports/flatAlphaAsLayerMask");
+
+// The imports/flatAlphaAsLayerMask preference for one test (GitHub issue 534). The format
+// tests that pin the document-alpha mask round trip turn it on; it is off by default.
+class ScopedFlatAlphaAsLayerMask {
+public:
+  explicit ScopedFlatAlphaAsLayerMask(bool enabled) : restore_(kFlatAlphaMaskSetting) {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(kFlatAlphaMaskSetting, enabled);
+    settings.sync();
+  }
+
+private:
+  SettingsValueRestorer restore_;
+};
 
 void ui_qimage_import_export_preserves_alpha_and_formats() {
   ensure_artifact_dir();
@@ -472,6 +489,203 @@ void ui_flat_alpha_round_trips_as_editable_mask() {
   CHECK(layered_layer.mask()->pixels.pixel(0, 0)[0] == 0);
   CHECK(layered_layer.mask()->pixels.pixel(1, 1)[0] == 128);
   CHECK(layered_layer.pixels().pixel(0, 0)[0] == 200);
+}
+
+// A 6x4 PNG with a fully transparent pixel at (0,0) over a red the file still stores, a
+// half-transparent green at (1,0), and opaque blue elsewhere.
+QString write_translucent_png(const QString& name) {
+  QImage image(6, 4, QImage::Format_RGBA8888);
+  image.fill(QColor(30, 60, 90, 255));
+  image.setPixelColor(0, 0, QColor(250, 10, 10, 0));
+  image.setPixelColor(1, 0, QColor(20, 200, 40, 128));
+  const auto path = QStringLiteral("test-artifacts/") + name;
+  QFile::remove(path);
+  CHECK(image.save(path, "PNG"));
+  return path;
+}
+
+// GitHub issue 534: a transparent flat image opens as one ordinary transparent layer (no
+// layer mask), so painting into the transparent area shows at once, and a flat save writes
+// the same alpha back.
+void ui_flat_alpha_opens_as_plain_layer_transparency() {
+  ensure_artifact_dir();
+  SettingsValueRestorer restore(kFlatAlphaMaskSetting);
+  patchy::ui::app_settings().remove(kFlatAlphaMaskSetting);
+  const auto source = write_translucent_png(QStringLiteral("flat_alpha_plain_source.png"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, source);
+  QApplication::processEvents();
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.layers().size() == 1);
+  const auto& layer = document.layers().front();
+  CHECK(layer.kind() == patchy::LayerKind::Pixel);
+  CHECK(!layer.mask().has_value());
+  CHECK(!patchy::layer_mask_is_document_alpha(layer));
+  CHECK(layer.pixels().format() == patchy::PixelFormat::rgba8());
+  CHECK(layer.pixels().pixel(0, 0)[3] == 0);
+  CHECK(layer.pixels().pixel(1, 0)[3] == 128);
+  CHECK(layer.pixels().pixel(1, 0)[1] == 200);
+  CHECK(layer.pixels().pixel(3, 2)[3] == 255);
+  CHECK(layer.pixels().pixel(3, 2)[2] == 90);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // Save as PNG: the straight alpha and every visible color come back unchanged.
+  const QString saved = QStringLiteral("test-artifacts/flat_alpha_plain_saved.png");
+  QFile::remove(saved);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved, patchy::ui::ImageSaveOptions{}));
+  const QImage original(source);
+  const QImage reloaded(saved);
+  CHECK(!reloaded.isNull() && reloaded.size() == original.size());
+  for (int y = 0; y < original.height(); ++y) {
+    for (int x = 0; x < original.width(); ++x) {
+      const auto want = original.pixelColor(x, y);
+      const auto got = reloaded.pixelColor(x, y);
+      CHECK(got.alpha() == want.alpha());
+      if (want.alpha() > 0) {
+        CHECK(got.red() == want.red() && got.green() == want.green() && got.blue() == want.blue());
+      }
+    }
+  }
+
+  // A transparent WebP opens the same way (the #534 follow-up sample was one), so moving the
+  // layer reveals no color stored under its transparent pixels.
+  if (QImageWriter::supportedImageFormats().contains("webp")) {
+    const QImage webp(source);
+    const QString webp_path = QStringLiteral("test-artifacts/flat_alpha_plain_source.webp");
+    QFile::remove(webp_path);
+    QImageWriter writer(webp_path, "webp");
+    writer.setQuality(100);  // lossless
+    CHECK(writer.write(webp));
+    patchy::ui::MainWindow webp_window;
+    show_window(webp_window);
+    patchy::ui::MainWindowTestAccess::open_document_path(webp_window, webp_path);
+    QApplication::processEvents();
+    const auto& webp_document = std::as_const(patchy::ui::MainWindowTestAccess::document(webp_window));
+    CHECK(webp_document.layers().size() == 1);
+    CHECK(!webp_document.layers().front().mask().has_value());
+    CHECK(webp_document.layers().front().pixels().format().channels == 4);
+    CHECK(webp_document.layers().front().pixels().pixel(0, 0)[3] == 0);
+    CHECK(webp_document.layers().front().pixels().pixel(3, 2)[3] == 255);
+  }
+
+  // Uniform alpha is still not transparency: an all-opaque PNG opens as plain RGB.
+  QImage opaque(4, 4, QImage::Format_RGBA8888);
+  opaque.fill(QColor(10, 20, 30, 255));
+  const QString opaque_path = QStringLiteral("test-artifacts/flat_alpha_plain_opaque.png");
+  QFile::remove(opaque_path);
+  CHECK(opaque.save(opaque_path, "PNG"));
+  patchy::ui::MainWindow opaque_window;
+  show_window(opaque_window);
+  patchy::ui::MainWindowTestAccess::open_document_path(opaque_window, opaque_path);
+  QApplication::processEvents();
+  const auto& opaque_layer = std::as_const(patchy::ui::MainWindowTestAccess::document(opaque_window)).layers().front();
+  CHECK(!opaque_layer.mask().has_value());
+  CHECK(opaque_layer.pixels().format() == patchy::PixelFormat::rgb8());
+}
+
+// The preference brings back the older import: the alpha becomes an editable layer mask with
+// the document-alpha marker over opaque RGB, and a flat save keeps the color under it.
+void ui_flat_alpha_layer_mask_preference_keeps_the_mask() {
+  ensure_artifact_dir();
+  const ScopedFlatAlphaAsLayerMask mask_import(true);
+  const auto source = write_translucent_png(QStringLiteral("flat_alpha_mask_source.png"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, source);
+  QApplication::processEvents();
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.layers().size() == 1);
+  const auto& layer = document.layers().front();
+  CHECK(layer.pixels().format() == patchy::PixelFormat::rgb8());
+  CHECK(layer.mask().has_value());
+  CHECK(patchy::layer_mask_is_document_alpha(layer));
+  if (!layer.mask().has_value()) {
+    return;
+  }
+  CHECK(layer.mask()->pixels.pixel(0, 0)[0] == 0);
+  CHECK(layer.mask()->pixels.pixel(1, 0)[0] == 128);
+  CHECK(layer.mask()->pixels.pixel(3, 2)[0] == 255);
+  CHECK(layer.pixels().pixel(0, 0)[0] == 250);  // the color under zero alpha survives
+
+  const QString saved = QStringLiteral("test-artifacts/flat_alpha_mask_saved.png");
+  QFile::remove(saved);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved, patchy::ui::ImageSaveOptions{}));
+  const QImage reloaded(saved);
+  CHECK(!reloaded.isNull());
+  CHECK(reloaded.pixelColor(0, 0).alpha() == 0);
+  CHECK(reloaded.pixelColor(0, 0).red() == 250);
+  CHECK(reloaded.pixelColor(1, 0).alpha() == 128);
+  CHECK(reloaded.pixelColor(3, 2).alpha() == 255);
+}
+
+// The Preferences checkbox: off by default, and it writes imports/flatAlphaAsLayerMask.
+// Saves a crop of the Application page around it for the issue card.
+void ui_preferences_flat_alpha_as_layer_mask_checkbox() {
+  ensure_artifact_dir();
+  SettingsValueRestorer restore(kFlatAlphaMaskSetting);
+  patchy::ui::app_settings().remove(kFlatAlphaMaskSetting);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesFlatAlphaAsLayerMaskCheck"));
+    CHECK(check != nullptr);
+    if (check != nullptr) {
+      CHECK(!check->isChecked());
+      CHECK(check->text() == QStringLiteral("Open image transparency as a layer mask"));
+      check->setChecked(true);
+      if (auto* group = check->parentWidget(); group != nullptr) {
+        const auto area = check->geometry().adjusted(-8, -70, 8, 70).intersected(group->rect());
+        group->grab(area).save(QStringLiteral("test-artifacts/flat-alpha-preference.png"));
+      }
+    }
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(patchy::ui::app_settings().value(kFlatAlphaMaskSetting, false).toBool());
+}
+
+// Window captures of a transparent PNG opened both ways (test-artifacts/flat-alpha-*.png).
+void ui_flat_alpha_open_captures() {
+  ensure_artifact_dir();
+  SettingsValueRestorer restore(kFlatAlphaMaskSetting);
+  QImage image(320, 220, QImage::Format_RGBA8888);
+  image.fill(QColor(0, 0, 0, 0));
+  {
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(230, 120, 40));
+    painter.drawEllipse(QRectF(40, 30, 160, 160));
+    painter.setBrush(QColor(40, 140, 220, 160));
+    painter.drawRoundedRect(QRectF(150, 70, 140, 110), 18, 18);
+  }
+  const QString path = QStringLiteral("test-artifacts/flat-alpha-sticker.png");
+  QFile::remove(path);
+  CHECK(image.save(path, "PNG"));
+  for (const bool as_mask : {true, false}) {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(kFlatAlphaMaskSetting, as_mask);
+    settings.sync();
+    patchy::ui::MainWindow window;
+    window.resize(1000, 640);
+    show_window(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    CHECK(std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().front().mask().has_value() ==
+          as_mask);
+    CHECK(window.grab().save(as_mask ? QStringLiteral("test-artifacts/flat-alpha-before-mask.png")
+                                     : QStringLiteral("test-artifacts/flat-alpha-after-plain.png")));
+  }
 }
 
 void ui_image_save_options_defaults_and_dialogs() {
@@ -1433,6 +1647,7 @@ void ui_jxr_save_options_persist_quality_and_lossless() {
 }
 
 void ui_rttex_opens_and_saves_as_a_read_write_format() {
+  const ScopedFlatAlphaAsLayerMask mask_import(true);
   ensure_artifact_dir();
   const auto fixture = QString::fromStdWString(
       patchy::test::committed_format_fixture_path("rttex", "rgba-10x10-in-16x16.rttex").wstring());
@@ -1672,6 +1887,7 @@ void ui_rttex_save_options_persist_and_dialog_prefills_from_source() {
 }
 
 void ui_dds_opens_and_saves_as_a_read_write_format() {
+  const ScopedFlatAlphaAsLayerMask mask_import(true);
   ensure_artifact_dir();
   const auto fixture =
       QString::fromStdWString(patchy::test::committed_format_fixture_path("dds", "pillow-a8r8g8b8-9x7.dds").wstring());
@@ -1738,6 +1954,7 @@ void ui_dds_opens_and_saves_as_a_read_write_format() {
 }
 
 void ui_dds_bc3_source_resaves_as_bc3_with_alpha_intact() {
+  const ScopedFlatAlphaAsLayerMask mask_import(true);
   ensure_artifact_dir();
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2853,6 +3070,7 @@ patchy::PixelBuffer jxl_test_gradient(std::int32_t width, std::int32_t height) {
 }
 
 void ui_jxl_opens_and_saves_as_a_read_write_format() {
+  const ScopedFlatAlphaAsLayerMask mask_import(true);
   ensure_artifact_dir();
   CHECK(patchy::ui::image_format_preserves_alpha("jxl"));
   const QString source_path = QStringLiteral("test-artifacts/jxl_source.jxl");
@@ -2929,6 +3147,7 @@ void ui_jxl_opens_and_saves_as_a_read_write_format() {
 }
 
 void ui_avif_opens_and_saves_as_a_read_write_format() {
+  const ScopedFlatAlphaAsLayerMask mask_import(true);
   if (!patchy::avif::is_available()) {
     patchy::test::skip("this build has no AVIF codec");
   }
@@ -3786,6 +4005,10 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",
        ui_image_save_options_write_bmp_alpha_and_jpeg_quality},
       {"ui_flat_alpha_round_trips_as_editable_mask", ui_flat_alpha_round_trips_as_editable_mask},
+      {"ui_flat_alpha_opens_as_plain_layer_transparency", ui_flat_alpha_opens_as_plain_layer_transparency},
+      {"ui_flat_alpha_layer_mask_preference_keeps_the_mask", ui_flat_alpha_layer_mask_preference_keeps_the_mask},
+      {"ui_preferences_flat_alpha_as_layer_mask_checkbox", ui_preferences_flat_alpha_as_layer_mask_checkbox},
+      {"ui_flat_alpha_open_captures", ui_flat_alpha_open_captures},
       {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},
       {"ui_export_dialog_offers_cmyk_for_print_formats", ui_export_dialog_offers_cmyk_for_print_formats},
       {"ui_ico_export_dialog_sizes_and_resample", ui_ico_export_dialog_sizes_and_resample},
