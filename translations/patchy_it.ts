@@ -14091,6 +14091,54 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation>Le forme integrate nelle cartelle tematiche provengono da game-icons.net (CC BY 3.0), create da %1. Le forme integrate sono di sola lettura; Duplica crea una copia modificabile.</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>Chiaro</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>Scuro</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>Lente gialla</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>Seppia</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>Caffè</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>Blu freddo</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>Selenio</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>Oro</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>Platino</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>Tono verde</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>Rosa</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>Virato</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

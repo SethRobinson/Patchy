@@ -14048,6 +14048,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation>テーマ別フォルダーの組み込みシェイプは game-icons.net (CC BY 3.0) のもので、作者は %1 です。組み込みシェイプは読み取り専用です。複製すると編集可能なコピーが作られます。</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>明るい</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>暗い</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>イエローレンズ</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>セピア</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>コーヒー</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>クールブルー</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>セレン</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>ゴールド</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>プラチナ</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>グリーントーン</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>ローズ</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>調色</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

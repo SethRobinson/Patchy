@@ -14091,6 +14091,54 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation>Les formes intégrées des dossiers thématiques proviennent de game-icons.net (CC BY 3.0), créées par %1. Les formes intégrées sont en lecture seule ; Dupliquer en crée une copie modifiable.</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>Clair</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>Sombre</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>Objectif jaune</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>Sépia</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>Café</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>Bleu froid</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>Sélénium</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>Or</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>Platine</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>Ton vert</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>Rose</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>Viré</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

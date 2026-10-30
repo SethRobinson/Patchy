@@ -25,6 +25,7 @@
 #include "local_psd_fixtures.hpp"
 #include "formats/af_document_io.hpp"
 #include <QAction>
+#include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -45,6 +46,8 @@
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollBar>
+#include <QScrollArea>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTabWidget>
@@ -4374,28 +4377,54 @@ void ui_image_adjustments_black_white_matches_adjustment_layer() {
   }
 }
 
-// The Black & White dialog's presets, hue chips and measurement (#528): on a photo it shows
-// each slider's hue next to its gray and how much of the image each slider acts on; a preset
-// sets the six weights (the tint stays), and Image > Adjustments with a preset still matches
-// the adjustment layer of the same preset.
+// The Black & White dialog's presets, hue chips, measurement and tint (#528): on a photo it shows
+// each slider's hue next to its gray and how much of the image each slider acts on; a neutral
+// preset sets the six weights and clears Tint, a tinted one also ticks Tint and sets its color;
+// Hue and Saturation follow the swatch and edit the tint color, and are off without Tint; and
+// Image > Adjustments with a tinted preset still matches the adjustment layer of that preset.
+namespace {
+
+std::vector<QAbstractButton*> black_white_preset_tiles(QDialog& dialog) {
+  std::vector<QAbstractButton*> tiles;
+  for (auto* button : dialog.findChildren<QAbstractButton*>()) {
+    if (button->property("patchy.presetId").isValid()) {
+      tiles.push_back(button);
+    }
+  }
+  return tiles;
+}
+
+QAbstractButton* black_white_preset_tile(QDialog& dialog, const QString& id) {
+  return dialog.findChild<QAbstractButton*>(QStringLiteral("blackWhitePreset_") +
+                                            (id.isEmpty() ? QStringLiteral("custom") : id));
+}
+
+// The checked tile's preset id ("" for Custom), or "none".
+QString checked_black_white_preset(QDialog& dialog) {
+  for (auto* tile : black_white_preset_tiles(dialog)) {
+    if (tile->isChecked()) {
+      return tile->property("patchy.presetId").toString();
+    }
+  }
+  return QStringLiteral("none");
+}
+
+void click_black_white_preset(QDialog& dialog, const QString& id) {
+  auto* tile = black_white_preset_tile(dialog, id);
+  CHECK(tile != nullptr);
+  if (tile != nullptr) {
+    tile->click();
+    QApplication::processEvents();
+  }
+}
+
+}  // namespace
+
 void ui_black_white_dialog_presets_and_measurement() {
   const std::array<const char*, 6> keys{"Reds", "Yellows", "Greens", "Cyans", "Blues", "Magentas"};
-  const auto select_preset = [](QDialog& dialog, const QString& id) {
-    auto* list = dialog.findChild<QListWidget*>(QStringLiteral("blackWhitePresetList"));
-    CHECK(list != nullptr);
-    if (list == nullptr) {
-      return;
-    }
-    for (int row = 0; row < list->count(); ++row) {
-      if (list->item(row)->data(Qt::UserRole + 1).toString() == id) {
-        list->setCurrentRow(row);
-        return;
-      }
-    }
-    CHECK(false);
-  };
 
-  // A photo: chips, meters and the preset strip, captured in both schemes.
+  // A photo: chips, meters and the scrolling preset strip with its two sections, captured in
+  // both schemes.
   {
     patchy::ui::MainWindow window;
     show_window(window);
@@ -4408,15 +4437,6 @@ void ui_black_white_dialog_presets_and_measurement() {
       if (dialog == nullptr) {
         return;
       }
-      auto* list = dialog->findChild<QListWidget*>(QStringLiteral("blackWhitePresetList"));
-      CHECK(list != nullptr && list->count() == 10);
-      CHECK(list != nullptr && list->currentRow() == 1);  // the default weights
-      CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhiteInfluenceNote")) != nullptr);
-      for (const auto* key : keys) {
-        CHECK(dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Chip").arg(QLatin1String(key))) != nullptr);
-        CHECK(dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Influence").arg(QLatin1String(key))) !=
-              nullptr);
-      }
       process_events_for(120);
       for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
         ColorSchemeRestorer restore(scheme);
@@ -4424,6 +4444,18 @@ void ui_black_white_dialog_presets_and_measurement() {
         save_widget_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_black_white_dialog_photo_dark"
                                                                                 : "ui_black_white_dialog_photo_light",
                              *dialog);
+      }
+      CHECK(black_white_preset_tiles(*dialog).size() == 22);
+      CHECK(checked_black_white_preset(*dialog) == QStringLiteral("black_white.default"));
+      auto* strip = dialog->findChild<QScrollArea*>(QStringLiteral("blackWhitePresetStrip"));
+      CHECK(strip != nullptr && strip->verticalScrollBar()->isVisible() && strip->verticalScrollBar()->maximum() > 0);
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhitePresetNeutralHeader")) != nullptr);
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhitePresetTintedHeader")) != nullptr);
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhiteInfluenceNote")) != nullptr);
+      for (const auto* key : keys) {
+        CHECK(dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Chip").arg(QLatin1String(key))) != nullptr);
+        CHECK(dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Influence").arg(QLatin1String(key))) !=
+              nullptr);
       }
       dialog_checked = true;
       dialog->reject();
@@ -4433,13 +4465,15 @@ void ui_black_white_dialog_presets_and_measurement() {
     CHECK(dialog_checked);
   }
 
-  // A preset sets the weights and keeps the tint; editing a slider goes back to Custom.
+  // Presets and the tint: a neutral preset clears Tint, a tinted one sets it; Hue and Saturation
+  // follow the swatch and set the color, and the accepted layer holds that color.
   {
     patchy::Document source(kDirectAdjustmentWidth, kDirectAdjustmentHeight, patchy::PixelFormat::rgba8());
     source.add_pixel_layer("Paint", direct_adjustment_source_pixels());
     patchy::ui::MainWindow window;
     window.add_document_session(std::move(source), QStringLiteral("Presets"));
     show_window(window);
+    int expected_saturation = -1;
     bool dialog_checked = false;
     QTimer::singleShot(0, [&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyBlackWhiteDialog")));
@@ -4448,67 +4482,118 @@ void ui_black_white_dialog_presets_and_measurement() {
         return;
       }
       auto* tint = dialog->findChild<QCheckBox*>(QStringLiteral("blackWhiteTintCheck"));
-      CHECK(tint != nullptr);
-      if (tint != nullptr) {
-        tint->setChecked(true);
+      auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("blackWhiteTintColorButton"));
+      auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("blackWhiteTintHueSpin"));
+      auto* saturation = dialog->findChild<QSpinBox*>(QStringLiteral("blackWhiteTintSaturationSpin"));
+      auto* hue_slider = dialog->findChild<QWidget*>(QStringLiteral("blackWhiteTintHueSlider"));
+      CHECK(tint != nullptr && swatch != nullptr && hue != nullptr && saturation != nullptr && hue_slider != nullptr);
+      if (tint == nullptr || swatch == nullptr || hue == nullptr || saturation == nullptr || hue_slider == nullptr) {
+        dialog->reject();
+        return;
       }
-      select_preset(*dialog, QStringLiteral("black_white.glowing_foliage"));
+      // Off without Tint; the sliders show the default tint color.
+      CHECK(!tint->isChecked() && !hue->isEnabled() && !saturation->isEnabled() && !hue_slider->isEnabled());
+      const auto default_tint = patchy::black_white_tint_hue_saturation(patchy::BlackWhiteAdjustment{}.tint_color);
+      CHECK(hue->value() == default_tint.hue && saturation->value() == default_tint.saturation);
+
+      tint->setChecked(true);
+      CHECK(hue->isEnabled() && saturation->isEnabled() && hue_slider->isEnabled());
+      click_black_white_preset(*dialog, QStringLiteral("black_white.glowing_foliage"));
       const std::array<int, 6> expected{10, 190, 170, -30, -60, -40};
       for (std::size_t index = 0; index < keys.size(); ++index) {
         auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("blackWhite%1Spin").arg(QLatin1String(keys[index])));
         CHECK(spin != nullptr && spin->value() == expected[index]);
       }
-      CHECK(tint != nullptr && tint->isChecked());
-      auto* list = dialog->findChild<QListWidget*>(QStringLiteral("blackWhitePresetList"));
+      CHECK(!tint->isChecked() && !hue->isEnabled());
+      CHECK(checked_black_white_preset(*dialog) == QStringLiteral("black_white.glowing_foliage"));
       set_spin(*dialog, "blackWhiteRedsSpin", 11);
-      CHECK(list != nullptr && list->currentRow() == 0);  // Custom
+      CHECK(checked_black_white_preset(*dialog).isEmpty());  // Custom
       set_spin(*dialog, "blackWhiteRedsSpin", 10);
-      CHECK(list != nullptr && list->currentItem() != nullptr &&
-            list->currentItem()->data(Qt::UserRole + 1).toString() == QStringLiteral("black_white.glowing_foliage"));
+      CHECK(checked_black_white_preset(*dialog) == QStringLiteral("black_white.glowing_foliage"));
+
+      click_black_white_preset(*dialog, QStringLiteral("black_white.tinted.sepia"));
+      const auto sepia = patchy::black_white_tint_hue_saturation(patchy::RgbColor{162, 128, 86});
+      CHECK(tint->isChecked() && hue->isEnabled() && saturation->isEnabled());
+      CHECK(hue->value() == sepia.hue && saturation->value() == sepia.saturation);
+      CHECK(checked_black_white_preset(*dialog) == QStringLiteral("black_white.tinted.sepia"));
+
+      // Swatch -> sliders.
+      QTimer::singleShot(0, [] {
+        auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+        CHECK(picker_dialog != nullptr);
+        if (picker_dialog == nullptr) {
+          return;
+        }
+        CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(40, 90, 220)));
+        picker_dialog->accept();
+      });
+      swatch->click();
+      QApplication::processEvents();
+      const auto picked = patchy::black_white_tint_hue_saturation(patchy::RgbColor{40, 90, 220});
+      CHECK(hue->value() == picked.hue && saturation->value() == picked.saturation);
+      CHECK(checked_black_white_preset(*dialog).isEmpty());  // a changed tint is Custom
+
+      // Sliders -> color.
+      hue->setValue(200);
+      QApplication::processEvents();
+      expected_saturation = saturation->value();
       dialog_checked = true;
-      dialog->reject();
+      dialog->accept();
     });
     require_action(window, "layerNewBlackWhiteAdjustmentAction")->trigger();
     QApplication::processEvents();
     CHECK(dialog_checked);
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* layer = document.active_layer_id().has_value() ? document.find_layer(*document.active_layer_id())
+                                                               : nullptr;
+    CHECK(layer != nullptr);
+    if (layer != nullptr) {
+      const auto settings = patchy::adjustment_settings_from_layer(*layer);
+      CHECK(settings.has_value() && settings->black_white.tint);
+      CHECK(settings.has_value() &&
+            (settings->black_white.tint_color == patchy::black_white_tint_color(200, expected_saturation)));
+      CHECK(settings.has_value() && settings->black_white.reds == 40 && settings->black_white.magentas == 80);
+    }
   }
 
   check_direct_adjustment_matches_layer({"imageAdjustBlackWhiteAction", "layerNewBlackWhiteAdjustmentAction",
-                                         "patchyBlackWhiteDialog", [select_preset](QDialog& dialog) {
-                                           select_preset(dialog, QStringLiteral("black_white.red_lens"));
+                                         "patchyBlackWhiteDialog", [](QDialog& dialog) {
+                                           click_black_white_preset(dialog, QStringLiteral("black_white.tinted.cyanotype"));
                                          }});
 }
 
 // Every Black & White preset name is readable in full (#528 follow-up): on a portrait and a
-// landscape image, and in German, each cell holds its whole name on at most two lines, the
-// cells keep one size whatever the image's aspect, and all ten sit in view without scrolling.
+// landscape image, and in German, each tile holds its whole name on at most two lines and the
+// tiles keep one size whatever the image's aspect; the strip scrolls for the rest.
 namespace {
 
 void check_black_white_preset_labels_fit(QDialog& dialog, const char* context) {
-  auto* list = dialog.findChild<QListWidget*>(QStringLiteral("blackWhitePresetList"));
-  CHECK(list != nullptr && list->count() == 10);
-  if (list == nullptr) {
-    return;
-  }
-  const QFontMetrics metrics(list->font());
-  const auto viewport = list->viewport()->rect();
+  const auto tiles = black_white_preset_tiles(dialog);
+  CHECK(tiles.size() == 22);
+  auto* strip = dialog.findChild<QScrollArea*>(QStringLiteral("blackWhitePresetStrip"));
+  CHECK(strip != nullptr && strip->verticalScrollBar()->maximum() > 0);
   QSize first_size;
-  for (int row = 0; row < list->count(); ++row) {
-    const auto rect = list->visualRect(list->model()->index(row, 0));
-    const auto text = list->item(row)->text();
+  for (auto* tile : tiles) {
+    const QFontMetrics metrics(tile->font());
+    const auto rect = tile->rect();
+    const auto text = tile->text();
     const auto width = rect.width() - 8;
     const auto box = metrics.boundingRect(QRect(0, 0, width, 100000), Qt::AlignHCenter | Qt::TextWordWrap, text);
     const bool fits = box.width() <= width && box.height() <= 2 * metrics.lineSpacing() &&
-                      rect.height() >= 48 + 2 * metrics.lineSpacing() && viewport.contains(rect);
+                      rect.height() >= 48 + 2 * metrics.lineSpacing();
     if (!fits) {
       std::cerr << context << ": preset \"" << text.toStdString() << "\" needs " << box.width() << "x"
-                << box.height() << " in a " << rect.width() << "x" << rect.height() << " cell\n";
+                << box.height() << " in a " << rect.width() << "x" << rect.height() << " tile\n";
     }
     CHECK(fits);
-    if (row == 0) {
+    if (first_size.isEmpty()) {
       first_size = rect.size();
     }
     CHECK(rect.size() == first_size);
+  }
+  // The strip shows whole tiles across: five columns plus the scroll bar.
+  if (strip != nullptr && !tiles.empty()) {
+    CHECK(strip->viewport()->width() >= 5 * tiles.front()->width());
   }
 }
 
@@ -4562,6 +4647,17 @@ void ui_black_white_preset_labels_fit_any_aspect_and_language() {
   with_black_white_dialog(landscape, [](QDialog& dialog) {
     save_widget_artifact("ui_black_white_dialog_landscape_dark", dialog);
     check_black_white_preset_labels_fit(dialog, "landscape");
+    // Scrolled to the Tinted section with Sepia picked.
+    auto* strip = dialog.findChild<QScrollArea*>(QStringLiteral("blackWhitePresetStrip"));
+    auto* header = dialog.findChild<QLabel*>(QStringLiteral("blackWhitePresetTintedHeader"));
+    CHECK(strip != nullptr && header != nullptr);
+    if (strip != nullptr && header != nullptr) {
+      click_black_white_preset(dialog, QStringLiteral("black_white.tinted.sepia"));
+      strip->verticalScrollBar()->setValue(header->y());
+      process_events_for(120);
+      save_widget_artifact("ui_black_white_dialog_tinted_dark", dialog);
+      CHECK(strip->verticalScrollBar()->value() > 0);
+    }
   });
   // Very tall and very wide synthetic images.
   with_black_white_dialog(solid_pixels(8, 200, patchy::PixelFormat::rgba8(), QColor(200, 80, 40)),

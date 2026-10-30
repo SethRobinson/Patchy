@@ -14048,6 +14048,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation>主题文件夹中的内置形状来自 game-icons.net (CC BY 3.0)，作者为 %1。内置形状为只读；“复制”会创建可编辑的副本。</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>明亮</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>暗调</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>黄色镜头</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>棕褐色</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>咖啡</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>冷蓝</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>硒色</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>金色</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>铂金</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>绿色调</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>玫瑰</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>着色</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

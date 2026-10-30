@@ -14091,6 +14091,54 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation>As formas integradas das pastas temáticas são do game-icons.net (CC BY 3.0), feitas por %1. As formas integradas são somente leitura; Duplicar cria uma cópia editável.</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>Claro</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>Escuro</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>Lente amarela</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>Sépia</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>Café</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>Azul frio</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>Selênio</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>Ouro</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>Platina</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>Tom verde</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>Rosa</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>Tonalizado</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

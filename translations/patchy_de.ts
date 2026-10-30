@@ -14091,6 +14091,54 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation>Die mitgelieferten Formen in den Themenordnern stammen von game-icons.net (CC BY 3.0), erstellt von %1. Mitgelieferte Formen sind schreibgeschützt; Duplizieren erstellt eine bearbeitbare Kopie.</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>Hell</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>Dunkel</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>Gelblinse</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>Sepia</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>Kaffee</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>Kühles Blau</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>Selen</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>Gold</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>Platin</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>Grünton</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>Rosé</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>Getönt</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

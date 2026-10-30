@@ -14074,6 +14074,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

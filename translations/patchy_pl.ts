@@ -14134,6 +14134,54 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation>Wbudowane kształty w folderach tematycznych pochodzą z game-icons.net (CC BY 3.0), autorzy: %1. Wbudowane kształty są tylko do odczytu; Duplikuj tworzy edytowalną kopię.</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>Jasny</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>Ciemny</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>Żółty obiektyw</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>Sepia</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>Kawa</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>Chłodny błękit</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>Selen</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>Złoto</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>Platyna</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>Zielony ton</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>Róż</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>Tonowane</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

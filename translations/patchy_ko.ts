@@ -14048,6 +14048,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Built-in shapes in the topic folders are from game-icons.net (CC BY 3.0), made by %1. Bundled shapes are read-only; Duplicate makes an editable copy.</source>
         <translation>주제 폴더의 기본 제공 모양은 game-icons.net(CC BY 3.0)에서 가져왔으며 제작자는 %1입니다. 기본 제공 모양은 읽기 전용이며, 복제하면 편집 가능한 사본이 만들어집니다.</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>밝게</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>어둡게</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>노랑 렌즈</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>세피아</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>커피</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>시원한 파랑</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>셀레늄</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>금색</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>백금</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>초록 톤</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>장미색</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>색조 적용</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
