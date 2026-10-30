@@ -7,12 +7,17 @@
 #include "core/layer_metadata.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/tool_cursors.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QByteArray>
 #include <QContextMenuEvent>
+#include <QCursor>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QPainter>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
@@ -1422,6 +1427,120 @@ void ui_channel_rows_show_their_shortcuts() {
 // The channel context menu's New Layer from Channel copies a row's values into a
 // grayscale layer; New Layer from Channel Color copies a component or ink plate in its own
 // color (Screen for components, Multiply for plates).
+// The selection-load cursor over the Channels rows (GitHub issues 480, 525): Ctrl shows it,
+// Shift, Alt and Shift+Alt add their combine badge, live with the keys; a Ctrl-click with them
+// adds, subtracts or intersects the channel with the selection in one history step.
+void ui_channel_rows_ctrl_hover_show_selection_cursors_and_combine() {
+  patchy::Document document(4, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Pixels", solid_pixels(4, 1, patchy::PixelFormat::rgb8(), QColor(90, 120, 150)));
+  const auto add_alpha = [&document](const char* name, std::array<std::uint8_t, 4> values) {
+    patchy::PixelBuffer pixels(4, 1, patchy::PixelFormat::gray8());
+    for (int x = 0; x < 4; ++x) {
+      *pixels.pixel(x, 0) = values[static_cast<std::size_t>(x)];
+    }
+    document.add_channel(patchy::DocumentChannel(document.allocate_channel_id(), name,
+                                                  patchy::DocumentChannelKind::Alpha, std::move(pixels)));
+  };
+  add_alpha("Left", {255, 255, 0, 0});
+  add_alpha("Middle", {0, 255, 255, 0});
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Channel Cursors"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  show_channels_tab(window);
+  auto* panel = window.findChild<patchy::ui::ChannelPanel*>(QStringLiteral("channelPanel"));
+  auto* channels = window.findChild<QListWidget*>(QStringLiteral("channelList"));
+  CHECK(panel != nullptr && channels != nullptr);
+  if (panel == nullptr || channels == nullptr) {
+    return;
+  }
+  CHECK(channels->count() == 6);
+  auto* viewport = channels->viewport();
+  const auto row_point = [channels](int row) { return channels->visualItemRect(channels->item(row)).center(); };
+  const auto hover = [viewport](QPoint point, Qt::KeyboardModifiers modifiers) {
+    QMouseEvent move(QEvent::MouseMove, QPointF(point), QPointF(viewport->mapToGlobal(point)), Qt::NoButton,
+                     Qt::NoButton, modifiers);
+    QApplication::sendEvent(viewport, &move);
+    QApplication::processEvents();
+  };
+  const auto key = [&window](QEvent::Type type, Qt::KeyboardModifiers modifiers, int which) {
+    QKeyEvent event(type, which, modifiers);
+    QApplication::sendEvent(&window, &event);
+    QApplication::processEvents();
+  };
+  const auto shows = [viewport](int operation) {
+    return viewport->testAttribute(Qt::WA_SetCursor) &&
+           viewport->cursor().pixmap().toImage() ==
+               patchy::ui::load_selection_pointer_cursor(operation).pixmap().toImage();
+  };
+
+  hover(row_point(4), Qt::NoModifier);
+  CHECK(!viewport->testAttribute(Qt::WA_SetCursor));
+  hover(row_point(4), Qt::ControlModifier);
+  CHECK(shows(0));
+  hover(row_point(1), Qt::ControlModifier);  // a component row loads too
+  CHECK(shows(0));
+  QCursor::setPos(viewport->mapToGlobal(row_point(4)));
+  QApplication::processEvents();
+  key(QEvent::KeyPress, Qt::ControlModifier | Qt::ShiftModifier, Qt::Key_Shift);
+  CHECK(shows(1));
+  {
+    auto shot = panel->grab().toImage();
+    const auto cursor = viewport->cursor();
+    const auto at = viewport->mapTo(panel, row_point(4)) - cursor.hotSpot();
+    QPainter painter(&shot);
+    painter.drawPixmap(at, cursor.pixmap());
+    painter.end();
+    save_image_artifact("issue525_channels_add_cursor", shot);
+  }
+  key(QEvent::KeyPress, Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier, Qt::Key_Alt);
+  CHECK(shows(3));
+  key(QEvent::KeyRelease, Qt::ControlModifier | Qt::AltModifier, Qt::Key_Shift);
+  CHECK(shows(2));
+  key(QEvent::KeyRelease, Qt::AltModifier, Qt::Key_Control);
+  CHECK(!viewport->testAttribute(Qt::WA_SetCursor));
+  key(QEvent::KeyRelease, Qt::NoModifier, Qt::Key_Alt);
+  hover(row_point(4), Qt::ControlModifier);
+  CHECK(shows(0));
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(viewport, &leave);
+  CHECK(!viewport->testAttribute(Qt::WA_SetCursor));
+
+  const auto ctrl_click_row = [&](int row, Qt::KeyboardModifiers extra) {
+    const auto modifiers = Qt::ControlModifier | extra;
+    send_mouse(*viewport, QEvent::MouseButtonPress, row_point(row), Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*viewport, QEvent::MouseButtonRelease, row_point(row), Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+  const auto selection = [canvas] {
+    QString text;
+    for (int x = 0; x < 4; ++x) {
+      text += canvas->selection_alpha_at(QPoint(x, 0)) == 255 ? QLatin1Char('1')
+              : canvas->selection_alpha_at(QPoint(x, 0)) == 0 ? QLatin1Char('0')
+                                                              : QLatin1Char('?');
+    }
+    return text;
+  };
+  auto* undo = require_hotkey_action(window, QStringLiteral("edit.undo"));
+  ctrl_click_row(4, Qt::NoModifier);
+  CHECK(selection() == QStringLiteral("1100"));
+  ctrl_click_row(5, Qt::ShiftModifier);
+  CHECK(selection() == QStringLiteral("1110"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Added to the selection"));
+  CHECK(channels->currentRow() == 0);  // the row target stays where it was
+  undo->trigger();
+  QApplication::processEvents();
+  CHECK(selection() == QStringLiteral("1100"));
+  ctrl_click_row(5, Qt::AltModifier);
+  CHECK(selection() == QStringLiteral("1000"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Subtracted from the selection"));
+  undo->trigger();
+  QApplication::processEvents();
+  ctrl_click_row(5, Qt::ShiftModifier | Qt::AltModifier);
+  CHECK(selection() == QStringLiteral("0100"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Intersected with the selection"));
+}
+
 void ui_channel_rows_become_new_layers() {
   const auto previous = patchy::working_cmyk_space();
   const auto restore = qScopeGuard([&previous] { patchy::set_working_cmyk_space(previous); });
@@ -1515,6 +1634,8 @@ std::vector<patchy::test::TestCase> channels_panel_tests() {
       {"ui_channels_target_survives_document_switch", ui_channels_target_survives_document_switch},
       {"ui_channels_panel_shows_cmyk_plates_under_proof_colors", ui_channels_panel_shows_cmyk_plates_under_proof_colors},
       {"ui_channel_rows_become_new_layers", ui_channel_rows_become_new_layers},
+      {"ui_channel_rows_ctrl_hover_show_selection_cursors_and_combine",
+       ui_channel_rows_ctrl_hover_show_selection_cursors_and_combine},
       {"ui_channel_eyes_view_mask_shortcuts_and_thumbnails", ui_channel_eyes_view_mask_shortcuts_and_thumbnails},
       {"ui_channel_view_issue_412_shots", ui_channel_view_issue_412_shots},
       {"ui_channel_rows_show_their_shortcuts", ui_channel_rows_show_their_shortcuts},

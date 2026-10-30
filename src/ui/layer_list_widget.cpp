@@ -3,7 +3,6 @@
 #include "ui/action_icons.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
-#include "ui/tool_cursors.hpp"
 
 #include <QApplication>
 #include <QListWidget>
@@ -130,23 +129,6 @@ bool layer_row_button_owns_clicks(const QString& object_name) {
 
 // Watches the Ctrl key application-wide while the pointer is over the list (the key goes to
 // whichever widget has focus, usually the canvas) and hands each press and release on.
-class ModifierKeyWatcher final : public QObject {
-public:
-  ModifierKeyWatcher(std::function<void(const QKeyEvent&)> on_key, QObject* parent)
-      : QObject(parent), on_key_(std::move(on_key)) {}
-
-  bool eventFilter(QObject* watched, QEvent* event) override {
-    if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) &&
-        static_cast<QKeyEvent*>(event)->key() == Qt::Key_Control) {
-      on_key_(*static_cast<QKeyEvent*>(event));
-    }
-    return QObject::eventFilter(watched, event);
-  }
-
-private:
-  std::function<void(const QKeyEvent&)> on_key_;
-};
-
 }  // namespace
 
 QByteArray layer_ids_to_mime_data(const std::vector<LayerId>& ids) {
@@ -202,7 +184,22 @@ std::optional<std::int64_t> layer_drag_source_session_from_mime_data(const QMime
   return static_cast<std::int64_t>(session_id);
 }
 
-LayerListWidget::LayerListWidget(QWidget* parent) : QListWidget(parent) {
+LayerListWidget::LayerListWidget(QWidget* parent)
+    : QListWidget(parent),
+      selection_load_cursor_(
+          [this](QPoint global_position) { return selection_load_cursor_hit(global_position); },
+          [this]() -> const QWidget* { return clip_cursor_widget_.data(); },
+          [this](Qt::KeyboardModifiers modifiers) {
+            // Alt also turns a row boundary into the clip cursor; follow the key there too.
+            if (QApplication::mouseButtons() != Qt::NoButton) {
+              return;
+            }
+            const auto global_position = QCursor::pos();
+            auto* hover = QApplication::widgetAt(global_position);
+            if (hover != nullptr && (hover == viewport() || viewport()->isAncestorOf(hover))) {
+              update_clip_boundary_cursor(hover, viewport()->mapFromGlobal(global_position), modifiers);
+            }
+          }) {
   const auto connect_scroll_bar = [this](QScrollBar* scroll_bar) {
     if (scroll_bar == nullptr) {
       return;
@@ -286,58 +283,22 @@ void LayerListWidget::clear_clip_boundary_cursor() {
   clip_cursor_widget_.clear();
 }
 
-void LayerListWidget::update_selection_load_cursor(QPoint global_position, Qt::KeyboardModifiers modifiers) {
-  QWidget* thumbnail = nullptr;
+QWidget* LayerListWidget::selection_load_cursor_hit(QPoint global_position) const {
   // The clip cursor (Alt over a row boundary) wins: a press there toggles clipping first.
-  if ((modifiers & Qt::ControlModifier) != 0 && clip_cursor_widget_.isNull() && !drop_in_progress_ &&
-      !visibility_only_ && isEnabled() && viewport()->isVisible() &&
-      QApplication::mouseButtons() == Qt::NoButton) {
-    const auto viewport_pos = viewport()->mapFromGlobal(global_position);
-    if (viewport()->rect().contains(viewport_pos)) {
-      if (auto* hit_item = itemAt(viewport_pos); hit_item != nullptr) {
-        if (const auto hit = ctrl_click_hit(hit_item, viewport_pos); hit.has_value()) {
-          thumbnail = hit->second;
-        }
-      }
-    }
+  if (!clip_cursor_widget_.isNull() || drop_in_progress_ || visibility_only_ || !isEnabled() ||
+      !viewport()->isVisible()) {
+    return nullptr;
   }
-  if (thumbnail == selection_cursor_widget_.data()) {
-    return;
+  const auto viewport_pos = viewport()->mapFromGlobal(global_position);
+  if (!viewport()->rect().contains(viewport_pos)) {
+    return nullptr;
   }
-  clear_selection_load_cursor();
-  if (thumbnail != nullptr) {
-    thumbnail->setCursor(load_selection_pointer_cursor());
-    selection_cursor_widget_ = thumbnail;
+  auto* hit_item = itemAt(viewport_pos);
+  if (hit_item == nullptr) {
+    return nullptr;
   }
-}
-
-void LayerListWidget::watch_modifier_keys(bool watch) {
-  if (watch == (modifier_key_watcher_ != nullptr)) {
-    return;
-  }
-  if (!watch) {
-    delete modifier_key_watcher_;
-    modifier_key_watcher_ = nullptr;
-    return;
-  }
-  modifier_key_watcher_ = new ModifierKeyWatcher(
-      [this](const QKeyEvent& event) {
-        // Fold the key itself into the modifiers: some platforms report a modifier key's own
-        // press or release with the state from before it.
-        auto modifiers = event.modifiers();
-        modifiers.setFlag(Qt::ControlModifier, event.type() == QEvent::KeyPress);
-        update_selection_load_cursor(QCursor::pos(), modifiers);
-      },
-      this);
-  qApp->installEventFilter(modifier_key_watcher_);
-}
-
-void LayerListWidget::clear_selection_load_cursor() {
-  // The clip cursor may have taken over the same widget; leave it in place.
-  if (!selection_cursor_widget_.isNull() && selection_cursor_widget_.data() != clip_cursor_widget_.data()) {
-    selection_cursor_widget_->unsetCursor();
-  }
-  selection_cursor_widget_.clear();
+  const auto hit = ctrl_click_hit(hit_item, viewport_pos);
+  return hit.has_value() ? hit->second : nullptr;
 }
 
 bool LayerListWidget::handle_clip_boundary_press(QPoint viewport_position, Qt::KeyboardModifiers modifiers) {
@@ -1080,12 +1041,12 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
                                   mouse_event->modifiers());
     }
     if (widget != nullptr && (widget == viewport() || viewport()->isAncestorOf(widget))) {
-      watch_modifier_keys(true);
-      update_selection_load_cursor(widget->mapToGlobal(mouse_event->pos()),
-                                   mouse_event->buttons() == Qt::NoButton ? mouse_event->modifiers()
-                                                                          : Qt::NoModifier);
-    } else if (!selection_cursor_widget_.isNull()) {
-      clear_selection_load_cursor();
+      selection_load_cursor_.watch_modifier_keys(true);
+      selection_load_cursor_.update(widget->mapToGlobal(mouse_event->pos()),
+                                    mouse_event->buttons() == Qt::NoButton ? mouse_event->modifiers()
+                                                                           : Qt::NoModifier);
+    } else if (selection_load_cursor_.widget() != nullptr) {
+      selection_load_cursor_.clear();
     }
     if (row_widget_drag_candidate_ && widget != nullptr && (mouse_event->buttons() & Qt::LeftButton) != 0) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
@@ -1267,8 +1228,8 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     drag_anchor_layer_id_.reset();
   } else if (event->type() == QEvent::Leave) {
     // Off the list: the Ctrl key no longer matters here.
-    watch_modifier_keys(false);
-    clear_selection_load_cursor();
+    selection_load_cursor_.watch_modifier_keys(false);
+    selection_load_cursor_.clear();
     if ((QApplication::mouseButtons() & Qt::LeftButton) == 0) {
       end_visibility_sweep();
       row_widget_drag_candidate_ = false;

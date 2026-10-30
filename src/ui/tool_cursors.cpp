@@ -255,15 +255,16 @@ QCursor build_transform_gesture_cursor(const QPolygonF& badge) {
 }
 
 // The arrow plus a dashed box at the lower right: a dark halo, a light outline, then dark
-// dashes over it so the box reads as a selection edge.
-QCursor build_load_selection_pointer_cursor() {
+// dashes over it so the box reads as a selection edge. Add, subtract and intersect put their
+// glyph inside the box, light ink over a dark halo like the arrow.
+QCursor build_load_selection_pointer_cursor(int operation) {
   constexpr int kSize = 32;
   QPixmap pixmap(kSize, kSize);
   pixmap.fill(Qt::transparent);
   QPainter painter(&pixmap);
   painter.setRenderHint(QPainter::Antialiasing);
   draw_pointer_arrow(painter);
-  const QRectF box(16.5, 17.5, 12.0, 10.0);
+  const QRectF box(16.5, 16.5, 13.0, 12.0);
   painter.setBrush(Qt::NoBrush);
   painter.setPen(QPen(QColor(20, 23, 28), 3.2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
   painter.drawRect(box);
@@ -273,6 +274,21 @@ QCursor build_load_selection_pointer_cursor() {
   dashes.setDashPattern({2.0, 2.0});
   painter.setPen(dashes);
   painter.drawRect(box);
+  const auto center = box.center();
+  constexpr double kGlyphHalf = 3.0;
+  for (const auto& [color, width] : {std::pair{QColor(20, 23, 28), 3.4}, std::pair{QColor(245, 248, 252), 1.4}}) {
+    painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+    if (operation == 1 || operation == 2) {
+      painter.drawLine(center + QPointF(-kGlyphHalf, 0.0), center + QPointF(kGlyphHalf, 0.0));
+    }
+    if (operation == 1) {
+      painter.drawLine(center + QPointF(0.0, -kGlyphHalf), center + QPointF(0.0, kGlyphHalf));
+    }
+    if (operation == 3) {
+      painter.drawLine(center + QPointF(-kGlyphHalf, -kGlyphHalf), center + QPointF(kGlyphHalf, kGlyphHalf));
+      painter.drawLine(center + QPointF(-kGlyphHalf, kGlyphHalf), center + QPointF(kGlyphHalf, -kGlyphHalf));
+    }
+  }
   painter.end();
   return QCursor(pixmap, 3, 3);
 }
@@ -360,10 +376,12 @@ QCursor transform_gesture_cursor(TransformGestureCursor gesture) {
   return cursors[static_cast<std::size_t>(gesture)];
 }
 
-QCursor load_selection_pointer_cursor() {
-  // Built once and reused: the Layers panel re-applies it on every mouse move.
-  static const QCursor cursor = build_load_selection_pointer_cursor();
-  return cursor;
+QCursor load_selection_pointer_cursor(int operation) {
+  // Built once and reused: the panels re-apply it on every mouse move.
+  static const std::array<QCursor, 4> cursors = {
+      build_load_selection_pointer_cursor(0), build_load_selection_pointer_cursor(1),
+      build_load_selection_pointer_cursor(2), build_load_selection_pointer_cursor(3)};
+  return cursors[static_cast<std::size_t>(operation >= 0 && operation < 4 ? operation : 0)];
 }
 
 QCursor path_select_cursor() {

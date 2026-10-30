@@ -3,6 +3,7 @@
 #include <QElapsedTimer>
 
 #include "core/layer_tree.hpp"
+#include "ui/selection_load_cursor.hpp"
 
 #include <QAbstractNativeEventFilter>
 #include <QBasicTimer>
@@ -62,10 +63,6 @@ enum class LayerCtrlClickTarget {
   SmartFilterMaskThumbnail,
   VectorMaskThumbnail
 };
-
-// The selection combine a thumbnail Ctrl-click asks for (#433): plain replaces (0), Shift adds
-// (1), Alt subtracts (2), Shift+Alt intersects (3), combine_selection_coverage's operations.
-[[nodiscard]] int thumbnail_click_selection_operation(Qt::KeyboardModifiers modifiers);
 
 class LayerListWidget final : public QListWidget, public QAbstractNativeEventFilter {
 public:
@@ -183,15 +180,9 @@ private:
                                    Qt::KeyboardModifiers modifiers);
   bool handle_clip_boundary_press(QPoint viewport_position, Qt::KeyboardModifiers modifiers);
   void clear_clip_boundary_cursor();
-  // The selection-load cursor (GitHub issue 480): while Ctrl (Cmd on macOS) is held over a
-  // thumbnail that a Ctrl-click loads as a selection, that thumbnail shows
-  // load_selection_pointer_cursor. Updated on mouse moves and on Ctrl presses and releases,
-  // with the modifiers folded from that event.
-  void update_selection_load_cursor(QPoint global_position, Qt::KeyboardModifiers modifiers);
-  void clear_selection_load_cursor();
-  // Installs (or removes) the application-wide Ctrl watcher; on while the pointer is over the
-  // list's rows, so Ctrl presses aimed at the focused canvas still update the cursor.
-  void watch_modifier_keys(bool watch);
+  // The thumbnail under `global_position` a Ctrl-click loads as a selection, for
+  // selection_load_cursor_ (GitHub issues 480, 525); null where the clip cursor wins.
+  [[nodiscard]] QWidget* selection_load_cursor_hit(QPoint global_position) const;
   // The thumbnail widget of `item`'s row under `viewport_pos`, with its target.
   [[nodiscard]] std::optional<std::pair<LayerCtrlClickTarget, QWidget*>> ctrl_click_hit(QListWidgetItem* item,
                                                                                         QPoint viewport_pos) const;
@@ -297,8 +288,7 @@ private:
   std::function<void(LayerId)> visibility_isolate_callback_;
   std::function<void(LayerId, bool)> visibility_sweep_callback_;
   QPointer<QWidget> clip_cursor_widget_;
-  QPointer<QWidget> selection_cursor_widget_;
-  QObject* modifier_key_watcher_{nullptr};
+  SelectionLoadCursor selection_load_cursor_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> ctrl_click_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;
   std::function<void(QListWidgetItem*)> item_double_click_callback_;

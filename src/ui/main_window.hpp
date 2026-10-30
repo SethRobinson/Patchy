@@ -2354,7 +2354,9 @@ private:
   void create_alpha_channel();
   void save_selection_as_channel();
   void load_channel_as_selection();
-  void load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId id);
+  // `operation`: 0 replaces the selection, 1 adds, 2 subtracts, 3 intersects (a Ctrl-click with
+  // Shift, Alt, Shift+Alt; combine_selection_coverage's operations).
+  void load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId id, int operation = 0);
   // A channel row's 8-bit values as the panel shows them (`gray`) and, for component and
   // ink plate rows when asked, the colored RGBA form New Layer from Channel Color uses.
   struct ChannelRowPixels {

@@ -20,6 +20,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/tile_preview_window.hpp"
+#include "ui/vector_operations.hpp"
 
 #include <QAction>
 #include <QColor>
@@ -942,13 +943,28 @@ std::optional<MainWindow::ChannelRowPixels> MainWindow::channel_row_pixels(Chann
   return result;
 }
 
-void MainWindow::load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId id) {
+void MainWindow::load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId id, int operation) {
   const auto pixels = channel_row_pixels(kind, id, false);
   if (!pixels.has_value()) {
     return;
   }
-  canvas_->replace_selection_from_grayscale(pixels->gray, tr("Load channel as selection"));
-  statusBar()->showMessage(tr("Loaded %1 as selection").arg(pixels->name));
+  if (operation == 0) {
+    canvas_->replace_selection_from_grayscale(pixels->gray, tr("Load channel as selection"));
+    statusBar()->showMessage(tr("Loaded %1 as selection").arg(pixels->name));
+    return;
+  }
+  // Add, subtract and intersect combine the channel with the selection, as a layer thumbnail's
+  // Ctrl-click does (main_window_layer_thumbnails.cpp), in one selection history step.
+  canvas_->run_selection_command(tr("Load channel as selection"), [this, operation, &pixels] {
+    auto coverage = pixels->gray;
+    combine_selection_coverage(coverage, operation, canvas_->selection_as_grayscale());
+    canvas_->apply_grayscale_to_selection(coverage);
+  });
+  canvas_->refresh_info_display();
+  canvas_->update();
+  statusBar()->showMessage(operation == 1   ? tr("Added to the selection")
+                           : operation == 2 ? tr("Subtracted from the selection")
+                                            : tr("Intersected with the selection"));
 }
 
 void MainWindow::new_layer_from_channel(bool in_color) {

@@ -2106,7 +2106,9 @@ void MainWindow::create_docks() {
     set_channel_edit_target(kind, id, overlay);
   });
   channel_panel_->set_load_selection_callback(
-      [this](ChannelPanel::RowKind kind, ChannelId id) { load_channel_as_selection(kind, id); });
+      [this](ChannelPanel::RowKind kind, ChannelId id, int operation) {
+        load_channel_as_selection(kind, id, operation);
+      });
   channel_panel_->set_reorder_callback(
       [this](std::vector<ChannelId> order) { reorder_channels_from_panel(std::move(order)); });
   channel_panel_->set_eye_callback([this](ChannelPanel::RowKind kind) { toggle_channel_eye(kind); });
