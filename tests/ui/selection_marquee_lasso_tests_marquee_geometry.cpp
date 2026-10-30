@@ -1,5 +1,6 @@
 #include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
@@ -1540,7 +1541,14 @@ void ui_brush_outline_stays_off_the_rulers_at_every_zoom() {
         CHECK(frame.copy(left_strip) == baseline.copy(left_strip));
         CHECK(frame.copy(top_strip) == baseline.copy(top_strip));
         if (zoom > 1.0) {
-          CHECK(frame != baseline);  // the overlay outline is drawn on the canvas
+          // The outline is a canvas overlay. Its ring is on screen at 200%; at 800% it lies
+          // outside the widget and the center cross rides on the pointer (GitHub issue 533),
+          // except under Clone's not-allowed pointer, where the overlay draws the cross.
+          CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()) ||
+                canvas.cursor().shape() == Qt::ForbiddenCursor);
+          if (zoom == 2.0 || canvas.cursor().shape() == Qt::ForbiddenCursor) {
+            CHECK(frame != baseline);
+          }
         }
       }
       // On a ruler: the arrow, and no outline anywhere.

@@ -757,7 +757,11 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
       draw_footprint(std::max(1.0, radius - edge_width));
     }
   }
-  paint_brush_center_cross(painter, center);
+  if (!brush_center_cross_cursor_shown(cursor())) {
+    // The pointer carries the cross itself; under any other pointer (not-allowed, Alt's
+    // eyedropper, Ctrl's Move) the overlay marks the center (GitHub issue 533).
+    paint_brush_center_cross(painter, center);
+  }
   painter.restore();
   brush_outline_drawn_rect_ = brush_hover_outline_rect();
 }

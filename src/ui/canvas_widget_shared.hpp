@@ -14,6 +14,7 @@
 #include "ui/transparency_checkerboard.hpp"
 
 #include <QColor>
+#include <QCursor>
 #include <QFontMetrics>
 #include <QImage>
 #include <QPoint>
@@ -299,6 +300,13 @@ bool tool_has_ctrl_temporary_move(CanvasTool tool) noexcept;
 // outline around a light core, crisp on whole pixels, so it reads on any artwork
 // (GitHub issue 425). Tool cursor colors, exempt from the theme roles.
 void paint_brush_center_cross(QPainter& painter, QPoint center);
+
+// The pointer while a brush outline too large for an OS cursor is drawn as a canvas
+// overlay: just the center cross, so the overlay draws only the outline and one cross
+// shows at any size (GitHub issue 533). One shared cursor; brush_center_cross_cursor_shown
+// tells whether a widget shows it.
+const QCursor& brush_center_cross_cursor();
+bool brush_center_cross_cursor_shown(const QCursor& cursor);
 
 // The canvas HUD pill (the drag size readout's look, GitHub issues 142 and 422):
 // one line of text on the HUD fill and border, theme roles only. The pill is the
