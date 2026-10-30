@@ -575,6 +575,25 @@ std::size_t merge_visible_layer_count(const Document& document) {
   return count;
 }
 
+bool merge_visible_available(const Document& document) {
+  std::size_t count = 0;
+  bool bakes = false;
+  visit_merge_visible_layers(document.layers(), [&](const Layer& layer, bool draws) {
+    if (!draws) { return; }
+    if (layer.kind() == LayerKind::Group) {
+      bakes = true;  // a visible group dissolves
+      return;
+    }
+    ++count;
+    // The result is a plain Normal, 100%, unclipped pixel layer: anything else gets applied.
+    const bool plain = layer.kind() == LayerKind::Pixel && !layer_pixels_are_procedural(layer) &&
+                       ordinary_appearance(layer) && layer.blend_mode() == BlendMode::Normal &&
+                       layer.opacity() >= 1.0F && layer.fill_opacity() >= 1.0F;
+    if (!plain) { bakes = true; }
+  });
+  return count >= 2U || (count == 1U && bakes);
+}
+
 LayerId merge_visible_target(const Document& document) {
   if (const auto* background = background_layer(document.layers(), document.width(), document.height());
       background != nullptr && background->visible()) {

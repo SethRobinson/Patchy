@@ -12292,7 +12292,7 @@ void MainWindow::update_document_action_state() {
   // reapply the layer-count rule (Distribute needs three units). The Windows plug-in scan
   // rebuilds its menu after startup and lands here with a one-layer document open.
   refresh_layer_alignment_action_states();
-  refresh_merge_visible_action_state();  // two visible layers, the same way
+  refresh_merge_visible_action_state();  // two visible layers, or one with something to apply
   refresh_paste_without_document_state();  // a file path copied as text opens with no document
 }
 
