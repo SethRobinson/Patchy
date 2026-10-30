@@ -1183,6 +1183,10 @@ bool CanvasWidget::move_press_drags_at(QPoint widget_position) const {
   if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
     passive_handle = transform_handle_at(widget_position, *rect, 0.0, TransformHitZones::EdgesAndCorners);
   }
+  // Inside the pixel selection the press moves the selected pixels (GitHub issue 532).
+  if (move_press_floats_selection(document_point)) {
+    return true;
+  }
   const auto movable_under = [&](const Layer* root) {
     std::vector<LayerId> ids;
     if (root != nullptr) {

@@ -19,7 +19,7 @@
 ## Painting, selections, and retouching
 
 - Raster editing tools: Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
-- Free Transform, Skew, Distort and Perspective work on the selected pixels when a selection is active: the box fits them and the selection follows on Enter
+- With a selection, a Move drag inside it moves the selected pixels, and Free Transform, Skew, Distort and Perspective transform them; the selection follows
 - Ctrl-drag a corner or side of the Move tool's transform box to distort it; Ctrl mid-drag toggles distort and resize
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush blends the stroke on release and offers Replace and blend modes; Red Eye works with a click or a box over the eye
 - Clone source settings on the Clone Stamp gear: four saved sources, offset, scale, rotation, flips, and a source overlay
@@ -27,7 +27,7 @@
 - Mixer Brush with Wet, Load, Mix, Flow and Sample All Layers controls; stroke smoothing with pulled-string and catch-up options
 - Painting tools show their mouse gestures in the status bar; Ctrl+click (Command+click on macOS) selects the layer under the pointer and Ctrl+drag moves the selected layer without switching tools; Alt+right-drag sets brush size and softness (Quick Select: size) with a readout on the canvas; Shift+[/] step hardness; holding Shift previews the line a Shift+click paints
 - Rectangular and elliptical marquees, lassos including Magnetic Lasso, Magic Wand (Sample can average a square around the click), Quick Select, and paintable Quick Mask selections, with feathering and selection adjustments; a drag inside a selection moves its outline
-- Object Selection tool: drag a loose box around an object, or click it, to select just that object, even overlapping others. Shift adds, Alt subtracts; a click outside the canvas deselects. It runs locally on the CPU. On desktop builds a High Quality model (a one-time 234 MB download) is much more accurate. Right-click inside a selection and choose Select Object to tighten it to its object
+- Object Selection tool: drag a loose box around an object, or click it, to select just that object. Shift adds, Alt subtracts; a click outside the canvas deselects. It runs locally on the CPU. On desktop builds a High Quality model (234 MB download) is much more accurate. Right-click inside a selection and choose Select Object to tighten it to its object
 - Move tool layer selection: drag a box over layers, Shift-click to toggle one, or right-click to choose among the layers under the pointer, with a count in the status bar; Select > All Layers (Ctrl+Alt+A)
 - Guides, grids, snapping, and layer alignment/distribution (New Guide Layout builds column and row guides with gutters and margins), interactive cropping with aspect-ratio presets and straightening, Trim (plain or transparent edges, with a tolerance), and a Ruler tool that measures distances and angles and straightens a layer or the whole image
 - View > Extras (Ctrl+H) toggles selection edges, paths, guides, grids, alignment lines and artboard names at once; Show Extras Options picks which

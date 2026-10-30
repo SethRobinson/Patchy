@@ -395,6 +395,7 @@ int main(int argc, char* argv[]) {
            move_transform_zones_tests,
            free_transform_distort_tests,
            free_transform_selection_tests,
+           move_selected_pixels_tests,
            alignment_tests,
            selection_marquee_lasso_tests,
            crop_tool_tests,

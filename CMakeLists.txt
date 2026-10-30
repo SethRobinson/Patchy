@@ -2456,6 +2456,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/move_transform_zones_tests.cpp
       tests/ui/free_transform_distort_tests.cpp
       tests/ui/free_transform_selection_tests.cpp
+      tests/ui/move_selected_pixels_tests.cpp
       tests/ui/alignment_tests.cpp
       tests/ui/selection_marquee_lasso_tests.cpp
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
