@@ -8,6 +8,7 @@
 #include <QByteArray>
 #include <QFont>
 #include <QList>
+#include <QRawFont>
 #include <QVariant>
 #include <atomic>
 #include <array>
@@ -1349,7 +1350,9 @@ void ui_typing_uncovered_characters_switches_their_font() {
     const auto family = QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1()));
     if (family == latin) {
       ++arial_runs;
-    } else if (QFontDatabase::families(QFontDatabase::Japanese).contains(family)) {
+    } else if (QRawFont::fromFont(QFont(family)).supportsCharacter(0x3053)) {
+      // A face that draws the kana: the Japanese test face, or a Chinese UI face an earlier
+      // test registered (fonts stay registered for the run; Qt may resolve Japanese to it).
       ++japanese_runs;
       CHECK(fields[1].toInt() == 8);  // the kana and the " man" typed after them (the typing format follows)
     }

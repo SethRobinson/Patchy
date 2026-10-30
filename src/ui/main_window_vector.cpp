@@ -324,12 +324,16 @@ void MainWindow::handle_shape_create_requested(CanvasTool tool, QPointF document
     memory.radii_from = bar_radius;
   }
   // The dialog's Sides and Shape become the tool's, as if picked on the
-  // options bar (its handlers update the canvas and save the setting).
+  // options bar (its handlers update the canvas and save the setting). The
+  // Sides spin's handler also reshapes the selected live polygon, which must
+  // keep its own count, so its signal is blocked and the tool updated here.
   if (tool == CanvasTool::Polygon && result->polygon_sides != canvas_->polygon_sides()) {
     if (auto* sides = findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")); sides != nullptr) {
+      QSignalBlocker blocker(sides);
       sides->setValue(result->polygon_sides);
     }
     canvas_->set_polygon_sides(result->polygon_sides);
+    schedule_save_tool_settings();
   }
   if (tool == CanvasTool::CustomShape && custom_shape_combo_ != nullptr &&
       !result->custom_shape_id.isEmpty()) {

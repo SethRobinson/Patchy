@@ -25375,7 +25375,7 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     </message>
     <message>
         <source>Automatic (%1, included with Patchy)</source>
-        <translation>自動 (%1、Patchy に同梱)</translation>
+        <translation>自動 (%1、同梱)</translation>
     </message>
     <message>
         <source>Automatic (%1, found on this computer)</source>

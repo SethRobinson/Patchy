@@ -5767,6 +5767,14 @@ void ui_shape_tap_creates_ellipse_polygon_and_custom_shape() {
   }
   CHECK(sides_spin->value() == 7);
   CHECK(canvas->polygon_sides() == 7);
+  // The pentagon that was selected when the dialog changed Sides keeps its own count:
+  // the bar's Sides handler reshapes the selected live polygon (GitHub #521).
+  const auto* pentagon = document.find_layer(polygon_layer_id);
+  const auto* pentagon_content = pentagon != nullptr ? pentagon->vector_shape() : nullptr;
+  CHECK(pentagon_content != nullptr && pentagon_content->path.subpaths.size() == 1);
+  if (pentagon_content != nullptr && pentagon_content->path.subpaths.size() == 1) {
+    CHECK(pentagon_content->path.subpaths[0].anchors.size() == 5);
+  }
 
   // Custom Shape: the library shape stamped into the box.
   canvas->set_tool(patchy::ui::CanvasTool::CustomShape);

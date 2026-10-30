@@ -2066,6 +2066,16 @@ public:
 
   [[nodiscard]] QSize sizeHint() const override { return cell_; }
 
+  // The name wraps under the thumbnail, so the height its text needs at a width is what
+  // tells whether it fits (the text-size sweep reads it).
+  [[nodiscard]] bool hasHeightForWidth() const override { return true; }
+  [[nodiscard]] int heightForWidth(int width) const override {
+    const auto text_box = fontMetrics().boundingRect(QRect(0, 0, width - 2 * kBlackWhiteCellPadding, 100000),
+                                                     Qt::AlignHCenter | Qt::TextWordWrap, text());
+    return kBlackWhiteCellPadding + kBlackWhiteThumbnailSize.height() + kBlackWhiteCellPadding + text_box.height() +
+           kBlackWhiteCellPadding;
+  }
+
 protected:
   void paintEvent(QPaintEvent* event) override {
     Q_UNUSED(event);
