@@ -13954,6 +13954,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

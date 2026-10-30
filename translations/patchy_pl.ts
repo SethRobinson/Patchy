@@ -14014,6 +14014,58 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>Niektóre warstwy tekstowe mają kontur z GIMP-a wykonany wzorkiem lub kreskami, którego efekt Obrys nie potrafi pokazać, więc otwarto je jako warstwy pikselowe.</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>Równa mieszanka</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>Gładka skóra</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>Głębokie niebo</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>Czerwony obiektyw</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>Zielony obiektyw</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>Niebieski obiektyw</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>Świetliste liście</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>Wyrazisty</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 i szarość, w którą się zmieniają</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>Ten suwak działa na %1% koloru obrazu</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>Ustawienia wstępne czerni i bieli</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>Bieżące ustawienia suwaków</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>Paski: jak dużą część tego obrazu zmienia każdy suwak.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

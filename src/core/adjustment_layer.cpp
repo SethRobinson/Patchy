@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/pixel_depth.hpp"
+#include "support/translate_noop.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -1680,6 +1681,99 @@ std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings,
   return set_luma({static_cast<double>(clamped.tint_color.red), static_cast<double>(clamped.tint_color.green),
                    static_cast<double>(clamped.tint_color.blue)},
                   std::clamp(gray, 0.0, 255.0), byte_stages);
+}
+
+namespace {
+
+// Patchy's own weight sets (#528); not Photoshop's preset names or values.
+constexpr std::array<BlackWhitePreset, 9> kBlackWhitePresets{{
+    {"black_white.default", PATCHY_TRANSLATE_NOOP("QObject", "Default"), {40, 60, 40, 60, 20, 80}},
+    {"black_white.even_mix", PATCHY_TRANSLATE_NOOP("QObject", "Even Mix"), {50, 50, 50, 50, 50, 50}},
+    {"black_white.soft_skin", PATCHY_TRANSLATE_NOOP("QObject", "Soft Skin"), {90, 100, 40, 50, 10, 70}},
+    {"black_white.deep_skies", PATCHY_TRANSLATE_NOOP("QObject", "Deep Skies"), {60, 80, 50, -20, -45, 50}},
+    {"black_white.red_lens", PATCHY_TRANSLATE_NOOP("QObject", "Red Lens"), {115, 95, -15, -45, -55, 105}},
+    {"black_white.green_lens", PATCHY_TRANSLATE_NOOP("QObject", "Green Lens"), {-30, 95, 115, 40, -40, -15}},
+    {"black_white.blue_lens", PATCHY_TRANSLATE_NOOP("QObject", "Blue Lens"), {-35, -15, 25, 105, 125, 75}},
+    {"black_white.glowing_foliage", PATCHY_TRANSLATE_NOOP("QObject", "Glowing Foliage"),
+     {10, 190, 170, -30, -60, -40}},
+    {"black_white.bold", PATCHY_TRANSLATE_NOOP("QObject", "Bold"), {130, 140, -40, -60, -80, 110}},
+}};
+
+}  // namespace
+
+std::span<const BlackWhitePreset> builtin_black_white_presets() noexcept {
+  return kBlackWhitePresets;
+}
+
+BlackWhiteAdjustment black_white_with_preset(BlackWhiteAdjustment settings, const BlackWhitePreset& preset) noexcept {
+  settings.reds = preset.weights[0];
+  settings.yellows = preset.weights[1];
+  settings.greens = preset.weights[2];
+  settings.cyans = preset.weights[3];
+  settings.blues = preset.weights[4];
+  settings.magentas = preset.weights[5];
+  return clamp_black_white(settings);
+}
+
+const BlackWhitePreset* matching_black_white_preset(const BlackWhiteAdjustment& settings) noexcept {
+  const std::array<int, 6> weights{settings.reds,  settings.yellows, settings.greens,
+                                   settings.cyans, settings.blues,   settings.magentas};
+  for (const auto& preset : kBlackWhitePresets) {
+    if (preset.weights == weights) {
+      return &preset;
+    }
+  }
+  return nullptr;
+}
+
+std::array<double, 6> black_white_weight_influence(const PixelBuffer& pixels, std::int64_t max_samples) {
+  std::array<double, 6> influence{};
+  const auto format = pixels.format();
+  if (pixels.empty() || format.channels < 3) {
+    return influence;
+  }
+  const auto area = static_cast<double>(pixels.width()) * static_cast<double>(pixels.height());
+  const auto step = std::max<std::int32_t>(
+      1, static_cast<std::int32_t>(std::ceil(std::sqrt(area / static_cast<double>(std::max<std::int64_t>(1, max_samples))))));
+  const bool has_alpha = format.channels >= 4;
+  // Indices into `influence`: 0 reds, 1 yellows, 2 greens, 3 cyans, 4 blues, 5 magentas.
+  for (std::int32_t y = step / 2; y < pixels.height(); y += step) {
+    for (std::int32_t x = step / 2; x < pixels.width(); x += step) {
+      const auto value = display_rgba8_at(pixels, x, y);
+      const double red = value[0];
+      const double green = value[1];
+      const double blue = value[2];
+      const double alpha = has_alpha ? static_cast<double>(value[3]) / 255.0 : 1.0;
+      std::size_t primary = 0;
+      std::size_t secondary = 0;
+      if (red >= green && red >= blue) {
+        primary = 0;
+        secondary = green >= blue ? 1 : 5;
+      } else if (green >= blue) {
+        primary = 2;
+        secondary = red >= blue ? 1 : 3;
+      } else {
+        primary = 4;
+        secondary = green >= red ? 3 : 5;
+      }
+      const double high = std::max({red, green, blue});
+      const double low = std::min({red, green, blue});
+      const double middle = red + green + blue - high - low;
+      influence[primary] += (high - middle) * alpha;
+      influence[secondary] += (middle - low) * alpha;
+    }
+  }
+  double total = 0.0;
+  for (const auto amount : influence) {
+    total += amount;
+  }
+  if (total <= 0.0) {
+    return {};
+  }
+  for (auto& amount : influence) {
+    amount /= total;
+  }
+  return influence;
 }
 
 LayerStyleGradient GradientMapAdjustment::default_gradient_map_gradient() {

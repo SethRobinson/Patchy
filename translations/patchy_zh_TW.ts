@@ -13928,6 +13928,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>部分文字圖層帶有以圖樣或虛線繪製的 GIMP 輪廓，筆畫效果無法顯示，因此已作為像素圖層開啟。</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>均勻混合</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>柔和膚色</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>深邃天空</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>紅色鏡頭</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>綠色鏡頭</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>藍色鏡頭</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>發光植被</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>醒目</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 及其轉換後的灰色</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>此滑桿作用於影像顏色的 %1%</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>黑白預設集</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>目前的滑桿設定</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>長條：每個滑桿作用於此影像的程度。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

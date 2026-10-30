@@ -13971,6 +13971,58 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>Algunas capas de texto tienen un contorno de GIMP hecho con un motivo o con guiones, que un efecto Trazo no puede mostrar, así que se abrieron como capas de píxeles.</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>Mezcla uniforme</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>Piel suave</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>Cielos profundos</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>Lente roja</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>Lente verde</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>Lente azul</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>Follaje luminoso</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>Intenso</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 y el gris en que se convierten</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>Este regulador actúa sobre el %1% del color de la imagen</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>Ajustes preestablecidos de blanco y negro</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>Los valores actuales de los reguladores</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>Barras: cuánto de esta imagen afecta cada regulador.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

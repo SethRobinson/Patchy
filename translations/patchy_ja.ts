@@ -13928,6 +13928,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>一部のテキストレイヤーには、境界線効果では表現できないパターンまたは破線の GIMP アウトラインがあるため、ピクセルレイヤーとして開きました。</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>均等ミックス</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>ソフトスキン</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>深い空</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>レッドレンズ</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>グリーンレンズ</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>ブルーレンズ</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>輝く葉</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>ボールド</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 と変換後のグレー</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>このスライダーは画像の色の %1% に作用します</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>白黒プリセット</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>現在のスライダー設定</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>バー：各スライダーがこの画像のどれだけに作用するか。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

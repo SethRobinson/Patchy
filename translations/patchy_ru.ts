@@ -14014,6 +14014,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>У некоторых текстовых слоёв есть контур GIMP из узора или штрихов, который эффект «Обводка» не может показать, поэтому они открыты как пиксельные слои.</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>Равная смесь</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>Мягкая кожа</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>Глубокое небо</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>Красная линза</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>Зелёная линза</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>Синяя линза</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>Светящаяся листва</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>Контрастный</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 и серый, в который они превращаются</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>Этот ползунок действует на %1% цвета изображения</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>Наборы для черно-белого</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>Текущие значения ползунков</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>Полосы: насколько каждый ползунок влияет на это изображение.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

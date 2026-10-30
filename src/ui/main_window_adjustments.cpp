@@ -72,6 +72,15 @@ bool truncate_layer_tree_before(std::vector<Layer>& siblings, LayerId target_id)
   return false;
 }
 
+// The composite under an adjustment layer, for dialogs that measure their input.
+PixelBuffer composite_rgb8_before_adjustment(const Document& document, LayerId adjustment_id) {
+  auto input_document = document;
+  if (!truncate_layer_tree_before(input_document.layers(), adjustment_id)) {
+    return Compositor{}.flatten_rgb8(document);
+  }
+  return Compositor{}.flatten_rgb8(input_document);
+}
+
 CurvesHistograms curves_histograms_before_adjustment(const Document& document, LayerId adjustment_id) {
   auto input_document = document;
   if (!truncate_layer_tree_before(input_document.layers(), adjustment_id)) {
@@ -585,8 +594,10 @@ void MainWindow::new_black_white_adjustment_layer() {
     update_adjustment_layer_preview(tr("Black & White"), settings, enabled, preview_id, restore_active_layer);
   };
 
+  // The image the new layer will sit on: the presets' thumbnails and the measurement.
+  const auto source = Compositor{}.flatten_rgb8(std::as_const(document()));
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_black_white_settings(this, preview_changed);
+  const auto settings = request_black_white_settings(this, preview_changed, {}, &source);
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
   preview_edit_lock.release();
   if (!settings.has_value()) {
@@ -1070,7 +1081,12 @@ std::optional<AdjustmentSettings> MainWindow::request_adjustment_settings(
         settings.black_white = bw;
         preview(settings);
       };
-      const auto result = request_black_white_settings(this, preview_changed, original.black_white);
+      std::optional<PixelBuffer> source;
+      if (adjustment_layer_id.has_value()) {
+        source = composite_rgb8_before_adjustment(std::as_const(document()), *adjustment_layer_id);
+      }
+      const auto result = request_black_white_settings(this, preview_changed, original.black_white,
+                                                       source.has_value() ? &*source : nullptr);
       if (result.has_value()) {
         accepted_settings = original;
         accepted_settings->black_white = *result;

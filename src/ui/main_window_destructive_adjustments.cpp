@@ -590,7 +590,8 @@ void MainWindow::color_balance_dialog() {
 // transfer, so the result matches a layer of the same settings.
 void MainWindow::direct_adjustment_dialog(
     const QString& display_name,
-    const std::function<std::optional<AdjustmentSettings>(const DirectAdjustmentPreview&)>& request) {
+    const std::function<std::optional<AdjustmentSettings>(const DirectAdjustmentPreview&, const PixelBuffer&)>&
+        request) {
   if (!has_active_document()) {
     return;
   }
@@ -680,7 +681,7 @@ void MainWindow::direct_adjustment_dialog(
       canvas_->document_changed();
     }
   });
-  const auto settings = request(preview_changed);
+  const auto settings = request(preview_changed, *original_pixels);
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
@@ -783,16 +784,18 @@ RgbColor direct_adjustment_rgb_of(const QColor& color) {
 }  // namespace
 
 void MainWindow::black_white_dialog() {
-  direct_adjustment_dialog(tr("Black & White"), [this](const DirectAdjustmentPreview& preview) {
+  direct_adjustment_dialog(tr("Black & White"), [this](const DirectAdjustmentPreview& preview,
+                                                       const PixelBuffer& source) {
     constexpr auto kind = AdjustmentKind::BlackWhite;
     constexpr auto member = &AdjustmentSettings::black_white;
-    return wrap_adjustment(kind, member,
-                           request_black_white_settings(this, wrap_adjustment_preview(kind, member, preview)));
+    return wrap_adjustment(
+        kind, member,
+        request_black_white_settings(this, wrap_adjustment_preview(kind, member, preview), {}, &source));
   });
 }
 
 void MainWindow::vibrance_dialog() {
-  direct_adjustment_dialog(tr("Vibrance"), [this](const DirectAdjustmentPreview& preview) {
+  direct_adjustment_dialog(tr("Vibrance"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
     constexpr auto kind = AdjustmentKind::Vibrance;
     constexpr auto member = &AdjustmentSettings::vibrance;
     return wrap_adjustment(kind, member,
@@ -801,7 +804,7 @@ void MainWindow::vibrance_dialog() {
 }
 
 void MainWindow::exposure_dialog() {
-  direct_adjustment_dialog(tr("Exposure"), [this](const DirectAdjustmentPreview& preview) {
+  direct_adjustment_dialog(tr("Exposure"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
     // Clamped as the adjustment layer clamps it (new_exposure_adjustment_layer).
     const auto clamped_preview = [preview](bool enabled, const ExposureSettings& exposure) {
       AdjustmentSettings adjustment;
@@ -819,7 +822,7 @@ void MainWindow::exposure_dialog() {
 }
 
 void MainWindow::channel_mixer_dialog() {
-  direct_adjustment_dialog(tr("Channel Mixer"), [this](const DirectAdjustmentPreview& preview) {
+  direct_adjustment_dialog(tr("Channel Mixer"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
     constexpr auto kind = AdjustmentKind::ChannelMixer;
     constexpr auto member = &AdjustmentSettings::channel_mixer;
     return wrap_adjustment(kind, member,
@@ -828,7 +831,7 @@ void MainWindow::channel_mixer_dialog() {
 }
 
 void MainWindow::photo_filter_dialog() {
-  direct_adjustment_dialog(tr("Photo Filter"), [this](const DirectAdjustmentPreview& preview) {
+  direct_adjustment_dialog(tr("Photo Filter"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
     constexpr auto kind = AdjustmentKind::PhotoFilter;
     constexpr auto member = &AdjustmentSettings::photo_filter;
     return wrap_adjustment(kind, member,
@@ -837,7 +840,7 @@ void MainWindow::photo_filter_dialog() {
 }
 
 void MainWindow::gradient_map_dialog() {
-  direct_adjustment_dialog(tr("Gradient Map"), [this](const DirectAdjustmentPreview& preview) {
+  direct_adjustment_dialog(tr("Gradient Map"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
     constexpr auto kind = AdjustmentKind::GradientMap;
     constexpr auto member = &AdjustmentSettings::gradient_map;
     return wrap_adjustment(
@@ -849,7 +852,7 @@ void MainWindow::gradient_map_dialog() {
 }
 
 void MainWindow::selective_color_dialog() {
-  direct_adjustment_dialog(tr("Selective Color"), [this](const DirectAdjustmentPreview& preview) {
+  direct_adjustment_dialog(tr("Selective Color"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
     constexpr auto kind = AdjustmentKind::SelectiveColor;
     constexpr auto member = &AdjustmentSettings::selective_color;
     return wrap_adjustment(kind, member,
@@ -858,7 +861,7 @@ void MainWindow::selective_color_dialog() {
 }
 
 void MainWindow::color_lookup_dialog() {
-  direct_adjustment_dialog(tr("Color Lookup"), [this](const DirectAdjustmentPreview& preview) {
+  direct_adjustment_dialog(tr("Color Lookup"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
     constexpr auto kind = AdjustmentKind::ColorLookup;
     constexpr auto member = &AdjustmentSettings::color_lookup;
     return wrap_adjustment(kind, member,
