@@ -28644,6 +28644,18 @@ Zablokowano: %1</translation>
         <source>Layer opacity: %1%</source>
         <translation>Krycie warstwy: %1%</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>Lewa krawędź aktywnego kształtu</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>Górna krawędź aktywnego kształtu</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>Kombinuj kształty</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

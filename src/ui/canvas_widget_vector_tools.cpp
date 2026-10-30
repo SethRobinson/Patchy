@@ -215,9 +215,31 @@ PathSubpath CanvasWidget::polygon_drag_subpath(QPointF center, QPointF radius_po
       std::atan2(dy, dx), polygon_sides_, polygon_star_inset_);
 }
 
+void CanvasWidget::set_polygon_committed_callback(std::function<void(LiveShapeParams)> callback) {
+  polygon_committed_callback_ = std::move(callback);
+}
+
 void CanvasWidget::commit_polygon_drag(QPointF center, QPointF radius_point) {
   auto subpath = polygon_drag_subpath(center, radius_point);
-  if (subpath.anchors.empty() || !vector_path_committed_callback_) {
+  if (subpath.anchors.empty()) {
+    return;
+  }
+  if (polygon_committed_callback_) {
+    const auto dx = radius_point.x() - center.x(), dy = radius_point.y() - center.y();
+    const auto radius = std::hypot(dx, dy);
+    LiveShapeParams params;
+    params.kind = LiveShapeKind::Polygon;
+    params.left = center.x() - radius;
+    params.top = center.y() - radius;
+    params.right = center.x() + radius;
+    params.bottom = center.y() + radius;
+    params.polygon_sides = polygon_sides_;
+    params.polygon_star_inset = polygon_star_inset_;
+    params.polygon_angle = std::atan2(dy, dx);
+    polygon_committed_callback_(std::move(params));
+    return;
+  }
+  if (!vector_path_committed_callback_) {
     return;
   }
   VectorPath path;
@@ -1080,6 +1102,94 @@ Layer* CanvasWidget::topmost_path_pick_layer_at(QPointF widget_point) const {
   return const_cast<Layer*>(walk(std::as_const(*document_).layers()));
 }
 
+std::vector<const DocumentPath*> CanvasWidget::background_document_paths() const {
+  std::vector<const DocumentPath*> result;
+  if (document_ == nullptr) {
+    return result;
+  }
+  const auto& doc = std::as_const(*document_);
+  const auto* target = path_edit_target_path();
+  const auto add = [&](const DocumentPath* path) {
+    if (path != nullptr && !path->path().subpaths.empty() && &path->path() != target &&
+        std::find(result.begin(), result.end(), path) == result.end()) {
+      result.push_back(path);
+    }
+  };
+  if (last_saved_path_target_.has_value()) {
+    add(doc.find_path(*last_saved_path_target_));
+  }
+  add(doc.work_path());
+  return result;
+}
+
+bool CanvasWidget::document_path_outline_hit(const DocumentPath& path, QPointF widget_point) const {
+  std::pair<int, int> segment{-1, -1};
+  double segment_t = 0.0;
+  return anchor_hit_in(path.path(), widget_point).first >= 0 ||
+         segment_hit_in(path.path(), widget_point, segment, segment_t);
+}
+
+CanvasWidget::PathPick CanvasWidget::path_pick_at(QPointF widget_point) const {
+  PathPick pick;
+  if (document_ == nullptr) {
+    return pick;
+  }
+  const auto document_point = document_position_f(widget_point);
+  const auto paths = background_document_paths();
+  // A document path draws no fill, so its points and outline outrank shape layers (they
+  // sit in the overlay above every layer) and its inside only counts where no shape is.
+  for (const auto* path : paths) {
+    if (document_path_outline_hit(*path, widget_point)) {
+      pick.document_path = path->id();
+      return pick;
+    }
+  }
+  if (auto* layer = topmost_path_pick_layer_at(widget_point); layer != nullptr) {
+    if (&std::as_const(*layer).vector_shape()->path != path_edit_target_path()) {
+      pick.layer = layer;
+    }
+    return pick;
+  }
+  for (const auto* path : paths) {
+    if (shape_group_containing(path->path(), document_point).has_value()) {
+      pick.document_path = path->id();
+      return pick;
+    }
+  }
+  return pick;
+}
+
+bool CanvasWidget::retarget_path_pick(const PathPick& pick) {
+  if (document_ == nullptr || pick.empty()) {
+    return false;
+  }
+  if (pick.layer != nullptr) {
+    const auto* picked_path = &std::as_const(*pick.layer).vector_shape()->path;
+    activate_layer(*pick.layer);
+    if (path_edit_target_path() != picked_path && active_document_path_.has_value()) {
+      // The layer was already active under a targeted work or saved path: drop that target
+      // so the layer's own path takes over (Photoshop retargets on a shape pick).
+      if (path_retarget_callback_) {
+        path_retarget_callback_(std::nullopt);
+      } else {
+        set_active_document_path(std::nullopt);
+      }
+    }
+    return path_edit_target_path() == picked_path;
+  }
+  const auto* path = std::as_const(*document_).find_path(*pick.document_path);
+  if (path == nullptr) {
+    return false;
+  }
+  if (path_retarget_callback_) {
+    path_retarget_callback_(pick.document_path);
+  } else {
+    set_active_document_path(pick.document_path);
+    set_panel_path_targeted(true);
+  }
+  return path_edit_target_path() == &path->path();
+}
+
 void CanvasWidget::set_active_document_path(std::optional<DocumentPathId> id) {
   if (active_document_path_ == id) {
     return;
@@ -1087,6 +1197,12 @@ void CanvasWidget::set_active_document_path(std::optional<DocumentPathId> id) {
   cancel_path_transform();
   const auto* previous_target = path_edit_target_path();
   active_document_path_ = id;
+  if (id.has_value() && document_ != nullptr) {
+    if (const auto* path = std::as_const(*document_).find_path(*id);
+        path != nullptr && path->kind() == DocumentPathKind::Saved) {
+      last_saved_path_target_ = id;
+    }
+  }
   // Targeting the path the tools already edit (the work path they fell back
   // to) keeps its point selection.
   if (path_edit_target_path() != previous_target) {
@@ -1156,6 +1272,10 @@ void CanvasWidget::set_path_edited_callback(std::function<void()> callback) {
 
 void CanvasWidget::set_path_selection_changed_callback(std::function<void()> callback) {
   path_selection_changed_callback_ = std::move(callback);
+}
+
+void CanvasWidget::set_path_retarget_callback(std::function<void(std::optional<DocumentPathId>)> callback) {
+  path_retarget_callback_ = std::move(callback);
 }
 
 void CanvasWidget::set_shape_layers_emptied_callback(
@@ -1852,14 +1972,11 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
     // shape layer): a shape layer under the pointer still takes the press
     // (GitHub issue 315).
     if (!path_press_repicked_) {
-      if (auto* picked = topmost_path_pick_layer_at(QPointF(event->position())); picked != nullptr) {
-        activate_layer(*picked);
-        if (path_edit_target_path() == &std::as_const(*picked).vector_shape()->path) {
-          clear_path_edit_selection();
-          path_press_repicked_ = true;
-          const auto reset = qScopeGuard([this] { path_press_repicked_ = false; });
-          return handle_path_edit_press(event, document_point);
-        }
+      if (const auto pick = path_pick_at(QPointF(event->position())); retarget_path_pick(pick)) {
+        clear_path_edit_selection();
+        path_press_repicked_ = true;
+        const auto reset = qScopeGuard([this] { path_press_repicked_ = false; });
+        return handle_path_edit_press(event, document_point);
       }
     }
     report_status_error(tr("Select a shape layer or draw a path first"));
@@ -2069,11 +2186,17 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   // Another shape layer under the pointer (topmost first, by its points,
   // outline or fill) becomes the target and takes this same press, so one
   // press picks and drags it (GitHub issue 248). Pixel layers are never picked.
+  // The work path (or the saved path targeted last) is picked the same way (GitHub #521),
+  // by its points and outline before any shape layer; its inside never outranks the
+  // target's own fill.
   if (!path_press_repicked_) {
-    if (auto* picked = topmost_path_pick_layer_at(widget_point);
-        picked != nullptr && &std::as_const(*picked).vector_shape()->path != path) {
-      activate_layer(*picked);
-      if (path_edit_target_path() == &std::as_const(*picked).vector_shape()->path) {
+    if (const auto pick = path_pick_at(widget_point); !pick.empty()) {
+      const auto* picked_path =
+          pick.document_path.has_value() ? std::as_const(*document_).find_path(*pick.document_path) : nullptr;
+      const bool inside_only_pick = picked_path != nullptr && !document_path_outline_hit(*picked_path, widget_point);
+      const bool target_fill_hit = edit_tool == CanvasTool::PathSelect &&
+                                   shape_group_containing(*path, document_point).has_value();
+      if (!(inside_only_pick && target_fill_hit) && retarget_path_pick(pick)) {
         clear_path_edit_selection();
         path_press_repicked_ = true;
         const auto reset = qScopeGuard([this] { path_press_repicked_ = false; });
@@ -2811,6 +2934,43 @@ bool CanvasWidget::path_edit_has_selection() const noexcept {
   return path_edit_selected_anchor_count() > 0;
 }
 
+std::vector<int> CanvasWidget::path_edit_selected_groups() const {
+  std::vector<int> groups;
+  const auto* path = path_edit_target_path();
+  if (path == nullptr || path_selected_anchors_.empty() ||
+      (path_selection_owner_.has_value() && *path_selection_owner_ != path_edit_target_owner_key())) {
+    return groups;
+  }
+  for (const auto& key : path_selected_anchors_) {
+    if (key.first >= 0 && key.first < static_cast<int>(path->subpaths.size())) {
+      groups.push_back(path->subpaths[static_cast<std::size_t>(key.first)].shape_group);
+    }
+  }
+  std::sort(groups.begin(), groups.end());
+  groups.erase(std::unique(groups.begin(), groups.end()), groups.end());
+  return groups;
+}
+
+void CanvasWidget::select_path_groups(const std::vector<int>& groups) {
+  const auto* path = path_edit_target_path();
+  if (path == nullptr) {
+    return;
+  }
+  path_selected_anchors_.clear();
+  extra_selected_anchors_.clear();
+  for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
+    const auto& subpath = path->subpaths[static_cast<std::size_t>(s)];
+    if (std::find(groups.begin(), groups.end(), subpath.shape_group) == groups.end()) {
+      continue;
+    }
+    for (int a = 0; a < static_cast<int>(subpath.anchors.size()); ++a) {
+      path_selected_anchors_.insert({s, a});
+    }
+  }
+  notify_path_selection_changed();
+  update();
+}
+
 int CanvasWidget::path_edit_selected_anchor_count() const noexcept {
   auto count = path_selected_anchors_.size();
   for (const auto& [id, keys] : extra_selected_anchors_) {
@@ -2853,8 +3013,7 @@ void CanvasWidget::update_path_hover_hint(PenHoverAction action) {
 
 CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_point) const {
   if (path_edit_target_path() == nullptr) {
-    return topmost_path_pick_layer_at(widget_point) != nullptr ? PathHoverTarget::Fill
-                                                               : PathHoverTarget::None;
+    return !path_pick_at(widget_point).empty() ? PathHoverTarget::Fill : PathHoverTarget::None;
   }
   std::pair<int, int> handle_anchor{-1, -1};
   if (path_edit_tool() == CanvasTool::DirectSelect && path_handle_at(widget_point, handle_anchor) != 0) {
@@ -2872,8 +3031,8 @@ CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_
       shape_group_containing(*path_edit_target_path(), document_position_f(widget_point)).has_value()) {
     return PathHoverTarget::Fill;
   }
-  if (topmost_path_pick_layer_at(widget_point) != nullptr) {
-    return PathHoverTarget::Fill;  // a press picks that shape layer
+  if (!path_pick_at(widget_point).empty()) {
+    return PathHoverTarget::Fill;  // a press picks that shape layer or document path
   }
   return PathHoverTarget::None;
 }
@@ -2995,22 +3154,37 @@ bool CanvasWidget::show_path_context_menu(QPointF widget_point, QPoint global_po
   return true;
 }
 
-std::vector<int> CanvasWidget::path_edit_selected_groups() const {
-  std::vector<int> groups;
+
+bool CanvasWidget::combine_selected_path_components(PathCombineOp op, const QString& label) {
   const auto* path = path_edit_target_path();
-  if (path == nullptr) {
-    return groups;
+  const auto groups = path_edit_selected_groups();
+  if (path == nullptr || groups.size() < 2 || edit_locked_) {
+    return false;
   }
-  for (const auto& key : path_selected_anchors_) {
-    if (key.first < 0 || key.first >= static_cast<int>(path->subpaths.size())) {
-      continue;
-    }
-    const auto group = path->subpaths[static_cast<std::size_t>(key.first)].shape_group;
-    if (std::find(groups.begin(), groups.end(), group) == groups.end()) {
-      groups.push_back(group);
+  // Stacking order is path order: the group whose first subpath comes first is the base.
+  int base = -1;
+  for (const auto& subpath : path->subpaths) {
+    if (std::find(groups.begin(), groups.end(), subpath.shape_group) != groups.end()) {
+      base = subpath.shape_group;
+      break;
     }
   }
-  return groups;
+  auto working = *path;
+  bool changed = false;
+  for (auto& subpath : working.subpaths) {
+    if (subpath.shape_group != base &&
+        std::find(groups.begin(), groups.end(), subpath.shape_group) != groups.end() && subpath.op != op) {
+      subpath.op = op;
+      changed = true;
+    }
+  }
+  if (!changed) {
+    return true;  // already combined that way
+  }
+  path_edit_undo_armed_ = false;
+  apply_path_edit(std::move(working), label, {});
+  path_edit_undo_armed_ = false;
+  return true;
 }
 
 void CanvasWidget::set_selected_subpaths_combine_op(PathCombineOp op) {
@@ -3055,6 +3229,35 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
   }
   if (!extra_shown(ViewExtra::TargetPath)) {
     return;  // View > Extras (Ctrl+H) hides the points and outline while it covers them
+  }
+  // The work path (and the saved path targeted last) stay drawn as plain outlines under the
+  // path and shape tools while another path is the target, so picking a shape layer never
+  // makes them vanish, and Path Select can pick them back (GitHub #521).
+  if ((path_edit_tool_active() || shape_tool_active()) && !pen_session_active_) {
+    const auto background = background_document_paths();
+    if (!background.empty()) {
+      painter.save();
+      painter.setRenderHint(QPainter::Antialiasing, true);
+      for (const auto* document_path : background) {
+        QPainterPath outline;
+        for (const auto& subpath : document_path->path().subpaths) {
+          if (subpath.anchors.empty()) {
+            continue;
+          }
+          outline.moveTo(path_point_to_screen(subpath.anchors[0].anchor_x, subpath.anchors[0].anchor_y));
+          const auto anchor_count = subpath.anchors.size();
+          const auto segment_count = subpath.closed ? anchor_count : anchor_count - 1;
+          for (std::size_t i = 0; i < segment_count; ++i) {
+            const auto& a = subpath.anchors[i];
+            const auto& b = subpath.anchors[(i + 1) % anchor_count];
+            outline.cubicTo(path_point_to_screen(a.out_x, a.out_y), path_point_to_screen(b.in_x, b.in_y),
+                            path_point_to_screen(b.anchor_x, b.anchor_y));
+          }
+        }
+        draw_path_outline(painter, outline, path_overlay_accent());
+      }
+      painter.restore();
+    }
   }
   // A targeted Paths-panel row draws its outline with other tools too (a shape
   // layer's own path only under the shape tools, GitHub issue 238); anchors,

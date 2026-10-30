@@ -4318,6 +4318,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     if (canvas_ != nullptr) {
       canvas_->set_polygon_sides(value);
       schedule_save_tool_settings();
+      // Like the rectangle Radius: the selected live polygon follows (GitHub #521).
+      apply_live_shape_component_edit([value](LiveShapeParams& params) {
+        if (params.kind == LiveShapeKind::Polygon) {
+          params.polygon_sides = value;
+        }
+      });
     }
   });
 
@@ -4336,6 +4342,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     if (canvas_ != nullptr) {
       canvas_->set_polygon_star_inset(value);
       schedule_save_tool_settings();
+      apply_live_shape_component_edit([value](LiveShapeParams& params) {
+        if (params.kind == LiveShapeKind::Polygon) {
+          params.polygon_star_inset = value;
+        }
+      });
     }
   });
 

@@ -276,6 +276,9 @@ VectorShapeContent geometry(ScriptEngineHost& host, const QJsonObject& value, do
 QJsonArray live_json(const std::vector<LiveShapeParams>& values) {
   QJsonArray result;
   for (const auto& p : values) {
+    if (p.kind == LiveShapeKind::Polygon) {
+      continue;  // session-only live polygons (GitHub #521) stay plain paths to scripts
+    }
     QString type;
     switch (p.kind) {
       case LiveShapeKind::Rectangle: type = "rectangle"; break;

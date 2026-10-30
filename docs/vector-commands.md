@@ -141,11 +141,9 @@ and keeps its own length.
 Cursors (`tool_cursors.cpp`, Patchy's own art, hotspot on the tip, theme-exempt):
 `path_select_cursor()` is a solid dark arrow, `direct_select_cursor()` a light one with
 a hollow anchor badge; `apply_arrow_cursor` shows `path_edit_tool()`'s, so Ctrl flips it
-and the Pen's Ctrl latch shows Direct Select's. Coverage:
-`ui_direct_select_alt_click_selects_the_whole_subpath`,
+and the Pen's Ctrl latch shows Direct Select's. Coverage: `ui_direct_select_alt_click_selects_the_whole_subpath`,
 `ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it`,
-`ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_the_shape`,
-`ui_path_select_alt_drag_duplicates_a_merged_shape`,
+`ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_*`,
 `ui_path_select_tools_show_their_own_arrow_cursors`.
 
 Shape tools (issues 312, 313). Ctrl is a temporary Path Select: `shape_ctrl_path_select_`
@@ -186,6 +184,8 @@ extra layers' anchors, a target segment, the extras' segments, then the pick:
 other than the target activates that layer, clears the point selection and
 replays the same press on it (guarded by `path_press_repicked_`), so one press
 picks and drags; activation adds no undo entry, so the drag is the one step.
+The work path and the last targeted saved path are picked too (`path_pick_at`;
+[rules](vector-tools.md#live-components-and-the-properties-panel-github-521)).
 Then, Path Select only, a press inside the target's fill selects that group
 and drags it ("Move shape"); anything else starts the marquee, which first
 clears the selection (blank canvas and pasteboard alike). A Path Select
@@ -216,18 +216,10 @@ it when the owner changes: on `activate_layer`, `set_layer_edit_target`,
 never removes another layer's points. Hover: a fill, or another
 layer's shape, is `PathHoverTarget::Fill` (Path Select's select-and-move hint;
 no Direct Select hint); under Path Select every target is the shape and the hint says so.
-Tests:
-`ui_path_select_blank_click_deselects_shape`,
-`ui_path_select_click_picks_shape_under_pointer`,
-`ui_path_select_marquee_touching_shape_selects_it`,
-`ui_path_select_drag_inside_fill_moves_shape`,
+Tests: `ui_path_select_*` in tests/ui/vector_point_editing_tests.cpp,
 `ui_direct_select_drags_points_of_unselected_shapes`,
-`ui_path_select_anchor_drag_moves_the_whole_shape`,
 `ui_direct_select_after_path_select_drags_one_point`,
-`ui_path_select_tools_drag_open_path_anchor`,
-`ui_path_select_switch_expands_points_and_pen_keeps_selected_knobs`,
-`ui_point_selection_drops_when_the_active_layer_changes`,
-`ui_path_select_shift_click_adds_and_removes_shapes`.
+`ui_point_selection_drops_when_the_active_layer_changes`.
 
 ## Moving a selection
 
@@ -308,7 +300,7 @@ a vector shape path counts: a vector mask, a saved path or the work path stays
 empty (Reveal All coverage). The deletion activates a pixel layer when no
 shape layer is next, so with no path target at all a Path/Direct Select press
 (and its hover) still picks the shape layer under the pointer
-(`topmost_path_pick_layer_at`) instead of refusing. Tests: `ui_path_select_delete_last_shape_removes_the_layer`,
+(`path_pick_at`) instead of refusing. Tests: `ui_path_select_delete_last_shape_removes_the_layer`,
 `ui_path_select_delete_one_of_two_shapes_keeps_the_layer`,
 `ui_path_menu_delete_last_shape_removes_the_layer`,
 `ui_direct_select_edits_points_across_selected_layers`.
@@ -365,7 +357,8 @@ merge the Layers-panel selection (`combine_shape_candidates`,
 `src/core/shape_combine`): two or more unlocked, editable shape layers with
 paths, all siblings of one parent; folders expand to nothing (root ids only).
 Enable state follows the selection (`refresh_combine_shapes_action_states`,
-also on pure multi-selection changes). Semantics are the renderer's
+also on pure multi-selection and path-selection changes); context menus and
+path components: [vector-tools.md](vector-tools.md#live-components-and-the-properties-panel-github-521). Semantics are the renderer's
 sequential combine: the BOTTOM-most layer is the base and keeps its id, name,
 appearance, styles, masks, origination, and its groups' own ops; every group
 of each front layer is appended in stacking order with the chosen op (Add /

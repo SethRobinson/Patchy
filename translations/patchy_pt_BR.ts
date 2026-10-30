@@ -28562,6 +28562,18 @@ Bloqueado: %1</translation>
         <source>Layer opacity: %1%</source>
         <translation>Opacidade da camada: %1%</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>Borda esquerda da forma ativa</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>Borda superior da forma ativa</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>Combinar formas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

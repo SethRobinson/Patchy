@@ -28562,6 +28562,18 @@ Fixiert: %1</translation>
         <source>Layer opacity: %1%</source>
         <translation>Ebenendeckkraft: %1%</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>Linke Kante der aktiven Form</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>Obere Kante der aktiven Form</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>Formen kombinieren</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

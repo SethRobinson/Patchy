@@ -159,14 +159,17 @@ struct VectorStroke {
 // integers (rect 1, rounded rect 2, line 4, ellipse 5) map at I/O. Kinds
 // Photoshop was not observed writing import as Custom with the raw origination
 // descriptor preserved (the path still renders and stays editable; only
-// live-parameter editing is unavailable).
+// live-parameter editing is unavailable). Polygon (GitHub #521) is live in the
+// session only: Photoshop's polygon origination is unprobed, so the writers
+// leave it out and a saved polygon reopens as a plain path. Append only.
 enum class LiveShapeKind : std::uint8_t {
   None,
   Rectangle,
   RoundedRectangle,
   Line,
   Ellipse,
-  Custom
+  Custom,
+  Polygon
 };
 
 // One vogk keyDescriptorList entry: the regenerating annotation for a live
@@ -201,6 +204,12 @@ struct LiveShapeParams {
   std::int32_t arrow_concavity{0};
   bool arrow_width_unit_pixels{true};
   bool arrow_length_unit_pixels{true};
+  // Polygon kind: the regular polygon (or star, inset percent > 0) inscribed in the
+  // left/top/right/bottom box, first vertex at polygon_angle radians from the center
+  // (a box that is not square stretches it, like the Create Polygon dialog's W x H).
+  std::int32_t polygon_sides{5};
+  std::int32_t polygon_star_inset{0};
+  double polygon_angle{0.0};
   // Joins this entry to PathSubpath::shape_group.
   std::int32_t index{0};
   // Custom/unmodeled origination: the entry's raw descriptor bytes, re-emitted

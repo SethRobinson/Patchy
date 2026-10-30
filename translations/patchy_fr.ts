@@ -28562,6 +28562,18 @@ Verrouillé : %1</translation>
         <source>Layer opacity: %1%</source>
         <translation>Opacité du calque : %1%</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>Bord gauche de la forme active</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>Bord supérieur de la forme active</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>Combiner les formes</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

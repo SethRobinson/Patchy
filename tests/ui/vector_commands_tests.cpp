@@ -32,6 +32,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/script_engine.hpp"
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
@@ -550,6 +551,249 @@ void ui_script_ungroup_returns_children() {
   CHECK(backlog_contains(window, QStringLiteral("threw:")));
 }
 
+// GitHub #521: Combine Shapes is in the Layers panel menu for two or more shape layers and
+// in the canvas path menu under Path Select, and it also combines two selected components of
+// one path (the work path here): the front one takes the op, the bottom one keeps its own.
+void ui_combine_shapes_in_context_menus_and_on_path_components() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto base_id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto front_id = make_rect_shape_layer(window, *canvas, QPoint(200, 160), QPoint(400, 300));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  layer_list->clearSelection();
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 2"))->setSelected(true);
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 1"))->setSelected(true);
+  QApplication::processEvents();
+
+  // The Layers panel menu lists the four commands in a Combine Shapes submenu.
+  bool layer_menu_listed = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu")) {
+        continue;
+      }
+      if (auto* combine = menu->findChild<QMenu*>(QStringLiteral("layerContextCombineShapesMenu"));
+          combine != nullptr) {
+        QStringList names;
+        for (auto* action : combine->actions()) {
+          names << action->objectName();
+        }
+        layer_menu_listed = names == QStringList{QStringLiteral("layerCombineUniteAction"),
+                                                 QStringLiteral("layerCombineSubtractAction"),
+                                                 QStringLiteral("layerCombineIntersectAction"),
+                                                 QStringLiteral("layerCombineExcludeAction")};
+      }
+      menu->close();
+      return;
+    }
+  });
+  CHECK(QMetaObject::invokeMethod(layer_list, "customContextMenuRequested", Qt::DirectConnection,
+                                  Q_ARG(QPoint, layer_list->visualItemRect(
+                                      require_layer_item(*layer_list, QStringLiteral("Rectangle 1"))).center())));
+  QApplication::processEvents();
+  CHECK(layer_menu_listed);
+
+  // The canvas path menu under Path Select offers the same actions; Subtract runs from it.
+  canvas->set_view_zoom_centered(1.0);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  QApplication::processEvents();
+  QTimer::singleShot(0, [] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("canvasPathContextMenu")) {
+        continue;
+      }
+      for (auto* action : menu->actions()) {
+        if (action->objectName() == QStringLiteral("layerCombineSubtractAction")) {
+          CHECK(action->isEnabled());
+          action->trigger();
+        }
+      }
+      menu->close();
+      return;
+    }
+  });
+  const auto widget_point = canvas->widget_position_for_document_point(QPoint(250, 190));
+  CHECK(canvas->show_path_context_menu(QPointF(widget_point), canvas->mapToGlobal(widget_point)));
+  QApplication::processEvents();
+  CHECK(std::as_const(document).find_layer(front_id) == nullptr);
+  const auto* base = std::as_const(document).find_layer(base_id);
+  CHECK(base != nullptr && base->vector_shape()->path.subpaths.size() == 2);
+  CHECK(base->vector_shape()->path.subpaths[1].op == patchy::PathCombineOp::Subtract);
+
+  // Two components of the work path: select both with Path Select, then Exclude.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  shape_drag(*canvas, QPoint(450, 100), QPoint(550, 200));
+  shape_drag(*canvas, QPoint(500, 150), QPoint(600, 250));
+  const auto* work = document.work_path();
+  CHECK(work != nullptr && work->path().subpaths.size() == 2);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  shape_drag(*canvas, QPoint(460, 100), QPoint(460, 100));  // the first component's top edge
+  const auto shift_point = canvas->widget_position_for_document_point(QPoint(600, 240));
+  send_mouse(*canvas, QEvent::MouseButtonPress, shift_point, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, shift_point, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_groups().size() == 2);
+  auto* exclude = require_action(window, "layerCombineExcludeAction");
+  CHECK(exclude->isEnabled());
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  exclude->trigger();
+  QApplication::processEvents();
+  work = document.work_path();
+  CHECK(work->path().subpaths[0].op == patchy::PathCombineOp::Add);
+  CHECK(work->path().subpaths[1].op == patchy::PathCombineOp::Xor);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+}
+
+// GitHub #521: a Polygon/Star stays live. Its Sides and Star inset change afterwards in the
+// Properties panel (and from the options bar while it is selected), also after a W / H edit.
+void ui_polygon_stays_live_and_edits_in_properties_panel() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  require_action(window, "toolPolygonAction")->trigger();
+  QApplication::processEvents();
+  auto* bar_sides = window.findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"));
+  auto* bar_inset = window.findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"));
+  CHECK(bar_sides != nullptr && bar_inset != nullptr);
+  bar_sides->setValue(5);
+  bar_inset->setValue(0);
+  canvas->set_view_zoom_centered(1.0);
+  shape_drag(*canvas, QPoint(200, 200), QPoint(200, 120));  // center-out, radius 80
+  const auto layer_id = *document.active_layer_id();
+  const auto shape = [&]() -> const patchy::VectorShapeContent& {
+    return *std::as_const(document).find_layer(layer_id)->vector_shape();
+  };
+  CHECK(shape().origination.size() == 1);
+  CHECK(shape().origination[0].kind == patchy::LiveShapeKind::Polygon);
+  CHECK(shape().path.subpaths[0].anchors.size() == 5);
+  CHECK(std::abs(shape().path.subpaths[0].anchors[0].anchor_y - 120.0) < 0.5);  // first vertex at the cursor
+
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("propertiesLiveShapePanel"));
+  auto* sides = window.findChild<QSpinBox*>(QStringLiteral("propertiesPolygonSidesSpin"));
+  auto* inset = window.findChild<QSpinBox*>(QStringLiteral("propertiesPolygonStarInsetSpin"));
+  auto* radius_row = window.findChild<QWidget*>(QStringLiteral("propertiesShapeRadiusRow"));
+  CHECK(panel != nullptr && sides != nullptr && inset != nullptr && radius_row != nullptr);
+  CHECK(!panel->isHidden());
+  CHECK(radius_row->isHidden());
+  CHECK(sides->value() == 5);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  sides->setValue(6);
+  QApplication::processEvents();
+  CHECK(shape().path.subpaths[0].anchors.size() == 6);
+  CHECK(shape().origination[0].polygon_sides == 6);
+  inset->setValue(50);
+  QApplication::processEvents();
+  CHECK(shape().path.subpaths[0].anchors.size() == 12);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 2);
+
+  // A W edit keeps it live: the next Sides edit still regenerates it at the new size.
+  auto* width = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeWidthSpin"));
+  CHECK(width != nullptr);
+  const auto before = shape().path.bounds();
+  CHECK(before.has_value());
+  width->setValue((before->right - before->left) * 2.0);
+  process_events_for(450);
+  CHECK(shape().origination.size() == 1);
+  sides->setValue(7);
+  QApplication::processEvents();
+  CHECK(shape().path.subpaths[0].anchors.size() == 14);
+  const auto after = shape().path.bounds();
+  CHECK(after.has_value() && (after->right - after->left) > (before->right - before->left) * 1.6);
+  // The options bar's Sides follows into the selected polygon too.
+  bar_sides->setValue(8);
+  QApplication::processEvents();
+  CHECK(shape().path.subpaths[0].anchors.size() == 16);
+  if (auto* properties = window.findChild<QWidget*>(QStringLiteral("propertiesPanel")); properties != nullptr) {
+    save_widget_artifact("ui_i521_properties_star", *properties);
+  }
+  save_widget_artifact("ui_i521_star_canvas", *canvas);
+  // A point edit ends the live state: the rows hide.
+  auto path = shape().path;
+  path.subpaths[0].anchors[0].anchor_x += 15.0;
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  canvas->replace_path_edit_target(path, {path.subpaths[0].shape_group});
+  QApplication::processEvents();
+  CHECK(panel->isHidden());
+}
+
+// GitHub #521: Path-mode components keep their live parameters, and the Properties panel's
+// W / H / X / Y size and place the component Path Select picked on the work path.
+void ui_path_components_size_place_and_stay_live() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(radius_spin != nullptr && mode_combo != nullptr);
+  radius_spin->setValue(0);
+  mode_combo->setCurrentIndex(1);  // Path
+  canvas->set_view_zoom_centered(1.0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+  shape_drag(*canvas, QPoint(400, 100), QPoint(500, 200));
+  const auto work = [&]() -> const patchy::DocumentPath& { return *document.work_path(); };
+  CHECK(work().path().subpaths.size() == 2);
+  CHECK(work().live_shapes().size() == 2);
+
+  auto* size_panel = window.findChild<QWidget*>(QStringLiteral("propertiesShapeSizePanel"));
+  auto* width = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeWidthSpin"));
+  auto* x = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeXSpin"));
+  auto* y = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeYSpin"));
+  auto* radius = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeRadiusSpin"));
+  CHECK(size_panel != nullptr && width != nullptr && x != nullptr && y != nullptr && radius != nullptr);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  QApplication::processEvents();
+  CHECK(size_panel->isHidden() || !width->isEnabled());  // nothing selected on the work path yet
+  shape_drag(*canvas, QPoint(200, 100), QPoint(200, 100));  // the rectangle's top edge
+  CHECK(canvas->path_edit_selected_groups().size() == 1);
+  CHECK(!size_panel->isHidden() && width->isEnabled());
+  CHECK(std::abs(width->value() - 200.0) < 0.5);
+  CHECK(std::abs(x->value() - 100.0) < 0.5);
+  CHECK(std::abs(y->value() - 100.0) < 0.5);
+
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  width->setValue(100.0);
+  process_events_for(450);
+  auto bounds = patchy::VectorPath{{work().path().subpaths[0]}}.bounds();
+  CHECK(bounds.has_value() && std::abs(bounds->left - 100.0) < 0.5 && std::abs(bounds->right - 200.0) < 0.5);
+  CHECK(std::abs(work().path().subpaths[1].anchors[0].anchor_x - 450.0) < 0.5);  // the ellipse stayed
+  x->setValue(150.0);
+  process_events_for(450);
+  bounds = patchy::VectorPath{{work().path().subpaths[0]}}.bounds();
+  CHECK(bounds.has_value() && std::abs(bounds->left - 150.0) < 0.5 && std::abs(bounds->right - 250.0) < 0.5);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 2);
+
+  // Still a live rectangle: a Radius makes it rounded at its new size and place.
+  auto* radius_row = window.findChild<QWidget*>(QStringLiteral("propertiesShapeRadiusRow"));
+  CHECK(radius_row != nullptr && !radius_row->isHidden());
+  radius->setValue(10.0);
+  QApplication::processEvents();
+  CHECK(work().path().subpaths[0].anchors.size() == 8);
+  bounds = patchy::VectorPath{{work().path().subpaths[0]}}.bounds();
+  CHECK(bounds.has_value() && std::abs(bounds->left - 150.0) < 0.5 && std::abs(bounds->right - 250.0) < 0.5);
+  CHECK(canvas->path_edit_selected_groups().size() == 1);  // the whole component stays selected
+  if (auto* properties = window.findChild<QWidget*>(QStringLiteral("propertiesPanel")); properties != nullptr) {
+    save_widget_artifact("ui_i521_properties_path_size", *properties);
+  }
+  save_widget_artifact("ui_i521_path_size_canvas", *canvas);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_commands_tests() {
@@ -560,6 +804,10 @@ std::vector<patchy::test::TestCase> vector_commands_tests() {
       {"ui_simplify_path_from_canvas_menu_previews_and_explains_no_change",
        ui_simplify_path_from_canvas_menu_previews_and_explains_no_change},
       {"ui_combine_shapes_subtracts_front_and_undoes", ui_combine_shapes_subtracts_front_and_undoes},
+      {"ui_combine_shapes_in_context_menus_and_on_path_components",
+       ui_combine_shapes_in_context_menus_and_on_path_components},
+      {"ui_polygon_stays_live_and_edits_in_properties_panel", ui_polygon_stays_live_and_edits_in_properties_panel},
+      {"ui_path_components_size_place_and_stay_live", ui_path_components_size_place_and_stay_live},
       {"ui_merge_down_keeps_shape_layers_vector", ui_merge_down_keeps_shape_layers_vector},
       {"ui_script_simplify_path_reports_anchor_counts", ui_script_simplify_path_reports_anchor_counts},
       {"ui_script_combine_shapes_returns_base_layer", ui_script_combine_shapes_returns_base_layer},

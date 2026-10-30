@@ -28480,6 +28480,18 @@ Locked: %1</source>
         <source>Layer opacity: %1%</source>
         <translation>레이어 불투명도: %1%</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>활성 모양의 왼쪽 가장자리</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>활성 모양의 위쪽 가장자리</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>모양 조합</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -28480,6 +28480,18 @@ Locked: %1</source>
         <source>Layer opacity: %1%</source>
         <translation>图层不透明度：%1%</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>当前形状的左边缘</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>当前形状的上边缘</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>组合形状</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

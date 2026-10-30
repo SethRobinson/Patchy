@@ -1182,6 +1182,69 @@ void ui_path_select_click_picks_shape_under_pointer() {
   CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 100.0) < 0.5);  // untouched
 }
 
+// GitHub #521: a shape layer, then a Path-mode rectangle (the work path). Picking the shape
+// with Path Select used to drop the work path from the canvas, and the work path could never
+// be picked back while shape layers existed. It stays drawn and a press on it targets it.
+void ui_path_select_picks_work_path_among_shape_layers() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto shape_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(mode_combo != nullptr);
+  mode_combo->setCurrentIndex(1);  // Path
+  shape_drag(*canvas, QPoint(400, 100), QPoint(560, 200));
+  const auto* work = document.work_path();
+  CHECK(work != nullptr);
+  CHECK(*document.active_layer_id() == shape_id);  // the shape layer stays active
+  canvas->set_view_zoom_centered(1.0);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_target_path() == &work->path());
+  CHECK(accent_overlay_near(*canvas, QPoint(480, 100)));
+
+  // Pick the shape layer: it becomes the target, and the work path still shows.
+  pen_click(*canvas, QPoint(200, 160));
+  save_widget_artifact("ui_i521_work_path_after_shape_pick", *canvas);
+  const auto* shape = std::as_const(document).find_layer(shape_id);
+  CHECK(canvas->path_edit_target_path() == &shape->vector_shape()->path);
+  CHECK(canvas->path_edit_has_selection());
+  CHECK(accent_overlay_near(*canvas, QPoint(480, 100)));
+
+  // A press on the work path's outline picks it back and drags it in the same press.
+  shape_drag(*canvas, QPoint(480, 100), QPoint(500, 120));
+  save_widget_artifact("ui_i521_work_path_picked_and_moved", *canvas);
+  work = document.work_path();
+  CHECK(canvas->path_edit_target_path() == &work->path());
+  CHECK(std::abs(work->path().subpaths[0].anchors[0].anchor_x - 420.0) < 1.0);
+  CHECK(std::abs(work->path().subpaths[0].anchors[0].anchor_y - 120.0) < 1.0);
+  CHECK(std::abs(std::as_const(document).find_layer(shape_id)->vector_shape()->path.subpaths[0]
+                     .anchors[0].anchor_x - 100.0) < 0.5);  // the shape stayed put
+
+  // Back to the shape (its fill), then Direct Select picks the work path by an anchor.
+  pen_click(*canvas, QPoint(200, 160));
+  CHECK(canvas->path_edit_target_path() == &shape->vector_shape()->path);
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  pen_click(*canvas, QPoint(580, 220));  // the moved work path's bottom-right corner
+  CHECK(canvas->path_edit_target_path() == &document.work_path()->path());
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+
+  // Seth's repro: with another layer active, picking the shape dropped the work path from the
+  // canvas until the next path was drawn. It stays drawn.
+  const auto background_id = std::as_const(document).layers().front().id();
+  patchy::ui::MainWindowTestAccess::select_layers(window, {background_id}, background_id);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(200, 160));
+  save_widget_artifact("ui_i521_work_path_kept_after_layer_pick", *canvas);
+  CHECK(*document.active_layer_id() == shape_id);
+  CHECK(canvas->path_edit_target_path() == &shape->vector_shape()->path);
+  CHECK(accent_overlay_near(*canvas, QPoint(500, 120)));  // the moved work path's top edge
+}
+
 // GitHub issue 248, point 2: a Path Select marquee that crosses a shape's edge
 // selects it, anchors inside the rect or not.
 void ui_path_select_marquee_touching_shape_selects_it() {
@@ -2904,6 +2967,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_tools_keep_handle_knobs_to_direct_select", ui_path_tools_keep_handle_knobs_to_direct_select},
       {"ui_path_select_blank_click_deselects_shape", ui_path_select_blank_click_deselects_shape},
       {"ui_path_select_click_picks_shape_under_pointer", ui_path_select_click_picks_shape_under_pointer},
+      {"ui_path_select_picks_work_path_among_shape_layers", ui_path_select_picks_work_path_among_shape_layers},
       {"ui_path_select_marquee_touching_shape_selects_it", ui_path_select_marquee_touching_shape_selects_it},
       {"ui_path_select_drag_inside_fill_moves_shape", ui_path_select_drag_inside_fill_moves_shape},
       {"ui_path_select_drag_coalesces_queued_moves", ui_path_select_drag_coalesces_queued_moves},

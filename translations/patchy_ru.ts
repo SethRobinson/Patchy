@@ -28644,6 +28644,18 @@ Locked: %1</source>
         <source>Layer opacity: %1%</source>
         <translation>Непрозрачность слоя: %1%</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>Левый край активной формы</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>Верхний край активной формы</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>Комбинировать фигуры</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

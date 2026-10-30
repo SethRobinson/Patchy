@@ -28480,6 +28480,18 @@ Locked: %1</source>
         <source>Layer opacity: %1%</source>
         <translation>レイヤーの不透明度: %1%</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>アクティブなシェイプの左端</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>アクティブなシェイプの上端</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>シェイプの組み合わせ</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

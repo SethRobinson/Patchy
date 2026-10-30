@@ -52,6 +52,7 @@
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include <cmath>
+#include <numbers>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -920,6 +921,71 @@ void psd_authored_shape_layer_writes_native_blocks() {
   const auto flat_reread = patchy::Compositor{}.flatten_rgb8(reread);
   const auto metrics = rgb_diff_metrics(flat_original, flat_reread);
   CHECK(metrics.max_channel_delta == 0);
+}
+
+// GitHub #521: a live polygon regenerates from its parameters, survives a move (resolved by
+// translation) and an axis-aligned scale, ends at a point edit, and stays out of the PSD:
+// Photoshop's polygon origination is unprobed, so the file carries a plain path and no vogk.
+void live_polygon_regenerates_resolves_and_writes_a_plain_path() {
+  patchy::LiveShapeParams params;
+  params.kind = patchy::LiveShapeKind::Polygon;
+  params.left = 10;
+  params.top = 10;
+  params.right = 50;
+  params.bottom = 50;
+  params.polygon_sides = 5;
+  params.polygon_star_inset = 40;
+  params.polygon_angle = -std::numbers::pi / 2.0;
+  params.index = 2;
+  auto subpaths = patchy::generate_live_shape_subpaths(params);
+  CHECK(subpaths.size() == 1);
+  CHECK(subpaths[0].anchors.size() == 10);
+  CHECK(subpaths[0].shape_group == 2);
+  CHECK(std::fabs(subpaths[0].anchors[0].anchor_x - 30.0) < 1e-9);  // first vertex straight up
+  CHECK(std::fabs(subpaths[0].anchors[0].anchor_y - 10.0) < 1e-9);
+
+  patchy::VectorPath path;
+  path.subpaths = subpaths;
+  const std::vector<patchy::LiveShapeParams> origination{params};
+  CHECK(patchy::resolve_live_shape_group(path, origination, 2).has_value());
+  for (auto& anchor : path.subpaths[0].anchors) {  // a Path Select move
+    anchor.anchor_x += 7.0;
+    anchor.in_x += 7.0;
+    anchor.out_x += 7.0;
+  }
+  const auto moved = patchy::resolve_live_shape_group(path, origination, 2);
+  CHECK(moved.has_value() && std::fabs(moved->left - 17.0) < 1e-9);
+  auto six = *moved;
+  six.polygon_sides = 6;
+  CHECK(patchy::replace_live_shape_group(path, six));
+  CHECK(path.subpaths[0].anchors.size() == 12);
+  CHECK(std::fabs(path.subpaths[0].anchors[0].anchor_x - 37.0) < 1e-9);
+  auto scaled = six;
+  patchy::scale_live_shape_params(scaled, 2.0, 1.0, 0.0, 0.0);
+  CHECK(std::fabs(scaled.right - 114.0) < 1e-9 && scaled.polygon_sides == 6);
+  path.subpaths[0].anchors[3].anchor_y += 1.0;  // a point edit
+  CHECK(!patchy::resolve_live_shape_group(path, {six}, 2).has_value());
+
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(64, 64, 255, 255, 255, 255));
+  patchy::Layer shape(document.allocate_layer_id(), "Polygon 1", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  params.index = 0;
+  content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  content.origination = {params};
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  shape.set_vector_shape(content);
+  shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(64, 64), nullptr);
+  document.add_layer(std::move(shape));
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const std::string bytes(written.begin(), written.end());
+  CHECK(bytes.find("vogk") == std::string::npos);
+  CHECK(bytes.find("keyOriginType") == std::string::npos);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  const auto* roundtrip = reread.layers()[1].vector_shape();
+  CHECK(roundtrip != nullptr && roundtrip->origination.empty());
+  CHECK(roundtrip->path.subpaths.size() == 1 && roundtrip->path.subpaths[0].anchors.size() == 10);
 }
 
 // Compound groups: several contours sharing one shape_group are ONE shape
@@ -2685,6 +2751,8 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
       {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
+      {"live_polygon_regenerates_resolves_and_writes_a_plain_path",
+       live_polygon_regenerates_resolves_and_writes_a_plain_path},
       {"psd_compound_group_writes_continuation_records_and_round_trips",
        psd_compound_group_writes_continuation_records_and_round_trips},
       {"psd_compound_group_fixture_matches_photoshop_flatten", psd_compound_group_fixture_matches_photoshop_flatten},
