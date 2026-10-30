@@ -166,6 +166,34 @@ void tool_brush_dab_coverage_matches_painted_dab() {
     CHECK(covered > 20);
     CHECK(worst <= 2);
   }
+  // Tiny dabs as well: a 1 px dab covers only the pixel under it (the overlay of a 1 px Square
+  // once filled its whole reach).
+  for (const auto size : {1, 2, 3, 4}) {
+    for (const auto shape : {patchy::BrushShape::Round, patchy::BrushShape::Square}) {
+      for (const auto softness : {0, 50}) {
+        auto document = make_tool_document();
+        const auto layer_id = active_tool_layer(document);
+        auto options = tool_options(0, 0, 0);
+        options.brush_size = size;
+        options.brush_shape = shape;
+        options.brush_softness = softness;
+        CHECK(!patchy::paint_brush_dab(document, layer_id, 20.0, 20.0, options, false).empty());
+        const auto& pixels = std::as_const(*document.find_layer(layer_id)).pixels();
+        int worst = 0;
+        int covered = 0;
+        for (std::int32_t y = 12; y < 28; ++y) {
+          for (std::int32_t x = 12; x < 28; ++x) {
+            const auto expected = static_cast<int>(
+                std::lround(patchy::brush_dab_coverage(x - 20.0, y - 20.0, options) * 255.0F));
+            worst = std::max(worst, std::abs(expected - static_cast<int>(pixels.pixel(x, y)[3])));
+            covered += expected > 0 ? 1 : 0;
+          }
+        }
+        CHECK(covered >= 1);
+        CHECK(worst <= 2);
+      }
+    }
+  }
 }
 
 void tool_square_brush_dabs_are_pixel_snapped_and_solid() {
@@ -181,7 +209,8 @@ void tool_square_brush_dabs_are_pixel_snapped_and_solid() {
     return count;
   };
 
-  // A hard square dab at a sub-pixel position covers exactly (2 * radius + 1)^2 whole pixels.
+  // A hard square dab at a sub-pixel position covers exactly (2 * radius + 1)^2 whole pixels,
+  // centered on the pixel nearest the position (positions are pixel indices, as for Round).
   {
     auto document = make_tool_document();
     const auto layer_id = active_tool_layer(document);
@@ -192,14 +221,14 @@ void tool_square_brush_dabs_are_pixel_snapped_and_solid() {
     const auto& pixels = document.find_layer(layer_id)->pixels();
     CHECK(count_alpha(pixels, 255) == 25);
     CHECK(count_alpha(pixels, 1) == 25);
-    CHECK(pixels.pixel(8, 8)[3] == 255);
-    CHECK(pixels.pixel(12, 12)[3] == 255);
-    CHECK(pixels.pixel(7, 10)[3] == 0);
-    CHECK(pixels.pixel(13, 10)[3] == 0);
-    CHECK(pixels.pixel(10, 7)[3] == 0);
-    CHECK(pixels.pixel(10, 13)[3] == 0);
+    CHECK(pixels.pixel(8, 9)[3] == 255);
+    CHECK(pixels.pixel(12, 13)[3] == 255);
+    CHECK(pixels.pixel(7, 11)[3] == 0);
+    CHECK(pixels.pixel(13, 11)[3] == 0);
+    CHECK(pixels.pixel(10, 8)[3] == 0);
+    CHECK(pixels.pixel(10, 14)[3] == 0);
   }
-  // Any other fraction gives the same footprint, anchored on the pixel under the dab.
+  // Any other fraction gives the same footprint, anchored on the nearest pixel.
   {
     auto document = make_tool_document();
     const auto layer_id = active_tool_layer(document);
@@ -210,9 +239,10 @@ void tool_square_brush_dabs_are_pixel_snapped_and_solid() {
     const auto& pixels = document.find_layer(layer_id)->pixels();
     CHECK(count_alpha(pixels, 255) == 25);
     CHECK(count_alpha(pixels, 1) == 25);
-    CHECK(pixels.pixel(28, 28)[3] == 255);
-    CHECK(pixels.pixel(32, 32)[3] == 255);
-    CHECK(pixels.pixel(33, 30)[3] == 0);
+    CHECK(pixels.pixel(29, 28)[3] == 255);
+    CHECK(pixels.pixel(33, 32)[3] == 255);
+    CHECK(pixels.pixel(28, 30)[3] == 0);
+    CHECK(pixels.pixel(34, 30)[3] == 0);
   }
   // Size 1 is the single pixel under the dab.
   {

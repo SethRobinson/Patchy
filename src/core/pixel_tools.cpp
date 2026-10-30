@@ -101,11 +101,12 @@ namespace {
 }
 
 // The Square footprint. A hard, unrotated square snaps to the pixel grid: a dab at any
-// sub-pixel position covers exactly (2 * radius + 1)^2 whole pixels, the same footprint width
-// as the round brush, so a hard square stroke never leaves partial-alpha fringes (the reason
-// the Square preset is procedural rather than a scaled bitmap). Rotation, roundness (a
-// rectangle) and Soft use the geometric footprint with a Chebyshev feather that keeps the
-// corners square.
+// sub-pixel position covers exactly (2 * radius + 1)^2 whole pixels around the pixel nearest
+// the dab position (positions are pixel indices, like the round brush's center), the same
+// footprint width as the round brush, so a hard square stroke never leaves partial-alpha
+// fringes (the reason the Square preset is procedural rather than a scaled bitmap). Rotation,
+// roundness (a rectangle) and Soft use the geometric footprint with a Chebyshev feather that
+// keeps the corners square.
 [[nodiscard]] float square_brush_coverage(double distance_x, double distance_y, int radius,
                                           const EditOptions& options) {
   if (radius <= 0) {
@@ -114,9 +115,9 @@ namespace {
   const auto roundness = brush_roundness_percent(options);
   const auto half = static_cast<double>(radius);
   if (options.brush_softness <= 0 && roundness >= 99 && square_brush_is_axis_aligned(options)) {
-    // distance is pixel index minus dab position: (-half - 1, half] selects the 2 * radius + 1
-    // pixels from floor(position) - radius through floor(position) + radius.
-    const auto covers = [half](double distance) { return distance > -half - 1.0 && distance <= half; };
+    // distance is pixel index minus dab position: (-half - 0.5, half + 0.5] selects the
+    // 2 * radius + 1 pixels from n - radius through n + radius, n = floor(position + 0.5).
+    const auto covers = [half](double distance) { return distance > -half - 0.5 && distance <= half + 0.5; };
     return covers(distance_x) && covers(distance_y) ? 1.0F : 0.0F;
   }
   const auto half_minor = std::max(0.5, half * static_cast<double>(roundness) / 100.0);
@@ -596,7 +597,11 @@ float brush_dab_coverage(double offset_x, double offset_y, const EditOptions& op
                                       : tip_dab_coverage(*options.brush_tip, tip_dab_transform(options), offset_x,
                                                          offset_y);
   }
-  return brush_shape_coverage(offset_x, offset_y, std::max(1, options.brush_size) / 2, options);
+  const auto radius = std::max(1, options.brush_size) / 2;
+  if (radius == 0 && (std::fabs(offset_x) >= 0.5 || std::fabs(offset_y) >= 0.5)) {
+    return 0.0F;  // brush_dab_rect reduces a 1 px dab to the one pixel under it
+  }
+  return brush_shape_coverage(offset_x, offset_y, radius, options);
 }
 
 [[nodiscard]] Layer* editable_layer(Document& document, LayerId layer_id) noexcept {

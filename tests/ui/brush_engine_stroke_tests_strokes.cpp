@@ -1459,7 +1459,8 @@ void ui_max_zoom_brush_skips_noop_stroke_repaints() {
   canvas->set_brush_build_up(false);
   QApplication::processEvents();
 
-  const auto start = canvas->widget_position_for_document_point(QPoint(10, 10));
+  // From the pixel's center, ten 1 px moves stay inside that 32 px pixel.
+  const auto start = canvas->widget_position_for_document_point(QPoint(10, 10)) + QPoint(16, 16);
   send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
   QApplication::processEvents();
 
@@ -4168,6 +4169,209 @@ void ui_brush_overlay_draws_dab_in_foreground_color() {
   save_widget_artifact("issue517_brush_overlay", shot);
 }
 
+// The overlay shows exactly the pixels a click paints, down to a 1 px brush: sizes 1 to 4, Round
+// and Square, Soft, a flat rotated footprint and a small sampled tip, at 800% and 3200%. A 1 px
+// Square once filled its whole 7 x 7 reach (the radius-0 square has coverage 1 at any offset,
+// since paint_brush_dab trims that dab to one pixel itself). Below 100% the overlay stays within
+// the dab's few screen pixels and still shows.
+void ui_brush_overlay_small_dabs_match_painted_footprint() {
+  struct Case {
+    int size;
+    patchy::BrushShape shape;
+    int softness;
+    int roundness;
+    double angle;
+    bool tip;
+  };
+  const auto round = patchy::BrushShape::Round;
+  const auto square = patchy::BrushShape::Square;
+  const std::vector<Case> cases = {
+      {1, square, 0, 100, 0.0, false}, {1, round, 0, 100, 0.0, false},  {1, square, 50, 100, 0.0, false},
+      {1, round, 50, 100, 0.0, false}, {2, square, 0, 100, 0.0, false}, {2, round, 0, 100, 0.0, false},
+      {3, square, 0, 100, 0.0, false}, {3, round, 0, 100, 0.0, false},  {3, round, 60, 100, 0.0, false},
+      {4, square, 0, 50, 30.0, false}, {4, round, 0, 40, 45.0, false},  {4, square, 40, 100, 0.0, false},
+      {1, round, 0, 100, 0.0, true},   {3, round, 0, 100, 0.0, true},
+  };
+  auto tip = std::make_shared<patchy::BrushTip>();
+  tip->width = 3;
+  tip->height = 3;
+  tip->mask = {255, 255, 255, 255, 0, 0, 255, 0, 0};  // an L
+  const auto configure = [&tip](patchy::ui::CanvasWidget& canvas, const Case& c) {
+    canvas.set_tool(patchy::ui::CanvasTool::Brush);
+    canvas.set_primary_color(Qt::black);
+    canvas.set_brush_opacity(100);
+    canvas.set_brush_outline_shown(false);
+    canvas.set_brush_size(c.size);
+    canvas.set_brush_softness(c.softness);
+    canvas.set_brush_shape(c.shape);
+    canvas.set_brush_base_shape(c.angle, c.roundness);
+    if (c.tip) {
+      canvas.set_brush_tip(tip, QStringLiteral("test.tiny"));
+    }
+    canvas.set_brush_overlay_shown(true);
+    canvas.set_brush_overlay_opacity(100);
+  };
+  for (const auto zoom : {8, 32}) {
+    for (const auto& c : cases) {
+      patchy::Document document(15, 15, patchy::PixelFormat::rgba8());
+      const auto layer_id =
+          document.add_pixel_layer("Paper", solid_pixels(15, 15, patchy::PixelFormat::rgba8(), QColor(Qt::white)))
+              .id();
+      patchy::ui::CanvasWidget canvas;
+      canvas.resize(640, 640);
+      canvas.set_document(&document);
+      canvas.set_zoom(static_cast<double>(zoom));
+      configure(canvas, c);
+      canvas.show();
+      QApplication::processEvents();
+      const QPoint hover_doc(7, 7);
+      const auto center_of = [&canvas, zoom](QPoint document_point) {
+        return canvas.widget_position_for_document_point(document_point) + QPoint(zoom / 2, zoom / 2);
+      };
+      const auto hover = center_of(hover_doc);
+      send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+      QApplication::processEvents();
+      const auto overlay = canvas.grab().toImage();
+      if (zoom == 8 && c.size == 1 && c.shape == square && c.softness == 0) {
+        const auto corner = canvas.widget_position_for_document_point(hover_doc - QPoint(5, 5));
+        save_image_artifact("brush_overlay_1px_square_800", overlay.copy(QRect(corner, QSize(11 * zoom, 11 * zoom))));
+      }
+      send_mouse(canvas, QEvent::MouseButtonPress, hover, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(canvas, QEvent::MouseButtonRelease, hover, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      const auto& pixels = std::as_const(*document.find_layer(layer_id)).pixels();
+      int worst = 0;
+      int painted = 0;
+      int shown = 0;
+      for (int y = 2; y <= 12; ++y) {
+        for (int x = 2; x <= 12; ++x) {
+          const auto overlay_red = overlay.pixelColor(center_of(QPoint(x, y))).red();
+          const auto painted_red = static_cast<int>(pixels.pixel(x, y)[0]);
+          worst = std::max(worst, std::abs(overlay_red - painted_red));
+          painted += painted_red < 250 ? 1 : 0;
+          shown += overlay_red < 250 ? 1 : 0;
+        }
+      }
+      if (worst > 6) {
+        std::cerr << "overlay footprint differs: zoom " << zoom << " size " << c.size << " shape "
+                  << static_cast<int>(c.shape) << " soft " << c.softness << " roundness " << c.roundness
+                  << " tip " << c.tip << ": worst " << worst << ", painted " << painted << ", shown " << shown
+                  << '\n';
+      }
+      CHECK(painted > 0);
+      CHECK(worst <= 6);
+    }
+  }
+
+  // Below 100% the overlay is drawn at screen resolution: a few screen pixels at most, never none.
+  for (const auto& c : cases) {
+    patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Paper", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(200, 200);
+    canvas.set_document(&document);
+    canvas.set_zoom(0.5);
+    configure(canvas, c);
+    canvas.show();
+    QApplication::processEvents();
+    const auto hover = canvas.widget_position_for_document_point(QPoint(32, 32));
+    send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto image = canvas.grab().toImage();
+    int shown = 0;
+    for (int y = hover.y() - 8; y <= hover.y() + 8; ++y) {
+      for (int x = hover.x() - 8; x <= hover.x() + 8; ++x) {
+        shown += image.pixelColor(x, y).red() < 250 ? 1 : 0;
+      }
+    }
+    const auto reach = (c.size + 1) / 2 + 1;
+    if (shown < 1 || shown > reach * reach) {
+      std::cerr << "overlay at 50%: size " << c.size << " shape " << static_cast<int>(c.shape) << " soft "
+                << c.softness << " tip " << c.tip << ": " << shown << " screen pixels\n";
+    }
+    CHECK(shown >= 1);
+    CHECK(shown <= reach * reach);
+  }
+}
+
+// A drag stroke lands where the click dab does: centered on the pointer (the press paints the
+// pixel under it, centered on that pixel). Drag points once kept the pointer's document position
+// while the core brushes measure coverage from pixel indices, so every drag dab sat half a pixel
+// down-right of the click dab. Brush (hard Round sizes 2 to 4, Square, Soft) and Eraser.
+void ui_brush_drag_dabs_center_on_pointer() {
+  struct Case {
+    patchy::ui::CanvasTool tool;
+    int size;
+    patchy::BrushShape shape;
+    int softness;
+  };
+  const std::vector<Case> cases = {
+      {patchy::ui::CanvasTool::Brush, 3, patchy::BrushShape::Round, 0},
+      {patchy::ui::CanvasTool::Brush, 2, patchy::BrushShape::Round, 0},
+      {patchy::ui::CanvasTool::Brush, 4, patchy::BrushShape::Round, 0},
+      {patchy::ui::CanvasTool::Brush, 3, patchy::BrushShape::Square, 0},
+      {patchy::ui::CanvasTool::Brush, 7, patchy::BrushShape::Round, 50},
+      {patchy::ui::CanvasTool::Eraser, 3, patchy::BrushShape::Round, 0},
+  };
+  for (const auto& c : cases) {
+    const auto erase = c.tool == patchy::ui::CanvasTool::Eraser;
+    patchy::Document document(48, 24, patchy::PixelFormat::rgba8());
+    const auto layer_id = document
+                              .add_pixel_layer("Paper", solid_pixels(48, 24, patchy::PixelFormat::rgba8(),
+                                                                     erase ? QColor(Qt::black) : QColor(Qt::white)))
+                              .id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(460, 260);
+    canvas.set_document(&document);
+    canvas.set_zoom(8.0);
+    canvas.set_tool(c.tool);
+    canvas.set_primary_color(Qt::black);
+    canvas.set_brush_opacity(100);
+    canvas.set_brush_size(c.size);
+    canvas.set_brush_softness(c.softness);
+    canvas.set_brush_shape(c.shape);
+    canvas.show();
+    QApplication::processEvents();
+    const auto center_of = [&canvas](QPoint document_point) {
+      return canvas.widget_position_for_document_point(document_point) + QPoint(4, 4);
+    };
+    constexpr int kRow = 12;
+    send_mouse(canvas, QEvent::MouseButtonPress, center_of(QPoint(8, kRow)), Qt::LeftButton, Qt::LeftButton);
+    for (int x = 9; x <= 40; ++x) {
+      send_mouse(canvas, QEvent::MouseMove, center_of(QPoint(x, kRow)), Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(canvas, QEvent::MouseButtonRelease, center_of(QPoint(40, kRow)), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    if (c.tool == patchy::ui::CanvasTool::Brush && c.size == 3 && c.shape == patchy::BrushShape::Round) {
+      // The press dab at the left end, the dragged band to its right.
+      const auto corner = canvas.widget_position_for_document_point(QPoint(4, kRow - 4));
+      save_image_artifact("brush_drag_size3_800", canvas.grab().toImage().copy(QRect(corner, QSize(14 * 8, 9 * 8))));
+    }
+    const auto& pixels = std::as_const(*document.find_layer(layer_id)).pixels();
+    const auto change = [&pixels, erase](int y) {
+      const auto* px = pixels.pixel(24, y);
+      return erase ? 255 - static_cast<int>(px[3]) : 255 - static_cast<int>(px[0]);
+    };
+    int solid_rows = 0;
+    int worst = 0;
+    for (int k = 1; k <= 6; ++k) {
+      worst = std::max(worst, std::abs(change(kRow - k) - change(kRow + k)));
+    }
+    for (int y = kRow - 6; y <= kRow + 6; ++y) {
+      solid_rows += change(y) > 128 ? 1 : 0;
+    }
+    if (worst > 12) {
+      std::cerr << "drag band off center: tool " << static_cast<int>(c.tool) << " size " << c.size << " shape "
+                << static_cast<int>(c.shape) << " soft " << c.softness << ": worst " << worst << '\n';
+    }
+    CHECK(change(kRow) > 200);
+    CHECK(worst <= 12);
+    if (c.softness == 0) {
+      CHECK(solid_rows == 2 * (c.size / 2) + 1);
+    }
+  }
+}
+
 void ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab() {
   patchy::Document document(200, 120, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint",
@@ -4685,6 +4889,9 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_brush_smoothing_options_bar_round_trips_settings},
       {"ui_brush_overlay_gear_defaults_off_and_persists", ui_brush_overlay_gear_defaults_off_and_persists},
       {"ui_brush_overlay_draws_dab_in_foreground_color", ui_brush_overlay_draws_dab_in_foreground_color},
+      {"ui_brush_overlay_small_dabs_match_painted_footprint",
+       ui_brush_overlay_small_dabs_match_painted_footprint},
+      {"ui_brush_drag_dabs_center_on_pointer", ui_brush_drag_dabs_center_on_pointer},
       {"ui_brush_overlay_show_outline_off_removes_outline", ui_brush_overlay_show_outline_off_removes_outline},
       {"ui_brush_overlay_opacity_row_matches_menu_background",
        ui_brush_overlay_opacity_row_matches_menu_background},

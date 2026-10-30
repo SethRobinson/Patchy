@@ -643,7 +643,7 @@ void ui_script_advanced_brush_pen_pose_and_dab_cancellation() {
     CHECK(run_script(window,"app.activeDocument.undo();"));canvas->apply_script_brush(library.resolve(settings));
     canvas->set_brush_dynamics_test_seed(0);
     const auto tablet=[&](QEvent::Type type,QPoint p,double pressure,float tilt_x,float tilt_y,double rotation,float wheel) {
-      patchy::test::ui::send_tablet(*canvas,type,canvas->widget_position_for_document_point(p),pressure,
+      patchy::test::ui::send_tablet(*canvas,type,patchy::test::ui::widget_center_of_document_pixel(*canvas,p),pressure,
         type==QEvent::TabletMove?Qt::NoButton:Qt::LeftButton,type==QEvent::TabletRelease?Qt::NoButton:Qt::LeftButton,
         Qt::NoModifier,QPointingDevice::PointerType::Pen,
         QInputDevice::Capability::Position|QInputDevice::Capability::Pressure|QInputDevice::Capability::XTilt|
@@ -699,7 +699,7 @@ void ui_script_advanced_brush_native_parity() {
     const auto scripted=patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
     CHECK(run_script(window,"app.activeDocument.undo();"));
     canvas->apply_script_brush(library.resolve(config));canvas->set_brush_dynamics_test_seed(21);
-    patchy::test::ui::drag_document_path(*canvas,{{12,20},{35,66},{78,36}},1);
+    patchy::test::ui::drag_document_pixel_centers(*canvas,{{12,20},{35,66},{78,36}},1);
     const auto native=patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
     if (!std::equal(scripted.data().begin(),scripted.data().end(),native.data().begin(),native.data().end())) {
       QImage(scripted.data().data(),96,96,96*4,QImage::Format_RGBA8888).save("test-artifacts/advanced-scripted.png");
@@ -895,13 +895,13 @@ void ui_script_automation_strokes_match_native_and_undo() {
           canvas->set_brush_dynamics_test_seed(9);
           if (pressure) {
             using patchy::test::ui::send_tablet;
-            const auto point = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x,y)); };
+            const auto point = [&](int x, int y) { return patchy::test::ui::widget_center_of_document_pixel(*canvas, QPoint(x,y)); };
             send_tablet(*canvas, QEvent::TabletPress, point(12,20), 0.1);
             send_tablet(*canvas, QEvent::TabletMove, point(35,40), 1.0, Qt::NoButton);
             send_tablet(*canvas, QEvent::TabletMove, point(50,18), 0.3, Qt::NoButton);
             send_tablet(*canvas, QEvent::TabletRelease, point(50,18), 0.3, Qt::LeftButton, Qt::NoButton);
           } else {
-            patchy::test::ui::drag_document_path(*canvas, {{12,20},{35,40},{50,18}}, 1);
+            patchy::test::ui::drag_document_pixel_centers(*canvas, {{12,20},{35,40},{50,18}}, 1);
           }
           const auto native = patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
           if (!std::equal(scripted.data().begin(), scripted.data().end(), native.data().begin(), native.data().end())) {
@@ -999,7 +999,7 @@ void ui_script_automation_pressure_seed_selection_palette() {
   canvas->set_brush_smoothing(0);
   canvas->set_pen_input_settings({});
   using patchy::test::ui::send_tablet;
-  const auto point = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x,y)); };
+  const auto point = [&](int x, int y) { return patchy::test::ui::widget_center_of_document_pixel(*canvas, QPoint(x,y)); };
   send_tablet(*canvas, QEvent::TabletPress, point(3,20), 0.1);
   send_tablet(*canvas, QEvent::TabletMove, point(24,20), 1.0, Qt::NoButton);
   send_tablet(*canvas, QEvent::TabletMove, point(58,20), 0.3, Qt::NoButton);
@@ -1009,7 +1009,7 @@ void ui_script_automation_pressure_seed_selection_palette() {
   canvas->set_brush_opacity(100);
   canvas->set_brush_flow(100);
   canvas->set_brush_softness(0);
-  patchy::test::ui::drag_document_path(*canvas, {{20,10},{20,35}}, 1);
+  patchy::test::ui::drag_document_pixel_centers(*canvas, {{20,10},{20,35}}, 1);
   const auto native = patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
   CHECK(std::equal(first.data().begin(), first.data().end(), native.data().begin(), native.data().end()));
   patchy::ui::MainWindowTestAccess::undo(window);

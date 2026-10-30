@@ -570,6 +570,14 @@ QPointF CanvasWidget::document_position_f(QPointF widget_position) const {
   return QPointF((widget_position.x() - pan_.x()) / zoom_, (widget_position.y() - pan_.y()) / zoom_);
 }
 
+QPointF CanvasWidget::stroke_position_f(QPointF widget_position) const {
+  return document_position_f(widget_position) - QPointF(0.5, 0.5);
+}
+
+QPointF CanvasWidget::widget_position_for_stroke_point(QPointF stroke_point) const {
+  return widget_position_f(stroke_point + QPointF(0.5, 0.5));
+}
+
 QPoint CanvasWidget::widget_position(const QPoint& document_position) const {
   return QPoint(static_cast<int>(std::round(pan_.x() + static_cast<double>(document_position.x()) * zoom_)),
                 static_cast<int>(std::round(pan_.y() + static_cast<double>(document_position.y()) * zoom_)));

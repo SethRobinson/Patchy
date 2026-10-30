@@ -850,7 +850,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   const auto document_point = document_position(event->pos());
-  const auto document_point_f = document_position_f(event->position());
+  const auto document_point_f = stroke_position_f(event->position());
   const auto effective_tool = effective_tool_for_input();
   const auto quick_mask_tool_is_unavailable = [](CanvasTool tool) {
     switch (tool) {
@@ -2111,7 +2111,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   }
 
   const auto document_point = document_position(event->pos());
-  const auto document_point_f = document_position_f(event->position());
+  const auto document_point_f = stroke_position_f(event->position());
   const auto effective_tool = effective_tool_for_input();
   if (dragging_text_rect_) {
     clear_move_hover_outline();
@@ -2130,7 +2130,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     // review (docs/legal-constraints.md, "Brush behavior").
     std::vector<QRect> dirty;
     for (const auto& position : coalesced_stroke_positions(*event)) {
-      dirty.push_back(advance_paint_stroke(document_position(position.toPoint()), document_position_f(position),
+      dirty.push_back(advance_paint_stroke(document_position(position.toPoint()), stroke_position_f(position),
                                            event->modifiers(), effective_tool));
     }
     dirty.push_back(advance_paint_stroke(document_point, document_point_f, event->modifiers(), effective_tool));
@@ -2862,7 +2862,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (painting_) {
     QRect dirty;
     const auto document_point = document_position(event->pos());
-    const auto document_point_f = document_position_f(event->position());
+    const auto document_point_f = stroke_position_f(event->position());
     const auto effective_tool = effective_tool_for_input();
     if (effective_tool == CanvasTool::Clone || effective_tool == CanvasTool::Healing) {
       const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
