@@ -2836,6 +2836,68 @@ void ui_screen_modes_return_to_maximized() {
 #endif
 }
 
+// The route of the GitHub issue 491 follow-up (KDE Plasma): a maximized window, the tool
+// palette's screen mode button into Full Screen with Menus, Escape back, twice; it comes back
+// maximized. On Linux the window keeps its maximized state under full screen, so a Wayland
+// compositor is asked only to enter and leave full screen (KWin ignores a maximize that
+// arrives while the window is still full screen). A window that was not maximized comes
+// back at its own size.
+void ui_screen_modes_palette_button_and_escape_return_to_maximized() {
+  using patchy::ui::MainWindow;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("screenModeButton"));
+  CHECK(button != nullptr);
+  if (button == nullptr) {
+    return;
+  }
+  const auto round_trip = [&](const char* how, bool maximized, const QRect& expected) {
+    QTest::mouseClick(button, Qt::LeftButton);
+    process_events_for(50);
+    CHECK(window.screen_mode() == MainWindow::ScreenMode::FullScreenWithMenus);
+    CHECK(window.isFullScreen());
+#ifdef Q_OS_LINUX
+    CHECK(window.windowState().testFlag(Qt::WindowMaximized) == maximized);
+#endif
+    canvas = require_canvas(window);
+    canvas->setFocus();
+    send_key(*canvas, Qt::Key_Escape);
+    const bool back = process_events_until([&] {
+      return window.screen_mode() == MainWindow::ScreenMode::Standard && !window.isFullScreen() &&
+             window.isMaximized() == maximized && window.geometry() == expected;
+    });
+    if (!back) {
+      patchy::test::report_failure(
+          QStringLiteral("%1: maximized %2, full screen %3, geometry %4,%5 %6x%7, expected %8,%9 %10x%11")
+              .arg(QString::fromLatin1(how))
+              .arg(window.isMaximized())
+              .arg(window.isFullScreen())
+              .arg(window.geometry().x())
+              .arg(window.geometry().y())
+              .arg(window.geometry().width())
+              .arg(window.geometry().height())
+              .arg(expected.x())
+              .arg(expected.y())
+              .arg(expected.width())
+              .arg(expected.height())
+              .toStdString());
+    }
+  };
+
+  window.showMaximized();
+  CHECK(process_events_until([&window] { return window.isMaximized(); }));
+  process_events_for(100);
+  const auto maximized_geometry = window.geometry();
+  round_trip("first trip", true, maximized_geometry);
+  round_trip("second trip", true, maximized_geometry);
+
+  window.showNormal();
+  CHECK(process_events_until([&window] { return !window.isMaximized(); }));
+  process_events_for(100);
+  const auto normal_geometry = window.geometry();
+  CHECK(normal_geometry != maximized_geometry);
+  round_trip("from a normal window", false, normal_geometry);
+}
+
 // In Full Screen with Menus the menu bar is still the custom title bar (Windows and Linux):
 // a double-click on its blank part returns to Standard, where it would maximize or
 // restore (GitHub issue 212 follow-up). A click or a drag there does nothing, and a
@@ -5291,6 +5353,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_reset_panels_keeps_the_window_geometry", ui_reset_panels_keeps_the_window_geometry},
       {"ui_screen_modes_cycle_hide_chrome_and_restore_standard", ui_screen_modes_cycle_hide_chrome_and_restore_standard},
       {"ui_screen_modes_return_to_maximized", ui_screen_modes_return_to_maximized},
+      {"ui_screen_modes_palette_button_and_escape_return_to_maximized",
+       ui_screen_modes_palette_button_and_escape_return_to_maximized},
       {"ui_screen_modes_escape_and_context_menu_return_to_standard", ui_screen_modes_escape_and_context_menu_return_to_standard},
       {"ui_screen_modes_title_bar_double_click_returns_to_standard", ui_screen_modes_title_bar_double_click_returns_to_standard},
       {"ui_screen_mode_button_cycles_and_lists_modes", ui_screen_mode_button_cycles_and_lists_modes},

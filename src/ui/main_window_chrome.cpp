@@ -1255,7 +1255,20 @@ void MainWindow::set_screen_mode(ScreenMode mode) {
   } else {
     apply_screen_mode_chrome(mode);
     if (!isFullScreen()) {
+#ifdef Q_OS_LINUX
+      // showFullScreen() drops the maximized state, so a Wayland compositor unzooms the
+      // window, and KWin ignores the set_maximized that showMaximized() sends ahead of
+      // unset_fullscreen on the way back: the window came back at its normal size (GitHub
+      // issue 491, Plasma). Keep the maximized state under full screen instead: Qt then
+      // sends only set_fullscreen, and leaving sends only unset_fullscreen.
+      if (isMaximized()) {
+        setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowFullScreen);
+      } else {
+        showFullScreen();
+      }
+#else
       showFullScreen();
+#endif
     }
     show_screen_mode_hint();
   }
