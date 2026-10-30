@@ -28372,6 +28372,14 @@ Locked: %1</source>
         <source>Show Outline</source>
         <translation>輪郭を表示</translation>
     </message>
+    <message>
+        <source>Open image transparency as a layer mask</source>
+        <translation>画像の透明部分をレイヤーマスクとして開く</translation>
+    </message>
+    <message>
+        <source>When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable layer mask over opaque colors, and saving the image writes the mask back as its transparency. When disabled, the image opens as an ordinary transparent layer.</source>
+        <translation>有効にすると、PNG、WebP、TIFF などのフラット画像の透明部分は、不透明なカラーの上の編集可能なレイヤーマスクとして開き、画像を保存するとマスクが透明部分として書き戻されます。無効にすると、画像は通常の透明なレイヤーとして開きます。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

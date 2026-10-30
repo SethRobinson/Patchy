@@ -207,7 +207,7 @@ void ui_layer_panel_file_drop_adds_layers_at_drop_position() {
   show_window_empty(window);
   const auto target = open_target(window);
   const auto a = write_image(QStringLiteral("a.png"), 20, 12, QColor(200, 30, 30, 255));
-  // A translucent file: its flat alpha becomes a layer mask on open.
+  // A translucent file: its alpha stays the layer's own transparency (GitHub issue 534).
   const auto b = write_image(QStringLiteral("b.png"), 8, 8, QColor(30, 200, 30, 128));
 
   bool saw_progress = false;
@@ -229,7 +229,8 @@ void ui_layer_panel_file_drop_adds_layers_at_drop_position() {
   CHECK(a_layer.bounds().width == 20 && a_layer.bounds().height == 12);
   const auto& b_layer = document.layers()[2];
   CHECK(b_layer.bounds().width == 8 && b_layer.bounds().height == 8);
-  CHECK(b_layer.mask().has_value());
+  CHECK(!b_layer.mask().has_value());
+  CHECK(b_layer.pixels().format().channels == 4 && b_layer.pixels().pixel(0, 0)[3] == 128);
   CHECK(document.active_layer_id() == b_layer.id());
   CHECK(target.layer_list->selectedItems().size() == 2);
   CHECK(require_layer_item(*target.layer_list, QStringLiteral("a"))->isSelected());

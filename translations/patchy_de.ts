@@ -28454,6 +28454,14 @@ Fixiert: %1</translation>
         <source>Show Outline</source>
         <translation>Umriss anzeigen</translation>
     </message>
+    <message>
+        <source>Open image transparency as a layer mask</source>
+        <translation>Bildtransparenz als Ebenenmaske öffnen</translation>
+    </message>
+    <message>
+        <source>When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable layer mask over opaque colors, and saving the image writes the mask back as its transparency. When disabled, the image opens as an ordinary transparent layer.</source>
+        <translation>Wenn aktiviert, öffnet sich die Transparenz eines PNG-, WebP-, TIFF- oder anderen flachen Bildes als bearbeitbare Ebenenmaske über deckenden Farben, und beim Speichern wird die Maske wieder als Transparenz geschrieben. Wenn deaktiviert, öffnet sich das Bild als gewöhnliche transparente Ebene.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

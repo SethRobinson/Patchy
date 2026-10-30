@@ -28454,6 +28454,14 @@ Bloqueada: %1</translation>
         <source>Show Outline</source>
         <translation>Mostrar contorno</translation>
     </message>
+    <message>
+        <source>Open image transparency as a layer mask</source>
+        <translation>Abrir la transparencia de la imagen como máscara de capa</translation>
+    </message>
+    <message>
+        <source>When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable layer mask over opaque colors, and saving the image writes the mask back as its transparency. When disabled, the image opens as an ordinary transparent layer.</source>
+        <translation>Si se activa, la transparencia de una imagen PNG, WebP, TIFF u otra imagen plana se abre como una máscara de capa editable sobre colores opacos, y al guardar la imagen la máscara se vuelve a escribir como su transparencia. Si se desactiva, la imagen se abre como una capa transparente normal.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

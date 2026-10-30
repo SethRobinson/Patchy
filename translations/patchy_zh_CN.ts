@@ -28372,6 +28372,14 @@ Locked: %1</source>
         <source>Show Outline</source>
         <translation>显示轮廓</translation>
     </message>
+    <message>
+        <source>Open image transparency as a layer mask</source>
+        <translation>将图像透明度打开为图层蒙版</translation>
+    </message>
+    <message>
+        <source>When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable layer mask over opaque colors, and saving the image writes the mask back as its transparency. When disabled, the image opens as an ordinary transparent layer.</source>
+        <translation>启用后，PNG、WebP、TIFF 或其他平面图像的透明度会作为不透明颜色上方可编辑的图层蒙版打开，保存图像时蒙版会写回为其透明度。停用后，图像会作为普通的透明图层打开。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -28454,6 +28454,14 @@ Verrouillé : %1</translation>
         <source>Show Outline</source>
         <translation>Afficher le contour</translation>
     </message>
+    <message>
+        <source>Open image transparency as a layer mask</source>
+        <translation>Ouvrir la transparence de l&apos;image comme masque de fusion</translation>
+    </message>
+    <message>
+        <source>When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable layer mask over opaque colors, and saving the image writes the mask back as its transparency. When disabled, the image opens as an ordinary transparent layer.</source>
+        <translation>Si cette option est activée, la transparence d&apos;une image PNG, WebP, TIFF ou d&apos;une autre image à plat s&apos;ouvre comme un masque de fusion modifiable sur des couleurs opaques, et l&apos;enregistrement de l&apos;image réécrit le masque comme sa transparence. Si elle est désactivée, l&apos;image s&apos;ouvre comme un calque transparent ordinaire.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

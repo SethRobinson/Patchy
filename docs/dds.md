@@ -102,10 +102,11 @@ Alpha is a first-class requirement of this format (Seth, October 2026):
 1. Every alpha-bearing source puts its alpha into an `rgba8` layer (masked RGBA, A8, A8L8,
    BC1's punch-through texels, BC2's 4-bit alpha times 17, BC3, BC7, the DX10 RGBA, 16-bit,
    5551, 4444 and 1010102 formats, float alpha as linear coverage). Sources without alpha
-   produce `rgb8`. `load_document_from_path` then runs `promote_flat_alpha_to_layer_mask`
-   like for every flat format, so a translucent texture opens as an opaque RGB layer plus
-   an editable layer mask carrying the document-alpha marker, and an RGBA file whose alpha
-   is 255 everywhere opens as plain RGB.
+   produce `rgb8`. `load_document_from_path` then runs `prepare_flat_image_alpha` like for
+   every flat format, so a translucent texture opens as a transparent `rgba8` layer (with
+   `imports/flatAlphaAsLayerMask` on: an opaque RGB layer plus an editable layer mask
+   carrying the document-alpha marker), and an RGBA file whose alpha is 255 everywhere
+   opens as plain RGB.
 2. `DXT2`, `DXT4` and a DX10 header whose `miscFlags2 & 7` is 2 (DDS_ALPHA_MODE_PREMULTIPLIED)
    are un-premultiplied after decoding with the integer rule `a == 0: rgb = 0`, otherwise
    `c' = min(255, (c * 255 + a / 2) / a)`, with one notice per document. Mode 3 (OPAQUE)

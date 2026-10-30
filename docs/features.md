@@ -8,6 +8,7 @@
 - 8, 16, and 32-bit (linear HDR) editing: 16 and 32-bit PSD/PSB files edit and save at their depth, Image > Mode converts between depths (leaving 32 bits offers HDR Toning), and New Document starts at 8 bits with a Bit Depth choice. 16-bit PNG and TIFF open and export at 16 bits; 32-bit documents export float TIFF. The browser build stops at 16 bits and opens 32-bit files converted to 16
 - CMYK, Grayscale, Lab, Bitmap, Indexed, Duotone, and Multichannel Photoshop documents convert to RGB on open (unedited CMYK PSDs save as CMYK; untagged Grayscale is Dot Gain 20%)
 - An opaque Background layer locks position and transparency like Photoshop's, so the Eraser paints the background color, and Image > Flatten Image merges the visible layers into it
+- Transparent flat images (PNG, WebP...) open as a transparent layer; a Preferences option opens their alpha as a layer mask
 - Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold, Exposure, Channel Mixer, Photo Filter, Gradient Map, Black & White, Color Lookup from embedded tables or a .cube or .3dl file, Selective Color, and Vibrance) with live preview, editable settings, native Photoshop PSD data, and .acv Curves preset import and export
 - One-step Image > Adjustments commands with no dialog: Invert (Ctrl+I), Auto Tone, Auto Contrast, Auto Color, and Auto All, on the active layer or the selection
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (blur, sharpen, noise, distort, stylize, pixelate and render filters plus Image > Adjustments commands) with paintable shared masks and per-filter blending
@@ -141,8 +142,7 @@ their original format.
 | **Layered TIFF** (.tif, .tiff) | Open and save | Photoshop-style layer data at 8, 16, and 32 bits, including supported text, masks, and effects. Choose Keep Layers when saving; other TIFF readers may show only the merged image. [TIFF details](tiff.md) |
 | **Aseprite** (.ase, .aseprite) | Open and save | The first frame's pixel layers, groups, opacity, and supported blend modes. Saves are a single frame at 8 bits, with procedural content rasterized. [Format details](file-formats.md#per-format-catalogue) |
 
-OpenRaster can exchange layered paintings with applications such as Krita and GIMP
-in both directions; Krita and GIMP files open directly. Keep a PSD master when you need
+Keep a PSD master when you need
 Patchy's editable text, effects, masks, or Smart Objects. Import notices and save
 warnings describe conversions that affect a particular document.
 

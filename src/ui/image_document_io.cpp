@@ -1484,6 +1484,10 @@ Document document_from_qimage(const QImage& image, std::string layer_name) {
 }
 
 bool promote_flat_alpha_to_layer_mask(Document& document) {
+  return prepare_flat_image_alpha(document, /*alpha_as_layer_mask*/ true);
+}
+
+bool prepare_flat_image_alpha(Document& document, bool alpha_as_layer_mask) {
   // Only flat single-layer imports are eligible. Multi-layer documents (and layers that
   // already produced a mask) carry their own per-layer transparency/masks and must be
   // left alone, and so must text layers and smart objects: their raster is a preview of
@@ -1521,6 +1525,9 @@ bool promote_flat_alpha_to_layer_mask(Document& document) {
         max_alpha = std::max(max_alpha, alpha);
       }
     }
+    if (!alpha_as_layer_mask && max_alpha > 0.0F && min_alpha < 1.0F) {
+      return false;  // meaningful alpha stays the layer's own transparency
+    }
     PixelBuffer deep_rgb(width, height, with_bit_depth(PixelFormat::rgb8(), format.bit_depth));
     PixelBuffer deep_mask(width, height, with_bit_depth(PixelFormat::gray8(), format.bit_depth));
     std::vector<float> row(static_cast<std::size_t>(width) * 4U);
@@ -1557,6 +1564,9 @@ bool promote_flat_alpha_to_layer_mask(Document& document) {
     }
   }
   const bool meaningful = max_alpha > 0 && min_alpha < 255;
+  if (meaningful && !alpha_as_layer_mask) {
+    return false;  // meaningful alpha stays the layer's own transparency
+  }
 
   std::optional<PixelBuffer> mask_pixels;
   if (meaningful) {

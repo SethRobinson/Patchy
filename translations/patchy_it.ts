@@ -28454,6 +28454,14 @@ Bloccato: %1</translation>
         <source>Show Outline</source>
         <translation>Mostra contorno</translation>
     </message>
+    <message>
+        <source>Open image transparency as a layer mask</source>
+        <translation>Apri la trasparenza dell&apos;immagine come maschera di livello</translation>
+    </message>
+    <message>
+        <source>When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable layer mask over opaque colors, and saving the image writes the mask back as its transparency. When disabled, the image opens as an ordinary transparent layer.</source>
+        <translation>Se attivata, la trasparenza di un&apos;immagine PNG, WebP, TIFF o di un&apos;altra immagine piatta si apre come maschera di livello modificabile sopra colori opachi, e il salvataggio dell&apos;immagine riscrive la maschera come sua trasparenza. Se disattivata, l&apos;immagine si apre come un normale livello trasparente.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
