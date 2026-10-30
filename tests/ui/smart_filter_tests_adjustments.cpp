@@ -74,9 +74,8 @@ void ui_smart_filter_adjustment_entry_edits_with_its_dialog() {
   save_widget_artifact("ui_smart_filter_adjustment_row", *row());
 
   bool edited = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLevelsDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyLevelsDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
     auto* gamma = dialog->findChild<QSpinBox*>(QStringLiteral("levelsGammaSpin"));
     auto* white = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteInputSpin"));

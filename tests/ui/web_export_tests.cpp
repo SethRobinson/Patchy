@@ -692,8 +692,9 @@ void ui_web_export_engine_drops_stale_requests() {
   const auto current = patchy::ui::web_export_job(second, WebExportFormat::Jpeg, size);
   engine.request({current});
   CHECK(wait_until([&engine] { return !engine.busy(); }));
-  // At most the job already handed to a worker ran besides the current one.
-  CHECK(engine.encodes_started() <= 2);
+  // Besides the current one, at most the job each of the two lanes had already handed to its
+  // worker ran (docs/web-export.md); a fast host starts both before the new request lands.
+  CHECK(engine.encodes_started() <= 3);
   CHECK(engine.cached(current.signature).has_value());
   CHECK(!engine.cached(stale_png).has_value());
   CHECK(!reported.empty() && reported.back() == current.signature);

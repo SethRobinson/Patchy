@@ -1131,6 +1131,71 @@ QDialog* find_top_level_dialog(const QString& object_name) {
   return nullptr;
 }
 
+void when_dialog_visible(const QString& object_name, std::function<void(QDialog&)> drive, int timeout_ms) {
+  auto* poll = new QTimer(qApp);
+  poll->setInterval(10);
+  auto elapsed = std::make_shared<QElapsedTimer>();
+  elapsed->start();
+  QObject::connect(poll, &QTimer::timeout, poll, [poll, elapsed, object_name, timeout_ms, drive = std::move(drive)] {
+    QPointer<QDialog> dialog = find_top_level_dialog(object_name);
+    if (dialog == nullptr || !dialog->isVisible()) {
+      if (elapsed->elapsed() > timeout_ms) {
+        poll->stop();
+        poll->deleteLater();
+        // A different modal dialog in its place would park the test until the watchdog.
+        std::string instead;
+        if (auto* modal = qobject_cast<QDialog*>(QApplication::activeModalWidget()); modal != nullptr) {
+          instead = " (" + modal->objectName().toStdString() + " was open instead and was rejected)";
+          modal->reject();
+        }
+        report_failure("dialog " + object_name.toStdString() + " did not appear within " +
+                       std::to_string(timeout_ms) + " ms" + instead);
+      }
+      return;
+    }
+    poll->stop();
+    poll->deleteLater();
+    // One more pass, so the dialog's own deferred setup (0 ms timers armed before its loop) runs first.
+    QTimer::singleShot(0, [dialog, object_name, drive] {
+      if (dialog == nullptr) {
+        report_failure("dialog " + object_name.toStdString() + " closed before it could be driven");
+        return;
+      }
+      try {
+        drive(*dialog);
+      } catch (const std::exception& failure) {
+        report_failure(failure.what());
+        if (dialog != nullptr && dialog->isVisible()) {
+          dialog->reject();
+        }
+      }
+    });
+  });
+  poll->start();
+}
+
+void print_shape_drag_state(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas, const char* label) {
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  auto* current = dynamic_cast<patchy::ui::CanvasWidget*>(window.centralWidget());
+  if (current == nullptr) {
+    if (auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs")); tabs != nullptr) {
+      current = dynamic_cast<patchy::ui::CanvasWidget*>(tabs->currentWidget());
+    }
+  }
+  std::printf("  shape drag state (%s): canvas is current %d, tool %d, vector mode %d, style %d, edit target %d, "
+              "quick mask %d, zoom %.4f, %zu layers\n",
+              label, current == &canvas ? 1 : 0, static_cast<int>(canvas.tool()),
+              static_cast<int>(canvas.vector_tool_mode()), static_cast<int>(canvas.shape_style()),
+              static_cast<int>(canvas.layer_edit_target()), canvas.quick_mask_active() ? 1 : 0, canvas.zoom(),
+              document.layers().size());
+  for (const auto& layer : document.layers()) {
+    std::printf("    layer %llu '%s' kind %d%s\n", static_cast<unsigned long long>(layer.id()), layer.name().c_str(),
+                static_cast<int>(layer.kind()),
+                document.active_layer_id() == layer.id() ? " (active)" : "");
+  }
+  std::fflush(stdout);
+}
+
 QListWidget* preferences_page_list(QWidget& dialog) {
   return dialog.findChild<QListWidget*>(QStringLiteral("preferencesPageList"));
 }
@@ -2779,24 +2844,15 @@ void accept_color_balance_dialog(int cyan_red_value, int magenta_green_value, in
 }
 
 void accept_filter_dialog(std::vector<std::pair<QString, int>> spin_values) {
-  QTimer::singleShot(0, [spin_values = std::move(spin_values)] {
-    for (auto* widget : QApplication::topLevelWidgets()) {
-      if (widget->objectName() != QStringLiteral("patchyFilterDialog")) {
-        continue;
-      }
-      auto* dialog = qobject_cast<QDialog*>(widget);
-      CHECK(dialog != nullptr);
-      CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("filterPreviewCheck")) != nullptr);
-      for (const auto& [object_name, value] : spin_values) {
-        auto* spin = dialog->findChild<QSpinBox*>(object_name);
-        CHECK(spin != nullptr);
-        spin->setValue(value);
-      }
-      QApplication::processEvents();
-      dialog->accept();
-      return;
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [spin_values = std::move(spin_values)](QDialog& dialog) {
+    CHECK(dialog.findChild<QCheckBox*>(QStringLiteral("filterPreviewCheck")) != nullptr);
+    for (const auto& [object_name, value] : spin_values) {
+      auto* spin = dialog.findChild<QSpinBox*>(object_name);
+      CHECK(spin != nullptr);
+      spin->setValue(value);
     }
-    CHECK(false);
+    QApplication::processEvents();
+    dialog.accept();
   });
 }
 

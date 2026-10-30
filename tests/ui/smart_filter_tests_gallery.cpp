@@ -65,9 +65,8 @@ void ui_smart_filter_gallery_plastic_wrap_edits_in_place() {
   const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   bool edited = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* highlight = dialog->findChild<QSpinBox*>(QStringLiteral("filterHighlightStrengthSpin"));
     auto* detail = dialog->findChild<QSpinBox*>(QStringLiteral("filterDetailSpin"));
     auto* smoothness = dialog->findChild<QSpinBox*>(QStringLiteral("filterSmoothnessSpin"));

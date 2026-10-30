@@ -3189,6 +3189,9 @@ void ui_layer_via_copy_without_selection_duplicates_the_layer() {
   QApplication::processEvents();
   const auto shape_id = std::as_const(Access::document(window)).active_layer_id().value_or(0);
   const auto* shape = std::as_const(Access::document(window)).find_layer(shape_id);
+  if (shape == nullptr || !patchy::layer_is_vector_shape(*shape)) {
+    patchy::test::ui::print_shape_drag_state(window, *canvas, "via copy");
+  }
   CHECK(shape != nullptr && patchy::layer_is_vector_shape(*shape));
   if (shape == nullptr) {
     return;

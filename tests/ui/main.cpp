@@ -31,14 +31,18 @@
 #include "ui/theme_manager.hpp"
 #include <QApplication>
 #include <QByteArray>
+#include <QDialog>
 #include <QDir>
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QLockFile>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QPushButton>
 #include <QSettings>
 #include <QString>
+#include <QThread>
+#include <QTimer>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -492,6 +496,36 @@ int main(int argc, char* argv[]) {
                        box.exec();
                      }});
   }
+
+  // when_dialog_visible drives a dialog whose opener defers through the event loop and pumps
+  // events before showing it, the shape of the smart filter Edit button that failed on slow
+  // hosts. A fixed 20 ms driver armed the same way fires before the dialog exists.
+  tests.push_back({"ui_test_harness_when_dialog_visible_waits_for_a_deferred_opener", [] {
+                     QPushButton opener(QStringLiteral("Open"));
+                     QObject::connect(&opener, &QPushButton::clicked, &opener, [] {
+                       QTimer::singleShot(0, [] {
+                         QThread::msleep(60);              // building the dialog takes a while
+                         QApplication::processEvents();  // and pumps events before it shows
+                         QDialog dialog;
+                         dialog.setObjectName(QStringLiteral("deferredOpenerSelftestDialog"));
+                         dialog.exec();
+                       });
+                     });
+                     bool fixed_delay_found_dialog = true;
+                     QTimer::singleShot(20, [&fixed_delay_found_dialog] {
+                       fixed_delay_found_dialog = patchy::test::ui::find_top_level_dialog(
+                                                      QStringLiteral("deferredOpenerSelftestDialog")) != nullptr;
+                     });
+                     bool driven = false;
+                     patchy::test::ui::when_dialog_visible(QStringLiteral("deferredOpenerSelftestDialog"),
+                                                           [&driven](QDialog& dialog) {
+                                                             driven = true;
+                                                             dialog.accept();
+                                                           });
+                     opener.click();
+                     CHECK(patchy::test::ui::process_events_until([&driven] { return driven; }));
+                     CHECK(!fixed_delay_found_dialog);
+                   }});
 
   // The filter is a comma-separated list of name substrings (tests/test_harness.hpp,
   // run_test_suite); ordered cross-test repros pick the polluting test and the victim

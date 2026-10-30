@@ -578,6 +578,22 @@ bool process_events_until(const std::function<bool()>& condition, int timeout_ms
 
 QDialog* find_top_level_dialog(const QString& object_name);
 
+// Runs `drive` from inside the event loop of the top-level dialog `object_name` once it is
+// visible, polling every 10 ms for up to `timeout_ms`. Arm it before the action that opens
+// the dialog. Use it instead of a fixed-delay QTimer::singleShot driver: openers that defer
+// through the event loop (a button whose click posts a 0 ms timer) make a fixed delay race
+// the dialog's construction, and a slow host loses (docs/testing.md, "Driving dialogs").
+// A throw inside `drive` is recorded as a failure and rejects the dialog instead of
+// unwinding through Qt's event dispatch; a dialog that never shows is recorded too, and a
+// different modal dialog open in its place is rejected so the test cannot park in it.
+void when_dialog_visible(const QString& object_name, std::function<void(QDialog&)> drive, int timeout_ms = 10000);
+
+// Prints what decides whether a shape drag makes a shape layer (the current canvas, its
+// tool, vector mode, style, edit target, quick mask, zoom, the layers and the active one).
+// Call when a drag that should have made one did not: two tests saw that once on the ARM64
+// host and never again, so the next occurrence must explain itself.
+void print_shape_drag_state(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas, const char* label);
+
 // The Preferences dialog lists its pages down the left (GitHub issue 451): the list
 // (preferencesPageList) and the stacked pages beside it (preferencesPageStack).
 QListWidget* preferences_page_list(QWidget& dialog);

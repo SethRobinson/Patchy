@@ -77,6 +77,13 @@ using namespace patchy::test::ui;
 
 namespace {
 
+// A drop shadow that is only on or off; clang warns on {true} (-Wmissing-field-initializers).
+LayerDropShadow drop_shadow(bool enabled) {
+  LayerDropShadow shadow;
+  shadow.enabled = enabled;
+  return shadow;
+}
+
 VectorShapeContent rectangle(double x, double y, double w, double h, RgbColor color = {20, 80, 140}) {
   LiveShapeParams params;
   params.kind = LiveShapeKind::Rectangle;
@@ -303,7 +310,7 @@ void ui_layer_merge_protected_layers_and_unselected_order_are_barriers() {
   mask.pixels = PixelBuffer(1, 1, PixelFormat::gray8());
   mask.bounds = {0, 0, 1, 1};
   doc.layers()[2].set_mask(mask);
-  doc.layers()[3].layer_style().drop_shadows.push_back({true});
+  doc.layers()[3].layer_style().drop_shadows.push_back(drop_shadow(true));
   doc.layers()[4].set_blend_mode(BlendMode::Multiply);
   doc.layers()[6].set_clipped(true);
   const auto bytes = psd::DocumentIo::write_layered_rgb8(doc);
@@ -394,9 +401,9 @@ Document single_vector_sample() {
     auto layer = vector_layer(doc, shape);
     layer.set_name("Styled " + std::to_string(i + 1));
     layer.set_opacity(0.8F); layer.set_fill_opacity(0.9F);
-    layer.layer_style().drop_shadows.push_back({true});
+    layer.layer_style().drop_shadows.push_back(drop_shadow(true));
     layer.layer_style().drop_shadows[0].distance = static_cast<float>(4 + i * 3);
-    layer.layer_style().drop_shadows.push_back({false});
+    layer.layer_style().drop_shadows.push_back(drop_shadow(false));
     layer.layer_style().blend_interior_elements = i == 2;
     set_layer_effects_reference_point(layer, i * 3, i * 5);
     doc.add_layer(std::move(layer));
@@ -546,7 +553,7 @@ void ui_layer_merge_single_vector_protections_and_group_boundaries() {
   Layer group(doc.allocate_layer_id(), "Enclosing style", LayerKind::Group);
   group.set_blend_mode(BlendMode::Normal);
   group.set_opacity(0.6F);
-  group.layer_style().drop_shadows.push_back({true});
+  group.layer_style().drop_shadows.push_back(drop_shadow(true));
   group.children() = std::as_const(doc).layers();
   doc.layers().clear(); doc.add_layer(group);
   const auto plan = plan_layer_merge(doc, roots(doc), single_vector_options());
@@ -736,7 +743,7 @@ void ui_layer_merge_dialog_explains_separate_effects() {
   for (std::size_t i = 0; i < names.size(); ++i) {
     auto layer = vector_layer(doc, rectangle(10 + 30 * static_cast<int>(i), 10, 20, 20));
     layer.set_name(names[i]);
-    layer.layer_style().drop_shadows.push_back({true});
+    layer.layer_style().drop_shadows.push_back(drop_shadow(true));
     doc.add_layer(std::move(layer));
   }
   auto ids = roots(doc);

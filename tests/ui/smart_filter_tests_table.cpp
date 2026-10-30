@@ -118,10 +118,8 @@ void ui_smart_filter_table_entry_edits_renders_and_saves() {
                   "offset-photoshop-preview.png");
 
   bool edited = false;
-  QTimer::singleShot(20, [&] {
-    auto *dialog = qobject_cast<QDialog *>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto *horizontal =
         dialog->findChild<QSpinBox *>(QStringLiteral("filterHorizontalSpin"));
     auto *vertical =
@@ -253,10 +251,8 @@ void ui_smart_filter_table_random_entries_edit_from_dialogs() {
         QStringLiteral("layerSmartFilterEditButton"));
     CHECK(edit != nullptr && edit->isEnabled());
     bool edited = false;
-    QTimer::singleShot(20, [&] {
-      auto *dialog = qobject_cast<QDialog *>(
-          find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-      CHECK(dialog != nullptr);
+    when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+      auto* dialog = &shown;
       change(*dialog);
       edited = true;
       dialog->accept();

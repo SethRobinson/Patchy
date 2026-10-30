@@ -74,6 +74,13 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
 
 On macOS a menu popped up with `QMenu::popup` leaves the window's shortcuts unmatched for the rest of the test: send shortcut keys before any menu capture.
 
+## Driving dialogs
+
+- A test that answers a modal dialog arms `when_dialog_visible(name, drive)` (tests/ui/ui_test_support.hpp) before the action that opens it. Never arm a fixed-delay `QTimer::singleShot(N, ...)` that looks the dialog up: when the opener defers through the event loop (the smart filter Edit button posts a 0 ms timer, then builds the dialog) or pumps events before showing it, the delay fires first on a slow host and finds nothing. Three smart filter tests failed that way on the ARM64 host in the 1.23 release run; `ui_test_harness_when_dialog_visible_waits_for_a_deferred_opener` reproduces the race. The smart filter tests use the helper; the older fixed-delay drivers elsewhere are converted when they are next touched or when one flakes.
+- The helper records a throw inside `drive` as a failure and rejects the dialog, so a failing check neither crosses Qt's event dispatch nor leaves the test parked in the dialog's loop.
+- A bound on background work counts every worker that can be running: the Export for Web engine has two lanes, so a replaced request can leave two stale encodes started, not one (`ui_web_export_engine_drops_stale_requests`, macOS in 1.23). When a design adds a worker or lane, update the bounds that count them.
+- A full-suite failure that passes on a rerun is a bug in the test or the code: diagnose it and fix the cause, never rerun it away (Seth, October 30, 2026). When it cannot be reproduced, make the failing check print the state that decides it (`print_shape_drag_state`) so the next occurrence explains itself, and record it in the release notes.
+
 ## Failure and lifetime traps
 
 - Timer-driven checks wait for observable state with a bounded deadline: a busy machine

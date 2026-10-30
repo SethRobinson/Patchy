@@ -72,10 +72,8 @@ void ui_gaussian_blur_normal_pixel_layer_stays_destructive() {
   const auto undo_before =
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   bool accepted = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius =
         dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
@@ -130,10 +128,8 @@ void ui_high_pass_normal_pixel_layer_stays_destructive() {
   const auto undo_before =
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   bool accepted = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     auto* slider = dialog->findChild<QSlider*>(
@@ -204,10 +200,8 @@ void ui_median_normal_pixel_layer_stays_destructive() {
   const auto undo_before =
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   bool accepted = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     auto* slider = dialog->findChild<QSlider*>(
@@ -285,21 +279,10 @@ void ui_dust_and_scratches_normal_pixel_layer_stays_destructive() {
   int threshold_minimum = -1;
   int threshold_maximum = -1;
   int threshold_value = -1;
-  QTimer::singleShot(0, [&] {
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
     callback_ran = true;
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    dialog_found = dialog != nullptr;
-    if (dialog == nullptr) {
-      for (auto* widget : QApplication::topLevelWidgets()) {
-        auto* visible_dialog = qobject_cast<QDialog*>(widget);
-        if (visible_dialog != nullptr && visible_dialog->isVisible()) {
-          visible_dialog->reject();
-          break;
-        }
-      }
-      return;
-    }
+    auto* dialog = &shown;
+    dialog_found = true;
     auto* radius =
         dialog->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
     auto* radius_slider =
@@ -393,10 +376,8 @@ void ui_surface_blur_normal_pixel_layer_stays_destructive() {
   const auto undo_before =
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   bool accepted = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     auto* radius_slider = dialog->findChild<QSlider*>(
@@ -462,10 +443,8 @@ void ui_smart_filter_high_pass_add_edit_and_reopen() {
   const auto original_record_count = smart_filter_effect_record_count(document);
 
   bool applied = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     auto* slider = dialog->findChild<QSlider*>(
@@ -525,10 +504,8 @@ void ui_smart_filter_high_pass_add_edit_and_reopen() {
   CHECK(label->toolTip().contains(QStringLiteral("4.25 px")));
 
   bool edited = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
@@ -589,10 +566,8 @@ void ui_smart_filter_median_add_edit_and_reopen() {
   const auto original_record_count = smart_filter_effect_record_count(document);
 
   bool applied = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     auto* slider = dialog->findChild<QSlider*>(
@@ -653,10 +628,8 @@ void ui_smart_filter_median_add_edit_and_reopen() {
   CHECK(label->toolTip().contains(QStringLiteral("2.75 px")));
 
   bool edited = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
@@ -728,21 +701,10 @@ void ui_smart_filter_dust_and_scratches_add_edit_and_reopen() {
   int apply_threshold_minimum = -1;
   int apply_threshold_maximum = -1;
   int apply_threshold_value = -1;
-  QTimer::singleShot(0, [&] {
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
     apply_callback_ran = true;
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    apply_dialog_found = dialog != nullptr;
-    if (dialog == nullptr) {
-      for (auto* widget : QApplication::topLevelWidgets()) {
-        auto* visible_dialog = qobject_cast<QDialog*>(widget);
-        if (visible_dialog != nullptr && visible_dialog->isVisible()) {
-          visible_dialog->reject();
-          break;
-        }
-      }
-      return;
-    }
+    auto* dialog = &shown;
+    apply_dialog_found = true;
     auto* radius =
         dialog->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
     auto* radius_slider =
@@ -833,21 +795,10 @@ void ui_smart_filter_dust_and_scratches_add_edit_and_reopen() {
   bool edit_controls_found = false;
   int edit_radius_value = -1;
   int edit_threshold_value = -1;
-  QTimer::singleShot(20, [&] {
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
     edit_callback_ran = true;
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    edit_dialog_found = dialog != nullptr;
-    if (dialog == nullptr) {
-      for (auto* widget : QApplication::topLevelWidgets()) {
-        auto* visible_dialog = qobject_cast<QDialog*>(widget);
-        if (visible_dialog != nullptr && visible_dialog->isVisible()) {
-          visible_dialog->reject();
-          break;
-        }
-      }
-      return;
-    }
+    auto* dialog = &shown;
+    edit_dialog_found = true;
     auto* radius =
         dialog->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
     auto* threshold =
@@ -924,10 +875,8 @@ void ui_smart_filter_surface_blur_add_edit_and_reopen() {
   const auto original_record_count = smart_filter_effect_record_count(document);
 
   bool applied = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     auto* radius_slider = dialog->findChild<QSlider*>(
@@ -1007,10 +956,8 @@ void ui_smart_filter_surface_blur_add_edit_and_reopen() {
   CHECK(label->toolTip().contains(QStringLiteral("Threshold 255")));
 
   bool edited = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     auto* threshold = dialog->findChild<QSpinBox*>(
@@ -1085,10 +1032,8 @@ void ui_smart_filter_plastic_wrap_add_edit_and_reopen() {
   const auto original_record_count = smart_filter_effect_record_count(document);
 
   bool added = false;
-  QTimer::singleShot(0, [&] {
-    auto *dialog = qobject_cast<QDialog *>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto *highlight = dialog->findChild<QSpinBox *>(
         QStringLiteral("filterHighlightStrengthSpin"));
     auto *detail =
@@ -1154,10 +1099,8 @@ void ui_smart_filter_plastic_wrap_add_edit_and_reopen() {
   CHECK(label->toolTip().contains(QStringLiteral("Smoothness 7")));
 
   bool edited = false;
-  QTimer::singleShot(20, [&] {
-    auto *dialog = qobject_cast<QDialog *>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto *highlight = dialog->findChild<QSpinBox *>(
         QStringLiteral("filterHighlightStrengthSpin"));
     auto *detail =
@@ -1224,10 +1167,8 @@ void ui_smart_filter_unsharp_motion_add_edit_and_reopen() {
   auto &document = patchy::ui::MainWindowTestAccess::document(window);
 
   bool unsharp_added = false;
-  QTimer::singleShot(0, [&] {
-    auto *dialog = qobject_cast<QDialog *>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto *amount =
         dialog->findChild<QSpinBox *>(QStringLiteral("filterAmountSpin"));
     auto *radius =
@@ -1250,10 +1191,8 @@ void ui_smart_filter_unsharp_motion_add_edit_and_reopen() {
   CHECK(unsharp_added);
 
   bool motion_added = false;
-  QTimer::singleShot(0, [&] {
-    auto *dialog = qobject_cast<QDialog *>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto *angle =
         dialog->findChild<QSpinBox *>(QStringLiteral("filterAngleSpin"));
     auto *distance =
@@ -1342,10 +1281,8 @@ void ui_smart_filter_unsharp_motion_add_edit_and_reopen() {
   CHECK(label_for(1)->toolTip().contains(QStringLiteral("Distance 12 px")));
 
   bool unsharp_edited = false;
-  QTimer::singleShot(20, [&] {
-    auto *dialog = qobject_cast<QDialog *>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto *amount =
         dialog->findChild<QSpinBox *>(QStringLiteral("filterAmountSpin"));
     auto *radius =
@@ -1369,10 +1306,8 @@ void ui_smart_filter_unsharp_motion_add_edit_and_reopen() {
   CHECK(unsharp().threshold == 11);
 
   bool motion_edited = false;
-  QTimer::singleShot(20, [&] {
-    auto *dialog = qobject_cast<QDialog *>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto *angle =
         dialog->findChild<QSpinBox *>(QStringLiteral("filterAngleSpin"));
     auto *distance =

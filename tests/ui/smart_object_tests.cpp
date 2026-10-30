@@ -339,6 +339,9 @@ void ui_layer_thumbnail_tooltip_names_smart_object_and_shape_layers() {
     return;
   }
   const auto* shape = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*shape_id);
+  if (shape == nullptr || !patchy::layer_is_vector_shape(*shape)) {
+    patchy::test::ui::print_shape_drag_state(window, *canvas, "thumbnail tooltip");
+  }
   CHECK(shape != nullptr && patchy::layer_is_vector_shape(*shape));
   CHECK(thumbnail_tooltip(*shape_id) == QStringLiteral("Shape layer thumbnail"));
 }

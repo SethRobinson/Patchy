@@ -93,10 +93,8 @@ void ui_smart_filter_parameterless_entry_edits_blending_only() {
   const auto undo_before =
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   bool dialog_seen = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     // No filter parameters: the Blending section is the only content.
     CHECK(dialog->findChildren<QSpinBox*>().empty());
     auto* mode = dialog->findChild<QComboBox*>(

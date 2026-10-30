@@ -91,9 +91,8 @@ void ui_smart_filter_imported_find_edges_renders_edits_and_undoes() {
   save_layer_artifact(original_pixels, "smart_filter_find_edges_photoshop_baked");
   const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   bool dialog_opened = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* opacity = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("smartFilterOpacitySpin"));
     CHECK(opacity != nullptr);
     opacity->setValue(50.0);
@@ -153,9 +152,8 @@ void ui_smart_filter_imported_zigzag_dialog_edits_schema_settings() {
   auto* row = layers->itemWidget(require_layer_item(*layers, QStringLiteral("Layer 1")));
   CHECK(row != nullptr);
   bool dialog_opened = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* amount = dialog->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
     auto* ridges = dialog->findChild<QSpinBox*>(QStringLiteral("filterRidgesSpin"));
     auto* style = dialog->findChild<QComboBox*>(QStringLiteral("filterStyleCombo"));

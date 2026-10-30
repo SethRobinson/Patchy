@@ -162,10 +162,8 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
   };
 
   bool applied_native = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("filterGalleryDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     configure_gaussian_recipe(*dialog, false);
     auto* outcome = dialog->findChild<QLabel*>(
         QStringLiteral("filterGalleryOutcomeLabel"));
@@ -256,10 +254,8 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
             .smart_filter_effects.find_unique(placed_uuid) == nullptr);
 
   bool applied_mixed = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("filterGalleryDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     configure_gaussian_recipe(*dialog, true);
     // The outcome line already announces what the rasterize prompt below
     // will ask, and the blocking Sepia entry carries the warning mark.
@@ -280,9 +276,8 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
         QStringLiteral("filterGalleryButtonBox"));
     CHECK(buttons != nullptr &&
           buttons->button(QDialogButtonBox::Ok) != nullptr);
-    QTimer::singleShot(0, [&] {
-      auto* warning = qobject_cast<QMessageBox*>(find_top_level_dialog(
-          QStringLiteral("filterGalleryRasterizeMessageBox")));
+    when_dialog_visible(QStringLiteral("filterGalleryRasterizeMessageBox"), [&](QDialog& shown) {
+      auto* warning = qobject_cast<QMessageBox*>(&shown);
       CHECK(warning != nullptr);
       auto* yes = warning->button(QMessageBox::Yes);
       CHECK(yes != nullptr);
@@ -318,10 +313,8 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
   // back to its destructive proxy. That transition must also remove the last
   // accepted exact render from the live layer.
   bool rejected_oversized_native_preview = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("filterGalleryDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* looks = dialog->findChild<QListWidget*>(
         QStringLiteral("filterGalleryLooksList"));
     auto* applied = dialog->findChild<QListWidget*>(
@@ -799,10 +792,8 @@ void ui_smart_filter_native_integrity_guards_reject_destructive_actions() {
   trigger_without_dialog(require_action(window, "layerFillForegroundAction"));
   trigger_without_dialog(require_action(window, "layerFillBackgroundAction"));
   bool gallery_opened = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("filterGalleryDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     gallery_opened = true;
     dialog->reject();
   });
@@ -1387,10 +1378,8 @@ void ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete() {
   CHECK(gaussian->isEnabled());
 
   bool applied = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius =
         dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
@@ -1443,10 +1432,8 @@ void ui_smart_filter_linked_external_add_edit_toggle_lock_and_delete() {
   CHECK(remove != nullptr && remove->isEnabled());
 
   bool edited = false;
-  QTimer::singleShot(20, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* edit_radius =
         dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterRadiusSpin"));
     CHECK(edit_radius != nullptr);
@@ -1676,10 +1663,8 @@ void ui_box_blur_direct_action_appends_editable_smart_filter() {
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = qobject_cast<QDialog*>(
-        find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* radius =
         dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
@@ -1748,9 +1733,8 @@ void ui_smart_object_direct_unsupported_filter_offers_rasterize() {
 
   // Cancel keeps the Smart Object untouched (no undo entry, no pixel change).
   bool cancelled_prompt = false;
-  QTimer::singleShot(0, [&] {
-    auto* warning = qobject_cast<QMessageBox*>(find_top_level_dialog(
-        QStringLiteral("filterRasterizeMessageBox")));
+  when_dialog_visible(QStringLiteral("filterRasterizeMessageBox"), [&](QDialog& shown) {
+    auto* warning = qobject_cast<QMessageBox*>(&shown);
     CHECK(warning != nullptr);
     auto* cancel = warning->button(QMessageBox::Cancel);
     CHECK(cancel != nullptr);
@@ -1771,9 +1755,8 @@ void ui_smart_object_direct_unsupported_filter_offers_rasterize() {
 
   // Yes rasterizes and applies the filter destructively as one undo step.
   bool accepted_prompt = false;
-  QTimer::singleShot(0, [&] {
-    auto* warning = qobject_cast<QMessageBox*>(find_top_level_dialog(
-        QStringLiteral("filterRasterizeMessageBox")));
+  when_dialog_visible(QStringLiteral("filterRasterizeMessageBox"), [&](QDialog& shown) {
+    auto* warning = qobject_cast<QMessageBox*>(&shown);
     CHECK(warning != nullptr);
     auto* yes = warning->button(QMessageBox::Yes);
     CHECK(yes != nullptr);
