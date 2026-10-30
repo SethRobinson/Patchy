@@ -20,10 +20,12 @@
 #include "ui/theme_palette.hpp"
 
 #include <QColor>
+#include <QCursor>
 #include <QImage>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
+#include <QPixmap>
 #include <QPoint>
 #include <QPointF>
 #include <QRect>
@@ -1095,6 +1097,23 @@ void paint_brush_center_cross(QPainter& painter, QPoint center) {
   painter.fillRect(QRect(center.x() - kArm, center.y(), 2 * kArm + 1, 1), core);
   painter.fillRect(QRect(center.x(), center.y() - kArm, 1, 2 * kArm + 1), core);
   painter.restore();
+}
+
+const QCursor& brush_center_cross_cursor() {
+  static const QCursor cursor = [] {
+    QPixmap pixmap(17, 17);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    paint_brush_center_cross(painter, QPoint(8, 8));
+    painter.end();
+    return QCursor(pixmap, 8, 8);
+  }();
+  return cursor;
+}
+
+bool brush_center_cross_cursor_shown(const QCursor& cursor) {
+  return cursor.shape() == Qt::BitmapCursor &&
+         cursor.pixmap().cacheKey() == brush_center_cross_cursor().pixmap().cacheKey();
 }
 
 namespace {

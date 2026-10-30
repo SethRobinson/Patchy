@@ -285,8 +285,9 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
       return true;
     case CanvasTool::QuickSelect:
       if (brush_outline_uses_overlay()) {
-        // Too big for an OS cursor: the circle follows the pointer as a canvas overlay.
-        setCursor(Qt::CrossCursor);
+        // Too big for an OS cursor: the circle follows the pointer as a canvas overlay and
+        // the pointer is only its center cross (GitHub issue 533).
+        setCursor(brush_center_cross_cursor());
         if (brush_hover_position_valid_) {
           update(brush_hover_outline_rect().adjusted(-2, -2, 2, 2));
         }
@@ -542,8 +543,9 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (brush_outline_uses_overlay()) {
-    // Too big for an OS cursor: the outline follows the pointer as a canvas overlay instead.
-    setCursor(Qt::CrossCursor);
+    // Too big for an OS cursor: the outline follows the pointer as a canvas overlay and the
+    // pointer is only the center cross, never a second system crosshair (GitHub issue 533).
+    setCursor(brush_center_cross_cursor());
     if (brush_hover_position_valid_) {
       update(brush_hover_outline_rect().adjusted(-2, -2, 2, 2));
     }

@@ -6,6 +6,7 @@
 #include <QMenu>
 
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/tool_cursors.hpp"
@@ -3974,7 +3975,7 @@ void ui_brush_overlay_show_outline_off_removes_outline() {
   CHECK(canvas.cursor().shape() == Qt::CrossCursor);
   CHECK(darkest_on_rim() > 240);
   canvas.set_brush_outline_shown(true);
-  CHECK(canvas.cursor().shape() == Qt::CrossCursor);  // the large-brush pointer, outline on the canvas
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));  // outline on the canvas
   CHECK(darkest_on_rim() < 200);
 }
 

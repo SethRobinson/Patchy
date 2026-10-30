@@ -3595,11 +3595,12 @@ void ui_max_brush_uses_overlay_cursor() {
   canvas.show();
   QApplication::processEvents();
 
-  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
-  CHECK(canvas.cursor().pixmap().isNull());
+  // The pointer is only the small center cross (GitHub issue 533), never a giant pixmap.
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
+  CHECK(canvas.cursor().pixmap().width() <= 17);
 
   // Every retouch tool with the round footprint cursor switches to the overlay
-  // crosshair at large sizes too (browsers reject the giant pixmap cursor in
+  // and its center-cross pointer at large sizes too (browsers reject the giant pixmap cursor in
   // the wasm build) and returns to a pixmap cursor when small. Clone and Healing show
   // the not-allowed cursor until a source is set (GitHub issue 380), so Alt-click one.
   canvas.set_tool(patchy::ui::CanvasTool::Clone);
@@ -3617,11 +3618,78 @@ void ui_max_brush_uses_overlay_cursor() {
   for (const auto tool : footprint_tools) {
     canvas.set_tool(tool);
     canvas.set_brush_size(patchy::ui::kMaxBrushSize);
-    CHECK(canvas.cursor().shape() == Qt::CrossCursor);
-    CHECK(canvas.cursor().pixmap().isNull());
+    CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
     canvas.set_brush_size(48);
     CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
   }
+}
+
+// Past the cursor-bitmap cap (about 540 px at 28.7% zoom, 156 px at 100%) the outline is a
+// canvas overlay; the pointer then is the small center cross and the overlay draws no second
+// one (GitHub issue 533: a system crosshair used to show beside the overlay's cross). Under
+// the not-allowed pointer (Clone without a source) the overlay keeps marking the center.
+void ui_large_brush_overlay_shows_one_center_cross() {
+  patchy::Document document(900, 700, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paper", solid_pixels(900, 700, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(1000, 800);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+  const auto hover = canvas.widget_position_for_document_point(QPoint(450, 350));
+  // The cross's dark outline sits one pixel off its arms; plain white means no cross there.
+  const auto overlay_cross_drawn = [&canvas, hover] {
+    send_mouse(canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto image = canvas.grab().toImage();
+    return image.pixelColor(hover + QPoint(3, 1)).lightness() < 120;
+  };
+  const auto ring_drawn = [&canvas, hover](int size) {
+    const auto image = canvas.grab().toImage();
+    int darkest = 255;
+    for (int dx = size / 2 - 3; dx <= size / 2 + 3; ++dx) {
+      darkest = std::min(darkest, image.pixelColor(hover + QPoint(dx, 0)).lightness());
+    }
+    return darkest < 200;
+  };
+
+  const patchy::ui::CanvasTool tools[] = {patchy::ui::CanvasTool::Brush, patchy::ui::CanvasTool::Eraser,
+                                          patchy::ui::CanvasTool::MixerBrush, patchy::ui::CanvasTool::Smudge,
+                                          patchy::ui::CanvasTool::Dodge};
+  for (const auto tool : tools) {
+    canvas.set_tool(tool);
+    canvas.set_brush_size(150);  // fits the cursor bitmap: the outline cursor, no overlay
+    CHECK(!overlay_cross_drawn());
+    CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+    CHECK(!patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
+    canvas.set_brush_size(600);
+    CHECK(!overlay_cross_drawn());
+    CHECK(ring_drawn(600));
+    CHECK(canvas.cursor().shape() != Qt::CrossCursor);
+    CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
+  }
+  save_widget_artifact("issue533_large_brush_overlay", canvas);
+
+  canvas.set_tool(patchy::ui::CanvasTool::QuickSelect);
+  canvas.set_quick_select_size(600);
+  CHECK(!overlay_cross_drawn());
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
+
+  // Clone with no source: the not-allowed pointer, so the overlay draws the cross itself.
+  canvas.set_tool(patchy::ui::CanvasTool::Clone);
+  canvas.set_brush_size(600);
+  CHECK(overlay_cross_drawn());
+  CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
+
+  // Show Outline off (GitHub issue 517): the plain crosshair and no overlay at any size.
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_outline_shown(false);
+  CHECK(!overlay_cross_drawn());
+  CHECK(!ring_drawn(600));
+  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+  canvas.set_brush_outline_shown(true);
 }
 
 void ui_canvas_pan_keeps_document_partly_visible() {
@@ -10712,6 +10780,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_window_resize_panels_tabs_and_floats_keep_small_document_centered},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
       {"ui_max_brush_uses_overlay_cursor", ui_max_brush_uses_overlay_cursor},
+      {"ui_large_brush_overlay_shows_one_center_cross", ui_large_brush_overlay_shows_one_center_cross},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_scroll_bars_reflect_pan_range", ui_canvas_scroll_bars_reflect_pan_range},
       {"ui_canvas_hand_pan_updates_scroll_bars", ui_canvas_hand_pan_updates_scroll_bars},

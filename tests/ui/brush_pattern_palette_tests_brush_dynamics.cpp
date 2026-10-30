@@ -1,6 +1,7 @@
 #include <QScrollBar>
 
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_stroke_preview.hpp"
 #include "ui/brush_tool_window.hpp"
@@ -2225,9 +2226,9 @@ void ui_brush_outline_overlay_tracks_large_brushes() {
   auto* canvas = require_canvas(window);
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
 
-  // Large procedural brush: the OS cursor gives way to a crosshair + canvas overlay.
+  // Large procedural brush: the OS cursor gives way to the center cross + canvas overlay.
   canvas->set_brush_size(400);
-  CHECK(canvas->cursor().shape() == Qt::CrossCursor);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas->cursor()));
 
   const QPoint hover(canvas->width() / 2, canvas->height() / 2);
   send_mouse(*canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
@@ -2252,9 +2253,10 @@ void ui_brush_outline_overlay_tracks_large_brushes() {
   save_widget_artifact("ui_brush_outline_overlay_large", *canvas);
   CHECK(dark_ring_pixels > 20);
 
-  // Shrinking the brush returns to a pixmap cursor (no overlay crosshair).
+  // Shrinking the brush returns to the outline pixmap cursor.
   canvas->set_brush_size(48);
-  CHECK(canvas->cursor().shape() != Qt::CrossCursor);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(!patchy::ui::brush_center_cross_cursor_shown(canvas->cursor()));
   clear_brush_tip_test_state();
 }
 
@@ -2271,10 +2273,10 @@ void ui_clone_outline_overlay_tracks_large_brushes() {
   send_mouse(*canvas, QEvent::MouseMove, source, Qt::NoButton, Qt::NoButton);
   QApplication::processEvents();
 
-  // Large Clone footprint: the same crosshair + canvas-overlay outline as the
+  // Large Clone footprint: the same center cross + canvas-overlay outline as the
   // Brush (the unbounded pixmap cursor was rejected by browsers on wasm).
   canvas->set_brush_size(400);
-  CHECK(canvas->cursor().shape() == Qt::CrossCursor);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas->cursor()));
 
   const QPoint hover(canvas->width() / 2, canvas->height() / 2);
   const auto display_radius = static_cast<int>(std::round(400.0 * canvas->zoom() / 2.0));
@@ -2307,12 +2309,13 @@ void ui_clone_outline_overlay_tracks_large_brushes() {
   const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
   CHECK(!tip_id.isEmpty());
   window.set_active_brush_tip(tip_id, false);
-  CHECK(canvas->cursor().shape() == Qt::CrossCursor);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas->cursor()));
   CHECK(count_dark_ring_pixels() > 20);
 
   // Shrinking returns to the pixmap cursor, exactly like the Brush.
   canvas->set_brush_size(48);
-  CHECK(canvas->cursor().shape() != Qt::CrossCursor);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(!patchy::ui::brush_center_cross_cursor_shown(canvas->cursor()));
   clear_brush_tip_test_state();
 }
 
