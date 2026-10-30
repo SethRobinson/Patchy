@@ -3932,9 +3932,10 @@ void ui_brush_overlay_gear_defaults_off_and_persists() {
   CHECK(!reopened_canvas->brush_outline_shown());
 }
 
-// Show Outline off (GitHub issue 517 follow-up): the Brush tool's pointer is a plain crosshair
-// instead of the outline cursor, and a brush too large for an OS cursor draws no canvas outline.
-// The Eraser keeps its outline; turning the option back on restores both.
+// Show Outline off (GitHub issue 517 follow-up): the Brush tool's pointer is the small center
+// cross at every size (GitHub issue 533 follow-up) instead of the outline cursor, and a brush
+// too large for an OS cursor draws no canvas outline. The Eraser keeps its outline; turning the
+// option back on restores both.
 void ui_brush_overlay_show_outline_off_removes_outline() {
   patchy::Document document(400, 300, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paper", solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -3954,11 +3955,11 @@ void ui_brush_overlay_show_outline_off_removes_outline() {
   CHECK(canvas.cursor().shape() == Qt::BitmapCursor);  // the outline cursor
 
   canvas.set_brush_outline_shown(false);
-  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
   canvas.set_tool(patchy::ui::CanvasTool::Eraser);
   CHECK(canvas.cursor().shape() == Qt::BitmapCursor);  // only the Brush follows the option
   canvas.set_tool(patchy::ui::CanvasTool::Brush);
-  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
 
   // A 200 px brush outgrows the OS cursor: its outline is drawn on the canvas.
   canvas.set_brush_size(200);
@@ -3972,7 +3973,7 @@ void ui_brush_overlay_show_outline_off_removes_outline() {
     }
     return darkest;
   };
-  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
   CHECK(darkest_on_rim() > 240);
   canvas.set_brush_outline_shown(true);
   CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));  // outline on the canvas
