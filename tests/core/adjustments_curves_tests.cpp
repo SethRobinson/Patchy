@@ -3589,19 +3589,30 @@ void gradient_map_matches_photoshop_2026_calibration() {
 // each pixel's spans between the primary and secondary weights, ignoring grays and
 // transparent pixels, at any depth.
 void black_white_presets_and_weight_influence() {
+  // Neutral presets first (ids black_white.*), then tinted ones (black_white.tinted.*).
   const auto presets = patchy::builtin_black_white_presets();
-  CHECK(presets.size() == 9);
+  CHECK(presets.size() == 21);
   std::unordered_set<std::string_view> ids;
+  bool seen_tinted = false;
+  std::size_t tinted_count = 0;
   for (const auto& preset : presets) {
-    CHECK(std::string_view(preset.id).starts_with("black_white."));
+    const std::string_view id(preset.id);
+    CHECK(id.starts_with("black_white."));
+    CHECK(id.starts_with("black_white.tinted.") == preset.tint);
     CHECK(ids.insert(preset.id).second);
+    CHECK(!seen_tinted || preset.tint);
+    seen_tinted = seen_tinted || preset.tint;
+    tinted_count += preset.tint ? 1U : 0U;
     for (const auto weight : preset.weights) {
       CHECK(weight >= -200 && weight <= 300);
     }
   }
+  CHECK(tinted_count == 9);
   CHECK(std::string_view(presets[0].id) == "black_white.default");
   const patchy::BlackWhiteAdjustment defaults;
   CHECK(patchy::matching_black_white_preset(defaults) == &presets[0]);
+
+  // A neutral preset clears Tint but keeps the color for later; a tinted one sets both.
   patchy::BlackWhiteAdjustment tinted;
   tinted.tint = true;
   tinted.tint_color = patchy::RgbColor{40, 90, 220};
@@ -3609,11 +3620,55 @@ void black_white_presets_and_weight_influence() {
   CHECK(std::string_view(presets[4].id) == "black_white.red_lens");
   CHECK(red_lens.reds == 115 && red_lens.yellows == 95 && red_lens.greens == -15 && red_lens.cyans == -45 &&
         red_lens.blues == -55 && red_lens.magentas == 105);
-  CHECK(red_lens.tint && (red_lens.tint_color == patchy::RgbColor{40, 90, 220}));
+  CHECK(!red_lens.tint && (red_lens.tint_color == patchy::RgbColor{40, 90, 220}));
   CHECK(patchy::matching_black_white_preset(red_lens) == &presets[4]);
   auto edited = red_lens;
   edited.reds += 1;
   CHECK(patchy::matching_black_white_preset(edited) == nullptr);
+  auto ticked = red_lens;
+  ticked.tint = true;
+  CHECK(patchy::matching_black_white_preset(ticked) == nullptr);
+  const auto sepia = std::find_if(presets.begin(), presets.end(), [](const patchy::BlackWhitePreset& preset) {
+    return std::string_view(preset.id) == "black_white.tinted.sepia";
+  });
+  CHECK(sepia != presets.end());
+  if (sepia != presets.end()) {
+    const auto sepia_settings = patchy::black_white_with_preset(red_lens, *sepia);
+    CHECK(sepia_settings.tint && (sepia_settings.tint_color == patchy::RgbColor{162, 128, 86}));
+    CHECK(patchy::matching_black_white_preset(sepia_settings) == &*sepia);
+    auto recolored = sepia_settings;
+    recolored.tint_color.red = 161;
+    CHECK(patchy::matching_black_white_preset(recolored) == nullptr);
+    const auto back = patchy::black_white_with_preset(sepia_settings, presets[0]);
+    CHECK(!back.tint);
+  }
+
+  // Tint Hue and Saturation: hue in degrees, saturation the chroma; the color they build keeps
+  // that saturation exactly and the hue within a degree (the dialog never re-derives the sliders
+  // from a color they built, so a drag cannot drift).
+  const auto hue_distance = [](int a, int b) {
+    const auto difference = std::abs(a - b) % 360;
+    return std::min(difference, 360 - difference);
+  };
+  for (int saturation = 0; saturation <= 100; saturation += 5) {
+    for (int hue = 0; hue < 360; hue += 7) {
+      const auto color = patchy::black_white_tint_color(hue, saturation);
+      const auto back_hs = patchy::black_white_tint_hue_saturation(color, hue);
+      CHECK(back_hs.saturation == saturation);
+      if (saturation >= 20) {
+        CHECK(hue_distance(back_hs.hue, hue) <= 1);
+      }
+    }
+  }
+  const auto gray_tint = patchy::black_white_tint_hue_saturation(patchy::RgbColor{90, 90, 90}, 210);
+  CHECK(gray_tint.hue == 210 && gray_tint.saturation == 0);
+  const auto red = patchy::black_white_tint_hue_saturation(patchy::RgbColor{255, 0, 0});
+  CHECK(red.hue == 0 && red.saturation == 100);
+  const auto cyan = patchy::black_white_tint_hue_saturation(patchy::RgbColor{0, 255, 255});
+  CHECK(cyan.hue == 180 && cyan.saturation == 100);
+  // Photoshop's default tint (225, 211, 179): hue 42, chroma 46 of 255.
+  const auto default_tint = patchy::black_white_tint_hue_saturation(patchy::BlackWhiteAdjustment{}.tint_color);
+  CHECK(default_tint.hue == 42 && default_tint.saturation == 18);
 
   // Two reds, two yellows, two oranges, two grays and two transparent blues.
   patchy::PixelBuffer pixels(10, 1, patchy::PixelFormat::rgba8());

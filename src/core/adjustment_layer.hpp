@@ -434,20 +434,38 @@ struct BlackWhiteAdjustment {
 [[nodiscard]] std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings, double red,
                                                          double green, double blue, bool byte_stages);
 
-// The Black & White dialog's built-in presets (#528): fixed weight sets the user picks from, in
-// menu order. `id` is permanent; `name` is a PATCHY_TRANSLATE_NOOP("QObject", ...) source. Tint
-// stays as the user set it.
+// The Black & White dialog's built-in presets (#528): fixed settings the user picks from, in
+// dialog order, the neutral ones (Tint off) first, then the tinted ones (Tint on with their
+// color). `id` is permanent (`black_white.*`, tinted `black_white.tinted.*`); `name` is a
+// PATCHY_TRANSLATE_NOOP("QObject", ...) source.
 struct BlackWhitePreset {
   const char* id;
   const char* name;
   std::array<int, 6> weights;  // reds, yellows, greens, cyans, blues, magentas
+  bool tint{false};
+  RgbColor tint_color{};
 };
 [[nodiscard]] std::span<const BlackWhitePreset> builtin_black_white_presets() noexcept;
-// `settings` with the preset's six weights (tint unchanged).
+// `settings` with the preset's six weights and its Tint state: a neutral preset clears Tint
+// (the tint color stays for the next time Tint is ticked), a tinted one sets Tint and its color.
 [[nodiscard]] BlackWhiteAdjustment black_white_with_preset(BlackWhiteAdjustment settings,
                                                            const BlackWhitePreset& preset) noexcept;
-// The preset whose weights `settings` holds, or nullptr.
+// The preset `settings` equals (weights, Tint, and the tint color when tinted), or nullptr.
 [[nodiscard]] const BlackWhitePreset* matching_black_white_preset(const BlackWhiteAdjustment& settings) noexcept;
+
+// The tint color as the dialog's Hue and Saturation sliders show it. Tint keeps only the
+// color's hue and colorfulness (it takes the color to each pixel's gray by SetLum), so
+// Saturation is the chroma, largest minus smallest channel, as a percent of 255, and Hue is
+// its hue in whole degrees (`fallback_hue` for a gray). black_white_tint_color builds the
+// color with that hue and chroma near mid luma; it is stored as the usual tint RGB, so the
+// PSD block and the layer metadata are unchanged.
+struct BlackWhiteTintHueSaturation {
+  int hue{0};         // 0..359 degrees
+  int saturation{0};  // 0..100 percent
+};
+[[nodiscard]] BlackWhiteTintHueSaturation black_white_tint_hue_saturation(RgbColor color,
+                                                                          int fallback_hue = 0) noexcept;
+[[nodiscard]] RgbColor black_white_tint_color(int hue, int saturation) noexcept;
 
 // How much each Black & White weight (reds, yellows, greens, cyans, blues, magentas) acts on
 // `pixels`, for the dialog's measurement only: per pixel, the (largest - middle) span goes to the

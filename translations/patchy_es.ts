@@ -14091,6 +14091,54 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
         <translation>Las formas que nombran a un autor en su información sobre herramientas son de game-icons.net (CC BY 3.0), creadas por %1. Son de solo lectura; Duplicar crea una copia editable.</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>Claro</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>Oscuro</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>Lente amarilla</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>Sepia</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>Café</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>Azul frío</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>Selenio</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>Oro</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>Platino</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>Tono verde</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>Rosa</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>Virado</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

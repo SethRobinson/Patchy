@@ -14134,6 +14134,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
         <translation>Фигуры, в подсказке которых указан автор, взяты с game-icons.net (CC BY 3.0), авторы: %1. Они доступны только для чтения; «Дублировать» создаёт редактируемую копию.</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>Светлый</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>Тёмный</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>Жёлтая линза</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>Сепия</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>Кофе</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>Холодный синий</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>Селен</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>Золото</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>Платина</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>Зелёный тон</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>Розовый</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>Тонированные</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

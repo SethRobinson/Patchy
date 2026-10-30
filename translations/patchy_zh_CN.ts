@@ -14048,6 +14048,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>Shapes that name an author in their tooltip are from game-icons.net (CC BY 3.0), made by %1. They are read-only; Duplicate makes an editable copy.</source>
         <translation>工具提示中注明作者的形状来自 game-icons.net (CC BY 3.0)，作者为 %1。它们为只读；“复制”会创建可编辑的副本。</translation>
     </message>
+    <message>
+        <source>Bright</source>
+        <translation>明亮</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>暗调</translation>
+    </message>
+    <message>
+        <source>Yellow Lens</source>
+        <translation>黄色镜头</translation>
+    </message>
+    <message>
+        <source>Sepia</source>
+        <translation>棕褐色</translation>
+    </message>
+    <message>
+        <source>Coffee</source>
+        <translation>咖啡</translation>
+    </message>
+    <message>
+        <source>Cool Blue</source>
+        <translation>冷蓝</translation>
+    </message>
+    <message>
+        <source>Selenium</source>
+        <translation>硒色</translation>
+    </message>
+    <message>
+        <source>Gold</source>
+        <translation>金色</translation>
+    </message>
+    <message>
+        <source>Platinum</source>
+        <translation>铂金</translation>
+    </message>
+    <message>
+        <source>Green Tone</source>
+        <translation>绿色调</translation>
+    </message>
+    <message>
+        <source>Rose</source>
+        <translation>玫瑰</translation>
+    </message>
+    <message>
+        <source>Tinted</source>
+        <translation>着色</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

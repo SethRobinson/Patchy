@@ -1685,8 +1685,9 @@ std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings,
 
 namespace {
 
-// Patchy's own weight sets (#528); not Photoshop's preset names or values.
-constexpr std::array<BlackWhitePreset, 9> kBlackWhitePresets{{
+// Patchy's own presets (#528); not Photoshop's preset names or values. Neutral first, then
+// tinted; ids are permanent.
+constexpr std::array<BlackWhitePreset, 21> kBlackWhitePresets{{
     {"black_white.default", PATCHY_TRANSLATE_NOOP("QObject", "Default"), {40, 60, 40, 60, 20, 80}},
     {"black_white.even_mix", PATCHY_TRANSLATE_NOOP("QObject", "Even Mix"), {50, 50, 50, 50, 50, 50}},
     {"black_white.soft_skin", PATCHY_TRANSLATE_NOOP("QObject", "Soft Skin"), {90, 100, 40, 50, 10, 70}},
@@ -1697,6 +1698,27 @@ constexpr std::array<BlackWhitePreset, 9> kBlackWhitePresets{{
     {"black_white.glowing_foliage", PATCHY_TRANSLATE_NOOP("QObject", "Glowing Foliage"),
      {10, 190, 170, -30, -60, -40}},
     {"black_white.bold", PATCHY_TRANSLATE_NOOP("QObject", "Bold"), {130, 140, -40, -60, -80, 110}},
+    {"black_white.bright", PATCHY_TRANSLATE_NOOP("QObject", "Bright"), {90, 110, 90, 110, 80, 110}},
+    {"black_white.dark", PATCHY_TRANSLATE_NOOP("QObject", "Dark"), {10, 25, 10, 25, -10, 30}},
+    {"black_white.yellow_lens", PATCHY_TRANSLATE_NOOP("QObject", "Yellow Lens"), {70, 140, 60, -20, -40, 30}},
+    {"black_white.tinted.sepia", PATCHY_TRANSLATE_NOOP("QObject", "Sepia"), {40, 60, 40, 60, 20, 80}, true,
+     RgbColor{162, 128, 86}},
+    {"black_white.tinted.coffee", PATCHY_TRANSLATE_NOOP("QObject", "Coffee"), {60, 80, 40, 50, 10, 70}, true,
+     RgbColor{130, 96, 70}},
+    {"black_white.tinted.cool_blue", PATCHY_TRANSLATE_NOOP("QObject", "Cool Blue"), {40, 60, 40, 60, 20, 80}, true,
+     RgbColor{96, 122, 160}},
+    {"black_white.tinted.cyanotype", PATCHY_TRANSLATE_NOOP("QObject", "Cyanotype"), {-10, 20, 40, 90, 110, 60},
+     true, RgbColor{40, 98, 168}},
+    {"black_white.tinted.selenium", PATCHY_TRANSLATE_NOOP("QObject", "Selenium"), {50, 60, 45, 55, 30, 70}, true,
+     RgbColor{132, 108, 128}},
+    {"black_white.tinted.gold", PATCHY_TRANSLATE_NOOP("QObject", "Gold"), {70, 100, 40, 40, 0, 60}, true,
+     RgbColor{196, 154, 62}},
+    {"black_white.tinted.platinum", PATCHY_TRANSLATE_NOOP("QObject", "Platinum"), {45, 60, 45, 60, 30, 70}, true,
+     RgbColor{152, 146, 136}},
+    {"black_white.tinted.green_tone", PATCHY_TRANSLATE_NOOP("QObject", "Green Tone"), {30, 70, 90, 60, 10, 40},
+     true, RgbColor{102, 140, 96}},
+    {"black_white.tinted.rose", PATCHY_TRANSLATE_NOOP("QObject", "Rose"), {80, 70, 30, 40, 20, 90}, true,
+     RgbColor{184, 112, 122}},
 }};
 
 }  // namespace
@@ -1712,6 +1734,10 @@ BlackWhiteAdjustment black_white_with_preset(BlackWhiteAdjustment settings, cons
   settings.cyans = preset.weights[3];
   settings.blues = preset.weights[4];
   settings.magentas = preset.weights[5];
+  settings.tint = preset.tint;
+  if (preset.tint) {
+    settings.tint_color = preset.tint_color;
+  }
   return clamp_black_white(settings);
 }
 
@@ -1719,11 +1745,66 @@ const BlackWhitePreset* matching_black_white_preset(const BlackWhiteAdjustment& 
   const std::array<int, 6> weights{settings.reds,  settings.yellows, settings.greens,
                                    settings.cyans, settings.blues,   settings.magentas};
   for (const auto& preset : kBlackWhitePresets) {
-    if (preset.weights == weights) {
+    if (preset.weights == weights && preset.tint == settings.tint &&
+        (!preset.tint || preset.tint_color == settings.tint_color)) {
       return &preset;
     }
   }
   return nullptr;
+}
+
+BlackWhiteTintHueSaturation black_white_tint_hue_saturation(RgbColor color, int fallback_hue) noexcept {
+  const int red = color.red;
+  const int green = color.green;
+  const int blue = color.blue;
+  const int high = std::max({red, green, blue});
+  const int low = std::min({red, green, blue});
+  const int chroma = high - low;
+  BlackWhiteTintHueSaturation result;
+  result.saturation = static_cast<int>(std::lround(chroma * 100.0 / 255.0));
+  if (chroma == 0) {
+    result.hue = ((fallback_hue % 360) + 360) % 360;
+    return result;
+  }
+  double sector = 0.0;
+  if (high == red) {
+    sector = static_cast<double>(green - blue) / chroma;
+    if (sector < 0.0) {
+      sector += 6.0;
+    }
+  } else if (high == green) {
+    sector = static_cast<double>(blue - red) / chroma + 2.0;
+  } else {
+    sector = static_cast<double>(red - green) / chroma + 4.0;
+  }
+  result.hue = static_cast<int>(std::lround(sector * 60.0)) % 360;
+  return result;
+}
+
+RgbColor black_white_tint_color(int hue, int saturation) noexcept {
+  hue = ((hue % 360) + 360) % 360;
+  saturation = std::clamp(saturation, 0, 100);
+  const double chroma = static_cast<double>(std::lround(saturation * 255.0 / 100.0));
+  // The fully colorful pattern of the hue (largest channel 1, smallest 0).
+  const double position = hue / 60.0;
+  const int sector = static_cast<int>(position);
+  const double fraction = position - sector;
+  std::array<double, 3> pattern{};
+  switch (sector) {
+    case 0: pattern = {1.0, fraction, 0.0}; break;
+    case 1: pattern = {1.0 - fraction, 1.0, 0.0}; break;
+    case 2: pattern = {0.0, 1.0, fraction}; break;
+    case 3: pattern = {0.0, 1.0 - fraction, 1.0}; break;
+    case 4: pattern = {fraction, 0.0, 1.0}; break;
+    default: pattern = {1.0, 0.0, 1.0 - fraction}; break;
+  }
+  // Centred near mid luma so the swatch reads as the tint; Tint replaces the luma anyway.
+  const double pattern_luma = 0.30 * pattern[0] + 0.59 * pattern[1] + 0.11 * pattern[2];
+  const double base = std::clamp(std::round(127.5 - chroma * pattern_luma), 0.0, 255.0 - chroma);
+  const auto channel = [&](double amount) {
+    return static_cast<std::uint8_t>(std::clamp(base + std::round(chroma * amount), 0.0, 255.0));
+  };
+  return RgbColor{channel(pattern[0]), channel(pattern[1]), channel(pattern[2])};
 }
 
 std::array<double, 6> black_white_weight_influence(const PixelBuffer& pixels, std::int64_t max_samples) {
