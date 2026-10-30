@@ -621,6 +621,63 @@ void ui_flat_alpha_layer_mask_preference_keeps_the_mask() {
   CHECK(reloaded.pixelColor(3, 2).alpha() == 255);
 }
 
+// "Lossy hidden color" (docs/file-formats.md): with the layer-mask open, the color under
+// zero alpha stays exactly what the decoder returned, for lossy and lossless WebP alike. A
+// lossy encoder may have filled it with block-shaped junk; that is the file's data, and the
+// split open exists to show it, so Patchy neither clears nor refills it.
+void ui_flat_alpha_mask_keeps_webp_hidden_color() {
+  if (!QImageWriter::supportedImageFormats().contains("webp")) {
+    patchy::test::skip("no WebP writer in this Qt build");
+  }
+  ensure_artifact_dir();
+  const ScopedFlatAlphaAsLayerMask mask_import(true);
+  QImage sticker(240, 200, QImage::Format_RGBA8888);
+  sticker.fill(QColor(0, 0, 0, 0));
+  {
+    QPainter painter(&sticker);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(250, 250, 250));
+    painter.drawEllipse(QRectF(24, 18, 192, 164));
+    painter.setBrush(QColor(230, 120, 40));
+    painter.drawEllipse(QRectF(34, 28, 172, 144));
+  }
+  for (const int quality : {70, 100}) {  // 100 writes lossless
+    const QString path = QStringLiteral("test-artifacts/flat_alpha_mask_sticker_q%1.webp").arg(quality);
+    QFile::remove(path);
+    QImageWriter writer(path, "webp");
+    writer.setQuality(quality);
+    CHECK(writer.write(sticker));
+    const auto decoded = QImage(path).convertToFormat(QImage::Format_RGBA8888);
+    CHECK(!decoded.isNull());
+    patchy::ui::MainWindow window;
+    show_window(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(document.layers().size() == 1);
+    const auto& layer = document.layers().front();
+    CHECK(layer.mask().has_value());
+    if (!layer.mask().has_value() || decoded.isNull()) {
+      continue;
+    }
+    int hidden = 0;
+    int changed = 0;
+    for (int y = 0; y < decoded.height(); ++y) {
+      const auto* source = decoded.constScanLine(y);
+      for (int x = 0; x < decoded.width(); ++x) {
+        const auto* want = source + static_cast<std::size_t>(x) * 4U;
+        const auto* got = layer.pixels().pixel(x, y);
+        CHECK(layer.mask()->pixels.pixel(x, y)[0] == want[3]);
+        hidden += want[3] == 0 ? 1 : 0;
+        changed += std::equal(got, got + 3, want) ? 0 : 1;
+      }
+    }
+    CHECK(hidden > 1000);
+    CHECK(changed == 0);
+  }
+}
+
 // The Preferences checkbox: off by default, and it writes imports/flatAlphaAsLayerMask.
 // Saves a crop of the Application page around it for the issue card.
 void ui_preferences_flat_alpha_as_layer_mask_checkbox() {
@@ -4007,6 +4064,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_flat_alpha_round_trips_as_editable_mask", ui_flat_alpha_round_trips_as_editable_mask},
       {"ui_flat_alpha_opens_as_plain_layer_transparency", ui_flat_alpha_opens_as_plain_layer_transparency},
       {"ui_flat_alpha_layer_mask_preference_keeps_the_mask", ui_flat_alpha_layer_mask_preference_keeps_the_mask},
+      {"ui_flat_alpha_mask_keeps_webp_hidden_color", ui_flat_alpha_mask_keeps_webp_hidden_color},
       {"ui_preferences_flat_alpha_as_layer_mask_checkbox", ui_preferences_flat_alpha_as_layer_mask_checkbox},
       {"ui_flat_alpha_open_captures", ui_flat_alpha_open_captures},
       {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},
