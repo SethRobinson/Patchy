@@ -14,6 +14,8 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/theme_palette.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/filter_workflows_internal.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/layer_style_gradient_controls.hpp"
@@ -38,6 +40,8 @@
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPen>
 #include <QPaintEvent>
 #include <QPixmap>
 #include <QPointer>
@@ -1867,9 +1871,165 @@ std::optional<ColorLookupSettings> request_color_lookup_settings(
       });
 }
 
+namespace {
+
+// Black & White dialog cues (#528). The six hue colors stand for the hues the sliders weigh
+// (content, like a color swatch), so they stay the same in every theme; frames, tracks and
+// text use theme roles.
+constexpr QSize kBlackWhiteThumbnailSize(64, 42);
+constexpr int kBlackWhitePresetIdRole = Qt::UserRole + 1;
+constexpr std::array<RgbColor, 6> kBlackWhiteSliderHues{{
+    {255, 0, 0}, {255, 255, 0}, {0, 255, 0}, {0, 255, 255}, {0, 0, 255}, {255, 0, 255}}};
+
+QColor black_white_gray_for_hue(const BlackWhiteSettings& settings, RgbColor hue) {
+  auto gray_settings = settings;
+  gray_settings.tint = false;
+  const auto out = black_white_transfer(gray_settings, hue.red, hue.green, hue.blue, true);
+  const auto level = static_cast<int>(std::clamp(out[0], 0.0, 255.0));
+  return QColor(level, level, level);
+}
+
+// A hue next to the gray the current weights turn it into.
+class BlackWhiteHueChip final : public QWidget {
+public:
+  BlackWhiteHueChip(RgbColor hue, QWidget* parent) : QWidget(parent), hue_(hue) {
+    setFixedSize(34, 18);
+  }
+
+  void set_gray(QColor gray) {
+    if (gray != gray_) {
+      gray_ = gray;
+      update();
+    }
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QRectF box = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    QPainterPath frame;
+    frame.addRoundedRect(box, 4.0, 4.0);
+    painter.save();
+    painter.setClipPath(frame);
+    const auto half = box.width() / 2.0;
+    painter.fillRect(QRectF(box.left(), box.top(), half, box.height()), QColor(hue_.red, hue_.green, hue_.blue));
+    painter.fillRect(QRectF(box.left() + half, box.top(), box.width() - half, box.height()), gray_);
+    painter.restore();
+    painter.setPen(QPen(theme().field_inset_border, 1.0));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPath(frame);
+  }
+
+private:
+  RgbColor hue_;
+  QColor gray_{128, 128, 128};
+};
+
+// How much of the image this slider acts on: a bar in the slider's hue, scaled so the
+// strongest hue fills the track, and the share as a percentage.
+class BlackWhiteInfluenceMeter final : public QWidget {
+public:
+  BlackWhiteInfluenceMeter(RgbColor hue, double share, double largest_share, QWidget* parent)
+      : QWidget(parent), hue_(hue), share_(share), largest_share_(largest_share) {
+    setFixedSize(84, 18);
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const auto text = QObject::tr("%1%").arg(static_cast<int>(std::lround(share_ * 100.0)));
+    constexpr int kTextWidth = 34;
+    const QRect text_rect(width() - kTextWidth, 0, kTextWidth, height());
+    painter.setPen(theme().text_secondary);
+    painter.drawText(text_rect, Qt::AlignRight | Qt::AlignVCenter, text);
+    const QRectF track(1.5, height() / 2.0 - 3.0, width() - kTextWidth - 6.0, 6.0);
+    painter.setPen(QPen(theme().slider_groove_border, 1.0));
+    painter.setBrush(theme().slider_groove_bg);
+    painter.drawRoundedRect(track, 3.0, 3.0);
+    const auto fraction = largest_share_ > 0.0 ? std::clamp(share_ / largest_share_, 0.0, 1.0) : 0.0;
+    if (fraction > 0.0) {
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(QColor(hue_.red, hue_.green, hue_.blue));
+      painter.drawRoundedRect(QRectF(track.left(), track.top(), std::max(track.height(), track.width() * fraction),
+                                     track.height()),
+                              3.0, 3.0);
+    }
+  }
+
+private:
+  RgbColor hue_;
+  double share_;
+  double largest_share_;
+};
+
+// The preset thumbnails' source: the image fitted into `bounds` (display-encoded, over
+// white), or without an image a hue sweep that fades to dark, so every preset still shows
+// its character.
+QImage black_white_thumbnail_source(const PixelBuffer* source, QSize bounds) {
+  if (source == nullptr || source->empty() || source->format().channels < 3) {
+    QImage sweep(bounds, QImage::Format_RGB888);
+    for (int y = 0; y < bounds.height(); ++y) {
+      for (int x = 0; x < bounds.width(); ++x) {
+        const auto hue = static_cast<float>(x) / static_cast<float>(std::max(1, bounds.width()));
+        const auto value = 1.0F - 0.65F * static_cast<float>(y) / static_cast<float>(std::max(1, bounds.height() - 1));
+        sweep.setPixelColor(x, y, QColor::fromHsvF(hue, 0.85F, value));
+      }
+    }
+    return sweep;
+  }
+  const auto scale = std::min(static_cast<double>(bounds.width()) / source->width(),
+                              static_cast<double>(bounds.height()) / source->height());
+  const auto width = std::clamp(static_cast<int>(std::lround(source->width() * scale)), 1, bounds.width());
+  const auto height = std::clamp(static_cast<int>(std::lround(source->height() * scale)), 1, bounds.height());
+  QImage fitted(width, height, QImage::Format_RGB888);
+  for (int y = 0; y < height; ++y) {
+    const auto source_y = std::clamp(static_cast<int>((y + 0.5) * source->height() / height), 0, source->height() - 1);
+    for (int x = 0; x < width; ++x) {
+      const auto source_x =
+          std::clamp(static_cast<int>((x + 0.5) * source->width() / width), 0, source->width() - 1);
+      const auto rgba = display_rgba8_at(*source, source_x, source_y);
+      const auto over_white = [&rgba](int channel) {
+        return (rgba[static_cast<std::size_t>(channel)] * rgba[3] + 255 * (255 - rgba[3]) + 127) / 255;
+      };
+      fitted.setPixelColor(x, y, QColor(over_white(0), over_white(1), over_white(2)));
+    }
+  }
+  return fitted;
+}
+
+// The same pixmap in the selected state: the list's selection tint would hide the grays.
+QIcon black_white_thumbnail_icon(const QImage& image) {
+  const auto pixmap = QPixmap::fromImage(image);
+  QIcon icon;
+  icon.addPixmap(pixmap, QIcon::Normal);
+  icon.addPixmap(pixmap, QIcon::Selected);
+  return icon;
+}
+
+QImage black_white_thumbnail(const QImage& source, const BlackWhiteSettings& settings) {
+  QImage result(source.size(), QImage::Format_RGB888);
+  for (int y = 0; y < source.height(); ++y) {
+    const auto* in = source.constScanLine(y);
+    auto* out = result.scanLine(y);
+    for (int x = 0; x < source.width(); ++x, in += 3, out += 3) {
+      const auto value = black_white_transfer(settings, in[0], in[1], in[2], true);
+      for (int channel = 0; channel < 3; ++channel) {
+        out[channel] = static_cast<std::uint8_t>(std::clamp(std::lround(value[static_cast<std::size_t>(channel)]), 0L, 255L));
+      }
+    }
+  }
+  return result;
+}
+
+}  // namespace
+
 std::optional<BlackWhiteSettings> request_black_white_settings(
     QWidget* parent, std::function<void(bool, const BlackWhiteSettings&)> preview_changed,
-    BlackWhiteSettings initial) {
+    BlackWhiteSettings initial, const PixelBuffer* source) {
   // The six weights are slider rows; the tint lives in this shared state.
   auto state = std::make_shared<BlackWhiteSettings>(clamp_black_white(initial));
   const auto build_settings = [state](const std::vector<QSpinBox*>& spins) {
@@ -1881,6 +2041,13 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
     }
     return clamp_black_white(settings);
   };
+  // Read once when the dialog opens, from a downsample: nothing here scales with the image
+  // on a slider move. `source` is not kept.
+  const auto thumbnail_source = black_white_thumbnail_source(source, kBlackWhiteThumbnailSize);
+  std::optional<std::array<double, 6>> influence;
+  if (source != nullptr && !source->empty()) {
+    influence = black_white_weight_influence(*source);
+  }
   const auto percent = QStringLiteral(" %");
   const auto& start = *state;
   return request_adjustment_settings_dialog<BlackWhiteSettings>(
@@ -1893,8 +2060,139 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
        {QObject::tr("Blues"), QStringLiteral("blackWhiteBlues"), -200, 300, start.blues, percent},
        {QObject::tr("Magentas"), QStringLiteral("blackWhiteMagentas"), -200, 300, start.magentas, percent}},
       build_settings, std::move(preview_changed), {},
-      [state](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>&,
-              const std::function<void()>& flush_preview) {
+      [state, build_settings, thumbnail_source, influence](
+          QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
+          const std::function<void()>& flush_preview) {
+        // Each row: the hue and the gray it becomes, then (with an image) how much of the
+        // image that slider acts on.
+        const std::array<QString, 6> hue_names{QObject::tr("Reds"),  QObject::tr("Yellows"), QObject::tr("Greens"),
+                                               QObject::tr("Cyans"), QObject::tr("Blues"),   QObject::tr("Magentas")};
+        const std::array<QString, 6> object_keys{QStringLiteral("Reds"),  QStringLiteral("Yellows"),
+                                                 QStringLiteral("Greens"), QStringLiteral("Cyans"),
+                                                 QStringLiteral("Blues"), QStringLiteral("Magentas")};
+        double largest_share = 0.0;
+        if (influence.has_value()) {
+          largest_share = *std::max_element(influence->begin(), influence->end());
+        }
+        auto chips = std::make_shared<std::vector<BlackWhiteHueChip*>>();
+        for (std::size_t index = 0; index < spins.size() && index < kBlackWhiteSliderHues.size(); ++index) {
+          auto* row = spins[index]->parentWidget();
+          auto* row_layout = row != nullptr ? qobject_cast<QHBoxLayout*>(row->layout()) : nullptr;
+          if (row_layout == nullptr) {
+            continue;
+          }
+          auto* chip = new BlackWhiteHueChip(kBlackWhiteSliderHues[index], row);
+          chip->setObjectName(QStringLiteral("blackWhite") + object_keys[index] + QStringLiteral("Chip"));
+          chip->setToolTip(QObject::tr("%1 and the gray they become").arg(hue_names[index]));
+          row_layout->insertWidget(0, chip);
+          chips->push_back(chip);
+          if (influence.has_value()) {
+            const auto share = (*influence)[index];
+            auto* meter = new BlackWhiteInfluenceMeter(kBlackWhiteSliderHues[index], share, largest_share, row);
+            meter->setObjectName(QStringLiteral("blackWhite") + object_keys[index] + QStringLiteral("Influence"));
+            const auto text = QObject::tr("This slider acts on %1% of the image's color")
+                                  .arg(static_cast<int>(std::lround(share * 100.0)));
+            meter->setToolTip(text);
+            meter->setAccessibleName(text);
+            row_layout->addWidget(meter);
+          }
+        }
+
+        // Built-in presets with thumbnails of the image; Custom is whatever the sliders hold.
+        auto* preset_list = new QListWidget(&dialog);
+        preset_list->setObjectName(QStringLiteral("blackWhitePresetList"));
+        preset_list->setAccessibleName(QObject::tr("Black & White presets"));
+        preset_list->setViewMode(QListView::IconMode);
+        preset_list->setFlow(QListView::LeftToRight);
+        preset_list->setWrapping(true);
+        preset_list->setResizeMode(QListView::Adjust);
+        preset_list->setMovement(QListView::Static);
+        preset_list->setSelectionMode(QAbstractItemView::SingleSelection);
+        preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        // Two rows of five: every preset in view without scrolling.
+        preset_list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        preset_list->setIconSize(kBlackWhiteThumbnailSize);
+        preset_list->setGridSize(QSize(86, 66));
+        preset_list->setSpacing(0);
+        preset_list->setUniformItemSizes(true);
+        const auto frame = 2 * preset_list->frameWidth();
+        preset_list->setFixedHeight(2 * 66 + frame + 2);
+        preset_list->setMinimumWidth(5 * 86 + frame + 2);
+        auto* custom_item = new QListWidgetItem(QObject::tr("Custom"), preset_list);
+        custom_item->setData(kBlackWhitePresetIdRole, QString());
+        custom_item->setToolTip(QObject::tr("The current slider settings"));
+        for (const auto& preset : builtin_black_white_presets()) {
+          const auto name = QCoreApplication::translate("QObject", preset.name);
+          auto* item = new QListWidgetItem(name, preset_list);
+          item->setData(kBlackWhitePresetIdRole, QString::fromLatin1(preset.id));
+          item->setToolTip(name);
+        }
+        if (auto* layout = qobject_cast<QVBoxLayout*>(dialog.layout()); layout != nullptr) {
+          layout->insertWidget(0, preset_list);
+          if (influence.has_value()) {
+            auto* note = new QLabel(QObject::tr("Bars: how much of this image each slider acts on."), &dialog);
+            note->setObjectName(QStringLiteral("blackWhiteInfluenceNote"));
+            note->setWordWrap(true);
+            layout->insertWidget(1, note);
+          }
+        }
+
+        const auto current = [build_settings, spins] { return build_settings(spins); };
+        auto applying_preset = std::make_shared<bool>(false);
+        const auto refresh = [current, chips, preset_list, custom_item, thumbnail_source, applying_preset] {
+          const auto settings = current();
+          for (std::size_t index = 0; index < chips->size(); ++index) {
+            (*chips)[index]->set_gray(black_white_gray_for_hue(settings, kBlackWhiteSliderHues[index]));
+          }
+          custom_item->setIcon(black_white_thumbnail_icon(black_white_thumbnail(thumbnail_source, settings)));
+          for (int row = 1; row < preset_list->count(); ++row) {
+            auto* item = preset_list->item(row);
+            const auto id = item->data(kBlackWhitePresetIdRole).toString();
+            for (const auto& preset : builtin_black_white_presets()) {
+              if (id == QLatin1String(preset.id)) {
+                item->setIcon(black_white_thumbnail_icon(
+                    black_white_thumbnail(thumbnail_source, black_white_with_preset(settings, preset))));
+              }
+            }
+          }
+          if (*applying_preset) {
+            return;
+          }
+          const auto* match = matching_black_white_preset(settings);
+          const QSignalBlocker blocker(preset_list);
+          for (int row = 0; row < preset_list->count(); ++row) {
+            const auto id = preset_list->item(row)->data(kBlackWhitePresetIdRole).toString();
+            if ((match == nullptr && id.isEmpty()) || (match != nullptr && id == QLatin1String(match->id))) {
+              preset_list->setCurrentRow(row);
+              break;
+            }
+          }
+        };
+        refresh();
+        for (auto* spin : spins) {
+          QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [refresh](int) { refresh(); });
+        }
+        QObject::connect(preset_list, &QListWidget::currentItemChanged, &dialog,
+                         [spins, applying_preset, refresh, flush_preview](QListWidgetItem* item, QListWidgetItem*) {
+                           if (item == nullptr) {
+                             return;
+                           }
+                           const auto id = item->data(kBlackWhitePresetIdRole).toString();
+                           for (const auto& preset : builtin_black_white_presets()) {
+                             if (id != QLatin1String(preset.id)) {
+                               continue;
+                             }
+                             *applying_preset = true;
+                             for (std::size_t index = 0; index < spins.size() && index < preset.weights.size();
+                                  ++index) {
+                               spins[index]->setValue(preset.weights[index]);
+                             }
+                             *applying_preset = false;
+                             refresh();
+                             flush_preview();
+                           }
+                         });
+
         auto* row = new QWidget(&dialog);
         auto* row_layout = new QHBoxLayout(row);
         row_layout->setContentsMargins(0, 0, 0, 0);
@@ -1914,16 +2212,18 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
           set_themed_style(*swatch, color_button_style(QColor(color.red, color.green, color.blue)));
         };
         show();
-        QObject::connect(tint, &QCheckBox::toggled, &dialog, [state, swatch, flush_preview](bool checked) {
+        QObject::connect(tint, &QCheckBox::toggled, &dialog, [state, swatch, flush_preview, refresh](bool checked) {
           state->tint = checked;
           swatch->setEnabled(checked);
+          refresh();
           flush_preview();
         });
-        QObject::connect(swatch, &QPushButton::clicked, &dialog, [&dialog, swatch, state, show, flush_preview] {
+        QObject::connect(swatch, &QPushButton::clicked, &dialog,
+                         [&dialog, swatch, state, show, flush_preview, refresh] {
           // Picks preview live; Cancel puts the original color back.
           const QPointer<QPushButton> alive(swatch);
           const auto original = state->tint_color;
-          const auto apply = [alive, state, show, flush_preview](QColor picked) {
+          const auto apply = [alive, state, show, flush_preview, refresh](QColor picked) {
             if (alive == nullptr) {
               return;
             }
@@ -1931,6 +2231,7 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
                                          static_cast<std::uint8_t>(picked.green()),
                                          static_cast<std::uint8_t>(picked.blue())};
             show();
+            refresh();
             flush_preview();
           };
           const auto picked = request_patchy_color(&dialog, QColor(original.red, original.green, original.blue),

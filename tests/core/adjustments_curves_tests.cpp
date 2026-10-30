@@ -3,6 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
+#include "core/pixel_depth.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -3583,6 +3584,93 @@ void gradient_map_matches_photoshop_2026_calibration() {
   CHECK(worst_overall <= 1);
 }
 
+// The Black & White dialog's presets and slider measurement (#528): permanent unique ids, the
+// first preset is the default weights, applying one keeps the tint, and the measurement splits
+// each pixel's spans between the primary and secondary weights, ignoring grays and
+// transparent pixels, at any depth.
+void black_white_presets_and_weight_influence() {
+  const auto presets = patchy::builtin_black_white_presets();
+  CHECK(presets.size() == 9);
+  std::unordered_set<std::string_view> ids;
+  for (const auto& preset : presets) {
+    CHECK(std::string_view(preset.id).starts_with("black_white."));
+    CHECK(ids.insert(preset.id).second);
+    for (const auto weight : preset.weights) {
+      CHECK(weight >= -200 && weight <= 300);
+    }
+  }
+  CHECK(std::string_view(presets[0].id) == "black_white.default");
+  const patchy::BlackWhiteAdjustment defaults;
+  CHECK(patchy::matching_black_white_preset(defaults) == &presets[0]);
+  patchy::BlackWhiteAdjustment tinted;
+  tinted.tint = true;
+  tinted.tint_color = patchy::RgbColor{40, 90, 220};
+  const auto red_lens = patchy::black_white_with_preset(tinted, presets[4]);
+  CHECK(std::string_view(presets[4].id) == "black_white.red_lens");
+  CHECK(red_lens.reds == 115 && red_lens.yellows == 95 && red_lens.greens == -15 && red_lens.cyans == -45 &&
+        red_lens.blues == -55 && red_lens.magentas == 105);
+  CHECK(red_lens.tint && (red_lens.tint_color == patchy::RgbColor{40, 90, 220}));
+  CHECK(patchy::matching_black_white_preset(red_lens) == &presets[4]);
+  auto edited = red_lens;
+  edited.reds += 1;
+  CHECK(patchy::matching_black_white_preset(edited) == nullptr);
+
+  // Two reds, two yellows, two oranges, two grays and two transparent blues.
+  patchy::PixelBuffer pixels(10, 1, patchy::PixelFormat::rgba8());
+  const std::array<std::array<std::uint8_t, 4>, 10> colors{{{255, 0, 0, 255},
+                                                            {255, 0, 0, 255},
+                                                            {255, 255, 0, 255},
+                                                            {255, 255, 0, 255},
+                                                            {255, 128, 0, 255},
+                                                            {255, 128, 0, 255},
+                                                            {90, 90, 90, 255},
+                                                            {200, 200, 200, 255},
+                                                            {0, 0, 255, 0},
+                                                            {0, 0, 255, 0}}};
+  for (std::int32_t x = 0; x < 10; ++x) {
+    std::copy(colors[static_cast<std::size_t>(x)].begin(), colors[static_cast<std::size_t>(x)].end(),
+              pixels.pixel(x, 0));
+  }
+  const auto near = [](double value, double expected) { return std::abs(value - expected) < 1e-9; };
+  // Reds: 2 * 255 + 2 * 127; yellows: 2 * 255 + 2 * 128; total 2 * 1020.
+  const auto influence = patchy::black_white_weight_influence(pixels);
+  CHECK(near(influence[0], 764.0 / 1530.0));
+  CHECK(near(influence[1], 766.0 / 1530.0));
+  CHECK(near(influence[2], 0.0) && near(influence[3], 0.0) && near(influence[4], 0.0) && near(influence[5], 0.0));
+
+  // The same image at 16 bits measures the same.
+  auto deep = patchy::PixelBuffer(10, 1, patchy::PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::UInt16, 4});
+  for (std::int32_t x = 0; x < 10; ++x) {
+    const auto& color = colors[static_cast<std::size_t>(x)];
+    patchy::store_pixel(deep.format(), deep.pixel(x, 0),
+                        {static_cast<float>(color[0]), static_cast<float>(color[1]), static_cast<float>(color[2]),
+                         static_cast<float>(color[3])});
+  }
+  const auto deep_influence = patchy::black_white_weight_influence(deep);
+  for (std::size_t index = 0; index < 6; ++index) {
+    CHECK(std::abs(deep_influence[index] - influence[index]) < 1e-6);
+  }
+
+  // A gray or empty buffer measures nothing.
+  patchy::PixelBuffer gray(4, 4, patchy::PixelFormat::rgb8());
+  gray.clear(120);
+  const auto none = patchy::black_white_weight_influence(gray);
+  CHECK(std::all_of(none.begin(), none.end(), [](double value) { return value == 0.0; }));
+  CHECK(patchy::black_white_weight_influence(patchy::PixelBuffer{})[0] == 0.0);
+
+  // A large buffer is sampled, not read whole: a 2000x2000 half-blue image still splits evenly
+  // between blues and nothing else.
+  patchy::PixelBuffer large(2000, 2000, patchy::PixelFormat::rgb8());
+  large.clear(0);
+  for (std::int32_t y = 0; y < 2000; ++y) {
+    for (std::int32_t x = 0; x < 1000; ++x) {
+      large.pixel(x, y)[2] = 255;
+    }
+  }
+  const auto sampled = patchy::black_white_weight_influence(large, 1000);
+  CHECK(near(sampled[4], 1.0));
+}
+
 // Black & White reads and writes Photoshop's 'blwh' descriptor block (#250): the six
 // weights, the tint flag and the tint color. An unedited block re-emits byte for byte, an
 // edit rewrites only the modeled values, and a fresh layer starts from Photoshop's own block.
@@ -4507,6 +4595,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"psd_gradient_map_reads_and_writes_grdm", psd_gradient_map_reads_and_writes_grdm},
       {"gradient_map_matches_photoshop_2026_calibration", gradient_map_matches_photoshop_2026_calibration},
       {"psd_black_white_reads_and_writes_blwh", psd_black_white_reads_and_writes_blwh},
+      {"black_white_presets_and_weight_influence", black_white_presets_and_weight_influence},
       {"black_white_matches_photoshop_2026_calibration", black_white_matches_photoshop_2026_calibration},
       {"psd_color_lookup_renders_and_round_trips_clrL", psd_color_lookup_renders_and_round_trips_clrL},
       {"color_lookup_files_parse_and_embed", color_lookup_files_parse_and_embed},

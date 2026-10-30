@@ -13971,6 +13971,58 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>Certains calques de texte ont un contour GIMP fait d&apos;un motif ou de tirets, qu&apos;un effet Contour ne peut pas afficher ; ils ont donc été ouverts comme calques de pixels.</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>Mélange égal</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>Peau douce</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>Ciels profonds</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>Objectif rouge</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>Objectif vert</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>Objectif bleu</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>Feuillage lumineux</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>Contrasté</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 et le gris qu&apos;ils deviennent</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>Ce curseur agit sur %1% de la couleur de l&apos;image</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>Paramètres prédéfinis Noir et blanc</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>Les réglages actuels des curseurs</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>Barres : la part de cette image sur laquelle agit chaque curseur.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

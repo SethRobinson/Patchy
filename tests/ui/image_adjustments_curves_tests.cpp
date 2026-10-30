@@ -4373,6 +4373,111 @@ void ui_image_adjustments_black_white_matches_adjustment_layer() {
   }
 }
 
+// The Black & White dialog's presets, hue chips and measurement (#528): on a photo it shows
+// each slider's hue next to its gray and how much of the image each slider acts on; a preset
+// sets the six weights (the tint stays), and Image > Adjustments with a preset still matches
+// the adjustment layer of the same preset.
+void ui_black_white_dialog_presets_and_measurement() {
+  const std::array<const char*, 6> keys{"Reds", "Yellows", "Greens", "Cyans", "Blues", "Magentas"};
+  const auto select_preset = [](QDialog& dialog, const QString& id) {
+    auto* list = dialog.findChild<QListWidget*>(QStringLiteral("blackWhitePresetList"));
+    CHECK(list != nullptr);
+    if (list == nullptr) {
+      return;
+    }
+    for (int row = 0; row < list->count(); ++row) {
+      if (list->item(row)->data(Qt::UserRole + 1).toString() == id) {
+        list->setCurrentRow(row);
+        return;
+      }
+    }
+    CHECK(false);
+  };
+
+  // A photo: chips, meters and the preset strip, captured in both schemes.
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+    patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(photo));
+    bool dialog_checked = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyBlackWhiteDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* list = dialog->findChild<QListWidget*>(QStringLiteral("blackWhitePresetList"));
+      CHECK(list != nullptr && list->count() == 10);
+      CHECK(list != nullptr && list->currentRow() == 1);  // the default weights
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhiteInfluenceNote")) != nullptr);
+      for (const auto* key : keys) {
+        CHECK(dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Chip").arg(QLatin1String(key))) != nullptr);
+        CHECK(dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Influence").arg(QLatin1String(key))) !=
+              nullptr);
+      }
+      process_events_for(120);
+      for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+        ColorSchemeRestorer restore(scheme);
+        process_events_for(60);
+        save_widget_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_black_white_dialog_photo_dark"
+                                                                                : "ui_black_white_dialog_photo_light",
+                             *dialog);
+      }
+      dialog_checked = true;
+      dialog->reject();
+    });
+    require_action(window, "imageAdjustBlackWhiteAction")->trigger();
+    QApplication::processEvents();
+    CHECK(dialog_checked);
+  }
+
+  // A preset sets the weights and keeps the tint; editing a slider goes back to Custom.
+  {
+    patchy::Document source(kDirectAdjustmentWidth, kDirectAdjustmentHeight, patchy::PixelFormat::rgba8());
+    source.add_pixel_layer("Paint", direct_adjustment_source_pixels());
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(source), QStringLiteral("Presets"));
+    show_window(window);
+    bool dialog_checked = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyBlackWhiteDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* tint = dialog->findChild<QCheckBox*>(QStringLiteral("blackWhiteTintCheck"));
+      CHECK(tint != nullptr);
+      if (tint != nullptr) {
+        tint->setChecked(true);
+      }
+      select_preset(*dialog, QStringLiteral("black_white.glowing_foliage"));
+      const std::array<int, 6> expected{10, 190, 170, -30, -60, -40};
+      for (std::size_t index = 0; index < keys.size(); ++index) {
+        auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("blackWhite%1Spin").arg(QLatin1String(keys[index])));
+        CHECK(spin != nullptr && spin->value() == expected[index]);
+      }
+      CHECK(tint != nullptr && tint->isChecked());
+      auto* list = dialog->findChild<QListWidget*>(QStringLiteral("blackWhitePresetList"));
+      set_spin(*dialog, "blackWhiteRedsSpin", 11);
+      CHECK(list != nullptr && list->currentRow() == 0);  // Custom
+      set_spin(*dialog, "blackWhiteRedsSpin", 10);
+      CHECK(list != nullptr && list->currentItem() != nullptr &&
+            list->currentItem()->data(Qt::UserRole + 1).toString() == QStringLiteral("black_white.glowing_foliage"));
+      dialog_checked = true;
+      dialog->reject();
+    });
+    require_action(window, "layerNewBlackWhiteAdjustmentAction")->trigger();
+    QApplication::processEvents();
+    CHECK(dialog_checked);
+  }
+
+  check_direct_adjustment_matches_layer({"imageAdjustBlackWhiteAction", "layerNewBlackWhiteAdjustmentAction",
+                                         "patchyBlackWhiteDialog", [select_preset](QDialog& dialog) {
+                                           select_preset(dialog, QStringLiteral("black_white.red_lens"));
+                                         }});
+}
+
 void ui_image_adjustments_vibrance_matches_adjustment_layer() {
   check_direct_adjustment_matches_layer({"imageAdjustVibranceAction", "layerNewVibranceAdjustmentAction",
                                          "patchyVibranceDialog", [](QDialog& dialog) {
@@ -4543,6 +4648,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_clipped_adjustment_reedit_disables_auto},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
       {"ui_image_adjustments_black_white_matches_adjustment_layer", ui_image_adjustments_black_white_matches_adjustment_layer},
+      {"ui_black_white_dialog_presets_and_measurement", ui_black_white_dialog_presets_and_measurement},
       {"ui_image_adjustments_vibrance_matches_adjustment_layer", ui_image_adjustments_vibrance_matches_adjustment_layer},
       {"ui_image_adjustments_exposure_matches_adjustment_layer", ui_image_adjustments_exposure_matches_adjustment_layer},
       {"ui_image_adjustments_channel_mixer_matches_adjustment_layer", ui_image_adjustments_channel_mixer_matches_adjustment_layer},

@@ -222,9 +222,11 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
 [[nodiscard]] std::optional<ColorLookupSettings> request_color_lookup_settings(
     QWidget* parent, std::function<void(bool, const ColorLookupSettings&)> preview_changed = {},
     ColorLookupSettings initial = {});
+// `source` (optional, read only while the dialog opens) is the image the presets' thumbnails
+// show and the slider measurement reads; without it the thumbnails show a hue sweep.
 [[nodiscard]] std::optional<BlackWhiteSettings> request_black_white_settings(
     QWidget* parent, std::function<void(bool, const BlackWhiteSettings&)> preview_changed = {},
-    BlackWhiteSettings initial = {});
+    BlackWhiteSettings initial = {}, const PixelBuffer* source = nullptr);
 [[nodiscard]] std::optional<GradientMapSettings> request_gradient_map_settings(
     QWidget* parent, std::function<void(bool, const GradientMapSettings&)> preview_changed = {},
     GradientMapSettings initial = {}, GradientLibrary* library = nullptr, RgbColor foreground = {0, 0, 0},

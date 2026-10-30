@@ -1540,12 +1540,13 @@ private:
   void gradient_map_dialog();
   void selective_color_dialog();
   void color_lookup_dialog();
-  // `request` runs the dialog with a preview callback taking the live settings and returns
-  // the accepted settings, or nullopt on Cancel.
+  // `request` runs the dialog with a preview callback taking the live settings and the layer's
+  // original pixels, and returns the accepted settings, or nullopt on Cancel.
   using DirectAdjustmentPreview = std::function<void(bool, const AdjustmentSettings&)>;
   void direct_adjustment_dialog(
       const QString& display_name,
-      const std::function<std::optional<AdjustmentSettings>(const DirectAdjustmentPreview&)>& request);
+      const std::function<std::optional<AdjustmentSettings>(const DirectAdjustmentPreview&, const PixelBuffer&)>&
+          request);
   void new_invert_adjustment_layer();
   void new_posterize_adjustment_layer();
   void apply_posterize_adjustment(const PosterizeSettings& settings, bool allow_identity = false);

@@ -13971,6 +13971,58 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>Alcuni livelli di testo hanno un contorno di GIMP fatto con un pattern o a tratteggio, che un effetto Traccia non può mostrare, quindi sono stati aperti come livelli di pixel.</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>Mix uniforme</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>Pelle morbida</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>Cieli profondi</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>Lente rossa</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>Lente verde</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>Lente blu</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>Fogliame luminoso</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>Deciso</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 e il grigio in cui si trasformano</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>Questo cursore agisce sul %1% del colore dell&apos;immagine</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>Predefiniti Bianco e nero</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>Le impostazioni attuali dei cursori</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>Barre: quanta parte di questa immagine influenza ciascun cursore.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

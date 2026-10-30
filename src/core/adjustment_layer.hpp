@@ -434,6 +434,31 @@ struct BlackWhiteAdjustment {
 [[nodiscard]] std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings, double red,
                                                          double green, double blue, bool byte_stages);
 
+// The Black & White dialog's built-in presets (#528): fixed weight sets the user picks from, in
+// menu order. `id` is permanent; `name` is a PATCHY_TRANSLATE_NOOP("QObject", ...) source. Tint
+// stays as the user set it.
+struct BlackWhitePreset {
+  const char* id;
+  const char* name;
+  std::array<int, 6> weights;  // reds, yellows, greens, cyans, blues, magentas
+};
+[[nodiscard]] std::span<const BlackWhitePreset> builtin_black_white_presets() noexcept;
+// `settings` with the preset's six weights (tint unchanged).
+[[nodiscard]] BlackWhiteAdjustment black_white_with_preset(BlackWhiteAdjustment settings,
+                                                           const BlackWhitePreset& preset) noexcept;
+// The preset whose weights `settings` holds, or nullptr.
+[[nodiscard]] const BlackWhitePreset* matching_black_white_preset(const BlackWhiteAdjustment& settings) noexcept;
+
+// How much each Black & White weight (reds, yellows, greens, cyans, blues, magentas) acts on
+// `pixels`, for the dialog's measurement only: per pixel, the (largest - middle) span goes to the
+// largest channel's primary and the (middle - smallest) span to the secondary of the two
+// largest, as black_white_transfer weighs them, times alpha; summed and normalized to 1. All
+// zero for an empty or colorless buffer. Reads at most about `max_samples` pixels on an even
+// grid, at any depth. Informational: nothing derives weights from it
+// (docs/legal-constraints.md, "Adjustment layers").
+[[nodiscard]] std::array<double, 6> black_white_weight_influence(const PixelBuffer& pixels,
+                                                                 std::int64_t max_samples = 40000);
+
 // A sampled RGB-to-RGB 3D table, as Photoshop renders a Color Lookup ('clrL'): the layer's
 // ICC profile sampled at its own grid, 16-bit nodes, tetrahedral interpolation (trilinear
 // for a two-point grid)

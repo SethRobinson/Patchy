@@ -13928,6 +13928,58 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>일부 텍스트 레이어에 획 효과로 표현할 수 없는 패턴 또는 점선 GIMP 윤곽선이 있어 픽셀 레이어로 열렸습니다.</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>균등 혼합</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>부드러운 피부</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>깊은 하늘</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>빨강 렌즈</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>초록 렌즈</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>파랑 렌즈</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>빛나는 나뭇잎</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>강렬하게</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 및 변환되는 회색</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>이 슬라이더는 이미지 색상의 %1%에 작용합니다</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>흑백 사전 설정</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>현재 슬라이더 설정</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>막대: 각 슬라이더가 이 이미지에 얼마나 작용하는지 보여 줍니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

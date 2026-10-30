@@ -13971,6 +13971,58 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so they opened as pixel layers.</source>
         <translation>Einige Textebenen haben eine GIMP-Kontur aus einem Muster oder Strichen, die ein Kontur-Effekt nicht darstellen kann, und wurden deshalb als Pixelebenen geöffnet.</translation>
     </message>
+    <message>
+        <source>Even Mix</source>
+        <translation>Gleichmäßige Mischung</translation>
+    </message>
+    <message>
+        <source>Soft Skin</source>
+        <translation>Weiche Haut</translation>
+    </message>
+    <message>
+        <source>Deep Skies</source>
+        <translation>Tiefer Himmel</translation>
+    </message>
+    <message>
+        <source>Red Lens</source>
+        <translation>Rotlinse</translation>
+    </message>
+    <message>
+        <source>Green Lens</source>
+        <translation>Grünlinse</translation>
+    </message>
+    <message>
+        <source>Blue Lens</source>
+        <translation>Blaulinse</translation>
+    </message>
+    <message>
+        <source>Glowing Foliage</source>
+        <translation>Leuchtendes Laub</translation>
+    </message>
+    <message>
+        <source>Bold</source>
+        <translation>Kräftig</translation>
+    </message>
+    <message>
+        <source>%1 and the gray they become</source>
+        <translation>%1 und das Grau, das daraus wird</translation>
+    </message>
+    <message>
+        <source>This slider acts on %1% of the image&apos;s color</source>
+        <translation>Dieser Regler wirkt auf %1% der Bildfarbe</translation>
+    </message>
+    <message>
+        <source>Black &amp; White presets</source>
+        <translation>Schwarzweiß-Vorgaben</translation>
+    </message>
+    <message>
+        <source>The current slider settings</source>
+        <translation>Die aktuellen Reglerwerte</translation>
+    </message>
+    <message>
+        <source>Bars: how much of this image each slider acts on.</source>
+        <translation>Balken: wie viel dieses Bildes jeder Regler beeinflusst.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
