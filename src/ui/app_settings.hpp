@@ -170,6 +170,10 @@ void set_stored_system_title_bar(bool enabled);
 // compatibility contract); invalid when never resized.
 [[nodiscard]] QSize stored_preferences_dialog_size();
 void set_stored_preferences_dialog_size(QSize size);
+// The size the user dragged the Layer Style dialog to (key `layerStyle/dialogSize`, a
+// compatibility contract); invalid when never resized. An invalid size removes the key.
+[[nodiscard]] QSize stored_layer_style_dialog_size();
+void set_stored_layer_style_dialog_size(QSize size);
 // The id of the Preferences page the dialog was last closed on (key `preferences/lastPage`,
 // a compatibility contract, as are the page ids); empty when never stored.
 [[nodiscard]] QString stored_preferences_last_page();

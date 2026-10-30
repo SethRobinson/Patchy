@@ -1,4 +1,5 @@
 #include "ui/curved_slider.hpp"
+#include "ui/app_settings.hpp"
 
 #include "ui/canvas_widget.hpp"
 #include "core/pattern_presets.hpp"
@@ -2400,6 +2401,108 @@ void ui_layer_style_dialog_fits_a_short_screen() {
   CHECK(inspected);
 }
 
+void ui_layer_style_dialog_resizes_below_its_tallest_page() {
+  // GitHub issue 536: below the issue 190 screen cap the settings pane's
+  // minimum was the whole Blending Options page, so the dialog could not be
+  // dragged shorter. Once shown, the dialog can be made much smaller than its
+  // page and the pane scrolls; it still opens at its natural size, a page
+  // switch keeps the size, and the next open restores the size it was left at.
+  patchy::ui::set_stored_layer_style_dialog_size({});
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Resize",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(200, 120, 60, 255)));
+  const auto layer_id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Resize"));
+  show_window(window);
+
+  const auto open_dialog = [&window](const std::function<void(QDialog&, QScrollArea&)>& inspect) {
+    bool inspected = false;
+    QTimer::singleShot(0, &window, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      QApplication::processEvents();
+      auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleOptionsScroll"));
+      CHECK(scroll != nullptr);
+      if (scroll != nullptr) {
+        inspect(*dialog, *scroll);
+      }
+      inspected = true;
+      dialog->reject();
+    });
+    require_action(window, "layerBlendingOptionsAction")->trigger();
+    QApplication::processEvents();
+    CHECK(inspected);
+  };
+
+  QSize natural;
+  QSize small;
+  open_dialog([&](QDialog& dialog, QScrollArea& scroll) {
+    natural = dialog.size();
+    const auto pages_height = scroll.widget()->minimumSizeHint().height();
+    std::printf("layer style dialog opens %dx%d (minimum %dx%d), pages %d tall, viewport %d\n", natural.width(),
+                natural.height(), dialog.minimumWidth(), dialog.minimumHeight(), pages_height,
+                scroll.viewport()->height());
+    save_image_artifact("ui_layer_style_dialog_natural_size", dialog.grab().toImage());
+    // The plain layer's tallest page fits the 800 px offscreen screen: the
+    // dialog opens showing all of it, nothing to scroll.
+    CHECK(scroll.verticalScrollBar()->maximum() == 0);
+    CHECK(scroll.viewport()->height() >= pages_height);
+    CHECK(dialog.minimumHeight() < natural.height() - 200);
+
+    dialog.resize(600, 400);
+    QApplication::processEvents();
+    std::printf("resized to 600x400: %dx%d, viewport %d, scroll maximum %d\n", dialog.width(), dialog.height(),
+                scroll.viewport()->height(), scroll.verticalScrollBar()->maximum());
+    save_image_artifact("ui_layer_style_dialog_resized_small", dialog.grab().toImage());
+    CHECK(dialog.height() <= 410);
+    CHECK(dialog.width() == std::max(600, dialog.minimumWidth()));
+    CHECK(scroll.verticalScrollBar()->isVisible());
+    CHECK(scroll.verticalScrollBar()->maximum() > 0);
+    // The last Blend If field is reached by scrolling, and the pane keeps the
+    // widest page beside its scroll bar: nothing is clipped on the right.
+    auto* last_field = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfUnderlyingWhiteHighSpin"));
+    CHECK(last_field != nullptr);
+    if (last_field != nullptr) {
+      scroll.ensureWidgetVisible(last_field);
+      QApplication::processEvents();
+      CHECK(!last_field->visibleRegion().isEmpty());
+      CHECK(last_field->mapTo(scroll.viewport(), QPoint(last_field->width(), 0)).x() <= scroll.viewport()->width());
+    }
+    small = dialog.size();
+    // Another page keeps the size the user chose.
+    auto* categories = dialog.findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(categories != nullptr);
+    if (categories != nullptr) {
+      for (int row = 0; row < categories->count(); ++row) {
+        if (categories->item(row)->text().contains(QStringLiteral("Stroke"))) {
+          categories->setCurrentRow(row);
+          break;
+        }
+      }
+      QApplication::processEvents();
+      CHECK(dialog.size() == small);
+    }
+  });
+  CHECK(patchy::ui::stored_layer_style_dialog_size() == small);
+
+  // Reopened, it comes back at the size it was left at.
+  open_dialog([&](QDialog& dialog, QScrollArea& scroll) {
+    CHECK(dialog.size() == small);
+    CHECK(scroll.verticalScrollBar()->maximum() > 0);
+  });
+
+  // With no remembered size it opens at its natural size again.
+  patchy::ui::set_stored_layer_style_dialog_size({});
+  open_dialog([&](QDialog& dialog, QScrollArea&) { CHECK(dialog.size() == natural); });
+  CHECK(!patchy::ui::stored_layer_style_dialog_size().isValid());
+}
+
 void ui_layer_style_knockout_and_vector_mask_hides_effects_commit() {
   // GitHub issue 191: Blending Options gains Photoshop's Knockout (None,
   // Shallow, Deep) and Vector Mask Hides Effects. The layer carries the None
@@ -2485,6 +2588,7 @@ void ui_layer_style_knockout_and_vector_mask_hides_effects_commit() {
 std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
   return {
       {"ui_layer_style_dialog_fits_a_short_screen", ui_layer_style_dialog_fits_a_short_screen},
+      {"ui_layer_style_dialog_resizes_below_its_tallest_page", ui_layer_style_dialog_resizes_below_its_tallest_page},
       {"ui_layer_style_knockout_and_vector_mask_hides_effects_commit",
        ui_layer_style_knockout_and_vector_mask_hides_effects_commit},
       {"ui_layer_style_shadow_distances_accept_photoshop_30000",
