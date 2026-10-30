@@ -1,4 +1,5 @@
 #include "ui/appearance_properties.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_style_dialog_controls.hpp"
 #include "ui/layer_style_gradient_controls.hpp"
@@ -162,15 +163,23 @@ private:
 // A screen narrower than the dialog's minimum width (larger Linux fonts plus
 // the capped pane's scroll bar made it 803 px on an 800 px screen) takes the
 // width overflow out of the pane the same way, which then scrolls sideways.
+// GitHub issue 536: once shown, the pane keeps only a small minimum height, so
+// the user can drag the dialog shorter than its tallest page and the pane
+// scrolls; `restored_size` (the size the user last left it at) applies then.
 class OptionsPaneScreenCap final : public QObject {
 public:
-  OptionsPaneScreenCap(QDialog& dialog, QScrollArea& scroll, QWidget& pages, int budget, QSize max_size)
+  OptionsPaneScreenCap(QDialog& dialog, QScrollArea& scroll, QWidget& pages, int budget, QSize max_size,
+                       QSize restored_size)
       : QObject(&scroll), dialog_(dialog), scroll_(scroll), pages_(pages), budget_(budget),
-        max_size_(max_size) {
+        max_size_(max_size), restored_size_(restored_size) {
     pages.installEventFilter(this);
     dialog.installEventFilter(this);
     sync();
   }
+
+  // The size the dialog last gave itself (its first Show, a page that grew
+  // it); invalid until shown. A different size at close is the user's.
+  [[nodiscard]] QSize own_size() const { return own_size_; }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
@@ -179,11 +188,76 @@ protected:
     } else if (watched == &dialog_ && event->type() == QEvent::Show && !fitted_) {
       fitted_ = true;
       fit_to_screen();
+      make_resizable();
+      own_size_ = dialog_.size();
     }
     return QObject::eventFilter(watched, event);
   }
 
 private:
+  // The new pane minimum has to reach the dialog's own minimum before a
+  // resize, or the resize clamps to the stale one: the dialog's top layout
+  // still counts as activated, so drop every cached hint on the way up.
+  void refresh_dialog_minimum() {
+    for (QWidget* widget = &scroll_; widget != nullptr && widget != &dialog_; widget = widget->parentWidget()) {
+      widget->updateGeometry();
+    }
+    for (auto* layout : dialog_.findChildren<QLayout*>()) {
+      layout->invalidate();
+    }
+    dialog_.layout()->activate();
+  }
+
+  void make_resizable() {
+    if (dialog_.layout() == nullptr) {
+      return;
+    }
+    const auto pages = pages_.minimumSizeHint();
+    shown_pages_height_ = pages.height();
+    // The scroll bar room the resizable pane keeps must not push the dialog
+    // past a narrow screen: take what does not fit out of the pane, which
+    // then scrolls sideways (the issue 190 width rule).
+    if (!max_size_.isEmpty() && width_budget_ == 0) {
+      const auto extra = pages.width() + scroll_.verticalScrollBar()->sizeHint().width() - scroll_.minimumWidth();
+      const auto slack = std::max(0, max_size_.width() - dialog_.minimumWidth());
+      if (extra > slack) {
+        width_budget_ = std::max(kMinimumBudget, scroll_.minimumWidth() + slack);
+        scroll_.setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+      }
+    }
+    resizable_ = true;
+    sync();
+    refresh_dialog_minimum();
+    if (restored_size_.isValid()) {
+      auto size = restored_size_;
+      if (!max_size_.isEmpty()) {
+        size = size.boundedTo(max_size_);
+      }
+      dialog_.resize(size.expandedTo(dialog_.minimumSize()));
+    }
+  }
+
+  // A page that grows after the dialog showed (a Stroke switched to Gradient)
+  // grows the dialog by what it now lacks, up to the screen cap, as long as the
+  // pane showed the whole page before; a pane the user shrank keeps scrolling.
+  void grow_for_taller_pages(int pages_height) {
+    const auto previous = shown_pages_height_;
+    shown_pages_height_ = pages_height;
+    if (!dialog_.isVisible() || pages_height <= previous || scroll_.viewport()->height() < previous) {
+      return;
+    }
+    const auto missing = pages_height - scroll_.viewport()->height();
+    if (missing <= 0) {
+      return;
+    }
+    auto height = dialog_.height() + missing;
+    if (!max_size_.isEmpty()) {
+      height = std::max(dialog_.height(), std::min(height, max_size_.height()));
+    }
+    dialog_.resize(dialog_.width(), height);
+    own_size_ = dialog_.size();
+  }
+
   void fit_to_screen() {
     if (max_size_.isEmpty() || dialog_.layout() == nullptr) {
       return;
@@ -202,16 +276,7 @@ private:
       scroll_.setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     }
     sync();
-    // The new pane minimum has to reach the dialog's own minimum before the
-    // resize, or the resize clamps to the stale one: the dialog's top layout
-    // still counts as activated, so drop every cached hint on the way up.
-    for (QWidget* widget = &scroll_; widget != nullptr && widget != &dialog_; widget = widget->parentWidget()) {
-      widget->updateGeometry();
-    }
-    for (auto* layout : dialog_.findChildren<QLayout*>()) {
-      layout->invalidate();
-    }
-    dialog_.layout()->activate();
+    refresh_dialog_minimum();
     dialog_.resize(width_overflow > 0 ? std::max(max_size_.width(), dialog_.minimumWidth()) : dialog_.width(),
                    height_overflow > 0 ? std::max(max_size_.height(), dialog_.minimumHeight())
                                        : dialog_.height());
@@ -219,13 +284,19 @@ private:
 
   void sync() {
     const auto minimum = pages_.minimumSizeHint();
-    const bool capped = minimum.height() > budget_;
+    if (resizable_) {
+      grow_for_taller_pages(minimum.height());
+    }
+    // Once resizable, the pane may always end up scrolling, so it keeps room
+    // for the scroll bar beside the widest page.
+    const bool capped = resizable_ || minimum.height() > budget_;
     // A capped pane shows its scroll bar beside the pages, never over them.
     auto width = minimum.width() + (capped ? scroll_.verticalScrollBar()->sizeHint().width() : 0);
     if (width_budget_ > 0) {
       width = std::min(width, width_budget_);
     }
-    const QSize size(width, capped ? budget_ : minimum.height());
+    const QSize size(width, resizable_ ? std::min(kMinimumBudget, minimum.height())
+                                       : (capped ? budget_ : minimum.height()));
     if (scroll_.minimumSize() != size) {
       scroll_.setMinimumSize(size);
     }
@@ -238,7 +309,11 @@ private:
   int budget_;
   int width_budget_{0};  // 0 until a too-narrow screen sets one
   QSize max_size_;
+  QSize restored_size_;
+  QSize own_size_;
+  int shown_pages_height_{0};
   bool fitted_{false};
+  bool resizable_{false};
 };
 
 LayerDropShadow default_drop_shadow() {
@@ -3548,7 +3623,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     pane_budget = std::max(120, pages_minimum - std::max(0, natural_height - max_height));
     dialog.resize(width, std::min(dialog.height(), max_height));
   }
-  new OptionsPaneScreenCap(dialog, *options_scroll, *controls, pane_budget, QSize(max_width, max_height));
+  const auto* pane_cap = new OptionsPaneScreenCap(dialog, *options_scroll, *controls, pane_budget,
+                                                  QSize(max_width, max_height), stored_layer_style_dialog_size());
 
   log_ui_profile("layer_style_dialog_build",
                  std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
@@ -3556,6 +3632,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                      .count());
   const auto exec_started = std::chrono::steady_clock::now();
   const auto dialog_result = run_non_modal_dialog(dialog);
+  if (const auto own_size = pane_cap->own_size(); own_size.isValid() && dialog.size() != own_size) {
+    set_stored_layer_style_dialog_size(dialog.size());
+  }
   log_ui_profile("layer_style_dialog_exec",
                  std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
                                                            exec_started)

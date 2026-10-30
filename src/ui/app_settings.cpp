@@ -43,6 +43,7 @@ QString update_last_check_key() { return QStringLiteral("updates/lastCheckSecsSi
 QString update_skipped_version_key() { return QStringLiteral("updates/skippedVersion"); }
 QString appimage_menu_entry_prompt_declined_key() { return QStringLiteral("appimage/menuEntryPromptDeclined"); }
 QString preferences_dialog_size_key() { return QStringLiteral("preferences/dialogSize"); }
+QString layer_style_dialog_size_key() { return QStringLiteral("layerStyle/dialogSize"); }
 QString preferences_last_page_key() { return QStringLiteral("preferences/lastPage"); }
 QString system_title_bar_key() { return QStringLiteral("window/systemTitleBar"); }
 QString cmyk_profile_key() { return QStringLiteral("color/cmykProfile"); }
@@ -115,6 +116,19 @@ QSize stored_preferences_dialog_size() {
 void set_stored_preferences_dialog_size(QSize size) {
   auto settings = app_settings();
   settings.setValue(preferences_dialog_size_key(), size);
+}
+
+QSize stored_layer_style_dialog_size() {
+  return app_settings().value(layer_style_dialog_size_key()).toSize();
+}
+
+void set_stored_layer_style_dialog_size(QSize size) {
+  auto settings = app_settings();
+  if (size.isValid()) {
+    settings.setValue(layer_style_dialog_size_key(), size);
+  } else {
+    settings.remove(layer_style_dialog_size_key());
+  }
 }
 
 QString stored_preferences_last_page() { return app_settings().value(preferences_last_page_key()).toString(); }
