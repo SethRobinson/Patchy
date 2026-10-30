@@ -33,6 +33,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QImage>
 #include <QKeySequence>
 #include <QItemSelectionModel>
@@ -4478,6 +4479,106 @@ void ui_black_white_dialog_presets_and_measurement() {
                                          }});
 }
 
+// Every Black & White preset name is readable in full (#528 follow-up): on a portrait and a
+// landscape image, and in German, each cell holds its whole name on at most two lines, the
+// cells keep one size whatever the image's aspect, and all ten sit in view without scrolling.
+namespace {
+
+void check_black_white_preset_labels_fit(QDialog& dialog, const char* context) {
+  auto* list = dialog.findChild<QListWidget*>(QStringLiteral("blackWhitePresetList"));
+  CHECK(list != nullptr && list->count() == 10);
+  if (list == nullptr) {
+    return;
+  }
+  const QFontMetrics metrics(list->font());
+  const auto viewport = list->viewport()->rect();
+  QSize first_size;
+  for (int row = 0; row < list->count(); ++row) {
+    const auto rect = list->visualRect(list->model()->index(row, 0));
+    const auto text = list->item(row)->text();
+    const auto width = rect.width() - 8;
+    const auto box = metrics.boundingRect(QRect(0, 0, width, 100000), Qt::AlignHCenter | Qt::TextWordWrap, text);
+    const bool fits = box.width() <= width && box.height() <= 2 * metrics.lineSpacing() &&
+                      rect.height() >= 48 + 2 * metrics.lineSpacing() && viewport.contains(rect);
+    if (!fits) {
+      std::cerr << context << ": preset \"" << text.toStdString() << "\" needs " << box.width() << "x"
+                << box.height() << " in a " << rect.width() << "x" << rect.height() << " cell\n";
+    }
+    CHECK(fits);
+    if (row == 0) {
+      first_size = rect.size();
+    }
+    CHECK(rect.size() == first_size);
+  }
+}
+
+// Runs `check` on the Black & White dialog Image > Adjustments opens for `pixels`.
+void with_black_white_dialog(const patchy::PixelBuffer& pixels, const std::function<void(QDialog&)>& check) {
+  patchy::Document source(pixels.width(), pixels.height(), patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Photo", pixels);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Aspect"));
+  show_window(window);
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyBlackWhiteDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    process_events_for(120);
+    check(*dialog);
+    dialog_checked = true;
+    dialog->reject();
+  });
+  require_action(window, "imageAdjustBlackWhiteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+}
+
+// A crop of the committed street photo, as RGBA.
+patchy::PixelBuffer black_white_photo_crop(QRect crop) {
+  QImage photo(patchy::ui::to_qstring(
+      patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg")));
+  CHECK(!photo.isNull());
+  photo = photo.copy(crop).scaled(crop.size() / 4, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+              .convertToFormat(QImage::Format_RGBA8888);
+  patchy::PixelBuffer pixels(photo.width(), photo.height(), patchy::PixelFormat::rgba8());
+  for (int y = 0; y < photo.height(); ++y) {
+    std::memcpy(pixels.pixel(0, y), photo.constScanLine(y), static_cast<std::size_t>(photo.width()) * 4U);
+  }
+  return pixels;
+}
+
+}  // namespace
+
+void ui_black_white_preset_labels_fit_any_aspect_and_language() {
+  const auto portrait = black_white_photo_crop(QRect(1100, 100, 900, 1800));
+  const auto landscape = black_white_photo_crop(QRect(0, 200, 3000, 1500));
+  with_black_white_dialog(portrait, [](QDialog& dialog) {
+    save_widget_artifact("ui_black_white_dialog_portrait_dark", dialog);
+    check_black_white_preset_labels_fit(dialog, "portrait");
+  });
+  with_black_white_dialog(landscape, [](QDialog& dialog) {
+    save_widget_artifact("ui_black_white_dialog_landscape_dark", dialog);
+    check_black_white_preset_labels_fit(dialog, "landscape");
+  });
+  // Very tall and very wide synthetic images.
+  with_black_white_dialog(solid_pixels(8, 200, patchy::PixelFormat::rgba8(), QColor(200, 80, 40)),
+                          [](QDialog& dialog) { check_black_white_preset_labels_fit(dialog, "tall"); });
+  with_black_white_dialog(solid_pixels(300, 6, patchy::PixelFormat::rgba8(), QColor(40, 120, 200)),
+                          [](QDialog& dialog) { check_black_white_preset_labels_fit(dialog, "wide"); });
+  {
+    LanguageRestorer restore_language;
+    CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("de"), false));
+    QApplication::processEvents();
+    with_black_white_dialog(portrait, [](QDialog& dialog) {
+      save_widget_artifact("ui_black_white_dialog_portrait_de", dialog);
+      check_black_white_preset_labels_fit(dialog, "German portrait");
+    });
+  }
+}
+
 void ui_image_adjustments_vibrance_matches_adjustment_layer() {
   check_direct_adjustment_matches_layer({"imageAdjustVibranceAction", "layerNewVibranceAdjustmentAction",
                                          "patchyVibranceDialog", [](QDialog& dialog) {
@@ -4649,6 +4750,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
       {"ui_image_adjustments_black_white_matches_adjustment_layer", ui_image_adjustments_black_white_matches_adjustment_layer},
       {"ui_black_white_dialog_presets_and_measurement", ui_black_white_dialog_presets_and_measurement},
+      {"ui_black_white_preset_labels_fit_any_aspect_and_language", ui_black_white_preset_labels_fit_any_aspect_and_language},
       {"ui_image_adjustments_vibrance_matches_adjustment_layer", ui_image_adjustments_vibrance_matches_adjustment_layer},
       {"ui_image_adjustments_exposure_matches_adjustment_layer", ui_image_adjustments_exposure_matches_adjustment_layer},
       {"ui_image_adjustments_channel_mixer_matches_adjustment_layer", ui_image_adjustments_channel_mixer_matches_adjustment_layer},

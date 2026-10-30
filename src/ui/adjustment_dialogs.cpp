@@ -21,12 +21,14 @@
 #include "ui/layer_style_gradient_controls.hpp"
 
 #include <QAbstractItemView>
+#include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFontMetrics>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QFile>
@@ -53,6 +55,10 @@
 #include <QSlider>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QStringList>
+#include <QStyle>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QTimer>
 #include <QValidator>
@@ -1876,7 +1882,7 @@ namespace {
 // Black & White dialog cues (#528). The six hue colors stand for the hues the sliders weigh
 // (content, like a color swatch), so they stay the same in every theme; frames, tracks and
 // text use theme roles.
-constexpr QSize kBlackWhiteThumbnailSize(64, 42);
+constexpr QSize kBlackWhiteThumbnailSize(64, 48);
 constexpr int kBlackWhitePresetIdRole = Qt::UserRole + 1;
 constexpr std::array<RgbColor, 6> kBlackWhiteSliderHues{{
     {255, 0, 0}, {255, 255, 0}, {0, 255, 0}, {0, 255, 255}, {0, 0, 255}, {255, 0, 255}}};
@@ -2001,14 +2007,93 @@ QImage black_white_thumbnail_source(const PixelBuffer* source, QSize bounds) {
   return fitted;
 }
 
-// The same pixmap in the selected state: the list's selection tint would hide the grays.
+// The thumbnail centred in the fixed thumbnail box, whatever the image's aspect, so every
+// preset cell has the same size; the same pixmap in the selected state, because the list's
+// selection tint would hide the grays.
 QIcon black_white_thumbnail_icon(const QImage& image) {
-  const auto pixmap = QPixmap::fromImage(image);
+  QImage boxed(kBlackWhiteThumbnailSize, QImage::Format_ARGB32_Premultiplied);
+  boxed.fill(Qt::transparent);
+  {
+    QPainter painter(&boxed);
+    painter.drawImage(QPoint((boxed.width() - image.width()) / 2, (boxed.height() - image.height()) / 2), image);
+  }
+  const auto pixmap = QPixmap::fromImage(boxed);
   QIcon icon;
   icon.addPixmap(pixmap, QIcon::Normal);
   icon.addPixmap(pixmap, QIcon::Selected);
   return icon;
 }
+
+// Preset cells: the thumbnail box on top, the name below in up to two wrapped lines.
+constexpr int kBlackWhiteCellPadding = 4;
+constexpr int kBlackWhiteNameLines = 2;
+
+// The narrowest cell (never narrower than the thumbnail box plus padding) in which every name
+// fits on at most two lines without breaking a word, so no name is ever elided in any
+// language. Long single words widen the cell instead of being cut.
+int black_white_preset_cell_width(const QFontMetrics& metrics, const QStringList& names) {
+  const auto text_width_for = [&metrics](const QString& name, int width) {
+    const auto box = metrics.boundingRect(QRect(0, 0, width, 100000), Qt::AlignHCenter | Qt::TextWordWrap, name);
+    return box.width() <= width && box.height() <= kBlackWhiteNameLines * metrics.lineSpacing();
+  };
+  int width = kBlackWhiteThumbnailSize.width() + 2 * kBlackWhiteCellPadding;
+  for (; width < 400; width += 2) {
+    const auto text_width = width - 2 * kBlackWhiteCellPadding;
+    if (std::all_of(names.begin(), names.end(),
+                    [&](const QString& name) { return text_width_for(name, text_width); })) {
+      break;
+    }
+  }
+  return width;
+}
+
+QSize black_white_preset_cell_size(const QFontMetrics& metrics, int width) {
+  return QSize(width, kBlackWhiteCellPadding + kBlackWhiteThumbnailSize.height() + kBlackWhiteCellPadding +
+                          kBlackWhiteNameLines * metrics.lineSpacing() + kBlackWhiteCellPadding);
+}
+
+// Paints a preset cell itself: the default icon-mode layout limits the text to the icon's
+// width and elides it.
+class BlackWhitePresetDelegate final : public QStyledItemDelegate {
+public:
+  BlackWhitePresetDelegate(QSize cell, QObject* parent) : QStyledItemDelegate(parent), cell_(cell) {}
+
+  QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    Q_UNUSED(option);
+    Q_UNUSED(index);
+    return cell_;
+  }
+
+  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    QStyleOptionViewItem panel = option;
+    initStyleOption(&panel, index);
+    panel.text.clear();
+    panel.icon = QIcon();
+    panel.features &= ~(QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::HasDecoration);
+    const auto* widget = option.widget;
+    auto* style = widget != nullptr ? widget->style() : QApplication::style();
+    style->drawPrimitive(QStyle::PE_PanelItemViewItem, &panel, painter, widget);
+    const auto icon = qvariant_cast<QIcon>(index.data(Qt::DecorationRole));
+    const QRect icon_rect(option.rect.left() + (option.rect.width() - kBlackWhiteThumbnailSize.width()) / 2,
+                          option.rect.top() + kBlackWhiteCellPadding, kBlackWhiteThumbnailSize.width(),
+                          kBlackWhiteThumbnailSize.height());
+    icon.paint(painter, icon_rect, Qt::AlignCenter, QIcon::Normal);
+    const QRect text_rect(option.rect.left() + kBlackWhiteCellPadding,
+                          icon_rect.bottom() + 1 + kBlackWhiteCellPadding,
+                          option.rect.width() - 2 * kBlackWhiteCellPadding,
+                          option.rect.bottom() - icon_rect.bottom() - kBlackWhiteCellPadding);
+    painter->save();
+    const bool selected = (option.state & QStyle::State_Selected) != 0;
+    painter->setPen(selected ? theme().list_selection_text : theme().text_primary);
+    painter->setFont(option.font);
+    painter->drawText(text_rect, Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap,
+                      index.data(Qt::DisplayRole).toString());
+    painter->restore();
+  }
+
+private:
+  QSize cell_;
+};
 
 QImage black_white_thumbnail(const QImage& source, const BlackWhiteSettings& settings) {
   QImage result(source.size(), QImage::Format_RGB888);
@@ -2109,16 +2194,27 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
         preset_list->setMovement(QListView::Static);
         preset_list->setSelectionMode(QAbstractItemView::SingleSelection);
         preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        // Two rows of five: every preset in view without scrolling.
+        // Two rows of five: every preset in view without scrolling. The cell is sized from the
+        // longest translated name and a fixed thumbnail box, never from the image's aspect.
         preset_list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         preset_list->setIconSize(kBlackWhiteThumbnailSize);
-        preset_list->setGridSize(QSize(86, 66));
         preset_list->setSpacing(0);
         preset_list->setUniformItemSizes(true);
+        preset_list->setWordWrap(true);
+        QStringList names{QObject::tr("Custom")};
+        for (const auto& preset : builtin_black_white_presets()) {
+          names << QCoreApplication::translate("QObject", preset.name);
+        }
+        preset_list->ensurePolished();
+        const QFontMetrics metrics(preset_list->font());
+        const auto cell = black_white_preset_cell_size(metrics, black_white_preset_cell_width(metrics, names));
+        preset_list->setItemDelegate(new BlackWhitePresetDelegate(cell, preset_list));
+        const QSize grid(cell.width() + 2, cell.height() + 2);
+        preset_list->setGridSize(grid);
         const auto frame = 2 * preset_list->frameWidth();
-        preset_list->setFixedHeight(2 * 66 + frame + 2);
-        preset_list->setMinimumWidth(5 * 86 + frame + 2);
-        auto* custom_item = new QListWidgetItem(QObject::tr("Custom"), preset_list);
+        preset_list->setFixedHeight(2 * grid.height() + frame + 2);
+        preset_list->setMinimumWidth(5 * grid.width() + frame + 2);
+        auto* custom_item = new QListWidgetItem(names.front(), preset_list);
         custom_item->setData(kBlackWhitePresetIdRole, QString());
         custom_item->setToolTip(QObject::tr("The current slider settings"));
         for (const auto& preset : builtin_black_white_presets()) {
