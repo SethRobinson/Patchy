@@ -2270,17 +2270,28 @@ void MainWindow::create_docks() {
   properties_shape_size_panel_ = new QWidget(properties_panel);
   properties_shape_size_panel_->setObjectName(QStringLiteral("propertiesShapeSizePanel"));
   properties_shape_size_panel_->hide();
-  auto* properties_shape_size_row = new QHBoxLayout(properties_shape_size_panel_);
-  properties_shape_size_row->setContentsMargins(0, 2, 0, 2);
+  // W / H, then X / Y (GitHub #521): they also size and place the components Path Select
+  // picked on a work path, saved path or vector mask.
+  auto* properties_shape_size_rows = new QVBoxLayout(properties_shape_size_panel_);
+  properties_shape_size_rows->setContentsMargins(0, 2, 0, 2);
+  properties_shape_size_rows->setSpacing(4);
+  auto* properties_shape_size_row = new QHBoxLayout();
+  properties_shape_size_row->setContentsMargins(0, 0, 0, 0);
   properties_shape_size_row->setSpacing(4);
-  const auto add_shape_size_label = [this, properties_shape_size_row](const char* source) {
+  auto* properties_shape_position_row = new QHBoxLayout();
+  properties_shape_position_row->setContentsMargins(0, 0, 0, 0);
+  properties_shape_position_row->setSpacing(4);
+  properties_shape_size_rows->addLayout(properties_shape_size_row);
+  properties_shape_size_rows->addLayout(properties_shape_position_row);
+  QHBoxLayout* properties_shape_current_row = properties_shape_size_row;
+  const auto add_shape_size_label = [this, &properties_shape_current_row](const char* source) {
     auto* label = new QLabel(properties_shape_size_panel_);
     bind_widget_text(label, source);
-    properties_shape_size_row->addWidget(label);
+    properties_shape_current_row->addWidget(label);
     return label;
   };
-  const auto make_properties_shape_size_spin = [this, properties_shape_size_row](const char* name,
-                                                                                 const char* tooltip) {
+  const auto make_properties_shape_size_spin = [this, &properties_shape_current_row](const char* name,
+                                                                                     const char* tooltip) {
     auto* spin = new UnitSpinBox(SpinUnit::Pixels, properties_shape_size_panel_);
     spin->setObjectName(QLatin1String(name));
     spin->setRange(0.1, 60000.0);
@@ -2291,7 +2302,7 @@ void MainWindow::create_docks() {
     bind_tooltip(spin, tooltip);
     configure_dialog_spinbox(spin, 96);
     spin->setFixedWidth(96);
-    properties_shape_size_row->addWidget(spin);
+    properties_shape_current_row->addWidget(spin);
     return spin;
   };
   add_shape_size_label(QT_TR_NOOP("W:"));
@@ -2310,6 +2321,18 @@ void MainWindow::create_docks() {
   properties_shape_height_spin_ =
       make_properties_shape_size_spin("propertiesShapeHeightSpin", QT_TR_NOOP("Height of the active shape"));
   properties_shape_size_row->addStretch(1);
+  properties_shape_current_row = properties_shape_position_row;
+  add_shape_size_label(QT_TR_NOOP("X:"));
+  properties_shape_x_spin_ =
+      make_properties_shape_size_spin("propertiesShapeXSpin", QT_TR_NOOP("Left edge of the active shape"));
+  properties_shape_position_row->addSpacing(28 + 4);  // under the link button
+  add_shape_size_label(QT_TR_NOOP("Y:"));
+  properties_shape_y_spin_ =
+      make_properties_shape_size_spin("propertiesShapeYSpin", QT_TR_NOOP("Top edge of the active shape"));
+  properties_shape_position_row->addStretch(1);
+  for (auto* spin : {properties_shape_x_spin_, properties_shape_y_spin_}) {
+    spin->setRange(-60000.0, 60000.0);
+  }
   properties_layout->addWidget(properties_shape_size_panel_);
   install_scrub_labels_in(properties_shape_size_panel_);  // drag "W:" / "H:" to scrub (issue 46)
   // Photoshop's Properties panel shows shape W/H in the ruler unit.
@@ -2321,6 +2344,102 @@ void MainWindow::create_docks() {
           [this](double value) { handle_vector_shape_size_value_changed(true, value); });
   connect(properties_shape_height_spin_, &QDoubleSpinBox::valueChanged, this,
           [this](double value) { handle_vector_shape_size_value_changed(false, value); });
+  properties_shape_x_spin_->set_context_provider(document_unit_context_provider(true));
+  properties_shape_y_spin_->set_context_provider(document_unit_context_provider(false));
+  register_ruler_unit_field(properties_shape_x_spin_);
+  register_ruler_unit_field(properties_shape_y_spin_);
+  for (auto* spin : {properties_shape_x_spin_, properties_shape_y_spin_}) {
+    connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { schedule_vector_shape_size_apply(); });
+  }
+
+  // Live-shape rows (GitHub #521): a live rectangle's Radius, a live polygon's Sides and
+  // Star inset, for the active shape layer or the one component Path Select picked.
+  properties_live_shape_panel_ = new QWidget(properties_panel);
+  properties_live_shape_panel_->setObjectName(QStringLiteral("propertiesLiveShapePanel"));
+  properties_live_shape_panel_->hide();
+  auto* live_rows = new QVBoxLayout(properties_live_shape_panel_);
+  live_rows->setContentsMargins(0, 2, 0, 2);
+  live_rows->setSpacing(4);
+  const auto make_live_row = [this, live_rows](const char* object_name) {
+    auto* row = new QWidget(properties_live_shape_panel_);
+    row->setObjectName(QLatin1String(object_name));
+    auto* layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+    live_rows->addWidget(row);
+    return std::pair{row, layout};
+  };
+  const auto add_live_label = [](QWidget* row, QHBoxLayout* layout, const char* source) {
+    auto* label = new QLabel(row);
+    bind_widget_text(label, source);
+    layout->addWidget(label);
+  };
+  {
+    auto [row, layout] = make_live_row("propertiesShapeRadiusRow");
+    properties_shape_radius_row_ = row;
+    add_live_label(row, layout, QT_TR_NOOP("Radius:"));
+    properties_shape_radius_spin_ = new UnitSpinBox(SpinUnit::Pixels, row);
+    properties_shape_radius_spin_->setObjectName(QStringLiteral("propertiesShapeRadiusSpin"));
+    properties_shape_radius_spin_->setRange(0.0, 30000.0);
+    properties_shape_radius_spin_->setDecimals(1);
+    properties_shape_radius_spin_->setKeyboardTracking(false);
+    properties_shape_radius_spin_->set_context_provider(document_unit_context_provider(true));
+    register_ruler_unit_field(properties_shape_radius_spin_);
+    bind_tooltip(properties_shape_radius_spin_,
+                 QT_TR_NOOP("Rounded-corner radius for the rectangle tool (0 = sharp corners)"));
+    configure_dialog_spinbox(properties_shape_radius_spin_, 96);
+    properties_shape_radius_spin_->setFixedWidth(96);
+    layout->addWidget(properties_shape_radius_spin_);
+    layout->addStretch(1);
+    connect(properties_shape_radius_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+      apply_live_shape_component_edit([value](LiveShapeParams& params) {
+        if (params.kind != LiveShapeKind::Rectangle && params.kind != LiveShapeKind::RoundedRectangle) {
+          return;
+        }
+        const double limit = std::min(params.right - params.left, params.bottom - params.top) / 2.0;
+        const double radius = std::clamp(value, 0.0, std::max(0.0, limit));
+        params.kind = radius > 0.0 ? LiveShapeKind::RoundedRectangle : LiveShapeKind::Rectangle;
+        params.corner_radii = {radius, radius, radius, radius};
+      });
+    });
+  }
+  {
+    auto [row, layout] = make_live_row("propertiesPolygonRow");
+    properties_polygon_row_ = row;
+    add_live_label(row, layout, QT_TR_NOOP("Sides:"));
+    properties_polygon_sides_spin_ = new QSpinBox(row);
+    properties_polygon_sides_spin_->setObjectName(QStringLiteral("propertiesPolygonSidesSpin"));
+    properties_polygon_sides_spin_->setRange(3, 100);
+    properties_polygon_sides_spin_->setKeyboardTracking(false);
+    configure_dialog_spinbox(properties_polygon_sides_spin_, 64);
+    layout->addWidget(properties_polygon_sides_spin_);
+    add_live_label(row, layout, QT_TR_NOOP("Star inset:"));
+    properties_polygon_star_inset_spin_ = new QSpinBox(row);
+    properties_polygon_star_inset_spin_->setObjectName(QStringLiteral("propertiesPolygonStarInsetSpin"));
+    properties_polygon_star_inset_spin_->setRange(0, 99);
+    properties_polygon_star_inset_spin_->setSuffix(percent_suffix());
+    properties_polygon_star_inset_spin_->setKeyboardTracking(false);
+    bind_tooltip(properties_polygon_star_inset_spin_,
+                 QT_TR_NOOP("0 makes a plain polygon; higher values pull in star points"));
+    configure_dialog_spinbox(properties_polygon_star_inset_spin_, 64);
+    layout->addWidget(properties_polygon_star_inset_spin_);
+    layout->addStretch(1);
+    connect(properties_polygon_sides_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+      apply_live_shape_component_edit([value](LiveShapeParams& params) {
+        if (params.kind == LiveShapeKind::Polygon) {
+          params.polygon_sides = value;
+        }
+      });
+    });
+    connect(properties_polygon_star_inset_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+      apply_live_shape_component_edit([value](LiveShapeParams& params) {
+        if (params.kind == LiveShapeKind::Polygon) {
+          params.polygon_star_inset = value;
+        }
+      });
+    });
+  }
+  properties_layout->addWidget(properties_live_shape_panel_);
   connect(properties_shape_link_size_button_, &QPushButton::toggled, this, [this](bool checked) {
     if (vector_shape_link_size_button_ != nullptr) {
       const QSignalBlocker blocker(vector_shape_link_size_button_);

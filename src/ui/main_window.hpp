@@ -1779,6 +1779,8 @@ private:
   void handle_shape_create_requested(CanvasTool tool, QPointF document_point);
   void create_shape_layer_from_drag(const patchy::LiveShapeParams& params);
   void add_drag_to_work_path(const patchy::LiveShapeParams& params);
+  // A live Polygon/Star (GitHub #521) inscribed in `box` with the bar's Sides and Star inset.
+  [[nodiscard]] patchy::LiveShapeParams polygon_live_shape_params(QRectF box, double angle_radians) const;
   // The combine index a shape commit uses: the options-bar setting, or Add for a
   // shape drag pressed with Shift (GitHub issue 313; the setting itself is untouched).
   [[nodiscard]] int effective_vector_combine_index() const;
@@ -1786,7 +1788,10 @@ private:
                                     std::optional<patchy::LiveShapeParams> origination,
                                     const QString& name_pattern);
   void handle_vector_path_committed(patchy::VectorPath path, bool closed, VectorPathSource source);
-  void add_subpaths_to_work_path(std::vector<patchy::PathSubpath> subpaths);
+  // `live` (GitHub #521) keeps a Rectangle, Ellipse or Polygon component's parameters on the
+  // path, so the Properties panel can still change them afterwards.
+  void add_subpaths_to_work_path(std::vector<patchy::PathSubpath> subpaths,
+                                 std::optional<patchy::LiveShapeParams> live = std::nullopt);
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
   void refresh_path_point_count_chip();
@@ -1854,6 +1859,28 @@ private:
   void handle_vector_shape_size_value_changed(bool width_changed, double value);
   [[nodiscard]] bool vector_shape_size_controls_live();
   bool apply_options_bar_size_to_active_shape();
+  // What the size fields and the Properties panel's live-shape rows act on (GitHub #521): the
+  // active shape layer (whole, or the components Path/Direct Select selected), or the selected
+  // components of the targeted work path, saved path or vector mask.
+  struct PathComponentTarget {
+    std::optional<LayerId> shape_layer;
+    std::optional<LayerId> mask_layer;
+    std::optional<patchy::DocumentPathId> document_path;
+    std::vector<int> groups;  // the selected components; empty = the whole path
+  };
+  [[nodiscard]] std::optional<PathComponentTarget> path_component_target();
+  [[nodiscard]] const patchy::VectorPath* path_component_target_path(const PathComponentTarget& target);
+  [[nodiscard]] std::optional<patchy::VectorPathBounds> path_component_target_bounds(const PathComponentTarget& target);
+  // The live Rectangle / Ellipse / Polygon parameters of the target's one component.
+  [[nodiscard]] std::optional<patchy::LiveShapeParams> path_component_live_shape(const PathComponentTarget& target);
+  // Scales (about the origin, then translates) the target's components; one undo step.
+  bool apply_path_component_geometry(const PathComponentTarget& target, double scale_x, double scale_y,
+                                     double translate_x, double translate_y);
+  // Rewrites the target's live parameters and regenerates its component; one undo step.
+  bool apply_live_shape_component_edit(const std::function<void(patchy::LiveShapeParams&)>& edit);
+  void refresh_properties_live_shape_panel();
+  // Path selection changes: the size fields and live rows follow the selected components.
+  void refresh_path_component_controls();
   void schedule_vector_shape_size_apply();
   // Per-mode visibility of the shape tools' options widgets, evaluated once
   // per refresh so refresh_options_bar sets each widget's FINAL state in a
@@ -3324,6 +3351,15 @@ private:
   [[nodiscard]] bool continues_artboard_field_edit(LayerId id) const;
   UnitSpinBox* properties_shape_width_spin_{nullptr};
   UnitSpinBox* properties_shape_height_spin_{nullptr};
+  UnitSpinBox* properties_shape_x_spin_{nullptr};
+  UnitSpinBox* properties_shape_y_spin_{nullptr};
+  // Live-shape rows (GitHub #521): Radius for rectangles, Sides and Star inset for polygons.
+  QWidget* properties_live_shape_panel_{nullptr};
+  QWidget* properties_shape_radius_row_{nullptr};
+  QWidget* properties_polygon_row_{nullptr};
+  UnitSpinBox* properties_shape_radius_spin_{nullptr};
+  QSpinBox* properties_polygon_sides_spin_{nullptr};
+  QSpinBox* properties_polygon_star_inset_spin_{nullptr};
   QPushButton* properties_shape_link_size_button_{nullptr};
   QPushButton* properties_edit_appearance_button_{nullptr};
   QLabel* active_tool_info_label_{nullptr};

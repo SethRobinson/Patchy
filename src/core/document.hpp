@@ -188,6 +188,7 @@ public:
   [[nodiscard]] const DocumentPath* find_path(DocumentPathId id) const noexcept;
   // The (single) work path, if present.
   [[nodiscard]] DocumentPath* work_path() noexcept;
+  [[nodiscard]] const DocumentPath* work_path() const noexcept;
   bool remove_path(DocumentPathId id);
 
   void set_active_layer(LayerId id);

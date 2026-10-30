@@ -1004,6 +1004,9 @@ std::vector<std::uint8_t> vector_origination_block_payload(std::span<const LiveS
   DescriptorValue list;
   list.type = DescriptorValue::Type::List;
   for (const auto& params : origination) {
+    if (params.kind == LiveShapeKind::Polygon) {
+      continue;  // session-only (GitHub #521): Photoshop's polygon origination is unprobed
+    }
     if (params.kind == LiveShapeKind::Custom && !params.raw_descriptor.empty()) {
       BigEndianReader reader(params.raw_descriptor);
       try {

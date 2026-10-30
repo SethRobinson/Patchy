@@ -28652,6 +28652,18 @@ Zablokowano: %1</translation>
         <source>When enabled, the transparency of a PNG, WebP, TIFF or other flat image opens as an editable layer mask over opaque colors, and saving the image writes the mask back as its transparency. When disabled, the image opens as an ordinary transparent layer.</source>
         <translation>Gdy włączone, przezroczystość obrazu PNG, WebP, TIFF lub innego płaskiego obrazu otwiera się jako edytowalna maska warstwy nad kryjącymi kolorami, a zapis obrazu zapisuje maskę z powrotem jako jego przezroczystość. Gdy wyłączone, obraz otwiera się jako zwykła przezroczysta warstwa.</translation>
     </message>
+    <message>
+        <source>Left edge of the active shape</source>
+        <translation>Lewa krawędź aktywnego kształtu</translation>
+    </message>
+    <message>
+        <source>Top edge of the active shape</source>
+        <translation>Górna krawędź aktywnego kształtu</translation>
+    </message>
+    <message>
+        <source>Combine Shapes</source>
+        <translation>Kombinuj kształty</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

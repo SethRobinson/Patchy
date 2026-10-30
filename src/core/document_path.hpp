@@ -53,6 +53,12 @@ public:
   // without marking the path dirty.
   void set_resource_source(std::uint16_t resource_id,
                            std::shared_ptr<const std::vector<std::uint8_t>> payload) noexcept;
+  // Live parameters of the path's Rectangle, Ellipse and Polygon components (GitHub #521),
+  // keyed by shape group like VectorShapeContent::origination. Session-only: no PSD path
+  // resource carries them, and they are checked against the geometry on every use
+  // (resolve_live_shape_group), so a point edit simply ends a component's live state.
+  [[nodiscard]] const std::vector<LiveShapeParams>& live_shapes() const noexcept { return live_shapes_; }
+  void set_live_shapes(std::vector<LiveShapeParams> live_shapes) { live_shapes_ = std::move(live_shapes); }
   void mark_dirty() noexcept;
   // Import plumbing only: clears the dirty flag after construction-time setup
   // so freshly imported paths follow the dirty-or-verbatim write rule.
@@ -70,6 +76,7 @@ private:
   std::shared_ptr<const std::vector<std::uint8_t>> raw_payload_;
   bool dirty_{false};
   std::uint64_t content_revision_{0};
+  std::vector<LiveShapeParams> live_shapes_;
 };
 
 }  // namespace patchy

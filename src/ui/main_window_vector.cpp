@@ -146,6 +146,8 @@ QString shape_layer_base_name(LiveShapeKind kind) {
       return MainWindow::tr("Ellipse %1");
     case LiveShapeKind::Line:
       return MainWindow::tr("Line %1");
+    case LiveShapeKind::Polygon:
+      return MainWindow::tr("Polygon %1");
     default:
       return MainWindow::tr("Rectangle %1");
   }
@@ -261,7 +263,9 @@ void MainWindow::commit_live_shape(LiveShapeParams params) {
                                          tr("Add to vector mask"));
     return;
   }
-  if (current_vector_tool_mode_ == VectorToolMode::Path) {
+  // Polygon has no Pixels behavior: a persisted Pixels mode draws a path, as before.
+  if (current_vector_tool_mode_ == VectorToolMode::Path ||
+      (kind == LiveShapeKind::Polygon && current_vector_tool_mode_ != VectorToolMode::Shape)) {
     add_drag_to_work_path(params);
   } else {
     create_shape_layer_from_drag(params);
@@ -358,17 +362,8 @@ void MainWindow::handle_shape_create_requested(CanvasTool tool, QPointF document
   VectorPath path;
   if (tool == CanvasTool::Polygon) {
     // Unit polygon (first vertex pointing up) scaled into the box, so W and H
-    // may differ, like Photoshop's Create Polygon dialog.
-    auto subpath = generate_polygon_subpath(0.0, 0.0, 1.0, -std::acos(-1.0) / 2.0,
-                                            canvas_->polygon_sides(),
-                                            canvas_->polygon_star_inset());
-    if (subpath.anchors.empty()) {
-      return;
-    }
-    path.subpaths.push_back(std::move(subpath));
-    transform_vector_path(path, {bounds.width() / 2.0, 0.0, 0.0, bounds.height() / 2.0,
-                                 bounds.center().x(), bounds.center().y()});
-    handle_vector_path_committed(std::move(path), true, VectorPathSource::Polygon);
+    // may differ, like Photoshop's Create Polygon dialog. It stays live (GitHub #521).
+    commit_live_shape(polygon_live_shape_params(bounds, -std::acos(-1.0) / 2.0));
     return;
   }
   const auto* custom = canvas_->custom_shape_path();
@@ -527,11 +522,22 @@ void MainWindow::handle_vector_path_committed(VectorPath path, bool closed,
   add_subpaths_to_work_path(std::move(path.subpaths));
 }
 
-void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
+void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths, std::optional<LiveShapeParams> live) {
   auto& doc = document();
   if (subpaths.empty()) {
     return;
   }
+  const auto record_live = [&live](DocumentPath& target, std::int32_t group) {
+    if (!live.has_value()) {
+      return;
+    }
+    auto entries = target.live_shapes();
+    std::erase_if(entries, [group](const LiveShapeParams& entry) { return entry.index == group; });
+    live->index = group;
+    populate_live_shape_box_corners(*live);
+    entries.push_back(*live);
+    target.set_live_shapes(std::move(entries));
+  };
   const auto op = combine_op_for_index(effective_vector_combine_index());
   // A path explicitly selected in the Paths panel receives the subpaths
   // instead of the work path.
@@ -546,6 +552,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
         path.subpaths.push_back(std::move(subpath));
       }
       target->set_path(std::move(path));
+      record_live(*target, group);
       refresh_paths_panel();
       statusBar()->showMessage(tr("Added the shape to %1.").arg(QString::fromStdString(target->name())));
       return;
@@ -562,9 +569,11 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
       path.subpaths.push_back(std::move(subpath));
     }
     work->set_path(std::move(path));
+    record_live(*work, group);
     work_id = work->id();
   } else {
     VectorPath path;
+    const auto group = subpaths.front().shape_group;
     for (auto& subpath : subpaths) {
       subpath.op = op;
       path.subpaths.push_back(std::move(subpath));
@@ -572,6 +581,7 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
     DocumentPath created(doc.allocate_path_id(), tr("Work Path").toStdString(),
                          DocumentPathKind::Work, std::move(path));
     created.mark_dirty();  // authored: no original resource bytes to re-emit
+    record_live(created, group);
     work_id = doc.add_path(std::move(created)).id();
   }
   // Photoshop highlights the Work Path row as soon as you draw, keeping the
@@ -586,7 +596,21 @@ void MainWindow::add_subpaths_to_work_path(std::vector<PathSubpath> subpaths) {
 }
 
 void MainWindow::add_drag_to_work_path(const LiveShapeParams& params) {
-  add_subpaths_to_work_path(generate_live_shape_subpaths(params));
+  add_subpaths_to_work_path(generate_live_shape_subpaths(params), params);
+}
+
+LiveShapeParams MainWindow::polygon_live_shape_params(QRectF box, double angle_radians) const {
+  LiveShapeParams params;
+  params.kind = LiveShapeKind::Polygon;
+  params.resolution = document().print_settings().horizontal_ppi;
+  params.left = box.left();
+  params.top = box.top();
+  params.right = box.right();
+  params.bottom = box.bottom();
+  params.polygon_sides = canvas_ != nullptr ? canvas_->polygon_sides() : 5;
+  params.polygon_star_inset = canvas_ != nullptr ? canvas_->polygon_star_inset() : 0;
+  params.polygon_angle = angle_radians;
+  return params;
 }
 
 VectorShapeContent MainWindow::current_shape_appearance_content() const {
@@ -1674,8 +1698,341 @@ patchy::Layer* MainWindow::editable_active_vector_shape_layer() {
 }
 
 bool MainWindow::vector_shape_size_controls_live() {
-  return has_active_document() && selected_or_active_layer_ids().size() == 1 &&
-         editable_active_vector_shape_layer() != nullptr;
+  return path_component_target().has_value();
+}
+
+std::optional<MainWindow::PathComponentTarget> MainWindow::path_component_target() {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return std::nullopt;
+  }
+  const auto* path = canvas_->path_edit_target_path();
+  if (path == nullptr) {
+    return std::nullopt;
+  }
+  auto& doc = document();
+  const auto& const_doc = std::as_const(doc);
+  PathComponentTarget target;
+  target.groups = canvas_->path_edit_selected_groups();
+  const auto active = const_doc.active_layer_id();
+  const auto* active_layer = active.has_value() ? const_doc.find_layer(*active) : nullptr;
+  if (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask) {
+    if (active_layer == nullptr || active_layer->vector_mask() == nullptr || path != &active_layer->vector_mask()->path) {
+      return std::nullopt;
+    }
+    target.mask_layer = *active;
+  } else if (const auto* work = const_doc.work_path(); canvas_->active_document_path().has_value() ||
+                                                         (work != nullptr && path == &work->path())) {
+    const auto id = canvas_->active_document_path().value_or(work != nullptr ? work->id() : 0);
+    const auto* document_path = const_doc.find_path(id);
+    if (document_path == nullptr || path != &document_path->path()) {
+      return std::nullopt;
+    }
+    target.document_path = id;
+  } else if (const auto* layer = editable_active_vector_shape_layer();
+             layer != nullptr && path == &std::as_const(*layer).vector_shape()->path) {
+    if (selected_or_active_layer_ids().size() != 1) {
+      return std::nullopt;
+    }
+    target.shape_layer = layer->id();
+    // Every component selected is the whole layer: the layer route keeps its effects in step.
+    std::vector<int> all_groups;
+    for (const auto& subpath : path->subpaths) {
+      all_groups.push_back(subpath.shape_group);
+    }
+    std::sort(all_groups.begin(), all_groups.end());
+    all_groups.erase(std::unique(all_groups.begin(), all_groups.end()), all_groups.end());
+    if (target.groups == all_groups) {
+      target.groups.clear();
+    }
+    return target;
+  } else {
+    return std::nullopt;
+  }
+  // A work path, saved path or vector mask sizes only the components Path/Direct Select picked.
+  if (target.groups.empty()) {
+    return std::nullopt;
+  }
+  return target;
+}
+
+const VectorPath* MainWindow::path_component_target_path(const PathComponentTarget& target) {
+  if (!has_active_document()) {
+    return nullptr;
+  }
+  const auto& doc = std::as_const(document());
+  if (target.shape_layer.has_value()) {
+    const auto* layer = doc.find_layer(*target.shape_layer);
+    return layer != nullptr && layer->vector_shape() != nullptr ? &layer->vector_shape()->path : nullptr;
+  }
+  if (target.mask_layer.has_value()) {
+    const auto* layer = doc.find_layer(*target.mask_layer);
+    return layer != nullptr && layer->vector_mask() != nullptr ? &layer->vector_mask()->path : nullptr;
+  }
+  if (target.document_path.has_value()) {
+    const auto* path = doc.find_path(*target.document_path);
+    return path != nullptr ? &path->path() : nullptr;
+  }
+  return nullptr;
+}
+
+namespace {
+
+VectorPath path_component_subset(const VectorPath& path, const std::vector<int>& groups) {
+  if (groups.empty()) {
+    return path;
+  }
+  VectorPath subset;
+  for (const auto& subpath : path.subpaths) {
+    if (std::find(groups.begin(), groups.end(), subpath.shape_group) != groups.end()) {
+      subset.subpaths.push_back(subpath);
+    }
+  }
+  return subset;
+}
+
+std::vector<int> path_groups_of(const VectorPath& path) {
+  std::vector<int> groups;
+  for (const auto& subpath : path.subpaths) {
+    if (std::find(groups.begin(), groups.end(), subpath.shape_group) == groups.end()) {
+      groups.push_back(subpath.shape_group);
+    }
+  }
+  return groups;
+}
+
+}  // namespace
+
+std::optional<VectorPathBounds> MainWindow::path_component_target_bounds(const PathComponentTarget& target) {
+  const auto* path = path_component_target_path(target);
+  if (path == nullptr) {
+    return std::nullopt;
+  }
+  return path_component_subset(*path, target.groups).bounds();
+}
+
+std::optional<LiveShapeParams> MainWindow::path_component_live_shape(const PathComponentTarget& target) {
+  const auto* path = path_component_target_path(target);
+  if (path == nullptr || target.mask_layer.has_value()) {
+    return std::nullopt;
+  }
+  const auto groups = target.groups.empty() ? path_groups_of(*path) : target.groups;
+  if (groups.size() != 1) {
+    return std::nullopt;
+  }
+  const auto& doc = std::as_const(document());
+  if (target.shape_layer.has_value()) {
+    const auto* layer = doc.find_layer(*target.shape_layer);
+    if (layer == nullptr || layer->vector_shape() == nullptr) {
+      return std::nullopt;
+    }
+    return resolve_live_shape_group(*path, layer->vector_shape()->origination, groups.front());
+  }
+  const auto* document_path = doc.find_path(*target.document_path);
+  if (document_path == nullptr) {
+    return std::nullopt;
+  }
+  return resolve_live_shape_group(*path, document_path->live_shapes(), groups.front());
+}
+
+bool MainWindow::apply_path_component_geometry(const PathComponentTarget& target, double scale_x, double scale_y,
+                                               double translate_x, double translate_y) {
+  if (canvas_ == nullptr || scale_x <= 0.0 || scale_y <= 0.0) {
+    return false;
+  }
+  auto& doc = document();
+  const std::array<double, 6> matrix{scale_x, 0.0, 0.0, scale_y, translate_x, translate_y};
+  const auto in_groups = [&target](int group) {
+    return target.groups.empty() ||
+           std::find(target.groups.begin(), target.groups.end(), group) != target.groups.end();
+  };
+  const auto transform_components = [&](VectorPath& path) {
+    for (auto& subpath : path.subpaths) {
+      if (!in_groups(subpath.shape_group)) {
+        continue;
+      }
+      VectorPath one;
+      one.subpaths.push_back(std::move(subpath));
+      transform_vector_path(one, matrix);
+      subpath = std::move(one.subpaths.front());
+    }
+  };
+  const auto transform_live = [&](std::vector<LiveShapeParams> entries, const VectorPath& before) {
+    // Entries the old geometry still matched follow the scale; the rest stay as they were
+    // (resolve_live_shape_group drops them on the next read anyway).
+    for (auto& entry : entries) {
+      if (!in_groups(entry.index)) {
+        continue;
+      }
+      if (auto resolved = resolve_live_shape_group(before, {entry}, entry.index); resolved.has_value()) {
+        entry = *resolved;
+        scale_live_shape_params(entry, scale_x, scale_y, translate_x, translate_y);
+        populate_live_shape_box_corners(entry);
+      }
+    }
+    return entries;
+  };
+  if (target.shape_layer.has_value()) {
+    push_undo_snapshot(tr("Shape size"));
+    auto* layer = doc.find_layer(*target.shape_layer);
+    if (layer == nullptr || layer->vector_shape() == nullptr) {
+      return false;
+    }
+    const auto old_effect_rect =
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
+    if (target.groups.empty()) {
+      // Top-left anchored axis-aligned scale: transform_layer_vector_data keeps
+      // live-shape annotations for exactly this matrix family.
+      transform_layer_vector_data(doc, *layer, matrix, Rect::from_size(doc.width(), doc.height()));
+    } else {
+      auto content = *std::as_const(*layer).vector_shape();
+      const auto before = content.path;
+      transform_components(content.path);
+      content.origination = transform_live(content.origination, before);
+      layer->set_vector_shape(std::move(content));
+      layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+      mark_layer_vector_block_dirty(*layer);
+      update_vector_shape_raster(*layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+    }
+    canvas_->document_changed_effect_bounds(old_effect_rect.united(
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
+    refresh_layer_thumbnails();
+  } else if (target.mask_layer.has_value()) {
+    push_undo_snapshot(tr("Shape size"));
+    auto* layer = doc.find_layer(*target.mask_layer);
+    if (layer == nullptr || layer->vector_mask() == nullptr) {
+      return false;
+    }
+    auto mask = *std::as_const(*layer).vector_mask();
+    transform_components(mask.path);
+    layer->set_vector_mask(std::move(mask));
+    mark_layer_vector_block_dirty(*layer);
+    update_vector_mask_raster(*layer, Rect::from_size(doc.width(), doc.height()));
+    canvas_->document_changed();
+    refresh_layer_thumbnails();
+  } else if (target.document_path.has_value()) {
+    push_undo_snapshot(tr("Shape size"));
+    auto* document_path = doc.find_path(*target.document_path);
+    if (document_path == nullptr) {
+      return false;
+    }
+    auto path = document_path->path();
+    const auto before = path;
+    transform_components(path);
+    document_path->set_path(std::move(path));
+    document_path->set_live_shapes(transform_live(document_path->live_shapes(), before));
+    canvas_->update();
+  } else {
+    return false;
+  }
+  refresh_paths_panel();
+  sync_vector_shape_size_spins();
+  return true;
+}
+
+bool MainWindow::apply_live_shape_component_edit(const std::function<void(LiveShapeParams&)>& edit) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return false;
+  }
+  const auto target = path_component_target();
+  if (!target.has_value()) {
+    return false;
+  }
+  auto params = path_component_live_shape(*target);
+  if (!params.has_value()) {
+    return false;
+  }
+  const auto before = *params;
+  edit(*params);
+  populate_live_shape_box_corners(*params);
+  if (*params == before) {
+    return false;
+  }
+  const auto* current = path_component_target_path(*target);
+  if (current == nullptr) {
+    return false;
+  }
+  auto path = *current;
+  if (!replace_live_shape_group(path, *params)) {
+    return false;
+  }
+  const bool had_selection = canvas_->path_edit_has_selection();
+  const auto replace_entry = [&params](std::vector<LiveShapeParams> entries) {
+    std::erase_if(entries, [&params](const LiveShapeParams& entry) { return entry.index == params->index; });
+    entries.push_back(*params);
+    return entries;
+  };
+  auto& doc = document();
+  push_undo_snapshot(tr("Edit shape"));
+  if (target->shape_layer.has_value()) {
+    auto* layer = doc.find_layer(*target->shape_layer);
+    if (layer == nullptr || layer->vector_shape() == nullptr) {
+      return false;
+    }
+    const auto old_effect_rect =
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
+    auto content = *std::as_const(*layer).vector_shape();
+    content.path = std::move(path);
+    content.origination = replace_entry(std::move(content.origination));
+    layer->set_vector_shape(std::move(content));
+    layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+    mark_layer_vector_block_dirty(*layer);
+    update_vector_shape_raster(*layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+    canvas_->document_changed_effect_bounds(old_effect_rect.united(
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
+    refresh_layer_thumbnails();
+  } else {
+    auto* document_path = doc.find_path(*target->document_path);
+    if (document_path == nullptr) {
+      return false;
+    }
+    document_path->set_path(std::move(path));
+    document_path->set_live_shapes(replace_entry(document_path->live_shapes()));
+    canvas_->update();
+  }
+  // Sides and insets change the anchor count: the selection is the whole component again.
+  if (had_selection) {
+    canvas_->select_path_groups({params->index});
+  }
+  refresh_paths_panel();
+  sync_vector_shape_size_spins();
+  return true;
+}
+
+void MainWindow::refresh_path_component_controls() {
+  // The Properties rows only: the options-bar W / H keep their shape-layer visibility.
+  sync_vector_shape_size_spins();
+}
+
+void MainWindow::refresh_properties_live_shape_panel() {
+  if (properties_live_shape_panel_ == nullptr) {
+    return;
+  }
+  std::optional<LiveShapeParams> params;
+  if (const auto target = path_component_target(); target.has_value()) {
+    params = path_component_live_shape(*target);
+  }
+  const bool rect = params.has_value() &&
+                    (params->kind == LiveShapeKind::Rectangle || params->kind == LiveShapeKind::RoundedRectangle);
+  const bool polygon = params.has_value() && params->kind == LiveShapeKind::Polygon;
+  if (properties_shape_radius_spin_ != nullptr) {
+    const QSignalBlocker blocker(properties_shape_radius_spin_);
+    properties_shape_radius_spin_->setValue(rect ? params->corner_radii[0] : 0.0);
+  }
+  if (properties_polygon_sides_spin_ != nullptr) {
+    const QSignalBlocker blocker(properties_polygon_sides_spin_);
+    properties_polygon_sides_spin_->setValue(polygon ? params->polygon_sides : 5);
+  }
+  if (properties_polygon_star_inset_spin_ != nullptr) {
+    const QSignalBlocker blocker(properties_polygon_star_inset_spin_);
+    properties_polygon_star_inset_spin_->setValue(polygon ? params->polygon_star_inset : 0);
+  }
+  if (properties_shape_radius_row_ != nullptr) {
+    properties_shape_radius_row_->setVisible(rect);
+  }
+  if (properties_polygon_row_ != nullptr) {
+    properties_polygon_row_->setVisible(polygon);
+  }
+  properties_live_shape_panel_->setVisible(rect || polygon);
 }
 
 bool MainWindow::vector_appearance_controls_live() const {
@@ -1998,12 +2355,10 @@ void MainWindow::sync_vector_shape_size_spins() {
     return;
   }
   std::optional<VectorPathBounds> bounds;
-  if (const auto* layer = editable_active_vector_shape_layer(); layer != nullptr) {
-    if (const auto* content = std::as_const(*layer).vector_shape(); content != nullptr) {
-      bounds = content->path.bounds();
-    }
+  if (const auto target = path_component_target(); target.has_value()) {
+    bounds = path_component_target_bounds(*target);
   }
-  const bool live = bounds.has_value() && vector_shape_size_controls_live();
+  const bool live = bounds.has_value();
   const double width = live ? bounds->right - bounds->left : 0.0;
   const double height = live ? bounds->bottom - bounds->top : 0.0;
   for (auto* spin : {vector_shape_width_spin_, vector_shape_height_spin_,
@@ -2013,6 +2368,14 @@ void MainWindow::sync_vector_shape_size_spins() {
     }
     QSignalBlocker blocker(spin);
     spin->setValue(spin == vector_shape_width_spin_ || spin == properties_shape_width_spin_ ? width : height);
+    spin->setEnabled(live);
+  }
+  for (auto* spin : {properties_shape_x_spin_, properties_shape_y_spin_}) {
+    if (spin == nullptr) {
+      continue;
+    }
+    QSignalBlocker blocker(spin);
+    spin->setValue(!live ? 0.0 : spin == properties_shape_x_spin_ ? bounds->left : bounds->top);
     spin->setEnabled(live);
   }
   const bool linked = vector_shape_link_size_button_ != nullptr && vector_shape_link_size_button_->isChecked();
@@ -2038,6 +2401,7 @@ void MainWindow::sync_vector_shape_size_spins() {
     properties_shape_size_panel_->setEnabled(live);
   }
   vector_shape_size_ratio_ = live && height > 1e-9 ? width / height : 1.0;
+  refresh_properties_live_shape_panel();
 }
 
 void MainWindow::handle_vector_shape_size_value_changed(bool width_changed, double value) {
@@ -2073,19 +2437,14 @@ void MainWindow::handle_vector_shape_size_value_changed(bool width_changed, doub
 }
 
 bool MainWindow::apply_options_bar_size_to_active_shape() {
-  if (canvas_ == nullptr || vector_shape_width_spin_ == nullptr ||
-      vector_shape_height_spin_ == nullptr || !vector_shape_size_controls_live()) {
+  if (canvas_ == nullptr || vector_shape_width_spin_ == nullptr || vector_shape_height_spin_ == nullptr) {
     return false;
   }
-  auto* layer = editable_active_vector_shape_layer();
-  if (layer == nullptr) {
+  const auto target = path_component_target();
+  if (!target.has_value()) {
     return false;
   }
-  const auto* content = std::as_const(*layer).vector_shape();
-  if (content == nullptr) {
-    return false;
-  }
-  const auto bounds = content->path.bounds();
+  const auto bounds = path_component_target_bounds(*target);
   if (!bounds.has_value()) {
     return false;
   }
@@ -2093,36 +2452,21 @@ bool MainWindow::apply_options_bar_size_to_active_shape() {
   const double old_height = bounds->bottom - bounds->top;
   const double new_width = vector_shape_width_spin_->value();
   const double new_height = vector_shape_height_spin_->value();
+  const double new_left = properties_shape_x_spin_ != nullptr ? properties_shape_x_spin_->value() : bounds->left;
+  const double new_top = properties_shape_y_spin_ != nullptr ? properties_shape_y_spin_->value() : bounds->top;
   if (old_width < 1e-6 || old_height < 1e-6 || new_width < 0.5 || new_height < 0.5) {
     sync_vector_shape_size_spins();  // nothing sensible to scale to; show the truth
     return false;
   }
-  if (std::abs(new_width - old_width) < 0.05 && std::abs(new_height - old_height) < 0.05) {
+  if (std::abs(new_width - old_width) < 0.05 && std::abs(new_height - old_height) < 0.05 &&
+      std::abs(new_left - bounds->left) < 0.05 && std::abs(new_top - bounds->top) < 0.05) {
     return false;  // no-op; also keeps stale debounced applies harmless
   }
   const double scale_x = new_width / old_width;
   const double scale_y = new_height / old_height;
-  // Top-left anchored axis-aligned scale: transform_layer_vector_data keeps
-  // live-shape annotations for exactly this matrix family.
-  const std::array<double, 6> matrix{scale_x, 0.0, 0.0, scale_y,
-                                     bounds->left - bounds->left * scale_x,
-                                     bounds->top - bounds->top * scale_y};
-  const auto layer_id = layer->id();
-  auto& doc = document();
-  push_undo_snapshot(tr("Shape size"));
-  auto* target = doc.find_layer(layer_id);
-  if (target == nullptr) {
-    return false;
-  }
-  const auto old_effect_rect =
-      to_qrect(layer_bounds_with_effects(std::as_const(*target), std::as_const(*target).bounds()));
-  transform_layer_vector_data(doc, *target, matrix, Rect::from_size(doc.width(), doc.height()));
-  canvas_->document_changed_effect_bounds(old_effect_rect.united(
-      to_qrect(layer_bounds_with_effects(std::as_const(*target), std::as_const(*target).bounds()))));
-  refresh_layer_thumbnails();
-  refresh_paths_panel();
-  sync_vector_shape_size_spins();
-  return true;
+  // Scale about the old top-left corner, then move it to the X / Y fields.
+  return apply_path_component_geometry(*target, scale_x, scale_y, new_left - bounds->left * scale_x,
+                                       new_top - bounds->top * scale_y);
 }
 
 void MainWindow::schedule_vector_shape_size_apply() {
@@ -2813,10 +3157,12 @@ void MainWindow::refresh_combine_shapes_action_states() {
     layer_shape_appearance_action_->setEnabled(has_active_document() && !preview_dialog_edit_locked() &&
                                                !editable_selected_shape_layer_ids().empty());
   }
+  // Two or more shape layers, or two or more components of the targeted path (GitHub #521).
   const bool enabled =
       has_active_document() && !preview_dialog_edit_locked() &&
-      combine_shape_candidates(std::as_const(document()).layers(), selected_or_active_layer_ids()).refusal ==
-          ShapeCombineRefusal::None;
+      (combine_shape_candidates(std::as_const(document()).layers(), selected_or_active_layer_ids()).refusal ==
+           ShapeCombineRefusal::None ||
+       (canvas_ != nullptr && canvas_->path_edit_selected_groups().size() >= 2));
   for (auto* action : layer_combine_actions_) {
     if (action != nullptr) {
       action->setEnabled(enabled);
@@ -2835,6 +3181,31 @@ void MainWindow::combine_selected_shape_layers(PathCombineOp op) {
   canvas_->finish_free_transform();
   auto& doc = document();
   const auto candidates = combine_shape_candidates(std::as_const(doc).layers(), selected_or_active_layer_ids());
+  QString label;
+  switch (op) {
+    case PathCombineOp::Add:
+      label = tr("Unite shapes");
+      break;
+    case PathCombineOp::Subtract:
+      label = tr("Subtract front shape");
+      break;
+    case PathCombineOp::Intersect:
+      label = tr("Intersect shapes");
+      break;
+    case PathCombineOp::Xor:
+      label = tr("Exclude overlapping shapes");
+      break;
+  }
+  // One layer (or none) with two or more of its components selected under Path Select or
+  // Direct Select: combine those, in the shape layer, work path, saved path or vector mask.
+  if (candidates.refusal != ShapeCombineRefusal::None && canvas_->path_edit_selected_groups().size() >= 2) {
+    if (canvas_->combine_selected_path_components(op, label)) {
+      refresh_paths_panel();
+      refresh_layer_thumbnails();
+      statusBar()->showMessage(label);
+    }
+    return;
+  }
   switch (candidates.refusal) {
     case ShapeCombineRefusal::NeedTwoLayers:
       show_status_error(tr("Select two or more shape layers to combine"));
@@ -2852,21 +3223,6 @@ void MainWindow::combine_selected_shape_layers(PathCombineOp op) {
       show_status_error(tr("Shape layers must be in the same folder to combine"));
       return;
     case ShapeCombineRefusal::None:
-      break;
-  }
-  QString label;
-  switch (op) {
-    case PathCombineOp::Add:
-      label = tr("Unite shapes");
-      break;
-    case PathCombineOp::Subtract:
-      label = tr("Subtract front shape");
-      break;
-    case PathCombineOp::Intersect:
-      label = tr("Intersect shapes");
-      break;
-    case PathCombineOp::Xor:
-      label = tr("Exclude overlapping shapes");
       break;
   }
   push_undo_snapshot(label);

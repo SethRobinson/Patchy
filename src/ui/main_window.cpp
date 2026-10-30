@@ -6014,6 +6014,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         }
         handle_vector_path_committed(std::move(path), closed, source);
       });
+  canvas->set_polygon_committed_callback([this, canvas](patchy::LiveShapeParams params) {
+    if (canvas != canvas_ || !has_active_document()) {
+      return;
+    }
+    params.resolution = document().print_settings().horizontal_ppi;
+    commit_live_shape(std::move(params));
+  });
   canvas->set_path_display_dismiss_callback([this, canvas] {
     if (canvas != canvas_) {
       return;
@@ -6034,12 +6041,30 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       return;
     }
     refresh_paths_panel();
+    sync_vector_shape_size_spins();  // sizes and live rows follow point edits (GitHub #521)
   });
   canvas->set_path_selection_changed_callback([this, canvas] {
     if (canvas != canvas_) {
       return;
     }
     refresh_path_point_count_chip();
+    refresh_path_component_controls();  // size fields and live rows follow the components
+    refresh_combine_shapes_action_states();
+  });
+  canvas->set_path_retarget_callback([this, canvas](std::optional<patchy::DocumentPathId> id) {
+    if (canvas != canvas_) {
+      return;
+    }
+    // A Path/Direct Select pick (GitHub #521): a document path becomes the Paths-panel
+    // target, or the target drops so the active layer's own path takes over.
+    if (id.has_value()) {
+      target_document_path_row(*id);
+      return;
+    }
+    active_document_path_id_.reset();
+    path_row_hidden_for_layer_.reset();
+    canvas_->set_active_document_path(std::nullopt);
+    refresh_paths_panel();
   });
   canvas->set_shape_layers_emptied_callback([this, canvas](const std::vector<LayerId>& ids) {
     if (canvas != canvas_) {
@@ -6135,9 +6160,21 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       return QList<QAction*>{};
     }
     target_canvas_path_in_paths_panel();
-    return QList<QAction*>{path_make_selection_action_, nullptr, path_fill_action_, path_stroke_action_,
-                           nullptr, path_simplify_action_, nullptr, path_duplicate_action_,
-                           path_delete_action_};
+    QList<QAction*> actions;
+    // Combine Shapes for two or more selected shape layers or components (GitHub #521).
+    const auto tool = canvas_->tool();
+    if (tool == CanvasTool::PathSelect || tool == CanvasTool::DirectSelect) {
+      refresh_combine_shapes_action_states();
+      if (layer_combine_actions_[0] != nullptr && layer_combine_actions_[0]->isEnabled()) {
+        for (auto* action : layer_combine_actions_) {
+          actions.append(action);
+        }
+        actions.append(nullptr);
+      }
+    }
+    actions.append({path_make_selection_action_, nullptr, path_fill_action_, path_stroke_action_,
+                    nullptr, path_simplify_action_, nullptr, path_duplicate_action_, path_delete_action_});
+    return actions;
   });
   canvas->set_vector_preview_status_callback([this, canvas](QString message, bool notice) {
     if (canvas == canvas_) {

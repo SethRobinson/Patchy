@@ -3725,6 +3725,16 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     edit_shape_appearance_action->setObjectName(
         QStringLiteral("layerContextEditShapeAppearanceAction"));
   }
+  // Two or more combinable shape layers: Layer > Shape's Combine Shapes commands (GitHub #521).
+  refresh_combine_shapes_action_states();
+  if (layer_combine_actions_[0] != nullptr && layer_combine_actions_[0]->isEnabled() &&
+      editable_selected_shape_layer_ids().size() >= 2) {
+    auto* combine_menu = menu.addMenu(simple_icon(QStringLiteral("SHP"), QColor(190, 220, 255)), tr("Combine Shapes"));
+    combine_menu->setObjectName(QStringLiteral("layerContextCombineShapesMenu"));
+    for (auto* action : layer_combine_actions_) {
+      combine_menu->addAction(action);
+    }
+  }
   QAction* warp_text_action = nullptr;
   QAction* text_orientation_action = nullptr;
   if (active_layer != nullptr && layer_is_text(*active_layer)) {

@@ -828,6 +828,9 @@ public:
   // canvas_widget_pen.cpp): a committed path arrives as one subpath.
   void set_vector_path_committed_callback(
       std::function<void(patchy::VectorPath, bool, VectorPathSource)> callback);
+  // A Polygon drag commits its live parameters here when set (GitHub #521), so the
+  // polygon keeps its Sides and Star inset; otherwise it arrives as a plain path above.
+  void set_polygon_committed_callback(std::function<void(patchy::LiveShapeParams)> callback);
   // Shape-mode drags preview with the shape's ACTUAL appearance (options-bar
   // fill/stroke) instead of the raster-paint preview. Pulled through a
   // callback at draw time so the values can never go stale per canvas.
@@ -887,8 +890,17 @@ public:
   // shape layer's path or the work path.
   [[nodiscard]] bool path_edit_has_selection() const noexcept;
   [[nodiscard]] int path_edit_selected_anchor_count() const noexcept;
+  // The shape groups (components) with a selected anchor on the target path, ascending
+  // (GitHub #521: the Properties panel sizes and edits them).
   [[nodiscard]] std::vector<int> path_edit_selected_groups() const;
+  // Selects every anchor of `groups` on the target path (whole components, Path Select's
+  // selection), replacing the selection.
+  void select_path_groups(const std::vector<int>& groups);
   void set_selected_subpaths_combine_op(patchy::PathCombineOp op);
+  // Layer > Combine Shapes on two or more selected components of the target path (GitHub #521):
+  // the bottom-most keeps its op, every other selected component takes `op`, the layer
+  // combine's per-component rule. One undo step named `label`; false with fewer than two.
+  bool combine_selected_path_components(patchy::PathCombineOp op, const QString& label);
   void clear_path_edit_selection();
   // Appends subpaths to the active layer's vector mask (undo + cache rebake);
   // used by pen commits and shape drags while the VectorMask target is active.
@@ -925,6 +937,10 @@ public:
   // deletes, prunes); MainWindow refreshes the options-bar selected-point
   // count from it.
   void set_path_selection_changed_callback(std::function<void()> callback);
+  // Invoked when a Path/Direct Select press picks another path (GitHub #521): an id targets
+  // that saved or work path in the Paths panel, nullopt drops the document-path target so the
+  // active layer's own path takes over. Without a callback the canvas retargets itself.
+  void set_path_retarget_callback(std::function<void(std::optional<DocumentPathId>)> callback);
   // Invoked when a Delete under the path tools removed the last subpath of one
   // or more shape layers (GitHub issue 315). The path edit's undo entry is still
   // open: MainWindow removes those layers inside it, so one Undo brings each
@@ -2287,6 +2303,21 @@ private:
   // The topmost visible, editable shape layer whose anchor, outline or fill is
   // under the pointer: Path/Direct Select pick it as their target (GitHub issue 248).
   [[nodiscard]] patchy::Layer* topmost_path_pick_layer_at(QPointF widget_point) const;
+  // What a Path/Direct Select press would retarget to (GitHub #521): the work path (or the
+  // saved path targeted last) by its anchors or outline first, then the topmost shape layer,
+  // then the document path's fill. Never the current target.
+  struct PathPick {
+    patchy::Layer* layer{nullptr};
+    std::optional<DocumentPathId> document_path;
+    [[nodiscard]] bool empty() const noexcept { return layer == nullptr && !document_path.has_value(); }
+  };
+  [[nodiscard]] PathPick path_pick_at(QPointF widget_point) const;
+  // Document paths drawn as plain outlines under the path and shape tools while another path is
+  // the target, so a shape layer pick never hides the work path (GitHub #521).
+  [[nodiscard]] std::vector<const patchy::DocumentPath*> background_document_paths() const;
+  // Makes the pick the target; true when the target is now the picked path.
+  bool retarget_path_pick(const PathPick& pick);
+  [[nodiscard]] bool document_path_outline_hit(const patchy::DocumentPath& path, QPointF widget_point) const;
   // The open subpath end point under the pointer on the target path, if any: its
   // subpath index and whether it is the subpath's first anchor (GitHub issue 248: a Pen
   // click there continues the path).
@@ -3059,6 +3090,7 @@ private:
   VectorToolMode vector_tool_mode_{VectorToolMode::Shape};
   std::function<void(patchy::LiveShapeKind, QRectF, QPointF, QPointF)> vector_shape_drawn_callback_;
   std::function<void(patchy::VectorPath, bool, VectorPathSource)> vector_path_committed_callback_;
+  std::function<void(patchy::LiveShapeParams)> polygon_committed_callback_;
   std::function<void(CanvasTool, QPointF)> shape_create_requested_callback_;
   // Path Select / Direct Select double-click on a shape layer's geometry.
   std::function<void()> shape_appearance_requested_callback_;
@@ -3151,6 +3183,10 @@ private:
   std::function<void()> path_load_selection_callback_;
   std::function<void()> path_edited_callback_;
   std::function<void()> path_selection_changed_callback_;
+  std::function<void(std::optional<DocumentPathId>)> path_retarget_callback_;
+  // The saved path targeted last (GitHub #521): it keeps drawing as an outline, and stays
+  // pickable, after a shape layer pick takes the target.
+  std::optional<DocumentPathId> last_saved_path_target_;
   std::function<void(const std::vector<LayerId>&)> shape_layers_emptied_callback_;
   // Path free-transform session state. The affine maps the original rect onto
   // the (possibly negative-extent, i.e. flipped) current rect, then rotates

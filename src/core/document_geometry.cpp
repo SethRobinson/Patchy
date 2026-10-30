@@ -15,6 +15,7 @@
 #include "core/artboard.hpp"
 #include "core/resample.hpp"
 #include "core/smart_object.hpp"
+#include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "core/warp_mesh.hpp"
@@ -1074,32 +1075,8 @@ void transform_origination_or_drop(VectorShapeContent& content,
     content.origination.clear();
     return;
   }
-  const double sx = matrix[0];
-  const double sy = matrix[3];
-  const double tx = matrix[4];
-  const double ty = matrix[5];
-  const double uniform_scale = (sx + sy) / 2.0;
   for (auto& params : content.origination) {
-    params.left = params.left * sx + tx;
-    params.right = params.right * sx + tx;
-    params.top = params.top * sy + ty;
-    params.bottom = params.bottom * sy + ty;
-    for (std::size_t i = 0; i < params.box_corners.size(); i += 2) {
-      params.box_corners[i] = params.box_corners[i] * sx + tx;
-      params.box_corners[i + 1] = params.box_corners[i + 1] * sy + ty;
-    }
-    for (auto& radius : params.corner_radii) {
-      radius *= uniform_scale;
-    }
-    params.line_start_x = params.line_start_x * sx + tx;
-    params.line_end_x = params.line_end_x * sx + tx;
-    params.line_start_y = params.line_start_y * sy + ty;
-    params.line_end_y = params.line_end_y * sy + ty;
-    params.line_weight *= uniform_scale;
-    params.arrow_width *= uniform_scale;
-    params.arrow_length *= uniform_scale;
-    params.transform[4] = params.transform[4] * sx + tx;
-    params.transform[5] = params.transform[5] * sy + ty;
+    scale_live_shape_params(params, matrix[0], matrix[3], matrix[4], matrix[5]);
   }
 }
 
@@ -1297,6 +1274,14 @@ void transform_document_vector_data(Document& document, const std::array<double,
     auto updated = path.path();
     transform_vector_path(updated, matrix);
     path.set_path(std::move(updated));  // marks the path dirty for the writer
+    auto live = path.live_shapes();
+    if (!matrix_keeps_live_shapes(matrix)) {
+      live.clear();
+    }
+    for (auto& params : live) {
+      scale_live_shape_params(params, matrix[0], matrix[3], matrix[4], matrix[5]);
+    }
+    path.set_live_shapes(std::move(live));
   }
 }
 

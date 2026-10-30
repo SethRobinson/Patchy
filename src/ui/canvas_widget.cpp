@@ -345,6 +345,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   clear_transform_commit_hold();  // a held commit frame belongs to the outgoing state
   cancel_move_commit_job();
   active_document_path_.reset();
+  last_saved_path_target_.reset();
   path_selected_anchors_.clear();
   extra_selected_anchors_.clear();
   clear_transient_read_interaction();

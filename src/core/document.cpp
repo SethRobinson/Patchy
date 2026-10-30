@@ -246,6 +246,13 @@ DocumentPath* Document::work_path() noexcept {
   return found == paths_.end() ? nullptr : &*found;
 }
 
+const DocumentPath* Document::work_path() const noexcept {
+  const auto found = std::find_if(paths_.begin(), paths_.end(), [](const DocumentPath& path) {
+    return path.kind() == DocumentPathKind::Work;
+  });
+  return found == paths_.end() ? nullptr : &*found;
+}
+
 bool Document::remove_path(DocumentPathId id) {
   const auto found = std::find_if(paths_.begin(), paths_.end(),
                                   [id](const DocumentPath& path) { return path.id() == id; });

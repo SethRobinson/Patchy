@@ -242,10 +242,36 @@ std::vector<PathSubpath> line_subpaths(const LiveShapeParams& params) {
   return subpaths;
 }
 
+std::vector<PathSubpath> polygon_subpaths(const LiveShapeParams& params) {
+  const double rx = (params.right - params.left) / 2.0;
+  const double ry = (params.bottom - params.top) / 2.0;
+  if (rx < 0.25 || ry < 0.25) {
+    return {};
+  }
+  const double cx = params.left + rx;
+  const double cy = params.top + ry;
+  auto subpath = generate_polygon_subpath(0.0, 0.0, 1.0, params.polygon_angle, params.polygon_sides,
+                                          std::clamp(params.polygon_star_inset, 0, 99));
+  for (auto& anchor : subpath.anchors) {
+    anchor.anchor_x = cx + anchor.anchor_x * rx;
+    anchor.anchor_y = cy + anchor.anchor_y * ry;
+    anchor.in_x = anchor.anchor_x;
+    anchor.in_y = anchor.anchor_y;
+    anchor.out_x = anchor.anchor_x;
+    anchor.out_y = anchor.anchor_y;
+  }
+  subpath.closed = true;
+  subpath.op = PathCombineOp::Add;
+  subpath.shape_group = params.index;
+  return {std::move(subpath)};
+}
+
 }  // namespace
 
 std::vector<PathSubpath> generate_live_shape_subpaths(const LiveShapeParams& params) {
   switch (params.kind) {
+    case LiveShapeKind::Polygon:
+      return polygon_subpaths(params);
     case LiveShapeKind::Rectangle:
       return rectangle_subpaths(params);
     case LiveShapeKind::RoundedRectangle:
@@ -264,6 +290,114 @@ std::vector<PathSubpath> generate_live_shape_subpaths(const LiveShapeParams& par
 void populate_live_shape_box_corners(LiveShapeParams& params) noexcept {
   params.box_corners = {params.left,  params.top,    params.right, params.top,
                         params.right, params.bottom, params.left,  params.bottom};
+}
+
+void scale_live_shape_params(LiveShapeParams& params, double sx, double sy, double tx, double ty) noexcept {
+  const double uniform_scale = (sx + sy) / 2.0;
+  params.left = params.left * sx + tx;
+  params.right = params.right * sx + tx;
+  params.top = params.top * sy + ty;
+  params.bottom = params.bottom * sy + ty;
+  for (std::size_t i = 0; i < params.box_corners.size(); i += 2) {
+    params.box_corners[i] = params.box_corners[i] * sx + tx;
+    params.box_corners[i + 1] = params.box_corners[i + 1] * sy + ty;
+  }
+  for (auto& radius : params.corner_radii) {
+    radius *= uniform_scale;
+  }
+  params.line_start_x = params.line_start_x * sx + tx;
+  params.line_end_x = params.line_end_x * sx + tx;
+  params.line_start_y = params.line_start_y * sy + ty;
+  params.line_end_y = params.line_end_y * sy + ty;
+  params.line_weight *= uniform_scale;
+  params.arrow_width *= uniform_scale;
+  params.arrow_length *= uniform_scale;
+  params.transform[4] = params.transform[4] * sx + tx;
+  params.transform[5] = params.transform[5] * sy + ty;
+}
+
+void translate_live_shape_params(LiveShapeParams& params, double dx, double dy) noexcept {
+  params.left += dx;
+  params.right += dx;
+  params.top += dy;
+  params.bottom += dy;
+  for (std::size_t i = 0; i < params.box_corners.size(); i += 2) {
+    params.box_corners[i] += dx;
+    params.box_corners[i + 1] += dy;
+  }
+  params.line_start_x += dx;
+  params.line_end_x += dx;
+  params.line_start_y += dy;
+  params.line_end_y += dy;
+  params.transform[4] += dx;
+  params.transform[5] += dy;
+}
+
+std::optional<LiveShapeParams> resolve_live_shape_group(const VectorPath& path,
+                                                        const std::vector<LiveShapeParams>& origination,
+                                                        std::int32_t group) {
+  const auto entry = std::find_if(origination.begin(), origination.end(), [group](const LiveShapeParams& params) {
+    return params.index == group && params.raw_descriptor.empty();
+  });
+  if (entry == origination.end()) {
+    return std::nullopt;
+  }
+  std::vector<const PathSubpath*> actual;
+  for (const auto& subpath : path.subpaths) {
+    if (subpath.shape_group == group) {
+      actual.push_back(&subpath);
+    }
+  }
+  const auto generated = generate_live_shape_subpaths(*entry);
+  if (actual.empty() || generated.size() != actual.size()) {
+    return std::nullopt;
+  }
+  if (generated.front().anchors.empty() || actual.front()->anchors.size() != generated.front().anchors.size()) {
+    return std::nullopt;
+  }
+  const double dx = actual.front()->anchors.front().anchor_x - generated.front().anchors.front().anchor_x;
+  const double dy = actual.front()->anchors.front().anchor_y - generated.front().anchors.front().anchor_y;
+  constexpr double kTolerance = 0.01;
+  const auto close = [dx, dy](double ax, double ay, double gx, double gy) {
+    return std::abs(ax - gx - dx) <= kTolerance && std::abs(ay - gy - dy) <= kTolerance;
+  };
+  for (std::size_t s = 0; s < generated.size(); ++s) {
+    const auto& want = generated[s].anchors;
+    const auto& have = actual[s]->anchors;
+    if (want.size() != have.size() || generated[s].closed != actual[s]->closed) {
+      return std::nullopt;
+    }
+    for (std::size_t a = 0; a < want.size(); ++a) {
+      if (!close(have[a].anchor_x, have[a].anchor_y, want[a].anchor_x, want[a].anchor_y) ||
+          !close(have[a].in_x, have[a].in_y, want[a].in_x, want[a].in_y) ||
+          !close(have[a].out_x, have[a].out_y, want[a].out_x, want[a].out_y)) {
+        return std::nullopt;
+      }
+    }
+  }
+  auto result = *entry;
+  translate_live_shape_params(result, dx, dy);
+  return result;
+}
+
+bool replace_live_shape_group(VectorPath& path, const LiveShapeParams& params) {
+  auto generated = generate_live_shape_subpaths(params);
+  const auto first = std::find_if(path.subpaths.begin(), path.subpaths.end(), [&params](const PathSubpath& subpath) {
+    return subpath.shape_group == params.index;
+  });
+  if (generated.empty() || first == path.subpaths.end()) {
+    return false;
+  }
+  const auto op = first->op;
+  const auto position = static_cast<std::size_t>(first - path.subpaths.begin());
+  std::erase_if(path.subpaths, [&params](const PathSubpath& subpath) { return subpath.shape_group == params.index; });
+  for (auto& subpath : generated) {
+    subpath.op = op;
+    subpath.shape_group = params.index;
+  }
+  path.subpaths.insert(path.subpaths.begin() + static_cast<std::ptrdiff_t>(position),
+                       std::make_move_iterator(generated.begin()), std::make_move_iterator(generated.end()));
+  return true;
 }
 
 PathSubpath generate_polygon_subpath(double cx, double cy, double radius, double angle_radians,
