@@ -147,6 +147,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.23" date="2026-10-30">
+      <description>
+        <ul>
+          <li>A Black &amp; White dialog with tints and presets, and direct Image &gt; Adjustments commands</li>
+          <li>878 built-in custom shapes and live shape and path editing</li>
+          <li>An Edit &gt; Fill dialog</li>
+          <li>Photoshop shortcuts for brush hardness, layer opacity, transparency lock and blend modes</li>
+          <li>Move drags inside a selection move the selected pixels</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.22" date="2026-10-30">
       <description>
         <ul>
