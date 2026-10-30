@@ -83,6 +83,7 @@
 #include <QDialogButtonBox>
 #include <QScreen>
 #include <QScrollArea>
+#include <QSplitter>
 #include <QSizeGrip>
 #include <QStandardItemModel>
 #include <QTabWidget>
@@ -7183,6 +7184,80 @@ void ui_properties_edit_appearance_hides_when_layers_are_deselected() {
 }
 
 
+// Local issue 025: the divider above Properties drags freely. Dragged up it grows Properties
+// and shrinks the Layers group until a shape layer's rows fit with no scroll bar; dragged
+// back down it returns the height. At the opening column width the info rows wrap instead
+// of scrolling sideways.
+void ui_properties_divider_grows_panel_without_scroll_bars() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr);
+  if (column == nullptr) {
+    return;
+  }
+  // The reported column: Color collapsed, Layers and Properties open.
+  window.resize(window.width(), 1000);
+  column->set_panel_expanded(QStringLiteral("colorDock"), false);
+  QApplication::processEvents();
+  make_rect_shape_layer(window, *canvas);
+  patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+  QApplication::processEvents();
+  QApplication::processEvents();
+  auto* layers = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("layersDock"));
+  auto* properties = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("propertiesDock"));
+  auto* scroll = window.findChild<QScrollArea*>(QStringLiteral("propertiesScrollArea"));
+  CHECK(layers != nullptr && properties != nullptr && scroll != nullptr && scroll->widget() != nullptr);
+  if (layers == nullptr || properties == nullptr || scroll == nullptr || scroll->widget() == nullptr) {
+    return;
+  }
+  save_widget_artifact("local025_properties_before_drag", *column);
+  // No sideways scroll bar at the opening width: the rows wrap within the viewport.
+  CHECK(!scroll->horizontalScrollBar()->isVisible());
+  CHECK(scroll->widget()->width() <= scroll->viewport()->width());
+
+  auto* splitter = column->splitter();
+  auto* divider = splitter->handle(splitter->indexOf(properties));
+  CHECK(divider != nullptr);
+  if (divider == nullptr) {
+    return;
+  }
+  const auto content_height = [scroll] {
+    auto* panel = scroll->widget();
+    const int width = scroll->viewport()->width();
+    return panel->hasHeightForWidth() ? panel->heightForWidth(width) : panel->sizeHint().height();
+  };
+  const int layers_before = layers->height();
+  const int properties_before = properties->height();
+  // Enough to fit the shape rows, and at least what the old 230 px cap stopped.
+  const int lift = std::max(120, content_height() - scroll->viewport()->height() + 24);
+  const int layers_room = layers_before - layers->minimumHeight();
+  std::printf("local025: layers %d (floor %d), properties %d, viewport %d, content %d, lift %d\n", layers_before,
+              layers->minimumHeight(), properties_before, scroll->viewport()->height(), content_height(), lift);
+  CHECK(layers_room >= lift);
+  const auto drag_divider = [divider](int dy) {
+    const auto start = divider->rect().center();
+    QTest::mousePress(divider, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(divider, start + QPoint(0, dy));
+    QTest::mouseRelease(divider, Qt::LeftButton, Qt::NoModifier, start + QPoint(0, dy));
+    QApplication::processEvents();
+    QApplication::processEvents();
+  };
+  drag_divider(-lift);
+  std::printf("local025: after drag layers %d, properties %d, viewport %d, content %d\n", layers->height(),
+              properties->height(), scroll->viewport()->height(), content_height());
+  CHECK(properties->height() >= properties_before + lift - 2);
+  CHECK(layers->height() <= layers_before - lift + 2);
+  CHECK(!scroll->verticalScrollBar()->isVisible());
+  CHECK(!scroll->horizontalScrollBar()->isVisible());
+  save_widget_artifact("local025_properties_after_drag", *column);
+
+  // And back down: Layers gets its height back.
+  drag_divider(lift);
+  CHECK(std::abs(properties->height() - properties_before) <= 2);
+  CHECK(std::abs(layers->height() - layers_before) <= 2);
+}
+
 // GitHub issue 273 follow-up (the reporter): a click on Edit Appearance with no shape layer
 // selected crashed. The entry is safe on its own: forced visible and clicked with a pixel
 // layer active, with no active layer and with no document, it reports the usual status
@@ -7673,5 +7748,6 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_properties_edit_appearance_hides_when_layers_are_deselected",
        ui_properties_edit_appearance_hides_when_layers_are_deselected},
       {"ui_properties_shape_controls_are_safe_without_a_shape", ui_properties_shape_controls_are_safe_without_a_shape},
+      {"ui_properties_divider_grows_panel_without_scroll_bars", ui_properties_divider_grows_panel_without_scroll_bars},
   };
 }
