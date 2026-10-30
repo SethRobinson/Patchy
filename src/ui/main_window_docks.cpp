@@ -150,7 +150,9 @@ constexpr int kRightDockChromeWidth = 18;
 // for the preferred height from its neighbors instead (PanelColumn).
 constexpr int kHistoryDockExpandedMinimumHeight = 90;
 constexpr int kHistoryDockPreferredHeight = 190;
-constexpr int kPropertiesDockMaximumHeight = 230;
+// Properties opens at this height and has no cap: its divider drags it as tall as the
+// column allows (local issue 025).
+constexpr int kPropertiesDockPreferredHeight = 230;
 constexpr int kPaletteDockPreferredHeight = 320;
 // The Color panel stays compact: a short field reads fine and leaves the height to Layers.
 constexpr int kColorDockPreferredHeight = 170;
@@ -2235,7 +2237,8 @@ void MainWindow::create_docks() {
   properties_scroll->setObjectName(QStringLiteral("propertiesScrollArea"));
   properties_scroll->setFrameShape(QFrame::NoFrame);
   properties_scroll->setWidgetResizable(true);
-  // Scrolls sideways once the column is dragged narrower than the panel.
+  // Scrolls sideways only once the column is dragged narrower than the panel's
+  // controls: the info rows wrap (local issue 025).
   properties_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   auto* properties_panel = new QWidget(properties_scroll);
   properties_panel->setObjectName(QStringLiteral("propertiesPanel"));
@@ -2245,18 +2248,19 @@ void MainWindow::create_docks() {
   const auto add_properties_label = [properties_panel, properties_layout](const QString& object_name) {
     auto* label = new QLabel(properties_panel);
     label->setObjectName(object_name);
-    label->setWordWrap(false);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse);
     label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    // After the size policy, which would drop the height-for-width flag wrapping sets.
+    label->setWordWrap(true);
     label->hide();
     properties_layout->addWidget(label);
     return label;
   };
   document_info_label_ = new QLabel(properties_panel);
   document_info_label_->setObjectName(QStringLiteral("documentInfoLabel"));
-  document_info_label_->setWordWrap(false);
   document_info_label_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   document_info_label_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+  document_info_label_->setWordWrap(true);
   properties_layout->addWidget(document_info_label_);
   active_layer_info_label_ = add_properties_label(QStringLiteral("activeLayerInfoLabel"));
   active_layer_geometry_label_ = add_properties_label(QStringLiteral("activeLayerGeometryLabel"));
@@ -2467,8 +2471,7 @@ void MainWindow::create_docks() {
                                   .object_prefix = QStringLiteral("properties"),
                                   .title = tr("Properties"),
                                   .content = properties_scroll,
-                                  .expanded_maximum_height = kPropertiesDockMaximumHeight,
-                                  .preferred_height = kPropertiesDockMaximumHeight});
+                                  .preferred_height = kPropertiesDockPreferredHeight});
 
   auto* info_panel = new QWidget(this);
   info_panel->setObjectName(QStringLiteral("infoPanel"));

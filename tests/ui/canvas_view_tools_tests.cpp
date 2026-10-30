@@ -8078,7 +8078,7 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(layers_dock->minimumHeight() >= 300 ||
         window.minimumSizeHint().height() <= patchy::ui::MainWindowTestAccess::available_window_height(window));
   CHECK(layer_list->minimumHeight() >= 120);
-  CHECK(properties_dock->maximumHeight() <= 240);
+  // Properties opens at 230 px; its divider can drag it taller (local issue 025).
   CHECK(properties_dock->height() <= 240);
   CHECK(window.minimumSizeHint().height() <= 780);
   CHECK(layer_list->contextMenuPolicy() == Qt::CustomContextMenu);
