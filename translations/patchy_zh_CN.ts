@@ -45,6 +45,77 @@
     </message>
 </context>
 <context>
+    <name>FillDialog</name>
+    <message>
+        <source>Foreground Color</source>
+        <translation>前景色</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>背景色</translation>
+    </message>
+    <message>
+        <source>Color...</source>
+        <translation>颜色...</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>50% Gray</source>
+        <translation>50% 灰色</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>白色</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>填充</translation>
+    </message>
+    <message>
+        <source>Contents</source>
+        <translation>内容</translation>
+    </message>
+    <message>
+        <source>Fill color</source>
+        <translation>填充颜色</translation>
+    </message>
+    <message>
+        <source>Choose a color to fill with</source>
+        <translation>选择填充颜色</translation>
+    </message>
+    <message>
+        <source>Fill Color</source>
+        <translation>填充颜色</translation>
+    </message>
+    <message>
+        <source>Blending</source>
+        <translation>混合</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>模式</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>不透明度</translation>
+    </message>
+    <message>
+        <source>Preserve Transparency</source>
+        <translation>保留透明区域</translation>
+    </message>
+    <message>
+        <source>Fill only where the layer already has pixels, keeping their opacity</source>
+        <translation>只在图层已有像素的地方填充，并保留其不透明度</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -28671,6 +28742,10 @@ Locked: %1</source>
     <message>
         <source>Combine Shapes</source>
         <translation>组合形状</translation>
+    </message>
+    <message>
+        <source>&amp;Fill...</source>
+        <translation>填充(&amp;F)...</translation>
     </message>
 </context>
 <context>

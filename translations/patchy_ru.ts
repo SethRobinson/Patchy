@@ -45,6 +45,77 @@
     </message>
 </context>
 <context>
+    <name>FillDialog</name>
+    <message>
+        <source>Foreground Color</source>
+        <translation>Основной цвет</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>Цвет фона</translation>
+    </message>
+    <message>
+        <source>Color...</source>
+        <translation>Цвет...</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Черный</translation>
+    </message>
+    <message>
+        <source>50% Gray</source>
+        <translation>50% серого</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>Белый</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>Заливка</translation>
+    </message>
+    <message>
+        <source>Contents</source>
+        <translation>Содержимое</translation>
+    </message>
+    <message>
+        <source>Fill color</source>
+        <translation>Цвет заливки</translation>
+    </message>
+    <message>
+        <source>Choose a color to fill with</source>
+        <translation>Выбрать цвет заливки</translation>
+    </message>
+    <message>
+        <source>Fill Color</source>
+        <translation>Цвет заливки</translation>
+    </message>
+    <message>
+        <source>Blending</source>
+        <translation>Смешивание</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Режим</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>Непрозрачность</translation>
+    </message>
+    <message>
+        <source>Preserve Transparency</source>
+        <translation>Сохранять прозрачность</translation>
+    </message>
+    <message>
+        <source>Fill only where the layer already has pixels, keeping their opacity</source>
+        <translation>Заливать только там, где на слое уже есть пиксели, сохраняя их непрозрачность</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -28835,6 +28906,10 @@ Locked: %1</source>
     <message>
         <source>Combine Shapes</source>
         <translation>Комбинировать фигуры</translation>
+    </message>
+    <message>
+        <source>&amp;Fill...</source>
+        <translation>&amp;Выполнить заливку...</translation>
     </message>
 </context>
 <context>

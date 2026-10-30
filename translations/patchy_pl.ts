@@ -45,6 +45,77 @@
     </message>
 </context>
 <context>
+    <name>FillDialog</name>
+    <message>
+        <source>Foreground Color</source>
+        <translation>Kolor narzędzia</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>Kolor tła</translation>
+    </message>
+    <message>
+        <source>Color...</source>
+        <translation>Kolor...</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Czarny</translation>
+    </message>
+    <message>
+        <source>50% Gray</source>
+        <translation>50% szarości</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>Biały</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>Wypełnij</translation>
+    </message>
+    <message>
+        <source>Contents</source>
+        <translation>Zawartość</translation>
+    </message>
+    <message>
+        <source>Fill color</source>
+        <translation>Kolor wypełnienia</translation>
+    </message>
+    <message>
+        <source>Choose a color to fill with</source>
+        <translation>Wybierz kolor wypełnienia</translation>
+    </message>
+    <message>
+        <source>Fill Color</source>
+        <translation>Kolor wypełnienia</translation>
+    </message>
+    <message>
+        <source>Blending</source>
+        <translation>Mieszanie</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Tryb</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>Krycie</translation>
+    </message>
+    <message>
+        <source>Preserve Transparency</source>
+        <translation>Zachowaj przezroczystość</translation>
+    </message>
+    <message>
+        <source>Fill only where the layer already has pixels, keeping their opacity</source>
+        <translation>Wypełnia tylko tam, gdzie warstwa ma już piksele, zachowując ich krycie</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -28835,6 +28906,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Combine Shapes</source>
         <translation>Kombinuj kształty</translation>
+    </message>
+    <message>
+        <source>&amp;Fill...</source>
+        <translation>&amp;Wypełnij...</translation>
     </message>
 </context>
 <context>

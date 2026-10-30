@@ -1038,6 +1038,83 @@ void tool_gradient_and_fill_rect_grow_a_layer_smaller_than_the_canvas() {
   }
 }
 
+// Edit > Fill's Mode (GitHub issue 530): fill_rect composites through paint_mode at the
+// layer's depth, honoring the selection rect and Lock Transparent Pixels.
+void tool_fill_rect_paint_modes_multiply_behind_and_clear() {
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16}) {
+    const auto make = [depth](patchy::Document& document) {
+      patchy::PixelBuffer pixels(8, 4, patchy::PixelFormat::rgba8());
+      pixels.clear(0);
+      for (std::int32_t y = 0; y < 4; ++y) {
+        for (std::int32_t x = 0; x < 4; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = 200;
+          px[1] = 100;
+          px[2] = 50;
+          px[3] = 255;
+        }
+      }
+      const auto id = document.add_pixel_layer("Half", std::move(pixels)).id();
+      if (depth != patchy::BitDepth::UInt8) {
+        patchy::convert_document_depth(document, depth);
+      }
+      return id;
+    };
+    const auto pixel = [](const patchy::Document& document, patchy::LayerId id, std::int32_t x, std::int32_t y) {
+      const auto& pixels = document.find_layer(id)->pixels();
+      return patchy::load_pixel(pixels.format(), pixels.pixel(x, y));
+    };
+    const auto near = [](std::array<float, 4> value, std::array<float, 4> expected) {
+      for (std::size_t c = 0; c < 4U; ++c) {
+        if (std::abs(value[c] - expected[c]) > 1.5F) {
+          return false;
+        }
+      }
+      return true;
+    };
+    {
+      patchy::Document document(8, 4, patchy::PixelFormat::rgba8());
+      const auto id = make(document);
+      auto options = tool_options(128, 128, 128);
+      options.fill_paint_mode = patchy::PaintMode::of(patchy::BlendMode::Multiply);
+      CHECK(!patchy::fill_rect(document, id, patchy::Rect{0, 0, 8, 4}, options).empty());
+      CHECK(near(pixel(document, id, 0, 0), {100.4F, 50.2F, 25.1F, 255.0F}));
+      CHECK(near(pixel(document, id, 6, 0), {128.0F, 128.0F, 128.0F, 255.0F}));
+    }
+    {
+      patchy::Document document(8, 4, patchy::PixelFormat::rgba8());
+      const auto id = make(document);
+      auto options = tool_options(255, 0, 0);
+      options.fill_paint_mode = patchy::PaintMode::behind();
+      (void)patchy::fill_rect(document, id, patchy::Rect{0, 0, 8, 4}, options);
+      CHECK(near(pixel(document, id, 0, 0), {200.0F, 100.0F, 50.0F, 255.0F}));
+      CHECK(near(pixel(document, id, 6, 0), {255.0F, 0.0F, 0.0F, 255.0F}));
+    }
+    {
+      patchy::Document document(8, 4, patchy::PixelFormat::rgba8());
+      const auto id = make(document);
+      auto options = tool_options(0, 0, 0);
+      options.primary.a = 128;  // 50% opacity
+      options.fill_paint_mode = patchy::PaintMode::clear();
+      options.selection = patchy::Rect{0, 0, 2, 4};
+      (void)patchy::fill_rect(document, id, patchy::Rect{0, 0, 8, 4}, options);
+      CHECK(std::abs(pixel(document, id, 0, 0)[3] - 127.0F) <= 1.5F);
+      CHECK(near(pixel(document, id, 3, 0), {200.0F, 100.0F, 50.0F, 255.0F}));
+    }
+    {
+      // Preserve Transparency: the transparent half stays transparent under any mode.
+      patchy::Document document(8, 4, patchy::PixelFormat::rgba8());
+      const auto id = make(document);
+      auto options = tool_options(128, 128, 128);
+      options.fill_paint_mode = patchy::PaintMode::of(patchy::BlendMode::Multiply);
+      options.lock_transparent_pixels = true;
+      (void)patchy::fill_rect(document, id, patchy::Rect{0, 0, 8, 4}, options);
+      CHECK(near(pixel(document, id, 0, 0), {100.4F, 50.2F, 25.1F, 255.0F}));
+      CHECK(pixel(document, id, 6, 0)[3] <= 0.0F);
+    }
+  }
+}
+
 void tool_gradient_draws_foreground_to_background_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2006,6 +2083,7 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
       {"tool_fill_bucket_grows_a_layer_smaller_than_the_canvas", tool_fill_bucket_grows_a_layer_smaller_than_the_canvas},
       {"tool_gradient_and_fill_rect_grow_a_layer_smaller_than_the_canvas",
        tool_gradient_and_fill_rect_grow_a_layer_smaller_than_the_canvas},
+      {"tool_fill_rect_paint_modes_multiply_behind_and_clear", tool_fill_rect_paint_modes_multiply_behind_and_clear},
       {"tool_gradient_draws_foreground_to_background_and_writes_artifact",
        tool_gradient_draws_foreground_to_background_and_writes_artifact},
       {"tool_gradient_supports_custom_stops_radial_reverse_and_alpha",

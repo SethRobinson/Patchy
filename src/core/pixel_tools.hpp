@@ -2,6 +2,7 @@
 
 #include "core/brush_tip.hpp"
 #include "core/document.hpp"
+#include "core/paint_mode.hpp"
 #include "core/palette.hpp"
 #include "core/rect_utils.hpp"
 #include "core/resample.hpp"
@@ -44,6 +45,9 @@ struct EditOptions {
   bool fill_shapes{false};
   int shape_corner_radius{0};
   double fill_softness_feather{0.0};  // fill_rect/flood_fill: inward edge feather band (px); 0 = hard edge
+  // fill_rect only: the Edit > Fill dialog's Mode (GitHub issue 530). Normal keeps the
+  // ordinary write_pixel path bit for bit; any other mode composites through paint_mode.
+  PaintMode fill_paint_mode{};
   // flood_fill only. Tolerance is the Magic Wand's metric (color_within_tolerance), so Fill
   // tolerance N accepts exactly the pixels Wand tolerance N selects; 0 is an exact match.
   // Contiguous limits the fill to pixels connected to the click; off fills every matching
@@ -256,6 +260,8 @@ enum class CanvasAnchor {
 // options.fill_softness_feather (feathered inward from the filled region's edge).
 [[nodiscard]] Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y,
                               const EditOptions& options);
+// Fills `rect` (clipped to the canvas and options.selection, weighted by selection coverage)
+// with options.primary at its alpha, composited by options.fill_paint_mode.
 [[nodiscard]] Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options);
 [[nodiscard]] Rect clear_rect_change_bounds(const Document& document, LayerId layer_id, Rect rect,
                                             const EditOptions& options);

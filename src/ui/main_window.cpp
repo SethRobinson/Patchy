@@ -12270,6 +12270,7 @@ void MainWindow::update_document_action_state() {
     }
     set_command_enabled(QStringLiteral("filter.gallery"), false);
     for (const auto& id : {QStringLiteral("layer.fill"), QStringLiteral("layer.fill_background"),
+                           QStringLiteral("edit.fill"),
                            QStringLiteral("layer.clear"), QStringLiteral("tools.brush"),
                            QStringLiteral("tools.eraser"), QStringLiteral("tools.gradient"),
                            QStringLiteral("tools.line"), QStringLiteral("tools.rect"),

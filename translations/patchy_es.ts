@@ -45,6 +45,77 @@
     </message>
 </context>
 <context>
+    <name>FillDialog</name>
+    <message>
+        <source>Foreground Color</source>
+        <translation>Color frontal</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>Color de fondo</translation>
+    </message>
+    <message>
+        <source>Color...</source>
+        <translation>Color...</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Negro</translation>
+    </message>
+    <message>
+        <source>50% Gray</source>
+        <translation>Gris 50%</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>Blanco</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>Rellenar</translation>
+    </message>
+    <message>
+        <source>Contents</source>
+        <translation>Contenido</translation>
+    </message>
+    <message>
+        <source>Fill color</source>
+        <translation>Color de relleno</translation>
+    </message>
+    <message>
+        <source>Choose a color to fill with</source>
+        <translation>Elegir un color de relleno</translation>
+    </message>
+    <message>
+        <source>Fill Color</source>
+        <translation>Color de relleno</translation>
+    </message>
+    <message>
+        <source>Blending</source>
+        <translation>Fusión</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Modo</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>Opacidad</translation>
+    </message>
+    <message>
+        <source>Preserve Transparency</source>
+        <translation>Conservar transparencia</translation>
+    </message>
+    <message>
+        <source>Fill only where the layer already has pixels, keeping their opacity</source>
+        <translation>Rellenar solo donde la capa ya tiene píxeles, manteniendo su opacidad</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -28753,6 +28824,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Combine Shapes</source>
         <translation>Combinar formas</translation>
+    </message>
+    <message>
+        <source>&amp;Fill...</source>
+        <translation>&amp;Rellenar...</translation>
     </message>
 </context>
 <context>

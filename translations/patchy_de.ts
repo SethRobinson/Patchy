@@ -45,6 +45,77 @@
     </message>
 </context>
 <context>
+    <name>FillDialog</name>
+    <message>
+        <source>Foreground Color</source>
+        <translation>Vordergrundfarbe</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>Hintergrundfarbe</translation>
+    </message>
+    <message>
+        <source>Color...</source>
+        <translation>Farbe...</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Schwarz</translation>
+    </message>
+    <message>
+        <source>50% Gray</source>
+        <translation>50 % Grau</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>Weiß</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>Füllen</translation>
+    </message>
+    <message>
+        <source>Contents</source>
+        <translation>Inhalt</translation>
+    </message>
+    <message>
+        <source>Fill color</source>
+        <translation>Füllfarbe</translation>
+    </message>
+    <message>
+        <source>Choose a color to fill with</source>
+        <translation>Eine Farbe zum Füllen wählen</translation>
+    </message>
+    <message>
+        <source>Fill Color</source>
+        <translation>Füllfarbe</translation>
+    </message>
+    <message>
+        <source>Blending</source>
+        <translation>Überblenden</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Modus</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>Deckkraft</translation>
+    </message>
+    <message>
+        <source>Preserve Transparency</source>
+        <translation>Transparenz erhalten</translation>
+    </message>
+    <message>
+        <source>Fill only where the layer already has pixels, keeping their opacity</source>
+        <translation>Nur füllen, wo die Ebene schon Pixel hat, und deren Deckkraft behalten</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -28753,6 +28824,10 @@ Fixiert: %1</translation>
     <message>
         <source>Combine Shapes</source>
         <translation>Formen kombinieren</translation>
+    </message>
+    <message>
+        <source>&amp;Fill...</source>
+        <translation>&amp;Füllen...</translation>
     </message>
 </context>
 <context>

@@ -9,6 +9,7 @@
 #include "ui/appearance_edits.hpp"
 #include "core/layer_alignment.hpp"
 #include "ui/appearance_properties.hpp"
+#include "ui/fill_dialog.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QByteArray>
@@ -4716,7 +4717,50 @@ void MainWindow::fill_active_layer() {
   fill_active_layer_with_color(canvas_->primary_color(), tr("Fill"));
 }
 
-void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
+void MainWindow::edit_fill_dialog() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  // Refuse a target the fill would refuse before showing the dialog, as Stroke Selection does.
+  const auto edit_target = canvas_->layer_edit_target();
+  if (CanvasWidget::is_component_preview(edit_target) ||
+      (edit_target == CanvasWidget::LayerEditTarget::DocumentChannel && !canvas_->document_channel_is_editable())) {
+    show_status_error(tr("This channel is read-only"));
+    return;
+  }
+  if (!canvas_->quick_mask_active() && !canvas_->editing_smart_filter_mask() &&
+      edit_target == CanvasWidget::LayerEditTarget::Content) {
+    select_only_layer_if_none_active();
+    const auto ids = selected_or_active_layer_ids();
+    if (ids.empty()) {
+      return;
+    }
+    const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
+    if (show_pixel_lock_message_if_all_locked(ids, editable_ids)) {
+      return;
+    }
+    const auto& doc = std::as_const(document());
+    const bool any_fillable = std::any_of(editable_ids.begin(), editable_ids.end(), [&](LayerId id) {
+      const auto* layer = doc.find_layer(id);
+      return layer != nullptr && layer->kind() == LayerKind::Pixel && !layer_pixels_are_procedural(*layer);
+    });
+    if (!any_fillable) {
+      show_status_error(
+          tr("Text, Smart Object, and Shape pixels cannot be filled. Rasterize the layer first."));
+      return;
+    }
+  }
+  auto* const document_before = &document();
+  const auto chosen = request_fill_settings(this, canvas_->primary_color(), canvas_->secondary_color());
+  if (!chosen.has_value() || canvas_ == nullptr || !has_active_document() || &document() != document_before) {
+    return;
+  }
+  const auto color = fill_contents_color(*chosen, canvas_->primary_color(), canvas_->secondary_color());
+  fill_active_layer_with_color(color, tr("Fill"),
+                               FillCommandBlend{chosen->opacity, chosen->mode, chosen->preserve_transparency});
+}
+
+void MainWindow::fill_active_layer_with_color(QColor color, QString label, std::optional<FillCommandBlend> blend) {
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
     canvas_->begin_processing_operation();
     const auto finish_processing = qScopeGuard([this] {
@@ -4772,7 +4816,7 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
     return;
   }
 
-  if (canvas_->fill_opacity() <= 0) {
+  if ((blend.has_value() ? blend->opacity : canvas_->fill_opacity()) <= 0) {
     return;  // Fill Opacity 0% paints nothing (issue 253): no undo entry, no document change
   }
   select_only_layer_if_none_active();
@@ -4811,15 +4855,24 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
   options.primary = edit_color(color);
   // Fill honors its own Opacity and Soft settings (Fill tool options bar; default 100% / 0). Opacity
   // scales the fill alpha; Soft feathers the fill inward from the selection edge. Tol and
-  // Contiguous only matter to the Fill tool's flood.
-  apply_fill_settings(options, *canvas_);
+  // Contiguous only matter to the Fill tool's flood. Edit > Fill brings its own Opacity and
+  // Mode instead, with no feather.
+  if (blend.has_value()) {
+    options.primary.a = static_cast<std::uint8_t>(std::clamp(
+        std::lround(static_cast<double>(options.primary.a) * std::clamp(blend->opacity, 0, 100) / 100.0), 1L, 255L));
+    options.fill_paint_mode = blend->mode;
+    options.fill_softness_feather = 0.0;
+  } else {
+    apply_fill_settings(options, *canvas_);
+  }
   Rect affected;
   for (const auto id : fillable_ids) {
     auto* layer = doc.find_layer(id);
     if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
       continue;
     }
-    options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
+    options.lock_transparent_pixels =
+        layer_locks_transparent_pixels(*layer) || (blend.has_value() && blend->preserve_transparency);
     // No selection fills the whole canvas: fill_rect grows a layer whose buffer covers only
     // its content (GitHub issue 498); under the transparency lock it stays inside the buffer.
     const auto target = canvas_->has_selection() && canvas_->selected_document_rect().has_value()

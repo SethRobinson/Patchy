@@ -45,6 +45,77 @@
     </message>
 </context>
 <context>
+    <name>FillDialog</name>
+    <message>
+        <source>Foreground Color</source>
+        <translation>Cor de primeiro plano</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>Cor de fundo</translation>
+    </message>
+    <message>
+        <source>Color...</source>
+        <translation>Cor...</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Preto</translation>
+    </message>
+    <message>
+        <source>50% Gray</source>
+        <translation>Cinza 50%</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>Branco</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>Preencher</translation>
+    </message>
+    <message>
+        <source>Contents</source>
+        <translation>Conteúdo</translation>
+    </message>
+    <message>
+        <source>Fill color</source>
+        <translation>Cor de preenchimento</translation>
+    </message>
+    <message>
+        <source>Choose a color to fill with</source>
+        <translation>Escolher uma cor de preenchimento</translation>
+    </message>
+    <message>
+        <source>Fill Color</source>
+        <translation>Cor de preenchimento</translation>
+    </message>
+    <message>
+        <source>Blending</source>
+        <translation>Mesclagem</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Modo</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>Opacidade</translation>
+    </message>
+    <message>
+        <source>Preserve Transparency</source>
+        <translation>Preservar transparência</translation>
+    </message>
+    <message>
+        <source>Fill only where the layer already has pixels, keeping their opacity</source>
+        <translation>Preenche só onde a camada já tem pixels, mantendo a opacidade deles</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -28753,6 +28824,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Combine Shapes</source>
         <translation>Combinar formas</translation>
+    </message>
+    <message>
+        <source>&amp;Fill...</source>
+        <translation>&amp;Preencher...</translation>
     </message>
 </context>
 <context>

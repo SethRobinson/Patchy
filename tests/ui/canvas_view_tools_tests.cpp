@@ -10,6 +10,7 @@
 #include "ui/brush_tip_picker.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/fill_dialog.hpp"
 #include "ui/curved_slider.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/main_window.hpp"
@@ -6749,6 +6750,153 @@ void ui_filled_shape_preview_clears_after_commit() {
         repainted.pixelColor(canvas->widget_position_for_document_point(QPoint(170, 125))));
 }
 
+// Answers the next Edit > Fill dialog (GitHub issue 530) with these settings; `color` sets the
+// Color... choice through the swatch's property, as the picker would.
+void accept_edit_fill_dialog(const QString& contents, const QString& mode, int opacity,
+                             std::optional<QColor> color = std::nullopt, bool preserve_transparency = false,
+                             const char* artifact = nullptr) {
+  QTimer::singleShot(0, [=] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* contents_combo = dialog->findChild<QComboBox*>(QStringLiteral("editFillContentsCombo"));
+    auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("editFillColorSwatch"));
+    auto* mode_combo = dialog->findChild<QComboBox*>(QStringLiteral("editFillModeCombo"));
+    auto* opacity_spin = dialog->findChild<QSpinBox*>(QStringLiteral("editFillOpacitySpin"));
+    auto* preserve = dialog->findChild<QCheckBox*>(QStringLiteral("editFillPreserveTransparencyCheck"));
+    CHECK(contents_combo != nullptr && swatch != nullptr && mode_combo != nullptr && opacity_spin != nullptr &&
+          preserve != nullptr);
+    if (contents_combo == nullptr || swatch == nullptr || mode_combo == nullptr || opacity_spin == nullptr ||
+        preserve == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(contents_combo->count() == 6);
+    if (color.has_value()) {
+      swatch->setProperty("fillColor", *color);
+    }
+    const auto contents_index = contents_combo->findData(contents);
+    CHECK(contents_index >= 0);
+    contents_combo->setCurrentIndex(contents_index);
+    patchy::PaintMode paint_mode;
+    CHECK(patchy::ui::script_paint_mode_from_id(mode, &paint_mode));
+    const auto mode_index = mode_combo->findData(patchy::ui::paint_mode_item_data(paint_mode));
+    CHECK(mode_index >= 0);
+    mode_combo->setCurrentIndex(mode_index);
+    opacity_spin->setValue(opacity);
+    preserve->setChecked(preserve_transparency);
+    QApplication::processEvents();
+    if (artifact != nullptr) {
+      save_widget_artifact(artifact, *dialog);
+    }
+    dialog->accept();
+  });
+}
+
+// Edit > Fill... (GitHub issue 530): every Contents choice, Mode and Opacity on a selection, the
+// whole layer with no selection, Preserve Transparency, one undo step each, and the shortcuts.
+void ui_edit_fill_dialog_fills_contents_with_mode_and_opacity() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  const auto layer_id =
+      document.add_pixel_layer("Paper", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), Qt::white)).id();
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Edit Fill"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* fill = require_action(window, "editFillAction");
+  const auto shortcuts = fill->shortcuts();
+  CHECK(shortcuts.contains(QKeySequence(Qt::SHIFT | Qt::Key_Backspace)));
+  CHECK(shortcuts.contains(QKeySequence(Qt::SHIFT | Qt::Key_F5)));
+  canvas->set_primary_color(QColor(20, 140, 230));
+  canvas->set_secondary_color(QColor(230, 60, 20));
+  patchy::PixelBuffer selection(64, 48, patchy::PixelFormat::gray8());
+  selection.clear(0);
+  for (int y = 8; y < 24; ++y) {
+    for (int x = 8; x < 24; ++x) {
+      *selection.pixel(x, y) = 255U;
+    }
+  }
+  canvas->replace_selection_from_grayscale(selection, QStringLiteral("Square"));
+  const auto layer_pixel = [&window, layer_id](int x, int y) {
+    const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* px = doc.find_layer(layer_id)->pixels().pixel(x, y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+  struct Case {
+    const char* contents;
+    std::optional<QColor> color;
+    QColor expected;
+  };
+  const Case cases[] = {
+      {"foreground", std::nullopt, QColor(20, 140, 230)}, {"background", std::nullopt, QColor(230, 60, 20)},
+      {"color", QColor(10, 200, 90), QColor(10, 200, 90)}, {"black", std::nullopt, QColor(0, 0, 0)},
+      {"gray50", std::nullopt, QColor(128, 128, 128)},
+  };
+  for (const auto& entry : cases) {
+    const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    accept_edit_fill_dialog(QString::fromLatin1(entry.contents), QStringLiteral("normal"), 100, entry.color, false,
+                            entry.color.has_value() ? "issue_530_edit_fill_dialog" : nullptr);
+    fill->trigger();
+    QApplication::processEvents();
+    CHECK(layer_pixel(16, 16) == entry.expected);
+    CHECK(layer_pixel(40, 40) == QColor(Qt::white));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+    CHECK(patchy::ui::load_fill_dialog_settings().contents ==
+          patchy::ui::fill_contents_from_token(QString::fromLatin1(entry.contents), patchy::ui::FillContents::White));
+    patchy::ui::MainWindowTestAccess::undo(window);
+    CHECK(layer_pixel(16, 16) == QColor(Qt::white));
+  }
+  // White over black, then 50% gray Multiply at 50%: white * gray = 128, halfway back to white.
+  accept_edit_fill_dialog(QStringLiteral("black"), QStringLiteral("normal"), 100);
+  fill->trigger();
+  QApplication::processEvents();
+  accept_edit_fill_dialog(QStringLiteral("white"), QStringLiteral("normal"), 100);
+  fill->trigger();
+  QApplication::processEvents();
+  CHECK(layer_pixel(16, 16) == QColor(Qt::white));
+  accept_edit_fill_dialog(QStringLiteral("gray50"), QStringLiteral("multiply"), 50);
+  fill->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(layer_pixel(16, 16), QColor(191, 191, 191), 2));
+  CHECK(layer_pixel(40, 40) == QColor(Qt::white));
+  const auto remembered = patchy::ui::load_fill_dialog_settings();
+  CHECK(remembered.contents == patchy::ui::FillContents::Gray50);
+  CHECK(remembered.mode == patchy::PaintMode::of(patchy::BlendMode::Multiply));
+  CHECK(remembered.opacity == 50);
+  // Cancel changes nothing and adds no history.
+  {
+    const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    QTimer::singleShot(0, [] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog != nullptr) {
+        dialog->reject();
+      }
+    });
+    fill->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+  }
+  // No selection fills the whole layer.
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  accept_edit_fill_dialog(QStringLiteral("foreground"), QStringLiteral("normal"), 100);
+  fill->trigger();
+  QApplication::processEvents();
+  CHECK(layer_pixel(40, 40) == QColor(20, 140, 230));
+  CHECK(layer_pixel(0, 0) == QColor(20, 140, 230));
+  // Preserve Transparency leaves a transparent pixel alone.
+  patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id)->pixels().pixel(2, 2)[3] = 0;
+  accept_edit_fill_dialog(QStringLiteral("black"), QStringLiteral("normal"), 100, std::nullopt, true);
+  fill->trigger();
+  QApplication::processEvents();
+  CHECK(layer_pixel(2, 2).alpha() == 0);
+  CHECK(layer_pixel(40, 40) == QColor(0, 0, 0));
+  patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
+}
+
 // Fill tool options: Tol and Contiguous live beside Opacity/Soft, persist, and follow the
 // current_* mirror onto new documents (GitHub issue 30).
 // Issue 253 (Seth: "fix that too"): the Fill tool's Opacity runs 0..100 like the Brush bar's
@@ -11072,6 +11220,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_fill_tool_tolerance_and_contiguous_persist_across_documents",
        ui_fill_tool_tolerance_and_contiguous_persist_across_documents},
       {"ui_fill_opacity_accepts_zero_and_fills_nothing", ui_fill_opacity_accepts_zero_and_fills_nothing},
+      {"ui_edit_fill_dialog_fills_contents_with_mode_and_opacity",
+       ui_edit_fill_dialog_fills_contents_with_mode_and_opacity},
       {"ui_fill_tool_click_honors_tolerance_contiguous_and_opacity",
        ui_fill_tool_click_honors_tolerance_contiguous_and_opacity},
       {"ui_fill_of_wand_selection_with_many_spans_is_fast", ui_fill_of_wand_selection_with_many_spans_is_fast},

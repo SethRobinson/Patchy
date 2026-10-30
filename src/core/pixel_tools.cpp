@@ -935,6 +935,65 @@ bool write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
   return false;
 }
 
+// fill_rect under a Mode other than Normal (Edit > Fill, GitHub issue 530): one pixel
+// through composite_paint_rgba8/deep at the layer's depth. Palette mode binarizes coverage
+// and snaps the result, as write_pixel does.
+bool write_pixel_paint_mode(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, float coverage,
+                            std::int32_t x, std::int32_t y) {
+  coverage = std::clamp(coverage, 0.0F, 1.0F);
+  if (coverage <= 0.0F) {
+    return false;
+  }
+  const auto format = pixels.format();
+  const auto channels = format.channels;
+  const bool has_alpha = channels >= 4;
+  const bool locked_alpha = options.lock_transparent_pixels && has_alpha;
+  const auto mode = options.fill_paint_mode;
+  if (format.bit_depth != BitDepth::UInt8) {
+    const bool linear = format.bit_depth == BitDepth::Float32;
+    const auto before = load_pixel(format, px);
+    if (locked_alpha && before[3] <= 0.0F) {
+      return false;
+    }
+    const auto channel = [linear](std::uint8_t v) {
+      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) : static_cast<float>(v);
+    };
+    const DeepChannels paint{channel(options.primary.r), channel(options.primary.g), channel(options.primary.b)};
+    const auto alpha = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F * coverage;
+    const auto value = composite_paint_deep(before, paint, alpha, mode, x, y, has_alpha, locked_alpha,
+                                            linear ? DeepDomain::Linear : DeepDomain::Encoded);
+    store_pixel(format, px, value);
+    return load_pixel(format, px) != before;
+  }
+  const auto* snap = options.palette_snap;
+  const bool snapping = snap != nullptr && snap->lut != nullptr && !snap->lut->empty();
+  if (snapping) {
+    if (coverage < snap->coverage_threshold) {
+      return false;
+    }
+    coverage = 1.0F;
+  }
+  std::array<std::uint8_t, 4> original{0, 0, 0, 255};
+  for (std::uint16_t c = 0; c < channels && c < original.size(); ++c) {
+    original[c] = px[c];
+  }
+  if (locked_alpha && original[3] == 0) {
+    return false;
+  }
+  const auto alpha = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F * coverage;
+  const auto painted = composite_paint_rgba8(original, {options.primary.r, options.primary.g, options.primary.b},
+                                             alpha, mode, x, y, has_alpha, locked_alpha);
+  bool changed = false;
+  for (std::uint16_t c = 0; c < channels && c < painted.size(); ++c) {
+    changed = changed || px[c] != painted[c];
+    px[c] = painted[c];
+  }
+  if (changed && snapping) {
+    snap_pixel_to_palette(px, channels, *snap);
+  }
+  return changed;
+}
+
 void ensure_alpha_for_erase(Layer& layer) {
   auto& source = layer.pixels();
   if (source.format().channels >= 4) {
@@ -2872,7 +2931,9 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
   if (options.selection.has_value()) {
     affected = intersect_rect(affected, *options.selection);
   }
-  if (!options.lock_transparent_pixels) {
+  const bool normal_mode = options.fill_paint_mode.is_normal();
+  // Clear only removes what is there, so it never grows the layer.
+  if (!options.lock_transparent_pixels && options.fill_paint_mode.kind != PaintModeKind::Clear) {
     expand_layer_to_include_rect(*layer, affected);
   }
 
@@ -2912,7 +2973,11 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
         }
       }
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
-      write_pixel(pixels, px, options, false, coverage);
+      if (normal_mode) {
+        write_pixel(pixels, px, options, false, coverage);
+      } else {
+        (void)write_pixel_paint_mode(pixels, px, options, coverage, x, y);
+      }
     }
     report_edit_progress(options);
   }

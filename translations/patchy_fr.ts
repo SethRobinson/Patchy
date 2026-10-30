@@ -45,6 +45,77 @@
     </message>
 </context>
 <context>
+    <name>FillDialog</name>
+    <message>
+        <source>Foreground Color</source>
+        <translation>Couleur de premier plan</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>Couleur d&apos;arrière-plan</translation>
+    </message>
+    <message>
+        <source>Color...</source>
+        <translation>Couleur...</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>Noir</translation>
+    </message>
+    <message>
+        <source>50% Gray</source>
+        <translation>Gris 50 %</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>Blanc</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>Remplir</translation>
+    </message>
+    <message>
+        <source>Contents</source>
+        <translation>Contenu</translation>
+    </message>
+    <message>
+        <source>Fill color</source>
+        <translation>Couleur de remplissage</translation>
+    </message>
+    <message>
+        <source>Choose a color to fill with</source>
+        <translation>Choisir une couleur de remplissage</translation>
+    </message>
+    <message>
+        <source>Fill Color</source>
+        <translation>Couleur de remplissage</translation>
+    </message>
+    <message>
+        <source>Blending</source>
+        <translation>Fusion</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Mode</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>Opacité</translation>
+    </message>
+    <message>
+        <source>Preserve Transparency</source>
+        <translation>Préserver la transparence</translation>
+    </message>
+    <message>
+        <source>Fill only where the layer already has pixels, keeping their opacity</source>
+        <translation>Remplir uniquement là où le calque a déjà des pixels, en gardant leur opacité</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -28753,6 +28824,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Combine Shapes</source>
         <translation>Combiner les formes</translation>
+    </message>
+    <message>
+        <source>&amp;Fill...</source>
+        <translation>&amp;Remplir...</translation>
     </message>
 </context>
 <context>

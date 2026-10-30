@@ -792,6 +792,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* contract_selection_action = new QAction(tr("Con&tract..."), this);
   auto* border_selection_action = new QAction(tr("&Border..."), this);
   auto* layer_transparency_action = new QAction(tr("Load Layer &Transparency"), this);
+  // Edit > Fill... (GitHub issue 530): the Fill dialog over the Fill command's fill_rect path.
+  auto* edit_fill_action = edit_menu->addAction(tr("&Fill..."));
+  bind_action_text(edit_fill_action, QT_TR_NOOP("&Fill..."));
+  edit_fill_action->setObjectName(QStringLiteral("editFillAction"));
+  edit_fill_action->setIcon(simple_icon(QStringLiteral("fill")));
+  register_hotkey(edit_fill_action, "edit.fill",
+                  {QKeySequence(Qt::SHIFT | Qt::Key_Backspace), QKeySequence(Qt::SHIFT | Qt::Key_F5)});
+  connect(edit_fill_action, &QAction::triggered, this, [this] { edit_fill_dialog(); });
+  register_document_action(edit_fill_action);
   auto* stroke_selection_action = edit_menu->addAction(tr("&Stroke Selection..."));
   // Remove Object: the content-aware exemplar fill of the selection through
   // the Remove Object dialog (Reroll, Tone match, Edge feather;

@@ -1467,6 +1467,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/shape_create_dialog.cpp
       src/ui/mask_properties_dialog.hpp
       src/ui/mask_properties_dialog.cpp
+      src/ui/fill_dialog.hpp
+      src/ui/fill_dialog.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
       src/ui/unit_spin_box.hpp

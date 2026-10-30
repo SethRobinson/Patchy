@@ -2162,7 +2162,17 @@ private:
   void flatten_image();
   void merge_down();
   void fill_active_layer();
-  void fill_active_layer_with_color(QColor color, QString label);
+  // Edit > Fill...'s blending (GitHub issue 530). Set, it replaces the Fill tool's Opacity and
+  // Soft for a pixel layer fill; mask, channel and Quick Mask fills ignore it like Opacity.
+  struct FillCommandBlend {
+    int opacity{100};
+    patchy::PaintMode mode{};
+    bool preserve_transparency{false};
+  };
+  void fill_active_layer_with_color(QColor color, QString label,
+                                    std::optional<FillCommandBlend> blend = std::nullopt);
+  // Edit > Fill... (GitHub issue 530): the Fill dialog, then one Fill history step.
+  void edit_fill_dialog();
   void clear_active_layer();
   void stroke_selection();
   // Edit > Remove Object: the dialog (Reroll, Tone match, Edge feather,

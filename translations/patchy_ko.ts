@@ -45,6 +45,77 @@
     </message>
 </context>
 <context>
+    <name>FillDialog</name>
+    <message>
+        <source>Foreground Color</source>
+        <translation>전경색</translation>
+    </message>
+    <message>
+        <source>Background Color</source>
+        <translation>배경색</translation>
+    </message>
+    <message>
+        <source>Color...</source>
+        <translation>색상...</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>검정</translation>
+    </message>
+    <message>
+        <source>50% Gray</source>
+        <translation>50% 회색</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>흰색</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>칠</translation>
+    </message>
+    <message>
+        <source>Contents</source>
+        <translation>내용</translation>
+    </message>
+    <message>
+        <source>Fill color</source>
+        <translation>칠 색상</translation>
+    </message>
+    <message>
+        <source>Choose a color to fill with</source>
+        <translation>칠할 색상 선택</translation>
+    </message>
+    <message>
+        <source>Fill Color</source>
+        <translation>칠 색상</translation>
+    </message>
+    <message>
+        <source>Blending</source>
+        <translation>혼합</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>모드</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>불투명도</translation>
+    </message>
+    <message>
+        <source>Preserve Transparency</source>
+        <translation>투명도 유지</translation>
+    </message>
+    <message>
+        <source>Fill only where the layer already has pixels, keeping their opacity</source>
+        <translation>레이어에 이미 픽셀이 있는 곳만 칠하고 그 불투명도를 유지합니다</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -28671,6 +28742,10 @@ Locked: %1</source>
     <message>
         <source>Combine Shapes</source>
         <translation>모양 조합</translation>
+    </message>
+    <message>
+        <source>&amp;Fill...</source>
+        <translation>칠(&amp;F)...</translation>
     </message>
 </context>
 <context>
