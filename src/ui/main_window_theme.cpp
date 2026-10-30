@@ -144,6 +144,11 @@ QString photoshop_style_template() {
       background: @field_bg_disabled;
       border-color: @field_border_disabled;
     }
+    /* The names under the tip thumbnails, a step under the dialog text so two lines of a
+       long name fit a cell (GitHub issue 506 follow-up). */
+    QListWidget#brushTipPickerList {
+      font-size: 10px;
+    }
     QToolButton#brushDynamicsButton {
       padding: 2px 3px;
       min-width: 16px;

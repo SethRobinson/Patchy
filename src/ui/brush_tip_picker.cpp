@@ -6,6 +6,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/ui_text_size.hpp"
 
 #include <QCloseEvent>
 #include <QComboBox>
@@ -36,6 +37,13 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kThumbnailExtent = 48;
+
+// One cell of the tip grid: the thumbnail over two lines of its name, drawn a step smaller than
+// the dialog text (the brushTipPickerList QSS rule; GitHub issue 506 follow-up). The text height
+// follows the interface text size.
+QSize tip_grid_cell_size() {
+  return {kThumbnailExtent + 22, kThumbnailExtent + ui_text_length(34)};
+}
 
 // The closed picker's face: the tip thumbnail, the name and a chevron, like the
 // Artboard bar's preset picker.
@@ -238,6 +246,9 @@ void BrushTipPicker::set_working_preview(const QString& name, const QPixmap& ima
 void BrushTipPicker::fill_tip_list(QListWidget* list, const QString& folder_filter,
                                    const QString& text_filter) const {
   list->clear();
+  // Every item gets the whole cell: the view's uniform size would otherwise come from the first
+  // item ("Round"), cutting every name to its width on one line.
+  const auto item_size = list->gridSize() - QSize(4, 2);
   const auto text = text_filter.trimmed();
   const auto matches = [&text](const QString& name, const QString& folder) {
     return text.isEmpty() || name.contains(text, Qt::CaseInsensitive) ||
@@ -253,6 +264,7 @@ void BrushTipPicker::fill_tip_list(QListWidget* list, const QString& folder_filt
       auto* item = new QListWidgetItem(QIcon(builtin_tip_thumbnail(id, kThumbnailExtent)), builtin_tip_display_name(id));
       item->setData(Qt::UserRole, id);
       item->setToolTip(builtin_tip_display_name(id));
+      item->setSizeHint(item_size);
       list->addItem(item);
       if (id == builtin_round_brush_tip_id()) {
         round_item = item;
@@ -281,6 +293,7 @@ void BrushTipPicker::fill_tip_list(QListWidget* list, const QString& folder_filt
       tooltip += tr(" • dynamics");
     }
     item->setToolTip(tooltip);
+    item->setSizeHint(item_size);
     list->addItem(item);
     if (entry.id == current_tip_id_) {
       list->setCurrentItem(item);
@@ -326,14 +339,14 @@ BrushTipBrowser::BrushTipBrowser(BrushTipLibrary& library, BrushTipPicker& picke
   list_->setObjectName(QStringLiteral("brushTipPickerList"));
   list_->setViewMode(QListView::IconMode);
   list_->setIconSize(QSize(kThumbnailExtent, kThumbnailExtent));
-  list_->setGridSize(QSize(kThumbnailExtent + 22, kThumbnailExtent + 30));
+  list_->setGridSize(tip_grid_cell_size());
   list_->setResizeMode(QListView::Adjust);
   list_->setMovement(QListView::Static);
   list_->setWordWrap(true);
   list_->setTextElideMode(Qt::ElideRight);
   list_->setUniformItemSizes(true);
   // Resizable (was a fixed 5×4 grid): the list reflows with the popup or window.
-  list_->setMinimumSize(3 * (kThumbnailExtent + 22) + 28, 2 * (kThumbnailExtent + 30) + 8);
+  list_->setMinimumSize(3 * tip_grid_cell_size().width() + 28, 2 * tip_grid_cell_size().height() + 8);
   layout->addWidget(list_, 1);
 
   auto* buttons = new QHBoxLayout();
@@ -571,8 +584,9 @@ void BrushTipPicker::show_popup() {
     if (saved.isValid()) {
       popup->resize(saved.expandedTo(popup->minimumSizeHint()));
     } else {
-      const QSize default_list_size(5 * (kThumbnailExtent + 22) + 28, 4 * (kThumbnailExtent + 30) + 8);
-      const QSize minimum_list_size(3 * (kThumbnailExtent + 22) + 28, 2 * (kThumbnailExtent + 30) + 8);
+      const auto cell = tip_grid_cell_size();
+      const QSize default_list_size(5 * cell.width() + 28, 4 * cell.height() + 8);
+      const QSize minimum_list_size(3 * cell.width() + 28, 2 * cell.height() + 8);
       popup->resize(popup->size() + (default_list_size - minimum_list_size));
     }
   }

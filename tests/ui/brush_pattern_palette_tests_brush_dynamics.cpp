@@ -30,6 +30,8 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QLabel>
+#include <QFontInfo>
+#include <QFontMetrics>
 #include <QListWidget>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -1360,6 +1362,60 @@ void ui_brush_tip_import_remembers_last_folder() {
   clear_brush_tip_test_state();
 }
 
+// GitHub issue 506 follow-up: the name under each tip is drawn a step smaller than the dialog
+// text, so two lines of a long name fit under the thumbnail instead of six or seven characters,
+// and every tip's tooltip carries its full name.
+void ui_brush_tip_picker_labels_are_smaller_with_full_name_tooltips() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const QStringList names{QStringLiteral("Charcoal Pencil Rough"), QStringLiteral("Watercolor Wash Large"),
+                          QStringLiteral("Sampled Brush 12 1"),    QStringLiteral("Spatter 39 pixels"),
+                          QStringLiteral("Dry Media Chalk 60"),    QStringLiteral("Grass"),
+                          QStringLiteral("Scattered Maple Leaves"), QStringLiteral("Soft Airbrush Texture")};
+  for (const auto& name : names) {
+    CHECK(!library.add_tip(name, make_bar_tip_image(), 0.25, QStringLiteral("Long Names")).isEmpty());
+  }
+  QApplication::processEvents();
+
+  auto* popup = open_tip_picker_popup(window);
+  if (popup == nullptr) {
+    return;
+  }
+  auto* list = popup->findChild<QListWidget*>(QStringLiteral("brushTipPickerList"));
+  auto* filter = popup->findChild<QLineEdit*>(QStringLiteral("brushTipPickerFilterEdit"));
+  auto* folders = popup->findChild<QComboBox*>(QStringLiteral("brushTipPickerFolderCombo"));
+  CHECK(list != nullptr && filter != nullptr && folders != nullptr);
+  if (list == nullptr || filter == nullptr || folders == nullptr) {
+    return;
+  }
+  folders->setCurrentIndex(folders->findData(QStringLiteral("Long Names")));
+  QApplication::processEvents();
+  CHECK(list->count() == names.size());
+  save_widget_artifact("ui_brush_tip_picker_long_names", *popup);
+
+  // Smaller than the popup's other text (the Filter field), still readable.
+  const auto label_px = QFontInfo(list->font()).pixelSize();
+  const auto dialog_px = QFontInfo(filter->font()).pixelSize();
+  CHECK(label_px < dialog_px);
+  CHECK(label_px >= dialog_px - 3);
+  // Each item has the whole cell, with room for two lines of the label under the thumbnail.
+  for (int row = 0; row < list->count(); ++row) {
+    auto* item = list->item(row);
+    const auto rect = list->visualItemRect(item);
+    CHECK(rect.width() >= list->gridSize().width() - 4);
+    CHECK(rect.height() - list->iconSize().height() >= 2 * QFontMetrics(list->font()).height());
+    CHECK(item->toolTip().contains(item->text()));
+    CHECK(names.contains(item->text()));
+  }
+  popup->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
 // GitHub issue 506 follow-up: the tip chooser's Filter field narrows by name or folder with the
 // folder combo, takes the keyboard as the popup opens, Enter picks the first match and Escape
 // clears before it closes. The folder is remembered; the text is not.
@@ -2586,6 +2642,8 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
       {"ui_brush_tip_picker_filter_narrows_and_picks", ui_brush_tip_picker_filter_narrows_and_picks},
       {"ui_brush_tip_import_remembers_last_folder", ui_brush_tip_import_remembers_last_folder},
+      {"ui_brush_tip_picker_labels_are_smaller_with_full_name_tooltips",
+       ui_brush_tip_picker_labels_are_smaller_with_full_name_tooltips},
       {"ui_brush_tips_window_floats_and_follows_the_tool", ui_brush_tips_window_floats_and_follows_the_tool},
       {"ui_brush_settings_window_floats_and_edits_live", ui_brush_settings_window_floats_and_edits_live},
       {"shot_brush_floating_windows", shot_brush_floating_windows},
