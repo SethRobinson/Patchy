@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/document.hpp"
+#include "ui/selection_load_cursor.hpp"
 
 #include <QIcon>
 #include <QPixmap>
@@ -58,7 +59,9 @@ public:
   };
 
   using TargetCallback = std::function<void(RowKind, ChannelId, bool overlay)>;
-  using LoadSelectionCallback = std::function<void(RowKind, ChannelId)>;
+  // A Ctrl-click (Cmd on macOS) on a row: `operation` is thumbnail_click_selection_operation's
+  // (Shift adds, Alt subtracts, Shift+Alt intersects).
+  using LoadSelectionCallback = std::function<void(RowKind, ChannelId, int operation)>;
   using ReorderCallback = std::function<void(std::vector<ChannelId>)>;
   // The eye of a Composite, component or ink plate row was clicked.
   using EyeCallback = std::function<void(RowKind)>;
@@ -115,6 +118,9 @@ private:
   // A press in a row's eye column: true when it was handled.
   bool handle_eye_press(QPoint viewport_position);
   void toggle_saved_channel_overlay(QListWidgetItem* item);
+  // The list viewport while `global_position` is over a row a Ctrl-click loads (every row but
+  // Quick Mask), for selection_load_cursor_ (GitHub issues 480, 525).
+  [[nodiscard]] QWidget* selection_load_cursor_hit(QPoint global_position) const;
 
   [[nodiscard]] Row row_from_item(const QListWidgetItem* item) const;
   void handle_current_item_changed(QListWidgetItem* current);
@@ -145,6 +151,8 @@ private:
   std::vector<Row> committed_rows_;
   std::map<RowKind, QString> row_shortcuts_;
   std::vector<std::pair<std::size_t, ChannelId>> fixed_spot_positions_;
+  SelectionLoadCursor selection_load_cursor_{
+      [this](QPoint global_position) { return selection_load_cursor_hit(global_position); }};
 };
 
 }  // namespace patchy::ui

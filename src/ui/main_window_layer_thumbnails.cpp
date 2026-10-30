@@ -60,18 +60,6 @@ PixelBuffer vector_mask_canvas_coverage(const LayerVectorMask& mask, int width, 
 
 }  // namespace
 
-int thumbnail_click_selection_operation(Qt::KeyboardModifiers modifiers) {
-  const bool shift = (modifiers & Qt::ShiftModifier) != 0;
-  const bool alt = (modifiers & Qt::AltModifier) != 0;
-  if (shift && alt) {
-    return 3;
-  }
-  if (alt) {
-    return 2;
-  }
-  return shift ? 1 : 0;
-}
-
 void MainWindow::load_layer_part_selection(LayerId id, LayerCtrlClickTarget target, int operation) {
   if (canvas_ == nullptr || !has_active_document()) {
     return;

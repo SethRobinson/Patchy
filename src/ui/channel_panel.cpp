@@ -93,6 +93,7 @@ ChannelPanel::ChannelPanel(QWidget* parent) : QWidget(parent) {
   list_->setIconSize(QSize(kEyeColumnWidth + kThumbnailSize.width(), kThumbnailSize.height()));
   list_->setSpacing(1);
   list_->viewport()->installEventFilter(this);
+  list_->viewport()->setMouseTracking(true);  // the selection-load cursor follows hover moves
   list_->setContextMenuPolicy(Qt::CustomContextMenu);
   list_->setItemDelegate(new ChannelRowDelegate(kShortcutRole, list_));
   layout->addWidget(list_, 1);
@@ -464,6 +465,21 @@ void ChannelPanel::changeEvent(QEvent* event) {
   QWidget::changeEvent(event);
 }
 
+QWidget* ChannelPanel::selection_load_cursor_hit(QPoint global_position) const {
+  if (!document_available_ || !load_selection_callback_ || !isEnabled() || !list_->viewport()->isVisible()) {
+    return nullptr;
+  }
+  const auto viewport_pos = list_->viewport()->mapFromGlobal(global_position);
+  if (!list_->viewport()->rect().contains(viewport_pos)) {
+    return nullptr;
+  }
+  const auto* item = list_->itemAt(viewport_pos);
+  if (item == nullptr || static_cast<RowKind>(item->data(kKindRole).toInt()) == RowKind::QuickMask) {
+    return nullptr;
+  }
+  return list_->viewport();
+}
+
 bool ChannelPanel::eventFilter(QObject* watched, QEvent* event) {
   if (watched == list_->viewport() && event != nullptr) {
     if (event->type() == QEvent::ToolTip) {
@@ -480,6 +496,17 @@ bool ChannelPanel::eventFilter(QObject* watched, QEvent* event) {
                            list_->viewport());
         return true;
       }
+    }
+    if (event->type() == QEvent::MouseMove) {
+      const auto* mouse_event = static_cast<QMouseEvent*>(event);
+      selection_load_cursor_.watch_modifier_keys(true);
+      selection_load_cursor_.update(mouse_event->globalPosition().toPoint(),
+                                    mouse_event->buttons() == Qt::NoButton ? mouse_event->modifiers()
+                                                                           : Qt::NoModifier);
+    } else if (event->type() == QEvent::Leave) {
+      // Off the rows: the modifier keys no longer matter here.
+      selection_load_cursor_.watch_modifier_keys(false);
+      selection_load_cursor_.clear();
     }
     if (event->type() == QEvent::MouseMove && (eye_mouse_press_ || ctrl_load_mouse_press_)) {
       // The list's drag selection would select the row under the pointer, the row whose
@@ -521,7 +548,7 @@ bool ChannelPanel::eventFilter(QObject* watched, QEvent* event) {
         if (auto* item = list_->itemAt(mouse_event->position().toPoint()); item != nullptr) {
           const auto row = row_from_item(item);
           ctrl_load_mouse_press_ = true;
-          load_selection_callback_(row.kind, row.id);
+          load_selection_callback_(row.kind, row.id, thumbnail_click_selection_operation(mouse_event->modifiers()));
           event->accept();
           return true;
         }

@@ -25,6 +25,7 @@
 #include "ui/qt_paths.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/tool_cursors.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -6553,10 +6554,16 @@ void ui_layer_thumbnail_ctrl_hover_shows_selection_cursor() {
     QApplication::sendEvent(widget, &move);
     QApplication::processEvents();
   };
-  const auto key = [&window](QEvent::Type type, Qt::KeyboardModifiers modifiers) {
-    QKeyEvent event(type, Qt::Key_Control, modifiers);
+  const auto key = [&window](QEvent::Type type, Qt::KeyboardModifiers modifiers, int which = Qt::Key_Control) {
+    QKeyEvent event(type, which, modifiers);
     QApplication::sendEvent(&window, &event);
     QApplication::processEvents();
+  };
+  // The badge a Ctrl-click's combine shows (#525): 0 none, 1 add, 2 subtract, 3 intersect.
+  const auto shows = [](const QWidget* widget, int operation) {
+    return widget->testAttribute(Qt::WA_SetCursor) &&
+           widget->cursor().pixmap().toImage() ==
+               patchy::ui::load_selection_pointer_cursor(operation).pixmap().toImage();
   };
 
   // A plain hover leaves the pointer alone; Ctrl turns it into the selection cursor.
@@ -6584,6 +6591,45 @@ void ui_layer_thumbnail_ctrl_hover_shows_selection_cursor() {
   CHECK(!has_selection_cursor(content));
   key(QEvent::KeyPress, Qt::ControlModifier);
   CHECK(has_selection_cursor(content));
+  CHECK(shows(content, 0));
+  // Shift, Alt and Shift+Alt with Ctrl show the add, subtract and intersect badges (#525),
+  // following the keys without a mouse move.
+  key(QEvent::KeyPress, Qt::ControlModifier | Qt::ShiftModifier, Qt::Key_Shift);
+  CHECK(shows(content, 1));
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel")); panel != nullptr) {
+    auto shot = panel->grab().toImage();
+    const auto cursor = content->cursor();
+    const auto at = content->mapTo(panel, content->rect().center()) - cursor.hotSpot();
+    {
+      QPainter painter(&shot);
+      painter.drawPixmap(at, cursor.pixmap());
+    }
+    const QRect crop(0, std::max(0, at.y() - 60), shot.width(), std::min(shot.height(), 150));
+    save_image_artifact("issue525_layers_add_cursor", shot.copy(crop));
+  }
+  key(QEvent::KeyPress, Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier, Qt::Key_Alt);
+  CHECK(shows(content, 3));
+  key(QEvent::KeyRelease, Qt::ControlModifier | Qt::AltModifier, Qt::Key_Shift);
+  CHECK(shows(content, 2));
+  key(QEvent::KeyRelease, Qt::ControlModifier, Qt::Key_Alt);
+  CHECK(shows(content, 0));
+  hover(content, Qt::ControlModifier | Qt::ShiftModifier);
+  CHECK(shows(content, 1));
+  hover(content, Qt::ShiftModifier);
+  CHECK(!has_selection_cursor(content));
+  hover(content, Qt::ControlModifier);
+  // The four cursors side by side at three times their size, for the issue replies.
+  {
+    QImage strip(4 * 96 + 5 * 8, 96 + 16, QImage::Format_ARGB32_Premultiplied);
+    strip.fill(QColor(118, 124, 132));
+    QPainter painter(&strip);
+    for (int operation = 0; operation < 4; ++operation) {
+      painter.drawPixmap(QRect(8 + operation * 104, 8, 96, 96),
+                         patchy::ui::load_selection_pointer_cursor(operation).pixmap());
+    }
+    painter.end();
+    save_image_artifact("issue525_selection_cursors", strip);
+  }
   // The mask thumbnail loads too; the name does not.
   hover(mask_thumbnail, Qt::ControlModifier);
   CHECK(has_selection_cursor(mask_thumbnail) && !has_selection_cursor(content));
