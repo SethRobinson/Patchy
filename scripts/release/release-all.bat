@@ -4,7 +4,9 @@ rem progress of every one is visible:
 rem   - Windows: build-release.bat (local build, zip + installer, code signing)
 rem   - macOS:   scripts\remote\release-mac.bat (build on the mac build host, sign, notarize, dmg)
 rem   - Linux:   scripts\remote\release-linux.bat (build on the linux build host, flatpak bundle)
-rem   - Web:     build-wasm.bat (local Qt-for-WebAssembly build, staged for rtsoft.com/patchy)
+rem   - Web:     scripts\remote\release-wasm.bat (built and suite-tested on the wasm build host,
+rem              site copied back into build\package\wasm-site for rtsoft.com/patchy)
+rem The local Windows build runs at Idle priority so the desktop stays usable.
 rem Every builder deletes its previous artifacts up front, so a failed window leaves
 rem nothing stale behind. After all four builders and the required tests pass, commit
 rem the build tree with latest_version.json still announcing the old release.
@@ -20,10 +22,10 @@ rem Preflight (same as release-all-automated.bat): the Linux metainfo must descr
 rem version, screenshot pins included, before any builder starts.
 python "%~dp0check-metainfo.py"
 if not "%ERRORLEVEL%"=="0" goto metainfo_failed
-start "Patchy release - Windows" cmd /c "%~dp0build-release.bat"
+start "Patchy release - Windows" /low cmd /c "%~dp0build-release.bat"
 start "Patchy release - macOS" cmd /c "%~dp0..\remote\release-mac.bat"
 start "Patchy release - Linux" cmd /c "%~dp0..\remote\release-linux.bat"
-start "Patchy release - Web (wasm)" cmd /c "%~dp0build-wasm.bat"
+start "Patchy release - Web (wasm)" cmd /c "%~dp0..\remote\release-wasm.bat"
 echo Four release windows launched. When they all finish, run scripts\release\upload-to-rtsoft.bat.
 exit /b 0
 

@@ -2,7 +2,7 @@
 Builds the current working tree (uncommitted changes included) on a remote test machine
 and runs the test suites there.
 
-  scripts\remote\remote-build.ps1 -Target mac|linux|windows|windows-arm64 [-TestFilter ui_palette] [-CoreTestFilter psd]
+  scripts\remote\remote-build.ps1 -Target mac|linux|windows|windows-arm64|wasm [-TestFilter ui_palette] [-CoreTestFilter psd]
                                   [-BuildTarget patchy_ui_visual_tests[,patchy_core_tests]] [-Preset opt-dev]
                                   [-SkipTests] [-FetchArtifacts]
   linux only:   [-NativeQt]
@@ -11,6 +11,12 @@ and runs the test suites there.
 -Target windows-arm64 works like -Target windows (the windows-only switches included) on
 the hosts in the config's windows-arm64 list, a native ARM64 build with the
 windows-arm64-release preset by default (-Preset windows-arm64-opt-dev to iterate).
+
+-Target wasm builds the web release on a host from the config's wasm list (Windows hosts;
+-WindowsHost and -WaitMinutes apply): wasm-build-and-test.ps1 runs build-wasm.bat, which
+stages the site in that host's build\package\wasm-site, then builds wasm-core and runs the
+full wasm core suite (-SkipTests skips the suite). It takes no filters, -BuildTarget or
+-Preset. scripts\remote\release-wasm.ps1 wraps it and copies the site back.
 
 A typical worker loop builds only the suite it runs, in the optimized no-LTCG preset:
 
@@ -70,7 +76,7 @@ On a failing test run (or with -FetchArtifacts) the remote test-artifacts folder
 copied to build\remote-artifacts\<target>\ for inspection.
 #>
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64')][string]$Target,
+  [Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64', 'wasm')][string]$Target,
   [string]$TestFilter = '',
   # Core-suite name filter.
   [string]$CoreTestFilter = '',
@@ -102,9 +108,13 @@ $ErrorActionPreference = 'Continue'
 
 . "$PSScriptRoot\remote-hosts.ps1"
 . "$PSScriptRoot\remote-lock.ps1"
-$winTarget = $Target -like 'windows*'
-if (($WindowsHost -or $WaitMinutes) -and -not $winTarget) { throw '-WindowsHost and -WaitMinutes are only supported for -Target windows and windows-arm64' }
-if (($PerfScenario -or $PerfEnv) -and -not $winTarget) { throw '-PerfScenario and -PerfEnv are only supported for -Target windows and windows-arm64' }
+# The wasm hosts are Windows machines: same lock, probe and work-tree handling.
+$winTarget = $Target -like 'windows*' -or $Target -eq 'wasm'
+if (($WindowsHost -or $WaitMinutes) -and -not $winTarget) { throw '-WindowsHost and -WaitMinutes are only supported for -Target windows, windows-arm64 and wasm' }
+if (($PerfScenario -or $PerfEnv) -and $Target -notlike 'windows*') { throw '-PerfScenario and -PerfEnv are only supported for -Target windows and windows-arm64' }
+if ($Target -eq 'wasm' -and ($TestFilter -or $CoreTestFilter -or $BuildTarget.Count -or $Preset -or $FetchArtifacts)) {
+  throw '-Target wasm builds the web site and runs the full wasm core suite; it takes no filters, -BuildTarget, -Preset or -FetchArtifacts'
+}
 $repoRoot = (git rev-parse --show-toplevel 2>$null)
 if (-not $repoRoot) { throw 'remote-build.ps1 must run inside the Patchy repository' }
 $lockOwner = Get-PatchyLockOwner $repoRoot.Trim()
@@ -180,6 +190,7 @@ $remoteHost = $remote.ssh
 $preset = if ($Preset) { $Preset }
   elseif ($Target -eq 'windows') { 'release' }
   elseif ($Target -eq 'windows-arm64') { 'windows-arm64-release' }
+  elseif ($Target -eq 'wasm') { 'wasm-release' }
   elseif ($Target -eq 'linux' -and -not $NativeQt) { 'linux-flatpak-qt' }
   else { "$Target-release" }
 
@@ -191,7 +202,17 @@ try {
   $snap = Push-PatchySnapshot -RemoteHost $remoteHost
   Write-Host "== building snapshot $($snap.Substring(0, 12)) on $remoteHost =="
 
-  if ($winTarget) {
+  $artifactSrc = $null
+  if ($Target -eq 'wasm') {
+    $psArgs = @()
+    if ($SkipTests) { $psArgs += '-SkipTests' }
+    if ($remote.jobs) { $psArgs += @('-Jobs', [int]$remote.jobs) }
+    $wt = $remote.workTree.Replace('\', '/')
+    $remoteCmd = "git -C $wt fetch -q origin +refs/snapshots/dev; " + 'if ($LASTEXITCODE) { exit $LASTEXITCODE }; ' +
+      "git -C $wt checkout -q -f --detach FETCH_HEAD; " + 'if ($LASTEXITCODE) { exit $LASTEXITCODE }; ' +
+      "powershell -NoProfile -ExecutionPolicy Bypass -File $wt/scripts/remote/wasm-build-and-test.ps1 " + ($psArgs -join ' ') + '; exit $LASTEXITCODE'
+  }
+  elseif ($winTarget) {
     # A Windows OpenSSH shell is Windows PowerShell 5.1: no &&, and every step's exit code is
     # checked explicitly. Single quotes only: local PowerShell mangles embedded double
     # quotes in native-command arguments.
@@ -224,7 +245,7 @@ try {
   ssh $remoteHost $remoteCmd
   $remoteExit = $LASTEXITCODE
 
-  if ($FetchArtifacts -or ($remoteExit -ne 0 -and -not $SkipTests)) {
+  if ($artifactSrc -and ($FetchArtifacts -or ($remoteExit -ne 0 -and -not $SkipTests))) {
     $dest = Join-Path $repoRoot.Trim() "build\remote-artifacts\$Target"
     New-Item -ItemType Directory -Force $dest | Out-Null
     Write-Host "== fetching test-artifacts to $dest =="

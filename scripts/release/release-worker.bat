@@ -7,7 +7,9 @@ rem redirect first (>file echo ...): cmd treats a digit directly before > as a f
 rem handle, so echo %ERRORLEVEL%>file would leave an empty marker for exit code 0.
 setlocal EnableExtensions
 set "NO_PAUSE=1"
-set "CMAKE_BUILD_PARALLEL_LEVEL=20"
+rem release-all-automated.bat lowers PATCHY_RELEASE_JOBS when two local builds share the box.
+if not defined PATCHY_RELEASE_JOBS set "PATCHY_RELEASE_JOBS=20"
+set "CMAKE_BUILD_PARALLEL_LEVEL=%PATCHY_RELEASE_JOBS%"
 set "PSModulePath=%USERPROFILE%\Documents\WindowsPowerShell\Modules;%ProgramFiles%\WindowsPowerShell\Modules;%SystemRoot%\system32\WindowsPowerShell\v1.0\Modules"
 cd /d "%~dp0..\.."
 if not exist build\release-logs mkdir build\release-logs
@@ -15,7 +17,8 @@ set "LOG=build\release-logs\%~1.log"
 set "MARKER=build\release-logs\%~1.exit"
 if exist "%MARKER%" del "%MARKER%"
 if /i "%~1"=="windows" ( call "%~dp0build-release.bat" > "%LOG%" 2>&1 & goto done )
-if /i "%~1"=="wasm" ( call "%~dp0build-wasm.bat" > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="wasm" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\remote\release-wasm.ps1" > "%LOG%" 2>&1 & goto done )
+if /i "%~1"=="wasm-local" ( call "%~dp0build-wasm.bat" > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="mac" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\remote\release-mac.ps1" > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="linux" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\remote\release-linux.ps1" > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="upload-wasm" ( call "%~dp0upload-wasm-to-rtsoft.bat" nopause > "%LOG%" 2>&1 & goto done )
@@ -26,7 +29,7 @@ if /i "%~1"=="verify-mac" ( powershell -NoProfile -ExecutionPolicy Bypass -File 
 if /i "%~1"=="verify-linux" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-remote.ps1" -Target linux > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="verify-windows-arm64" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-remote.ps1" -Target windows-arm64 > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="upload-github" ( call "%~dp0publish-github-release.bat" nopause > "%LOG%" 2>&1 & goto done )
-echo Unknown release target "%~1" ^(expected windows, mac, linux, wasm, verify-windows, verify-windows-arm64, verify-mac, verify-linux, upload-wasm, upload-all, upload-desktop, or upload-github^). > "%LOG%"
+echo Unknown release target "%~1" ^(expected windows, mac, linux, wasm, wasm-local, verify-windows, verify-windows-arm64, verify-mac, verify-linux, upload-wasm, upload-all, upload-desktop, or upload-github^). > "%LOG%"
 >"%MARKER%" echo exit=2
 exit /b 2
 

@@ -2,13 +2,14 @@
 rem Non-interactive release driver for agents and unattended runs. Same four builders
 rem as release-all.bat, but every console runs release-worker.bat, which sets the
 rem environment the batch files need (NO_PAUSE=1 so sign.bat and the upload scripts
-rem never wait on a key, CMAKE_BUILD_PARALLEL_LEVEL=20 so every local cmake --build stays
+rem never wait on a key, CMAKE_BUILD_PARALLEL_LEVEL so every local cmake --build stays
 rem throttled, and a Windows PowerShell 5.1 PSModulePath so the inline powershell
 rem one-liners load the right modules even when launched from pwsh 7), logs the
 rem target to build\release-logs\<target>.log, and writes exit=<code> to
 rem build\release-logs\<target>.exit when it ends. Wait for the .exit files; never
 rem wait for the consoles. Targets: windows (x64 and the cross-built ARM64 packages) mac
-rem linux wasm, verify-windows verify-windows-arm64 (the ARM64 package on the ARM64 host)
+rem linux wasm (built and suite-tested on the remote wasm host, scripts\remote\release-wasm.ps1)
+rem wasm-local (build-wasm.bat on this machine, no suite), verify-windows verify-windows-arm64 (the ARM64 package on the ARM64 host)
 rem verify-mac verify-linux (the release tests, after the builders), upload-wasm upload-all
 rem upload-desktop (upload-all without the wasm site), and upload-github (publish after
 rem pushing the build commit with the OLD update manifest).
@@ -30,6 +31,17 @@ rem uploaded. 1.17 and 1.18 shipped with the screenshots still pinned to v1.16 b
 rem nothing checked (docs/release-process.md, "Release safety checks").
 python "%~dp0check-metainfo.py"
 if not "%ERRORLEVEL%"=="0" goto metainfo_failed
+rem Workers start at Idle priority, and two local builds split the job budget: the Windows
+rem packager and a local wasm build at 20 jobs each, plus an LTCG link, froze the desktop
+rem for 20 seconds on release day (1.23). The workers inherit PATCHY_RELEASE_JOBS.
+set "PATCHY_RELEASE_JOBS="
+set "LOCAL_WINDOWS="
+set "LOCAL_WASM="
+for %%T in (%*) do (
+  if /i "%%~T"=="windows" set "LOCAL_WINDOWS=1"
+  if /i "%%~T"=="wasm-local" set "LOCAL_WASM=1"
+)
+if defined LOCAL_WINDOWS if defined LOCAL_WASM set "PATCHY_RELEASE_JOBS=10"
 if "%~1"=="" (
   call :launch windows
   call :launch mac
@@ -51,5 +63,5 @@ exit /b 1
 
 :launch
 if exist "build\release-logs\%~1.exit" del "build\release-logs\%~1.exit"
-start "Patchy release - %~1" /min /belownormal cmd /c ""%~dp0release-worker.bat" %~1"
+start "Patchy release - %~1" /min /low cmd /c ""%~dp0release-worker.bat" %~1"
 exit /b 0
