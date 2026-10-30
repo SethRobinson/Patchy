@@ -3684,12 +3684,14 @@ void ui_large_brush_overlay_shows_one_center_cross() {
   CHECK(overlay_cross_drawn());
   CHECK(canvas.cursor().shape() == Qt::ForbiddenCursor);
 
-  // Show Outline off (GitHub issue 517): the plain crosshair and no overlay at any size.
+  // Show Outline off (GitHub issue 517): the small center cross and no overlay at any size.
   canvas.set_tool(patchy::ui::CanvasTool::Brush);
   canvas.set_brush_outline_shown(false);
   CHECK(!overlay_cross_drawn());
   CHECK(!ring_drawn(600));
-  CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
+  canvas.set_brush_size(20);
+  CHECK(patchy::ui::brush_center_cross_cursor_shown(canvas.cursor()));
   canvas.set_brush_outline_shown(true);
 }
 

@@ -538,8 +538,9 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (brush_outline_hidden()) {
-    // Show Outline is off (GitHub issue 517): a plain crosshair keeps the pointer visible.
-    setCursor(Qt::CrossCursor);
+    // Show Outline is off (GitHub issue 517): only the small center cross, the one every
+    // brush pointer carries, at any size and zoom (GitHub issue 533 follow-up).
+    setCursor(brush_center_cross_cursor());
     return;
   }
   if (brush_outline_uses_overlay()) {
