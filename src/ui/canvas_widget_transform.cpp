@@ -38,6 +38,7 @@
 #include "ui/tool_cursors.hpp"
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QImage>
 #include <QPainter>
 #include <QPainterPath>
@@ -1321,7 +1322,7 @@ bool CanvasWidget::begin_free_transform() {
   // With a selection on a pixel layer only the selected pixels transform (GitHub
   // issue 399). The Background's position lock keeps the layer in place, not its
   // pixels, so its selection transforms too (the hole fills with the background color).
-  const auto floating_rect = floating_selection_rect_for_layer(*layer);
+  auto floating_rect = floating_selection_rect_for_layer(*layer);
   const bool floating_on_background =
       floating_rect.has_value() &&
       background_layer(std::as_const(*document_).layers(), document_->width(), document_->height()) == layer;
@@ -1354,8 +1355,15 @@ bool CanvasWidget::begin_free_transform() {
   const std::optional<QRect> local_transform_rect =
       layer_is_text(*layer) ? move_layer_transform_local_rect(*layer).value_or(*opaque_rect) : *opaque_rect;
   std::optional<TransformFloatingSelection> floating;
+  transform_move_float_reused_ = false;
   if (floating_rect.has_value()) {
-    floating = lift_floating_selection(*layer, *floating_rect);
+    if (transform_move_float_drag_) {
+      floating = reuse_move_float(*layer, *floating_rect);
+      transform_move_float_reused_ = floating.has_value();
+    }
+    if (!floating.has_value()) {
+      floating = lift_floating_selection(*layer, *floating_rect);
+    }
     if (!floating.has_value()) {
       return false;
     }
@@ -1410,7 +1418,7 @@ bool CanvasWidget::begin_free_transform() {
   setCursor(Qt::ArrowCursor);
   update();
   notify_transform_controls_changed();
-  if (status_callback_) {
+  if (status_callback_ && !transform_move_float_drag_) {
     status_callback_(shift_keeps_transform_aspect_
                          ? tr("Drag handles to transform. Shift keeps aspect ratio.")
                          : tr("Drag handles to transform. Shift resizes freely."));
@@ -1430,6 +1438,91 @@ std::optional<QRect> CanvasWidget::floating_selection_rect_for_layer(const Layer
   }
   const auto bounds = layer.bounds();
   return opaque_rect->translated(bounds.x, bounds.y).intersected(selection_.boundingRect());
+}
+
+std::optional<CanvasWidget::TransformFloatingSelection> CanvasWidget::reuse_move_float(const Layer& layer,
+                                                                                       QRect& floating_rect) {
+  if (!move_float_memory_.has_value() || document_ == nullptr) {
+    return std::nullopt;
+  }
+  const auto& memory = *move_float_memory_;
+  const auto& document = std::as_const(*document_);
+  const bool preserve_alpha = layer_effectively_locks_transparent_pixels(document.layers(), layer.id()) ||
+                              background_layer(document.layers(), document.width(), document.height()) == &layer;
+  if (memory.document != document_ || memory.layer_id != layer.id() ||
+      memory.pixel_revision != layer.pixel_revision() || memory.layer_bounds != layer.bounds() ||
+      memory.selection != selection_ || memory.selection_mask_key != selection_mask_alpha_.cacheKey() ||
+      memory.lifted.preserve_alpha != preserve_alpha || layer_effectively_locks_image_pixels(layer)) {
+    move_float_memory_.reset();
+    return std::nullopt;
+  }
+  auto floating = memory.lifted;
+  // The selection has moved with the pixels: the commit maps the current coverage.
+  const auto coverage_rect = selection_.boundingRect().intersected(QRect(0, 0, document.width(), document.height()));
+  floating.coverage = selection_coverage_buffer(coverage_rect);
+  floating.coverage_bounds = to_core_rect(coverage_rect);
+  floating_rect = memory.floating_rect.translated(memory.offset);
+  return floating;
+}
+
+const Layer* CanvasWidget::move_float_target_layer() const {
+  if (document_ == nullptr || selection_.isEmpty() || !collect_free_transform_targets().use_single_layer_path) {
+    return nullptr;
+  }
+  // begin_free_transform's choice: the one selected layer, else the active pixel layer,
+  // else (nothing active) a one-layer document's only layer, which the press selects.
+  const auto& document = std::as_const(*document_);
+  const Layer* layer = nullptr;
+  if (selected_layer_ids_.size() == 1U) {
+    layer = document.find_layer(selected_layer_ids_.front());
+    if (layer != nullptr && !layer_has_movable_pixels(*layer)) {
+      layer = nullptr;
+    }
+  }
+  if (layer == nullptr) {
+    if (const auto active = document.active_layer_id(); active.has_value()) {
+      layer = document.find_layer(*active);
+    } else if (const auto only = only_layer_id(document.layers()); only.has_value()) {
+      layer = document.find_layer(*only);
+    }
+    if (layer != nullptr && layer->kind() != LayerKind::Pixel) {
+      layer = nullptr;
+    }
+  }
+  if (layer == nullptr) {
+    return nullptr;
+  }
+  const auto rect = floating_selection_rect_for_layer(*layer);
+  return rect.has_value() && !rect->isEmpty() ? layer : nullptr;
+}
+
+bool CanvasWidget::move_press_floats_selection(QPoint document_point) const {
+  return !selection_.isEmpty() && selection_alpha_at(document_point) > 0U && move_float_target_layer() != nullptr;
+}
+
+bool CanvasWidget::begin_move_selected_pixels_drag(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+  select_only_layer_if_none_active();
+  transform_move_float_drag_ = true;
+  if (!begin_free_transform() || !prepare_free_transform_source()) {
+    cancel_free_transform();
+    transform_move_float_drag_ = false;
+    return false;
+  }
+  dragging_transform_ = true;
+  transform_drag_uses_proxy_preview_ = false;
+  transform_drag_uses_clip_group_preview_ = false;
+  transform_drag_handle_ = TransformHandle::Move;
+  transform_drag_start_point_ = document_point;
+  transform_drag_start_rect_ = transform_current_rect_;
+  transform_start_angle_ = transform_angle_;
+  transform_drag_grab_offset_ = {};
+  transform_session_step_at_press_ = current_transform_session_step();
+  transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
+  transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
+  begin_transform_distort_drag(TransformHandle::Move, modifiers & ~Qt::ControlModifier, document_point);
+  setCursor(Qt::SizeAllCursor);
+  update_drag_readout_region();
+  return true;
 }
 
 std::optional<CanvasWidget::TransformFloatingSelection> CanvasWidget::lift_floating_selection(const Layer& layer,
@@ -1859,6 +1952,8 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_multi_snapshot_scale_level_ = 0;
   transform_multi_snapshot_clip_.reset();
   transform_floating_.reset();
+  transform_move_float_drag_ = false;
+  transform_move_float_reused_ = false;
 }
 
 void CanvasWidget::clear_pending_warp() {
@@ -2009,6 +2104,10 @@ void CanvasWidget::set_move_transform_controls_layer(std::optional<LayerId> laye
 }
 
 void CanvasWidget::notify_transform_controls_changed() {
+  // A Move drag of the selected pixels keeps the Move options row; its commit notifies.
+  if (transform_move_float_drag_ && transforming_layer_) {
+    return;
+  }
   if (transform_controls_changed_callback_) {
     transform_controls_changed_callback_();
   }
@@ -4635,7 +4734,16 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
     // that commits, into a 1 px nudge, and every drag overshot by one.
     const QPointF rounded_start(static_cast<double>(std::lround(transform_drag_start_point_.x())),
                                 static_cast<double>(std::lround(transform_drag_start_point_.y())));
-    rect.translate(document_point - rounded_start);
+    auto delta = document_point - rounded_start;
+    if (transform_move_float_drag_ && modifiers.testFlag(Qt::ShiftModifier)) {
+      // Shift locks a Move drag to the horizontal or vertical axis, as for layers.
+      if (std::abs(delta.x()) >= std::abs(delta.y())) {
+        delta.setY(0.0);
+      } else {
+        delta.setX(0.0);
+      }
+    }
+    rect.translate(delta);
     transform_current_rect_ = rect;
     refresh_transform_preview_for_drag();
     update_transform_preview_region(previous_preview_rect);
@@ -5065,6 +5173,7 @@ void CanvasWidget::commit_free_transform_floating() {
     cancel_free_transform();
     return;
   }
+  const bool move_drag = transform_move_float_drag_;
   const auto source_to_document = transform_session_source_to_document(transform_source_image_.size());
   const auto transformed_result =
       resample_transformed_rgba8(transform_source_image_, source_to_document, transform_interpolation_);
@@ -5079,17 +5188,40 @@ void CanvasWidget::commit_free_transform_floating() {
     reset_free_transform_session_state();
     update_tool_cursor();
     update();
-    if (status_callback_) {
+    if (status_callback_ && !move_drag) {
       status_callback_(tr("Free Transform cancelled"));
     }
     notify_transform_controls_changed();
     return;
   }
 
+  // A Move drag remembers the first lift so the next drag keeps floating the same
+  // pixels (MoveFloatMemory); its geometry is a whole-pixel translation.
+  std::optional<MoveFloatMemory> move_memory;
+  if (move_drag) {
+    const QPoint step(static_cast<int>(std::lround(transform_current_rect_.left() - transform_original_rect_.left())),
+                      static_cast<int>(std::lround(transform_current_rect_.top() - transform_original_rect_.top())));
+    if (transform_move_float_reused_ && move_float_memory_.has_value()) {
+      move_memory = std::move(move_float_memory_);
+      move_memory->offset += step;
+    } else {
+      move_memory.emplace();
+      move_memory->lifted = *transform_floating_;
+      move_memory->floating_rect = to_qrect(original_bounds);
+      move_memory->offset = step;
+    }
+  }
+  move_float_memory_.reset();
+
   const auto delta = transform_session_delta();
   const auto interpolation = transform_interpolation_;
   if (before_edit_callback_) {
-    before_edit_callback_(tr("Free Transform"));
+    auto label = tr("Free Transform");
+    if (move_drag) {
+      // The Move tool's own name, as Photoshop's history names a Move drag.
+      label = QCoreApplication::translate("patchy::ui::MainWindow", "Move");
+    }
+    before_edit_callback_(label);
   }
   const auto& floating = *transform_floating_;
   const auto old_bounds = layer->bounds();
@@ -5109,10 +5241,22 @@ void CanvasWidget::commit_free_transform_floating() {
   reset_free_transform_session_state();
   set_selection_from_coverage(to_qrect(moved_selection.bounds), moved_selection.pixels);
   update_tool_cursor();
+  const auto layer_id = layer->id();
   document_changed(to_qrect(old_bounds).united(to_qrect(output_bounds)));
   disarm_transform_commit_hold_if_settled();
+  if (move_memory.has_value()) {
+    if (const auto* moved = std::as_const(*document_).find_layer(layer_id); moved != nullptr) {
+      move_memory->document = document_;
+      move_memory->layer_id = layer_id;
+      move_memory->pixel_revision = moved->pixel_revision();
+      move_memory->layer_bounds = moved->bounds();
+      move_memory->selection = selection_;
+      move_memory->selection_mask_key = selection_mask_alpha_.cacheKey();
+      move_float_memory_ = std::move(move_memory);
+    }
+  }
   update();
-  if (status_callback_) {
+  if (status_callback_ && !move_drag) {
     status_callback_(tr("Transformed layer"));
   }
   notify_transform_controls_changed();

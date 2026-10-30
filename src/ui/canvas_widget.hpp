@@ -2773,6 +2773,14 @@ private:
   // Whether a plain left press here with the Move tool would drag something (a layer,
   // the selected set, an artboard), mirroring the press handler (GitHub issue 170).
   [[nodiscard]] bool move_press_drags_at(QPoint widget_position) const;
+  // GitHub issue 532: a plain Move press inside the pixel selection moves the selected
+  // pixels of the Free Transform target layer (a floating session committed on release),
+  // with Auto-Select on or off. The layer whose selected pixels would move, or nullptr
+  // when the press keeps the layer move (no selection, a multi-layer or non-pixel target,
+  // nothing of the layer under the selection).
+  [[nodiscard]] const Layer* move_float_target_layer() const;
+  [[nodiscard]] bool move_press_floats_selection(QPoint document_point) const;
+  bool begin_move_selected_pixels_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
   // The Move tool's idle cursor: transform-box zones, the four-way move cursor where
   // a press drags, the move pointer (arrow with a move badge) where it selects.
   void apply_move_tool_cursor(QPoint widget_position);
@@ -4055,6 +4063,28 @@ private:
                                                                                 QRect floating_rect);
   [[nodiscard]] Document floating_selection_preview_document() const;
   void commit_free_transform_floating();
+  // The floating session of a Move drag inside the selection (GitHub issue 532): it
+  // commits on release as one "Move" step and keeps the options bar on the Move row.
+  bool transform_move_float_drag_{false};
+  // Photoshop keeps moved pixels floating until the selection changes, so a second
+  // drag reveals what the first one covered instead of cutting a second hole. After a
+  // Move commit this holds the first lift and the total offset since; the next Move
+  // press reuses it only while the layer (pixel revision, bounds) and the selection are
+  // exactly what that commit left.
+  struct MoveFloatMemory {
+    const Document* document{nullptr};
+    LayerId layer_id{0};
+    std::uint64_t pixel_revision{0};
+    Rect layer_bounds{};
+    QRegion selection;
+    qint64 selection_mask_key{0};
+    TransformFloatingSelection lifted;  // as lifted by the first drag
+    QRect floating_rect;                // lifted.floating's document rect at the first drag
+    QPoint offset;                      // the whole-pixel move since the first lift
+  };
+  std::optional<MoveFloatMemory> move_float_memory_;
+  bool transform_move_float_reused_{false};
+  [[nodiscard]] std::optional<TransformFloatingSelection> reuse_move_float(const Layer& layer, QRect& floating_rect);
   std::vector<LayerId> transform_mask_only_ids_;
   std::vector<LayerId> transform_session_root_ids_;
   // One composited snapshot of only the target subtree (non-target

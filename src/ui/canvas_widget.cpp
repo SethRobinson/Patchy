@@ -325,6 +325,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
     restore_path_drag_effects();
   } else {
     path_drag_effects_hidden_layer_.reset();
+    move_float_memory_.reset();  // the remembered floating pixels belong to the outgoing document
   }
   close_canvas_context_menu();
   invalidate_vector_preview();

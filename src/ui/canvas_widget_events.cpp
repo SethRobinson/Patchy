@@ -1279,6 +1279,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
     }
+    // A press inside the pixel selection moves the selected pixels of the target layer
+    // on that layer, with Auto-Select on or off (GitHub issue 532): a floating session
+    // that commits on release as one Move step. Shift locks the axis; Alt keeps
+    // duplicating layers; a press outside the selection moves layers as before.
+    if (!event->modifiers().testFlag(Qt::AltModifier) && move_press_floats_selection(document_point)) {
+      begin_move_selected_pixels_drag(document_position_f(event->position()), event->modifiers());
+      event->accept();
+      return;
+    }
     Layer* hit_layer = nullptr;
     Layer* transform_controls_layer = nullptr;
     std::vector<LayerId> layer_ids;
@@ -2847,8 +2856,17 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     dragging_transform_ = false;
     transform_drag_handle_ = TransformHandle::None;
     transform_drag_kind_ = TransformDragKind::Scale;
-    record_transform_session_step(transform_session_step_at_press_);
     clear_drag_readout();
+    if (transform_move_float_drag_) {
+      // A Move drag of the selected pixels lands on release (GitHub issue 532).
+      transform_drag_uses_proxy_preview_ = false;
+      transform_drag_uses_clip_group_preview_ = false;
+      commit_free_transform();
+      update_tool_cursor();
+      update();
+      return;
+    }
+    record_transform_session_step(transform_session_step_at_press_);
     if (transform_drag_uses_proxy_preview_ || transform_drag_uses_clip_group_preview_) {
       // The latched drag skipped the composited patches; render them once at
       // the final geometry so the resting preview is accurate. The latch stays
