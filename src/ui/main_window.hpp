@@ -1529,6 +1529,23 @@ private:
   void new_color_balance_adjustment_layer();
   void color_balance_dialog();
   void apply_color_balance_adjustment(const ColorBalanceSettings& color_balance, bool allow_identity = false);
+  // Image > Adjustments for the kinds that otherwise exist only as adjustment layers (#528):
+  // each opens that kind's adjustment-layer dialog, previews on the active pixel layer and
+  // applies the layer's transfer as one undo step (direct_adjustment_dialog).
+  void black_white_dialog();
+  void vibrance_dialog();
+  void exposure_dialog();
+  void channel_mixer_dialog();
+  void photo_filter_dialog();
+  void gradient_map_dialog();
+  void selective_color_dialog();
+  void color_lookup_dialog();
+  // `request` runs the dialog with a preview callback taking the live settings and returns
+  // the accepted settings, or nullopt on Cancel.
+  using DirectAdjustmentPreview = std::function<void(bool, const AdjustmentSettings&)>;
+  void direct_adjustment_dialog(
+      const QString& display_name,
+      const std::function<std::optional<AdjustmentSettings>(const DirectAdjustmentPreview&)>& request);
   void new_invert_adjustment_layer();
   void new_posterize_adjustment_layer();
   void apply_posterize_adjustment(const PosterizeSettings& settings, bool allow_identity = false);

@@ -1,6 +1,6 @@
 # Adjustment calibration vs Photoshop
 
-Calibration record for adjustment-layer and auto-adjustment math: Brightness/Contrast (legacy and modern), Curves, Levels, Posterize, Exposure, adjustment layers of CMYK and Grayscale documents, the auto adjustments, and Hue/Saturation. Read this before touching src/core/adjustment_layer.*, src/core/adjustment_deep.* or src/filters/auto_levels_math.*. The Photoshop kinds added for #250 (placeholders, Channel Mixer, Photo Filter and later ones) are in [adjustment-kinds.md](adjustment-kinds.md).
+Calibration record for adjustment-layer and auto-adjustment math: Brightness/Contrast (legacy and modern), Curves, Levels, Posterize, Exposure, adjustment layers of CMYK and Grayscale documents, the auto adjustments, and Hue/Saturation. Read this before touching src/core/adjustment_layer.*, src/core/adjustment_deep.* or src/filters/auto_levels_math.*. The Photoshop kinds added for #250 (placeholders, Channel Mixer, Photo Filter and later ones) are in [adjustment-kinds.md](adjustment-kinds.md), with the Image > Adjustments commands that apply those kinds and Exposure destructively.
 Conventions: "PS" = Adobe Photoshop 2026 (version 27), the installed ground truth; every rule is pinned by PS COM captures unless noted. Fixtures named `photoshop-*` live in `test-fixtures/psd/`; `local-test-fixtures/` is machine-local. The COM workflow lives in [photoshop-com.md](photoshop-com.md).
 
 ## Brightness/Contrast legacy calibration

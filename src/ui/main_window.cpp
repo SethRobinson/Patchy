@@ -12201,7 +12201,11 @@ void MainWindow::update_document_action_state() {
                            QStringLiteral("tools.move"), QStringLiteral("tools.clone"),
                            QStringLiteral("tools.smudge"), QStringLiteral("tools.type"),
                            QStringLiteral("image.levels"), QStringLiteral("image.curves"),
-                           QStringLiteral("image.hue_saturation"), QStringLiteral("image.color_balance")}) {
+                           QStringLiteral("image.hue_saturation"), QStringLiteral("image.color_balance"),
+                           QStringLiteral("image.black_white"), QStringLiteral("image.vibrance"),
+                           QStringLiteral("image.exposure"), QStringLiteral("image.channel_mixer"),
+                           QStringLiteral("image.photo_filter"), QStringLiteral("image.gradient_map"),
+                           QStringLiteral("image.selective_color"), QStringLiteral("image.color_lookup")}) {
       set_command_enabled(id, false);
     }
     for (const auto& command : hotkey_registry_.commands()) {

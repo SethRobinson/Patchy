@@ -268,6 +268,13 @@ void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const Filt
                                     HueSaturationSettings settings, const FilterProgress* progress = nullptr);
 void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection,
                                    ColorBalanceSettings settings, const FilterProgress* progress = nullptr);
+// Image > Adjustments for the kinds that reuse an adjustment layer's dialog (Black & White,
+// Vibrance, Exposure, Channel Mixer, Photo Filter, Gradient Map, Selective Color, Color
+// Lookup; #528): the adjustment layer's own transfer (its 8-bit LUT or per-pixel core math,
+// the deep path at 16/32 bits) on every selected pixel; alpha is left untouched.
+void apply_adjustment_settings_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection,
+                                         const AdjustmentSettings& settings,
+                                         const FilterProgress* progress = nullptr);
 // Filter > Camera Raw Filter (docs/camera-raw.md): PhotoDeveloper on every selected pixel at
 // the buffer's own depth, a soft selection blended by its coverage; alpha is left untouched.
 void apply_camera_raw_filter_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection,
