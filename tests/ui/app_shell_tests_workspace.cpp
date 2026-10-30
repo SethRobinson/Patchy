@@ -2892,6 +2892,8 @@ void ui_screen_modes_palette_button_and_escape_return_to_maximized() {
 
   window.showNormal();
   CHECK(process_events_until([&window] { return !window.isMaximized(); }));
+  // Smaller than the screen, which the fixture's own size may already fill (offscreen).
+  window.resize(maximized_geometry.size() - QSize(120, 90));
   process_events_for(100);
   const auto normal_geometry = window.geometry();
   CHECK(normal_geometry != maximized_geometry);
