@@ -13199,10 +13199,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Ferramentas</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>Botões de camadas</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>Restaurar padrão</translation>
     </message>
@@ -14209,6 +14205,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Tinted</source>
         <translation>Tonalizado</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>Painel Camadas</translation>
     </message>
 </context>
 <context>
@@ -28646,10 +28646,6 @@ Bloqueado: %1</translation>
         <translation>Configurações do painel Camadas</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>Personalizar botões de camadas...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>Pontas de pincel</translation>
     </message>
@@ -28828,6 +28824,10 @@ Bloqueado: %1</translation>
     <message>
         <source>&amp;Fill...</source>
         <translation>&amp;Preencher...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>Personalizar painel Camadas...</translation>
     </message>
 </context>
 <context>

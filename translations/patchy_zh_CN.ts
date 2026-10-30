@@ -13162,10 +13162,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>工具</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>图层按钮</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>恢复默认</translation>
     </message>
@@ -14166,6 +14162,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Tinted</source>
         <translation>着色</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>图层面板</translation>
     </message>
 </context>
 <context>
@@ -28564,10 +28564,6 @@ Locked: %1</source>
         <translation>图层面板设置</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>自定义图层按钮...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>画笔笔尖</translation>
     </message>
@@ -28746,6 +28742,10 @@ Locked: %1</source>
     <message>
         <source>&amp;Fill...</source>
         <translation>填充(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>自定义图层面板...</translation>
     </message>
 </context>
 <context>

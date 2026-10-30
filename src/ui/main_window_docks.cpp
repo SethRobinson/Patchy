@@ -2018,8 +2018,8 @@ void MainWindow::create_docks() {
   apply_layer_footer_visibility();
 
   // The Layers panel settings gear at the right end of its title row, as the Color panel's
-  // sits in its row (GitHub issue 511): Customize Layer Buttons... (Customize Tool Palette on
-  // its Layers buttons tab), then the thumbnails' Thumbnail Size and Thumbnail Display
+  // sits in its row (GitHub issue 511): Customize Layers Panel... (Customize Tool Palette on
+  // its Layers Panel tab, issue 538), then the thumbnails' Thumbnail Size and Thumbnail Display
   // submenus, sharing their actions with the thumbnail menus.
   auto* layers_settings_button = new QToolButton(layers_panel);
   layers_settings_button->setObjectName(QStringLiteral("layersPanelSettingsButton"));
@@ -2040,7 +2040,7 @@ void MainWindow::create_docks() {
   auto* customize_layer_buttons = layers_settings_menu->addAction(QString());
   customize_layer_buttons->setObjectName(QStringLiteral("layersPanelCustomizeButtonsAction"));
   customize_layer_buttons->setMenuRole(QAction::NoRole);
-  bind_action_text(customize_layer_buttons, QT_TR_NOOP("Customize Layer Buttons..."));
+  bind_action_text(customize_layer_buttons, QT_TR_NOOP("Customize Layers Panel..."));
   // After the menu closes: the dialog runs its own loop.
   connect(customize_layer_buttons, &QAction::triggered, this, [this] {
     QTimer::singleShot(0, this, [this] { show_tool_palette_customization(ToolPaletteCustomizeTab::LayerButtons); });

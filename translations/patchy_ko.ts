@@ -13162,10 +13162,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>도구</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>레이어 버튼</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>기본값으로 재설정</translation>
     </message>
@@ -14166,6 +14162,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Tinted</source>
         <translation>색조 적용</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>레이어 패널</translation>
     </message>
 </context>
 <context>
@@ -28564,10 +28564,6 @@ Locked: %1</source>
         <translation>레이어 패널 설정</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>레이어 버튼 사용자 지정...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>브러시 팁</translation>
     </message>
@@ -28746,6 +28742,10 @@ Locked: %1</source>
     <message>
         <source>&amp;Fill...</source>
         <translation>칠(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>레이어 패널 사용자 지정...</translation>
     </message>
 </context>
 <context>

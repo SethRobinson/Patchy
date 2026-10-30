@@ -13199,10 +13199,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Herramientas</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>Botones de Capas</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>Restablecer valores predeterminados</translation>
     </message>
@@ -14209,6 +14205,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Tinted</source>
         <translation>Virado</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>Panel Capas</translation>
     </message>
 </context>
 <context>
@@ -28646,10 +28646,6 @@ Bloqueada: %1</translation>
         <translation>Ajustes del panel Capas</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>Personalizar botones de Capas...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>Puntas de pincel</translation>
     </message>
@@ -28828,6 +28824,10 @@ Bloqueada: %1</translation>
     <message>
         <source>&amp;Fill...</source>
         <translation>&amp;Rellenar...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>Personalizar panel Capas...</translation>
     </message>
 </context>
 <context>

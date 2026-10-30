@@ -8,8 +8,10 @@
 // the shortcut key column (499), and the resizable dialog's preview that shows the rows that fit (499 comment).
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/app_style.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/layer_thumbnail_size.hpp"
+#include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/tool_palette_customization.hpp"
 #include "ui/tool_palette_footer.hpp"
@@ -40,6 +42,9 @@
 #include <QRadioButton>
 #include <QScreen>
 #include <QScrollBar>
+#include <QStyleFactory>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
 #include <QTabWidget>
 #include <QTest>
 #include <QTimer>
@@ -57,6 +62,7 @@
 #include <iostream>
 #include <initializer_list>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -660,8 +666,8 @@ void ui_layer_footer_buttons_hide_from_their_menu() {
 }
 
 // GitHub issue 511: the Layers panel settings gear at the right end of the panel's own title
-// row (below the tab bar, like the Color panel's) pops up Customize Layer Buttons... (Customize
-// Tool Palette on its Layers buttons tab), then the Thumbnail Size and Thumbnail Display
+// row (below the tab bar, like the Color panel's) pops up Customize Layers Panel... (Customize
+// Tool Palette on its Layers Panel tab; GitHub issue 538 named both), then the Thumbnail Size and Thumbnail Display
 // submenus, whose actions are the thumbnail menus' own. It stays in the Layers title row when
 // the panel is collapsed, leaves its tab group or comes back to it.
 void ui_layers_panel_gear_opens_layer_button_customize() {
@@ -703,7 +709,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
   auto* palette_title = window.findChild<QWidget*>(QStringLiteral("paletteDockTitle"));
   CHECK(palette_title != nullptr && title->sizeHint().height() == palette_title->sizeHint().height());
 
-  // The menu: Customize Layer Buttons..., a separator, Thumbnail Size, Thumbnail Display.
+  // The menu: Customize Layers Panel..., a separator, Thumbnail Size, Thumbnail Display.
   auto* menu = gear->menu();
   CHECK(menu != nullptr && menu->objectName() == QStringLiteral("layersPanelSettingsMenu"));
   if (menu == nullptr) {
@@ -716,7 +722,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
   }
   auto* customize = entries[0];
   CHECK(customize->objectName() == QStringLiteral("layersPanelCustomizeButtonsAction"));
-  CHECK(customize->text() == QStringLiteral("Customize Layer Buttons..."));
+  CHECK(customize->text() == QStringLiteral("Customize Layers Panel..."));
   CHECK(entries[1]->isSeparator());
   auto* size_menu = entries[2]->menu();
   auto* display_menu = entries[3]->menu();
@@ -829,7 +835,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
   CHECK(thumbnail_menu_name == QStringLiteral("layerThumbnailMenu"));
   CHECK(thumbnail_menu_size == QStringLiteral("layerThumbnailSizeSmallAction"));
 
-  // Customize Layer Buttons... opens the dialog on the Layers buttons tab; Cancel changes
+  // Customize Layers Panel... opens the dialog on the Layers Panel tab; Cancel changes
   // nothing. It opens once the menu has closed, so the watcher is queued after it.
   const auto before = window.tool_palette_customization();
   bool ran = false;
@@ -838,6 +844,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
     ran = true;
     auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("toolPaletteCustomizeTabs"));
     CHECK(tabs != nullptr && tabs->currentIndex() == 1);
+    CHECK(tabs == nullptr || tabs->tabText(1) == QStringLiteral("Layers Panel"));
     CHECK(dialog.findChild<QListWidget*>(QStringLiteral("layerFooterButtonsList")) != nullptr);
     dialog.reject();
   });
@@ -2949,6 +2956,153 @@ void ui_tool_palette_customize_tree_text_follows_the_scheme() {
   }
 }
 
+// GitHub issue 537: every combo in the dialog (Toolbar icon size and Open tool groups on in
+// the Tools tab, Preset and Icon size in the Layers Panel tab) is at least 90 px wide and as
+// wide as its entries, and its open list shows every entry whole (the list was as wide as the
+// box: "Adobe ...toshop", "Sm...st"). Checked in English, German and Russian, under the suite's
+// style (Fusion: a menu) and the Windows styles (a list view) when Qt finds them (set
+// QT_PLUGIN_PATH to the Qt kit's plugins folder, as for ui_preferences_combo_lists_fit_their_entries).
+// Captures show the Layers Panel tab and the open lists. GitHub issue 538: the tab is "Layers Panel".
+void ui_tool_palette_customize_combos_show_their_entries() {
+  CustomizationSettingsGuard settings_guard;
+  constexpr int kMinimumComboWidth = 90;
+  const auto expect = [](bool ok, const std::string& message) {
+    if (!ok) {
+      patchy::test::report_failure(message);
+    }
+  };
+  // The dialog with the open list painted where it sits, cropped around the box and the list.
+  const auto capture_open_list = [](const std::string& name, QDialog& dialog, QComboBox& combo, QWidget& popup) {
+    auto shot = dialog.grab().toImage();
+    const auto origin = dialog.mapToGlobal(QPoint(0, 0));
+    const auto popup_position = popup.mapToGlobal(QPoint(0, 0)) - origin;
+    {
+      QPainter painter(&shot);
+      painter.drawPixmap(popup_position, popup.grab());
+    }
+    const auto crop = QRect(combo.mapToGlobal(QPoint(0, 0)) - origin, combo.size())
+                          .united(QRect(popup_position, popup.size()))
+                          .adjusted(-120, -14, 48, 14)
+                          .intersected(shot.rect());
+    save_image_artifact(name, shot.copy(crop));
+  };
+  const std::map<QString, std::string> captured_combos = {
+      {QStringLiteral("layerFooterPresetCombo"), "preset"},
+      {QStringLiteral("layerFooterIconSizeCombo"), "layers_icon_size"},
+      {QStringLiteral("toolPaletteIconSizeCombo"), "tools_icon_size"},
+      {QStringLiteral("toolPaletteFlyoutOpenCombo"), "tool_groups"},
+  };
+  QStringList style_keys{QString()};  // the suite's own style first
+  for (const auto& key : {QStringLiteral("windows11"), QStringLiteral("windowsvista")}) {
+    if (QStyleFactory::keys().contains(key, Qt::CaseInsensitive)) {
+      style_keys.append(key);
+    }
+  }
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  int checked = 0;
+  for (const auto& style_key : style_keys) {
+    if (!style_key.isEmpty()) {
+      QApplication::setStyle(new patchy::ui::AppStyle(QStyleFactory::create(style_key)));
+    }
+    const auto style_name = style_key.isEmpty() ? std::string("suite") : style_key.toStdString();
+    {
+      auto&& [window, canvas] = ShownWindowFixture{};
+      for (const auto& code : {QStringLiteral("en"), QStringLiteral("de"), QStringLiteral("ru")}) {
+        CHECK(manager.set_language(code, false));
+        QApplication::processEvents();
+        const auto lang = code.toStdString();
+        bool ran = false;
+        when_customize_dialog_opens([&](QDialog& dialog) {
+          ran = true;
+          auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("toolPaletteCustomizeTabs"));
+          CHECK(tabs != nullptr && tabs->count() == 2);
+          if (tabs == nullptr || tabs->count() != 2) {
+            dialog.reject();
+            return;
+          }
+          for (int tab = 0; tab < tabs->count(); ++tab) {
+            tabs->setCurrentIndex(tab);
+            settle();
+            auto* page = tabs->widget(tab);
+            if (tab == 1 && style_key.isEmpty() && (code == QStringLiteral("en") || code == QStringLiteral("de"))) {
+              (void)capture_widget_artifact("ui_tool_palette_customize_layers_panel_tab_" + lang, dialog);
+            }
+            for (auto* combo : page->findChildren<QComboBox*>()) {
+              if (!combo->isVisibleTo(page) || combo->count() == 0) {
+                continue;
+              }
+              ++checked;
+              const auto where = style_name + " / " + lang + " / " + combo->objectName().toStdString() + ": ";
+              expect(combo->width() >= kMinimumComboWidth,
+                     where + "the box is " + std::to_string(combo->width()) + " px wide");
+              expect(combo->width() >= combo->minimumSizeHint().width(),
+                     where + "the box is squeezed: " + std::to_string(combo->width()) + " px, needs " +
+                         std::to_string(combo->minimumSizeHint().width()));
+              combo->showPopup();
+              settle();
+              auto* view = combo->view();
+              auto* popup = view->window();
+              expect(popup->isVisible(), where + "the list did not open");
+              const int room = view->viewport()->width();
+              for (int item = 0; item < combo->count(); ++item) {
+                const auto item_text = combo->itemText(item);
+                if (item_text.isEmpty()) {
+                  continue;  // a separator
+                }
+                const auto index = view->model()->index(item, combo->modelColumn(), view->rootIndex());
+                // As each style draws the row at its real width (ui_preferences_combo_lists_fit_their_entries).
+                const int text = std::max(combo->fontMetrics().horizontalAdvance(item_text),
+                                          view->fontMetrics().horizontalAdvance(item_text));
+                auto* delegate = view->itemDelegateForIndex(index);
+                QStyleOptionViewItem option;
+                option.initFrom(view);
+                option.font = view->font();
+                int needs = 0;
+                int has = room;
+                if (qobject_cast<QStyledItemDelegate*>(delegate) != nullptr) {
+                  option.widget = view;
+                  option.text = item_text;
+                  option.features |= QStyleOptionViewItem::HasDisplay;
+                  option.rect = view->visualRect(index);
+                  needs = text;
+                  has = view->style()->subElementRect(QStyle::SE_ItemViewItemText, &option, view).width() -
+                        2 * (view->style()->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, view) + 1);
+                } else {
+                  option.rect = QRect(0, 0, text, combo->fontMetrics().height());
+                  needs = delegate->sizeHint(option, index).width();
+                }
+                expect(needs <= has && text < room, where + "'" + item_text.toStdString() + "' needs " +
+                                                        std::to_string(needs) + " px of " + std::to_string(has) +
+                                                        " (text " + std::to_string(text) + ", list " +
+                                                        std::to_string(room) + ")");
+              }
+              if (const auto found = captured_combos.find(combo->objectName());
+                  found != captured_combos.end() && (code == QStringLiteral("en") || code == QStringLiteral("de"))) {
+                capture_open_list("ui_tool_palette_customize_combo_list_" + found->second + "_" + lang + "_" +
+                                      style_name,
+                                  dialog, *combo, *popup);
+              }
+              combo->hidePopup();
+              settle();
+            }
+          }
+          expect(code != QStringLiteral("en") || tabs->tabText(1) == QStringLiteral("Layers Panel"),
+                 "the second tab is '" + tabs->tabText(1).toStdString() + "'");
+          dialog.reject();
+        });
+        window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+        CHECK(ran);
+        settle();
+      }
+      CHECK(manager.set_language(QStringLiteral("en"), false));
+    }
+    if (!style_key.isEmpty()) {
+      QApplication::setStyle(new patchy::ui::AppStyle);
+    }
+  }
+  CHECK(checked >= 4);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
@@ -2988,6 +3142,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
        ui_tool_palette_two_column_footer_sits_centered_under_the_tools},
       {"ui_tool_flyout_shortcut_keys_start_in_one_column", ui_tool_flyout_shortcut_keys_start_in_one_column},
       {"ui_tool_palette_customize_preview_fits_its_height", ui_tool_palette_customize_preview_fits_its_height},
+      {"ui_tool_palette_customize_combos_show_their_entries", ui_tool_palette_customize_combos_show_their_entries},
       {"ui_tool_palette_customize_tree_text_follows_the_scheme",
        ui_tool_palette_customize_tree_text_follows_the_scheme},
   };

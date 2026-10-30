@@ -13199,10 +13199,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Outils</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>Boutons des calques</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>Rétablir les valeurs par défaut</translation>
     </message>
@@ -14209,6 +14205,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Tinted</source>
         <translation>Viré</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>Panneau Calques</translation>
     </message>
 </context>
 <context>
@@ -28646,10 +28646,6 @@ Verrouillé : %1</translation>
         <translation>Paramètres du panneau Calques</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>Personnaliser les boutons des calques...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>Pointes de pinceau</translation>
     </message>
@@ -28828,6 +28824,10 @@ Verrouillé : %1</translation>
     <message>
         <source>&amp;Fill...</source>
         <translation>&amp;Remplir...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>Personnaliser le panneau Calques...</translation>
     </message>
 </context>
 <context>

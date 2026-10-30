@@ -13182,10 +13182,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14191,6 +14187,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Tinted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -28565,10 +28565,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation type="unfinished"></translation>
     </message>
@@ -28746,6 +28742,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>&amp;Fill...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

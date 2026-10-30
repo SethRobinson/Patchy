@@ -69,7 +69,7 @@ inline constexpr const char* kToolPaletteFooterItemIds[] = {kToolPaletteColorsId
 // the button it follows in kLayerFooterButtonIds, or first when none of those is placed.
 [[nodiscard]] QStringList resolved_layer_footer_order(const QStringList& stored);
 
-// The Layers buttons tab's presets (GitHub issue 471): Patchy's own default and, at Seth's
+// The Layers Panel tab's presets (GitHub issue 471): Patchy's own default and, at Seth's
 // request, arrangements of Patchy's own buttons in the order other editors' Layers panels use
 // (docs/tool-palette.md, "Customizing the palette"). A preset is not stored: the dialog shows
 // the one whose shown buttons, in order, match the customization, else Custom.
@@ -150,7 +150,7 @@ enum class ToolPaletteCustomizeTab { Tools, LayerButtons };
 // The Customize Tool Palette dialog (non-modal, run_non_modal_dialog). Returns the choice on
 // OK, nothing on Cancel. Its icon size and tool group combos are named
 // toolPaletteIconSizeCombo and toolPaletteFlyoutOpenCombo (item data: the stored token), so
-// an open dialog can follow a change made in Preferences. The Layers buttons tab's icon size
+// an open dialog can follow a change made in Preferences. The Layers Panel tab's icon size
 // combo is layerFooterIconSizeCombo; while the dialog is open each pick there goes to
 // `preview_layer_icon_size` (when set) so the footer shows it at once, and Cancel sends the
 // size the dialog opened with.

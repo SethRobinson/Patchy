@@ -2738,7 +2738,7 @@ private:
   // follow-up; layersPanel/footerIconSize). Does not store it.
   void apply_layer_footer_icon_size(ToolbarIconSize size);
   // The Layers footer buttons' right-click menu: a tick per button, Show All Buttons and
-  // Customize Tool Palette... on its Layers buttons tab.
+  // Customize Tool Palette... on its Layers Panel tab.
   void show_layer_footer_menu(const QPoint& global_position);
   // Rebuilds the History panel from the active session's stacks (oldest state
   // at the top, current state highlighted, redone-away future states dimmed),

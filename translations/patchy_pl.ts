@@ -13236,10 +13236,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Narzędzia</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>Przyciski warstw</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>Przywróć domyślne</translation>
     </message>
@@ -14252,6 +14248,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Tinted</source>
         <translation>Tonowane</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>Panel Warstwy</translation>
     </message>
 </context>
 <context>
@@ -28728,10 +28728,6 @@ Zablokowano: %1</translation>
         <translation>Ustawienia panelu Warstwy</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>Dostosuj przyciski warstw...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>Końcówki pędzla</translation>
     </message>
@@ -28910,6 +28906,10 @@ Zablokowano: %1</translation>
     <message>
         <source>&amp;Fill...</source>
         <translation>&amp;Wypełnij...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>Dostosuj panel Warstwy...</translation>
     </message>
 </context>
 <context>

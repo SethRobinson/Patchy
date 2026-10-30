@@ -820,7 +820,7 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   tools_layout->addLayout(preview_column);
   tabs->addTab(tools_page, QObject::tr("Tools"));
 
-  // Layers buttons tab: one tickable row per footer button, in footer order. Move Up and Move
+  // Layers Panel tab: one tickable row per footer button, in footer order. Move Up and Move
   // Down beside the list, or a drag, change the order (GitHub issue 471).
   auto* layers_page = new QWidget(tabs);
   auto* layers_layout = new QVBoxLayout(layers_page);
@@ -887,7 +887,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   order_column->addStretch(1);
   layers_row->addLayout(order_column);
   layers_layout->addLayout(layers_row, 1);
-  tabs->addTab(layers_page, QObject::tr("Layers buttons"));
+  // GitHub issue 538: named for the panel, as the Layers panel gear's Customize Layers Panel...
+  tabs->addTab(layers_page, QObject::tr("Layers Panel"));
 
   // The tree: a header row per cluster, a tickable row per slot, and a flyout's members
   // under it (auto-tristate: a partly hidden flyout shows a partial check).
@@ -1179,6 +1180,14 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   tabs->setCurrentIndex(tab == ToolPaletteCustomizeTab::LayerButtons ? 1 : 0);
   // It opens at its natural size, or the size the user last dragged it to, inside the screen.
   dialog.ensurePolished();
+  // GitHub issue 537: no combo narrower than 90 px, as in Preferences (issue 526), and its open
+  // list as wide as its widest entry (issue 489), so "Adobe Photoshop" and "Smallest" show whole.
+  // After the polish: the sheet's paddings are part of the size hint.
+  constexpr int kCustomizeComboMinWidth = 90;
+  for (auto* combo : dialog.findChildren<QComboBox*>()) {
+    combo->setMinimumWidth(std::max(combo->minimumSizeHint().width(), kCustomizeComboMinWidth));
+    fit_combo_popup_to_entries(*combo);
+  }
   dialog.adjustSize();
   QSize open_size = dialog.size();
   if (const auto saved = app_settings().value(customize_dialog_size_key()).toSize(); saved.isValid()) {

@@ -13162,10 +13162,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ツール</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>レイヤーのボタン</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>初期設定に戻す</translation>
     </message>
@@ -14166,6 +14162,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Tinted</source>
         <translation>調色</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>レイヤーパネル</translation>
     </message>
 </context>
 <context>
@@ -28564,10 +28564,6 @@ Locked: %1</source>
         <translation>レイヤーパネルの設定</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>レイヤーのボタンのカスタマイズ...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>ブラシ先端</translation>
     </message>
@@ -28746,6 +28742,10 @@ Locked: %1</source>
     <message>
         <source>&amp;Fill...</source>
         <translation>塗りつぶし(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>レイヤーパネルのカスタマイズ...</translation>
     </message>
 </context>
 <context>

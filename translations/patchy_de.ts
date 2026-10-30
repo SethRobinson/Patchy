@@ -13199,10 +13199,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Werkzeuge</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>Ebenen-Schaltflächen</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>Auf Standard zurücksetzen</translation>
     </message>
@@ -14209,6 +14205,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Tinted</source>
         <translation>Getönt</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>Ebenenbedienfeld</translation>
     </message>
 </context>
 <context>
@@ -28646,10 +28646,6 @@ Fixiert: %1</translation>
         <translation>Einstellungen des Ebenenbedienfelds</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>Ebenen-Schaltflächen anpassen...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>Pinselspitzen</translation>
     </message>
@@ -28828,6 +28824,10 @@ Fixiert: %1</translation>
     <message>
         <source>&amp;Fill...</source>
         <translation>&amp;Füllen...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>Ebenenbedienfeld anpassen...</translation>
     </message>
 </context>
 <context>

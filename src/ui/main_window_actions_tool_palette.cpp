@@ -2114,7 +2114,7 @@ void MainWindow::show_tool_palette_customization(ToolPaletteCustomizeTab tab, QW
                                         tool_flyout_open_mode_, layer_footer_icon_size_};
   // Opened from Preferences, the dialog is its child, so it closes with Preferences
   // (run_non_modal_dialog rejects children when their parent finishes). The footer shows the
-  // Layers buttons tab's icon size while it is picked; Cancel puts the old one back.
+  // Layers Panel tab's icon size while it is picked; Cancel puts the old one back.
   const auto preview_layer_icon_size = [this](ToolbarIconSize size) { apply_layer_footer_icon_size(size); };
   if (const auto chosen = request_tool_palette_customization(parent != nullptr ? parent : this, catalog, current, tab,
                                                              preview_layer_icon_size);

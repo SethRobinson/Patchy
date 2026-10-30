@@ -13236,10 +13236,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Инструменты</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>Кнопки слоёв</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>Восстановить по умолчанию</translation>
     </message>
@@ -14252,6 +14248,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Tinted</source>
         <translation>Тонированные</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>Панель «Слои»</translation>
     </message>
 </context>
 <context>
@@ -28728,10 +28728,6 @@ Locked: %1</source>
         <translation>Настройки панели «Слои»</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>Настройка кнопок слоёв...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>Отпечатки кистей</translation>
     </message>
@@ -28910,6 +28906,10 @@ Locked: %1</source>
     <message>
         <source>&amp;Fill...</source>
         <translation>&amp;Выполнить заливку...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>Настройка панели «Слои»...</translation>
     </message>
 </context>
 <context>

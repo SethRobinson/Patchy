@@ -13199,10 +13199,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Strumenti</translation>
     </message>
     <message>
-        <source>Layers buttons</source>
-        <translation>Pulsanti dei livelli</translation>
-    </message>
-    <message>
         <source>Reset to Default</source>
         <translation>Ripristina predefiniti</translation>
     </message>
@@ -14209,6 +14205,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Tinted</source>
         <translation>Virato</translation>
+    </message>
+    <message>
+        <source>Layers Panel</source>
+        <translation>Pannello Livelli</translation>
     </message>
 </context>
 <context>
@@ -28646,10 +28646,6 @@ Bloccato: %1</translation>
         <translation>Impostazioni del pannello Livelli</translation>
     </message>
     <message>
-        <source>Customize Layer Buttons...</source>
-        <translation>Personalizza pulsanti dei livelli...</translation>
-    </message>
-    <message>
         <source>Brush Tips</source>
         <translation>Punte pennello</translation>
     </message>
@@ -28828,6 +28824,10 @@ Bloccato: %1</translation>
     <message>
         <source>&amp;Fill...</source>
         <translation>&amp;Riempi...</translation>
+    </message>
+    <message>
+        <source>Customize Layers Panel...</source>
+        <translation>Personalizza pannello Livelli...</translation>
     </message>
 </context>
 <context>
