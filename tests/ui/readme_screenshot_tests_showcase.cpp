@@ -444,8 +444,8 @@ bool same_rgba_pixels(const patchy::PixelBuffer& a, const patchy::PixelBuffer& b
 }
 
 // Flame following a path: the word FIRE in charred Arial Black on a night backdrop, its
-// outline saved in the Paths panel, and the Flame dialog previewing Campfire along that
-// path, live on the canvas and in the dialog's own preview.
+// outline saved in the Paths panel (its canvas outline hidden), and the Flame dialog
+// previewing short Campfire flames along that path, live on the canvas and in the dialog.
 void shot_readme_flame() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
   // Offscreen, ariblk.ttf registers as the Black style of Arial (its typographic family).
@@ -459,11 +459,13 @@ void shot_readme_flame() {
     font.setPixelSize(pixel_size);
     return font;
   };
-  const auto letters = arial_black(300);
+  auto letters = arial_black(290);
+  // Spaced so neighboring letters' flames stay apart.
+  letters.setLetterSpacing(QFont::AbsoluteSpacing, 26.0);
   QPainterPath outline;
   outline.addText(QPointF(0.0, 0.0), letters, QStringLiteral("FIRE"));
   const auto glyphs = outline.boundingRect();
-  outline.translate(50.0 - glyphs.left(), 560.0 - glyphs.bottom());
+  outline.translate(50.0 - glyphs.left(), 490.0 - glyphs.bottom());
   const auto box = outline.boundingRect();
 
   QImage night(kFireWidth, kFireHeight, QImage::Format_RGBA8888);
@@ -508,6 +510,11 @@ void shot_readme_flame() {
   auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
   CHECK(paths_list != nullptr && paths_list->count() == 1);
   paths_list->setCurrentRow(0);
+  // The path stays selected for Follow Path, but its outline would draw over the fire.
+  // View > Show > Target Path is not persisted, so nothing needs restoring.
+  auto* target_path = require_action(window, "viewToggleTargetPathAction");
+  CHECK(target_path->isChecked());
+  target_path->trigger();
   QApplication::processEvents();
 
   const auto layer_pixels = [&window] {
@@ -527,23 +534,24 @@ void shot_readme_flame() {
       CHECK(dialog != nullptr);
       auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameColorsCombo"));
       auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameModeCombo"));
-      auto* rise = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameRiseCombo"));
       auto* length = dialog->findChild<QSpinBox*>(QStringLiteral("filterLengthSpin"));
       auto* core = dialog->findChild<QSpinBox*>(QStringLiteral("filterCoreSpin"));
+      auto* flicker = dialog->findChild<QSpinBox*>(QStringLiteral("filterFlickerSpin"));
       auto* density = dialog->findChild<QSpinBox*>(QStringLiteral("filterDensitySpin"));
       auto* glow = dialog->findChild<QSpinBox*>(QStringLiteral("filterGlowSpin"));
       auto* sparks = dialog->findChild<QSpinBox*>(QStringLiteral("filterSparksSpin"));
       auto* notice = dialog->findChild<QLabel*>(QStringLiteral("filterDialogNotice"));
-      CHECK(preset != nullptr && mode != nullptr && rise != nullptr && length != nullptr && core != nullptr && density != nullptr &&
-            glow != nullptr && sparks != nullptr && notice != nullptr);
+      CHECK(preset != nullptr && mode != nullptr && length != nullptr && flicker != nullptr && density != nullptr &&
+            core != nullptr && glow != nullptr && sparks != nullptr && notice != nullptr);
       preset->setCurrentIndex(preset->findData(QStringLiteral("classic")));
       mode->setCurrentIndex(mode->findData(QStringLiteral("follow_path")));
-      rise->setCurrentIndex(rise->findData(QStringLiteral("from_path")));
-      length->setValue(18);
-      density->setValue(70);
-      core->setValue(65);
-      glow->setValue(140);
-      sparks->setValue(160);
+      // Short, fine tongues and a dim glow keep the charred letters readable.
+      length->setValue(8);
+      flicker->setValue(65);
+      density->setValue(90);
+      core->setValue(60);
+      glow->setValue(70);
+      sparks->setValue(140);
       QApplication::processEvents();
       CHECK(!notice->isVisibleTo(dialog));
       dialog->resize(900, 560);

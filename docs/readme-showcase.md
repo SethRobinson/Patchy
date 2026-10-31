@@ -137,12 +137,13 @@ a slow push in, lit windows at night; the last layer's name holds it for a secon
 at 16 colors with diffusion (few enough that the dither shows in the split) and Split compare through the exportForWeb settings (restored
 afterward), waits for all eight decoded frames and pauses on frame 4.
 
-The Flame scene (same file) paints FIRE in charred Arial Black (the scene skips without the font) on a
-generated night backdrop, saves the glyph outline as the FIRE outline path and selects it in the Paths panel,
-then opens the real Flame dialog on Campfire with Follow Path and Away from the Path (crisper letters than
-Straight Up, which fills the strokes), lower density and core, and more glow and sparks.
-It waits for the live canvas preview, checks that the far corner stays unburned and that Cancel restores the
-layer, and draws the dialog's caption with `readme_captioned_dialog`, since the native frame is not grabbed.
+The Flame scene (same file) paints FIRE in charred, letter-spaced Arial Black (the scene skips without the
+font) on a generated night backdrop, saves the glyph outline as the FIRE outline path, selects it in the Paths
+panel and hides its canvas outline (View > Show > Target Path, not persisted). The real Flame dialog runs
+Campfire with Follow Path, Straight Up and short, fine tongues (length 8, flicker 65) with a dim glow: longer
+flames or Away from the Path fill the strokes and the word stops reading. It waits for the live canvas
+preview, checks that the far corner stays unburned and that Cancel restores the layer, and draws the dialog's
+caption with `readme_captioned_dialog`, since the native frame is not grabbed.
 
 The Perspective Planes scene drives the real workspace on the CC0 brick wall photo, scaled to
 1400 x 1050. Its one plane is built from the photo's own lines: the top and bottom edges run to
