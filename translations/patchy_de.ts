@@ -17388,10 +17388,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>&amp;Ebene umbenennen...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>&amp;Ebene löschen</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>Ebene / Auswahl &amp;füllen</translation>
     </message>
@@ -28939,6 +28935,18 @@ Fixiert: %1</translation>
     <message>
         <source>Layer locks changed</source>
         <translation>Ebenensperren geändert</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>Ebene lö&amp;schen</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>&amp;Füllen</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>&amp;Zusammenfügen</translation>
     </message>
 </context>
 <context>

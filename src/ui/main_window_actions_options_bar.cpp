@@ -1414,7 +1414,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Apply/Cancel are the same pair on the Transform, Crop and Type bars: the
   // authored apply and cancel SVGs take their green and red from icon_success and
   // icon_danger at paint time. Cancel's round stop sign is its own glyph, not the
-  // square "clear" one, which is also Layer > Clear (GitHub issue 182).
+  // square "clear" one, which is also Layer > Fill > Clear Layer / Selection (GitHub issue 182).
   transform_apply_button_ = new QPushButton(toolbar);
   transform_apply_button_->setObjectName(QStringLiteral("freeTransformApplyButton"));
   transform_apply_button_->setIcon(simple_icon(QStringLiteral("ok")));

@@ -18042,10 +18042,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>レイヤー名を変更(&amp;R)...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>レイヤーを削除(&amp;D)</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>レイヤー / 選択範囲を塗りつぶし(&amp;F)</translation>
     </message>
@@ -28857,6 +28853,18 @@ Locked: %1</source>
     <message>
         <source>Layer locks changed</source>
         <translation>レイヤーのロックを変更しました</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>レイヤーを削除(&amp;Y)</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>塗りつぶし(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>結合(&amp;M)</translation>
     </message>
 </context>
 <context>

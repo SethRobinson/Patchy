@@ -2998,7 +2998,7 @@ private:
   // context menu's Lock submenu.
   QAction* layer_lock_transparent_pixels_action_{nullptr};
   QAction* layer_toggle_visibility_action_{nullptr};
-  // Layer > Merge Visible (refresh_merge_visible_action_state).
+  // Layer > Merge > Merge Visible (refresh_merge_visible_action_state).
   QAction* layer_merge_visible_layers_action_{nullptr};
   // Merge Selected to New Layer (Copy): the layer context menu's Merge submenu and the window.
   QAction* layer_merge_selected_to_new_action_{nullptr};

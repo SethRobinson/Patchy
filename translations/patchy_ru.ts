@@ -17564,10 +17564,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>&amp;Переименовать слой...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>&amp;Удалить слой</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>&amp;Залить слой / выделение</translation>
     </message>
@@ -29021,6 +29017,18 @@ Locked: %1</source>
     <message>
         <source>Layer locks changed</source>
         <translation>Блокировки слоёв изменены</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>Уда&amp;лить слой</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>Зали&amp;вка</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>Объ&amp;единить</translation>
     </message>
 </context>
 <context>

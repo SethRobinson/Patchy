@@ -17564,10 +17564,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>&amp;Zmień nazwę warstwy...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>&amp;Usuń warstwę</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>&amp;Wypełnij warstwę/zaznaczenie</translation>
     </message>
@@ -29021,6 +29017,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Layer locks changed</source>
         <translation>Zmieniono blokady warstw</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>U&amp;suń warstwę</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>Wy&amp;pełnij</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>Sca&amp;l</translation>
     </message>
 </context>
 <context>

@@ -17344,10 +17344,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>重命名图层(&amp;R)...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>删除图层(&amp;D)</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>填充图层/选区(&amp;F)</translation>
     </message>
@@ -28857,6 +28853,18 @@ Locked: %1</source>
     <message>
         <source>Layer locks changed</source>
         <translation>已更改图层锁定</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>删除图层(&amp;Y)</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>填充(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>合并(&amp;M)</translation>
     </message>
 </context>
 <context>

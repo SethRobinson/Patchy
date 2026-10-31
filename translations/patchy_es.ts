@@ -17388,10 +17388,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>&amp;Renombrar capa...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>&amp;Eliminar capa</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>&amp;Rellenar capa / selección</translation>
     </message>
@@ -28939,6 +28935,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Layer locks changed</source>
         <translation>Bloqueos de capa cambiados</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>E&amp;liminar capa</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>Re&amp;llenar</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>Co&amp;mbinar</translation>
     </message>
 </context>
 <context>

@@ -2,8 +2,16 @@
 
 Keys that change the selected layers without opening a panel: opacity digits, the transparency
 lock, blend modes, selection stepping, visibility and the Lock Layers dialog. Most actions live on
-the main window only: the Layer menu's row count is pinned at 26 (`ui_main_window_renders_color_controls`).
+the main window only: the Layer menu's row count is pinned at 21 (`ui_main_window_renders_color_controls`).
 Hotkey ids are permanent ([ui-conventions.md](ui-conventions.md), Hotkeys).
+
+The Layer menu's rows are added in one block in display order (end of the Layer section of
+`build_menu_bar_actions`): New, New Adjustment Layer, New Fill Layer; Duplicate, Delete, Rename,
+Color, Hide Layers, Lock Layers...; Layer Mask through Shape; Fill (`layerFillMenu`: Fill Layer /
+Selection, Fill With Background Color, Clear Layer / Selection), Arrange, Rotate & Flip, Merge
+(`layerMergeMenu`: Merge Down, Merge Visible, Merge Visible to New Layer (Copy)); Export. Keys fire
+from the submenus, and opening Merge refreshes Merge Visible's state. Pin:
+`ui_layer_menu_groups_fill_and_merge_submenus`.
 
 ## Opacity digits (#527)
 

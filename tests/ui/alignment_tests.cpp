@@ -559,7 +559,9 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
   auto* align_menu = window.findChild<QMenu*>(QStringLiteral("layerAlignMenu"));
   auto* distribute_menu = window.findChild<QMenu*>(QStringLiteral("layerDistributeMenu"));
   CHECK(layer_menu != nullptr && arrange_menu != nullptr && align_menu != nullptr && distribute_menu != nullptr);
-  CHECK(layer_menu->actions().size() <= 26);
+  const auto layer_menu_rows = layer_menu->actions();
+  CHECK(std::count_if(layer_menu_rows.begin(), layer_menu_rows.end(),
+                      [](const QAction* action) { return !action->isSeparator(); }) <= 21);
   CHECK(arrange_menu->actions().contains(align_menu->menuAction()));
   CHECK(arrange_menu->actions().contains(distribute_menu->menuAction()));
   const char* const align_names[] = {"layerAlignLeftAction",   "layerAlignHCenterAction", "layerAlignRightAction",
