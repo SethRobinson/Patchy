@@ -29119,6 +29119,10 @@ Bloqueada: %1</translation>
         <source>Search &amp;Commands...</source>
         <translation>Buscar &amp;comandos...</translation>
     </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Guiones del trazo. Los ajustes de guiones usan terminaciones planas; los de puntos, terminaciones y esquinas redondas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

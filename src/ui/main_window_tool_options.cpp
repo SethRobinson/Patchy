@@ -2951,6 +2951,9 @@ void MainWindow::load_tool_settings() {
   current_vector_line_weight_ = std::clamp(
       settings.value(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_).toDouble(), 1.0,
       1000.0);
+  current_vector_stroke_dash_preset_ = stroke_dash_preset_from_token(
+      settings.value(QStringLiteral("tools/vectorStrokeDashes")).toString().toStdString());
+  refresh_vector_stroke_dash_combo(current_vector_stroke_dash_preset_);
   // tools/vectorStrokeEnabled keeps its key: a saved "off" shows as 0 in the width field
   // (GitHub issue 311), and tools/vectorStrokeWidth keeps the last real width.
   if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
@@ -3459,6 +3462,8 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/vectorStrokeEnabled"), current_vector_stroke_enabled_);
   settings.setValue(QStringLiteral("tools/vectorStrokeWidth"), current_vector_stroke_width_);
   settings.setValue(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_);
+  settings.setValue(QStringLiteral("tools/vectorStrokeDashes"),
+                    QString::fromUtf8(stroke_dash_preset_token(current_vector_stroke_dash_preset_)));
   settings.setValue(QStringLiteral("tools/lineArrowStart"), current_line_arrow_start_);
   settings.setValue(QStringLiteral("tools/lineArrowEnd"), current_line_arrow_end_);
   if (auto* sides = findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")); sides != nullptr) {

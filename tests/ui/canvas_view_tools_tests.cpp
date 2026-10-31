@@ -943,13 +943,15 @@ void ui_shape_options_bars_group_their_controls() {
       } else {
         expect_next_to(QStringLiteral("vectorCombineCombo"), separator);
       }
-      // One group each: Fill and its swatch; Stroke, its width and swatch (no checkbox: 0 px
+      // One group each: Fill and its swatch; Stroke, its width, swatch and dashes (no checkbox: 0 px
       // is no stroke, the issue 311 follow-up).
       expect_next_to(QStringLiteral("Fill"), QStringLiteral("vectorFillSwatchButton"));
       expect_next_to(QStringLiteral("vectorFillSwatchButton"), separator);
       expect_next_to(QStringLiteral("vectorStrokeWidthLabel"), QStringLiteral("vectorStrokeWidthSpin"));
       expect_next_to(QStringLiteral("vectorStrokeWidthSpin"), QStringLiteral("vectorStrokeSwatchButton"));
-      expect_next_to(QStringLiteral("vectorStrokeSwatchButton"), separator);
+      // The dash combo closes the Stroke group (GitHub #556).
+      expect_next_to(QStringLiteral("vectorStrokeSwatchButton"), QStringLiteral("vectorStrokeDashCombo"));
+      expect_next_to(QStringLiteral("vectorStrokeDashCombo"), separator);
       if (at(tokens, QStringLiteral("vectorStrokeCheck")) >= 0) {
         problem("still shows the Stroke checkbox");
       }
