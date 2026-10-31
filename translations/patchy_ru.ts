@@ -16482,10 +16482,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Отпустите, чтобы соединить конечные точки. Удерживайте %ALT%, чтобы поставить точку свободно.</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>Привязано к точке. Удерживайте %ALT%, чтобы поставить точку свободно.</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>Перетащите, чтобы переместить точку; отпустите конечную точку на другой, чтобы соединить их. Shift+щелчок добавляет к выделению. Правая кнопка: разорвать, соединить, слить.</translation>
     </message>
@@ -16496,6 +16492,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>Нажим кисти: %1% (аэрограф включен; Shift+цифра задает непрозрачность)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>Точки слиты</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>Отпустите, чтобы слить точки. Удерживайте %ALT%, чтобы поставить точку свободно.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>Привязано к точке. В одну точку сливаются только конечные или соседние точки. Удерживайте %ALT%, чтобы поставить точку свободно.</translation>
     </message>
 </context>
 <context>

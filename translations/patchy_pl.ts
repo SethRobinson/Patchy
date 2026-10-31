@@ -16482,10 +16482,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Puść, aby połączyć punkty końcowe. Przytrzymaj %ALT%, aby umieścić punkt swobodnie.</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>Przyciągnięto do punktu. Przytrzymaj %ALT%, aby umieścić punkt swobodnie.</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>Przeciągnij, aby przesunąć punkt; upuść punkt końcowy na innym, aby je połączyć. Shift+klik dodaje do zaznaczenia. Prawy przycisk: Podziel, Połącz i Scal.</translation>
     </message>
@@ -16496,6 +16492,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>Przepływ pędzla: %1% (Aerograf włączony; Shift+cyfra ustawia krycie)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>Scalono punkty</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>Puść, aby scalić punkty. Przytrzymaj %ALT%, aby umieścić punkt swobodnie.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>Przyciągnięto do punktu. W jeden punkt łączą się tylko punkty końcowe lub sąsiednie. Przytrzymaj %ALT%, aby umieścić punkt swobodnie.</translation>
     </message>
 </context>
 <context>

@@ -16422,10 +16422,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16435,6 +16431,18 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

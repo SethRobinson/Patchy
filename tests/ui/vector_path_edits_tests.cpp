@@ -774,10 +774,148 @@ void ui_path_align_shapes_inside_a_layer() {
   CHECK(canvas->path_edit_selected_groups().size() == 2);
 }
 
+
+// Seth's question (#555): dropping a point on its neighbour merges the two into one point on
+// release (the segment between them shrank to nothing), in the drag's undo step; a point that is
+// not a neighbour or an end point only snaps; Alt places it freely.
+int anchor_index_at(const patchy::PathSubpath& subpath, double x, double y) {
+  for (int i = 0; i < static_cast<int>(subpath.anchors.size()); ++i) {
+    const auto& anchor = subpath.anchors[static_cast<std::size_t>(i)];
+    if (std::abs(anchor.anchor_x - x) < 0.5 && std::abs(anchor.anchor_y - y) < 0.5) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// Presses on `from`, moves to `to` and releases there, with `modifiers` during the move and
+// release; `before_release` runs while the drag is held.
+template <typename Held>
+void drag_point(patchy::ui::CanvasWidget& canvas, QPoint from, QPoint to, Qt::KeyboardModifiers modifiers,
+                Held before_release) {
+  const auto press = canvas.widget_position_for_document_point(from);
+  const auto drop = canvas.widget_position_for_document_point(to);
+  send_mouse(canvas, QEvent::MouseButtonPress, press, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(canvas, QEvent::MouseMove, drop, Qt::NoButton, Qt::LeftButton, modifiers);
+  QApplication::processEvents();
+  before_release();
+  send_mouse(canvas, QEvent::MouseButtonRelease, drop, Qt::LeftButton, Qt::NoButton, modifiers);
+  QApplication::processEvents();
+}
+
+// No two neighbouring points of any subpath sit at the same place (a zero-length segment).
+bool has_zero_length_segment(const patchy::VectorPath& path) {
+  for (const auto& subpath : path.subpaths) {
+    const auto count = subpath.anchors.size();
+    const auto segments = subpath.closed ? count : count - 1;
+    for (std::size_t i = 0; i < segments; ++i) {
+      const auto& a = subpath.anchors[i];
+      const auto& b = subpath.anchors[(i + 1) % count];
+      if (std::hypot(a.anchor_x - b.anchor_x, a.anchor_y - b.anchor_y) < 0.01) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void ui_path_weld_on_drag_merges_neighbours() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  const auto outline = [&]() -> const patchy::PathSubpath& { return shape_of(document, id).path.subpaths[0]; };
+  CHECK(outline().closed && outline().anchors.size() == 4);
+
+  // Alt held: the corner lands on the next one and stays two points.
+  click(*canvas, QPoint(100, 100));
+  drag_point(*canvas, QPoint(100, 100), QPoint(296, 103), Qt::AltModifier, [] {});
+  CHECK(outline().anchors.size() == 4);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(anchor_index_at(outline(), 100, 100) >= 0);
+
+  // Onto its neighbour: a double ring and the hint while held, one point (a triangle) after.
+  click(*canvas, QPoint(100, 100));
+  const auto undo_before = undo_depth(window);
+  drag_point(*canvas, QPoint(100, 100), QPoint(296, 103), Qt::NoModifier, [&] {
+    CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Release to merge the points")));
+    save_widget_artifact("ui_i555_weld_merge_snap", *canvas);
+  });
+  CHECK(outline().closed && outline().anchors.size() == 3);
+  CHECK(anchor_index_at(outline(), 300, 100) >= 0 && anchor_index_at(outline(), 100, 100) < 0);
+  CHECK(!has_zero_length_segment(shape_of(document, id).path));
+  CHECK(undo_depth(window) == undo_before + 1);
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  // The triangle renders: filled inside, nothing beyond its corners.
+  CHECK(layer_rgba_at(document, id, QPoint(280, 180))[3] > 200);
+  CHECK(layer_rgba_at(document, id, QPoint(120, 120))[3] == 0);
+  const auto bounds = std::as_const(document).find_layer(id)->bounds();
+  CHECK(bounds.x >= 99 && bounds.y >= 99 && bounds.x + bounds.width <= 301 && bounds.y + bounds.height <= 221);
+  save_widget_artifact("ui_i555_weld_merge_triangle", *canvas);
+
+  // A triangle's corner onto the next only snaps: two points cannot make a shape.
+  click(*canvas, QPoint(300, 100));
+  drag_point(*canvas, QPoint(300, 100), QPoint(297, 217), Qt::NoModifier, [&] {
+    CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Snapped to a point")));
+  });
+  CHECK(outline().anchors.size() == 3);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(outline().anchors.size() == 4);
+
+  // Across the closing segment: the last corner onto the first.
+  const int last = static_cast<int>(outline().anchors.size()) - 1;
+  const auto last_point = QPoint(static_cast<int>(outline().anchors[static_cast<std::size_t>(last)].anchor_x),
+                                 static_cast<int>(outline().anchors[static_cast<std::size_t>(last)].anchor_y));
+  const auto first_point = QPoint(static_cast<int>(outline().anchors[0].anchor_x),
+                                  static_cast<int>(outline().anchors[0].anchor_y));
+  click(*canvas, last_point);
+  drag_point(*canvas, last_point, first_point + QPoint(3, 3), Qt::NoModifier, [] {});
+  CHECK(outline().closed && outline().anchors.size() == 3);
+  CHECK(!has_zero_length_segment(shape_of(document, id).path));
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+
+  // Opposite corners are not neighbours: the point only snaps and two points stay there.
+  click(*canvas, QPoint(100, 100));
+  drag_point(*canvas, QPoint(100, 100), QPoint(297, 217), Qt::NoModifier, [&] {
+    CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Only end points or neighbouring points")));
+  });
+  CHECK(outline().anchors.size() == 4);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+
+  // An open path: the second point onto the third merges them; the ends stay.
+  patchy::VectorPath line;
+  patchy::PathSubpath open;
+  open.closed = false;
+  for (const double x : {100.0, 200.0, 300.0, 400.0}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = 300.0;
+    open.anchors.push_back(anchor);
+  }
+  line.subpaths = {open};
+  set_target_path(*canvas, line);
+  click(*canvas, QPoint(200, 300));
+  drag_point(*canvas, QPoint(200, 300), QPoint(296, 302), Qt::NoModifier, [] {});
+  CHECK(!outline().closed && outline().anchors.size() == 3);
+  CHECK(anchor_index_at(outline(), 300, 300) == 1);
+  CHECK(!has_zero_length_segment(shape_of(document, id).path));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_path_edits_tests() {
   return {
+      {"ui_path_weld_on_drag_merges_neighbours", ui_path_weld_on_drag_merges_neighbours},
       {"ui_path_align_shapes_inside_a_layer", ui_path_align_shapes_inside_a_layer},
       {"ui_path_split_shape_with_break_and_join", ui_path_split_shape_with_break_and_join},
       {"ui_path_merge_shapes_bakes_the_combine", ui_path_merge_shapes_bakes_the_combine},

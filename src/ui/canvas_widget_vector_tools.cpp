@@ -2554,9 +2554,9 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   apply_path_edit(std::move(working), label, touched_groups);
   if (weld_hint_due && status_callback_) {
     const auto* edited = path_edit_target_path();
-    status_callback_(edited != nullptr && path_weld_would_join(*edited)
-                         ? resolve_modifier_names(tr("Release to join the end points. Hold %ALT% to place the point freely."))
-                         : resolve_modifier_names(tr("Snapped to a point. Hold %ALT% to place the point freely.")));
+    if (edited != nullptr) {
+      status_callback_(path_weld_hint(*edited));
+    }
   }
   return true;
 }
@@ -3462,7 +3462,7 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
     painter.drawEllipse(center, kWeldRingRadiusPx, kWeldRingRadiusPx);
     painter.setPen(QPen(accent, 1.6));
     painter.drawEllipse(center, kWeldRingRadiusPx, kWeldRingRadiusPx);
-    if (path_weld_would_join(*path)) {
+    if (plan_path_weld(*path).kind != PathWeld::Kind::SnapOnly) {
       painter.drawEllipse(center, kWeldRingRadiusPx + 4.0, kWeldRingRadiusPx + 4.0);
     }
   }

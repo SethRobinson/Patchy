@@ -100,14 +100,24 @@ menu lists the six component entries under Path Select and Direct Select
 
 Dragging exactly one point with Direct Select (or the Pen's Ctrl latch) snaps it onto any other
 point of the target path within `kWeldSnapPx` (8 screen pixels): the drag delta is corrected so
-the point lands exactly there, the overlay rings the target (`kWeldRingRadiusPx`, a second ring
-when the release will join) and the status bar says "Release to join the end points" or
-"Snapped to a point" (shown after the edit, whose undo label also reaches the status bar). On
-release, two end points that `join_path_end_points` accepts become one point
-(`weld_dragged_path_point`) inside the drag's own undo entry; any other target is only a snap.
-Alt held during the drag places the point freely (Alt at the press keeps its handle and subpath
-meanings). Shapes on other layers, Path Select drags and multi-point drags never snap.
-Test: `ui_path_weld_on_drag_joins_end_points`.
+the point lands exactly there and the overlay rings the target (`kWeldRingRadiusPx`). What the
+release does (`plan_path_weld`), with a second ring and a status hint while it is held (shown
+after the edit, whose undo label also reaches the status bar):
+
+- Two end points that `join_path_end_points` accepts (two open paths, or the ends of one with
+  three points or more) join into one point: "Release to join the end points".
+- The next or previous point of the same subpath (cyclic on a closed one, across its closing
+  segment too) merges with it, as Merge into One Point does for a segment: one point at the
+  snapped place, keeping the two outer handles, so a rectangle corner dropped on the next corner
+  leaves a triangle: "Release to merge the points".
+- Anything else only snaps and leaves two points at one place, since a path cannot branch; so do
+  the two points of a two-point line and the corners of a triangle, which would leave nothing to
+  fill: "Snapped to a point. Only end points or neighbouring points become one point."
+
+The join or merge happens inside the drag's own undo entry (`weld_dragged_path_point`). Alt held
+during the drag places the point freely (Alt at the press keeps its handle and subpath meanings).
+Shapes on other layers, Path Select drags and multi-point drags never snap.
+Tests: `ui_path_weld_on_drag_joins_end_points`, `ui_path_weld_on_drag_merges_neighbours`.
 
 ## Merge Shapes
 
@@ -170,6 +180,7 @@ Everyday shape and path tasks in the current build: how, steps, and the test tha
 | Cut a hole | Combine: Subtract, draw the hole (or pick a shape and choose Subtract); Merge Shapes bakes it | 2 to 3 | `path_merge_components_matches_the_live_combine` |
 | Merge two shape layers into one outline | Select both in Layers, Merge Shapes (Layer > Shape or Combine Shapes submenu) | 2 | `ui_path_merge_shapes_bakes_the_combine` |
 | Weld two open paths at a point | Direct Select drag an end onto the other end | 1 | `ui_path_weld_on_drag_joins_end_points` |
+| Merge two neighbouring points into one | Direct Select drag a point onto the next one (a rectangle corner: a triangle) | 1 | `ui_path_weld_on_drag_merges_neighbours` |
 | Fuse two shapes that touch | Merge Shapes (the shared edge goes) | 1 | `path_merge_components_matches_the_live_combine` |
 | Split a shape into two closed halves | Click a point, Shift+click another, Break, Join End Points | 4 | `ui_path_split_shape_with_break_and_join` |
 | Open a path or cut a segment out | Click the segment, Delete Segment (or right-click it) | 1 to 2 | `ui_path_point_commands_edit_menus_and_undo` |

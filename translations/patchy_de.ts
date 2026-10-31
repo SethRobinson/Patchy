@@ -16439,10 +16439,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Loslassen verbindet die Endpunkte. %ALT% gedrückt halten, um den Punkt frei zu setzen.</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>An einem Punkt ausgerichtet. %ALT% gedrückt halten, um den Punkt frei zu setzen.</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>Ziehen verschiebt den Punkt; einen Endpunkt auf einem anderen ablegen verbindet beide. Umschalt+Klick erweitert die Auswahl. Rechtsklick für Teilen, Verbinden und Zusammenführen.</translation>
     </message>
@@ -16453,6 +16449,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>Pinselfluss: %1% (Airbrush ist an; Umschalt+Ziffer legt die Deckkraft fest)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>Punkte zusammengeführt</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>Loslassen führt die Punkte zusammen. %ALT% gedrückt halten, um den Punkt frei zu setzen.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>An einem Punkt ausgerichtet. Nur Endpunkte oder benachbarte Punkte werden zu einem Punkt. %ALT% gedrückt halten, um den Punkt frei zu setzen.</translation>
     </message>
 </context>
 <context>
