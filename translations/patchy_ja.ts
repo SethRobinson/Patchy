@@ -14223,8 +14223,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>レイヤーは非表示です。クリックで表示します。%ALT%クリックでこのレイヤーだけを表示します。</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>一部のテキストレイヤーは、GIMP でテキストを入力した後に描き込まれていたため、ピクセルレイヤーとして開きました。「文字 &gt; GIMP のテキストを復元」で、描き込みのない編集可能なテキストに戻せます。</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>一部のテキストレイヤーは、GIMP でテキストを入力した後に描き込まれていたため、ピクセルレイヤーとして開きました。</translation>
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
@@ -28930,16 +28930,72 @@ Locked: %1</source>
         <translation>すべてのレイヤーを表示(&amp;O)</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>選択したレイヤーに復元できる GIMP のテキストはありません</translation>
+        <source>GIMP Text Layers</source>
+        <translation>GIMP のテキストレイヤー</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>GIMP のテキストを復元</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>GIMP が描いたとおりのピクセルレイヤーのままにするか、GIMP が保存したテキストから編集可能なテキストを作成します。変換すると、GIMP でテキストを編集したときと同じく描き込みは破棄されます。テキストレイヤーのコピーは各レイヤーの上に非表示で追加されるため、ファイルの見た目は GIMP で描いたままです。</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>GIMP のテキストを復元しました</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>ピクセルレイヤーのままにする</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>テキストレイヤーに変換</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>テキストレイヤーのコピーを追加</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>今後は確認しない</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (テキスト)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>GIMP のテキストのコピーを追加</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>GIMP のテキストを変換</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>GIMP で描き込まれたテキストレイヤーはピクセルのまま残し、その上に編集可能なテキストのコピーを非表示で追加しました。</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>GIMP で描き込まれたテキストレイヤーを編集可能なテキストにしました。描き込みは破棄されました。</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>ピクセルレイヤーのままにする</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>テキストレイヤーに変換</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>テキストレイヤーのコピーを追加</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>テキストを入力した後に描き込まれた GIMP のテキストレイヤーは、GIMP が描いたとおりに開きます。代わりに、GIMP が保存したテキストから編集可能なテキストを作成することもできます。変換するとレイヤーが置き換えられて描き込みは破棄され、コピーは各レイヤーの上に非表示で追加されます。</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>描き込まれた GIMP テキストを開くとき:</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>この GIMP ファイルで、テキストを入力した後に描き込まれたテキストレイヤー: %1</translation>
     </message>
 </context>
 <context>

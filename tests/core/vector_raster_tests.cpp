@@ -885,6 +885,88 @@ void stroke_dotted_pattern_draws_on_butt_caps() {
   }
 }
 
+void stroke_open_path_alignment_moves_band_sideways() {
+  // Issue 553: an open two-point Pen path has no area, so an Inside stroke
+  // clipped to its fill drew nothing. Photoshop moves the centered stroke half
+  // a width to the right of the path direction (y down) for Inside, to the
+  // left for Outside (a PS file with a dotted and a dashed 2-point line).
+  VectorPath path;
+  path.subpaths = {open_line(20, 40, 80, 40)};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 10.0;
+  const Rect clip{0, 0, 100, 100};
+  stroke.alignment = patchy::VectorStrokeAlignment::Center;
+  const auto center = stroke_coverage(path, stroke, clip);
+  CHECK(coverage_pixel(center, 50, 36) == 255);
+  CHECK(coverage_pixel(center, 50, 43) == 255);
+  CHECK(coverage_pixel(center, 50, 46) == 0);
+  stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+  const auto inside = stroke_coverage(path, stroke, clip);
+  CHECK(coverage_pixel(inside, 50, 40) == 255);
+  CHECK(coverage_pixel(inside, 50, 49) == 255);
+  CHECK(coverage_pixel(inside, 50, 39) == 0);
+  CHECK(coverage_pixel(inside, 50, 50) == 0);
+  CHECK(coverage_pixel(inside, 20, 45) == 255);  // butt ends stay at the anchors
+  CHECK(coverage_pixel(inside, 19, 45) == 0);
+  CHECK(coverage_pixel(inside, 80, 45) == 0);
+  stroke.alignment = patchy::VectorStrokeAlignment::Outside;
+  const auto outside = stroke_coverage(path, stroke, clip);
+  CHECK(coverage_pixel(outside, 50, 30) == 255);
+  CHECK(coverage_pixel(outside, 50, 39) == 255);
+  CHECK(coverage_pixel(outside, 50, 40) == 0);
+  CHECK(coverage_pixel(outside, 50, 29) == 0);
+  // Drawn the other way, the line keeps its side relative to its direction.
+  VectorPath reversed;
+  reversed.subpaths = {open_line(80, 40, 20, 40)};
+  stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+  const auto back = stroke_coverage(reversed, stroke, clip);
+  CHECK(coverage_pixel(back, 50, 35) == 255);
+  CHECK(coverage_pixel(back, 50, 45) == 0);
+
+  // Dashes and round-cap dots keep their size on the shifted line.
+  stroke.dashes = {4, 2};  // 40 px on, 20 px off
+  const auto dashed = stroke_coverage(path, stroke, clip);
+  CHECK(coverage_pixel(dashed, 21, 45) == 255);
+  CHECK(coverage_pixel(dashed, 58, 45) == 255);
+  CHECK(coverage_pixel(dashed, 61, 45) == 0);
+  CHECK(coverage_pixel(dashed, 30, 39) == 0);
+  stroke.dashes = {0, 2};  // dots every 20 px; none at the far end (60 px is a whole gap)
+  stroke.cap = patchy::VectorStrokeCap::Round;
+  const auto dotted = stroke_coverage(path, stroke, clip);
+  for (const int x : {20, 40, 60}) {
+    CHECK(coverage_pixel(dotted, x, 45) == 255);
+    CHECK(coverage_pixel(dotted, x, 41) == 255);
+    CHECK(coverage_pixel(dotted, x, 38) == 0);  // whole circles of the stroke width
+  }
+  CHECK(coverage_pixel(dotted, 50, 45) == 0);
+  CHECK(coverage_pixel(dotted, 30, 45) == 0);
+
+  // The reporter's Photoshop file: a 18.53 px {4,2} butt line from (44,117)
+  // to (316,296). Photoshop's first dash centers on (69.8,145.1), below the path.
+  VectorPath diagonal;
+  diagonal.subpaths = {open_line(44, 117, 316, 296)};
+  stroke.width = 18.53;
+  stroke.dashes = {4, 2};
+  stroke.cap = patchy::VectorStrokeCap::Butt;
+  const auto ps_dashed = stroke_coverage(diagonal, stroke, Rect{0, 0, 376, 412});
+  CHECK(coverage_pixel(ps_dashed, 69, 145) == 255);
+  CHECK(coverage_pixel(ps_dashed, 162, 206) == 255);
+  CHECK(coverage_pixel(ps_dashed, 77, 132) == 0);  // left of the path: a centered stroke's half
+  CHECK(coverage_pixel(ps_dashed, 116, 175) == 0);  // the first gap
+
+  // A closed contour beside an open one keeps the fill clip; the line still draws.
+  VectorPath mixed;
+  mixed.subpaths = {rect_subpath(10, 60, 40, 90, PathCombineOp::Add, 0), open_line(50, 70, 90, 70)};
+  stroke.width = 4.0;
+  stroke.dashes.clear();
+  const auto both = stroke_coverage(mixed, stroke, clip);
+  CHECK(coverage_pixel(both, 11, 75) == 255);
+  CHECK(coverage_pixel(both, 8, 75) == 0);
+  CHECK(coverage_pixel(both, 70, 71) == 255);
+  CHECK(coverage_pixel(both, 70, 69) == 0);
+}
+
 void stroke_aligned_round_dots_keep_circles_on_curves() {
   VectorPath path;
   path.subpaths = {circle_subpath(96, 96, 64)};
@@ -1651,6 +1733,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_zero_length_dots_keep_first_dot_and_tangent", stroke_zero_length_dots_keep_first_dot_and_tangent},
       {"stroke_aligned_round_dots_keep_circles_on_curves", stroke_aligned_round_dots_keep_circles_on_curves},
       {"stroke_dotted_pattern_draws_on_butt_caps", stroke_dotted_pattern_draws_on_butt_caps},
+      {"stroke_open_path_alignment_moves_band_sideways", stroke_open_path_alignment_moves_band_sideways},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
       {"stroke_bezier_circle_is_translation_stable", stroke_bezier_circle_is_translation_stable},
       {"stroke_miter_spike_stays_in_bounds", stroke_miter_spike_stays_in_bounds},

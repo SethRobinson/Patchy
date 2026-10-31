@@ -17,7 +17,10 @@ committed geometry as a path-accent outline (`shape_drag_preview_path`), never
 Pixels mode's brush-size paint (`ui_path_mode_drag_previews_path_outline_only`). Release creates a
 shape layer from live parameters (rect, rounded rect via Radius, ellipse,
 line with Weight) and the options-bar paints. Stroke alignment defaults to
-Inside, like PS. Combine (New Layer / Add / Subtract / Intersect / Exclude)
+Inside, like PS. An open subpath (a two-point Pen line) has no area to clip
+to, so `rasterize_vector_stroke` moves its centered stroke half a width to the
+right of the path's direction for Inside, to the left for Outside, as PS draws
+it (issue 553, measured on a PS file); closed subpaths keep the clip. Combine (New Layer / Add / Subtract / Intersect / Exclude)
 appends a group with that op to the active shape layer (Shift at the press: Add
 once; Ctrl: [Path Select](vector-commands.md#tool-roles)). Path mode appends
 to the work path; Pixels keeps the raster commit byte-identical.

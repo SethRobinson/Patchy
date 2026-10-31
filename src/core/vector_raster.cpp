@@ -655,6 +655,52 @@ double distance(const DPoint& a, const DPoint& b) noexcept {
   return std::sqrt(dx * dx + dy * dy);
 }
 
+// An open contour encloses no area to clip an inside/outside band to (a
+// two-point Pen line drew nothing, issue 553). Photoshop instead moves the
+// centered stroke half a width sideways: Inside to the right of the path's
+// direction on the y-down canvas, Outside to the left (measured on a PS file
+// with a dotted and a dashed 2-point line). `distance` > 0 moves right. Joins
+// meet at the offset lines' intersection; a turn sharper than that limit keeps
+// both segment ends instead, so a hairpin never throws a vertex far away.
+std::vector<DPoint> offset_open_polyline(const std::vector<DPoint>& input, double offset) {
+  std::vector<DPoint> points;
+  points.reserve(input.size());
+  for (const auto& point : input) {
+    if (points.empty() || point.x != points.back().x || point.y != points.back().y) {
+      points.push_back(point);
+    }
+  }
+  if (points.size() < 2) {
+    return input;  // no direction to offset along
+  }
+  std::vector<DPoint> normals;
+  normals.reserve(points.size() - 1);
+  for (std::size_t i = 0; i + 1 < points.size(); ++i) {
+    const double length = distance(points[i], points[i + 1]);
+    normals.push_back({-(points[i + 1].y - points[i].y) / length, (points[i + 1].x - points[i].x) / length});
+  }
+  std::vector<DPoint> result;
+  result.reserve(points.size() + 2);
+  result.push_back({points.front().x + normals.front().x * offset, points.front().y + normals.front().y * offset});
+  for (std::size_t i = 1; i + 1 < points.size(); ++i) {
+    const auto& before = normals[i - 1];
+    const auto& after = normals[i];
+    const DPoint sum{before.x + after.x, before.y + after.y};
+    const double sum_squared = sum.x * sum.x + sum.y * sum.y;
+    // |sum| = 2 cos(turn / 2); the intersection lies offset / cos(turn / 2) out.
+    constexpr double kMinSumSquared = 0.25;  // cos(turn / 2) >= 0.25: at most 4x out
+    if (sum_squared >= kMinSumSquared) {
+      const double scale = 2.0 * offset / sum_squared;
+      result.push_back({points[i].x + sum.x * scale, points[i].y + sum.y * scale});
+    } else {
+      result.push_back({points[i].x + before.x * offset, points[i].y + before.y * offset});
+      result.push_back({points[i].x + after.x * offset, points[i].y + after.y * offset});
+    }
+  }
+  result.push_back({points.back().x + normals.back().x * offset, points.back().y + normals.back().y * offset});
+  return result;
+}
+
 // Splits a polyline into dash runs. Dash entries are stroke-width multiples
 // (the vstk descriptor's unitless values); offset likewise.
 std::vector<StrokeRun> apply_dashes(const std::vector<DPoint>& points, bool closed,
@@ -1127,8 +1173,19 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   // half*2+2 guess did the latter). Every loop's interior lies inside its own
   // vertex hull, so the edge hull is exact.
   std::vector<Edge> edges;
+  // Off-center open contours: the centered band moved sideways, never clipped.
+  std::vector<Edge> open_edges;
   for (const auto& contour : combined_stroke_contours(path)) {
     if (contour.points.size() < 2) {
+      continue;
+    }
+    if (!centered && !contour.closed) {
+      const double side = stroke.alignment == VectorStrokeAlignment::Inside ? 1.0 : -1.0;
+      const auto shifted = offset_open_polyline(contour.points, side * stroke.width / 2.0);
+      for (const auto& run : apply_dashes(shifted, false, dashes_px, offset_px)) {
+        append_run_outline(run, stroke.width / 2.0, stroke.width / 2.0, stroke.cap, stroke.join,
+                           stroke.miter_limit, 0, 0, open_edges);
+      }
       continue;
     }
     const auto runs = apply_dashes(contour.points, contour.closed, dashes_px, offset_px);
@@ -1160,18 +1217,21 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
       }
     }
   }
-  if (edges.empty()) {
+  if (edges.empty() && open_edges.empty()) {
     return CoverageBuffer{};
   }
-  std::int32_t min_fx = edges.front().from.x;
+  const auto& seed_edge = edges.empty() ? open_edges.front() : edges.front();
+  std::int32_t min_fx = seed_edge.from.x;
   std::int32_t max_fx = min_fx;
-  std::int32_t min_fy = edges.front().from.y;
+  std::int32_t min_fy = seed_edge.from.y;
   std::int32_t max_fy = min_fy;
-  for (const auto& edge : edges) {
-    min_fx = std::min({min_fx, edge.from.x, edge.to.x});
-    max_fx = std::max({max_fx, edge.from.x, edge.to.x});
-    min_fy = std::min({min_fy, edge.from.y, edge.to.y});
-    max_fy = std::max({max_fy, edge.from.y, edge.to.y});
+  for (const auto* list : {&edges, &open_edges}) {
+    for (const auto& edge : *list) {
+      min_fx = std::min({min_fx, edge.from.x, edge.to.x});
+      max_fx = std::max({max_fx, edge.from.x, edge.to.x});
+      min_fy = std::min({min_fy, edge.from.y, edge.to.y});
+      max_fy = std::max({max_fy, edge.from.y, edge.to.y});
+    }
   }
   const auto fixed_floor_div = [](std::int32_t v) {
     return v >= 0 ? v / kSub : -((-v + kSub - 1) / kSub);
@@ -1185,18 +1245,22 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   }
   const std::int32_t shift_x = band_bounds.x * kSub;
   const std::int32_t shift_y = band_bounds.y * kSub;
-  for (auto& edge : edges) {
-    edge.from.x -= shift_x;
-    edge.from.y -= shift_y;
-    edge.to.x -= shift_x;
-    edge.to.y -= shift_y;
+  for (auto* list : {&edges, &open_edges}) {
+    for (auto& edge : *list) {
+      edge.from.x -= shift_x;
+      edge.from.y -= shift_y;
+      edge.to.x -= shift_x;
+      edge.to.y -= shift_y;
+    }
   }
   CoverageBuffer band;
   band.bounds = band_bounds;
   band.pixels = PixelBuffer(band_bounds.width, band_bounds.height, PixelFormat::gray8());
-  rasterize_edges(edges, band_bounds.width, band_bounds.height, WindingRule::NonZero, band.pixels);
+  if (!edges.empty()) {
+    rasterize_edges(edges, band_bounds.width, band_bounds.height, WindingRule::NonZero, band.pixels);
+  }
 
-  if (!centered) {
+  if (!centered && !edges.empty()) {
     VectorRasterOptions region_options;
     region_options.clip = options.clip;
     const auto region = rasterize_vector_path(path, region_options);
@@ -1209,6 +1273,25 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
         const auto region_coverage = coverage_at(region, band_bounds.x + x, band_bounds.y + y);
         const auto clip_value = inside ? region_coverage : 255 - region_coverage;
         row[x] = static_cast<std::uint8_t>((row[x] * clip_value + 127) / 255);
+      }
+    }
+  }
+  if (!open_edges.empty()) {
+    if (edges.empty()) {
+      rasterize_edges(open_edges, band_bounds.width, band_bounds.height, WindingRule::NonZero, band.pixels);
+    } else {
+      PixelBuffer open_band(band_bounds.width, band_bounds.height, PixelFormat::gray8());
+      rasterize_edges(open_edges, band_bounds.width, band_bounds.height, WindingRule::NonZero, open_band);
+      auto* bytes = band.pixels.data().data();
+      const auto* open_bytes = std::as_const(open_band).data().data();
+      const auto stride = band.pixels.stride_bytes();
+      const auto open_stride = open_band.stride_bytes();
+      for (std::int32_t y = 0; y < band_bounds.height; ++y) {
+        auto* row = bytes + static_cast<std::size_t>(y) * stride;
+        const auto* open_row = open_bytes + static_cast<std::size_t>(y) * open_stride;
+        for (std::int32_t x = 0; x < band_bounds.width; ++x) {
+          row[x] = std::max(row[x], open_row[x]);
+        }
       }
     }
   }

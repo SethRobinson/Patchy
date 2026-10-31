@@ -2379,6 +2379,7 @@ int MainWindow::open_folder_path(const QString& directory) {
       add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"),
                            SessionActivation::Background);
       (**sessions_.rbegin()).content_extension = loaded->content_extension;
+      offer_painted_gimp_text_conversion(**sessions_.rbegin(), loaded->import_notices);
       (**sessions_.rbegin()).import_notes = loaded->import_notices;
       start_open_watermark_check((*sessions_.rbegin())->session_id);
       if (loaded->cmyk_source && open_cmyk_source_in_proof_mode(**sessions_.rbegin())) {
@@ -3127,6 +3128,7 @@ void MainWindow::open_document_path(QString path) {
       add_document_session(std::move(loaded->document), first_title, session_path, tr("Open"));
     }
     session().content_extension = loaded->content_extension;
+    offer_painted_gimp_text_conversion(session(), loaded->import_notices);
     session().import_notes = loaded->import_notices;
     start_open_watermark_check(session().session_id);
     bool cmyk_proof_opened = false;
@@ -3481,6 +3483,8 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     refresh_palette_panel();
     schedule_palette_compliance_check();
     maybe_offer_indexed_palette_adoption();
+    offer_painted_gimp_text_conversion(target_session, loaded->import_notices);
+    target_session.import_notes = loaded->import_notices;
     update_undo_redo_actions();
     update_document_action_state();
     refresh_document_tab_titles();

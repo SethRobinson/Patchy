@@ -14223,8 +14223,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>图层已隐藏。单击可显示。%ALT%+单击仅显示此图层。</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>部分文字图层在 GIMP 中设置文字后又被绘制过，因此已作为像素图层打开。使用“文字 &gt; 恢复 GIMP 文字”可将其重新变为可编辑文字，绘制的内容会被丢弃。</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>部分文字图层在 GIMP 中设置文字后又被绘制过，因此已作为像素图层打开。</translation>
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
@@ -28930,16 +28930,72 @@ Locked: %1</source>
         <translation>显示所有图层(&amp;O)</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>所选图层中没有可恢复的 GIMP 文字</translation>
+        <source>GIMP Text Layers</source>
+        <translation>GIMP 文字图层</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>恢复 GIMP 文字</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>可以保留为像素图层（与 GIMP 绘制的一致），也可以用 GIMP 保存的文字创建可编辑文字。转换会丢弃绘制的内容，与在 GIMP 中编辑文字时相同。文字图层副本会以隐藏状态添加到各图层上方，文件看起来仍与 GIMP 绘制的一致。</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>已恢复 GIMP 文字</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>保留为像素图层</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>转换为文字图层</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>添加文字图层副本</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>不再询问</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (文字)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>添加 GIMP 文字副本</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>转换 GIMP 文字</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>在 GIMP 中被绘制过的文字图层保留了像素；已在其上方添加隐藏的可编辑文字副本。</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>在 GIMP 中被绘制过的文字图层已变为可编辑文字；绘制的内容已丢弃。</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>保留为像素图层</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>转换为文字图层</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>添加文字图层副本</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>在设置文字后又被绘制过的 GIMP 文字图层会按 GIMP 绘制的样子打开。Patchy 也可以改用 GIMP 保存的文字创建可编辑文字：转换会替换图层并丢弃绘制的内容，副本则以隐藏状态添加到各图层上方。</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>打开被绘制过的 GIMP 文字：</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>此 GIMP 文件中设置文字后又被绘制过的文字图层：%1</translation>
     </message>
 </context>
 <context>

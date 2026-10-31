@@ -14309,8 +14309,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Слой скрыт. Нажмите, чтобы показать. Щелчок с %ALT% показывает только этот слой.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>На некоторых текстовых слоях в GIMP рисовали после ввода текста, поэтому они открыты как пиксельные слои. Команда «Текст &gt; Восстановить текст GIMP» снова делает их редактируемым текстом, без нарисованного.</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>На некоторых текстовых слоях в GIMP рисовали после ввода текста, поэтому они открыты как пиксельные слои.</translation>
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
@@ -29094,16 +29094,72 @@ Locked: %1</source>
         <translation>П&amp;оказать все слои</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>Ни в одном выбранном слое нет текста GIMP для восстановления</translation>
+        <source>GIMP Text Layers</source>
+        <translation>Текстовые слои GIMP</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>Восстановить текст GIMP</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>Оставьте их пиксельными слоями, как их рисует GIMP, или создайте редактируемый текст из текста, сохранённого GIMP. При преобразовании нарисованное удаляется, как в GIMP при правке текста. Копии в виде текстовых слоёв добавляются скрытыми над каждым слоем, поэтому файл выглядит так, как его нарисовал GIMP.</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>Текст GIMP восстановлен</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>Оставить пиксельными слоями</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>Преобразовать в текстовые слои</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>Добавить копии текстовыми слоями</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>Больше не спрашивать</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (текст)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>Добавить копии текста GIMP</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>Преобразовать текст GIMP</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>Текстовые слои, на которых рисовали в GIMP, сохранили пиксели; над ними добавлены скрытые копии с редактируемым текстом.</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>Текстовые слои, на которых рисовали в GIMP, стали редактируемым текстом; нарисованное удалено.</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>Оставить пиксельными слоями</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>Преобразовать в текстовые слои</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>Добавить копии текстовыми слоями</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>Текстовые слои GIMP, на которых рисовали после ввода текста, открываются так, как их нарисовал GIMP. Вместо этого Patchy может создать редактируемый текст из текста, сохранённого GIMP: преобразование заменяет слой и удаляет нарисованное, а копии добавляются скрытыми над каждым слоем.</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>Открытие текста GIMP с рисованием:</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>Текстовые слои в этом файле GIMP, на которых рисовали после ввода текста: %1</translation>
     </message>
 </context>
 <context>

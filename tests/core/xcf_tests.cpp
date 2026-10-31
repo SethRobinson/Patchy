@@ -35,6 +35,7 @@
 #include "xcf_test_builder.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -1077,8 +1078,9 @@ void xcf_text_layers_open_as_editable_text_over_gimps_raster() {
 }
 
 // GitHub issue 551: a text layer GIMP marks as painted on opens as GIMP's pixels and keeps the
-// text it would have opened with, outline included, for Type > Restore GIMP Text; a move carries
-// the stored text box along, and taking the text puts the editable keys back.
+// text it would have opened with, outline included, for the open-time choice (docs/xcf.md); a
+// move carries the stored text box along, taking the text puts the editable keys back, and
+// clearing it drops the stored copy.
 void xcf_painted_text_layers_keep_gimps_text() {
   builder::Image image;
   image.width = 80;
@@ -1102,8 +1104,7 @@ void xcf_painted_text_layers_keep_gimps_text() {
   image.layers.push_back(unreadable);
   std::vector<std::string> notices;
   auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
-  CHECK(std::any_of(notices.begin(), notices.end(),
-                    [](const std::string& n) { return n.find("Restore GIMP Text") != std::string::npos; }));
+  CHECK(std::count(notices.begin(), notices.end(), std::string(patchy::xcf::painted_text_layers_notice())) == 1);
   const auto stored = [](const patchy::Layer& layer, const char* key) {
     return metadata_of(layer, (std::string(patchy::kLayerMetadataXcfStoredTextPrefix) + key).c_str());
   };
@@ -1141,10 +1142,17 @@ void xcf_painted_text_layers_keep_gimps_text() {
     return entry.first.starts_with(patchy::kLayerMetadataXcfStoredTextPrefix);
   }));
   CHECK(!patchy::take_stored_xcf_text(moved).has_value());
+
+  auto cleared = *painted_layer;
+  patchy::clear_stored_xcf_text(cleared);
+  CHECK(!patchy::layer_has_stored_xcf_text(cleared) && !patchy::layer_is_text(cleared));
+  CHECK(std::none_of(cleared.metadata().begin(), cleared.metadata().end(), [](const auto& entry) {
+    return entry.first.starts_with(patchy::kLayerMetadataXcfStoredTextPrefix);
+  }));
 }
 
 // philipzae's #551 file (local-test-fixtures/xcf-issue-547, the same file as #547's): its "Lock
-// all" text layer was painted on in GIMP and keeps GIMP's text.
+// all" text layer was painted on in GIMP, keeps GIMP's text, and taking it makes a text layer.
 void xcf_issue_551_painted_text_layer_keeps_its_text_if_available() {
   const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-547";
   patchy::test::skip_unless_exists(dir / "layer-switches.xcf");
@@ -1158,8 +1166,15 @@ void xcf_issue_551_painted_text_layer_keeps_its_text_if_available() {
   CHECK(!patchy::layer_is_text(*layer) && patchy::layer_has_stored_xcf_text(*layer));
   CHECK(!metadata_of(*layer, (std::string(patchy::kLayerMetadataXcfStoredTextPrefix) + patchy::kLayerMetadataText).c_str())
              .empty());
-  CHECK(std::any_of(notices.begin(), notices.end(),
-                    [](const std::string& n) { return n.find("Restore GIMP Text") != std::string::npos; }));
+  CHECK(std::count(notices.begin(), notices.end(), std::string(patchy::xcf::painted_text_layers_notice())) == 1);
+  auto converted = *layer;
+  const auto box = patchy::take_stored_xcf_text(converted);
+  CHECK(box.has_value() && (*box == layer->bounds()));
+  CHECK(patchy::layer_is_text(converted));
+  auto text = metadata_of(converted, patchy::kLayerMetadataText);
+  std::transform(text.begin(), text.end(), text.begin(),
+                 [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
+  CHECK(text.find("lock") != std::string::npos);
 }
 
 // The text parasites of philipzae's GIMP 3.2 samples (GitHub issues 508 and 509; fonthash,

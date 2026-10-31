@@ -14266,8 +14266,8 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Livello nascosto. Fai clic per mostrarlo. %ALT%+clic mostra solo questo livello.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>Alcuni livelli di testo sono stati dipinti in GIMP dopo averne impostato il testo, quindi sono stati aperti come livelli di pixel. Testo &gt; Ripristina testo GIMP li rende di nuovo testo modificabile, senza la pittura.</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>Alcuni livelli di testo sono stati dipinti in GIMP dopo averne impostato il testo, quindi sono stati aperti come livelli di pixel.</translation>
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
@@ -29012,16 +29012,72 @@ Bloccato: %1</translation>
         <translation>Mostra tutti i &amp;livelli</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>Nessun livello selezionato ha testo GIMP da ripristinare</translation>
+        <source>GIMP Text Layers</source>
+        <translation>Livelli di testo GIMP</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>Ripristina testo GIMP</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>Mantienili come livelli di pixel, come li disegna GIMP, oppure crea testo modificabile dal testo salvato da GIMP. La conversione elimina la pittura, come fa GIMP quando ne modifichi il testo. Le copie come livelli di testo vanno sopra ogni livello, nascoste, così il file resta come lo ha disegnato GIMP.</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>Testo GIMP ripristinato</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>Mantieni come livelli di pixel</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>Converti in livelli di testo</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>Aggiungi copie come livelli di testo</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>Non chiedere più</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (testo)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>Aggiungi copie del testo GIMP</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>Converti testo GIMP</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>I livelli di testo dipinti in GIMP hanno mantenuto i pixel; sopra sono state aggiunte copie di testo modificabile, nascoste.</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>I livelli di testo dipinti in GIMP sono diventati testo modificabile; la pittura è stata eliminata.</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>Mantieni come livelli di pixel</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>Converti in livelli di testo</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>Aggiungi copie come livelli di testo</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>I livelli di testo GIMP dipinti dopo averne impostato il testo si aprono come li ha disegnati GIMP. Patchy può invece creare testo modificabile dal testo salvato da GIMP: la conversione sostituisce il livello ed elimina la pittura, e le copie vanno sopra ogni livello, nascoste.</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>Apertura di testo GIMP dipinto:</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>Livelli di testo in questo file GIMP dipinti dopo averne impostato il testo: %1</translation>
     </message>
 </context>
 <context>

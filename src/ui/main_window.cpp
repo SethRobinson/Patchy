@@ -35,6 +35,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "filters/builtin_filters.hpp"
+#include "formats/xcf_document_io.hpp"
 #include "filters/filter_engine.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
@@ -42,6 +43,7 @@
 #include "ui/brush_tip_picker.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/localization.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
@@ -9482,63 +9484,141 @@ void MainWindow::render_pending_xcf_text_layers(Document& target) {
   process(process, target.layers());
 }
 
-void MainWindow::restore_gimp_text_of_layers(const std::vector<LayerId>& ids) {
-  finish_active_text_editor();
-  auto& doc = document();
-  struct PendingRestore {
-    LayerId id{};
-    Layer layer;
-    Rect before;
-  };
-  std::vector<PendingRestore> pending;
-  bool locked = false;
-  for (const auto id : ids) {
-    const auto* layer = std::as_const(doc).find_layer(id);
-    if (layer == nullptr || !layer_has_stored_xcf_text(*layer)) {
-      continue;
-    }
-    if (layer_id_locks_image_pixels(id)) {
-      locked = true;
-      continue;
-    }
-    // The text GIMP stored replaces the layer's pixels, paint included, as GIMP does when its
-    // text is edited; name, stacking, opacity, blend mode, mask and locks stay.
-    Layer restored = *layer;
-    const auto box = take_stored_xcf_text(restored);
-    if (!box.has_value()) {
-      continue;
-    }
-    QStringList outline;
-    if (const auto found = std::as_const(restored).metadata().find(kLayerMetadataXcfPendingOutline);
-        found != std::as_const(restored).metadata().end()) {
-      outline = QString::fromStdString(found->second).split(QLatin1Char(' '));
-      restored.metadata().erase(kLayerMetadataXcfPendingOutline);
-    }
-    restored.set_bounds(*box);
-    if (!draw_xcf_text_layer(restored, outline)) {
-      continue;
-    }
-    pending.push_back(PendingRestore{id, std::move(restored), layer_render_bounds(*layer)});
+namespace {
+
+// The text layer the text GIMP stored on a painted-on layer makes, in its place: the paint is
+// dropped, as GIMP does when its text is edited; name, opacity, blend mode, mask, locks and
+// everything else stay. nullopt when there is no stored text or it draws nothing.
+std::optional<Layer> text_layer_from_stored_gimp_text(Layer layer) {
+  const auto box = take_stored_xcf_text(layer);
+  if (!box.has_value()) {
+    return std::nullopt;
   }
-  if (pending.empty()) {
-    show_status_error(locked ? tr("Layer pixels are locked.") : tr("No selected layer has GIMP text to restore"));
+  QStringList outline;
+  if (const auto found = std::as_const(layer).metadata().find(kLayerMetadataXcfPendingOutline);
+      found != std::as_const(layer).metadata().end()) {
+    outline = QString::fromStdString(found->second).split(QLatin1Char(' '));
+    layer.metadata().erase(kLayerMetadataXcfPendingOutline);
+  }
+  layer.set_bounds(*box);
+  if (!draw_xcf_text_layer(layer, outline)) {
+    return std::nullopt;
+  }
+  return layer;
+}
+
+std::size_t count_stored_gimp_text_layers(const std::vector<Layer>& layers) {
+  std::size_t count = 0;
+  for (const auto& layer : layers) {
+    count += (layer_has_stored_xcf_text(layer) ? 1U : 0U) + count_stored_gimp_text_layers(layer.children());
+  }
+  return count;
+}
+
+// Replaces each painted-on GIMP text layer with its text, or (copies) adds the text as a
+// hidden, unlocked layer above it, named by `copy_name` ("%1" is the layer's name). Returns
+// how many layers got text.
+int make_text_from_stored_gimp_text(Document& document, std::vector<Layer>& layers, bool copies,
+                                    const QString& copy_name) {
+  int made = 0;
+  for (std::size_t index = 0; index < layers.size(); ++index) {
+    if (!layers[index].children().empty()) {
+      made += make_text_from_stored_gimp_text(document, layers[index].children(), copies, copy_name);
+    }
+    if (!layer_has_stored_xcf_text(std::as_const(layers[index]))) {
+      continue;
+    }
+    if (!copies) {
+      if (auto text = text_layer_from_stored_gimp_text(std::as_const(layers[index]))) {
+        layers[index] = std::move(*text);
+        ++made;
+      }
+      continue;
+    }
+    auto text = text_layer_from_stored_gimp_text(std::as_const(layers[index]).clone_with_id(document.allocate_layer_id()));
+    clear_stored_xcf_text(layers[index]);
+    if (!text.has_value()) {
+      continue;
+    }
+    text->set_name(copy_name.arg(QString::fromStdString(std::as_const(layers[index]).name())).toStdString());
+    text->set_visible(false);
+    text->set_lock_flags(kLayerLockNone);
+    // Vectors run bottom to top: above is the next index.
+    layers.insert(layers.begin() + static_cast<std::ptrdiff_t>(index) + 1, std::move(*text));
+    ++index;
+    ++made;
+  }
+  return made;
+}
+
+}  // namespace
+
+void MainWindow::offer_painted_gimp_text_conversion(DocumentSession& target, QStringList& notices) {
+  const auto count = count_stored_gimp_text_layers(std::as_const(target.document).layers());
+  if (count == 0) {
     return;
   }
-  push_undo_snapshot(tr("Restore GIMP Text"));
-  Rect affected;
-  for (auto& change : pending) {
-    auto* layer = doc.find_layer(change.id);
-    if (layer == nullptr) {
-      continue;
+  const auto key = QStringLiteral("imports/xcfPaintedTextLayers");
+  auto settings = app_settings();
+  auto policy = settings.value(key, QStringLiteral("ask")).toString();
+  if (policy != QStringLiteral("pixels") && policy != QStringLiteral("text") && policy != QStringLiteral("copies")) {
+    policy = QStringLiteral("pixels");
+    // Scripts, MCP, batch runs and tests never wait on a question: they keep GIMP's pixels.
+    if (!unattended_automation()) {
+      QMessageBox box(this);
+      box.setObjectName(QStringLiteral("xcfPaintedTextMessageBox"));
+      box.setIcon(QMessageBox::Question);
+      box.setWindowTitle(tr("GIMP Text Layers"));
+      box.setText(tr("Text layers in this GIMP file that were painted on after their text was set: %1")
+                      .arg(static_cast<qulonglong>(count)));
+      box.setInformativeText(
+          tr("Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. "
+             "Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each "
+             "layer, hidden, so the file still looks as GIMP drew it."));
+      auto* keep_button = box.addButton(tr("Keep as Pixel Layers"), QMessageBox::AcceptRole);
+      keep_button->setObjectName(QStringLiteral("xcfPaintedTextKeepButton"));
+      auto* convert_button = box.addButton(tr("Convert to Text Layers"), QMessageBox::ActionRole);
+      convert_button->setObjectName(QStringLiteral("xcfPaintedTextConvertButton"));
+      auto* copies_button = box.addButton(tr("Add Text-Layer Copies"), QMessageBox::ActionRole);
+      copies_button->setObjectName(QStringLiteral("xcfPaintedTextCopiesButton"));
+      box.setDefaultButton(keep_button);
+      box.setEscapeButton(keep_button);
+      auto* dont_ask = new QCheckBox(tr("Don't ask again"), &box);
+      dont_ask->setObjectName(QStringLiteral("xcfPaintedTextDontAskCheck"));
+      box.setCheckBox(dont_ask);
+      exec_dialog(box);
+      if (box.clickedButton() == convert_button) {
+        policy = QStringLiteral("text");
+      } else if (box.clickedButton() == copies_button) {
+        policy = QStringLiteral("copies");
+      }
+      if (dont_ask->isChecked()) {
+        settings.setValue(key, policy);
+      }
     }
-    affected = unite_rect(affected, change.before);
-    *layer = std::move(change.layer);
-    affected = unite_rect(affected, layer_render_bounds(*layer));
   }
-  refresh_layer_list();
-  refresh_layer_controls();
-  canvas_->document_changed(affected.empty() ? QRect() : to_qrect(affected));
-  statusBar()->showMessage(tr("Restored GIMP text"));
+  if (policy == QStringLiteral("pixels")) {
+    return;  // the reader's notice already says they opened as pixel layers
+  }
+  const bool copies = policy == QStringLiteral("copies");
+  auto layers = std::as_const(target.document).layers();
+  const int made = make_text_from_stored_gimp_text(target.document, layers, copies, tr("%1 (text)"));
+  if (made == 0) {
+    return;
+  }
+  push_undo_snapshot(target, copies ? tr("Add GIMP Text Copies") : tr("Convert GIMP Text"));
+  target.document.layers() = std::move(layers);
+  notices.removeAll(translate_data_text(xcf::painted_text_layers_notice()));
+  notices.push_back(copies ? tr("Text layers painted on in GIMP kept their pixels; editable text copies of them were "
+                                "added above them, hidden.")
+                           : tr("Text layers painted on in GIMP became editable text; their paint was dropped."));
+  if (target.canvas != nullptr) {
+    target.canvas->document_changed();
+  }
+  if (&target == active_session()) {
+    refresh_layer_list();
+    refresh_layer_controls();
+  }
 }
 
 void MainWindow::render_pending_pdf_text_layers(Document& target) {

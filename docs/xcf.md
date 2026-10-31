@@ -194,14 +194,19 @@ size and color follow the first run, since a span can restyle all of the text.
 - A layer GIMP marks as painted on (PROP_TEXT_LAYER_FLAGS bit 2) opens as GIMP's pixels
   (notice) and keeps the text it would have opened with (#551): every key the editable layer
   gets (outline included) under `patchy.xcf.stored_text.`, plus `patchy.xcf.stored_text_box`,
-  GIMP's layer rect, which a move carries along (`translate_moved_layer_metadata`). Type >
-  Restore GIMP Text (`type.restore_gimp_text`, also in the layer context menu over such a
-  layer) puts the keys back and draws the text from the box's top-left like the outline redraw,
-  dropping the paint as GIMP does on a text edit, in one undo step over every selected layer
-  (folders count through their contents); a pixel-locked layer is refused. There is no open-time
-  prompt or preference: opening stays dialog-free and shows GIMP's rendering. The stored text is
-  in memory only: no format writes it (a PSD has no Photoshop-safe place for it), so a saved and
-  reopened file has plain pixels.
+  GIMP's layer rect, which a move carries along (`translate_moved_layer_metadata`). Once the
+  file is a tab (Open, Reopen, files opened together), `offer_painted_gimp_text_conversion`
+  asks once per file (`xcfPaintedTextMessageBox`, with the layer count): Keep as Pixel Layers
+  (default), Convert to Text Layers (the keys go back and the text draws from the box's top-left
+  like the outline redraw, dropping the paint as GIMP does on a text edit; locks and the rest
+  stay), or Add Text-Layer Copies (a hidden, unlocked "<name> (text)" layer above each, so the
+  file still looks as GIMP drew it). Don't ask again saves the choice in
+  `imports/xcfPaintedTextLayers` (`ask`, `pixels`, `text`, `copies`; also a Preferences combo).
+  Converting or copying is one undo step that marks the document modified, and the reader's
+  notice gives way to one saying what was done. Unattended runs (scripts, MCP, batch, tests)
+  never ask: `ask` keeps the pixels, a saved choice applies. Files as Layers keeps the pixels.
+  The stored text is in memory only: no format writes it (a PSD has no Photoshop-safe place for
+  it), so a saved and reopened file has plain pixels.
   Patchy's redraw of an edited layer starts within a few pixels of GIMP's
   (`ui_xcf_text_layers_stay_editable`); its glyphs are Patchy's.
 

@@ -3837,15 +3837,6 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     rasterize_menu->addSeparator();
     rasterize_menu->addAction(layer_trace_image_action_);  // its own guards report non-pixel layers
   }
-  // Only over painted-on GIMP text layers (docs/xcf.md), whose stored text it restores.
-  if (type_restore_gimp_text_action_ != nullptr &&
-      std::any_of(rasterize_ids.begin(), rasterize_ids.end(), [this](LayerId id) {
-        const auto* layer = std::as_const(document()).find_layer(id);
-        return layer != nullptr && layer_has_stored_xcf_text(*layer);
-      })) {
-    type_restore_gimp_text_action_->setEnabled(!preview_dialog_edit_locked());
-    menu.addAction(type_restore_gimp_text_action_);
-  }
   {
     refresh_smart_object_action_states();
     auto* smart_objects_menu = menu.addMenu(tr("Smart Objects"));
@@ -4034,7 +4025,6 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (chosen == layer_blending_options_action_ || chosen == layer_copy_style_action_ ||
       chosen == layer_paste_style_action_ || chosen == layer_delete_style_action_ ||
       chosen == layer_rasterize_action_ || chosen == layer_rasterize_layer_style_action_ ||
-      chosen == type_restore_gimp_text_action_ ||
       chosen == layer_trace_image_action_ || chosen == layer_clipping_mask_action_ ||
       chosen == layer_quick_export_png_action_ || chosen == layer_export_as_action_) {
     return;
