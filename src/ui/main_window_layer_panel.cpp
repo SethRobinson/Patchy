@@ -3730,6 +3730,63 @@ void MainWindow::select_all_layers() {
   refresh_options_bar();
 }
 
+// Select > Layer Below / Layer Above (GitHub issue 541): Photoshop's Alt+[ and Alt+] walk the
+// panel's rows (a collapsed group is its one row) and stop at the ends. Without an active layer,
+// Layer Below takes the top row and Layer Above the bottom one. Extend (Alt+Shift) adds the row
+// past the selection's lowest or highest row and makes it active.
+void MainWindow::step_layer_selection(int direction, bool extend) {
+  if (!has_active_document() || layer_list_ == nullptr || direction == 0) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  finish_active_text_editor();
+  std::vector<LayerId> rows;
+  for (int row = 0; row < layer_list_->count(); ++row) {
+    if (const auto* item = layer_list_->item(row); item != nullptr) {
+      rows.push_back(static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()));
+    }
+  }
+  if (rows.empty()) {
+    return;
+  }
+  // Rows run top of the stack first, so a step down the stack is a step down the list.
+  const int step = direction < 0 ? 1 : -1;
+  const auto row_of = [&rows](LayerId id) {
+    const auto found = std::find(rows.begin(), rows.end(), id);
+    return found == rows.end() ? -1 : static_cast<int>(found - rows.begin());
+  };
+  const auto active = std::as_const(document()).active_layer_id();
+  const int active_row = active.has_value() ? row_of(*active) : -1;
+  auto selected = selected_layer_ids();
+  int from = active_row;
+  if (extend) {
+    for (const auto id : selected) {
+      const int row = row_of(id);
+      if (row >= 0 && (from < 0 || (step > 0 ? row > from : row < from))) {
+        from = row;
+      }
+    }
+  }
+  const int count = static_cast<int>(rows.size());
+  const int target = from < 0 ? (step > 0 ? 0 : count - 1) : from + step;
+  if (target < 0 || target >= count) {
+    return;
+  }
+  const auto target_id = rows[static_cast<std::size_t>(target)];
+  if (!extend || from < 0) {
+    select_layers_in_layer_list({target_id}, target_id);
+  } else {
+    if (std::find(selected.begin(), selected.end(), target_id) == selected.end()) {
+      selected.push_back(target_id);
+    }
+    select_layers_in_layer_list(selected, target_id);
+  }
+  refresh_options_bar();
+}
+
 void MainWindow::select_only_layer_if_none_active() {
   if (!has_active_document() || layer_list_ == nullptr || preview_dialog_edit_locked()) {
     return;
@@ -3997,6 +4054,69 @@ void MainWindow::set_all_layers_visible(bool visible) {
     refresh_layer_controls();
   }
   statusBar()->showMessage(visible ? tr("Showed all layers") : tr("Hid all layers"));
+}
+
+// Layer > Hide Layers / Show Layers (GitHub issue 546): hides the selected layers when any of
+// them shows, else shows them all. Outside history, like the eye (docs/layer-panel.md).
+void MainWindow::toggle_selected_layers_visibility() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    statusBar()->showMessage(tr("No layers selected"));
+    return;
+  }
+  const auto& doc = std::as_const(document());
+  const bool any_visible = std::any_of(ids.begin(), ids.end(), [&doc](LayerId id) {
+    const auto* layer = doc.find_layer(id);
+    return layer != nullptr && layer->visible();
+  });
+  const bool visible = !any_visible;
+  bool changed = false;
+  for (const auto id : ids) {
+    auto* layer = document().find_layer(id);
+    if (layer == nullptr || layer->visible() == visible) {
+      continue;
+    }
+    layer->set_visible(visible);
+    changed = true;
+    canvas_->layer_visibility_changed(id);
+  }
+  if (changed) {
+    // Not undoable, like an eye click, but a save writes it.
+    mark_session_modified(session());
+    // The rebuild keeps only the active row; a multi-selection stays selected so the next
+    // press acts on the same layers.
+    const auto active = doc.active_layer_id();
+    refresh_layer_list();
+    if (ids.size() > 1) {
+      select_layers_in_layer_list(ids, active.value_or(ids.front()));
+    }
+    refresh_layer_controls();
+  }
+  refresh_layer_visibility_action_text();
+  statusBar()->showMessage(visible ? tr("Layers shown") : tr("Layers hidden"));
+}
+
+void MainWindow::refresh_layer_visibility_action_text() {
+  if (layer_toggle_visibility_action_ == nullptr) {
+    return;
+  }
+  bool show = false;
+  if (has_active_document()) {
+    const auto ids = selected_or_active_layer_ids();
+    const auto& doc = std::as_const(document());
+    show = !ids.empty() && std::none_of(ids.begin(), ids.end(), [&doc](LayerId id) {
+      const auto* layer = doc.find_layer(id);
+      return layer != nullptr && layer->visible();
+    });
+  }
+  layer_toggle_visibility_action_->setText(show ? tr("S&how Layers") : tr("&Hide Layers"));
 }
 
 // Cheap in-place sync of every row's check state and eye button with the document, for
@@ -4795,6 +4915,7 @@ void MainWindow::refresh_layer_thumbnails() {
 void MainWindow::refresh_layer_controls() {
   const UiProfileScope profile_scope("refresh_layer_controls");
   refresh_merge_visible_action_state();
+  refresh_layer_visibility_action_text();
   sync_text_character_dialog_from_editor();
   sync_text_options_from_active_layer();
   sync_text_alignment_buttons_from_editor();

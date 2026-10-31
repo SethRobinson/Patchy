@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>Verrouiller les calques</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>Calques sélectionnés : %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>Édition</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Tout</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>Verrouiller ou déverrouiller les trois verrous d&apos;édition</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Pixels transparents</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>Peindre et remplir uniquement là où le calque a déjà des pixels</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>Pixels de l&apos;image</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>Empêcher de peindre ou de modifier les pixels du calque</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Position</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>Empêcher de déplacer ou de transformer le calque</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>Plans de travail</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Empêcher l&apos;imbrication auto</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>Empêcher le calque d&apos;entrer dans un plan de travail ou d&apos;en sortir quand on le fait glisser</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28828,6 +28887,46 @@ Verrouillé : %1</translation>
     <message>
         <source>Customize Layers Panel...</source>
         <translation>Personnaliser le panneau Calques...</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>Calque inférieur</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>Calque supérieur</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>Ajouter le calque inférieur à la sélection</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>Ajouter le calque supérieur à la sélection</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>&amp;Masquer les calques</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>&amp;Verrouiller les calques...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>Calques affichés</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>Calques masqués</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>A&amp;fficher les calques</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>Verrous des calques modifiés</translation>
     </message>
 </context>
 <context>

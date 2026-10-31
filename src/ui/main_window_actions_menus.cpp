@@ -735,6 +735,36 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(select_all_layers_action, "select.all_layers", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_A));
   connect(select_all_layers_action, &QAction::triggered, this, [this] { select_all_layers(); });
   register_document_action(select_all_layers_action);
+  // Layer Below / Layer Above (GitHub issue 541): Photoshop's Alt+[ and Alt+] (Option on macOS)
+  // step the layer selection down or up the panel's rows; Alt+Shift adds the next row instead
+  // (window-only, like the blend mode keys). Shift+[ is the main keyboard's { on US layouts:
+  // Qt matches that press as Shift+[ (brush.softer relies on the same).
+  QList<QAction*> select_layer_step_actions;
+  for (const auto& [object_name, text, hotkey_id, key, direction, extend] :
+       {std::tuple{"selectLayerBelowAction", QT_TR_NOOP("Layer Below"), "select.layer_below", Qt::Key_BracketLeft,
+                   -1, false},
+        std::tuple{"selectLayerAboveAction", QT_TR_NOOP("Layer Above"), "select.layer_above", Qt::Key_BracketRight,
+                   1, false},
+        std::tuple{"selectAddLayerBelowAction", QT_TR_NOOP("Add Layer Below to Selection"),
+                   "select.add_layer_below", Qt::Key_BracketLeft, -1, true},
+        std::tuple{"selectAddLayerAboveAction", QT_TR_NOOP("Add Layer Above to Selection"),
+                   "select.add_layer_above", Qt::Key_BracketRight, 1, true}}) {
+    auto* action = new QAction(tr(text), this);
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QLatin1String(hotkey_id),
+                    QKeySequence(extend ? (Qt::ALT | Qt::SHIFT | key) : (Qt::ALT | key)));
+    const int step = direction;
+    const bool add = extend;
+    connect(action, &QAction::triggered, this, [this, step, add] { step_layer_selection(step, add); });
+    register_document_action(action);
+    if (add) {
+      addAction(action);
+    } else {
+      select_layer_step_actions.append(action);
+    }
+  }
   // Select Subject / Select Background / Remove Background: automatic selection of the main
   // subject (main_window_ai_selection.cpp). Builds without the subject model leave them out:
   // wasm, a dev tree without scripts/setup-ai-deps, and every build while
@@ -967,6 +997,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   select_menu->addAction(inverse_selection_action);
   select_menu->addAction(select_all_layers_action);
   select_menu->addAction(deselect_layers_action);
+  select_menu->addActions(select_layer_step_actions);
   select_menu->addSeparator();
   select_menu->addAction(select_subject_action_);
   select_menu->addAction(select_background_action_);
@@ -1094,7 +1125,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* vector_mask_menu = layer_menu->addMenu(tr("&Vector Mask"));
   vector_mask_menu->setObjectName(QStringLiteral("layerVectorMaskMenu"));
   populate_vector_mask_menu(vector_mask_menu, QStringLiteral("layer"));
-  // (No separator between the mask and edit groups: the Layer menu's 23-row bound paid
+  // (No separator between the mask and edit groups: the Layer menu's 26-row bound paid
   // for the Rotate & Flip submenu with it.)
   auto* edit_adjustment_action = layer_menu->addAction(tr("&Edit Adjustment..."));
   layer_blending_options_action_ = layer_menu->addAction(tr("Edit Layer &Styles..."));
@@ -1197,7 +1228,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     action->setEnabled(false);
     layer_combine_actions_[i] = action;
   }
-  // (No separator before the duplicate and merge group: the Layer menu's 23-row bound paid
+  // (No separator before the duplicate and merge group: the Layer menu's 26-row bound paid
   // for Merge Visible with it.)
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer (Copy)"));
@@ -1228,13 +1259,33 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_color_menu_->menuAction()->setMenuRole(QAction::NoRole);
   populate_layer_color_actions(layer_color_menu_);
   connect(layer_color_menu_, &QMenu::aboutToShow, this, [this] { refresh_layer_color_action_states(); });
+  // Hide Layers / Show Layers (GitHub issue 546): the selected layers' eyes as one command; the
+  // text follows the selection. Ctrl+, on Windows and Linux; macOS keeps Cmd+, for Preferences.
+  layer_toggle_visibility_action_ = layer_menu->addAction(tr("&Hide Layers"));
+  layer_toggle_visibility_action_->setObjectName(QStringLiteral("layerToggleVisibilityAction"));
+  bind_action_text(layer_toggle_visibility_action_, QT_TR_NOOP("&Hide Layers"));
+  layer_toggle_visibility_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(layer_toggle_visibility_action_, "layer.toggle_visibility",
+                  platform_hotkeys({QKeySequence(Qt::CTRL | Qt::Key_Comma)}, {}));
+  connect(layer_toggle_visibility_action_, &QAction::triggered, this, [this] { toggle_selected_layers_visibility(); });
+  register_document_action(layer_toggle_visibility_action_);
+  connect(layer_menu, &QMenu::aboutToShow, this, [this] { refresh_layer_visibility_action_text(); });
+  // Lock Layers... (GitHub issue 544): every lock of the selection in one dialog, Ctrl+/ ("/"
+  // alone stays Lock Transparent Pixels).
+  auto* lock_layers_action = layer_menu->addAction(tr("&Lock Layers..."));
+  lock_layers_action->setObjectName(QStringLiteral("layerLockLayersAction"));
+  bind_action_text(lock_layers_action, QT_TR_NOOP("&Lock Layers..."));
+  lock_layers_action->setMenuRole(QAction::NoRole);
+  register_hotkey(lock_layers_action, "layer.lock_layers", QKeySequence(Qt::CTRL | Qt::Key_Slash));
+  connect(lock_layers_action, &QAction::triggered, this, [this] { show_layer_locks_dialog(); });
+  register_document_action(lock_layers_action);
   auto* delete_layer_action = layer_menu->addAction(tr("&Delete Layer"));
-  // (No separator before the fill group: the Layer menu's 23-row bound paid
+  // (No separator before the fill group: the Layer menu's 26-row bound paid
   // for the Shape submenu with it.)
   auto* fill_layer_action = layer_menu->addAction(tr("&Fill Layer / Selection"));
   auto* fill_background_action = layer_menu->addAction(tr("Fill With &Background Color"));
   auto* clear_layer_action = layer_menu->addAction(tr("&Clear Layer / Selection"));
-  // (No separator before Arrange: the Layer menu's 23-row bound paid for the
+  // (No separator before Arrange: the Layer menu's 26-row bound paid for the
   // Color submenu with it.)
   auto* layer_arrange_menu = layer_menu->addMenu(tr("Arran&ge"));
   layer_arrange_menu->setObjectName(QStringLiteral("layerArrangeMenu"));
@@ -1302,7 +1353,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_rotate_flip_menu->addSeparator();
   auto* flip_h_action = layer_rotate_flip_menu->addAction(tr("Flip Layer &Horizontal"));
   auto* flip_v_action = layer_rotate_flip_menu->addAction(tr("Flip Layer &Vertical"));
-  // Align / Distribute nest under Arrange: the Layer menu sits at its 23-row
+  // Align / Distribute nest under Arrange: the Layer menu sits at its 26-row
   // cap (ui_main_window_renders_color_controls). The Move tool's options-bar
   // buttons wrap these same QActions (docs/alignment.md).
   layer_arrange_menu->addSeparator();
@@ -1575,13 +1626,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
           [this] { duplicate_layer_to_document(); });
   addAction(duplicate_layer_to_document_action_);
   register_document_action(duplicate_layer_to_document_action_);
-  // Layer export (#462): in the layer context menus' Export submenu and on the window for
-  // hotkeys (the Layer menu's row count is pinned). No default keys.
+  // Layer export (#462): in the layer context menus' Export submenu and Layer > Export (#545),
+  // on Photoshop's Ctrl+Shift+' and Ctrl+Shift+Alt+' (Ctrl+' is View > Grid). Shift+' is the
+  // main keyboard's " on US layouts: Qt matches that press as Shift+' or as an unshifted ".
   layer_quick_export_png_action_ = new QAction(tr("Quick Export as PNG"), this);
   layer_quick_export_png_action_->setObjectName(QStringLiteral("layerQuickExportPngAction"));
   bind_action_text(layer_quick_export_png_action_, QT_TR_NOOP("Quick Export as PNG"));
   layer_quick_export_png_action_->setMenuRole(QAction::NoRole);
-  register_hotkey(layer_quick_export_png_action_, "layer.quick_export_png");
+  register_hotkey(layer_quick_export_png_action_, "layer.quick_export_png",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Apostrophe));
   connect(layer_quick_export_png_action_, &QAction::triggered, this, [this] { export_selected_layers(false); });
   addAction(layer_quick_export_png_action_);
   register_document_action(layer_quick_export_png_action_);
@@ -1589,10 +1642,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_export_as_action_->setObjectName(QStringLiteral("layerExportAsAction"));
   bind_action_text(layer_export_as_action_, QT_TR_NOOP("Export As..."));
   layer_export_as_action_->setMenuRole(QAction::NoRole);
-  register_hotkey(layer_export_as_action_, "layer.export_as");
+  register_hotkey(layer_export_as_action_, "layer.export_as",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::ALT | Qt::Key_Apostrophe));
   connect(layer_export_as_action_, &QAction::triggered, this, [this] { export_selected_layers(true); });
   addAction(layer_export_as_action_);
   register_document_action(layer_export_as_action_);
+  // The Layer menu's last row (after Rotate & Flip).
+  auto* layer_export_menu = layer_menu->addMenu(tr("E&xport"));
+  layer_export_menu->setObjectName(QStringLiteral("layerExportMenu"));
+  bind_action_text(layer_export_menu->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "E&xport"));
+  layer_export_menu->menuAction()->setMenuRole(QAction::NoRole);
+  layer_export_menu->addAction(layer_quick_export_png_action_);
+  layer_export_menu->addAction(layer_export_as_action_);
+  register_document_action(layer_export_menu->menuAction());
   // Prevent Auto-Nesting (GitHub issue 246): checkable, in the layer context menu's Lock
   // submenu beside the other locks and on the window for its hotkey. Locks have no
   // menu-bar entry (the Layer menu's row count is pinned).

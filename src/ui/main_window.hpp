@@ -2099,6 +2099,9 @@ private:
   void deselect_all_layers();
   // Select > All Layers (GitHub issue 479): every row of the Layers panel but the Background.
   void select_all_layers();
+  // Select > Layer Below / Layer Above (#541): direction -1 steps down the panel's rows, +1 up;
+  // extend adds the next row past the selection's edge.
+  void step_layer_selection(int direction, bool extend);
   // For a command that needs a layer: with no active layer, a one-layer
   // document's only layer becomes the selection instead of the command
   // refusing. Call it right before the command reads its target. See
@@ -2111,6 +2114,9 @@ private:
   // Show All Layers / Hide All Layers from the eye menu (#407): every layer at every depth,
   // outside history like an eye click.
   void set_all_layers_visible(bool visible);
+  // Layer > Hide Layers / Show Layers (#546) and the text that follows the selection.
+  void toggle_selected_layers_visibility();
+  void refresh_layer_visibility_action_text();
   void sync_layer_row_visibility_indicators();
   void show_layer_context_menu(QPoint position);
   // Layers panel thumbnail gestures (main_window_layer_thumbnails.cpp): a thumbnail part loaded as
@@ -2302,6 +2308,7 @@ private:
   void set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked);
   void set_active_layer_lock_flag(LayerLockFlags flag, bool locked);
   void set_active_layer_lock_all(bool locked);
+  void show_layer_locks_dialog();  // Layer > Lock Layers... (#544)
   void toggle_active_layer_clipping();
   void refresh_layer_clipping_action_state();
   void set_layer_mask_view_shown(bool shown);
@@ -2984,6 +2991,7 @@ private:
   // Lock Transparent Pixels (GitHub issue 529): "/" by default; on the window and in the layer
   // context menu's Lock submenu.
   QAction* layer_lock_transparent_pixels_action_{nullptr};
+  QAction* layer_toggle_visibility_action_{nullptr};
   // Layer > Merge Visible (refresh_merge_visible_action_state).
   QAction* layer_merge_visible_layers_action_{nullptr};
   // Merge Selected to New Layer (Copy): the layer context menu's Merge submenu and the window.

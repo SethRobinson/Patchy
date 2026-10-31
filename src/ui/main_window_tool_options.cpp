@@ -62,6 +62,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/layer_lock_dialog.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/shape_appearance_dialog.hpp"
 #include "ui/style_library.hpp"
@@ -1914,6 +1915,61 @@ void MainWindow::set_active_layer_lock_all(bool locked) {
   refresh_layer_list();
   refresh_layer_controls();
   statusBar()->showMessage(locked ? tr("Layer locked") : tr("Layer unlocked"));
+}
+
+// Layer > Lock Layers... (GitHub issue 544): every lock of the selected layers in one dialog,
+// applied as one undo step. A lock left partly checked keeps each layer's own state.
+void MainWindow::show_layer_locks_dialog() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  finish_active_text_editor();
+  const auto ids = selected_or_active_layer_ids();
+  std::vector<LayerLockFlags> flags;
+  flags.reserve(ids.size());
+  for (const auto id : ids) {
+    if (const auto* layer = std::as_const(document()).find_layer(id); layer != nullptr) {
+      flags.push_back(layer_lock_flags(*layer));
+    }
+  }
+  if (flags.empty()) {
+    statusBar()->showMessage(tr("No layers selected"));
+    return;
+  }
+  const auto initial = layer_lock_choices_for(flags);
+  const auto chosen = request_layer_locks(this, initial, static_cast<int>(flags.size()));
+  if (!chosen.has_value() || !has_active_document()) {
+    return;
+  }
+  // The dialog is modal, but a script or a closed document can still change the stack meanwhile.
+  auto& doc = document();
+  bool changes = false;
+  for (const auto id : ids) {
+    if (const auto* layer = std::as_const(doc).find_layer(id); layer != nullptr) {
+      const auto current = layer_lock_flags(*layer);
+      changes = changes || apply_layer_lock_choices(current, *chosen) != current;
+    }
+  }
+  if (!changes) {
+    return;
+  }
+  push_undo_snapshot(tr("Lock layer"));
+  for (const auto id : ids) {
+    if (auto* layer = doc.find_layer(id); layer != nullptr) {
+      set_layer_lock_flags(*layer, apply_layer_lock_choices(layer_lock_flags(*layer), *chosen));
+    }
+  }
+  const auto active = std::as_const(doc).active_layer_id();
+  refresh_layer_list();
+  if (ids.size() > 1) {
+    select_layers_in_layer_list(ids, active.value_or(ids.front()));
+  }
+  refresh_layer_controls();
+  statusBar()->showMessage(tr("Layer locks changed"));
 }
 
 void MainWindow::choose_primary_color() {

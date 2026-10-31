@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>Заблокировать слои</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>Выбрано слоёв: %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>Редактирование</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Все</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>Включить или выключить все три блокировки редактирования</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Прозрачные пиксели</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>Рисовать и заливать только там, где у слоя уже есть пиксели</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>Пиксели изображения</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>Защитить пиксели слоя от рисования и правки</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Позиция</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>Защитить слой от перемещения и трансформации</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>Монтажные области</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Запретить автовложение</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>Не давать слою входить в монтажную область или выходить из неё при перетаскивании</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28910,6 +28969,46 @@ Locked: %1</source>
     <message>
         <source>Customize Layers Panel...</source>
         <translation>Настройка панели «Слои»...</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>Слой ниже</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>Слой выше</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>Добавить слой ниже к выделению</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>Добавить слой выше к выделению</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>&amp;Скрыть слои</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>За&amp;блокировать слои...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>Слои показаны</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>Слои скрыты</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>&amp;Показать слои</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>Блокировки слоёв изменены</translation>
     </message>
 </context>
 <context>

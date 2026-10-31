@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>레이어 잠금</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>선택한 레이어: %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>편집</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>모두</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>세 가지 편집 잠금을 한꺼번에 잠그거나 해제</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>투명 픽셀</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>레이어에 이미 픽셀이 있는 곳에만 칠하고 채우기</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>이미지 픽셀</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>레이어 픽셀을 칠하기와 편집으로부터 보호</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>위치</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>레이어를 이동과 변형으로부터 보호</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>대지</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>자동 중첩 방지</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>드래그할 때 레이어가 대지 안으로 들어가거나 밖으로 나가지 않게 함</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28746,6 +28805,46 @@ Locked: %1</source>
     <message>
         <source>Customize Layers Panel...</source>
         <translation>레이어 패널 사용자 지정...</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>아래 레이어</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>위 레이어</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>아래 레이어를 선택에 추가</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>위 레이어를 선택에 추가</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>레이어 숨기기(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>레이어 잠금(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>레이어 표시됨</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>레이어 숨겨짐</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>레이어 표시(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>레이어 잠금 변경됨</translation>
     </message>
 </context>
 <context>

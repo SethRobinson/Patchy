@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>レイヤーをロック</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>選択中のレイヤー: %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>編集</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>すべて</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>3 つの編集ロックをまとめてロックまたは解除</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>透明ピクセル</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>レイヤーにピクセルがある場所にだけペイントと塗りつぶしを行う</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>画像ピクセル</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>レイヤーのピクセルをペイントや編集から保護</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>レイヤーを移動や変形から保護</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>アートボード</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>自動ネストを防止</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>ドラッグしたときにレイヤーがアートボードに入ったり出たりしないようにする</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merge Layers</source>
@@ -28746,6 +28805,46 @@ Locked: %1</source>
     <message>
         <source>Customize Layers Panel...</source>
         <translation>レイヤーパネルのカスタマイズ...</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>下のレイヤー</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>上のレイヤー</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>下のレイヤーを選択に追加</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>上のレイヤーを選択に追加</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>レイヤーを非表示(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>レイヤーをロック(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>レイヤーを表示しました</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>レイヤーを非表示にしました</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>レイヤーを表示(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>レイヤーのロックを変更しました</translation>
     </message>
 </context>
 <context>

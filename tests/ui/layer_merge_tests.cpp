@@ -1779,7 +1779,7 @@ Layer square_layer(Document& doc, const char* name, QRect rect, RgbColor color) 
 }
 
 // GitHub issue 294: Layer > Merge Visible sits right above Merge Down (the menu keeps its
-// 23-row bound), and the issue's before/after captures in both schemes.
+// 26-row bound), and the issue's before/after captures in both schemes.
 void ui_merge_visible_menu_placement_and_captures() {
   MainWindow window;
   show_window(window);
@@ -1790,7 +1790,7 @@ void ui_merge_visible_menu_placement_and_captures() {
   CHECK(merge_visible > 0);
   CHECK(actions.indexOf(require_action(window, "layerMergeVisibleAction")) == merge_visible - 1);
   CHECK(actions.indexOf(require_action(window, "layerMergeDownAction")) == merge_visible + 1);
-  CHECK(actions.size() <= 23);
+  CHECK(actions.size() <= 26);
 
   auto& doc = MainWindowTestAccess::document(window);
   doc = Document(240, 160, PixelFormat::rgb8());

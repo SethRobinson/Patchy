@@ -1469,6 +1469,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/mask_properties_dialog.cpp
       src/ui/fill_dialog.hpp
       src/ui/fill_dialog.cpp
+      src/ui/layer_lock_dialog.hpp
+      src/ui/layer_lock_dialog.cpp
       src/ui/measurement_units.hpp
       src/ui/measurement_units.cpp
       src/ui/unit_spin_box.hpp
@@ -2447,6 +2449,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/canvas_view_tools_tests.cpp
       tests/ui/layer_context_lifecycle_tests.cpp
       tests/ui/layer_export_tests.cpp
+      tests/ui/layer_menu_commands_tests.cpp
       tests/ui/brush_pattern_palette_tests.cpp
       tests/ui/brush_pattern_palette_tests_patterns_palette.cpp
       tests/ui/brush_pattern_palette_tests_brush_dynamics.cpp

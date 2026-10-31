@@ -1,8 +1,9 @@
 # Layer keyboard commands
 
 Keys that change the selected layers without opening a panel: opacity digits, the transparency
-lock, and blend modes. Their actions live on the main window (no menu-bar rows: the Layer menu's
-row count is pinned). Hotkey ids are permanent ([ui-conventions.md](ui-conventions.md), Hotkeys).
+lock, blend modes, selection stepping, visibility and the Lock Layers dialog. Most actions live on
+the main window only: the Layer menu's row count is pinned at 26 (`ui_main_window_renders_color_controls`).
+Hotkey ids are permanent ([ui-conventions.md](ui-conventions.md), Hotkeys).
 
 ## Opacity digits (#527)
 
@@ -50,3 +51,35 @@ layer already has the mode still brings the others along). A mode the target lac
 On macOS the inline text editor takes Option(+Shift)+letter as text (main_window.cpp
 ShortcutOverride), since those keys type characters there. Pin:
 `ui_blend_mode_shortcuts_set_the_layer_or_tool_mode`.
+
+## Layer Below / Layer Above (#541)
+
+Select > Layer Below (`select.layer_below`, Alt+[) and Layer Above (`select.layer_above`, Alt+])
+move the selection one row down or up the Layers panel (`MainWindow::step_layer_selection`), so
+a collapsed group is one row and the name filter's hidden rows are skipped. They stop at the
+ends. With no active layer, Layer Below takes the top row and Layer Above the bottom one.
+Window-only `select.add_layer_below` / `select.add_layer_above` (Alt+Shift+[ and ]) add the row
+past the selection's lowest or highest row and make it active. Option on macOS; there the inline
+text editor keeps Option+key as text (main_window.cpp ShortcutOverride). Pin:
+`ui_layer_select_below_above_steps_rows`.
+
+## Hide Layers / Show Layers (#546)
+
+`layerToggleVisibilityAction` (`layer.toggle_visibility`, Layer menu; Ctrl+, on Windows and
+Linux, no macOS default since Cmd+, is Preferences there) hides the selected layers when any of
+them shows, else shows them all (`toggle_selected_layers_visibility`). Like the eye it is
+outside history but marks the document modified. `refresh_layer_visibility_action_text` (from
+`refresh_layer_controls` and the Layer menu's aboutToShow) names it Hide Layers or Show Layers.
+Pin: `ui_layer_hide_show_layers_toggles_selection`.
+
+## Lock Layers dialog (#544)
+
+Layer > Lock Layers... (`layerLockLayersAction`, `layer.lock_layers`, Ctrl+/; "/" alone stays
+Lock Transparent Pixels) runs `request_layer_locks` (src/ui/layer_lock_dialog.cpp,
+`layerLocksDialog`): All above the indented Transparent Pixels, Image Pixels and Position, then
+Prevent Auto-Nesting. `layer_lock_choices_for` prefills each box from the selection; a lock
+only some layers have starts partly checked, and a click turns a box only on or off. Mixed boxes
+left alone keep each layer's own state (`apply_layer_lock_choices`). OK writes one "Lock layer"
+undo entry (none when nothing changes) and keeps a multi-selection selected
+(`MainWindow::show_layer_locks_dialog`). Pins: `ui_layer_lock_layers_dialog_applies_and_undoes`,
+`ui_layer_lock_choices_*`, and the dialog sweep.

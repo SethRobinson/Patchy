@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>Blocca livelli</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>Livelli selezionati: %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>Modifica</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Tutto</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>Attiva o disattiva tutti e tre i blocchi di modifica</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Pixel trasparenti</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>Dipingi e riempi solo dove il livello ha già dei pixel</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>Pixel immagine</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>Impedisci di dipingere o modificare i pixel del livello</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Posizione</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>Impedisci di spostare o trasformare il livello</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>Tavole da disegno</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Impedisci annidamento automatico</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>Impedisci al livello di entrare in una tavola da disegno o di uscirne quando viene trascinato</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28828,6 +28887,46 @@ Bloccato: %1</translation>
     <message>
         <source>Customize Layers Panel...</source>
         <translation>Personalizza pannello Livelli...</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>Livello sotto</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>Livello sopra</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>Aggiungi il livello sotto alla selezione</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>Aggiungi il livello sopra alla selezione</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>&amp;Nascondi livelli</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>&amp;Blocca livelli...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>Livelli mostrati</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>Livelli nascosti</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>Mos&amp;tra livelli</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>Blocchi dei livelli modificati</translation>
     </message>
 </context>
 <context>

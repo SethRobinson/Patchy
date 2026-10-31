@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>锁定图层</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>选中的图层：%1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>编辑</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>全部</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>锁定或解锁全部三种编辑锁定</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>透明像素</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>仅在图层已有像素的地方绘画和填充</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>图像像素</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>防止绘画或编辑图层像素</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>防止移动或变换图层</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>画板</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>防止自动嵌套</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>拖动时不让图层进入或离开画板</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28746,6 +28805,46 @@ Locked: %1</source>
     <message>
         <source>Customize Layers Panel...</source>
         <translation>自定义图层面板...</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>下方图层</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>上方图层</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>将下方图层添加到选择</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>将上方图层添加到选择</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>隐藏图层(&amp;H)</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>锁定图层(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>已显示图层</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>已隐藏图层</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>显示图层(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>已更改图层锁定</translation>
     </message>
 </context>
 <context>

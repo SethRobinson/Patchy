@@ -82,7 +82,7 @@ depth (`ScopedDocumentDepthRender`; [high-bit-depth.md](high-bit-depth.md)).
 
 **Merge Selected to New Layer (Copy)** (`layerMergeSelectedToNewAction`, hotkey id
 `layer.merge_selected_to_new`, Ctrl+Alt+E, Cmd+Option+E on macOS; #475) is Photoshop's
-Ctrl+Alt+E with layers selected. It has no Layer menu row (the menu is at its 23-row bound):
+Ctrl+Alt+E with layers selected. It has no Layer menu row (the menu is at its 26-row bound):
 it sits in the layer context menu's Merge submenu and on the window for the hotkey.
 `MainWindow::merge_selected_to_new_layer` renders `selected_document_for_merge_copy` (layer_merge.cpp)
 on a worker at the document depth, like the bitmap copy above, and inserts one full-canvas

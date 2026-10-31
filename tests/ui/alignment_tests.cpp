@@ -559,7 +559,7 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
   auto* align_menu = window.findChild<QMenu*>(QStringLiteral("layerAlignMenu"));
   auto* distribute_menu = window.findChild<QMenu*>(QStringLiteral("layerDistributeMenu"));
   CHECK(layer_menu != nullptr && arrange_menu != nullptr && align_menu != nullptr && distribute_menu != nullptr);
-  CHECK(layer_menu->actions().size() <= 23);
+  CHECK(layer_menu->actions().size() <= 26);
   CHECK(arrange_menu->actions().contains(align_menu->menuAction()));
   CHECK(arrange_menu->actions().contains(distribute_menu->menuAction()));
   const char* const align_names[] = {"layerAlignLeftAction",   "layerAlignHCenterAction", "layerAlignRightAction",
