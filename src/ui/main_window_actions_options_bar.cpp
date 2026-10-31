@@ -4178,7 +4178,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     vector_stroke_dash_combo_->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
   }
   vector_stroke_dash_combo_->addItem(QObject::tr("Custom"), -1);
-  vector_stroke_dash_combo_->setFixedWidth(ui_text_length(160));  // presets in full (#556 follow-up)
+  vector_stroke_dash_combo_->setFixedWidth(ui_text_length(140));  // presets in full; 160 cost the Line row its 100 px slack (#556 follow-up)
   widen_combo_popup_to_items(vector_stroke_dash_combo_);
   bind_tooltip(vector_stroke_dash_combo_,
                QT_TR_NOOP("Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners"));
