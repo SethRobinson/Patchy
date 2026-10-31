@@ -17388,10 +17388,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>&amp;Renommer le calque...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>&amp;Supprimer le calque</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>&amp;Remplir le calque / la sélection</translation>
     </message>
@@ -28939,6 +28935,18 @@ Verrouillé : %1</translation>
     <message>
         <source>Layer locks changed</source>
         <translation>Verrous des calques modifiés</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>S&amp;upprimer le calque</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>Rem&amp;plir</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>Fusi&amp;onner</translation>
     </message>
 </context>
 <context>

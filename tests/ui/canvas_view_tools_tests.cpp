@@ -7250,7 +7250,7 @@ void ui_fill_of_wand_selection_with_many_spans_is_fast() {
   CHECK(canvas->selection_alpha_at(QPoint(kWidth, kHeight - 3)) == 0U);
   CHECK(canvas->selection_alpha_at(QPoint(-1, 5)) == 0U);
 
-  // Layer > Fill (the background variant needs no dialog).
+  // Layer > Fill > Fill With Background Color (no dialog).
   canvas->set_secondary_color(QColor(0, 180, 210));
   auto* fill_background = window.findChild<QAction*>(QStringLiteral("layerFillBackgroundAction"));
   CHECK(fill_background != nullptr);

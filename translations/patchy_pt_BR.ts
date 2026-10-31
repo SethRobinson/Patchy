@@ -17520,10 +17520,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>&amp;Renomear camada...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>Excluir cama&amp;da</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>&amp;Preencher Camada/Seleção</translation>
     </message>
@@ -28939,6 +28935,18 @@ Bloqueado: %1</translation>
     <message>
         <source>Layer locks changed</source>
         <translation>Bloqueios de camada alterados</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>Exc&amp;luir camada</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>&amp;Preencher</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>Me&amp;sclar</translation>
     </message>
 </context>
 <context>

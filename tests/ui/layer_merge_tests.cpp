@@ -1778,19 +1778,20 @@ Layer square_layer(Document& doc, const char* name, QRect rect, RgbColor color) 
   return layer;
 }
 
-// GitHub issue 294: Layer > Merge Visible sits right above Merge Down (the menu keeps its
-// 26-row bound), and the issue's before/after captures in both schemes.
+// GitHub issue 294: Layer > Merge > Merge Visible sits right below Merge Down and above the
+// copying Merge Visible, and the issue's before/after captures in both schemes.
 void ui_merge_visible_menu_placement_and_captures() {
   MainWindow window;
   show_window(window);
   auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu"));
   CHECK(layer_menu != nullptr);
-  const auto actions = layer_menu->actions();
-  const auto merge_visible = actions.indexOf(require_action(window, "layerMergeVisibleLayersAction"));
-  CHECK(merge_visible > 0);
-  CHECK(actions.indexOf(require_action(window, "layerMergeVisibleAction")) == merge_visible - 1);
-  CHECK(actions.indexOf(require_action(window, "layerMergeDownAction")) == merge_visible + 1);
-  CHECK(actions.size() <= 26);
+  auto* merge_menu = window.findChild<QMenu*>(QStringLiteral("layerMergeMenu"));
+  CHECK(merge_menu != nullptr && layer_menu->actions().contains(merge_menu->menuAction()));
+  if (merge_menu != nullptr) {
+    CHECK((merge_menu->actions() == QList<QAction*>{require_action(window, "layerMergeDownAction"),
+                                                    require_action(window, "layerMergeVisibleLayersAction"),
+                                                    require_action(window, "layerMergeVisibleAction")}));
+  }
 
   auto& doc = MainWindowTestAccess::document(window);
   doc = Document(240, 160, PixelFormat::rgb8());

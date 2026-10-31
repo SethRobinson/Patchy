@@ -17388,10 +17388,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>&amp;Rinomina livello...</translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation>&amp;Elimina livello</translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation>&amp;Riempi livello / selezione</translation>
     </message>
@@ -28939,6 +28935,18 @@ Bloccato: %1</translation>
     <message>
         <source>Layer locks changed</source>
         <translation>Blocchi dei livelli modificati</translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation>Eli&amp;mina livello</translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation>Riemp&amp;i</translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
+        <translation>&amp;Unisci</translation>
     </message>
 </context>
 <context>

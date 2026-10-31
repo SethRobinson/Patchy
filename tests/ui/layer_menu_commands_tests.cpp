@@ -1,6 +1,7 @@
 // Layer selection stepping (#541), the Lock Layers dialog (#544), Layer > Export (#545) and
 // Hide / Show Layers (#546): commands and default keys philipzae asked for.
 #include "core/layer_metadata.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/layer_lock_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
@@ -14,6 +15,7 @@
 #include <QMenuBar>
 #include <QPushButton>
 #include <QStatusBar>
+#include <QTest>
 #include <QToolButton>
 #include <algorithm>
 #include <array>
@@ -352,7 +354,7 @@ void ui_layer_lock_layers_dialog_applies_and_undoes() {
 }
 
 // The new Layer menu rows (Hide Layers, Lock Layers..., the Export submenu last) within the
-// menu's 26-row bound, the export keys (#545), and the menu for review in both schemes.
+// menu's 21-row bound, the export keys (#545), and the menu for review in both schemes.
 void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   patchy::ui::MainWindow window;
   (void)add_stack(window, QStringLiteral("Layer Menu"));
@@ -363,7 +365,8 @@ void ui_layer_menu_hosts_export_lock_and_hide_entries() {
     return;
   }
   const auto actions = layer_menu->actions();
-  CHECK(actions.size() <= 26);
+  CHECK(std::count_if(actions.begin(), actions.end(), [](const QAction* action) { return !action->isSeparator(); }) <=
+        21);
   CHECK(actions.back() == export_menu->menuAction());
   CHECK(export_menu->menuAction()->menuRole() == QAction::NoRole);
   auto* quick = require_hotkey_action(window, QStringLiteral("layer.quick_export_png"));
@@ -407,6 +410,113 @@ void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   }
 }
 
+// The Layer menu's rows by object name ("-" for a separator, a submenu by its menu's name).
+QStringList layer_menu_rows(QMenu& menu) {
+  QStringList rows;
+  for (auto* action : menu.actions()) {
+    rows.append(action->isSeparator()    ? QStringLiteral("-")
+                : action->menu() != nullptr ? action->menu()->objectName()
+                                            : action->objectName());
+  }
+  return rows;
+}
+
+// The reorganized Layer menu (Seth, October 31, 2026): five groups, with the fill and merge
+// commands in Fill and Merge submenus that keep their shortcuts, which still fire from there.
+void ui_layer_menu_groups_fill_and_merge_submenus() {
+  patchy::ui::MainWindow window;
+  const auto ids = add_stack(window, QStringLiteral("Layer Groups"));
+  auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu"));
+  auto* fill_menu = window.findChild<QMenu*>(QStringLiteral("layerFillMenu"));
+  auto* merge_menu = window.findChild<QMenu*>(QStringLiteral("layerMergeMenu"));
+  CHECK(layer_menu != nullptr && fill_menu != nullptr && merge_menu != nullptr);
+  if (layer_menu == nullptr || fill_menu == nullptr || merge_menu == nullptr) {
+    return;
+  }
+  CHECK((layer_menu_rows(*layer_menu) ==
+         QStringList{"layerNewMenu", "layerNewAdjustmentMenu", "layerNewFillMenu", "-", "layerDuplicateAction",
+                     "layerDeleteAction", "layerRenameAction", "layerColorMenu", "layerToggleVisibilityAction",
+                     "layerLockLayersAction", "-", "layerMaskMenu", "layerClippingMaskAction", "layerVectorMaskMenu",
+                     "layerEditAdjustmentAction", "layerBlendingOptionsAction", "layerSmartObjectsMenu",
+                     "layerShapeMenu", "-", "layerFillMenu", "layerArrangeMenu", "layerRotateFlipMenu",
+                     "layerMergeMenu", "-", "layerExportMenu"}));
+  // Accelerators stay unique on each level.
+  for (auto* menu : {layer_menu, fill_menu, merge_menu}) {
+    QStringList keys;
+    for (auto* action : menu->actions()) {
+      const auto text = action->text();
+      const auto amp = text.indexOf(QLatin1Char('&'));
+      if (amp >= 0 && amp + 1 < text.size()) {
+        const auto key = text.mid(amp + 1, 1).toLower();
+        CHECK(!keys.contains(key));
+        keys.append(key);
+      }
+    }
+  }
+  struct Entry {
+    const char* name;
+    QKeySequence keys;
+  };
+  const auto check_entries = [&window](QMenu& menu, std::initializer_list<Entry> entries) {
+    CHECK(menu.menuAction()->menuRole() == QAction::NoRole);
+    QList<QAction*> expected;
+    for (const auto& entry : entries) {
+      auto* action = require_action(window, entry.name);
+      expected.append(action);
+      CHECK(action->shortcut() == entry.keys);
+      CHECK(action->menuRole() == QAction::NoRole);
+    }
+    CHECK(menu.actions() == expected);
+  };
+  check_entries(*fill_menu, {{"layerFillForegroundAction", QKeySequence(Qt::ALT | Qt::Key_Backspace)},
+                             {"layerFillBackgroundAction", QKeySequence(Qt::CTRL | Qt::Key_Backspace)},
+                             {"layerClearAction", QKeySequence(Qt::Key_Delete)}});
+  check_entries(*merge_menu, {{"layerMergeDownAction", QKeySequence(Qt::CTRL | Qt::Key_E)},
+                              {"layerMergeVisibleLayersAction", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E)},
+                              {"layerMergeVisibleAction", QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_E)}});
+  CHECK(require_action(window, "layerDeleteAction")->text() == QStringLiteral("Delete La&yer"));
+
+  // Opening the Merge submenu refreshes Merge Visible's state on its own.
+  auto* merge_visible = require_action(window, "layerMergeVisibleLayersAction");
+  merge_visible->setEnabled(false);
+  merge_menu->popup(window.mapToGlobal(QPoint(200, 60)));
+  QApplication::processEvents();
+  CHECK(merge_visible->isEnabled());
+  merge_menu->hide();
+  QApplication::processEvents();
+
+  // The keys still reach the commands inside the submenus.
+  auto* canvas = require_canvas(window);
+  const auto top_level_count = [&window] { return std::as_const(Access::document(window)).layers().size(); };
+  Access::select_layers(window, {ids.middle}, ids.middle);
+  QApplication::processEvents();
+  canvas->setFocus();
+  const auto depth = Access::active_session_undo_depth(window);
+  QTest::keyClick(canvas, Qt::Key_Backspace, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  const auto layers_before = top_level_count();
+  QTest::keyClick(canvas, Qt::Key_E, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(top_level_count() == layers_before - 1);
+
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Dark ? "_dark" : "_light";
+    layer_menu->popup(window.mapToGlobal(QPoint(120, 40)));
+    QApplication::processEvents();
+    save_widget_artifact("layer_menu_reorg_layer_menu" + suffix, *layer_menu);
+    for (auto* submenu : {fill_menu, merge_menu}) {
+      submenu->popup(window.mapToGlobal(QPoint(420, 300)));
+      QApplication::processEvents();
+      save_widget_artifact("layer_menu_reorg_" + submenu->objectName().toStdString() + suffix, *submenu);
+      submenu->hide();
+    }
+    layer_menu->hide();
+    QApplication::processEvents();
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
@@ -416,5 +526,6 @@ std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
       {"ui_layer_lock_choices_follow_the_selection", ui_layer_lock_choices_follow_the_selection},
       {"ui_layer_lock_layers_dialog_applies_and_undoes", ui_layer_lock_layers_dialog_applies_and_undoes},
       {"ui_layer_menu_hosts_export_lock_and_hide_entries", ui_layer_menu_hosts_export_lock_and_hide_entries},
+      {"ui_layer_menu_groups_fill_and_merge_submenus", ui_layer_menu_groups_fill_and_merge_submenus},
   };
 }

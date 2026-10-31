@@ -202,7 +202,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.merge_visible_action, QT_TR_NOOP("Merge &Visible to New Layer (Copy)")},
       {ctx.merge_down_action, QT_TR_NOOP("Merge &Down")},
       {ctx.rename_layer_action, QT_TR_NOOP("&Rename Layer...")},
-      {ctx.delete_layer_action, QT_TR_NOOP("&Delete Layer")},
+      {ctx.delete_layer_action, QT_TR_NOOP("Delete La&yer")},
       {ctx.fill_layer_action, QT_TR_NOOP("&Fill Layer / Selection")},
       {ctx.fill_background_action, QT_TR_NOOP("Fill With &Background Color")},
       {ctx.clear_layer_action, QT_TR_NOOP("&Clear Layer / Selection")},

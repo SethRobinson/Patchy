@@ -741,7 +741,7 @@ void ui_blocking_refusal_shows_error_status_and_info_clears_it() {
 // 182). Their tints come from icon_success and icon_danger at paint time, so the
 // same buttons have to recolor on a live scheme switch and read on the options
 // bar in both schemes. Cancel is a round "stop" sign of its own: the square
-// "clear" glyph it used to borrow is also Layer > Clear, which erases pixels.
+// "clear" glyph it used to borrow is also Layer > Fill > Clear Layer / Selection, which erases pixels.
 void ui_session_commit_cancel_icons_read_in_both_schemes() {
   ColorSchemeRestorer restore_active;
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);

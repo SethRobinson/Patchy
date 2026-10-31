@@ -1,6 +1,6 @@
 # Merge Layers
 
-`layer.merge_down` (Ctrl+E, Layer > Merge Down and the layer context menu) merges
+`layer.merge_down` (Ctrl+E, Layer > Merge > Merge Down and the layer context menu) merges
 selected layers, or the active layer with its lower sibling. A selected group
 includes its contents. Ancestor selections include descendants only once.
 A hidden folder that holds the whole merge (`layer_shared_ancestor_groups`) does
@@ -82,7 +82,7 @@ depth (`ScopedDocumentDepthRender`; [high-bit-depth.md](high-bit-depth.md)).
 
 **Merge Selected to New Layer (Copy)** (`layerMergeSelectedToNewAction`, hotkey id
 `layer.merge_selected_to_new`, Ctrl+Alt+E, Cmd+Option+E on macOS; #475) is Photoshop's
-Ctrl+Alt+E with layers selected. It has no Layer menu row (the menu is at its 26-row bound):
+Ctrl+Alt+E with layers selected. It has no Layer menu row (the menu keeps its 21-row bound):
 it sits in the layer context menu's Merge submenu and on the window for the hotkey.
 `MainWindow::merge_selected_to_new_layer` renders `selected_document_for_merge_copy` (layer_merge.cpp)
 on a worker at the document depth, like the bitmap copy above, and inserts one full-canvas
@@ -102,7 +102,7 @@ Test: `ui_merge_selected_to_new_layer_keeps_originals_and_undoes`.
 
 ## Merge Visible
 
-**Layer > Merge Visible** (`layerMergeVisibleLayersAction`, hotkey id
+**Layer > Merge > Merge Visible** (`layerMergeVisibleLayersAction`, hotkey id
 `layer.merge_visible_in_place`, Ctrl+Shift+E; #294) is Photoshop's Merge Visible, in place:
 `MainWindow::merge_visible_layers` renders the document composite on a worker at the document
 depth (the copy command's `qimage_from_document` path, no second compositor) and puts it in one
@@ -113,7 +113,7 @@ Objects, adjustments, masks and styles rasterize, as in Photoshop. The planning 
 - A layer *draws* when it and its ancestors are visible and it is not clipped to a hidden base.
   `merge_visible_layer_count` counts the non-group layers that draw. `merge_visible_available`
   enables the action (`refresh_merge_visible_action_state`, on every layer refresh, document
-  change and Layer menu show) for two or more, or for one that the merge changes (#519): a
+  change and Layer or Merge menu show) for two or more, or for one that the merge changes (#519): a
   mask, vector mask, style, Smart Filters, clipping, Blend If or channel restriction, a
   non-pixel or procedural layer (text, shape, Smart Object, adjustment), a blend mode other
   than Normal, opacity or Fill under 100%, or a visible group around it (it dissolves). One

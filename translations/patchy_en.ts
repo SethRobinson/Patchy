@@ -17371,10 +17371,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&amp;Delete Layer</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Fill Layer / Selection</source>
         <translation type="unfinished"></translation>
     </message>
@@ -28857,6 +28853,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>Layer locks changed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete La&amp;yer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Merge</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
