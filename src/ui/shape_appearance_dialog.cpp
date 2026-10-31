@@ -405,13 +405,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     form->addRow(label, row);
     return row;
   };
-  // A gradient's Style, Angle, Scale and Reverse rows form a nested block
-  // under its Gradient row (GitHub #552 follow-up): the block is the field of a
-  // label-less row, so its labels start in the outer field column and its
-  // fields in a column of their own further right, on every style (macOS
-  // right-aligns form labels, which keeps the block nested too). The block
-  // shows and hides as one row.
-  const auto add_gradient_block = [](QFormLayout* outer, QWidget* parent, const char* name) {
+  // A paint's own settings form a nested block under its picker row (GitHub
+  // #552 follow-up): a gradient's Style, Angle, Scale and Reverse under
+  // Gradient, a pattern's Scale, Angle, Offset X/Y and Align with layer under
+  // Pattern. The block is the field of a label-less row, so its labels start in
+  // the outer field column and its fields in a column of their own further
+  // right, on every style (macOS right-aligns form labels, which keeps the
+  // block nested too). The block shows and hides as one row.
+  const auto add_paint_block = [](QFormLayout* outer, QWidget* parent, const char* name) {
     auto* block = new QWidget(parent);
     block->setObjectName(QLatin1String(name));
     auto* inner = new QFormLayout(block);
@@ -829,7 +830,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
                                static_cast<int>(LayerStyleGradientType::Reflected));
   gradient_type_combo->addItem(QObject::tr("Diamond"),
                                static_cast<int>(LayerStyleGradientType::Diamond));
-  const auto fill_gradient = add_gradient_block(fill_form, fill_group, "shapeFillGradientBlock");
+  const auto fill_gradient = add_paint_block(fill_form, fill_group, "shapeFillGradientBlock");
   QWidget* const fill_gradient_block = fill_gradient.first;
   QFormLayout* const fill_gradient_form = fill_gradient.second;
   fill_gradient_form->addRow(QObject::tr("Style:"), gradient_type_combo);
@@ -855,13 +856,16 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   fill_pattern_combo->setObjectName(QStringLiteral("shapeFillPatternCombo"));
   populate_pattern_combo(fill_pattern_combo);
   fill_form->addRow(QObject::tr("Pattern:"), fill_pattern_combo);
+  const auto fill_pattern = add_paint_block(fill_form, fill_group, "shapeFillPatternBlock");
+  QWidget* const fill_pattern_block = fill_pattern.first;
+  QFormLayout* const fill_pattern_form = fill_pattern.second;
 
   auto* pattern_scale_spin = new QSpinBox(fill_group);
   pattern_scale_spin->setObjectName(QStringLiteral("shapePatternScaleSpin"));
   pattern_scale_spin->setRange(1, 1000);
   pattern_scale_spin->setSuffix(percent_suffix());
   configure_dialog_spinbox(pattern_scale_spin, 72);
-  add_spin_row(fill_form, QObject::tr("Scale:"), pattern_scale_spin);
+  add_spin_row(fill_pattern_form, QObject::tr("Scale:"), pattern_scale_spin);
 
   // Pattern placement (PtFl Angl / phase / Algn; rendered by the shared
   // PatternTileSampler and round-tripped through the PSD writer).
@@ -870,7 +874,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   pattern_angle_spin->setRange(-180.0, 180.0);
   pattern_angle_spin->setDecimals(1);
   configure_dialog_spinbox(pattern_angle_spin, 72);
-  add_spin_row(fill_form, QObject::tr("Angle:"), pattern_angle_spin);
+  add_spin_row(fill_pattern_form, QObject::tr("Angle:"), pattern_angle_spin);
 
   auto* pattern_offset_x_spin = new UnitSpinBox(SpinUnit::Pixels, fill_group);
   pattern_offset_x_spin->setObjectName(QStringLiteral("shapePatternOffsetXSpin"));
@@ -878,7 +882,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   pattern_offset_x_spin->setRange(-30000.0, 30000.0);
   pattern_offset_x_spin->setDecimals(1);
   configure_dialog_spinbox(pattern_offset_x_spin, 80);
-  add_spin_row(fill_form, QObject::tr("Offset X:"), pattern_offset_x_spin);
+  add_spin_row(fill_pattern_form, QObject::tr("Offset X:"), pattern_offset_x_spin);
 
   auto* pattern_offset_y_spin = new UnitSpinBox(SpinUnit::Pixels, fill_group);
   pattern_offset_y_spin->setObjectName(QStringLiteral("shapePatternOffsetYSpin"));
@@ -886,14 +890,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   pattern_offset_y_spin->setRange(-30000.0, 30000.0);
   pattern_offset_y_spin->setDecimals(1);
   configure_dialog_spinbox(pattern_offset_y_spin, 80);
-  add_spin_row(fill_form, QObject::tr("Offset Y:"), pattern_offset_y_spin);
+  add_spin_row(fill_pattern_form, QObject::tr("Offset Y:"), pattern_offset_y_spin);
 
   auto* pattern_align_check = new QCheckBox(QObject::tr("Align with layer"), fill_group);
   pattern_align_check->setObjectName(QStringLiteral("shapePatternAlignCheck"));
   pattern_align_check->setToolTip(
       QObject::tr("Anchor the tile grid to the layer's position; unchecked anchors it to the "
                   "document origin"));
-  fill_form->addRow(QString(), pattern_align_check);
+  fill_pattern_form->addRow(QString(), pattern_align_check);
 
   right_column->addWidget(fill_group);
 
@@ -1007,7 +1011,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
                                       static_cast<int>(LayerStyleGradientType::Reflected));
   stroke_gradient_type_combo->addItem(QObject::tr("Diamond"),
                                       static_cast<int>(LayerStyleGradientType::Diamond));
-  const auto stroke_gradient = add_gradient_block(stroke_form, stroke_group, "shapeStrokeGradientBlock");
+  const auto stroke_gradient = add_paint_block(stroke_form, stroke_group, "shapeStrokeGradientBlock");
   QWidget* const stroke_gradient_block = stroke_gradient.first;
   QFormLayout* const stroke_gradient_form = stroke_gradient.second;
   stroke_gradient_form->addRow(QObject::tr("Style:"), stroke_gradient_type_combo);
@@ -1034,20 +1038,23 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_pattern_combo->setObjectName(QStringLiteral("shapeStrokePatternCombo"));
   populate_pattern_combo(stroke_pattern_combo);
   stroke_form->addRow(QObject::tr("Pattern:"), stroke_pattern_combo);
+  const auto stroke_pattern = add_paint_block(stroke_form, stroke_group, "shapeStrokePatternBlock");
+  QWidget* const stroke_pattern_block = stroke_pattern.first;
+  QFormLayout* const stroke_pattern_form = stroke_pattern.second;
 
   auto* stroke_pattern_scale_spin = new QSpinBox(stroke_group);
   stroke_pattern_scale_spin->setObjectName(QStringLiteral("shapeStrokePatternScaleSpin"));
   stroke_pattern_scale_spin->setRange(1, 1000);
   stroke_pattern_scale_spin->setSuffix(percent_suffix());
   configure_dialog_spinbox(stroke_pattern_scale_spin, 72);
-  add_spin_row(stroke_form, QObject::tr("Scale:"), stroke_pattern_scale_spin);
+  add_spin_row(stroke_pattern_form, QObject::tr("Scale:"), stroke_pattern_scale_spin);
 
   auto* stroke_pattern_angle_spin = new UnitSpinBox(SpinUnit::Degrees, stroke_group);
   stroke_pattern_angle_spin->setObjectName(QStringLiteral("shapeStrokePatternAngleSpin"));
   stroke_pattern_angle_spin->setRange(-180.0, 180.0);
   stroke_pattern_angle_spin->setDecimals(1);
   configure_dialog_spinbox(stroke_pattern_angle_spin, 72);
-  add_spin_row(stroke_form, QObject::tr("Angle:"), stroke_pattern_angle_spin);
+  add_spin_row(stroke_pattern_form, QObject::tr("Angle:"), stroke_pattern_angle_spin);
 
   auto* stroke_pattern_offset_x_spin = new UnitSpinBox(SpinUnit::Pixels, stroke_group);
   stroke_pattern_offset_x_spin->setObjectName(QStringLiteral("shapeStrokePatternOffsetXSpin"));
@@ -1055,7 +1062,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_pattern_offset_x_spin->setRange(-30000.0, 30000.0);
   stroke_pattern_offset_x_spin->setDecimals(1);
   configure_dialog_spinbox(stroke_pattern_offset_x_spin, 80);
-  add_spin_row(stroke_form, QObject::tr("Offset X:"), stroke_pattern_offset_x_spin);
+  add_spin_row(stroke_pattern_form, QObject::tr("Offset X:"), stroke_pattern_offset_x_spin);
 
   auto* stroke_pattern_offset_y_spin = new UnitSpinBox(SpinUnit::Pixels, stroke_group);
   stroke_pattern_offset_y_spin->setObjectName(QStringLiteral("shapeStrokePatternOffsetYSpin"));
@@ -1063,14 +1070,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_pattern_offset_y_spin->setRange(-30000.0, 30000.0);
   stroke_pattern_offset_y_spin->setDecimals(1);
   configure_dialog_spinbox(stroke_pattern_offset_y_spin, 80);
-  add_spin_row(stroke_form, QObject::tr("Offset Y:"), stroke_pattern_offset_y_spin);
+  add_spin_row(stroke_pattern_form, QObject::tr("Offset Y:"), stroke_pattern_offset_y_spin);
 
   auto* stroke_pattern_align_check = new QCheckBox(QObject::tr("Align with layer"), stroke_group);
   stroke_pattern_align_check->setObjectName(QStringLiteral("shapeStrokePatternAlignCheck"));
   stroke_pattern_align_check->setToolTip(
       QObject::tr("Anchor the tile grid to the layer's position; unchecked anchors it to the "
                   "document origin"));
-  stroke_form->addRow(QString(), stroke_pattern_align_check);
+  stroke_pattern_form->addRow(QString(), stroke_pattern_align_check);
 
   // Saved stroke styles (GitHub #557): Align, Caps, Corners, the dash pattern
   // and its offset under a name, kept in the app settings. Width and paint are
@@ -1228,11 +1235,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     set_row(fill_gradient_combo, gradient);
     set_row(fill_gradient_block, gradient);
     set_row(fill_pattern_combo, pattern);
-    set_row(pattern_scale_spin, pattern);
-    set_row(pattern_angle_spin, pattern);
-    set_row(pattern_offset_x_spin, pattern);
-    set_row(pattern_offset_y_spin, pattern);
-    set_row(pattern_align_check, pattern);
+    set_row(fill_pattern_block, pattern);
   };
 
   // The stroke rows stay enabled: the width is the stroke switch (0 = none). The
@@ -1266,11 +1269,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     set_row_visible(stroke_gradient_combo, gradient_paint);
     set_row_visible(stroke_gradient_block, gradient_paint);
     set_row_visible(stroke_pattern_combo, pattern_paint);
-    set_row_visible(stroke_pattern_scale_spin, pattern_paint);
-    set_row_visible(stroke_pattern_angle_spin, pattern_paint);
-    set_row_visible(stroke_pattern_offset_x_spin, pattern_paint);
-    set_row_visible(stroke_pattern_offset_y_spin, pattern_paint);
-    set_row_visible(stroke_pattern_align_check, pattern_paint);
+    set_row_visible(stroke_pattern_block, pattern_paint);
     set_row_visible(stroke_dash_pattern_edit, stroke_dash_combo->currentData().toInt() == kDashCustom);
     for (QWidget* field :
          std::initializer_list<QWidget*>{stroke_width_spin, stroke_opacity_spin, stroke_paint_combo,
