@@ -510,7 +510,8 @@ int main(int argc, char* argv[]) {
   // in on Wayland, so the canvas tool cursor appeared over dialogs (GitHub issue 215).
   patchy::ui::install_wayland_pointer_cursor_fix();
   // A window a modal dialog blocks shows the arrow, not the tool cursor its canvas held (GitHub
-  // issue 504).
+  // issue 504). Installed second so it runs first: the Wayland fix then puts the dialog's own
+  // cursor back after this filter's arrow.
   patchy::ui::install_blocked_window_cursor_fix();
   // Slider grooves snap to the click; tool flyouts open on a short hold (see the style above).
   app.setStyle(new patchy::ui::AppStyle);
