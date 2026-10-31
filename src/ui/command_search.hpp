@@ -18,6 +18,11 @@ namespace patchy::ui {
 
 class HotkeyRegistry;
 
+// Set (true) on menu actions built from data: recent files and folders, open documents,
+// scripts, legacy plug-ins. They carry no written Search Commands description
+// (command_search_exempt, docs/command-search.md "Descriptions").
+inline constexpr const char* kCommandSearchDataEntryProperty = "patchy.commandSearchDataEntry";
+
 // Help > Search Commands (GitHub issue 554; docs/command-search.md).
 
 // A menu label without its "opens a dialog" ellipsis ("Levels..." -> "Levels").
@@ -36,19 +41,30 @@ struct MenuCommandEntry {
   QPointer<QAction> action;
   QString name;  // mnemonics and the trailing ellipsis removed
   QString path;  // "Filter › Blur": the menus the command sits in; "Tools"; empty for a key outside them
-  QString description{};  // optional short "what it does" line, searched and shown on the row
+  QString description{};  // short "what it does" line, searched and shown on the row
+  QString id{};  // the hotkey command id, else the action's objectName: what descriptions are keyed by
 };
 
 // What the command search lists: every enabled, visible menu-bar command, in menu order.
 // A command reachable from two menus is listed once, at its first place.
 [[nodiscard]] std::vector<MenuCommandEntry> collect_menu_commands(const QMenuBar* menu_bar);
+// The same walk; with `unavailable_too`, hidden and disabled commands (and those in hidden or
+// disabled submenus) are included, for the every-command-has-a-description check.
+[[nodiscard]] std::vector<MenuCommandEntry> collect_menu_entries(const QMenuBar* menu_bar, bool unavailable_too);
 
 // collect_menu_commands, each with its description (command_search_description, else the
 // action's status tip when it says more than the name), followed by the registered commands
 // that are in no menu: the tools as "Tools" in palette order, the other keyboard commands
 // (Color, Brush, Blend Mode keys) after them. Disabled or unnamed commands are left out.
 [[nodiscard]] std::vector<MenuCommandEntry> collect_search_commands(const QMenuBar* menu_bar,
-                                                                    const HotkeyRegistry& registry);
+                                                                    const HotkeyRegistry& registry,
+                                                                    bool unavailable_too = false);
+// Entries that need no written description because the user or the session makes them
+// (docs/command-search.md, "Descriptions"): recent files, open documents, scripts, theme
+// commands and other rows built from data.
+[[nodiscard]] bool command_search_exempt(const MenuCommandEntry& entry);
+// What a command's description is keyed by: its hotkey command id, else its objectName.
+[[nodiscard]] QString command_search_id(const QAction* action, const HotkeyRegistry& registry);
 
 // The translated short description written for the hotkey command `id` (GitHub issue 554
 // follow-up), or an empty string.

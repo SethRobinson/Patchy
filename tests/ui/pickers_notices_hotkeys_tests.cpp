@@ -4763,11 +4763,30 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
   auto&& [window, canvas] = ShownWindowFixture{};
   const auto& registry = window.hotkey_registry();
 
-  // Every written description names a registered command (ids are permanent).
-  for (const auto& id : patchy::ui::command_search_described_ids()) {
-    if (registry.find_command(id) == nullptr) {
-      std::cerr << "described command id not registered: " << id.toStdString() << '\n';
-      CHECK(false);
+  // Every written description names a command the search can list (hotkey ids and objectNames
+  // are permanent), except the commands this platform does not build.
+  {
+    QSet<QString> listed_ids;
+    for (const auto& entry : patchy::ui::collect_search_commands(window.menuBar(), registry, true)) {
+      listed_ids.insert(entry.id);
+    }
+    const QStringList other_platforms{
+#ifndef Q_OS_WIN
+        QStringLiteral("plugins.repeat_last"), QStringLiteral("plugins.last_settings"),
+        QStringLiteral("plugins.open_folder"), QStringLiteral("plugins.rescan"),
+#else
+        QStringLiteral("pluginsLegacyWindowsOnlyNote"),
+#endif
+#if !defined(Q_OS_WIN) && !defined(Q_OS_MACOS)
+        QStringLiteral("file.import_scanner"), QStringLiteral("file.import_photocopy"),
+        QStringLiteral("file.import_divide_photos"),
+#endif
+    };
+    for (const auto& id : patchy::ui::command_search_described_ids()) {
+      if (!listed_ids.contains(id) && !other_platforms.contains(id)) {
+        std::cerr << "described command id not listed by the search: " << id.toStdString() << '\n';
+        CHECK(false);
+      }
     }
   }
   CHECK(patchy::ui::command_search_description(QStringLiteral("layer.new_with_dialog")) ==
@@ -4915,6 +4934,15 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
   QApplication::processEvents();
   save_window_popup_artifact("command_search_layer", window, *window.menuBar(), *popup);
 
+  // Every listed row carries a description (ui_command_search_every_command_has_a_description).
+  edit->setText(QStringLiteral("window"));
+  QApplication::processEvents();
+  for (int row = 0; row < list->count(); ++row) {
+    CHECK(!list->item(row)->data(Qt::UserRole + 5).toString().isEmpty() ||
+          list->item(row)->text().startsWith(QStringLiteral("1 ")));  // an open document's row
+  }
+  save_window_popup_artifact("command_search_window", window, *window.menuBar(), *popup);
+
   edit->setText(QStringLiteral("measure"));
   QApplication::processEvents();
   int ruler_row = -1;
@@ -4932,6 +4960,52 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
   }
   CHECK(process_events_until([&] { return popup == nullptr; }));
   CHECK(process_events_until([&] { return ruler_tool != nullptr && ruler_tool->isChecked(); }));
+}
+// Every command Search Commands can list has a description (docs/command-search.md,
+// "Descriptions"): menu commands hidden or disabled right now included, the tools and the keys
+// outside the menus. The failure names each command's id and place so the missing lines can
+// be written; scripts/update-translations.ps1 runs this test to report them too.
+void ui_command_search_every_command_has_a_description() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  // Opening the popup builds the menus that fill themselves on demand (File > Scripts, the
+  // Window menu's documents), as it does for a user.
+  auto* search_action = require_action(window, "helpSearchCommandsAction");
+  search_action->trigger();
+  QApplication::processEvents();
+  if (QPointer<QFrame> popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup")); popup != nullptr) {
+    popup->close();
+    CHECK(process_events_until([&] { return popup == nullptr; }));
+  }
+  const auto entries = patchy::ui::collect_search_commands(window.menuBar(), window.hotkey_registry(), true);
+  CHECK(entries.size() > 300);
+  int missing = 0;
+  QSet<QString> ids;
+  for (const auto& entry : entries) {
+    if (patchy::ui::command_search_exempt(entry)) {
+      continue;
+    }
+    const auto place = entry.path.isEmpty() ? entry.name : entry.path + QStringLiteral(" › ") + entry.name;
+    if (entry.id.isEmpty()) {
+      std::cerr << "command without an id or objectName: " << place.toStdString() << '\n';
+      ++missing;
+      continue;
+    }
+    if (ids.contains(entry.id)) {
+      std::cerr << "two commands share the id " << entry.id.toStdString() << ": " << place.toStdString() << '\n';
+    }
+    ids.insert(entry.id);
+    if (entry.description.isEmpty()) {
+      std::cerr << "missing command description: " << entry.id.toStdString() << " | " << place.toStdString() << '\n';
+      ++missing;
+    }
+  }
+  if (missing > 0) {
+    std::cerr << missing << " command(s) without a description: add them to kCommandDescriptions in "
+                 "src/ui/command_search.cpp (docs/command-search.md)\n";
+  }
+  CHECK(missing == 0);
 }
 void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
   HotkeySettingsGroupRestorer restore_hotkeys;
@@ -5517,6 +5591,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
       {"ui_command_search_popup_filters_and_runs_commands", ui_command_search_popup_filters_and_runs_commands},
       {"ui_command_search_lists_tools_keys_and_descriptions", ui_command_search_lists_tools_keys_and_descriptions},
+      {"ui_command_search_every_command_has_a_description", ui_command_search_every_command_has_a_description},
       {"ui_brush_hardness_shortcuts_step_by_quarters", ui_brush_hardness_shortcuts_step_by_quarters},
       {"ui_preset_step_shortcuts_cycle_brush_and_gradient_presets",
        ui_preset_step_shortcuts_cycle_brush_and_gradient_presets},

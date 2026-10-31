@@ -51,14 +51,16 @@ constexpr int kDescriptionRole = Qt::UserRole + 5;
 const QString kPathSeparator = QStringLiteral(" › ");
 
 struct CommandDescription {
-  const char* id;  // a hotkey command id (persisted, never renamed)
+  const char* id;  // the hotkey command id, else the action's objectName (both permanent)
   const char* text;
 };
 
-// Short "what it does" lines for the commonly searched commands (GitHub issue 554
-// follow-up): the search matches them, so a user who types "resize" or "add new layer" finds
-// Image Size or New Layer. Commands with a status tip that says more than the name use it
-// instead; the rest show no description.
+// Short "what it does" lines in other words than the name (GitHub issue 554): the search
+// matches them, so a user who types "resize" or "add new layer" finds Image Size or New Layer.
+// Every command the search lists has one here or a status tip that says more than its name;
+// ui_command_search_every_command_has_a_description names any that lack one, and
+// scripts/update-translations.ps1 reports them. Rows built from data are exempt
+// (kCommandSearchDataEntryProperty). A new command gets its line in the same change.
 constexpr CommandDescription kCommandDescriptions[] = {
     // File
     {"file.new", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Create a new blank image")},
@@ -81,6 +83,23 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"file.close", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Close the document")},
     {"file.preferences", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Settings and options")},
     {"file.quit", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Exit Patchy")},
+    {"fileClearRecentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Empty the list of recent files")},
+    {"fileClearRecentFoldersAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Empty the list of recent folders")},
+    {"file.import_photocopy", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scan and print in one step")},
+    {"file.import_divide_photos", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scan several photos and split them apart")},
+    {"file.import_sprite_sheet", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Cut a sprite sheet into layers")},
+    {"file.import_image_sequence", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Load numbered images as layers")},
+    {"file.export_multipage_pdf", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save several documents as one PDF")},
+    {"file.export_documents_to_folder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save every open document to a folder")},
+    {"file.export_artboards", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save each artboard as its own file")},
+    {"file.export_image_sequence", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save each layer as a numbered image")},
+    {"file.export_animated_webp", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save the layers as a WebP animation")},
+    {"file.export_animated_png", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save the layers as an APNG animation")},
+    {"file.scan_for_watermarks", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Look for hidden watermarks in an image")},
+    {"file.page_setup", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Choose paper size and orientation")},
+    {"file.scripts.editor", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Run, edit and organize scripts")},
+    {"file.scripts.browse_folder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the scripts folder on disk")},
+    {"file.close_all", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Close every open document")},
     // Edit
     {"edit.undo", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Take back the last change")},
     {"edit.redo", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Redo the change you took back")},
@@ -101,6 +120,14 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"edit.convert_to_profile", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Change the color profile")},
     {"edit.presets_gradients", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage gradient presets")},
     {"edit.presets_patterns", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage pattern presets")},
+    {"edit.transform_skew", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Slant the layer or selection")},
+    {"edit.transform_distort", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Drag each corner freely")},
+    {"edit.transform_perspective", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make one side wider than the other")},
+    {"edit.define_custom_shape_svg", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make a custom shape from an SVG file")},
+    {"edit.presets_styles", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage layer style presets")},
+    {"edit.presets_brush_tips", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage brush tips and import ABR")},
+    {"edit.presets_saved_brushes", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage saved brushes")},
+    {"edit.presets_custom_shapes", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage custom shape presets")},
     // Image
     {"image.size", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize or scale the image")},
     {"image.canvas_size", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add or remove space around the image")},
@@ -116,6 +143,25 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"image.auto_all", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Fix tone and color automatically")},
     {"image.mode_indexed", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Reduce the image to a color palette")},
     {"image.mode_16_bit", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Use 16 bits per channel")},
+    {"image.mode_rgb", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Convert to full color")},
+    {"image.mode_cmyk_proof", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Preview and save for print colors")},
+    {"image.mode_8_bit", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Use 8 bits per channel")},
+    {"image.mode_32_bit", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Use 32-bit HDR color")},
+    {"image.snap_layer_to_palette", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Limit the layer to the palette colors")},
+    {"image.snap_image_to_palette", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Limit every layer to the palette colors")},
+    {"patchy.filters.brightness_contrast", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the image lighter, darker or punchier")},
+    {"image.photo_filter", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Warm or cool the colors like a lens filter")},
+    {"image.channel_mixer", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Blend the red, green and blue channels")},
+    {"image.color_lookup", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Apply a color grading table")},
+    {"patchy.filters.invert", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make a negative")},
+    {"patchy.filters.posterize", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Reduce the number of tones")},
+    {"patchy.filters.threshold", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the image black and white")},
+    {"image.gradient_map", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Map the tones to a gradient")},
+    {"image.selective_color", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Adjust one range of colors")},
+    {"patchy.filters.desaturate", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove all color")},
+    {"patchy.filters.auto_tone", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Stretch the tones automatically")},
+    {"patchy.filters.auto_contrast", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Improve contrast automatically")},
+    {"patchy.filters.auto_color", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove a color cast automatically")},
     // Layer
     {"layer.new_with_dialog", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add New Layer")},
     {"layer.new", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add an empty layer at once")},
@@ -138,6 +184,114 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"layer.fill", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Fill with the foreground color")},
     {"layer.fill_background", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Fill with the background color")},
     {"layer.clear", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Erase the layer or selection")},
+    {"layer.new_artboard", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add an artboard")},
+    {"layerNewBrightnessContrastAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable lighter, darker or punchier")},
+    {"layerNewLevelsAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable black point, white point and midtones")},
+    {"layerNewCurvesAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable tone curve")},
+    {"layerNewHueSaturationAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable colors, saturation and lightness")},
+    {"layerNewColorBalanceAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable color shift in shadows and highlights")},
+    {"layerNewInvertAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable negative")},
+    {"layerNewPosterizeAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable tone reduction")},
+    {"layerNewThresholdAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable black and white cutoff")},
+    {"layerNewExposureAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable brightening or darkening")},
+    {"layerNewVibranceAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable boost for muted colors")},
+    {"layerNewChannelMixerAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable channel blend")},
+    {"layerNewPhotoFilterAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable warming or cooling filter")},
+    {"layerNewGradientMapAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable mapping of tones to a gradient")},
+    {"layerNewBlackWhiteAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable conversion to gray")},
+    {"layerNewColorLookupAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable color grading table")},
+    {"layerNewSelectiveColorAdjustmentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Editable change to one color range")},
+    {"layerNewSolidColorFillAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a layer filled with one color")},
+    {"layerNewGradientFillAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a layer filled with a gradient")},
+    {"layerNewPatternFillAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a layer filled with a pattern")},
+    {"layer.color_none", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove the layer's color label")},
+    {"layer.color_red", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Tag the layer red in the Layers panel")},
+    {"layer.color_orange", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Tag the layer orange in the Layers panel")},
+    {"layer.color_yellow", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Tag the layer yellow in the Layers panel")},
+    {"layer.color_green", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Tag the layer green in the Layers panel")},
+    {"layer.color_blue", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Tag the layer blue in the Layers panel")},
+    {"layer.color_violet", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Tag the layer violet in the Layers panel")},
+    {"layer.color_gray", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Tag the layer gray in the Layers panel")},
+    {"layer.show_all_layers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make every layer visible")},
+    {"layer.remove_background", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Hide the background with a mask automatically")},
+    {"layer.edit_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paint on the mask instead of the layer")},
+    {"layer.mask_overlay", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the mask as a red overlay")},
+    {"layer.view_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show only the mask in gray")},
+    {"layerLinkMaskAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Move the mask together with the layer")},
+    {"layerDisableMaskAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the mask off for now")},
+    {"layer.invert_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Swap what the mask shows and hides")},
+    {"layer.delete_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove the layer mask")},
+    {"layerVectorMaskRevealAllAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a vector mask that shows everything")},
+    {"layerVectorMaskHideAllAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a vector mask that hides everything")},
+    {"layerVectorMaskCurrentPathAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Mask the layer with the selected path")},
+    {"layerVectorMaskDeleteAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove the vector mask")},
+    {"layerVectorMaskDisableAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the vector mask off for now")},
+    {"layerVectorMaskRasterizeAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the vector mask into a pixel mask")},
+    {"layer.edit_adjustment", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Change the settings of the adjustment layer")},
+    {"layerConvertSmartObjectAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Wrap the layers so edits stay editable")},
+    {"layerSmartObjectEditAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Open the contents in their own tab")},
+    {"layerSmartObjectReplaceAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Swap in another file as the contents")},
+    {"layerSmartObjectUpdateAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Reload the linked file")},
+    {"layerSmartObjectRelinkAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Point the link at another file")},
+    {"layerSmartObjectEmbedAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Store the linked file inside the document")},
+    {"layerSmartObjectExportAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save the contents as a file")},
+    {"layerSmartObjectViaCopyAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Duplicate as an independent Smart Object")},
+    {"layerSmartObjectToNormalAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Rasterize the Smart Object into pixels")},
+    {"layer.combine_unite", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Merge the shapes into one outline")},
+    {"layer.combine_subtract", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Cut the top shape out of the others")},
+    {"layer.combine_intersect", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Keep only where the shapes overlap")},
+    {"layer.combine_exclude", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Keep everything except the overlap")},
+    {"layer.align_left", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Line up layers on the left")},
+    {"layer.align_horizontal_centers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Center layers side to side")},
+    {"layer.align_right", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Line up layers on the right")},
+    {"layer.align_top", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Line up layers along the top")},
+    {"layer.align_vertical_centers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Center layers top to bottom")},
+    {"layer.align_bottom", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Line up layers along the bottom")},
+    {"layer.align_to_selection", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Align to the selected area")},
+    {"layer.align_to_canvas", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Align to the document edges")},
+    {"layer.distribute_left", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Space the left edges evenly")},
+    {"layer.distribute_horizontal_centers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Space the centers evenly across")},
+    {"layer.distribute_right", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Space the right edges evenly")},
+    {"layer.distribute_top", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Space the top edges evenly")},
+    {"layer.distribute_vertical_centers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Space the centers evenly down")},
+    {"layer.distribute_bottom", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Space the bottom edges evenly")},
+    {"layer.distribute_horizontal_spacing", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Equal gaps between layers across")},
+    {"layer.distribute_vertical_spacing", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Equal gaps between layers down")},
+    {"layer.flip_horizontal", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Mirror the layer left to right")},
+    {"layer.flip_vertical", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Mirror the layer top to bottom")},
+    {"layer.quick_export_png", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save the layer as a PNG at once")},
+    {"layer.export_as", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Save the layer to a file")},
+    {"layer.duplicate_to_document", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Copy the layer into another document")},
+    {"layer.prevent_auto_nesting", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Keep dragged layers out of folders and artboards")},
+    {"layer.lock_transparent_pixels", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paint only where the layer has pixels")},
+    {"layer.merge_selected_to_new", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Combine the selected layers into a new one")},
+    {"layer.blend_mode_next", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Step to the next blend mode")},
+    {"layer.blend_mode_previous", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Step to the previous blend mode")},
+    {"layer.blend_mode.normal", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the layer as is")},
+    {"layer.blend_mode.dissolve", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scatter pixels by opacity")},
+    {"layer.blend_mode.darken", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Keep the darker colors")},
+    {"layer.blend_mode.multiply", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Darken like stacked ink")},
+    {"layer.blend_mode.color_burn", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Darken with more contrast")},
+    {"layer.blend_mode.linear_burn", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Darken by lowering brightness")},
+    {"layer.blend_mode.lighten", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Keep the lighter colors")},
+    {"layer.blend_mode.screen", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Lighten like projected light")},
+    {"layer.blend_mode.color_dodge", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Lighten with less contrast")},
+    {"layer.blend_mode.linear_dodge", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Lighten by adding brightness")},
+    {"layer.blend_mode.overlay", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Raise contrast by the colors below")},
+    {"layer.blend_mode.soft_light", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Gently lighten or darken")},
+    {"layer.blend_mode.hard_light", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Strongly lighten or darken")},
+    {"layer.blend_mode.vivid_light", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Burn or dodge by contrast")},
+    {"layer.blend_mode.linear_light", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Burn or dodge by brightness")},
+    {"layer.blend_mode.pin_light", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Replace colors by lightness")},
+    {"layer.blend_mode.hard_mix", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Push colors to pure primaries")},
+    {"layer.blend_mode.difference", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Subtract the colors from each other")},
+    {"layer.blend_mode.exclusion", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "A softer difference")},
+    {"layer.blend_mode.hue", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Take only the layer's hue")},
+    {"layer.blend_mode.saturation", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Take only the layer's saturation")},
+    {"layer.blend_mode.color", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Take the layer's hue and saturation")},
+    {"layer.blend_mode.luminosity", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Take only the layer's brightness")},
+    // Type
+    {"type.resolve_missing_fonts", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Replace fonts that are not installed")},
     // Select
     {"select.all", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select the whole image")},
     {"select.deselect", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Clear the selection")},
@@ -150,6 +304,71 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"select.grow", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add neighboring similar colors")},
     {"select.similar", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add similar colors anywhere")},
     {"select.quick_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paint a selection as a mask")},
+    {"select.deselect_layers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select no layers")},
+    {"select.layer_below", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the next layer down the active one")},
+    {"select.layer_above", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the next layer up the active one")},
+    {"select.subject", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select the main subject automatically")},
+    {"select.background", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select everything but the main subject")},
+    {"select.layer_transparency", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select the layer's opaque pixels")},
+    {"select.add_layer_below", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add the next layer down to the selected layers")},
+    {"select.add_layer_above", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add the next layer up to the selected layers")},
+    {"select.object_in_selection", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select the object inside the selection")},
+    // Filter
+    {"filter.last", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Repeat the last filter")},
+    {"filterAction_patchy_filters_soft_glow", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Dreamy glow on the highlights")},
+    {"filterAction_patchy_filters_punchy_color", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Bolder colors and contrast")},
+    {"filterAction_patchy_filters_noir", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Moody black and white")},
+    {"filterAction_patchy_filters_cinematic_matte", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Film look with lifted blacks")},
+    {"filterAction_patchy_filters_vintage_fade", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Faded old photo look")},
+    {"filterAction_patchy_filters_sepia", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Brown old photo tint")},
+    {"filterAction_patchy_filters_vignette", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Darken the corners")},
+    {"filterAction_patchy_filters_box_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Even blur over a square area")},
+    {"filterAction_patchy_filters_gaussian_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Smooth soft blur")},
+    {"filterAction_patchy_filters_motion_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Streak as if moving")},
+    {"filterAction_patchy_filters_radial_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Spin or zoom blur around a center")},
+    {"filterAction_patchy_filters_surface_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Smooth while keeping edges")},
+    {"filterAction_patchy_filters_lens_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Camera-like depth of field")},
+    {"filterAction_patchy_filters_iris_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Sharp spot with blur around it")},
+    {"filterAction_patchy_filters_tilt_shift_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Miniature look with a sharp band")},
+    {"filterAction_patchy_filters_blur", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Soften slightly")},
+    {"filterAction_patchy_filters_blur_more", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Soften a bit more")},
+    {"filterAction_patchy_filters_average", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Fill with the average color")},
+    {"filterAction_patchy_filters_sharpen", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Crisp up slightly")},
+    {"filterAction_patchy_filters_unsharp_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Sharpen with amount and radius")},
+    {"filterAction_patchy_filters_high_pass", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Keep only the fine detail")},
+    {"filterAction_patchy_filters_sharpen_more", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Crisp up a bit more")},
+    {"filterAction_patchy_filters_sharpen_edges", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Sharpen only the edges")},
+    {"filterAction_patchy_filters_twirl", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Swirl around the center")},
+    {"filterAction_patchy_filters_wave", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Ripple in waves")},
+    {"filterAction_patchy_filters_pinch_bloat", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Squeeze in or bulge out")},
+    {"filterAction_patchy_filters_film_grain", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Film-like grain")},
+    {"filterAction_patchy_filters_add_noise", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Sprinkle random speckles")},
+    {"filterAction_patchy_filters_median", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Smooth out specks")},
+    {"filterAction_patchy_filters_dust_and_scratches", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Hide small dust and scratches")},
+    {"filterAction_patchy_filters_pixelate", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn into large square blocks")},
+    {"filterAction_patchy_filters_color_halftone", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Print-style dots per color")},
+    {"filterAction_patchy_filters_plastic_wrap", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Shiny wrapped-in-plastic look")},
+    {"filterAction_patchy_filters_diffuse", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scatter pixels softly")},
+    {"filterAction_patchy_filters_edge_detect", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show only the edges")},
+    {"filterAction_patchy_filters_emboss", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Raised relief look")},
+    {"filterAction_patchy_filters_extrude", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Push out 3D blocks")},
+    {"filterAction_patchy_filters_find_edges", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Outline edges on white")},
+    {"filterAction_patchy_filters_glowing_edges", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Neon edges on black")},
+    {"filterAction_patchy_filters_solarize", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Mix negative and positive")},
+    {"filterAction_patchy_filters_tiles", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Break into offset tiles")},
+    {"filterAction_patchy_filters_trace_contour", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Outline tone boundaries")},
+    {"filterAction_patchy_filters_wind", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Streak pixels sideways")},
+    {"filterAction_patchy_filters_clouds", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Fill with soft cloud noise")},
+    {"filterAction_patchy_filters_difference_clouds", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Blend cloud noise by difference")},
+    {"filterAction_patchy_filters_fibers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Fill with fiber strands")},
+    {"filterAction_patchy_filters_flame", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Draw flames")},
+    {"filterAction_patchy_filters_lens_flare", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a bright camera flare")},
+    // Plugins
+    {"plugins.repeat_last", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Run the last plug-in again")},
+    {"plugins.last_settings", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Run the last plug-in with its dialog")},
+    {"plugins.open_folder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the plug-ins folder on disk")},
+    {"plugins.rescan", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Look for new or removed plug-ins")},
+    {"pluginsLegacyWindowsOnlyNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "8BF plug-ins need Windows")},
     // View
     {"view.zoom_in", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Magnify the view")},
     {"view.zoom_out", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show more of the image")},
@@ -162,6 +381,62 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"view.pixel_grid", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the pixel grid when zoomed in")},
     {"view.new_guide", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a guide line")},
     {"view.clear_guides", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove all guides")},
+    {"view.fill_screen", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Zoom until the image fills the window")},
+    {"view.zoom_200", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Zoom to twice the size")},
+    {"view.vector_preview", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show shape edits live while dragging")},
+    {"view.proof_colors", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Preview the print colors")},
+    {"view.gamut_warning", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Mark colors that cannot print")},
+    {"view.selection_edges", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show or hide guides, grid and edges")},
+    {"view.show_selection_edges", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show or hide the marching ants")},
+    {"view.target_path", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show or hide the active path outline")},
+    {"view.extras_options", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Choose which extras show")},
+    {"view.lock_guides", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Stop guides from moving")},
+    {"viewSnapToGuidesAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Snap to guide lines")},
+    {"viewSnapToGridAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Snap to the grid")},
+    {"viewSnapToDocumentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Snap to the canvas edges and center")},
+    {"viewSnapToLayersAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Snap to other layers")},
+    {"viewSnapToSelectionAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Snap to the selection edges")},
+    {"view.new_guide_layout", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add column and row guides")},
+    {"view.clear_selected_guides", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove the selected guides")},
+    {"view.tile_preview", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "See the image repeated as a tile")},
+    {"view.screen_mode_standard", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Normal window with panels")},
+    {"view.screen_mode_full_with_menus", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Full screen keeping the menus")},
+    {"view.screen_mode_full", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Full screen without panels")},
+    {"view.screen_mode_cycle", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch to the next screen mode")},
+    // Window
+    {"window.float_document", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Move the document into its own window")},
+    {"window.dock_document", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Put the document back in a tab")},
+    {"window.float_all", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Give every document its own window")},
+    {"window.consolidate_all_to_tabs", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Put every document in tabs")},
+    {"window.tile_windows", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Arrange document windows side by side")},
+    {"window.cascade_windows", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Stack document windows diagonally")},
+    {"windowSetScreenSize1280x720Action", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize the window to 1280 by 720")},
+    {"windowSetScreenSize1366x768Action", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize the window to 1366 by 768")},
+    {"windowSetScreenSize1600x900Action", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize the window to 1600 by 900")},
+    {"windowSetScreenSize1920x1080Action", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize the window to 1920 by 1080")},
+    {"windowSetScreenSize2560x1440Action", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize the window to 2560 by 1440")},
+    {"windowSetScreenSize3840x2160Action", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize the window to 3840 by 2160")},
+    {"window.force_refresh", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Redraw the whole window")},
+    {"window.customize_tool_palette", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Hide and arrange tools")},
+    {"window.brush_settings", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the brush dynamics panel")},
+    {"window.brush_tips", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the brush tips panel")},
+    {"window.panel_channels", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Channels panel")},
+    {"window.panel_color", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Color panel")},
+    {"window.panel_history", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the undo history panel")},
+    {"window.panel_info", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Info panel")},
+    {"window.panel_layers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Layers panel")},
+    {"window.panel_palette", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Palette panel")},
+    {"window.panel_paths", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Paths panel")},
+    {"window.panel_properties", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the Properties panel")},
+    {"window.reset_panels", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Restore the default panel layout")},
+    {"windowToolPaletteAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show or hide the tool palette")},
+    {"windowToolOptionsAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show or hide the options bar")},
+    // Help
+    {"help.search_commands", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Find any command by name")},
+    {"help.scripting_guide", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Read how to write scripts")},
+    {"help.ai_setup", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Connect an AI assistant to Patchy")},
+    {"help.appimage_menu_entry", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a launcher to your desktop menu")},
+    {"helpAboutAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Version and credits")},
     // Tools
     {"tools.move", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Move layers and selections")},
     {"tools.marquee", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select a rectangle")},
@@ -208,6 +483,31 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"tools.crop", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Crop or straighten the image")},
     {"tools.perspective_crop", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Crop and fix the perspective")},
     {"tools.artboard", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add and arrange artboards")},
+    {"tools.cycle.move", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the move tools")},
+    {"tools.cycle.marquee", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the marquee tools")},
+    {"tools.cycle.lasso", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the lasso tools")},
+    {"tools.cycle.wand", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the wand and quick select tools")},
+    {"tools.cycle.crop", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the crop tools")},
+    {"tools.cycle.gradient", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the gradient and fill tools")},
+    {"tools.cycle.stamp", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the stamp tools")},
+    {"tools.cycle.healing", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the healing tools")},
+    {"tools.cycle.detail", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between blur, sharpen and smudge")},
+    {"tools.cycle.tone", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between dodge, burn and sponge")},
+    {"tools.cycle.pen", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the pen tools")},
+    {"tools.cycle.path_select", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the path selection tools")},
+    {"tools.cycle.shape", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the shape tools")},
+    {"tools.cycle.pick", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the eyedropper and ruler")},
+    // Color and brush keys
+    {"color.default", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Reset to black and white")},
+    {"color.swap", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Exchange foreground and background colors")},
+    {"brush.smaller", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the brush smaller")},
+    {"brush.larger", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the brush bigger")},
+    {"brush.much_smaller", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the brush a lot smaller")},
+    {"brush.much_larger", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the brush a lot bigger")},
+    {"brush.softer", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Soften the brush edge")},
+    {"brush.harder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Harden the brush edge")},
+    {"brush.preset_previous", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the previous brush preset")},
+    {"brush.preset_next", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the next brush preset")},
 };
 
 // The non-menu hotkey categories the search lists, with their row path. Panel commands
@@ -500,10 +800,15 @@ void for_each_menu_bar_command(
 }
 
 std::vector<MenuCommandEntry> collect_menu_commands(const QMenuBar* menu_bar) {
+  return collect_menu_entries(menu_bar, false);
+}
+
+std::vector<MenuCommandEntry> collect_menu_entries(const QMenuBar* menu_bar, bool unavailable_too) {
   std::vector<MenuCommandEntry> entries;
   QSet<const QAction*> seen;
-  for_each_menu_bar_command(menu_bar, true, [&](QAction* action, const QString& top, const QStringList& submenus) {
-    if (!action->isEnabled() || seen.contains(action)) {
+  for_each_menu_bar_command(menu_bar, !unavailable_too, [&](QAction* action, const QString& top,
+                                                            const QStringList& submenus) {
+    if ((!unavailable_too && !action->isEnabled()) || seen.contains(action)) {
       return;
     }
     const auto name = strip_menu_ellipsis(clean_action_text(action));
@@ -537,16 +842,38 @@ QStringList command_search_described_ids() {
   return ids;
 }
 
-std::vector<MenuCommandEntry> collect_search_commands(const QMenuBar* menu_bar, const HotkeyRegistry& registry) {
+bool command_search_exempt(const MenuCommandEntry& entry) {
+  return entry.action != nullptr && entry.action->property(kCommandSearchDataEntryProperty).toBool();
+}
+
+QString command_search_id(const QAction* action, const HotkeyRegistry& registry) {
+  if (action == nullptr) {
+    return {};
+  }
+  for (const auto& command : registry.commands()) {
+    if (command.action.data() == action) {
+      return command.id;
+    }
+  }
+  return action->objectName();
+}
+
+std::vector<MenuCommandEntry> collect_search_commands(const QMenuBar* menu_bar, const HotkeyRegistry& registry,
+                                                      bool unavailable_too) {
   QHash<const QAction*, QString> id_by_action;
   for (const auto& command : registry.commands()) {
     if (command.action != nullptr && !id_by_action.contains(command.action.data())) {
       id_by_action.insert(command.action.data(), command.id);
     }
   }
-  auto entries = collect_menu_commands(menu_bar);
+  const auto id_of = [&id_by_action](const QAction* action) {
+    const auto id = id_by_action.value(action);
+    return id.isEmpty() && action != nullptr ? action->objectName() : id;
+  };
+  auto entries = collect_menu_entries(menu_bar, unavailable_too);
   for (auto& entry : entries) {
-    entry.description = entry_description(entry.action.data(), id_by_action.value(entry.action.data()), entry.name);
+    entry.id = id_of(entry.action.data());
+    entry.description = entry_description(entry.action.data(), entry.id, entry.name);
   }
   // Everything the menus hold, hidden places included, so a command inside a disabled
   // submenu is not listed again as a key outside the menus.
@@ -561,7 +888,7 @@ std::vector<MenuCommandEntry> collect_search_commands(const QMenuBar* menu_bar, 
       const auto* action = command.action.data();
       if (action == nullptr || (command.category == QStringLiteral("tools")) != tools ||
           !search_lists_category(command.category) || in_menus.contains(action) || listed.contains(action) ||
-          !action->isEnabled() || action->menu() != nullptr) {
+          (!unavailable_too && !action->isEnabled()) || action->menu() != nullptr) {
         continue;
       }
       const auto name = strip_menu_ellipsis(clean_action_text(action));
@@ -570,7 +897,7 @@ std::vector<MenuCommandEntry> collect_search_commands(const QMenuBar* menu_bar, 
       }
       listed.insert(action);
       entries.push_back({command.action, name, search_category_path(command.category),
-                         entry_description(action, command.id, name)});
+                         entry_description(action, command.id, name), command.id});
     }
   };
   add_registered(true);

@@ -5,6 +5,7 @@
 // main_window.cpp; behavior must stay identical.
 
 #include "ui/main_window.hpp"
+#include "ui/command_search.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_script_host.hpp"
 #include <QCheckBox>
@@ -1406,6 +1407,7 @@ void MainWindow::rebuild_window_document_entries(QMenu* window_menu) {
     auto* action = new QAction(QStringLiteral("&%1 %2").arg(number).arg(session_display_title(*target_session)),
                                window_menu);
     action->setObjectName(QStringLiteral("windowDocument%1Action").arg(number));
+    action->setProperty(kCommandSearchDataEntryProperty, true);
     action->setCheckable(true);
     action->setChecked(target_session.get() == active);
     const auto session_id = target_session->session_id;

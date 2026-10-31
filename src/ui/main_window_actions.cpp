@@ -131,6 +131,9 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
   // (any menubar action containing "options" gets relocated as a Preferences item).
   ctx.tool_palette->toggleViewAction()->setMenuRole(QAction::NoRole);
   ctx.options_toolbar->toggleViewAction()->setMenuRole(QAction::NoRole);
+  // Names for the Search Commands descriptions (command_search.cpp).
+  ctx.tool_palette->toggleViewAction()->setObjectName(QStringLiteral("windowToolPaletteAction"));
+  ctx.options_toolbar->toggleViewAction()->setObjectName(QStringLiteral("windowToolOptionsAction"));
   bind_widget_text(ctx.tool_palette, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Tool Palette"));
   bind_widget_text(ctx.options_toolbar, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Tool Options"));
   const std::vector<std::pair<QAction*, const char*>> translated_actions = {
