@@ -5,6 +5,7 @@
 #include "ui/main_window.hpp"
 
 #include "core/path_point_edits.hpp"
+#include "core/shape_combine.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/canvas_widget.hpp"
@@ -17,6 +18,7 @@
 #include <QLatin1String>
 #include <QMenu>
 #include <QStatusBar>
+#include <QToolButton>
 
 #include <algorithm>
 #include <optional>
@@ -73,7 +75,9 @@ void MainWindow::create_path_component_actions(QMenu* layer_shape_menu) {
   const PointEntry point_entries[] = {
       {QT_TR_NOOP("Break Path at Point"), QT_TR_NOOP("Open the path at the selected points"),
        "pathBreakAtPointAction", "path.break_at_point"},
-      {QT_TR_NOOP("Join End Points"), QT_TR_NOOP("Join the two selected end points with a straight segment"),
+      {QT_TR_NOOP("Join End Points"),
+       QT_TR_NOOP("Join the two selected end points with a straight segment, or close each open path with a "
+                  "selected point"),
        "pathJoinEndPointsAction", "path.join_end_points"},
       {QT_TR_NOOP("Merge into One Point"),
        QT_TR_NOOP("Merge the selected end points, or a row of selected points, into one point at their middle"),
@@ -81,6 +85,18 @@ void MainWindow::create_path_component_actions(QMenu* layer_shape_menu) {
       {QT_TR_NOOP("Delete Segment"), QT_TR_NOOP("Delete the selected segments and leave the path open"),
        "pathDeleteSegmentAction", "path.delete_segment"},
   };
+  // Merge Shapes ends the Combine Shapes section: it bakes what those set up (GitHub #555 part 1).
+  path_merge_shapes_action_ = layer_shape_menu->addAction(tr("Merge Shapes"));
+  path_merge_shapes_action_->setObjectName(QStringLiteral("pathMergeShapesAction"));
+  path_merge_shapes_action_->setProperty("patchy.channelViewBlocked", true);
+  path_merge_shapes_action_->setStatusTip(
+      tr("Turn the selected shapes, combined as they show, into one outline you can move and edit"));
+  bind_action_text(path_merge_shapes_action_, QT_TR_NOOP("Merge Shapes"));
+  bind_status_tip(path_merge_shapes_action_,
+                  QT_TR_NOOP("Turn the selected shapes, combined as they show, into one outline you can move and edit"));
+  register_hotkey(path_merge_shapes_action_, QStringLiteral("path.merge_shapes"));
+  connect(path_merge_shapes_action_, &QAction::triggered, this, [this] { merge_selected_path_components(); });
+  path_merge_shapes_action_->setEnabled(false);
   layer_shape_menu->addSeparator();
   for (std::size_t i = 0; i < path_point_actions_.size(); ++i) {
     const auto& entry = point_entries[i];
@@ -150,9 +166,26 @@ void MainWindow::refresh_path_edit_action_states() {
   const bool usable = has_active_document() && canvas_ != nullptr && !preview_dialog_edit_locked();
   for (std::size_t i = 0; i < path_point_actions_.size(); ++i) {
     if (path_point_actions_[i] != nullptr) {
-      path_point_actions_[i]->setEnabled(
-          usable && canvas_->path_point_command_available(static_cast<CanvasWidget::PathPointCommand>(i)));
+      const auto command = static_cast<CanvasWidget::PathPointCommand>(i);
+      const bool available = usable && canvas_->path_point_command_available(command);
+      path_point_actions_[i]->setEnabled(available);
+      path_point_actions_[i]->setProperty(
+          kActionDisabledReasonProperty,
+          available || canvas_ == nullptr ? QString() : CanvasWidget::path_point_command_requirement(command));
     }
+  }
+  const auto merge_refusal = usable ? merge_shapes_refusal() : QString(QLatin1String("-"));
+  if (path_merge_shapes_action_ != nullptr) {
+    path_merge_shapes_action_->setEnabled(merge_refusal.isEmpty());
+    path_merge_shapes_action_->setProperty(kActionDisabledReasonProperty,
+                                           merge_refusal == QLatin1String("-") ? QString() : merge_refusal);
+  }
+  if (path_merge_shapes_button_ != nullptr) {
+    path_merge_shapes_button_->setEnabled(merge_refusal.isEmpty());
+    path_merge_shapes_button_->setToolTip(merge_refusal.isEmpty() || merge_refusal == QLatin1String("-")
+                                              ? tr("Merge Shapes: turn the selected shapes, combined as they "
+                                                   "show, into one outline")
+                                              : merge_refusal);
   }
   const auto kind = usable ? canvas_->path_edit_target_kind() : CanvasWidget::PathEditTargetKind::None;
   const auto groups = usable ? canvas_->path_edit_selected_groups() : std::vector<int>{};
@@ -176,6 +209,8 @@ void MainWindow::refresh_path_edit_action_states() {
   for (auto* action : {path_shapes_to_new_layer_action_, path_shapes_copy_to_new_layer_action_}) {
     if (action != nullptr) {
       action->setEnabled(components);
+      action->setProperty(kActionDisabledReasonProperty,
+                          components ? QString() : tr("Select shapes with Path Select or Direct Select first"));
     }
   }
   if (path_shapes_cut_action_ != nullptr) {
@@ -195,20 +230,7 @@ void MainWindow::run_path_point_command(int command) {
   }
   const auto which = static_cast<CanvasWidget::PathPointCommand>(command);
   if (!canvas_->run_path_point_command(which)) {
-    switch (which) {
-      case CanvasWidget::PathPointCommand::BreakAtPoint:
-        show_status_error(tr("Select a point inside a path, or any point of a closed path, with Direct Select"));
-        return;
-      case CanvasWidget::PathPointCommand::JoinEndPoints:
-        show_status_error(tr("Select two end points of open paths with Direct Select"));
-        return;
-      case CanvasWidget::PathPointCommand::MergePoints:
-        show_status_error(tr("Select two end points, or neighbouring points of one path, with Direct Select"));
-        return;
-      case CanvasWidget::PathPointCommand::DeleteSegment:
-        show_status_error(tr("Select a segment (both of its points) with Direct Select"));
-        return;
-    }
+    show_status_error(CanvasWidget::path_point_command_requirement(which));
     return;
   }
   refresh_paths_panel();
@@ -492,6 +514,196 @@ void MainWindow::selected_path_components_to_new_layer(bool keep_originals) {
   const auto count = static_cast<int>(groups.size());
   statusBar()->showMessage(keep_originals ? tr("Copied %1 shape(s) to a new layer").arg(count)
                                           : tr("Moved %1 shape(s) to a new layer").arg(count));
+  refresh_path_edit_action_states();
+}
+
+bool MainWindow::align_selected_path_components(AlignEdge edge) {
+  if (canvas_ == nullptr || !has_active_document() ||
+      (canvas_->tool() != CanvasTool::PathSelect && canvas_->tool() != CanvasTool::DirectSelect)) {
+    return false;
+  }
+  const auto kind = canvas_->path_edit_target_kind();
+  const auto groups = canvas_->path_edit_selected_groups();
+  const auto* path = canvas_->path_edit_target_path();
+  if (groups.size() < 2 || path == nullptr || kind == CanvasWidget::PathEditTargetKind::None ||
+      kind == CanvasWidget::PathEditTargetKind::TextArea) {
+    return false;
+  }
+  std::vector<VectorPathBounds> boxes;
+  for (const int group : groups) {
+    boxes.push_back(*path_components(*path, {group}).bounds());
+  }
+  VectorPathBounds target = boxes.front();
+  for (const auto& box : boxes) {
+    target.left = std::min(target.left, box.left);
+    target.top = std::min(target.top, box.top);
+    target.right = std::max(target.right, box.right);
+    target.bottom = std::max(target.bottom, box.bottom);
+  }
+  if (align_to_canvas_) {
+    target = {0.0, 0.0, static_cast<double>(document().width()), static_cast<double>(document().height())};
+  }
+  auto working = *path;
+  bool moved = false;
+  for (std::size_t i = 0; i < groups.size(); ++i) {
+    const auto& box = boxes[i];
+    double dx = 0.0;
+    double dy = 0.0;
+    switch (edge) {
+      case AlignEdge::Left: dx = target.left - box.left; break;
+      case AlignEdge::HorizontalCenter: dx = (target.left + target.right - box.left - box.right) / 2.0; break;
+      case AlignEdge::Right: dx = target.right - box.right; break;
+      case AlignEdge::Top: dy = target.top - box.top; break;
+      case AlignEdge::VerticalCenter: dy = (target.top + target.bottom - box.top - box.bottom) / 2.0; break;
+      case AlignEdge::Bottom: dy = target.bottom - box.bottom; break;
+    }
+    if (dx == 0.0 && dy == 0.0) {
+      continue;
+    }
+    moved = true;
+    for (auto& subpath : working.subpaths) {
+      if (subpath.shape_group != groups[i]) {
+        continue;
+      }
+      for (auto& anchor : subpath.anchors) {
+        anchor.anchor_x += dx;
+        anchor.in_x += dx;
+        anchor.out_x += dx;
+        anchor.anchor_y += dy;
+        anchor.in_y += dy;
+        anchor.out_y += dy;
+      }
+    }
+  }
+  if (!moved) {
+    statusBar()->showMessage(tr("The selected shapes are already aligned"));
+    return true;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return true;
+  }
+  push_undo_snapshot(tr("Align shapes"));
+  // A move keeps live shapes live (resolve_live_shape_group allows a translation).
+  canvas_->replace_path_edit_target(std::move(working), {});
+  canvas_->select_path_groups(groups);
+  refresh_paths_panel();
+  refresh_layer_thumbnails();
+  statusBar()->showMessage(tr("Aligned %1 shape(s)").arg(groups.size()));
+  return true;
+}
+
+QString MainWindow::merge_shapes_refusal() const {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return QStringLiteral("-");
+  }
+  // Two or more shape layers selected in the Layers panel (and no shapes picked on the canvas):
+  // they combine into the bottom one, then merge.
+  if (canvas_->path_edit_selected_groups().empty() &&
+      combine_shape_candidates(std::as_const(document()).layers(), selected_or_active_layer_ids()).refusal ==
+          ShapeCombineRefusal::None) {
+    return {};
+  }
+  const auto kind = canvas_->path_edit_target_kind();
+  if (kind == CanvasWidget::PathEditTargetKind::None) {
+    return tr("Select a shape layer or a path first");
+  }
+  if (kind == CanvasWidget::PathEditTargetKind::TextArea) {
+    return tr("A text area keeps one outline");
+  }
+  const auto* path = canvas_->path_edit_target_path();
+  if (path == nullptr || path->subpaths.empty()) {
+    return tr("The path has no shapes");
+  }
+  auto groups = canvas_->path_edit_selected_groups();
+  if (groups.empty()) {
+    groups = all_groups(*path);
+  }
+  if (kind == CanvasWidget::PathEditTargetKind::ShapeLayer) {
+    const auto* layer = std::as_const(document()).find_layer(*document().active_layer_id());
+    const auto& parts = layer->vector_shape()->parts;
+    // Shapes painted by different parts (their own colors) cannot become one outline.
+    for (const auto& part : parts) {
+      const auto in_part = [&part](int group) {
+        return std::find(part.groups.begin(), part.groups.end(), group) != part.groups.end();
+      };
+      const bool any = std::any_of(groups.begin(), groups.end(), in_part);
+      if (any && !std::all_of(groups.begin(), groups.end(), in_part)) {
+        return tr("Shapes with their own colors cannot merge with others");
+      }
+    }
+  }
+  return {};
+}
+
+void MainWindow::merge_selected_path_components() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto refusal = merge_shapes_refusal();
+  if (!refusal.isEmpty()) {
+    show_status_error(refusal == QLatin1String("-") ? tr("Select a shape layer or a path first") : refusal);
+    return;
+  }
+  canvas_->finish_free_transform();
+  auto& doc = document();
+  push_undo_snapshot(tr("Merge shapes"));
+  if (canvas_->path_edit_selected_groups().empty()) {
+    const auto candidates = combine_shape_candidates(std::as_const(doc).layers(), selected_or_active_layer_ids());
+    if (candidates.refusal == ShapeCombineRefusal::None) {
+      const auto combined = combine_shape_layers(doc, candidates.bottom_to_top, PathCombineOp::Add);
+      if (combined.has_value()) {
+        doc.set_active_layer(combined->layer_id);
+        canvas_->clear_path_edit_selection();
+        refresh_layer_list();
+        refresh_layer_controls();
+        path_row_hidden_for_layer_.reset();
+        refresh_paths_panel();
+      }
+    }
+  }
+  const auto* path = canvas_->path_edit_target_path();
+  if (path == nullptr) {
+    return;
+  }
+  auto groups = canvas_->path_edit_selected_groups();
+  const bool whole = groups.empty();
+  if (whole) {
+    groups = all_groups(*path);
+  }
+  auto merged = merge_path_components(*path, groups);
+  if (!merged.has_value()) {
+    return;
+  }
+  const auto kind = canvas_->path_edit_target_kind();
+  canvas_->clear_path_edit_selection();
+  if (kind == CanvasWidget::PathEditTargetKind::ShapeLayer) {
+    auto* layer = doc.find_layer(*doc.active_layer_id());
+    if (merged->path.subpaths.empty()) {
+      remove_layers_in_open_undo_step({layer->id()});  // nothing left: an empty shape would fill the canvas
+      statusBar()->showMessage(tr("The shapes left no area; the layer was removed"));
+      return;
+    }
+    auto content = *std::as_const(*layer).vector_shape();
+    content.path = std::move(merged->path);
+    drop_live_shape_origination(content, groups);
+    write_shape_layer_content(*layer, std::move(content));
+  } else {
+    canvas_->replace_path_edit_target(std::move(merged->path), groups);
+  }
+  if (merged->merged_subpaths > 0) {
+    canvas_->select_path_groups({merged->merged_group});
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_paths_panel();
+  refresh_layer_thumbnails();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Merged %1 shape(s) into one outline").arg(groups.size()));
   refresh_path_edit_action_states();
 }
 

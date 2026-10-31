@@ -6,13 +6,13 @@
 
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
 - 8, 16, and 32-bit (linear HDR) editing: 16/32-bit PSD/PSB edit and save at depth, Image > Mode converts (leaving 32 bits offers HDR Toning). 16-bit PNG and TIFF open and export at 16 bits; 32-bit documents export float TIFF. At 32 bits the color windows and Color panel show linear values and Intensity (stops, swatches); paint, gradients and the Eyedropper keep values over 1.0 The browser build stops at 16 bits, converting 32-bit files to 16
-- CMYK, Grayscale, Lab, Bitmap, Indexed, Duotone, and Multichannel Photoshop documents convert to RGB on open (unedited CMYK PSDs save as CMYK; untagged Grayscale is Dot Gain 20%)
+- CMYK, Grayscale, Lab, Bitmap, Indexed, Duotone and Multichannel Photoshop documents convert to RGB on open (unedited CMYK PSDs save as CMYK; untagged Grayscale is Dot Gain 20%)
 - An opaque Background layer locks position and transparency like Photoshop's, so the Eraser paints the background color, and Image > Flatten Image merges the visible layers into it
 - Transparent flat images (PNG, WebP...) open as a transparent layer; a Preferences option opens their alpha as a layer mask
 - Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold, Exposure, Channel Mixer, Photo Filter, Gradient Map, Black & White with presets, Color Lookup (.cube, .3dl or embedded), Selective Color, and Vibrance) with live preview, editable settings, native PSD data, and .acv Curves preset import/export; each also applies from Image > Adjustments
-- One-step Image > Adjustments with no dialog: Invert (Ctrl+I), Auto Tone, Auto Contrast, Auto Color, and Auto All
+- One-step Image > Adjustments with no dialog: Invert (Ctrl+I), Auto Tone, Auto Contrast, Auto Color and Auto All
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (blur, sharpen, noise, distort, stylize, pixelate and render filters plus Image > Adjustments commands) with paintable shared masks and per-filter blending
-- Photoshop-compatible layer style, pattern, and gradient preset libraries with .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures; Edit > Presets (or Preferences) opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
+- Photoshop-compatible layer style, pattern and gradient preset libraries with .asl, .pat and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures; Edit > Presets (or Preferences) opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
 - Continuous long shadows for type and shapes. This Patchy-specific layer-style setting falls back to a normal drop shadow in Photoshop; see the [example](screenshots.md).
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 
@@ -22,7 +22,7 @@
 - With a selection, a Move drag inside it moves the selected pixels, and Free Transform, Skew, Distort and Perspective transform them; the selection follows
 - Ctrl-drag a corner or side of the Move tool's transform box to distort it; Ctrl mid-drag toggles distort and resize
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush blends the stroke on release and offers Replace and blend modes; Red Eye works with a click or a box over the eye
-- Clone source settings on the Clone Stamp gear: four saved sources, offset, scale, rotation, flips, and a source overlay
+- Clone source settings on the Clone Stamp gear: four saved sources, offset, scale, rotation, flips and a source overlay
 - Brush tips (.abr import from the last folder, from selections, a name filter) with texture, dual brush, wet edges and pen-driven size, opacity, flow, scatter and color dynamics; the tip and dynamics windows can stay open; the Brush gear previews the dab or hides the outline
 - Mixer Brush with Wet, Load, Mix, Flow and Sample All Layers controls; stroke smoothing with pulled-string and catch-up options
 - Painting tools show their mouse gestures in the status bar; Ctrl+click (Cmd+click on macOS) selects the layer under the pointer and Ctrl+drag moves the selected layer without switching tools; Alt+right-drag sets brush size and softness (Quick Select: size) with a canvas readout; Shift+[/] step hardness; ,/. step presets; holding Shift previews the line a Shift+click paints
@@ -34,30 +34,30 @@
 - G'MIC Filter Library on desktop: nearly 400 standard G'MIC filters, with controls built from each filter's own description, live preview on the layer, multi-layer input and output, draggable point markers on the canvas, and script access
 - Filter > Last Filter (Ctrl+Alt+F) repeats the last filter with its settings on the current layer and selection, for built-in filters, Filter Gallery looks, G'MIC filters, and plug-ins
 - Filter Gallery with live full-resolution preview, stacks, favorites and Saved Looks; Stylize and Render add angled Wind, Tiles, Extrude, Solarize, Find Edges, Trace Contour, Diffuse, Fibers, Difference Clouds, Lens Flare and Flame (14 presets, path mode); Liquify with warp, twirl, pucker, bloat and freeze brushes
-- Perspective Planes: put layers, pastes, and paint on flat surfaces in perspective
-- Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
-- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), and command line options
+- Perspective Planes: put layers, pastes and paint on flat surfaces in perspective
+- Photoshop-compatible document resolution, physical measurement units, rulers, image sizing and printing
+- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows) and command line options
 
 ## Vectors and typography
 
-- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, dash patterns, offsets, stroke presets (options bar too), path-edited vector masks, anchor and segment edits (break, join, merge, delete), per-shape cut, copy, paste, color, move to new layer, editable radius, sides, star inset, a Paths panel (fill, stroke, selection), saved to PSDs Photoshop opens
-- Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers can keep editable vectors and bitmap runs separate, merge within groups or make a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
-- Trace Image to Shapes: converts a pixel layer into a group of editable shape layers, one per color, with Illustrator-style presets, color, grayscale, and black-and-white modes, abutting or overlapping shapes, noise removal, and a live preview
-- Point text, paragraph (box) text, and area text that flows inside a closed shape or path, saved as native Photoshop text frames
-- Rich text with per-run color, font, size, and style, a searchable font picker, suggested stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, small caps, super/subscript, underline, strikethrough, ordinals, fractions) that edit selected text layers outside text editing
+- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, dashes with offsets, stroke presets, path-edited vector masks, point edits (break, join, weld by drag, merge, delete segment), Merge Shapes to one outline, per-shape cut, copy, paste, color, align, new layer, editable radius, sides, star inset, a Paths panel (fill, stroke, selection), in PSDs Photoshop opens
+- Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps editable vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
+- Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with Illustrator-style presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal and a live preview
+- Point text, paragraph (box) text and area text that flows inside a closed shape or path, saved as native Photoshop text frames
+- Rich text with per-run color, font, size and style, a searchable font picker, suggested stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, small caps, super/subscript, underline, strikethrough, ordinals, fractions) that edit selected text layers outside text editing
 - Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraph direction
 
 ## Pixel art and game assets
 
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
-- Named palette colors appear in the Palette panel, color picker, Info panel, and eyedropper readout. Rename swatches, preserve names through GPL, PSD, and indexed PNG round trips, and manage palettes through scripts
+- Named palette colors appear in the Palette panel, color picker, Info panel and eyedropper readout. Rename swatches, preserve names through GPL, PSD, and indexed PNG round trips, and manage palettes through scripts
 - Pixel-art and game-dev extras: seamless texture authoring (live tile preview window, in-canvas tiling mode, seam shifting), sprite sheet export/import, image sequence export/import (numbered files become layers and back), animated GIF, WebP and PNG import/export (frames become layers with timings in their names, visible layers save as a looping animation, previewed by the film button or Image > Animation Preview, with delay presets), and flat and web exports with pixel scaling, resizing, edge trimming and background fill
 
 ## Color and print
 
 - CMYK ink percentages in the color picker (with a gamut warning and the closest printable color) and the Info panel, converted through an ICC profile: a bundled ISO Coated v2 profile by default, or an installed or chosen one (Preferences > Application > CMYK). CMYK swatches in `.aco` and `.ase` files import through the same profile
 - View > Proof Colors shows the canvas as that profile would print it (and lists the Cyan, Magenta, Yellow and Black plates in the Channels panel), and View > Gamut Warning paints colors it cannot reproduce flat gray. Both are views only: pixels, saves and exports are unchanged
-- Image > Mode > CMYK Proof keeps a document in that proof view and makes JPEG, TIFF, and flattened PDF saves CMYK by default. CMYK JPEG and TIFF files open through their embedded profile into CMYK Proof. Documents are still edited in RGB
+- Image > Mode > CMYK Proof keeps a document in that proof view and makes JPEG, TIFF and flattened PDF saves CMYK by default. CMYK JPEG and TIFF files open through their embedded profile into CMYK Proof. Documents are still edited in RGB
 - File > Export writes JPEG, TIFF and flattened PDF in CMYK through that profile, with the profile embedded, for print shops, optionally with black text and grays on the black plate alone
 - Channels panel: New Layer from Channel turns any channel or ink plate into a grayscale layer, and New Layer from Channel Color turns components and plates into colored layers that stack back into the image
 - Channels panel eyes show or hide Red, Green and Blue (or the CMYK proof's plates) on the canvas, one channel in grayscale or several in color, pixels untouched; Ctrl+2 shows the composite and Ctrl+3 to Ctrl+5 one channel alone (to Ctrl+6 for CMYK Proof plates), keys shown on each row. Each row's thumbnail shows that channel of the image
@@ -67,7 +67,7 @@
 - Multiple document interface: tabs that can float in their own windows, Tile and Cascade, a Window menu of open documents, and layers that drag or duplicate between documents. Opening a file that is already open switches to its tab. Open a folder of images as tabs (or drop the folder on the window), and export every open document as a numbered image set to a folder
 - New Document templates in seven groups (screens, phones and tablets, social, web and ads, print paper, photo prints, icons and game art) showing paper sizes in mm or inches, a search across groups, a document name, color mode and bit depth (8 by default), an optional empty layer above the Background, and saved presets
 - Import multiple files as layers, preserving a layered file's contents in a group, through File > Import, a drop on the Layers panel, or pasted files. Paste a path copied as text to open it (Paste in Place: as a layer)
-- Scan and Divide Photos splits prints into images with editable crop regions, straightening, and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command are available on Windows and macOS
+- Scan and Divide Photos splits prints into images with editable crop regions, straightening and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command are available on Windows and macOS
 - Automatic document recovery saves copies of modified documents at a set interval and reopens them after a crash
 - File > Export for Web: JPEG, WebP, AVIF, JPEG XL, PNG, APNG, GIF, live sizes, playing previews, play count, fill color
 - Reads and writes many formats: PSD/PSB, [PDF](#pdf-documents), PNG, JPEG (12-bit files open at 16 bits), TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), OpenRaster (.ora), Aseprite files, JPEG XL (.jxl, 16/32-bit stills and animation), JPEG 2000 (.jp2), OpenEXR (.exr), Radiance HDR (.hdr/.rgbe), AVIF (desktop), JPEG XR (.jxr, Windows), Proton SDK textures (.rttex), DDS textures (.dds: reads BC1 to BC7, cubemaps, arrays and mipmaps; writes uncompressed, DXT1, DXT5, BC4, BC5 or BC7, mipmaps optional), and SVG (opens as editable shapes, exports vectors)
@@ -80,14 +80,14 @@
 
 ## PDF documents
 
-- Import selected PDF pages on desktop as editable text, vector shapes, and images, or as flattened images at a chosen resolution (72 to 600 ppi presets or any value). Pages can open as separate documents, as one document with a folder, layer or artboard per page. Choose RGB, Grayscale, CMYK Proof, or Indexed Color, 8, 16, or 32 bits per channel, a white or transparent page background, and reverse page order
+- Import selected PDF pages on desktop as editable text, vector shapes and images, or as flattened images at a chosen resolution (72 to 600 ppi presets or any value). Pages can open as separate documents, as one document with a folder, layer or artboard per page. Choose RGB, Grayscale, CMYK Proof, or Indexed Color, 8, 16, or 32 bits per channel, a white or transparent page background, and reverse page order
 - Export a single document or assemble a multi-page PDF from open documents, top-level layer groups, or artboards, with page ordering and editable or flattened output. A document with artboards saves as one PDF page per artboard, each its own size
 - Editable export preserves supported text and vectors. Effects and unsupported combinations are rasterized with notices; it does not preserve every PSD layer property. Imported PDFs save as a new copy so the original is not overwritten by a normal Save
 - Lossless and JPEG quality options, with original compressed image data retained for supported, unchanged scanned pages to avoid re-encoding. PDF export also works in the browser; PDF import requires the desktop app. See [PDF support and limitations](pdf.md)
 
 ## Artboards
 
-- Photoshop-style artboards: several canvases of different sizes in one document, each with a white, black, transparent, or custom background, and layers that show only inside their artboard. Layers outside every artboard still render
+- Photoshop-style artboards: several canvases of different sizes in one document, each with a white, black, transparent or custom background, and layers that show only inside their artboard. Layers outside every artboard still render
 - The Artboard tool (in the Move tool's flyout) draws, moves, copies (Alt-drag), resizes, and nudges artboards, and its + buttons add one beside the selected artboard. Size presets, Auto-Nest Layers, the Properties panel, and Layer > New commands (Artboard, Artboard from Group, Artboard from Layers, Convert Artboard to Group) cover the rest, and New Document can start with one
 - Artboards open and save in Photoshop's own PSD format, export to PDF one page per artboard, export as separate files (File > Export > Artboards to Files), and print one sheet per artboard, optionally on paper the artboard's size. Affinity artboards import as artboards, and scripts can create and edit them
 
@@ -100,15 +100,15 @@
 ## Platforms, privacy, and interface
 
 - Cross-platform: Windows (x64, and native ARM64 without PDF import) leads, with native macOS (Apple Silicon), Linux (Flatpak and AppImage) and a browser build; see the [platform support table](../README.md#platform-support)
-- Native C++ and Qt with CPU rendering. Large documents, high bit depths, and Object Selection need more memory and time
+- Native C++ and Qt with CPU rendering. Large documents, high bit depths and Object Selection need more memory and time
 - No telemetry, tracking or image uploads. Optional update checks contact GitHub; one-click updates on Windows and the Linux AppImage and Object Selection's optional High Quality model download files when requested. Settings live in a plain local file; the installer leaves your file associations unchanged
 - File > File Info shows and edits a document's metadata (EXIF, XMP, IPTC, thumbnails, AI generation data), flags information you may not want to share and strips it. PSD and JPEG saves record Patchy, the save dates, color mode and document IDs as Photoshop does, with a fresh thumbnail
-- Group sidebar panels into tabs (drag, reorder) and collapse them. The Color panel edits colors in a hue cube or RGB, HSB or CMYK sliders (gear picks); the Layers panel previews blend modes while browsing (Shift+Plus/Minus steps them or a painting tool's Mode, Shift+Alt+letter sets one) and has four thumbnail sizes aligned by nesting level. Digits set layer opacity off painting tools; "/" locks transparency. Alt-click (Option-click) New Layer for its dialog (with neutral fills), Ctrl-click (Cmd-click) to add below; Alt-click Add Layer Mask for a hiding mask, Ctrl-click (Cmd-click) for a vector mask. Drag along eyes to toggle layers; right-click one for this, other or all. Row, thumbnail and badge menus hold layer, mask, style, Smart Object and Combine Shapes commands; a badge flags custom blending. Ctrl-click (Cmd-click) thumbnails or channels to select (Shift adds, Alt subtracts, both intersect; the cursor shows it). Delete removes a targeted mask, offering to apply it
-- Help > Search Commands (Ctrl+Shift+/, or the magnifier after Help): find and run any menu command
+- Group sidebar panels into tabs (drag, reorder), collapse them. The Color panel edits colors in a hue cube or RGB, HSB or CMYK sliders (gear picks); the Layers panel previews blend modes while browsing (Shift+Plus/Minus steps them or a painting tool's Mode, Shift+Alt+letter sets one) and has four thumbnail sizes aligned by nesting. Digits (00: 0%) set layer opacity off painting tools; "/" locks transparency. Alt-click (Option-click) New Layer for its dialog (with neutral fills), Ctrl-click (Cmd-click) to add below; Alt-click Add Layer Mask for a hiding mask, Ctrl-click (Cmd-click) for a vector mask. Drag along eyes to toggle layers; right-click one for this, other or all. Row, thumbnail and badge menus hold layer, mask, style, Smart Object and Combine Shapes commands; a badge flags custom blending. Ctrl-click (Cmd-click) thumbnails or channels to select (Shift adds, Alt subtracts, both intersect; the cursor shows it). Delete removes a targeted mask (offering to apply it)
+- Help > Search Commands (Ctrl+Shift+/, or the magnifier after Help): find and run any command, tool or key by name, menu or description
 - Screen modes (F, View menu, toolbox): full screen, with or without menus and panels. F6, F7, F8 toggle the Color, Layers, Info panels
 - Customize Tool Palette: hide tools, color, Quick Mask and screen mode buttons; Layers Panel tab (Customize Layers Panel... in its gear menu): hide, reorder, presets, size, optional move, merge and a rasterize menu; two columns, wheel scroll, icon size, no tool groups; groups open on hold, click or hover
 - Layer menu: Bring to Front/Send to Back (Shift+Ctrl+]/[), Lock Layers... (Ctrl+/), Hide/Show Layers (Ctrl+,), Show All (Ctrl+Alt+,), Export > Quick Export as PNG (Ctrl+Shift+'), Export As (Ctrl+Shift+Alt+')
-- Localized in twelve languages: English, German, Spanish, French, Italian, Brazilian Portuguese, Russian, Polish, Japanese, Korean, and Chinese (Simplified and Traditional), following the system or Preferences, which also set the interface scale and a separate text size (80% to 125%)
+- Localized in twelve languages: English, German, Spanish, French, Italian, Brazilian Portuguese, Russian, Polish, Japanese, Korean, Chinese (Simplified and Traditional), following the system or Preferences, which also set the interface scale and a separate text size (80% to 125%)
 - UI themes: Dark, Light, eight bundled themes (Darkest, Medium Gray, Solarized Dark, Nord, Dracula, Gruvbox Dark, High Contrast, Dink Smallwood), or your own: a `.patchytheme` color file or a theme package (folder or .zip) adding SVG, PNG, BMP icons, a tiled backdrop, event sounds and effects (fireworks, confetti, sprites), and sandboxed scripts for a theme menu, cursors and a splash. Preferences > Colors and Themes previews each theme, its startup sound, version, author and description, warns if it needs a newer Patchy, keeps script trust per theme, imports and exports. Start from [themes/example-package](../themes/example-package/theme.json)
 
 ## Current Status
@@ -151,7 +151,7 @@ warnings describe conversions that affect a particular document.
 
 Patchy imports Affinity documents: the current .af format ("Affinity by Canva"), the Affinity 2 formats (.afphoto, .afdesign, .afpub), and most Affinity 1.x files. Raster layers (16-bit, float, CMYK and Lab become 8-bit RGB), groups, masks (raster and vector), clipping, blend modes, opacity, editable text with per-run styles, vector curves, parametric shapes, compound-shape booleans, Designer symbols, artboards, layer effects, supported adjustment layers, and placed images (as embedded Smart Objects) import. Strokes keep their width, alignment, dashes and miter limit, crop-to-shape containers become masked groups, and the Erase blend mode becomes an isolated group with an inverse-alpha mask. A file that can't import as layers opens as its embedded preview, saying what was skipped.
 
-Affinity features that are not supported yet, or are only partially supported:
+Affinity features not supported yet, or only partly supported:
 
 - Saving to Affinity formats (import only; save your edits as PSD)
 - A few parametric shape kinds (callouts, spirals, QR codes, circle-rounded stars, and exotic arrow ends) import as named placeholders

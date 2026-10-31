@@ -682,6 +682,7 @@ private:
   void update_window_resize_cursor(Qt::Edges edges);
   void clear_window_resize_cursor();
   bool handle_spacebar_canvas_pan_event(QObject* watched, QEvent* event);
+  bool handle_opacity_digit_key_event(QObject* watched, QEvent* event);
   [[nodiscard]] bool spacebar_canvas_pan_target_in_window(QWidget* widget) const noexcept;
   [[nodiscard]] bool spacebar_canvas_pan_target_is_canvas(QWidget* widget) const noexcept;
   [[nodiscard]] bool spacebar_canvas_pan_blocked_by_text_input(QWidget* widget) const noexcept;
@@ -1834,6 +1835,15 @@ private:
   // clipboard holds none.
   bool paste_path_components();
   void color_selected_path_components();
+  // Merge Shapes (GitHub #555): the selected components (all of the target path's when none are
+  // selected; two or more selected shape layers combine first) become one outline.
+  void merge_selected_path_components();
+  // Layer > Arrange > Align on two or more shapes picked with Path Select or Direct Select: they
+  // align inside their layer or path, to their joint bounds (or the canvas with Align to Canvas).
+  // False when there are not two such shapes (the layer alignment runs instead).
+  bool align_selected_path_components(AlignEdge edge);
+  // Why Merge Shapes cannot run now (empty: it can; "-": no document or canvas).
+  [[nodiscard]] QString merge_shapes_refusal() const;
   bool set_selected_path_components_color(QColor color);
   void selected_path_components_to_new_layer(bool keep_originals);
   // Removes `groups` from the target path inside an open undo step; a shape layer left empty goes.
@@ -3053,6 +3063,8 @@ private:
   // order), then the component commands (GitHub #555).
   std::array<QAction*, 4> path_point_actions_{};
   QAction* path_shapes_color_action_{nullptr};
+  QAction* path_merge_shapes_action_{nullptr};
+  QToolButton* path_merge_shapes_button_{nullptr};  // the options bar's Merge Shapes
   QAction* path_shapes_to_new_layer_action_{nullptr};
   QAction* path_shapes_copy_to_new_layer_action_{nullptr};
   QAction* path_shapes_cut_action_{nullptr};

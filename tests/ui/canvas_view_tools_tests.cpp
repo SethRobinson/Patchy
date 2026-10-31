@@ -9811,6 +9811,20 @@ void ui_layer_opacity_digit_keys_with_move_tool() {
   CHECK(opacity_of(ids.front()) == 5 && opacity_of(ids.back()) == 5);
   process_events_for(1100);
   CHECK(Access::active_session_undo_depth(window) == depth_before + 2);
+  // "00" is a layer's 0%, as in Photoshop (GitHub issue 562); a lone 0 stays 100%.
+  send_key(*canvas, Qt::Key_0);
+  process_events_for(60);
+  CHECK(opacity_of(ids.front()) == 100);
+  send_key(*canvas, Qt::Key_0);
+  process_events_for(60);
+  CHECK(opacity_of(ids.front()) == 0 && opacity_of(ids.back()) == 0);
+  CHECK(opacity_spin->value() == 0);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Layer opacity: 0%"));
+  process_events_for(1100);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 3);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(opacity_of(ids.front()) == 5 && opacity_of(ids.back()) == 5);
   Access::undo(window);
   QApplication::processEvents();
   CHECK(opacity_of(ids.front()) == 57 && opacity_of(ids.back()) == 57);
@@ -9827,6 +9841,143 @@ void ui_layer_opacity_digit_keys_with_move_tool() {
   process_events_for(60);
   CHECK(canvas->brush_opacity() == 30);
   CHECK(opacity_of(ids.back()) == 57);
+}
+
+// GitHub issue 562 follow-up: the 0-9 opacity keys work anywhere in the main window, as in
+// Photoshop, not only while the canvas has focus. A digit pressed in the Layers panel reaches the
+// active tool (or the layers with Move); a spin box keeps its digits.
+void ui_opacity_digit_keys_work_from_panels() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Upper",
+                      solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  const auto upper_id = document.add_layer(std::move(layer)).id();
+  document.set_active_layer(upper_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Panel Digits"));
+  show_window(window);
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto opacity_of = [&window](patchy::LayerId id) {
+    const auto* found = std::as_const(Access::document(window)).find_layer(id);
+    return found != nullptr ? static_cast<int>(std::lround(found->opacity() * 100.0F)) : -1;
+  };
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  CHECK(layer_list != nullptr && size_spin != nullptr);
+  if (layer_list == nullptr || size_spin == nullptr) {
+    return;
+  }
+
+  // Brush with the Layers panel focused: the digit sets the brush's opacity.
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_brush_opacity(100);
+  layer_list->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  CHECK(QApplication::focusWidget() == layer_list);
+  QTest::keyClick(layer_list, Qt::Key_3);
+  QApplication::processEvents();
+  CHECK(canvas->brush_opacity() == 30);
+  auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+  CHECK(opacity_spin != nullptr && opacity_spin->value() == 30);
+  CHECK(opacity_of(upper_id) == 100);
+  QTest::keyClick(layer_list, Qt::Key_5, Qt::KeypadModifier);  // keypad digits too
+  QApplication::processEvents();
+  CHECK(canvas->brush_opacity() == 35);
+  process_events_for(900);
+
+  // A spin box keeps its digits: Size takes the 5, Opacity stays.
+  const int size_before = size_spin->value();
+  const auto restore_size = qScopeGuard([size_spin, size_before] { size_spin->setValue(size_before); });
+  size_spin->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  size_spin->selectAll();
+  QTest::keyClick(size_spin, Qt::Key_5);
+  QApplication::processEvents();
+  CHECK(size_spin->value() == 5);
+  CHECK(canvas->brush_opacity() == 35);
+  process_events_for(900);
+
+  // Move with the Layers panel focused: the digit sets the selected layer's opacity.
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  layer_list->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  QTest::keyClick(layer_list, Qt::Key_5);
+  process_events_for(60);
+  CHECK(opacity_of(upper_id) == 50);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Layer opacity: 50%"));
+}
+
+// GitHub issue 562 follow-up: bare digits set the Brush's Flow while Airbrush is on, so the
+// options bar's Airbrush box must always show the canvas's state: across tool and document
+// switches and preset picks. The status message names Airbrush when a bare digit sets Flow.
+void ui_brush_airbrush_box_follows_canvas_state() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(status_info_test_document(), QStringLiteral("First"));
+  show_window(window);
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  auto* airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
+  auto* presets = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(airbrush != nullptr && presets != nullptr && tabs != nullptr);
+  if (airbrush == nullptr || presets == nullptr || tabs == nullptr) {
+    return;
+  }
+  const auto in_step = [&window, airbrush] {
+    auto* canvas = require_canvas(window);
+    return canvas != nullptr && airbrush->isChecked() == canvas->brush_build_up();
+  };
+  airbrush->setChecked(true);
+  QApplication::processEvents();
+  CHECK(require_canvas(window)->brush_build_up());
+
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(airbrush->isChecked());
+  CHECK(in_step());
+
+  window.add_document_session(status_info_test_document(), QStringLiteral("Second"));
+  QApplication::processEvents();
+  CHECK(airbrush->isChecked());
+  CHECK(in_step());
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(in_step());
+
+  auto* canvas = require_canvas(window);
+  canvas->set_brush_flow(100);
+  canvas->set_brush_opacity(100);
+  send_key(*canvas, Qt::Key_4);
+  CHECK(canvas->brush_flow() == 40);
+  CHECK(canvas->brush_opacity() == 100);
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Brush flow: 40% (Airbrush is on; Shift+number sets opacity)"));
+  process_events_for(900);
+
+  // The Airbrush preset turns it on, and a preset without it clears the box and the canvas
+  // together.
+  const auto airbrush_preset = presets->findData(QStringLiteral("airbrush"));
+  const auto soft_round = presets->findData(QStringLiteral("soft_round"));
+  const auto hard_round = presets->findData(QStringLiteral("hard_round"));
+  CHECK(airbrush_preset >= 0 && soft_round >= 0 && hard_round >= 0);
+  presets->setCurrentIndex(airbrush_preset);
+  QApplication::processEvents();
+  CHECK(airbrush->isChecked());
+  CHECK(in_step());
+  presets->setCurrentIndex(soft_round);
+  QApplication::processEvents();
+  CHECK(!airbrush->isChecked());
+  CHECK(in_step());
+  send_key(*require_canvas(window), Qt::Key_6);
+  CHECK(require_canvas(window)->brush_opacity() == 60);
+  presets->setCurrentIndex(hard_round);  // the startup preset, for the tests after this one
+  QApplication::processEvents();
 }
 
 // GitHub issue 476 follow-up: fast Next Blend Mode presses never wait on the compositor. Each
@@ -11282,6 +11433,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_lock_transparent_pixels_command_toggles_selected_layers",
        ui_lock_transparent_pixels_command_toggles_selected_layers},
       {"ui_layer_opacity_digit_keys_with_move_tool", ui_layer_opacity_digit_keys_with_move_tool},
+      {"ui_opacity_digit_keys_work_from_panels", ui_opacity_digit_keys_work_from_panels},
+      {"ui_brush_airbrush_box_follows_canvas_state", ui_brush_airbrush_box_follows_canvas_state},
       {"ui_layer_blend_mode_fast_steps_render_only_the_landing_mode",
        ui_layer_blend_mode_fast_steps_render_only_the_landing_mode},
       {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",

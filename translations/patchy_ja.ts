@@ -15948,10 +15948,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>クリックでシェイプを選択、ドラッグで移動。%CTRL%+Tで変形します。</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>ドラッグでポイントを移動。Shift+クリックで選択に追加、Deleteで選択したポイントを削除します。</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>ハンドルをドラッグして曲線を変形</translation>
     </message>
@@ -16379,6 +16375,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Delete Segment</source>
         <translation>セグメントを削除</translation>
     </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>ダイレクト選択でポイント (開いたパスの内側のポイント、または閉じたパスの任意のポイント) を選択するか、ポイントを右クリックしてください</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>ダイレクト選択で 2 つの端点、または 1 つのパスの隣り合うポイントを選択するか、セグメントを右クリックしてください</translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation>ダイレクト選択でセグメントをクリックして選択するか、右クリックしてください</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>端点を連結しました</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>離すと端点を連結します。%ALT% を押したままにすると自由に配置します。</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation>ポイントにスナップしました。%ALT% を押したままにすると自由に配置します。</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>ドラッグでポイントを移動。端点を別の端点にドロップすると連結します。Shift+クリックで選択に追加。右クリックで分割、連結、統合。</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>ダイレクト選択で、連結する 2 つの端点、または閉じる開いたパスのポイントを選択してください</translation>
+    </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>ブラシのフロー: %1% (エアブラシがオン。Shift+数字で不透明度を設定)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -16686,8 +16718,1740 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::CommandSearch</name>
     <message>
-        <source>Search menu commands</source>
-        <translation>メニューコマンドを検索</translation>
+        <source>Create a new blank image</source>
+        <translation>新しい空の画像を作成</translation>
+    </message>
+    <message>
+        <source>Open an image file</source>
+        <translation>画像ファイルを開く</translation>
+    </message>
+    <message>
+        <source>New image from the clipboard</source>
+        <translation>クリップボードから新規画像</translation>
+    </message>
+    <message>
+        <source>Open every image in a folder</source>
+        <translation>フォルダー内の画像をすべて開く</translation>
+    </message>
+    <message>
+        <source>Save the document</source>
+        <translation>ドキュメントを保存</translation>
+    </message>
+    <message>
+        <source>Save to a new file or format</source>
+        <translation>新しいファイルや形式で保存</translation>
+    </message>
+    <message>
+        <source>Save a flattened copy</source>
+        <translation>統合したコピーを保存</translation>
+    </message>
+    <message>
+        <source>Optimize and save for the web</source>
+        <translation>Web 用に最適化して保存</translation>
+    </message>
+    <message>
+        <source>Save the layers as a GIF animation</source>
+        <translation>レイヤーを GIF アニメーションとして保存</translation>
+    </message>
+    <message>
+        <source>Combine the layers into one sheet</source>
+        <translation>レイヤーを 1 枚のシートにまとめる</translation>
+    </message>
+    <message>
+        <source>Insert an image as a Smart Object</source>
+        <translation>画像をスマートオブジェクトとして挿入</translation>
+    </message>
+    <message>
+        <source>Insert a linked image file</source>
+        <translation>リンクした画像ファイルを挿入</translation>
+    </message>
+    <message>
+        <source>Open several images as layers</source>
+        <translation>複数の画像をレイヤーとして開く</translation>
+    </message>
+    <message>
+        <source>Scan an image</source>
+        <translation>画像をスキャン</translation>
+    </message>
+    <message>
+        <source>Author, copyright and other metadata</source>
+        <translation>作成者、著作権などのメタデータ</translation>
+    </message>
+    <message>
+        <source>Remove EXIF and other metadata</source>
+        <translation>EXIF などのメタデータを削除</translation>
+    </message>
+    <message>
+        <source>Print the image</source>
+        <translation>画像を印刷</translation>
+    </message>
+    <message>
+        <source>Close the document</source>
+        <translation>ドキュメントを閉じる</translation>
+    </message>
+    <message>
+        <source>Settings and options</source>
+        <translation>設定とオプション</translation>
+    </message>
+    <message>
+        <source>Exit Patchy</source>
+        <translation>Patchy を終了</translation>
+    </message>
+    <message>
+        <source>Take back the last change</source>
+        <translation>直前の変更を取り消す</translation>
+    </message>
+    <message>
+        <source>Redo the change you took back</source>
+        <translation>取り消した変更をやり直す</translation>
+    </message>
+    <message>
+        <source>Move the selection to the clipboard</source>
+        <translation>選択範囲をクリップボードへ移動</translation>
+    </message>
+    <message>
+        <source>Copy the selection to the clipboard</source>
+        <translation>選択範囲をクリップボードにコピー</translation>
+    </message>
+    <message>
+        <source>Copy what all visible layers show</source>
+        <translation>表示中の全レイヤーの見た目をコピー</translation>
+    </message>
+    <message>
+        <source>Paste from the clipboard</source>
+        <translation>クリップボードから貼り付け</translation>
+    </message>
+    <message>
+        <source>Paste at the same position</source>
+        <translation>同じ位置に貼り付け</translation>
+    </message>
+    <message>
+        <source>Fill with a color or pattern</source>
+        <translation>カラーやパターンで塗りつぶす</translation>
+    </message>
+    <message>
+        <source>Draw an outline along the selection</source>
+        <translation>選択範囲に沿って境界線を描く</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or move freely</source>
+        <translation>自由に拡大・縮小、回転、移動</translation>
+    </message>
+    <message>
+        <source>Resize the layer or selection</source>
+        <translation>レイヤーや選択範囲のサイズを変更</translation>
+    </message>
+    <message>
+        <source>Turn the layer or selection</source>
+        <translation>レイヤーや選択範囲を回転</translation>
+    </message>
+    <message>
+        <source>Bend the layer with a grid</source>
+        <translation>グリッドでレイヤーを変形</translation>
+    </message>
+    <message>
+        <source>Erase an object and fill the gap</source>
+        <translation>オブジェクトを消して隙間を埋める</translation>
+    </message>
+    <message>
+        <source>Make a brush from the selection</source>
+        <translation>選択範囲からブラシを作成</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from a path</source>
+        <translation>パスからカスタムシェイプを作成</translation>
+    </message>
+    <message>
+        <source>Change the color profile</source>
+        <translation>カラープロファイルを変更</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>グラデーションプリセットを管理</translation>
+    </message>
+    <message>
+        <source>Manage pattern presets</source>
+        <translation>パターンプリセットを管理</translation>
+    </message>
+    <message>
+        <source>Resize or scale the image</source>
+        <translation>画像のサイズや倍率を変更</translation>
+    </message>
+    <message>
+        <source>Add or remove space around the image</source>
+        <translation>画像の周囲の余白を追加または削除</translation>
+    </message>
+    <message>
+        <source>Crop the image to the selection</source>
+        <translation>画像を選択範囲で切り抜く</translation>
+    </message>
+    <message>
+        <source>Remove empty borders</source>
+        <translation>空の余白を削除</translation>
+    </message>
+    <message>
+        <source>Set the black point, white point and midtones</source>
+        <translation>黒点、白点、中間調を設定</translation>
+    </message>
+    <message>
+        <source>Adjust the tones with a curve</source>
+        <translation>カーブで階調を調整</translation>
+    </message>
+    <message>
+        <source>Change colors, saturation and lightness</source>
+        <translation>色、彩度、明度を変更</translation>
+    </message>
+    <message>
+        <source>Shift the colors of shadows and highlights</source>
+        <translation>シャドウとハイライトの色を調整</translation>
+    </message>
+    <message>
+        <source>Turn the image gray</source>
+        <translation>画像をグレースケールにする</translation>
+    </message>
+    <message>
+        <source>Make muted colors stronger</source>
+        <translation>くすんだ色を鮮やかにする</translation>
+    </message>
+    <message>
+        <source>Brighten or darken the image</source>
+        <translation>画像を明るくまたは暗くする</translation>
+    </message>
+    <message>
+        <source>Fix tone and color automatically</source>
+        <translation>階調と色を自動補正</translation>
+    </message>
+    <message>
+        <source>Reduce the image to a color palette</source>
+        <translation>画像をカラーパレットに減色</translation>
+    </message>
+    <message>
+        <source>Use 16 bits per channel</source>
+        <translation>チャンネルあたり 16 ビットを使用</translation>
+    </message>
+    <message>
+        <source>Add New Layer</source>
+        <translation>新規レイヤーを追加</translation>
+    </message>
+    <message>
+        <source>Add an empty layer at once</source>
+        <translation>空のレイヤーをすぐに追加</translation>
+    </message>
+    <message>
+        <source>Copy the layer</source>
+        <translation>レイヤーをコピー</translation>
+    </message>
+    <message>
+        <source>Remove the layer</source>
+        <translation>レイヤーを削除</translation>
+    </message>
+    <message>
+        <source>Change the layer name</source>
+        <translation>レイヤー名を変更</translation>
+    </message>
+    <message>
+        <source>Put the selected layers in a folder</source>
+        <translation>選択したレイヤーをフォルダーに入れる</translation>
+    </message>
+    <message>
+        <source>Copy the selection to a new layer</source>
+        <translation>選択範囲を新規レイヤーにコピー</translation>
+    </message>
+    <message>
+        <source>Move the selection to a new layer</source>
+        <translation>選択範囲を新規レイヤーに移動</translation>
+    </message>
+    <message>
+        <source>Combine with the layer below</source>
+        <translation>下のレイヤーと結合</translation>
+    </message>
+    <message>
+        <source>Combine all visible layers</source>
+        <translation>表示中の全レイヤーを結合</translation>
+    </message>
+    <message>
+        <source>Add a layer mask</source>
+        <translation>レイヤーマスクを追加</translation>
+    </message>
+    <message>
+        <source>Bake the mask into the pixels</source>
+        <translation>マスクをピクセルに適用</translation>
+    </message>
+    <message>
+        <source>Drop shadow, stroke, glow and other effects</source>
+        <translation>ドロップシャドウ、境界線、光彩などの効果</translation>
+    </message>
+    <message>
+        <source>Clip to the layer below</source>
+        <translation>下のレイヤーでクリップ</translation>
+    </message>
+    <message>
+        <source>Show or hide layers</source>
+        <translation>レイヤーの表示と非表示</translation>
+    </message>
+    <message>
+        <source>Protect layers from changes</source>
+        <translation>レイヤーを変更から保護</translation>
+    </message>
+    <message>
+        <source>Move the layer up the stack</source>
+        <translation>レイヤーを重なり順の上へ移動</translation>
+    </message>
+    <message>
+        <source>Move the layer down the stack</source>
+        <translation>レイヤーを重なり順の下へ移動</translation>
+    </message>
+    <message>
+        <source>Fill with the foreground color</source>
+        <translation>描画色で塗りつぶす</translation>
+    </message>
+    <message>
+        <source>Fill with the background color</source>
+        <translation>背景色で塗りつぶす</translation>
+    </message>
+    <message>
+        <source>Erase the layer or selection</source>
+        <translation>レイヤーや選択範囲を消去</translation>
+    </message>
+    <message>
+        <source>Select the whole image</source>
+        <translation>画像全体を選択</translation>
+    </message>
+    <message>
+        <source>Clear the selection</source>
+        <translation>選択を解除</translation>
+    </message>
+    <message>
+        <source>Bring back the last selection</source>
+        <translation>直前の選択範囲を戻す</translation>
+    </message>
+    <message>
+        <source>Swap selected and unselected areas</source>
+        <translation>選択部分と非選択部分を入れ替える</translation>
+    </message>
+    <message>
+        <source>Select every layer</source>
+        <translation>すべてのレイヤーを選択</translation>
+    </message>
+    <message>
+        <source>Make the selection larger</source>
+        <translation>選択範囲を広げる</translation>
+    </message>
+    <message>
+        <source>Make the selection smaller</source>
+        <translation>選択範囲を狭める</translation>
+    </message>
+    <message>
+        <source>Select a band along the edge</source>
+        <translation>境界に沿った帯を選択</translation>
+    </message>
+    <message>
+        <source>Add neighboring similar colors</source>
+        <translation>隣接する似た色を追加</translation>
+    </message>
+    <message>
+        <source>Add similar colors anywhere</source>
+        <translation>画像全体の似た色を追加</translation>
+    </message>
+    <message>
+        <source>Paint a selection as a mask</source>
+        <translation>選択範囲をマスクとして描く</translation>
+    </message>
+    <message>
+        <source>Magnify the view</source>
+        <translation>表示を拡大</translation>
+    </message>
+    <message>
+        <source>Show more of the image</source>
+        <translation>画像をより広く表示</translation>
+    </message>
+    <message>
+        <source>Show the whole image</source>
+        <translation>画像全体を表示</translation>
+    </message>
+    <message>
+        <source>Zoom to 100%</source>
+        <translation>100% に拡大・縮小</translation>
+    </message>
+    <message>
+        <source>Show or hide the rulers</source>
+        <translation>定規の表示と非表示</translation>
+    </message>
+    <message>
+        <source>Show or hide the grid</source>
+        <translation>グリッドの表示と非表示</translation>
+    </message>
+    <message>
+        <source>Show or hide the guides</source>
+        <translation>ガイドの表示と非表示</translation>
+    </message>
+    <message>
+        <source>Line up with guides and edges while dragging</source>
+        <translation>ドラッグ中にガイドや端に揃える</translation>
+    </message>
+    <message>
+        <source>Show the pixel grid when zoomed in</source>
+        <translation>拡大時にピクセルグリッドを表示</translation>
+    </message>
+    <message>
+        <source>Add a guide line</source>
+        <translation>ガイドを追加</translation>
+    </message>
+    <message>
+        <source>Remove all guides</source>
+        <translation>すべてのガイドを削除</translation>
+    </message>
+    <message>
+        <source>Move layers and selections</source>
+        <translation>レイヤーと選択範囲を移動</translation>
+    </message>
+    <message>
+        <source>Select a rectangle</source>
+        <translation>長方形を選択</translation>
+    </message>
+    <message>
+        <source>Select an ellipse or circle</source>
+        <translation>楕円や円を選択</translation>
+    </message>
+    <message>
+        <source>Draw a freehand selection</source>
+        <translation>フリーハンドで選択範囲を描く</translation>
+    </message>
+    <message>
+        <source>Select with straight edges</source>
+        <translation>直線で囲んで選択</translation>
+    </message>
+    <message>
+        <source>Select along edges it finds</source>
+        <translation>検出した輪郭に沿って選択</translation>
+    </message>
+    <message>
+        <source>Select similar colors with a click</source>
+        <translation>クリックで似た色を選択</translation>
+    </message>
+    <message>
+        <source>Paint a selection that finds edges</source>
+        <translation>輪郭を検出する選択範囲を描く</translation>
+    </message>
+    <message>
+        <source>Select an object automatically</source>
+        <translation>オブジェクトを自動で選択</translation>
+    </message>
+    <message>
+        <source>Paint with a brush</source>
+        <translation>ブラシで描く</translation>
+    </message>
+    <message>
+        <source>Mix paint with the colors under it</source>
+        <translation>下の色と絵の具を混ぜる</translation>
+    </message>
+    <message>
+        <source>Copy pixels from one place to another</source>
+        <translation>ある場所のピクセルを別の場所へコピー</translation>
+    </message>
+    <message>
+        <source>Paint with a pattern</source>
+        <translation>パターンで描く</translation>
+    </message>
+    <message>
+        <source>Repair blemishes with sampled pixels</source>
+        <translation>サンプルしたピクセルで傷を修復</translation>
+    </message>
+    <message>
+        <source>Remove spots with one click</source>
+        <translation>クリックでしみを除去</translation>
+    </message>
+    <message>
+        <source>Replace an area with pixels from elsewhere</source>
+        <translation>範囲を別の場所のピクセルで置き換え</translation>
+    </message>
+    <message>
+        <source>Fix red eyes in photos</source>
+        <translation>写真の赤目を補正</translation>
+    </message>
+    <message>
+        <source>Smear paint</source>
+        <translation>絵の具をこすって伸ばす</translation>
+    </message>
+    <message>
+        <source>Lighten areas</source>
+        <translation>部分的に明るくする</translation>
+    </message>
+    <message>
+        <source>Darken areas</source>
+        <translation>部分的に暗くする</translation>
+    </message>
+    <message>
+        <source>Change the color saturation</source>
+        <translation>彩度を変更</translation>
+    </message>
+    <message>
+        <source>Soften areas</source>
+        <translation>部分的にぼかす</translation>
+    </message>
+    <message>
+        <source>Sharpen areas</source>
+        <translation>部分的にシャープにする</translation>
+    </message>
+    <message>
+        <source>Erase pixels</source>
+        <translation>ピクセルを消去</translation>
+    </message>
+    <message>
+        <source>Draw a color gradient</source>
+        <translation>グラデーションを描く</translation>
+    </message>
+    <message>
+        <source>Fill an area with color</source>
+        <translation>範囲を色で塗りつぶす</translation>
+    </message>
+    <message>
+        <source>Draw a straight line</source>
+        <translation>直線を描く</translation>
+    </message>
+    <message>
+        <source>Draw a rectangle</source>
+        <translation>長方形を描く</translation>
+    </message>
+    <message>
+        <source>Draw an ellipse or circle</source>
+        <translation>楕円や円を描く</translation>
+    </message>
+    <message>
+        <source>Draw a polygon or star</source>
+        <translation>多角形や星形を描く</translation>
+    </message>
+    <message>
+        <source>Draw a custom shape</source>
+        <translation>カスタムシェイプを描く</translation>
+    </message>
+    <message>
+        <source>Pick a color from the image</source>
+        <translation>画像から色を取得</translation>
+    </message>
+    <message>
+        <source>Measure distances and angles</source>
+        <translation>距離と角度を測定</translation>
+    </message>
+    <message>
+        <source>Add text</source>
+        <translation>テキストを追加</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>表示をスクロール</translation>
+    </message>
+    <message>
+        <source>Zoom in and out</source>
+        <translation>拡大・縮小</translation>
+    </message>
+    <message>
+        <source>Draw paths and curves</source>
+        <translation>パスと曲線を描く</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes</source>
+        <translation>シェイプ全体を選択して移動</translation>
+    </message>
+    <message>
+        <source>Edit points and handles</source>
+        <translation>アンカーポイントとハンドルを編集</translation>
+    </message>
+    <message>
+        <source>Add a point to a path</source>
+        <translation>パスにポイントを追加</translation>
+    </message>
+    <message>
+        <source>Remove a point from a path</source>
+        <translation>パスからポイントを削除</translation>
+    </message>
+    <message>
+        <source>Switch points between corner and smooth</source>
+        <translation>ポイントを角とスムーズで切り替え</translation>
+    </message>
+    <message>
+        <source>Crop or straighten the image</source>
+        <translation>画像を切り抜きまたは傾きを補正</translation>
+    </message>
+    <message>
+        <source>Crop and fix the perspective</source>
+        <translation>切り抜いて遠近を補正</translation>
+    </message>
+    <message>
+        <source>Add and arrange artboards</source>
+        <translation>アートボードを追加して配置</translation>
+    </message>
+    <message>
+        <source>Search commands and tools</source>
+        <translation>コマンドとツールを検索</translation>
+    </message>
+    <message>
+        <source>Empty the list of recent files</source>
+        <translation>最近使用したファイルの一覧をクリア</translation>
+    </message>
+    <message>
+        <source>Empty the list of recent folders</source>
+        <translation>最近使用したフォルダーの一覧をクリア</translation>
+    </message>
+    <message>
+        <source>Scan and print in one step</source>
+        <translation>スキャンと印刷を一度に実行</translation>
+    </message>
+    <message>
+        <source>Scan several photos and split them apart</source>
+        <translation>複数の写真をスキャンして個別に分割</translation>
+    </message>
+    <message>
+        <source>Cut a sprite sheet into layers</source>
+        <translation>スプライトシートをレイヤーに分割</translation>
+    </message>
+    <message>
+        <source>Load numbered images as layers</source>
+        <translation>連番画像をレイヤーとして読み込む</translation>
+    </message>
+    <message>
+        <source>Save several documents as one PDF</source>
+        <translation>複数のドキュメントを 1 つの PDF として保存</translation>
+    </message>
+    <message>
+        <source>Save every open document to a folder</source>
+        <translation>開いているすべてのドキュメントをフォルダーに保存</translation>
+    </message>
+    <message>
+        <source>Save each artboard as its own file</source>
+        <translation>各アートボードを個別のファイルとして保存</translation>
+    </message>
+    <message>
+        <source>Save each layer as a numbered image</source>
+        <translation>各レイヤーを連番画像として保存</translation>
+    </message>
+    <message>
+        <source>Save the layers as a WebP animation</source>
+        <translation>レイヤーを WebP アニメーションとして保存</translation>
+    </message>
+    <message>
+        <source>Save the layers as an APNG animation</source>
+        <translation>レイヤーを APNG アニメーションとして保存</translation>
+    </message>
+    <message>
+        <source>Look for hidden watermarks in an image</source>
+        <translation>画像内の隠し透かしを検出</translation>
+    </message>
+    <message>
+        <source>Choose paper size and orientation</source>
+        <translation>用紙サイズと向きを選択</translation>
+    </message>
+    <message>
+        <source>Run, edit and organize scripts</source>
+        <translation>スクリプトの実行、編集、整理</translation>
+    </message>
+    <message>
+        <source>Show the scripts folder on disk</source>
+        <translation>ディスク上のスクリプトフォルダーを表示</translation>
+    </message>
+    <message>
+        <source>Close every open document</source>
+        <translation>開いているすべてのドキュメントを閉じる</translation>
+    </message>
+    <message>
+        <source>Slant the layer or selection</source>
+        <translation>レイヤーまたは選択範囲を斜めに傾ける</translation>
+    </message>
+    <message>
+        <source>Drag each corner freely</source>
+        <translation>各コーナーを自由にドラッグ</translation>
+    </message>
+    <message>
+        <source>Make one side wider than the other</source>
+        <translation>片側をもう一方より広くする</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from an SVG file</source>
+        <translation>SVG ファイルからカスタムシェイプを作成</translation>
+    </message>
+    <message>
+        <source>Manage layer style presets</source>
+        <translation>レイヤースタイルのプリセットを管理</translation>
+    </message>
+    <message>
+        <source>Manage brush tips and import ABR</source>
+        <translation>ブラシ先端を管理して ABR を読み込む</translation>
+    </message>
+    <message>
+        <source>Manage saved brushes</source>
+        <translation>保存したブラシを管理</translation>
+    </message>
+    <message>
+        <source>Manage custom shape presets</source>
+        <translation>カスタムシェイプのプリセットを管理</translation>
+    </message>
+    <message>
+        <source>Convert to full color</source>
+        <translation>フルカラーに変換</translation>
+    </message>
+    <message>
+        <source>Preview and save for print colors</source>
+        <translation>印刷用カラーでプレビューして保存</translation>
+    </message>
+    <message>
+        <source>Use 8 bits per channel</source>
+        <translation>チャンネルあたり 8 ビットを使用</translation>
+    </message>
+    <message>
+        <source>Use 32-bit HDR color</source>
+        <translation>32 ビット HDR カラーを使用</translation>
+    </message>
+    <message>
+        <source>Limit the layer to the palette colors</source>
+        <translation>レイヤーをパレットの色に制限</translation>
+    </message>
+    <message>
+        <source>Limit every layer to the palette colors</source>
+        <translation>すべてのレイヤーをパレットの色に制限</translation>
+    </message>
+    <message>
+        <source>Make the image lighter, darker or punchier</source>
+        <translation>画像を明るく、暗く、またはメリハリのある印象に</translation>
+    </message>
+    <message>
+        <source>Warm or cool the colors like a lens filter</source>
+        <translation>レンズフィルターのように色を暖かくまたは冷たく</translation>
+    </message>
+    <message>
+        <source>Blend the red, green and blue channels</source>
+        <translation>レッド、グリーン、ブルーのチャンネルを混合</translation>
+    </message>
+    <message>
+        <source>Apply a color grading table</source>
+        <translation>カラーグレーディングテーブルを適用</translation>
+    </message>
+    <message>
+        <source>Make a negative</source>
+        <translation>ネガを作成</translation>
+    </message>
+    <message>
+        <source>Reduce the number of tones</source>
+        <translation>階調数を減らす</translation>
+    </message>
+    <message>
+        <source>Turn the image black and white</source>
+        <translation>画像を白黒にする</translation>
+    </message>
+    <message>
+        <source>Map the tones to a gradient</source>
+        <translation>階調をグラデーションに割り当てる</translation>
+    </message>
+    <message>
+        <source>Adjust one range of colors</source>
+        <translation>特定の色域を調整</translation>
+    </message>
+    <message>
+        <source>Remove all color</source>
+        <translation>すべての色を除去</translation>
+    </message>
+    <message>
+        <source>Stretch the tones automatically</source>
+        <translation>階調を自動的に引き伸ばす</translation>
+    </message>
+    <message>
+        <source>Improve contrast automatically</source>
+        <translation>コントラストを自動的に改善</translation>
+    </message>
+    <message>
+        <source>Remove a color cast automatically</source>
+        <translation>色かぶりを自動的に除去</translation>
+    </message>
+    <message>
+        <source>Add an artboard</source>
+        <translation>アートボードを追加</translation>
+    </message>
+    <message>
+        <source>Editable lighter, darker or punchier</source>
+        <translation>編集可能な明るさ、暗さ、メリハリの調整</translation>
+    </message>
+    <message>
+        <source>Editable black point, white point and midtones</source>
+        <translation>編集可能な黒点、白点、中間調</translation>
+    </message>
+    <message>
+        <source>Editable tone curve</source>
+        <translation>編集可能なトーンカーブ</translation>
+    </message>
+    <message>
+        <source>Editable colors, saturation and lightness</source>
+        <translation>編集可能な色、彩度、明度</translation>
+    </message>
+    <message>
+        <source>Editable color shift in shadows and highlights</source>
+        <translation>編集可能なシャドウとハイライトの色シフト</translation>
+    </message>
+    <message>
+        <source>Editable negative</source>
+        <translation>編集可能なネガ</translation>
+    </message>
+    <message>
+        <source>Editable tone reduction</source>
+        <translation>編集可能な階調の削減</translation>
+    </message>
+    <message>
+        <source>Editable black and white cutoff</source>
+        <translation>編集可能な白黒の境界値</translation>
+    </message>
+    <message>
+        <source>Editable brightening or darkening</source>
+        <translation>編集可能な明るさの増減</translation>
+    </message>
+    <message>
+        <source>Editable boost for muted colors</source>
+        <translation>編集可能なくすんだ色の強調</translation>
+    </message>
+    <message>
+        <source>Editable channel blend</source>
+        <translation>編集可能なチャンネル混合</translation>
+    </message>
+    <message>
+        <source>Editable warming or cooling filter</source>
+        <translation>編集可能な暖色系または寒色系フィルター</translation>
+    </message>
+    <message>
+        <source>Editable mapping of tones to a gradient</source>
+        <translation>編集可能な階調のグラデーションへの割り当て</translation>
+    </message>
+    <message>
+        <source>Editable conversion to gray</source>
+        <translation>編集可能なグレーへの変換</translation>
+    </message>
+    <message>
+        <source>Editable color grading table</source>
+        <translation>編集可能なカラーグレーディングテーブル</translation>
+    </message>
+    <message>
+        <source>Editable change to one color range</source>
+        <translation>編集可能な特定色域の変更</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with one color</source>
+        <translation>単色で塗りつぶしたレイヤーを追加</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with a gradient</source>
+        <translation>グラデーションで塗りつぶしたレイヤーを追加</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with a pattern</source>
+        <translation>パターンで塗りつぶしたレイヤーを追加</translation>
+    </message>
+    <message>
+        <source>Remove the layer&apos;s color label</source>
+        <translation>レイヤーのカラーラベルを削除</translation>
+    </message>
+    <message>
+        <source>Tag the layer red in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーを赤でタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer orange in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーをオレンジでタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer yellow in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーを黄でタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer green in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーを緑でタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer blue in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーを青でタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer violet in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーを紫でタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer gray in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーをグレーでタグ付け</translation>
+    </message>
+    <message>
+        <source>Make every layer visible</source>
+        <translation>すべてのレイヤーを表示</translation>
+    </message>
+    <message>
+        <source>Hide the background with a mask automatically</source>
+        <translation>マスクで背景を自動的に隠す</translation>
+    </message>
+    <message>
+        <source>Paint on the mask instead of the layer</source>
+        <translation>レイヤーではなくマスクにペイント</translation>
+    </message>
+    <message>
+        <source>Show the mask as a red overlay</source>
+        <translation>マスクを赤いオーバーレイで表示</translation>
+    </message>
+    <message>
+        <source>Show only the mask in gray</source>
+        <translation>マスクのみをグレーで表示</translation>
+    </message>
+    <message>
+        <source>Move the mask together with the layer</source>
+        <translation>マスクをレイヤーと一緒に移動</translation>
+    </message>
+    <message>
+        <source>Turn the mask off for now</source>
+        <translation>マスクを一時的に無効にする</translation>
+    </message>
+    <message>
+        <source>Swap what the mask shows and hides</source>
+        <translation>マスクの表示部分と非表示部分を入れ替える</translation>
+    </message>
+    <message>
+        <source>Remove the layer mask</source>
+        <translation>レイヤーマスクを削除</translation>
+    </message>
+    <message>
+        <source>Add a vector mask that shows everything</source>
+        <translation>すべてを表示するベクトルマスクを追加</translation>
+    </message>
+    <message>
+        <source>Add a vector mask that hides everything</source>
+        <translation>すべてを隠すベクトルマスクを追加</translation>
+    </message>
+    <message>
+        <source>Mask the layer with the selected path</source>
+        <translation>選択したパスでレイヤーをマスク</translation>
+    </message>
+    <message>
+        <source>Remove the vector mask</source>
+        <translation>ベクトルマスクを削除</translation>
+    </message>
+    <message>
+        <source>Turn the vector mask off for now</source>
+        <translation>ベクトルマスクを一時的に無効にする</translation>
+    </message>
+    <message>
+        <source>Turn the vector mask into a pixel mask</source>
+        <translation>ベクトルマスクをピクセルマスクに変換</translation>
+    </message>
+    <message>
+        <source>Change the settings of the adjustment layer</source>
+        <translation>調整レイヤーの設定を変更</translation>
+    </message>
+    <message>
+        <source>Wrap the layers so edits stay editable</source>
+        <translation>編集内容を編集可能なまま保つためにレイヤーをまとめる</translation>
+    </message>
+    <message>
+        <source>Open the contents in their own tab</source>
+        <translation>内容を個別のタブで開く</translation>
+    </message>
+    <message>
+        <source>Swap in another file as the contents</source>
+        <translation>別のファイルで内容を置き換える</translation>
+    </message>
+    <message>
+        <source>Reload the linked file</source>
+        <translation>リンクしたファイルを再読み込み</translation>
+    </message>
+    <message>
+        <source>Point the link at another file</source>
+        <translation>リンク先を別のファイルに変更</translation>
+    </message>
+    <message>
+        <source>Store the linked file inside the document</source>
+        <translation>リンクしたファイルをドキュメント内に保存</translation>
+    </message>
+    <message>
+        <source>Save the contents as a file</source>
+        <translation>内容をファイルとして保存</translation>
+    </message>
+    <message>
+        <source>Duplicate as an independent Smart Object</source>
+        <translation>独立したスマートオブジェクトとして複製</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object into pixels</source>
+        <translation>スマートオブジェクトをピクセルにラスタライズ</translation>
+    </message>
+    <message>
+        <source>Merge the shapes into one outline</source>
+        <translation>シェイプを 1 つのアウトラインに結合</translation>
+    </message>
+    <message>
+        <source>Cut the top shape out of the others</source>
+        <translation>最前面のシェイプを他のシェイプから切り抜く</translation>
+    </message>
+    <message>
+        <source>Keep only where the shapes overlap</source>
+        <translation>シェイプが重なる部分だけを残す</translation>
+    </message>
+    <message>
+        <source>Keep everything except the overlap</source>
+        <translation>重なる部分以外をすべて残す</translation>
+    </message>
+    <message>
+        <source>Line up layers on the left</source>
+        <translation>レイヤーを左に揃える</translation>
+    </message>
+    <message>
+        <source>Center layers side to side</source>
+        <translation>レイヤーを左右中央に揃える</translation>
+    </message>
+    <message>
+        <source>Line up layers on the right</source>
+        <translation>レイヤーを右に揃える</translation>
+    </message>
+    <message>
+        <source>Line up layers along the top</source>
+        <translation>レイヤーを上に揃える</translation>
+    </message>
+    <message>
+        <source>Center layers top to bottom</source>
+        <translation>レイヤーを上下中央に揃える</translation>
+    </message>
+    <message>
+        <source>Line up layers along the bottom</source>
+        <translation>レイヤーを下に揃える</translation>
+    </message>
+    <message>
+        <source>Align to the selected area</source>
+        <translation>選択範囲に揃える</translation>
+    </message>
+    <message>
+        <source>Align to the document edges</source>
+        <translation>ドキュメントの端に揃える</translation>
+    </message>
+    <message>
+        <source>Space the left edges evenly</source>
+        <translation>左端を均等に配置</translation>
+    </message>
+    <message>
+        <source>Space the centers evenly across</source>
+        <translation>中心を左右に均等に配置</translation>
+    </message>
+    <message>
+        <source>Space the right edges evenly</source>
+        <translation>右端を均等に配置</translation>
+    </message>
+    <message>
+        <source>Space the top edges evenly</source>
+        <translation>上端を均等に配置</translation>
+    </message>
+    <message>
+        <source>Space the centers evenly down</source>
+        <translation>中心を上下に均等に配置</translation>
+    </message>
+    <message>
+        <source>Space the bottom edges evenly</source>
+        <translation>下端を均等に配置</translation>
+    </message>
+    <message>
+        <source>Equal gaps between layers across</source>
+        <translation>レイヤー間の左右の間隔を均等に</translation>
+    </message>
+    <message>
+        <source>Equal gaps between layers down</source>
+        <translation>レイヤー間の上下の間隔を均等に</translation>
+    </message>
+    <message>
+        <source>Mirror the layer left to right</source>
+        <translation>レイヤーを左右に反転</translation>
+    </message>
+    <message>
+        <source>Mirror the layer top to bottom</source>
+        <translation>レイヤーを上下に反転</translation>
+    </message>
+    <message>
+        <source>Save the layer as a PNG at once</source>
+        <translation>レイヤーをすぐに PNG として保存</translation>
+    </message>
+    <message>
+        <source>Save the layer to a file</source>
+        <translation>レイヤーをファイルに保存</translation>
+    </message>
+    <message>
+        <source>Copy the layer into another document</source>
+        <translation>レイヤーを別のドキュメントにコピー</translation>
+    </message>
+    <message>
+        <source>Keep dragged layers out of folders and artboards</source>
+        <translation>ドラッグしたレイヤーをフォルダーやアートボードに入れない</translation>
+    </message>
+    <message>
+        <source>Paint only where the layer has pixels</source>
+        <translation>レイヤーにピクセルがある部分だけに描画</translation>
+    </message>
+    <message>
+        <source>Combine the selected layers into a new one</source>
+        <translation>選択したレイヤーを新しいレイヤーにまとめる</translation>
+    </message>
+    <message>
+        <source>Step to the next blend mode</source>
+        <translation>次の描画モードに切り替え</translation>
+    </message>
+    <message>
+        <source>Step to the previous blend mode</source>
+        <translation>前の描画モードに切り替え</translation>
+    </message>
+    <message>
+        <source>Show the layer as is</source>
+        <translation>レイヤーをそのまま表示</translation>
+    </message>
+    <message>
+        <source>Scatter pixels by opacity</source>
+        <translation>不透明度に応じてピクセルを散らす</translation>
+    </message>
+    <message>
+        <source>Keep the darker colors</source>
+        <translation>暗い方の色を残す</translation>
+    </message>
+    <message>
+        <source>Darken like stacked ink</source>
+        <translation>インクを重ねたように暗くする</translation>
+    </message>
+    <message>
+        <source>Darken with more contrast</source>
+        <translation>コントラストを強めて暗くする</translation>
+    </message>
+    <message>
+        <source>Darken by lowering brightness</source>
+        <translation>明るさを下げて暗くする</translation>
+    </message>
+    <message>
+        <source>Keep the lighter colors</source>
+        <translation>明るい方の色を残す</translation>
+    </message>
+    <message>
+        <source>Lighten like projected light</source>
+        <translation>投影した光のように明るくする</translation>
+    </message>
+    <message>
+        <source>Lighten with less contrast</source>
+        <translation>コントラストを弱めて明るくする</translation>
+    </message>
+    <message>
+        <source>Lighten by adding brightness</source>
+        <translation>明るさを加えて明るくする</translation>
+    </message>
+    <message>
+        <source>Raise contrast by the colors below</source>
+        <translation>下の色に応じてコントラストを上げる</translation>
+    </message>
+    <message>
+        <source>Gently lighten or darken</source>
+        <translation>やわらかく明るくまたは暗くする</translation>
+    </message>
+    <message>
+        <source>Strongly lighten or darken</source>
+        <translation>強く明るくまたは暗くする</translation>
+    </message>
+    <message>
+        <source>Burn or dodge by contrast</source>
+        <translation>コントラストで焼き込みまたは覆い焼き</translation>
+    </message>
+    <message>
+        <source>Burn or dodge by brightness</source>
+        <translation>明るさで焼き込みまたは覆い焼き</translation>
+    </message>
+    <message>
+        <source>Replace colors by lightness</source>
+        <translation>明るさに応じて色を置き換える</translation>
+    </message>
+    <message>
+        <source>Push colors to pure primaries</source>
+        <translation>色を純粋な原色に寄せる</translation>
+    </message>
+    <message>
+        <source>Subtract the colors from each other</source>
+        <translation>色同士を差し引く</translation>
+    </message>
+    <message>
+        <source>A softer difference</source>
+        <translation>より穏やかな差の絶対値</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s hue</source>
+        <translation>レイヤーの色相だけを使う</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s saturation</source>
+        <translation>レイヤーの彩度だけを使う</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s hue and saturation</source>
+        <translation>レイヤーの色相と彩度を使う</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s brightness</source>
+        <translation>レイヤーの明るさだけを使う</translation>
+    </message>
+    <message>
+        <source>Replace fonts that are not installed</source>
+        <translation>インストールされていないフォントを置き換える</translation>
+    </message>
+    <message>
+        <source>Select no layers</source>
+        <translation>どのレイヤーも選択しない</translation>
+    </message>
+    <message>
+        <source>Make the next layer down the active one</source>
+        <translation>1 つ下のレイヤーをアクティブにする</translation>
+    </message>
+    <message>
+        <source>Make the next layer up the active one</source>
+        <translation>1 つ上のレイヤーをアクティブにする</translation>
+    </message>
+    <message>
+        <source>Select the main subject automatically</source>
+        <translation>メインの被写体を自動で選択</translation>
+    </message>
+    <message>
+        <source>Select everything but the main subject</source>
+        <translation>メインの被写体以外をすべて選択</translation>
+    </message>
+    <message>
+        <source>Select the layer&apos;s opaque pixels</source>
+        <translation>レイヤーの不透明ピクセルを選択</translation>
+    </message>
+    <message>
+        <source>Add the next layer down to the selected layers</source>
+        <translation>1 つ下のレイヤーを選択中のレイヤーに追加</translation>
+    </message>
+    <message>
+        <source>Add the next layer up to the selected layers</source>
+        <translation>1 つ上のレイヤーを選択中のレイヤーに追加</translation>
+    </message>
+    <message>
+        <source>Select the object inside the selection</source>
+        <translation>選択範囲内のオブジェクトを選択</translation>
+    </message>
+    <message>
+        <source>Repeat the last filter</source>
+        <translation>最後のフィルターを繰り返す</translation>
+    </message>
+    <message>
+        <source>Dreamy glow on the highlights</source>
+        <translation>ハイライトに夢のような輝き</translation>
+    </message>
+    <message>
+        <source>Bolder colors and contrast</source>
+        <translation>より力強い色とコントラスト</translation>
+    </message>
+    <message>
+        <source>Moody black and white</source>
+        <translation>雰囲気のあるモノクロ</translation>
+    </message>
+    <message>
+        <source>Film look with lifted blacks</source>
+        <translation>黒を持ち上げたフィルム調</translation>
+    </message>
+    <message>
+        <source>Faded old photo look</source>
+        <translation>色あせた古い写真風</translation>
+    </message>
+    <message>
+        <source>Brown old photo tint</source>
+        <translation>古い写真のような茶色の色調</translation>
+    </message>
+    <message>
+        <source>Darken the corners</source>
+        <translation>四隅を暗くする</translation>
+    </message>
+    <message>
+        <source>Even blur over a square area</source>
+        <translation>正方形の範囲で均一にぼかす</translation>
+    </message>
+    <message>
+        <source>Smooth soft blur</source>
+        <translation>なめらかでやわらかいぼかし</translation>
+    </message>
+    <message>
+        <source>Streak as if moving</source>
+        <translation>動いているように流す</translation>
+    </message>
+    <message>
+        <source>Spin or zoom blur around a center</source>
+        <translation>中心の周りに回転またはズームのぼかし</translation>
+    </message>
+    <message>
+        <source>Smooth while keeping edges</source>
+        <translation>エッジを保ったままなめらかにする</translation>
+    </message>
+    <message>
+        <source>Camera-like depth of field</source>
+        <translation>カメラのような被写界深度</translation>
+    </message>
+    <message>
+        <source>Sharp spot with blur around it</source>
+        <translation>鮮明な部分の周囲をぼかす</translation>
+    </message>
+    <message>
+        <source>Miniature look with a sharp band</source>
+        <translation>シャープな帯によるミニチュア風</translation>
+    </message>
+    <message>
+        <source>Soften slightly</source>
+        <translation>わずかにぼかす</translation>
+    </message>
+    <message>
+        <source>Soften a bit more</source>
+        <translation>もう少し強くぼかす</translation>
+    </message>
+    <message>
+        <source>Fill with the average color</source>
+        <translation>平均色で塗りつぶす</translation>
+    </message>
+    <message>
+        <source>Crisp up slightly</source>
+        <translation>わずかにシャープにする</translation>
+    </message>
+    <message>
+        <source>Sharpen with amount and radius</source>
+        <translation>量と半径を指定してシャープにする</translation>
+    </message>
+    <message>
+        <source>Keep only the fine detail</source>
+        <translation>細部だけを残す</translation>
+    </message>
+    <message>
+        <source>Crisp up a bit more</source>
+        <translation>もう少し強くシャープにする</translation>
+    </message>
+    <message>
+        <source>Sharpen only the edges</source>
+        <translation>エッジだけをシャープにする</translation>
+    </message>
+    <message>
+        <source>Swirl around the center</source>
+        <translation>中心の周りで渦を巻く</translation>
+    </message>
+    <message>
+        <source>Ripple in waves</source>
+        <translation>波状に揺らす</translation>
+    </message>
+    <message>
+        <source>Squeeze in or bulge out</source>
+        <translation>内側に縮めるか外側に膨らませる</translation>
+    </message>
+    <message>
+        <source>Film-like grain</source>
+        <translation>フィルムのような粒子</translation>
+    </message>
+    <message>
+        <source>Sprinkle random speckles</source>
+        <translation>ランダムな斑点を散らす</translation>
+    </message>
+    <message>
+        <source>Smooth out specks</source>
+        <translation>斑点をなめらかにする</translation>
+    </message>
+    <message>
+        <source>Hide small dust and scratches</source>
+        <translation>小さなゴミや傷を目立たなくする</translation>
+    </message>
+    <message>
+        <source>Turn into large square blocks</source>
+        <translation>大きな正方形のブロックに変える</translation>
+    </message>
+    <message>
+        <source>Print-style dots per color</source>
+        <translation>色ごとの印刷風の網点</translation>
+    </message>
+    <message>
+        <source>Shiny wrapped-in-plastic look</source>
+        <translation>ラップで包んだような光沢</translation>
+    </message>
+    <message>
+        <source>Scatter pixels softly</source>
+        <translation>ピクセルをやわらかく散らす</translation>
+    </message>
+    <message>
+        <source>Show only the edges</source>
+        <translation>エッジだけを表示</translation>
+    </message>
+    <message>
+        <source>Raised relief look</source>
+        <translation>浮き彫りのような外観</translation>
+    </message>
+    <message>
+        <source>Push out 3D blocks</source>
+        <translation>3D ブロックを押し出す</translation>
+    </message>
+    <message>
+        <source>Outline edges on white</source>
+        <translation>白地に輪郭を描く</translation>
+    </message>
+    <message>
+        <source>Neon edges on black</source>
+        <translation>黒地にネオンの輪郭</translation>
+    </message>
+    <message>
+        <source>Mix negative and positive</source>
+        <translation>ネガとポジを混ぜる</translation>
+    </message>
+    <message>
+        <source>Break into offset tiles</source>
+        <translation>ずらしたタイルに分割</translation>
+    </message>
+    <message>
+        <source>Outline tone boundaries</source>
+        <translation>階調の境界を輪郭で描く</translation>
+    </message>
+    <message>
+        <source>Streak pixels sideways</source>
+        <translation>ピクセルを横方向に流す</translation>
+    </message>
+    <message>
+        <source>Fill with soft cloud noise</source>
+        <translation>柔らかい雲模様のノイズで塗りつぶす</translation>
+    </message>
+    <message>
+        <source>Blend cloud noise by difference</source>
+        <translation>雲模様のノイズを差の絶対値で合成</translation>
+    </message>
+    <message>
+        <source>Fill with fiber strands</source>
+        <translation>繊維の筋で塗りつぶす</translation>
+    </message>
+    <message>
+        <source>Draw flames</source>
+        <translation>炎を描く</translation>
+    </message>
+    <message>
+        <source>Add a bright camera flare</source>
+        <translation>明るいレンズの逆光を追加</translation>
+    </message>
+    <message>
+        <source>Run the last plug-in again</source>
+        <translation>最後のプラグインを再実行</translation>
+    </message>
+    <message>
+        <source>Run the last plug-in with its dialog</source>
+        <translation>最後のプラグインをダイアログ付きで実行</translation>
+    </message>
+    <message>
+        <source>Show the plug-ins folder on disk</source>
+        <translation>ディスク上のプラグインフォルダーを表示</translation>
+    </message>
+    <message>
+        <source>Look for new or removed plug-ins</source>
+        <translation>新しいプラグインや削除されたプラグインを探す</translation>
+    </message>
+    <message>
+        <source>8BF plug-ins need Windows</source>
+        <translation>8BF プラグインには Windows が必要</translation>
+    </message>
+    <message>
+        <source>Zoom until the image fills the window</source>
+        <translation>画像がウィンドウいっぱいになるまでズーム</translation>
+    </message>
+    <message>
+        <source>Zoom to twice the size</source>
+        <translation>2 倍のサイズにズーム</translation>
+    </message>
+    <message>
+        <source>Show shape edits live while dragging</source>
+        <translation>ドラッグ中にシェイプの編集をライブ表示</translation>
+    </message>
+    <message>
+        <source>Preview the print colors</source>
+        <translation>印刷時の色をプレビュー</translation>
+    </message>
+    <message>
+        <source>Mark colors that cannot print</source>
+        <translation>印刷できない色をマーク</translation>
+    </message>
+    <message>
+        <source>Show or hide guides, grid and edges</source>
+        <translation>ガイド、グリッド、境界の表示と非表示</translation>
+    </message>
+    <message>
+        <source>Show or hide the marching ants</source>
+        <translation>選択範囲の点線の表示と非表示</translation>
+    </message>
+    <message>
+        <source>Show or hide the active path outline</source>
+        <translation>アクティブなパスの輪郭の表示と非表示</translation>
+    </message>
+    <message>
+        <source>Choose which extras show</source>
+        <translation>表示するエクストラを選択</translation>
+    </message>
+    <message>
+        <source>Stop guides from moving</source>
+        <translation>ガイドが動かないようにする</translation>
+    </message>
+    <message>
+        <source>Snap to guide lines</source>
+        <translation>ガイドにスナップ</translation>
+    </message>
+    <message>
+        <source>Snap to the grid</source>
+        <translation>グリッドにスナップ</translation>
+    </message>
+    <message>
+        <source>Snap to the canvas edges and center</source>
+        <translation>カンバスの端と中央にスナップ</translation>
+    </message>
+    <message>
+        <source>Snap to other layers</source>
+        <translation>他のレイヤーにスナップ</translation>
+    </message>
+    <message>
+        <source>Snap to the selection edges</source>
+        <translation>選択範囲の境界にスナップ</translation>
+    </message>
+    <message>
+        <source>Add column and row guides</source>
+        <translation>列と行のガイドを追加</translation>
+    </message>
+    <message>
+        <source>Remove the selected guides</source>
+        <translation>選択したガイドを削除</translation>
+    </message>
+    <message>
+        <source>See the image repeated as a tile</source>
+        <translation>画像をタイル状に繰り返して表示</translation>
+    </message>
+    <message>
+        <source>Normal window with panels</source>
+        <translation>パネル付きの通常ウィンドウ</translation>
+    </message>
+    <message>
+        <source>Full screen keeping the menus</source>
+        <translation>メニューを残したフルスクリーン</translation>
+    </message>
+    <message>
+        <source>Full screen without panels</source>
+        <translation>パネルなしのフルスクリーン</translation>
+    </message>
+    <message>
+        <source>Switch to the next screen mode</source>
+        <translation>次のスクリーンモードに切り替え</translation>
+    </message>
+    <message>
+        <source>Move the document into its own window</source>
+        <translation>ドキュメントを独立したウィンドウに移動</translation>
+    </message>
+    <message>
+        <source>Put the document back in a tab</source>
+        <translation>ドキュメントをタブに戻す</translation>
+    </message>
+    <message>
+        <source>Give every document its own window</source>
+        <translation>すべてのドキュメントを個別のウィンドウにする</translation>
+    </message>
+    <message>
+        <source>Put every document in tabs</source>
+        <translation>すべてのドキュメントをタブにまとめる</translation>
+    </message>
+    <message>
+        <source>Arrange document windows side by side</source>
+        <translation>ドキュメントウィンドウを並べて表示</translation>
+    </message>
+    <message>
+        <source>Stack document windows diagonally</source>
+        <translation>ドキュメントウィンドウを斜めに重ねる</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1280 by 720</source>
+        <translation>ウィンドウを 1280×720 にサイズ変更</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1366 by 768</source>
+        <translation>ウィンドウを 1366×768 にサイズ変更</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1600 by 900</source>
+        <translation>ウィンドウを 1600×900 にサイズ変更</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1920 by 1080</source>
+        <translation>ウィンドウを 1920×1080 にサイズ変更</translation>
+    </message>
+    <message>
+        <source>Resize the window to 2560 by 1440</source>
+        <translation>ウィンドウを 2560×1440 にサイズ変更</translation>
+    </message>
+    <message>
+        <source>Resize the window to 3840 by 2160</source>
+        <translation>ウィンドウを 3840×2160 にサイズ変更</translation>
+    </message>
+    <message>
+        <source>Redraw the whole window</source>
+        <translation>ウィンドウ全体を再描画</translation>
+    </message>
+    <message>
+        <source>Hide and arrange tools</source>
+        <translation>ツールを非表示にして並べ替え</translation>
+    </message>
+    <message>
+        <source>Show the brush dynamics panel</source>
+        <translation>ブラシダイナミクスパネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the brush tips panel</source>
+        <translation>ブラシ先端パネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the Channels panel</source>
+        <translation>チャンネルパネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the Color panel</source>
+        <translation>カラーパネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the undo history panel</source>
+        <translation>取り消し履歴パネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the Info panel</source>
+        <translation>情報パネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the Layers panel</source>
+        <translation>レイヤーパネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the Palette panel</source>
+        <translation>パレットパネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the Paths panel</source>
+        <translation>パスパネルを表示</translation>
+    </message>
+    <message>
+        <source>Show the Properties panel</source>
+        <translation>プロパティパネルを表示</translation>
+    </message>
+    <message>
+        <source>Restore the default panel layout</source>
+        <translation>既定のパネルレイアウトに戻す</translation>
+    </message>
+    <message>
+        <source>Show or hide the tool palette</source>
+        <translation>ツールパレットの表示と非表示</translation>
+    </message>
+    <message>
+        <source>Show or hide the options bar</source>
+        <translation>オプションバーの表示と非表示</translation>
+    </message>
+    <message>
+        <source>Find any command by name</source>
+        <translation>名前でコマンドを検索</translation>
+    </message>
+    <message>
+        <source>Read how to write scripts</source>
+        <translation>スクリプトの書き方を読む</translation>
+    </message>
+    <message>
+        <source>Connect an AI assistant to Patchy</source>
+        <translation>AI アシスタントを Patchy に接続</translation>
+    </message>
+    <message>
+        <source>Add a launcher to your desktop menu</source>
+        <translation>デスクトップメニューにランチャーを追加</translation>
+    </message>
+    <message>
+        <source>Version and credits</source>
+        <translation>バージョンとクレジット</translation>
+    </message>
+    <message>
+        <source>Switch between the move tools</source>
+        <translation>移動ツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the marquee tools</source>
+        <translation>長方形・楕円形選択ツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the lasso tools</source>
+        <translation>なげなわツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the wand and quick select tools</source>
+        <translation>自動選択とクイック選択を切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the crop tools</source>
+        <translation>切り抜きツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the gradient and fill tools</source>
+        <translation>グラデーションツールと塗りつぶしツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the stamp tools</source>
+        <translation>スタンプツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the healing tools</source>
+        <translation>修復ツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between blur, sharpen and smudge</source>
+        <translation>ぼかし、シャープ、指先を切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between dodge, burn and sponge</source>
+        <translation>覆い焼き、焼き込み、スポンジを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the pen tools</source>
+        <translation>ペンツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the path selection tools</source>
+        <translation>パス選択ツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the shape tools</source>
+        <translation>シェイプツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Switch between the eyedropper and ruler</source>
+        <translation>スポイトとものさしを切り替え</translation>
+    </message>
+    <message>
+        <source>Reset to black and white</source>
+        <translation>黒と白にリセット</translation>
+    </message>
+    <message>
+        <source>Exchange foreground and background colors</source>
+        <translation>描画色と背景色を入れ替え</translation>
+    </message>
+    <message>
+        <source>Make the brush smaller</source>
+        <translation>ブラシを小さくする</translation>
+    </message>
+    <message>
+        <source>Make the brush bigger</source>
+        <translation>ブラシを大きくする</translation>
+    </message>
+    <message>
+        <source>Make the brush a lot smaller</source>
+        <translation>ブラシを大幅に小さくする</translation>
+    </message>
+    <message>
+        <source>Make the brush a lot bigger</source>
+        <translation>ブラシを大幅に大きくする</translation>
+    </message>
+    <message>
+        <source>Soften the brush edge</source>
+        <translation>ブラシの縁を柔らかくする</translation>
+    </message>
+    <message>
+        <source>Harden the brush edge</source>
+        <translation>ブラシの縁を硬くする</translation>
+    </message>
+    <message>
+        <source>Pick the previous brush preset</source>
+        <translation>前のブラシプリセットを選択</translation>
+    </message>
+    <message>
+        <source>Pick the next brush preset</source>
+        <translation>次のブラシプリセットを選択</translation>
     </message>
 </context>
 <context>
@@ -17022,8 +18786,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>スクリプト</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>ツールまたはレイヤーの不透明度を設定 (1% から 100%。2 桁入力で正確な値)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>ツールまたはレイヤーの不透明度を設定 (1 = 10%、0 = 100%。2 桁をすばやく入力で正確な値)</translation>
     </message>
 </context>
 <context>
@@ -29177,10 +30941,6 @@ Locked: %1</source>
         <translation>端点を連結</translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>選択した 2 つの端点を直線セグメントで連結</translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation>1 つのポイントに統合</translation>
     </message>
@@ -29245,22 +31005,6 @@ Locked: %1</source>
         <translation>コピーしたシェイプを対象パスに貼り付け</translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>ダイレクト選択で、パスの内側のポイント、または閉じたパスの任意のポイントを選択してください</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>ダイレクト選択で、開いたパスの端点を 2 つ選択してください</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>ダイレクト選択で、2 つの端点、または 1 つのパスの隣り合うポイントを選択してください</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>ダイレクト選択でセグメント (その両方のポイント) を選択してください</translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation>シェイプを切り取り</translation>
     </message>
@@ -29313,6 +31057,62 @@ Locked: %1</source>
         <translation>%1 個のシェイプを新規レイヤーへ移動しました</translation>
     </message>
     <message>
+        <source>Merge Shapes</source>
+        <translation>シェイプを統合</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>選択したシェイプを、表示どおりに組み合わせて、移動や編集ができる 1 つの輪郭にします</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>シェイプを統合: 選択したシェイプを、表示どおりに組み合わせて 1 つの輪郭にします</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>先にシェイプレイヤーまたはパスを選択してください</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>テキスト領域の輪郭は 1 つのままです</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>パスにシェイプがありません</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>独自の色を持つシェイプは他のシェイプと統合できません</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>シェイプを統合</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>シェイプの領域が残らなかったため、レイヤーを削除しました</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>%1 個のシェイプを 1 つの輪郭に統合しました</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>選択した 2 つの端点を直線セグメントで連結するか、選択したポイントを含む開いたパスをそれぞれ閉じます</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>選択したシェイプはすでに整列しています</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>シェイプを整列</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>%1 個のシェイプを整列しました</translation>
+    </message>
+    <message>
         <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
         <translation>保存された線のプリセット: 整列、線端、角、破線、破線のオフセット</translation>
     </message>
@@ -29329,12 +31129,12 @@ Locked: %1</source>
         <translation>線のプリセット: %1</translation>
     </message>
     <message>
-        <source>Manage Presets...</source>
-        <translation>プリセットを管理...</translation>
-    </message>
-    <message>
         <source>No stroke presets</source>
         <translation>線のプリセットはありません</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>プリセットを管理...</translation>
     </message>
 </context>
 <context>

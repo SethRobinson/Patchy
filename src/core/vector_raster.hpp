@@ -48,6 +48,12 @@ struct VectorRasterOptions {
 // closed subpath omits the repeated closing point). Simplify Path refits it.
 [[nodiscard]] std::vector<std::array<double, 2>> flatten_subpath_polyline(const PathSubpath& subpath);
 
+// The outline of the path's combined fill (each group's even-odd fill combined in order by the
+// groups' ops, the rasterizer's rule; open subpaths close with their chord) as closed polylines
+// on the 1/256 lattice, inside on the left in y-down coordinates (outer loops clockwise, holes
+// counterclockwise). The same boundary walk the stroker follows. Merge Shapes refits it.
+[[nodiscard]] std::vector<std::vector<std::array<double, 2>>> vector_path_fill_contours(const VectorPath& path);
+
 // Vector-mask coverage: the path's coverage with the mask's inverted flag
 // applied (inverted masks cover clip minus path).
 [[nodiscard]] CoverageBuffer rasterize_vector_mask_coverage(const LayerVectorMask& mask, Rect clip);

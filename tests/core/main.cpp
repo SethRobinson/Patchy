@@ -180,6 +180,7 @@ int main(int argc, char** argv) {
            infra_selection_tests,
            pipl_tests,
            vector_shape_tests,
+           path_edits_tests,
            vector_raster_tests,
            image_trace_tests,
            photo_develop_tests,

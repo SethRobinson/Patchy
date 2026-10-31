@@ -17,6 +17,7 @@
 #include "formats/format_registry.hpp"
 #include "filters/filter_registry.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/command_search.hpp"
 #include "ui/theme_script_host.hpp"
 #include "ui/theme_sounds.hpp"
 #include "ui/document_order_list.hpp"
@@ -6743,6 +6744,7 @@ void MainWindow::rebuild_recent_files_menu() {
       auto* action = menu->addAction(label);
       action->setToolTip(path);
       action->setData(path);
+      action->setProperty(kCommandSearchDataEntryProperty, true);
       connect(action, &QAction::triggered, this, [this, path] { open_recent_document(path); });
     };
 
@@ -7043,6 +7045,7 @@ void MainWindow::rebuild_recent_folders_menu() {
       auto* action = menu->addAction(label);
       action->setToolTip(dir);
       action->setData(dir);
+      action->setProperty(kCommandSearchDataEntryProperty, true);
       connect(action, &QAction::triggered, this, [this, dir] { open_recent_folder(dir); });
     };
 

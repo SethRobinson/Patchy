@@ -1199,7 +1199,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(path_simplify_action_, "path.simplify");
   connect(path_simplify_action_, &QAction::triggered, this, [this] { simplify_target_path(); });
   register_document_action(path_simplify_action_);
-  create_path_component_actions(layer_shape_menu);  // GitHub #555
   layer_shape_menu->addSeparator();
   struct CombineEntry {
     const char* text;
@@ -1229,6 +1228,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     action->setEnabled(false);
     layer_combine_actions_[i] = action;
   }
+  // Merge Shapes after the combine commands, then the point and component commands (GitHub #555).
+  create_path_component_actions(layer_shape_menu);
   auto* duplicate_layer_action = new QAction(tr("&Duplicate Layer"), layer_menu);
   auto* merge_visible_action = new QAction(tr("Merge &Visible to New Layer (Copy)"), layer_menu);
   merge_visible_action->setObjectName(QStringLiteral("layerMergeVisibleAction"));
@@ -2951,6 +2952,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   refresh_appimage_menu_entry_action();
 
   auto* about_action = help_menu->addAction(tr("&About Patchy"));
+  about_action->setObjectName(QStringLiteral("helpAboutAction"));
   about_action->setMenuRole(QAction::AboutRole);
   connect(about_action, &QAction::triggered, this, [this] { show_about(); });
 
@@ -3091,9 +3093,9 @@ void MainWindow::show_command_search() {
     // Centered under the menu bar (or the window's top edge when it is hidden).
     const int top = menuBar()->isVisible() && !menuBar()->isNativeMenuBar() ? menuBar()->height() : 0;
     const QPoint anchor = mapToGlobal(QPoint(width() / 2, top));
-    top_left = anchor - QPoint(280, 0);
+    top_left = anchor - QPoint(340, 0);
   }
-  command_search_popup_ = show_command_search_popup(this, collect_menu_commands(menuBar()), top_left);
+  command_search_popup_ = show_command_search_popup(this, collect_search_commands(menuBar(), hotkey_registry_), top_left);
 }
 
 }  // namespace patchy::ui

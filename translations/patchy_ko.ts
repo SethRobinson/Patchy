@@ -16104,10 +16104,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>클릭하여 도형을 선택하고 드래그하여 이동하세요. %CTRL%+T는 그것을 변환합니다.</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>드래그하여 점을 이동합니다. Shift+클릭으로 선택 영역에 추가하고, Delete로 선택한 점을 삭제합니다.</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>핸들을 드래그하여 곡선 모양을 변경하세요.</translation>
     </message>
@@ -16378,6 +16374,42 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Delete Segment</source>
         <translation>세그먼트 삭제</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>직접 선택으로 점(열린 패스의 안쪽 점 또는 닫힌 패스의 아무 점)을 선택하거나 점을 마우스 오른쪽 버튼으로 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>직접 선택으로 끝점 두 개 또는 한 패스의 인접한 점을 선택하거나 세그먼트를 마우스 오른쪽 버튼으로 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation>직접 선택으로 세그먼트를 클릭해 선택하거나 마우스 오른쪽 버튼으로 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>끝점을 연결했습니다</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>놓으면 끝점이 연결됩니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation>점에 맞췄습니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>드래그해 점을 이동하고, 끝점을 다른 끝점에 놓으면 연결됩니다. Shift+클릭으로 선택에 추가합니다. 마우스 오른쪽 버튼으로 분할, 연결, 병합을 사용할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>직접 선택으로 연결할 끝점 두 개 또는 닫을 열린 패스의 점을 선택하세요</translation>
+    </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>브러시 흐름: %1%(에어브러시 켜짐, Shift+숫자로 불투명도 설정)</translation>
     </message>
 </context>
 <context>
@@ -16686,8 +16718,1740 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::CommandSearch</name>
     <message>
-        <source>Search menu commands</source>
-        <translation>메뉴 명령 검색</translation>
+        <source>Create a new blank image</source>
+        <translation>새 빈 이미지 만들기</translation>
+    </message>
+    <message>
+        <source>Open an image file</source>
+        <translation>이미지 파일 열기</translation>
+    </message>
+    <message>
+        <source>New image from the clipboard</source>
+        <translation>클립보드에서 새 이미지</translation>
+    </message>
+    <message>
+        <source>Open every image in a folder</source>
+        <translation>폴더의 모든 이미지 열기</translation>
+    </message>
+    <message>
+        <source>Save the document</source>
+        <translation>문서 저장</translation>
+    </message>
+    <message>
+        <source>Save to a new file or format</source>
+        <translation>새 파일 또는 형식으로 저장</translation>
+    </message>
+    <message>
+        <source>Save a flattened copy</source>
+        <translation>병합된 사본 저장</translation>
+    </message>
+    <message>
+        <source>Optimize and save for the web</source>
+        <translation>웹용으로 최적화하여 저장</translation>
+    </message>
+    <message>
+        <source>Save the layers as a GIF animation</source>
+        <translation>레이어를 GIF 애니메이션으로 저장</translation>
+    </message>
+    <message>
+        <source>Combine the layers into one sheet</source>
+        <translation>레이어를 한 시트로 합치기</translation>
+    </message>
+    <message>
+        <source>Insert an image as a Smart Object</source>
+        <translation>이미지를 고급 개체로 삽입</translation>
+    </message>
+    <message>
+        <source>Insert a linked image file</source>
+        <translation>연결된 이미지 파일 삽입</translation>
+    </message>
+    <message>
+        <source>Open several images as layers</source>
+        <translation>여러 이미지를 레이어로 열기</translation>
+    </message>
+    <message>
+        <source>Scan an image</source>
+        <translation>이미지 스캔</translation>
+    </message>
+    <message>
+        <source>Author, copyright and other metadata</source>
+        <translation>작성자, 저작권 및 기타 메타데이터</translation>
+    </message>
+    <message>
+        <source>Remove EXIF and other metadata</source>
+        <translation>EXIF 및 기타 메타데이터 제거</translation>
+    </message>
+    <message>
+        <source>Print the image</source>
+        <translation>이미지 인쇄</translation>
+    </message>
+    <message>
+        <source>Close the document</source>
+        <translation>문서 닫기</translation>
+    </message>
+    <message>
+        <source>Settings and options</source>
+        <translation>설정 및 옵션</translation>
+    </message>
+    <message>
+        <source>Exit Patchy</source>
+        <translation>Patchy 종료</translation>
+    </message>
+    <message>
+        <source>Take back the last change</source>
+        <translation>마지막 변경 취소</translation>
+    </message>
+    <message>
+        <source>Redo the change you took back</source>
+        <translation>취소한 변경 다시 실행</translation>
+    </message>
+    <message>
+        <source>Move the selection to the clipboard</source>
+        <translation>선택 영역을 클립보드로 이동</translation>
+    </message>
+    <message>
+        <source>Copy the selection to the clipboard</source>
+        <translation>선택 영역을 클립보드에 복사</translation>
+    </message>
+    <message>
+        <source>Copy what all visible layers show</source>
+        <translation>보이는 모든 레이어의 모습 복사</translation>
+    </message>
+    <message>
+        <source>Paste from the clipboard</source>
+        <translation>클립보드에서 붙여넣기</translation>
+    </message>
+    <message>
+        <source>Paste at the same position</source>
+        <translation>같은 위치에 붙여넣기</translation>
+    </message>
+    <message>
+        <source>Fill with a color or pattern</source>
+        <translation>색상 또는 패턴으로 채우기</translation>
+    </message>
+    <message>
+        <source>Draw an outline along the selection</source>
+        <translation>선택 영역을 따라 윤곽선 그리기</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or move freely</source>
+        <translation>자유롭게 크기 조절, 회전 또는 이동</translation>
+    </message>
+    <message>
+        <source>Resize the layer or selection</source>
+        <translation>레이어 또는 선택 영역 크기 조절</translation>
+    </message>
+    <message>
+        <source>Turn the layer or selection</source>
+        <translation>레이어 또는 선택 영역 회전</translation>
+    </message>
+    <message>
+        <source>Bend the layer with a grid</source>
+        <translation>격자로 레이어 구부리기</translation>
+    </message>
+    <message>
+        <source>Erase an object and fill the gap</source>
+        <translation>개체를 지우고 빈 곳 채우기</translation>
+    </message>
+    <message>
+        <source>Make a brush from the selection</source>
+        <translation>선택 영역으로 브러시 만들기</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from a path</source>
+        <translation>패스로 사용자 정의 모양 만들기</translation>
+    </message>
+    <message>
+        <source>Change the color profile</source>
+        <translation>색상 프로필 변경</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>그레이디언트 사전 설정 관리</translation>
+    </message>
+    <message>
+        <source>Manage pattern presets</source>
+        <translation>패턴 사전 설정 관리</translation>
+    </message>
+    <message>
+        <source>Resize or scale the image</source>
+        <translation>이미지 크기 조절 또는 배율 변경</translation>
+    </message>
+    <message>
+        <source>Add or remove space around the image</source>
+        <translation>이미지 주위 여백 추가 또는 제거</translation>
+    </message>
+    <message>
+        <source>Crop the image to the selection</source>
+        <translation>이미지를 선택 영역으로 자르기</translation>
+    </message>
+    <message>
+        <source>Remove empty borders</source>
+        <translation>빈 테두리 제거</translation>
+    </message>
+    <message>
+        <source>Set the black point, white point and midtones</source>
+        <translation>검은 점, 흰 점 및 중간 톤 설정</translation>
+    </message>
+    <message>
+        <source>Adjust the tones with a curve</source>
+        <translation>곡선으로 톤 조정</translation>
+    </message>
+    <message>
+        <source>Change colors, saturation and lightness</source>
+        <translation>색상, 채도 및 밝기 변경</translation>
+    </message>
+    <message>
+        <source>Shift the colors of shadows and highlights</source>
+        <translation>어두운 영역과 밝은 영역의 색상 이동</translation>
+    </message>
+    <message>
+        <source>Turn the image gray</source>
+        <translation>이미지를 회색조로 바꾸기</translation>
+    </message>
+    <message>
+        <source>Make muted colors stronger</source>
+        <translation>흐린 색상을 더 선명하게</translation>
+    </message>
+    <message>
+        <source>Brighten or darken the image</source>
+        <translation>이미지를 밝게 또는 어둡게</translation>
+    </message>
+    <message>
+        <source>Fix tone and color automatically</source>
+        <translation>톤과 색상 자동 보정</translation>
+    </message>
+    <message>
+        <source>Reduce the image to a color palette</source>
+        <translation>이미지를 색상 팔레트로 줄이기</translation>
+    </message>
+    <message>
+        <source>Use 16 bits per channel</source>
+        <translation>채널당 16비트 사용</translation>
+    </message>
+    <message>
+        <source>Add New Layer</source>
+        <translation>새 레이어 추가</translation>
+    </message>
+    <message>
+        <source>Add an empty layer at once</source>
+        <translation>빈 레이어 바로 추가</translation>
+    </message>
+    <message>
+        <source>Copy the layer</source>
+        <translation>레이어 복사</translation>
+    </message>
+    <message>
+        <source>Remove the layer</source>
+        <translation>레이어 제거</translation>
+    </message>
+    <message>
+        <source>Change the layer name</source>
+        <translation>레이어 이름 변경</translation>
+    </message>
+    <message>
+        <source>Put the selected layers in a folder</source>
+        <translation>선택한 레이어를 폴더에 넣기</translation>
+    </message>
+    <message>
+        <source>Copy the selection to a new layer</source>
+        <translation>선택 영역을 새 레이어로 복사</translation>
+    </message>
+    <message>
+        <source>Move the selection to a new layer</source>
+        <translation>선택 영역을 새 레이어로 이동</translation>
+    </message>
+    <message>
+        <source>Combine with the layer below</source>
+        <translation>아래 레이어와 합치기</translation>
+    </message>
+    <message>
+        <source>Combine all visible layers</source>
+        <translation>보이는 모든 레이어 합치기</translation>
+    </message>
+    <message>
+        <source>Add a layer mask</source>
+        <translation>레이어 마스크 추가</translation>
+    </message>
+    <message>
+        <source>Bake the mask into the pixels</source>
+        <translation>마스크를 픽셀에 적용</translation>
+    </message>
+    <message>
+        <source>Drop shadow, stroke, glow and other effects</source>
+        <translation>그림자, 획, 광선 및 기타 효과</translation>
+    </message>
+    <message>
+        <source>Clip to the layer below</source>
+        <translation>아래 레이어에 클리핑</translation>
+    </message>
+    <message>
+        <source>Show or hide layers</source>
+        <translation>레이어 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Protect layers from changes</source>
+        <translation>레이어를 변경으로부터 보호</translation>
+    </message>
+    <message>
+        <source>Move the layer up the stack</source>
+        <translation>레이어를 위로 이동</translation>
+    </message>
+    <message>
+        <source>Move the layer down the stack</source>
+        <translation>레이어를 아래로 이동</translation>
+    </message>
+    <message>
+        <source>Fill with the foreground color</source>
+        <translation>전경색으로 채우기</translation>
+    </message>
+    <message>
+        <source>Fill with the background color</source>
+        <translation>배경색으로 채우기</translation>
+    </message>
+    <message>
+        <source>Erase the layer or selection</source>
+        <translation>레이어 또는 선택 영역 지우기</translation>
+    </message>
+    <message>
+        <source>Select the whole image</source>
+        <translation>이미지 전체 선택</translation>
+    </message>
+    <message>
+        <source>Clear the selection</source>
+        <translation>선택 해제</translation>
+    </message>
+    <message>
+        <source>Bring back the last selection</source>
+        <translation>마지막 선택 영역 되살리기</translation>
+    </message>
+    <message>
+        <source>Swap selected and unselected areas</source>
+        <translation>선택한 영역과 선택하지 않은 영역 바꾸기</translation>
+    </message>
+    <message>
+        <source>Select every layer</source>
+        <translation>모든 레이어 선택</translation>
+    </message>
+    <message>
+        <source>Make the selection larger</source>
+        <translation>선택 영역 넓히기</translation>
+    </message>
+    <message>
+        <source>Make the selection smaller</source>
+        <translation>선택 영역 좁히기</translation>
+    </message>
+    <message>
+        <source>Select a band along the edge</source>
+        <translation>가장자리를 따라 띠 선택</translation>
+    </message>
+    <message>
+        <source>Add neighboring similar colors</source>
+        <translation>인접한 비슷한 색상 추가</translation>
+    </message>
+    <message>
+        <source>Add similar colors anywhere</source>
+        <translation>어디에 있든 비슷한 색상 추가</translation>
+    </message>
+    <message>
+        <source>Paint a selection as a mask</source>
+        <translation>선택 영역을 마스크로 칠하기</translation>
+    </message>
+    <message>
+        <source>Magnify the view</source>
+        <translation>보기 확대</translation>
+    </message>
+    <message>
+        <source>Show more of the image</source>
+        <translation>이미지를 더 넓게 보기</translation>
+    </message>
+    <message>
+        <source>Show the whole image</source>
+        <translation>이미지 전체 보기</translation>
+    </message>
+    <message>
+        <source>Zoom to 100%</source>
+        <translation>100%로 확대/축소</translation>
+    </message>
+    <message>
+        <source>Show or hide the rulers</source>
+        <translation>눈금자 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Show or hide the grid</source>
+        <translation>격자 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Show or hide the guides</source>
+        <translation>안내선 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Line up with guides and edges while dragging</source>
+        <translation>드래그할 때 안내선과 가장자리에 맞추기</translation>
+    </message>
+    <message>
+        <source>Show the pixel grid when zoomed in</source>
+        <translation>확대했을 때 픽셀 격자 표시</translation>
+    </message>
+    <message>
+        <source>Add a guide line</source>
+        <translation>안내선 추가</translation>
+    </message>
+    <message>
+        <source>Remove all guides</source>
+        <translation>모든 안내선 제거</translation>
+    </message>
+    <message>
+        <source>Move layers and selections</source>
+        <translation>레이어와 선택 영역 이동</translation>
+    </message>
+    <message>
+        <source>Select a rectangle</source>
+        <translation>사각형 선택</translation>
+    </message>
+    <message>
+        <source>Select an ellipse or circle</source>
+        <translation>타원 또는 원 선택</translation>
+    </message>
+    <message>
+        <source>Draw a freehand selection</source>
+        <translation>자유형 선택 영역 그리기</translation>
+    </message>
+    <message>
+        <source>Select with straight edges</source>
+        <translation>직선 가장자리로 선택</translation>
+    </message>
+    <message>
+        <source>Select along edges it finds</source>
+        <translation>찾은 가장자리를 따라 선택</translation>
+    </message>
+    <message>
+        <source>Select similar colors with a click</source>
+        <translation>클릭하여 비슷한 색상 선택</translation>
+    </message>
+    <message>
+        <source>Paint a selection that finds edges</source>
+        <translation>가장자리를 찾는 선택 영역 칠하기</translation>
+    </message>
+    <message>
+        <source>Select an object automatically</source>
+        <translation>개체 자동 선택</translation>
+    </message>
+    <message>
+        <source>Paint with a brush</source>
+        <translation>브러시로 칠하기</translation>
+    </message>
+    <message>
+        <source>Mix paint with the colors under it</source>
+        <translation>아래 색상과 물감 섞기</translation>
+    </message>
+    <message>
+        <source>Copy pixels from one place to another</source>
+        <translation>한 곳의 픽셀을 다른 곳으로 복사</translation>
+    </message>
+    <message>
+        <source>Paint with a pattern</source>
+        <translation>패턴으로 칠하기</translation>
+    </message>
+    <message>
+        <source>Repair blemishes with sampled pixels</source>
+        <translation>샘플링한 픽셀로 잡티 복구</translation>
+    </message>
+    <message>
+        <source>Remove spots with one click</source>
+        <translation>클릭 한 번으로 얼룩 제거</translation>
+    </message>
+    <message>
+        <source>Replace an area with pixels from elsewhere</source>
+        <translation>영역을 다른 곳의 픽셀로 바꾸기</translation>
+    </message>
+    <message>
+        <source>Fix red eyes in photos</source>
+        <translation>사진의 적목 현상 보정</translation>
+    </message>
+    <message>
+        <source>Smear paint</source>
+        <translation>물감 문지르기</translation>
+    </message>
+    <message>
+        <source>Lighten areas</source>
+        <translation>영역 밝게 하기</translation>
+    </message>
+    <message>
+        <source>Darken areas</source>
+        <translation>영역 어둡게 하기</translation>
+    </message>
+    <message>
+        <source>Change the color saturation</source>
+        <translation>색상 채도 변경</translation>
+    </message>
+    <message>
+        <source>Soften areas</source>
+        <translation>영역 부드럽게 하기</translation>
+    </message>
+    <message>
+        <source>Sharpen areas</source>
+        <translation>영역 선명하게 하기</translation>
+    </message>
+    <message>
+        <source>Erase pixels</source>
+        <translation>픽셀 지우기</translation>
+    </message>
+    <message>
+        <source>Draw a color gradient</source>
+        <translation>색상 그레이디언트 그리기</translation>
+    </message>
+    <message>
+        <source>Fill an area with color</source>
+        <translation>영역을 색상으로 채우기</translation>
+    </message>
+    <message>
+        <source>Draw a straight line</source>
+        <translation>직선 그리기</translation>
+    </message>
+    <message>
+        <source>Draw a rectangle</source>
+        <translation>사각형 그리기</translation>
+    </message>
+    <message>
+        <source>Draw an ellipse or circle</source>
+        <translation>타원 또는 원 그리기</translation>
+    </message>
+    <message>
+        <source>Draw a polygon or star</source>
+        <translation>다각형 또는 별 그리기</translation>
+    </message>
+    <message>
+        <source>Draw a custom shape</source>
+        <translation>사용자 정의 모양 그리기</translation>
+    </message>
+    <message>
+        <source>Pick a color from the image</source>
+        <translation>이미지에서 색상 추출</translation>
+    </message>
+    <message>
+        <source>Measure distances and angles</source>
+        <translation>거리와 각도 측정</translation>
+    </message>
+    <message>
+        <source>Add text</source>
+        <translation>텍스트 추가</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>보기 스크롤</translation>
+    </message>
+    <message>
+        <source>Zoom in and out</source>
+        <translation>확대 및 축소</translation>
+    </message>
+    <message>
+        <source>Draw paths and curves</source>
+        <translation>패스와 곡선 그리기</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes</source>
+        <translation>모양 전체를 선택하고 이동</translation>
+    </message>
+    <message>
+        <source>Edit points and handles</source>
+        <translation>점과 핸들 편집</translation>
+    </message>
+    <message>
+        <source>Add a point to a path</source>
+        <translation>패스에 점 추가</translation>
+    </message>
+    <message>
+        <source>Remove a point from a path</source>
+        <translation>패스에서 점 제거</translation>
+    </message>
+    <message>
+        <source>Switch points between corner and smooth</source>
+        <translation>점을 모서리와 매끄러운 점 사이에서 전환</translation>
+    </message>
+    <message>
+        <source>Crop or straighten the image</source>
+        <translation>이미지 자르기 또는 수평 맞추기</translation>
+    </message>
+    <message>
+        <source>Crop and fix the perspective</source>
+        <translation>자르고 원근 보정</translation>
+    </message>
+    <message>
+        <source>Add and arrange artboards</source>
+        <translation>대지 추가 및 정렬</translation>
+    </message>
+    <message>
+        <source>Search commands and tools</source>
+        <translation>명령 및 도구 검색</translation>
+    </message>
+    <message>
+        <source>Empty the list of recent files</source>
+        <translation>최근 파일 목록 비우기</translation>
+    </message>
+    <message>
+        <source>Empty the list of recent folders</source>
+        <translation>최근 폴더 목록 비우기</translation>
+    </message>
+    <message>
+        <source>Scan and print in one step</source>
+        <translation>한 번에 스캔하고 인쇄</translation>
+    </message>
+    <message>
+        <source>Scan several photos and split them apart</source>
+        <translation>여러 사진을 스캔하여 분리</translation>
+    </message>
+    <message>
+        <source>Cut a sprite sheet into layers</source>
+        <translation>스프라이트 시트를 레이어로 자르기</translation>
+    </message>
+    <message>
+        <source>Load numbered images as layers</source>
+        <translation>번호가 매겨진 이미지를 레이어로 불러오기</translation>
+    </message>
+    <message>
+        <source>Save several documents as one PDF</source>
+        <translation>여러 문서를 하나의 PDF로 저장</translation>
+    </message>
+    <message>
+        <source>Save every open document to a folder</source>
+        <translation>열려 있는 모든 문서를 폴더에 저장</translation>
+    </message>
+    <message>
+        <source>Save each artboard as its own file</source>
+        <translation>각 대지를 개별 파일로 저장</translation>
+    </message>
+    <message>
+        <source>Save each layer as a numbered image</source>
+        <translation>각 레이어를 번호가 매겨진 이미지로 저장</translation>
+    </message>
+    <message>
+        <source>Save the layers as a WebP animation</source>
+        <translation>레이어를 WebP 애니메이션으로 저장</translation>
+    </message>
+    <message>
+        <source>Save the layers as an APNG animation</source>
+        <translation>레이어를 APNG 애니메이션으로 저장</translation>
+    </message>
+    <message>
+        <source>Look for hidden watermarks in an image</source>
+        <translation>이미지에서 숨겨진 워터마크 찾기</translation>
+    </message>
+    <message>
+        <source>Choose paper size and orientation</source>
+        <translation>용지 크기와 방향 선택</translation>
+    </message>
+    <message>
+        <source>Run, edit and organize scripts</source>
+        <translation>스크립트 실행, 편집 및 정리</translation>
+    </message>
+    <message>
+        <source>Show the scripts folder on disk</source>
+        <translation>디스크에서 스크립트 폴더 표시</translation>
+    </message>
+    <message>
+        <source>Close every open document</source>
+        <translation>열려 있는 모든 문서 닫기</translation>
+    </message>
+    <message>
+        <source>Slant the layer or selection</source>
+        <translation>레이어 또는 선택 영역 기울이기</translation>
+    </message>
+    <message>
+        <source>Drag each corner freely</source>
+        <translation>각 모서리를 자유롭게 드래그</translation>
+    </message>
+    <message>
+        <source>Make one side wider than the other</source>
+        <translation>한쪽을 다른 쪽보다 넓게 만들기</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from an SVG file</source>
+        <translation>SVG 파일로 사용자 지정 모양 만들기</translation>
+    </message>
+    <message>
+        <source>Manage layer style presets</source>
+        <translation>레이어 스타일 사전 설정 관리</translation>
+    </message>
+    <message>
+        <source>Manage brush tips and import ABR</source>
+        <translation>브러시 모양 관리 및 ABR 가져오기</translation>
+    </message>
+    <message>
+        <source>Manage saved brushes</source>
+        <translation>저장된 브러시 관리</translation>
+    </message>
+    <message>
+        <source>Manage custom shape presets</source>
+        <translation>사용자 지정 모양 사전 설정 관리</translation>
+    </message>
+    <message>
+        <source>Convert to full color</source>
+        <translation>풀 컬러로 변환</translation>
+    </message>
+    <message>
+        <source>Preview and save for print colors</source>
+        <translation>인쇄 색상으로 미리 보기 및 저장</translation>
+    </message>
+    <message>
+        <source>Use 8 bits per channel</source>
+        <translation>채널당 8비트 사용</translation>
+    </message>
+    <message>
+        <source>Use 32-bit HDR color</source>
+        <translation>32비트 HDR 색상 사용</translation>
+    </message>
+    <message>
+        <source>Limit the layer to the palette colors</source>
+        <translation>레이어를 팔레트 색상으로 제한</translation>
+    </message>
+    <message>
+        <source>Limit every layer to the palette colors</source>
+        <translation>모든 레이어를 팔레트 색상으로 제한</translation>
+    </message>
+    <message>
+        <source>Make the image lighter, darker or punchier</source>
+        <translation>이미지를 더 밝게, 어둡게 또는 선명하게</translation>
+    </message>
+    <message>
+        <source>Warm or cool the colors like a lens filter</source>
+        <translation>렌즈 필터처럼 색상을 따뜻하게 또는 차갑게</translation>
+    </message>
+    <message>
+        <source>Blend the red, green and blue channels</source>
+        <translation>빨강, 녹색, 파랑 채널 혼합</translation>
+    </message>
+    <message>
+        <source>Apply a color grading table</source>
+        <translation>컬러 그레이딩 테이블 적용</translation>
+    </message>
+    <message>
+        <source>Make a negative</source>
+        <translation>네거티브 만들기</translation>
+    </message>
+    <message>
+        <source>Reduce the number of tones</source>
+        <translation>톤 수 줄이기</translation>
+    </message>
+    <message>
+        <source>Turn the image black and white</source>
+        <translation>이미지를 흑백으로 바꾸기</translation>
+    </message>
+    <message>
+        <source>Map the tones to a gradient</source>
+        <translation>톤을 그레이디언트에 매핑</translation>
+    </message>
+    <message>
+        <source>Adjust one range of colors</source>
+        <translation>한 색상 범위 조정</translation>
+    </message>
+    <message>
+        <source>Remove all color</source>
+        <translation>모든 색상 제거</translation>
+    </message>
+    <message>
+        <source>Stretch the tones automatically</source>
+        <translation>톤을 자동으로 늘리기</translation>
+    </message>
+    <message>
+        <source>Improve contrast automatically</source>
+        <translation>대비를 자동으로 개선</translation>
+    </message>
+    <message>
+        <source>Remove a color cast automatically</source>
+        <translation>색상 캐스트를 자동으로 제거</translation>
+    </message>
+    <message>
+        <source>Add an artboard</source>
+        <translation>대지 추가</translation>
+    </message>
+    <message>
+        <source>Editable lighter, darker or punchier</source>
+        <translation>편집 가능한 밝게, 어둡게 또는 선명하게</translation>
+    </message>
+    <message>
+        <source>Editable black point, white point and midtones</source>
+        <translation>편집 가능한 검정 점, 흰색 점 및 중간 톤</translation>
+    </message>
+    <message>
+        <source>Editable tone curve</source>
+        <translation>편집 가능한 톤 곡선</translation>
+    </message>
+    <message>
+        <source>Editable colors, saturation and lightness</source>
+        <translation>편집 가능한 색상, 채도 및 밝기</translation>
+    </message>
+    <message>
+        <source>Editable color shift in shadows and highlights</source>
+        <translation>어두운 영역과 밝은 영역의 편집 가능한 색상 이동</translation>
+    </message>
+    <message>
+        <source>Editable negative</source>
+        <translation>편집 가능한 네거티브</translation>
+    </message>
+    <message>
+        <source>Editable tone reduction</source>
+        <translation>편집 가능한 톤 감소</translation>
+    </message>
+    <message>
+        <source>Editable black and white cutoff</source>
+        <translation>편집 가능한 흑백 경계값</translation>
+    </message>
+    <message>
+        <source>Editable brightening or darkening</source>
+        <translation>편집 가능한 밝게 또는 어둡게</translation>
+    </message>
+    <message>
+        <source>Editable boost for muted colors</source>
+        <translation>편집 가능한 탁한 색상 강화</translation>
+    </message>
+    <message>
+        <source>Editable channel blend</source>
+        <translation>편집 가능한 채널 혼합</translation>
+    </message>
+    <message>
+        <source>Editable warming or cooling filter</source>
+        <translation>편집 가능한 따뜻한 또는 차가운 필터</translation>
+    </message>
+    <message>
+        <source>Editable mapping of tones to a gradient</source>
+        <translation>편집 가능한 톤의 그레이디언트 매핑</translation>
+    </message>
+    <message>
+        <source>Editable conversion to gray</source>
+        <translation>편집 가능한 회색 변환</translation>
+    </message>
+    <message>
+        <source>Editable color grading table</source>
+        <translation>편집 가능한 컬러 그레이딩 테이블</translation>
+    </message>
+    <message>
+        <source>Editable change to one color range</source>
+        <translation>편집 가능한 한 색상 범위 변경</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with one color</source>
+        <translation>단색으로 채운 레이어 추가</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with a gradient</source>
+        <translation>그레이디언트로 채운 레이어 추가</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with a pattern</source>
+        <translation>패턴으로 채운 레이어 추가</translation>
+    </message>
+    <message>
+        <source>Remove the layer&apos;s color label</source>
+        <translation>레이어의 색상 레이블 제거</translation>
+    </message>
+    <message>
+        <source>Tag the layer red in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 빨간색으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer orange in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 주황색으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer yellow in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 노란색으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer green in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 녹색으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer blue in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 파란색으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer violet in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 보라색으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer gray in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 회색으로 태그</translation>
+    </message>
+    <message>
+        <source>Make every layer visible</source>
+        <translation>모든 레이어 표시</translation>
+    </message>
+    <message>
+        <source>Hide the background with a mask automatically</source>
+        <translation>마스크로 배경을 자동으로 숨기기</translation>
+    </message>
+    <message>
+        <source>Paint on the mask instead of the layer</source>
+        <translation>레이어 대신 마스크에 칠하기</translation>
+    </message>
+    <message>
+        <source>Show the mask as a red overlay</source>
+        <translation>마스크를 빨간색 오버레이로 표시</translation>
+    </message>
+    <message>
+        <source>Show only the mask in gray</source>
+        <translation>마스크만 회색으로 표시</translation>
+    </message>
+    <message>
+        <source>Move the mask together with the layer</source>
+        <translation>마스크를 레이어와 함께 이동</translation>
+    </message>
+    <message>
+        <source>Turn the mask off for now</source>
+        <translation>마스크를 일시적으로 끄기</translation>
+    </message>
+    <message>
+        <source>Swap what the mask shows and hides</source>
+        <translation>마스크가 표시하는 영역과 숨기는 영역 바꾸기</translation>
+    </message>
+    <message>
+        <source>Remove the layer mask</source>
+        <translation>레이어 마스크 제거</translation>
+    </message>
+    <message>
+        <source>Add a vector mask that shows everything</source>
+        <translation>모두 표시하는 벡터 마스크 추가</translation>
+    </message>
+    <message>
+        <source>Add a vector mask that hides everything</source>
+        <translation>모두 숨기는 벡터 마스크 추가</translation>
+    </message>
+    <message>
+        <source>Mask the layer with the selected path</source>
+        <translation>선택한 패스로 레이어 마스크</translation>
+    </message>
+    <message>
+        <source>Remove the vector mask</source>
+        <translation>벡터 마스크 제거</translation>
+    </message>
+    <message>
+        <source>Turn the vector mask off for now</source>
+        <translation>벡터 마스크를 일시적으로 끄기</translation>
+    </message>
+    <message>
+        <source>Turn the vector mask into a pixel mask</source>
+        <translation>벡터 마스크를 픽셀 마스크로 변환</translation>
+    </message>
+    <message>
+        <source>Change the settings of the adjustment layer</source>
+        <translation>조정 레이어의 설정 변경</translation>
+    </message>
+    <message>
+        <source>Wrap the layers so edits stay editable</source>
+        <translation>편집 내용을 계속 수정할 수 있도록 레이어 감싸기</translation>
+    </message>
+    <message>
+        <source>Open the contents in their own tab</source>
+        <translation>내용을 별도의 탭에서 열기</translation>
+    </message>
+    <message>
+        <source>Swap in another file as the contents</source>
+        <translation>다른 파일로 내용 교체</translation>
+    </message>
+    <message>
+        <source>Reload the linked file</source>
+        <translation>연결된 파일 다시 불러오기</translation>
+    </message>
+    <message>
+        <source>Point the link at another file</source>
+        <translation>링크가 다른 파일을 가리키도록 변경</translation>
+    </message>
+    <message>
+        <source>Store the linked file inside the document</source>
+        <translation>연결된 파일을 문서 안에 저장</translation>
+    </message>
+    <message>
+        <source>Save the contents as a file</source>
+        <translation>내용을 파일로 저장</translation>
+    </message>
+    <message>
+        <source>Duplicate as an independent Smart Object</source>
+        <translation>독립된 스마트 개체로 복제</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object into pixels</source>
+        <translation>스마트 개체를 픽셀로 래스터화</translation>
+    </message>
+    <message>
+        <source>Merge the shapes into one outline</source>
+        <translation>모양을 하나의 윤곽선으로 병합</translation>
+    </message>
+    <message>
+        <source>Cut the top shape out of the others</source>
+        <translation>맨 위 모양을 나머지 모양에서 잘라내기</translation>
+    </message>
+    <message>
+        <source>Keep only where the shapes overlap</source>
+        <translation>모양이 겹치는 부분만 유지</translation>
+    </message>
+    <message>
+        <source>Keep everything except the overlap</source>
+        <translation>겹치는 부분을 제외하고 모두 유지</translation>
+    </message>
+    <message>
+        <source>Line up layers on the left</source>
+        <translation>레이어를 왼쪽에 맞추기</translation>
+    </message>
+    <message>
+        <source>Center layers side to side</source>
+        <translation>레이어를 가로 가운데에 맞추기</translation>
+    </message>
+    <message>
+        <source>Line up layers on the right</source>
+        <translation>레이어를 오른쪽에 맞추기</translation>
+    </message>
+    <message>
+        <source>Line up layers along the top</source>
+        <translation>레이어를 위쪽에 맞추기</translation>
+    </message>
+    <message>
+        <source>Center layers top to bottom</source>
+        <translation>레이어를 세로 가운데에 맞추기</translation>
+    </message>
+    <message>
+        <source>Line up layers along the bottom</source>
+        <translation>레이어를 아래쪽에 맞추기</translation>
+    </message>
+    <message>
+        <source>Align to the selected area</source>
+        <translation>선택 영역에 맞추기</translation>
+    </message>
+    <message>
+        <source>Align to the document edges</source>
+        <translation>문서 가장자리에 맞추기</translation>
+    </message>
+    <message>
+        <source>Space the left edges evenly</source>
+        <translation>왼쪽 가장자리를 균등하게 분배</translation>
+    </message>
+    <message>
+        <source>Space the centers evenly across</source>
+        <translation>가로로 중심을 균등하게 분배</translation>
+    </message>
+    <message>
+        <source>Space the right edges evenly</source>
+        <translation>오른쪽 가장자리를 균등하게 분배</translation>
+    </message>
+    <message>
+        <source>Space the top edges evenly</source>
+        <translation>위쪽 가장자리를 균등하게 분배</translation>
+    </message>
+    <message>
+        <source>Space the centers evenly down</source>
+        <translation>세로로 중심을 균등하게 분배</translation>
+    </message>
+    <message>
+        <source>Space the bottom edges evenly</source>
+        <translation>아래쪽 가장자리를 균등하게 분배</translation>
+    </message>
+    <message>
+        <source>Equal gaps between layers across</source>
+        <translation>레이어 사이 가로 간격을 같게</translation>
+    </message>
+    <message>
+        <source>Equal gaps between layers down</source>
+        <translation>레이어 사이 세로 간격을 같게</translation>
+    </message>
+    <message>
+        <source>Mirror the layer left to right</source>
+        <translation>레이어를 좌우로 반전</translation>
+    </message>
+    <message>
+        <source>Mirror the layer top to bottom</source>
+        <translation>레이어를 상하로 반전</translation>
+    </message>
+    <message>
+        <source>Save the layer as a PNG at once</source>
+        <translation>레이어를 바로 PNG로 저장</translation>
+    </message>
+    <message>
+        <source>Save the layer to a file</source>
+        <translation>레이어를 파일로 저장</translation>
+    </message>
+    <message>
+        <source>Copy the layer into another document</source>
+        <translation>레이어를 다른 문서로 복사</translation>
+    </message>
+    <message>
+        <source>Keep dragged layers out of folders and artboards</source>
+        <translation>드래그한 레이어를 폴더와 대지에 넣지 않기</translation>
+    </message>
+    <message>
+        <source>Paint only where the layer has pixels</source>
+        <translation>레이어에 픽셀이 있는 곳에만 칠하기</translation>
+    </message>
+    <message>
+        <source>Combine the selected layers into a new one</source>
+        <translation>선택한 레이어를 새 레이어로 합치기</translation>
+    </message>
+    <message>
+        <source>Step to the next blend mode</source>
+        <translation>다음 혼합 모드로 전환</translation>
+    </message>
+    <message>
+        <source>Step to the previous blend mode</source>
+        <translation>이전 혼합 모드로 전환</translation>
+    </message>
+    <message>
+        <source>Show the layer as is</source>
+        <translation>레이어를 그대로 표시</translation>
+    </message>
+    <message>
+        <source>Scatter pixels by opacity</source>
+        <translation>불투명도에 따라 픽셀 흩뿌리기</translation>
+    </message>
+    <message>
+        <source>Keep the darker colors</source>
+        <translation>더 어두운 색상 유지</translation>
+    </message>
+    <message>
+        <source>Darken like stacked ink</source>
+        <translation>잉크를 겹친 것처럼 어둡게</translation>
+    </message>
+    <message>
+        <source>Darken with more contrast</source>
+        <translation>대비를 높여 어둡게</translation>
+    </message>
+    <message>
+        <source>Darken by lowering brightness</source>
+        <translation>밝기를 낮춰 어둡게</translation>
+    </message>
+    <message>
+        <source>Keep the lighter colors</source>
+        <translation>더 밝은 색상 유지</translation>
+    </message>
+    <message>
+        <source>Lighten like projected light</source>
+        <translation>투사된 빛처럼 밝게</translation>
+    </message>
+    <message>
+        <source>Lighten with less contrast</source>
+        <translation>대비를 낮춰 밝게</translation>
+    </message>
+    <message>
+        <source>Lighten by adding brightness</source>
+        <translation>밝기를 더해 밝게</translation>
+    </message>
+    <message>
+        <source>Raise contrast by the colors below</source>
+        <translation>아래 색상에 따라 대비 높이기</translation>
+    </message>
+    <message>
+        <source>Gently lighten or darken</source>
+        <translation>부드럽게 밝게 또는 어둡게</translation>
+    </message>
+    <message>
+        <source>Strongly lighten or darken</source>
+        <translation>강하게 밝게 또는 어둡게</translation>
+    </message>
+    <message>
+        <source>Burn or dodge by contrast</source>
+        <translation>대비로 번 또는 닷지</translation>
+    </message>
+    <message>
+        <source>Burn or dodge by brightness</source>
+        <translation>밝기로 번 또는 닷지</translation>
+    </message>
+    <message>
+        <source>Replace colors by lightness</source>
+        <translation>밝기에 따라 색상 교체</translation>
+    </message>
+    <message>
+        <source>Push colors to pure primaries</source>
+        <translation>색상을 순수한 원색으로 밀어내기</translation>
+    </message>
+    <message>
+        <source>Subtract the colors from each other</source>
+        <translation>색상끼리 서로 빼기</translation>
+    </message>
+    <message>
+        <source>A softer difference</source>
+        <translation>더 부드러운 차이</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s hue</source>
+        <translation>레이어의 색조만 사용</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s saturation</source>
+        <translation>레이어의 채도만 사용</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s hue and saturation</source>
+        <translation>레이어의 색조와 채도 사용</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s brightness</source>
+        <translation>레이어의 밝기만 사용</translation>
+    </message>
+    <message>
+        <source>Replace fonts that are not installed</source>
+        <translation>설치되지 않은 글꼴 바꾸기</translation>
+    </message>
+    <message>
+        <source>Select no layers</source>
+        <translation>레이어 선택 안 함</translation>
+    </message>
+    <message>
+        <source>Make the next layer down the active one</source>
+        <translation>바로 아래 레이어를 활성화</translation>
+    </message>
+    <message>
+        <source>Make the next layer up the active one</source>
+        <translation>바로 위 레이어를 활성화</translation>
+    </message>
+    <message>
+        <source>Select the main subject automatically</source>
+        <translation>주 피사체를 자동으로 선택</translation>
+    </message>
+    <message>
+        <source>Select everything but the main subject</source>
+        <translation>주 피사체를 제외한 모든 것 선택</translation>
+    </message>
+    <message>
+        <source>Select the layer&apos;s opaque pixels</source>
+        <translation>레이어의 불투명 픽셀 선택</translation>
+    </message>
+    <message>
+        <source>Add the next layer down to the selected layers</source>
+        <translation>바로 아래 레이어를 선택한 레이어에 추가</translation>
+    </message>
+    <message>
+        <source>Add the next layer up to the selected layers</source>
+        <translation>바로 위 레이어를 선택한 레이어에 추가</translation>
+    </message>
+    <message>
+        <source>Select the object inside the selection</source>
+        <translation>선택 영역 안의 개체 선택</translation>
+    </message>
+    <message>
+        <source>Repeat the last filter</source>
+        <translation>마지막 필터 반복</translation>
+    </message>
+    <message>
+        <source>Dreamy glow on the highlights</source>
+        <translation>밝은 영역에 몽환적인 빛</translation>
+    </message>
+    <message>
+        <source>Bolder colors and contrast</source>
+        <translation>더 강렬한 색상과 대비</translation>
+    </message>
+    <message>
+        <source>Moody black and white</source>
+        <translation>분위기 있는 흑백</translation>
+    </message>
+    <message>
+        <source>Film look with lifted blacks</source>
+        <translation>검정을 띄운 필름 느낌</translation>
+    </message>
+    <message>
+        <source>Faded old photo look</source>
+        <translation>빛바랜 옛날 사진 느낌</translation>
+    </message>
+    <message>
+        <source>Brown old photo tint</source>
+        <translation>옛날 사진 같은 갈색 색조</translation>
+    </message>
+    <message>
+        <source>Darken the corners</source>
+        <translation>모서리를 어둡게</translation>
+    </message>
+    <message>
+        <source>Even blur over a square area</source>
+        <translation>정사각형 영역에 균일한 흐림</translation>
+    </message>
+    <message>
+        <source>Smooth soft blur</source>
+        <translation>부드럽고 매끄러운 흐림</translation>
+    </message>
+    <message>
+        <source>Streak as if moving</source>
+        <translation>움직이는 듯한 잔상</translation>
+    </message>
+    <message>
+        <source>Spin or zoom blur around a center</source>
+        <translation>중심을 기준으로 회전 또는 확대 흐림</translation>
+    </message>
+    <message>
+        <source>Smooth while keeping edges</source>
+        <translation>가장자리를 유지하며 매끄럽게</translation>
+    </message>
+    <message>
+        <source>Camera-like depth of field</source>
+        <translation>카메라 같은 피사계 심도</translation>
+    </message>
+    <message>
+        <source>Sharp spot with blur around it</source>
+        <translation>선명한 지점 주변을 흐리게</translation>
+    </message>
+    <message>
+        <source>Miniature look with a sharp band</source>
+        <translation>선명한 띠로 미니어처 느낌</translation>
+    </message>
+    <message>
+        <source>Soften slightly</source>
+        <translation>살짝 흐리게</translation>
+    </message>
+    <message>
+        <source>Soften a bit more</source>
+        <translation>조금 더 흐리게</translation>
+    </message>
+    <message>
+        <source>Fill with the average color</source>
+        <translation>평균 색상으로 채우기</translation>
+    </message>
+    <message>
+        <source>Crisp up slightly</source>
+        <translation>살짝 선명하게</translation>
+    </message>
+    <message>
+        <source>Sharpen with amount and radius</source>
+        <translation>양과 반경으로 선명하게</translation>
+    </message>
+    <message>
+        <source>Keep only the fine detail</source>
+        <translation>미세한 디테일만 유지</translation>
+    </message>
+    <message>
+        <source>Crisp up a bit more</source>
+        <translation>조금 더 선명하게</translation>
+    </message>
+    <message>
+        <source>Sharpen only the edges</source>
+        <translation>가장자리만 선명하게</translation>
+    </message>
+    <message>
+        <source>Swirl around the center</source>
+        <translation>중심 주위로 소용돌이</translation>
+    </message>
+    <message>
+        <source>Ripple in waves</source>
+        <translation>물결 모양으로 일렁이게</translation>
+    </message>
+    <message>
+        <source>Squeeze in or bulge out</source>
+        <translation>안쪽으로 오므리거나 바깥으로 부풀리기</translation>
+    </message>
+    <message>
+        <source>Film-like grain</source>
+        <translation>필름 같은 입자</translation>
+    </message>
+    <message>
+        <source>Sprinkle random speckles</source>
+        <translation>무작위 반점 뿌리기</translation>
+    </message>
+    <message>
+        <source>Smooth out specks</source>
+        <translation>반점을 매끄럽게</translation>
+    </message>
+    <message>
+        <source>Hide small dust and scratches</source>
+        <translation>작은 먼지와 긁힘 숨기기</translation>
+    </message>
+    <message>
+        <source>Turn into large square blocks</source>
+        <translation>큰 정사각형 블록으로 바꾸기</translation>
+    </message>
+    <message>
+        <source>Print-style dots per color</source>
+        <translation>색상별 인쇄 스타일 망점</translation>
+    </message>
+    <message>
+        <source>Shiny wrapped-in-plastic look</source>
+        <translation>비닐로 감싼 듯한 광택</translation>
+    </message>
+    <message>
+        <source>Scatter pixels softly</source>
+        <translation>픽셀을 부드럽게 흩뿌리기</translation>
+    </message>
+    <message>
+        <source>Show only the edges</source>
+        <translation>가장자리만 표시</translation>
+    </message>
+    <message>
+        <source>Raised relief look</source>
+        <translation>돋을새김 효과</translation>
+    </message>
+    <message>
+        <source>Push out 3D blocks</source>
+        <translation>3D 블록 돌출</translation>
+    </message>
+    <message>
+        <source>Outline edges on white</source>
+        <translation>흰색 바탕에 가장자리 윤곽 표시</translation>
+    </message>
+    <message>
+        <source>Neon edges on black</source>
+        <translation>검은색 바탕에 네온 가장자리</translation>
+    </message>
+    <message>
+        <source>Mix negative and positive</source>
+        <translation>네거티브와 포지티브 혼합</translation>
+    </message>
+    <message>
+        <source>Break into offset tiles</source>
+        <translation>어긋난 타일로 분할</translation>
+    </message>
+    <message>
+        <source>Outline tone boundaries</source>
+        <translation>톤 경계의 윤곽 표시</translation>
+    </message>
+    <message>
+        <source>Streak pixels sideways</source>
+        <translation>픽셀을 옆으로 흩날리기</translation>
+    </message>
+    <message>
+        <source>Fill with soft cloud noise</source>
+        <translation>부드러운 구름 노이즈로 채우기</translation>
+    </message>
+    <message>
+        <source>Blend cloud noise by difference</source>
+        <translation>구름 노이즈를 차이로 혼합</translation>
+    </message>
+    <message>
+        <source>Fill with fiber strands</source>
+        <translation>섬유 가닥으로 채우기</translation>
+    </message>
+    <message>
+        <source>Draw flames</source>
+        <translation>불꽃 그리기</translation>
+    </message>
+    <message>
+        <source>Add a bright camera flare</source>
+        <translation>밝은 카메라 플레어 추가</translation>
+    </message>
+    <message>
+        <source>Run the last plug-in again</source>
+        <translation>마지막 플러그인 다시 실행</translation>
+    </message>
+    <message>
+        <source>Run the last plug-in with its dialog</source>
+        <translation>마지막 플러그인을 대화 상자와 함께 실행</translation>
+    </message>
+    <message>
+        <source>Show the plug-ins folder on disk</source>
+        <translation>디스크에서 플러그인 폴더 표시</translation>
+    </message>
+    <message>
+        <source>Look for new or removed plug-ins</source>
+        <translation>새 플러그인이나 제거된 플러그인 찾기</translation>
+    </message>
+    <message>
+        <source>8BF plug-ins need Windows</source>
+        <translation>8BF 플러그인에는 Windows 필요</translation>
+    </message>
+    <message>
+        <source>Zoom until the image fills the window</source>
+        <translation>이미지가 창을 채울 때까지 확대/축소</translation>
+    </message>
+    <message>
+        <source>Zoom to twice the size</source>
+        <translation>두 배 크기로 확대</translation>
+    </message>
+    <message>
+        <source>Show shape edits live while dragging</source>
+        <translation>드래그하는 동안 모양 편집을 실시간으로 표시</translation>
+    </message>
+    <message>
+        <source>Preview the print colors</source>
+        <translation>인쇄 색상 미리 보기</translation>
+    </message>
+    <message>
+        <source>Mark colors that cannot print</source>
+        <translation>인쇄할 수 없는 색상 표시</translation>
+    </message>
+    <message>
+        <source>Show or hide guides, grid and edges</source>
+        <translation>안내선, 격자 및 가장자리 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Show or hide the marching ants</source>
+        <translation>선택 영역 점선 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Show or hide the active path outline</source>
+        <translation>활성 패스 윤곽선 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Choose which extras show</source>
+        <translation>표시할 표시자 선택</translation>
+    </message>
+    <message>
+        <source>Stop guides from moving</source>
+        <translation>안내선이 움직이지 않게 하기</translation>
+    </message>
+    <message>
+        <source>Snap to guide lines</source>
+        <translation>안내선에 스냅</translation>
+    </message>
+    <message>
+        <source>Snap to the grid</source>
+        <translation>격자에 스냅</translation>
+    </message>
+    <message>
+        <source>Snap to the canvas edges and center</source>
+        <translation>캔버스 가장자리와 중앙에 스냅</translation>
+    </message>
+    <message>
+        <source>Snap to other layers</source>
+        <translation>다른 레이어에 스냅</translation>
+    </message>
+    <message>
+        <source>Snap to the selection edges</source>
+        <translation>선택 영역 가장자리에 스냅</translation>
+    </message>
+    <message>
+        <source>Add column and row guides</source>
+        <translation>열 및 행 안내선 추가</translation>
+    </message>
+    <message>
+        <source>Remove the selected guides</source>
+        <translation>선택한 안내선 제거</translation>
+    </message>
+    <message>
+        <source>See the image repeated as a tile</source>
+        <translation>이미지를 타일로 반복해 보기</translation>
+    </message>
+    <message>
+        <source>Normal window with panels</source>
+        <translation>패널이 있는 일반 창</translation>
+    </message>
+    <message>
+        <source>Full screen keeping the menus</source>
+        <translation>메뉴를 유지한 전체 화면</translation>
+    </message>
+    <message>
+        <source>Full screen without panels</source>
+        <translation>패널 없는 전체 화면</translation>
+    </message>
+    <message>
+        <source>Switch to the next screen mode</source>
+        <translation>다음 화면 모드로 전환</translation>
+    </message>
+    <message>
+        <source>Move the document into its own window</source>
+        <translation>문서를 별도 창으로 이동</translation>
+    </message>
+    <message>
+        <source>Put the document back in a tab</source>
+        <translation>문서를 탭으로 되돌리기</translation>
+    </message>
+    <message>
+        <source>Give every document its own window</source>
+        <translation>모든 문서를 각각의 창으로 분리</translation>
+    </message>
+    <message>
+        <source>Put every document in tabs</source>
+        <translation>모든 문서를 탭으로 모으기</translation>
+    </message>
+    <message>
+        <source>Arrange document windows side by side</source>
+        <translation>문서 창을 나란히 정렬</translation>
+    </message>
+    <message>
+        <source>Stack document windows diagonally</source>
+        <translation>문서 창을 대각선으로 쌓기</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1280 by 720</source>
+        <translation>창 크기를 1280×720으로 변경</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1366 by 768</source>
+        <translation>창 크기를 1366×768로 변경</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1600 by 900</source>
+        <translation>창 크기를 1600×900으로 변경</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1920 by 1080</source>
+        <translation>창 크기를 1920×1080으로 변경</translation>
+    </message>
+    <message>
+        <source>Resize the window to 2560 by 1440</source>
+        <translation>창 크기를 2560×1440으로 변경</translation>
+    </message>
+    <message>
+        <source>Resize the window to 3840 by 2160</source>
+        <translation>창 크기를 3840×2160으로 변경</translation>
+    </message>
+    <message>
+        <source>Redraw the whole window</source>
+        <translation>창 전체 다시 그리기</translation>
+    </message>
+    <message>
+        <source>Hide and arrange tools</source>
+        <translation>도구 숨기기 및 정렬</translation>
+    </message>
+    <message>
+        <source>Show the brush dynamics panel</source>
+        <translation>브러시 동적 설정 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the brush tips panel</source>
+        <translation>브러시 팁 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the Channels panel</source>
+        <translation>채널 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the Color panel</source>
+        <translation>색상 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the undo history panel</source>
+        <translation>실행 취소 작업 내역 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the Info panel</source>
+        <translation>정보 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the Layers panel</source>
+        <translation>레이어 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the Palette panel</source>
+        <translation>팔레트 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the Paths panel</source>
+        <translation>패스 패널 표시</translation>
+    </message>
+    <message>
+        <source>Show the Properties panel</source>
+        <translation>속성 패널 표시</translation>
+    </message>
+    <message>
+        <source>Restore the default panel layout</source>
+        <translation>기본 패널 레이아웃 복원</translation>
+    </message>
+    <message>
+        <source>Show or hide the tool palette</source>
+        <translation>도구 팔레트 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Show or hide the options bar</source>
+        <translation>옵션 막대 표시 또는 숨기기</translation>
+    </message>
+    <message>
+        <source>Find any command by name</source>
+        <translation>이름으로 명령 찾기</translation>
+    </message>
+    <message>
+        <source>Read how to write scripts</source>
+        <translation>스크립트 작성 방법 읽기</translation>
+    </message>
+    <message>
+        <source>Connect an AI assistant to Patchy</source>
+        <translation>AI 어시스턴트를 Patchy에 연결</translation>
+    </message>
+    <message>
+        <source>Add a launcher to your desktop menu</source>
+        <translation>데스크톱 메뉴에 실행 아이콘 추가</translation>
+    </message>
+    <message>
+        <source>Version and credits</source>
+        <translation>버전 및 제작진</translation>
+    </message>
+    <message>
+        <source>Switch between the move tools</source>
+        <translation>이동 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the marquee tools</source>
+        <translation>선택 윤곽 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the lasso tools</source>
+        <translation>올가미 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the wand and quick select tools</source>
+        <translation>자동 선택과 빠른 선택 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the crop tools</source>
+        <translation>자르기 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the gradient and fill tools</source>
+        <translation>그레이디언트와 칠 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the stamp tools</source>
+        <translation>도장 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the healing tools</source>
+        <translation>복구 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between blur, sharpen and smudge</source>
+        <translation>흐림 효과, 선명 효과, 손가락 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between dodge, burn and sponge</source>
+        <translation>닷지, 번, 스펀지 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the pen tools</source>
+        <translation>펜 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the path selection tools</source>
+        <translation>패스 선택 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the shape tools</source>
+        <translation>모양 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Switch between the eyedropper and ruler</source>
+        <translation>스포이드와 자 도구 간 전환</translation>
+    </message>
+    <message>
+        <source>Reset to black and white</source>
+        <translation>검정과 흰색으로 재설정</translation>
+    </message>
+    <message>
+        <source>Exchange foreground and background colors</source>
+        <translation>전경색과 배경색 교환</translation>
+    </message>
+    <message>
+        <source>Make the brush smaller</source>
+        <translation>브러시 작게</translation>
+    </message>
+    <message>
+        <source>Make the brush bigger</source>
+        <translation>브러시 크게</translation>
+    </message>
+    <message>
+        <source>Make the brush a lot smaller</source>
+        <translation>브러시 훨씬 작게</translation>
+    </message>
+    <message>
+        <source>Make the brush a lot bigger</source>
+        <translation>브러시 훨씬 크게</translation>
+    </message>
+    <message>
+        <source>Soften the brush edge</source>
+        <translation>브러시 가장자리 부드럽게</translation>
+    </message>
+    <message>
+        <source>Harden the brush edge</source>
+        <translation>브러시 가장자리 단단하게</translation>
+    </message>
+    <message>
+        <source>Pick the previous brush preset</source>
+        <translation>이전 브러시 사전 설정 선택</translation>
+    </message>
+    <message>
+        <source>Pick the next brush preset</source>
+        <translation>다음 브러시 사전 설정 선택</translation>
     </message>
 </context>
 <context>
@@ -17022,8 +18786,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>스크립트</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>도구 또는 레이어 불투명도 설정(1%-100%, 두 자리를 입력하면 정확한 값)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>도구 또는 레이어 불투명도 설정(1 = 10%, 0 = 100%, 두 자리를 빠르게 입력하면 정확한 값)</translation>
     </message>
 </context>
 <context>
@@ -29177,10 +30941,6 @@ Locked: %1</source>
         <translation>끝점 연결</translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>선택한 두 끝점을 직선 세그먼트로 연결</translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation>하나의 점으로 병합</translation>
     </message>
@@ -29245,22 +31005,6 @@ Locked: %1</source>
         <translation>복사한 모양을 대상 패스에 붙여넣기</translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>직접 선택으로 패스 안쪽의 점이나 닫힌 패스의 아무 점을 선택하세요</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>직접 선택으로 열린 패스의 끝점 두 개를 선택하세요</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>직접 선택으로 끝점 두 개 또는 한 패스의 인접한 점을 선택하세요</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>직접 선택으로 세그먼트(양쪽 점)를 선택하세요</translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation>모양 잘라내기</translation>
     </message>
@@ -29313,6 +31057,62 @@ Locked: %1</source>
         <translation>모양 %1개를 새 레이어로 이동했습니다</translation>
     </message>
     <message>
+        <source>Merge Shapes</source>
+        <translation>모양 병합</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>선택한 모양을 보이는 대로 결합해 이동하고 편집할 수 있는 하나의 윤곽선으로 만듭니다</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>모양 병합: 선택한 모양을 보이는 대로 결합해 하나의 윤곽선으로 만듭니다</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>먼저 모양 레이어나 패스를 선택하세요</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>텍스트 영역은 하나의 윤곽선을 유지합니다</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>패스에 모양이 없습니다</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>고유한 색이 있는 모양은 다른 모양과 병합할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>모양 병합</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>모양의 영역이 남지 않아 레이어를 제거했습니다</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>모양 %1개를 하나의 윤곽선으로 병합했습니다</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>선택한 두 끝점을 직선 세그먼트로 연결하거나, 선택한 점이 있는 열린 패스를 각각 닫습니다</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>선택한 모양이 이미 정렬되어 있습니다</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>모양 정렬</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>모양 %1개를 정렬했습니다</translation>
+    </message>
+    <message>
         <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
         <translation>저장된 획 사전 설정: 정렬, 끝, 모서리, 대시, 대시 오프셋</translation>
     </message>
@@ -29329,12 +31129,12 @@ Locked: %1</source>
         <translation>획 사전 설정: %1</translation>
     </message>
     <message>
-        <source>Manage Presets...</source>
-        <translation>사전 설정 관리...</translation>
-    </message>
-    <message>
         <source>No stroke presets</source>
         <translation>획 사전 설정 없음</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>사전 설정 관리...</translation>
     </message>
 </context>
 <context>

@@ -2387,6 +2387,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/svg_tests.cpp
     tests/core/vector_raster_tests.cpp
     tests/core/vector_shape_tests.cpp
+    tests/core/path_edits_tests.cpp
     tests/core/translation_marker_tests.cpp
     tests/core/floating_selection_tests.cpp
     tests/core/ai_selection_tests.cpp

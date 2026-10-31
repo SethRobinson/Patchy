@@ -3,6 +3,7 @@
 #include "core/vector_shape.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -40,6 +41,13 @@ struct PathPointEditResult {
 [[nodiscard]] std::optional<PathPointEditResult> join_path_end_points(const VectorPath& path, PathPointKey a,
                                                                       PathPointKey b, bool merge);
 
+// Close the open subpaths that hold a listed point (their two ends joined by a straight segment, or
+// merged when they coincide), so Break at two points then Join End Points splits a shape into two
+// closed halves. Subpaths of fewer than three points stay open (nothing to enclose). nullopt when
+// none closes.
+[[nodiscard]] std::optional<PathPointEditResult> close_open_subpaths(const VectorPath& path,
+                                                                     const std::set<PathPointKey>& points);
+
 // Merge into One Point: two joinable end points merge (join_path_end_points with merge), or a row
 // of two or more neighbouring points of one subpath collapses into one point at their average,
 // keeping the outer handles. nullopt when the points are neither, or the subpath would keep fewer
@@ -58,6 +66,24 @@ struct PathPointEditResult {
                                                                       const std::set<PathPointKey>& segments);
 
 // --- Components (shape groups) ---
+
+// Merge Shapes: the components of `groups` (path order) become one component whose subpaths trace
+// the area they make together, each component combined with its own op (the first is the base,
+// as when it starts the path), refit into curves and straight lines within `tolerance` pixels.
+// The merged component takes the first one's place, group number and op. Components that all
+// subtract merge as the union of their cutouts and keep subtracting. With no area left (shapes
+// that do not intersect, a cutout bigger than its shape) the result has no subpath for them.
+// The render is unchanged when the merged components start the path; a run in the middle is
+// combined on its own first. nullopt when no listed group is in the path.
+struct MergeComponentsResult {
+  VectorPath path;
+  int merged_group{0};
+  std::size_t merged_subpaths{0};
+  std::vector<int> removed_groups;  // the other listed groups, gone from the path
+};
+[[nodiscard]] std::optional<MergeComponentsResult> merge_path_components(const VectorPath& path,
+                                                                         const std::vector<int>& groups,
+                                                                         double tolerance = 0.25);
 
 // The subpaths of `groups`, in path order, groups and ops kept.
 [[nodiscard]] VectorPath path_components(const VectorPath& path, const std::vector<int>& groups);

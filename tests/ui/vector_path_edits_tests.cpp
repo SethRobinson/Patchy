@@ -19,8 +19,10 @@
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QTimer>
+#include <QToolButton>
 
 #include <algorithm>
+#include <iostream>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -429,10 +431,358 @@ void ui_path_components_color_and_move_to_new_layer() {
   CHECK(shape_of(document, id).path.subpaths.size() == 2);
 }
 
+
+// Seth's report (#555 follow-up): Direct Select several points of a filled shape, Break Path at
+// Point, and the shape grew spikes. Drive it as a user does (Rectangle tool with the toolbar's
+// appearance, a corner dragged into a quad, a marquee over points, Layer > Shape) and check the
+// layer and the canvas at 100% and zoomed in.
+void check_break_renders_cleanly(bool with_stroke, patchy::VectorStrokeAlignment alignment) {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(300, 260));
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(100, 100), QPoint(220, 60));  // the top-left corner up and right
+  if (with_stroke) {
+    // A thick black stroke with miter joins, outside the edge, as the toolbar sets it.
+    auto content = shape_of(document, id);
+    content.stroke.enabled = true;
+    content.stroke.width = 8.0;
+    content.stroke.alignment = alignment;
+    content.stroke.join = patchy::VectorStrokeJoin::Miter;
+    content.stroke.content.kind = patchy::VectorFillKind::Solid;
+    content.stroke.content.color = patchy::RgbColor{0, 0, 0};
+    document.find_layer(id)->set_vector_shape(content);
+    set_target_path(*canvas, content.path);
+  }
+  const auto hull = shape_of(document, id).path;
+  const auto bounds = hull.bounds();
+  CHECK(bounds.has_value());
+  int run = 0;
+  int total_stray = 0;
+  for (const auto& marquee : std::vector<std::pair<QPoint, QPoint>>{{QPoint(280, 40), QPoint(320, 280)},
+                                                                    {QPoint(60, 20), QPoint(340, 290)},
+                                                                    {QPoint(200, 40), QPoint(240, 80)}}) {
+    if (run > 0) {
+      patchy::ui::MainWindowTestAccess::undo(window);  // back to the closed quad
+      QApplication::processEvents();
+    }
+    shape_drag(*canvas, marquee.first, marquee.second);
+    CHECK(canvas->path_edit_selected_anchor_count() >= 1);
+    auto* break_action = require_action(window, "pathBreakAtPointAction");
+    CHECK(break_action->isEnabled());
+    break_action->trigger();
+    QApplication::processEvents();
+    const auto* layer = std::as_const(document).find_layer(id);
+    const auto layer_bounds = layer->bounds();
+    std::cerr << "break stroke " << with_stroke << " align " << static_cast<int>(alignment) << " run " << run << ": subpaths " << layer->vector_shape()->path.subpaths.size()
+              << " layer bounds " << layer_bounds.x << "," << layer_bounds.y << " " << layer_bounds.width << "x"
+              << layer_bounds.height << " path " << bounds->left << "," << bounds->top << " - " << bounds->right
+              << "," << bounds->bottom << "\n";
+    // Every point broken leaves two-point pieces: open lines with no area, so a fill-only shape
+    // shows nothing (the pieces still stroke).
+    // A miter at the quad's acute corner reaches a few widths out; the spikes reached 100 px and more.
+    const int slack = with_stroke ? 36 : 1;
+    if (!layer_bounds.empty()) {
+      CHECK(layer_bounds.x >= std::floor(bounds->left) - slack && layer_bounds.y >= std::floor(bounds->top) - slack);
+      CHECK(layer_bounds.x + layer_bounds.width <= std::ceil(bounds->right) + slack);
+      CHECK(layer_bounds.y + layer_bounds.height <= std::ceil(bounds->bottom) + slack);
+    }
+    for (const double zoom : {1.0, 3.0}) {
+      canvas->set_view_zoom_centered(zoom);
+      QApplication::processEvents();
+      process_events_for(200);
+      const auto image = canvas->grab().toImage();
+      save_image_artifact("ui_i555_break_" + std::string(with_stroke ? "stroke" : "fill") +
+                              std::to_string(static_cast<int>(alignment)) + "_run" + std::to_string(run) + "_zoom" +
+                              std::to_string(static_cast<int>(zoom)),
+                          image);
+      // Dark pixels outside the shape's box (grown by the overlay glyphs) are artifacts.
+      const auto top_left = canvas->widget_position_for_document_point(
+          QPoint(static_cast<int>(std::floor(bounds->left)), static_cast<int>(std::floor(bounds->top))));
+      const auto bottom_right = canvas->widget_position_for_document_point(
+          QPoint(static_cast<int>(std::ceil(bounds->right)), static_cast<int>(std::ceil(bounds->bottom))));
+      const int reach = 12 + (with_stroke ? static_cast<int>(std::ceil(36.0 * zoom)) : 0);
+      const QRect allowed = QRect(top_left, bottom_right).adjusted(-reach, -reach, reach, reach);
+      int stray = 0;
+      for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+          const auto color = image.pixelColor(x, y);
+          // Pure black only (the scroll bars and frame are dark gray), inside the viewport.
+          if (!allowed.contains(x, y) && color.red() < 16 && color.green() < 16 && color.blue() < 16 &&
+              x > 2 && y > 2 && x < image.width() - 24 && y < image.height() - 24) {
+            const auto doc_point = canvas->document_point_for_widget_position(QPointF(x, y));
+            if (doc_point.x() >= 0 && doc_point.y() >= 0 && doc_point.x() < document.width() &&
+                doc_point.y() < document.height()) {
+              ++stray;
+            }
+          }
+        }
+      }
+      std::cerr << "  zoom " << zoom << " stray dark pixels " << stray << "\n";
+      total_stray += stray;
+    }
+    canvas->set_view_zoom_centered(1.0);
+    QApplication::processEvents();
+    ++run;
+  }
+  CHECK(total_stray == 0);
+}
+void ui_path_break_several_points_renders_cleanly() {
+  check_break_renders_cleanly(false, patchy::VectorStrokeAlignment::Inside);
+  for (const auto alignment : {patchy::VectorStrokeAlignment::Inside, patchy::VectorStrokeAlignment::Center,
+                               patchy::VectorStrokeAlignment::Outside}) {
+    check_break_renders_cleanly(true, alignment);
+  }
+}
+
+
+// Merge Shapes (#555 part 1): the options-bar button bakes the live combine of every shape in the
+// layer into one outline that renders the same, moves and point-edits as one shape, and survives
+// a PSD round trip; two selected shape layers merge into one.
+void ui_path_merge_shapes_bakes_the_combine() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(260, 220));
+  patchy::VectorPath path;
+  path.subpaths = {square(100, 100, 120, 0), square(180, 160, 120, 1),
+                   square(130, 130, 40, 2, patchy::PathCombineOp::Subtract)};
+  set_target_path(*canvas, path);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("vectorMergeShapesButton"));
+  CHECK(button != nullptr && button->isVisible() && button->isEnabled());
+  const std::vector<QPoint> probes{{110, 110}, {150, 150}, {250, 250}, {290, 290}, {200, 200}, {120, 280}, {280, 110}};
+  std::vector<int> before;
+  for (const auto& probe : probes) {
+    before.push_back(layer_rgba_at(document, id, probe)[3]);
+  }
+  save_widget_artifact("ui_i555_merge_before", *canvas);
+  const auto undo_before = undo_depth(window);
+  button->click();
+  QApplication::processEvents();
+  CHECK(undo_depth(window) == undo_before + 1);
+  const auto& merged = shape_of(document, id).path;
+  std::vector<int> groups;
+  for (const auto& subpath : merged.subpaths) {
+    if (std::find(groups.begin(), groups.end(), subpath.shape_group) == groups.end()) {
+      groups.push_back(subpath.shape_group);
+    }
+  }
+  CHECK(groups.size() == 1);
+  CHECK(merged.subpaths.size() == 2);  // the outline and the hole
+  for (std::size_t i = 0; i < probes.size(); ++i) {
+    CHECK(std::abs(layer_rgba_at(document, id, probes[i])[3] - before[i]) < 8);
+  }
+  CHECK(canvas->path_edit_selected_groups().size() == 1);  // the merged shape is selected
+  save_widget_artifact("ui_i555_merge_after", *canvas);
+  // It moves as one shape: a Path Select drag on its edge moves the outline and the hole.
+  shape_drag(*canvas, QPoint(100, 160), QPoint(120, 160));
+  CHECK(layer_rgba_at(document, id, QPoint(110, 110))[3] == 0);
+  CHECK(layer_rgba_at(document, id, QPoint(160, 150))[3] == 0);  // the hole moved with it
+  CHECK(layer_rgba_at(document, id, QPoint(130, 110))[3] > 200);
+  // PSD keeps the merged outline.
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  bool found = false;
+  for (const auto& layer : reread.layers()) {
+    if (patchy::layer_is_vector_shape(layer)) {
+      found = true;
+      CHECK(layer.vector_shape()->path.subpaths.size() == 2);
+    }
+  }
+  CHECK(found);
+
+  // Two shape layers selected in the Layers panel merge into one layer and one outline.
+  const auto second = make_rect_shape_layer(window, *canvas, QPoint(400, 100), QPoint(500, 200));
+  const auto third = make_rect_shape_layer(window, *canvas, QPoint(450, 150), QPoint(550, 250));
+  patchy::ui::MainWindowTestAccess::select_layers(window, {second, third}, third);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  auto* merge_action = require_action(window, "pathMergeShapesAction");
+  CHECK(merge_action->isEnabled());
+  const auto layers_before = document.layers().size();
+  merge_action->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_before - 1);
+  const auto survivor = *document.active_layer_id();
+  CHECK(shape_of(document, survivor).path.subpaths.size() == 1);
+  CHECK(shape_of(document, survivor).path.subpaths[0].anchors.size() == 8);
+}
+
+// Weld while editing: a Direct Select drag of an end point snaps onto the other line's end point
+// (a ring shows it) and the release joins them in the drag's undo step; Alt places it freely.
+void ui_path_weld_on_drag_joins_end_points() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(200, 200));
+  patchy::VectorPath lines;
+  for (const auto& [x0, x1, group] : std::vector<std::tuple<double, double, int>>{{100, 200, 0}, {230, 330, 1}}) {
+    patchy::PathSubpath line;
+    line.closed = false;
+    line.shape_group = group;
+    for (const double x : {x0, x1}) {
+      patchy::PathAnchor anchor;
+      anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+      anchor.anchor_y = anchor.in_y = anchor.out_y = 300.0;
+      line.anchors.push_back(anchor);
+    }
+    lines.subpaths.push_back(line);
+  }
+  {
+    auto content = shape_of(document, id);
+    content.fill.kind = patchy::VectorFillKind::None;
+    content.stroke.enabled = true;
+    content.stroke.width = 6.0;
+    content.stroke.alignment = patchy::VectorStrokeAlignment::Center;
+    content.stroke.content.kind = patchy::VectorFillKind::Solid;
+    content.stroke.content.color = patchy::RgbColor{30, 90, 200};
+    document.find_layer(id)->set_vector_shape(content);
+    set_target_path(*canvas, lines);
+  }
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+
+  // Alt held: the point lands where it is dropped, no snap, no join.
+  const auto from = canvas->widget_position_for_document_point(QPoint(200, 300));
+  const auto near = canvas->widget_position_for_document_point(QPoint(225, 303));
+  click(*canvas, QPoint(200, 300));
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, near, Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, near, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(shape_of(document, id).path.subpaths.size() == 2);
+  CHECK(std::abs(shape_of(document, id).path.subpaths[0].anchors[1].anchor_x - 225.0) < 0.5);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(std::abs(shape_of(document, id).path.subpaths[0].anchors[1].anchor_x - 200.0) < 0.5);
+
+  // Without Alt it snaps onto (230, 300), rings it, and the release joins the two lines.
+  click(*canvas, QPoint(200, 300));
+  const auto undo_before = undo_depth(window);
+  send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, near, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(std::abs(shape_of(document, id).path.subpaths[0].anchors[1].anchor_x - 230.0) < 1e-6);
+  std::cerr << "weld status: " << window.statusBar()->currentMessage().toStdString() << '\n';
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Release to join the end points")));
+  save_widget_artifact("ui_i555_weld_snap", *canvas);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, near, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+  const auto& joined = shape_of(document, id).path.subpaths;
+  CHECK(joined.size() == 1 && joined[0].anchors.size() == 3);
+  CHECK(undo_depth(window) == undo_before + 1);
+  save_widget_artifact("ui_i555_weld_joined", *canvas);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(shape_of(document, id).path.subpaths.size() == 2);
+
+  // Dragging the open end of a line onto its other end closes it.
+  click(*canvas, QPoint(330, 300));
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(QPoint(330, 300)),
+             Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(280, 250)), Qt::NoButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(233, 297)), Qt::NoButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(233, 297)),
+             Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+  // A two-point line cannot close on itself (one point), so it only snapped there.
+  CHECK(shape_of(document, id).path.subpaths.size() == 2);
+  CHECK(std::abs(shape_of(document, id).path.subpaths[1].anchors[1].anchor_x - 230.0) < 1e-6);
+}
+
+
+// Splitting a shape in two (#555 usage sweep): Shift+click two opposite corners with Direct
+// Select, Break Path at Point, Join End Points: two closed halves, two undo steps.
+void ui_path_split_shape_with_break_and_join() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  click(*canvas, QPoint(100, 100));
+  const auto corner = canvas->widget_position_for_document_point(QPoint(300, 220));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 2);
+  const auto undo_before = undo_depth(window);
+  require_action(window, "pathBreakAtPointAction")->trigger();
+  QApplication::processEvents();
+  CHECK(shape_of(document, id).path.subpaths.size() == 2);
+  auto* join = require_action(window, "pathJoinEndPointsAction");
+  CHECK(join->isEnabled());
+  join->trigger();
+  QApplication::processEvents();
+  const auto& halves = shape_of(document, id).path.subpaths;
+  CHECK(halves.size() == 2 && halves[0].closed && halves[1].closed);
+  CHECK(undo_depth(window) == undo_before + 2);
+  // The fill is unchanged: both triangles together cover the rectangle.
+  CHECK(layer_rgba_at(document, id, QPoint(150, 200))[3] > 200);
+  CHECK(layer_rgba_at(document, id, QPoint(250, 120))[3] > 200);
+}
+
+
+// Shapes inside one layer align (#555 usage sweep): Path Select two of them, Layer > Arrange >
+// Align Left Edges; the layer itself stays put and the shapes stay selected.
+void ui_path_align_shapes_inside_a_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(200, 200));
+  patchy::VectorPath path;
+  path.subpaths = {square(100, 100, 60, 0), square(220, 220, 80, 1)};
+  set_target_path(*canvas, path);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  click(*canvas, QPoint(100, 130));
+  const auto second = canvas->widget_position_for_document_point(QPoint(220, 260));
+  send_mouse(*canvas, QEvent::MouseButtonPress, second, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, second, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_groups().size() == 2);
+  auto* align = require_action(window, "layerAlignLeftAction");
+  CHECK(align->isEnabled());
+  const auto undo_before = undo_depth(window);
+  align->trigger();
+  QApplication::processEvents();
+  CHECK(undo_depth(window) == undo_before + 1);
+  const auto& aligned = shape_of(document, id).path.subpaths;
+  CHECK(std::abs(aligned[1].anchors[0].anchor_x - 100.0) < 1e-6);
+  CHECK(std::abs(aligned[1].anchors[0].anchor_y - 220.0) < 1e-6);
+  CHECK(canvas->path_edit_selected_groups().size() == 2);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_path_edits_tests() {
   return {
+      {"ui_path_align_shapes_inside_a_layer", ui_path_align_shapes_inside_a_layer},
+      {"ui_path_split_shape_with_break_and_join", ui_path_split_shape_with_break_and_join},
+      {"ui_path_merge_shapes_bakes_the_combine", ui_path_merge_shapes_bakes_the_combine},
+      {"ui_path_weld_on_drag_joins_end_points", ui_path_weld_on_drag_joins_end_points},
+      {"ui_path_break_several_points_renders_cleanly", ui_path_break_several_points_renders_cleanly},
       {"ui_path_point_commands_edit_menus_and_undo", ui_path_point_commands_edit_menus_and_undo},
       {"ui_path_join_end_points_connects_two_open_paths", ui_path_join_end_points_connects_two_open_paths},
       {"ui_path_components_cut_copy_paste_round_trip", ui_path_components_cut_copy_paste_round_trip},

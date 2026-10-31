@@ -3750,6 +3750,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     for (auto* action : layer_combine_actions_) {
       combine_menu->addAction(action);
     }
+    // Merge Shapes bakes the layers into one outline (GitHub #555).
+    if (path_merge_shapes_action_ != nullptr) {
+      refresh_path_edit_action_states();
+      combine_menu->addSeparator();
+      combine_menu->addAction(path_merge_shapes_action_);
+    }
   }
   QAction* warp_text_action = nullptr;
   QAction* text_orientation_action = nullptr;
@@ -5804,6 +5810,10 @@ void MainWindow::align_selected_layers(AlignEdge edge) {
   if (refuse_layer_alignment_command()) {
     return;
   }
+  // Two or more shapes picked with Path Select or Direct Select align inside their layer (#555).
+  if (align_selected_path_components(edge)) {
+    return;
+  }
   const auto result = canvas_->align_layers(edge, align_to_canvas_, {});
   if (result.unit_count == 0) {
     show_status_error(tr("Select a movable layer to align"));
@@ -5865,7 +5875,11 @@ void MainWindow::set_align_to_canvas(bool align_to_canvas) {
 
 void MainWindow::refresh_layer_alignment_action_states() {
   const bool document_ready = has_active_document() && canvas_ != nullptr && !preview_dialog_edit_locked();
-  const int units = document_ready ? canvas_->alignment_unit_count({}) : 0;
+  int units = document_ready ? canvas_->alignment_unit_count({}) : 0;
+  if (document_ready && (canvas_->tool() == CanvasTool::PathSelect || canvas_->tool() == CanvasTool::DirectSelect) &&
+      canvas_->path_edit_selected_groups().size() >= 2) {
+    units = std::max(units, 1);  // shapes inside one layer align too
+  }
   for (auto* action : layer_align_actions_) {
     if (action != nullptr) {
       action->setEnabled(document_ready && units >= 1);
