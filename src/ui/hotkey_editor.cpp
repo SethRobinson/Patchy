@@ -1,4 +1,5 @@
 #include "ui/hotkey_editor.hpp"
+#include "ui/command_search.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QAction>
@@ -64,22 +65,6 @@ bool is_reserved_binding_key(int key, Qt::KeyboardModifiers modifiers) {
   }
   return false;
 }
-
-namespace {
-
-// Menu texts carry an "opens a dialog" ellipsis that is noise in a command
-// list ("used by Levels...." reads badly in the conflict banner).
-QString strip_menu_ellipsis(QString label) {
-  while (label.endsWith(QStringLiteral("..."))) {
-    label.chop(3);
-  }
-  while (label.endsWith(QChar(0x2026))) {
-    label.chop(1);
-  }
-  return label.trimmed();
-}
-
-}  // namespace
 
 // Records exactly one chord. Esc cancels, plain Backspace clears the binding,
 // reserved keys show a transient refusal instead of committing.
@@ -415,38 +400,20 @@ void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
   QSet<QString> added;
 
   const QString path_separator = QStringLiteral(" › ");
-  std::function<void(QMenu*, const QString&, const QString&)> walk = [&](QMenu* menu, const QString& top,
-                                                                         const QString& path) {
-    for (auto* action : menu->actions()) {
-      if (action == nullptr || action->isSeparator()) {
-        continue;
-      }
-      if (auto* submenu = action->menu(); submenu != nullptr) {
-        const auto submenu_label = clean_action_text(action);
-        walk(submenu, top, path.isEmpty() ? submenu_label : path + path_separator + submenu_label);
-        continue;
-      }
-      const auto* command = command_by_action.value(action);
-      // Script commands sit in File > Scripts only once that menu has been opened; listing
-      // them by category keeps their rows the same whether or not it was.
-      if (command == nullptr || added.contains(command->id) || command->category == QStringLiteral("scripts")) {
-        continue;
-      }
-      added.insert(command->id);
-      auto label = strip_menu_ellipsis(clean_action_text(action));
-      if (!path.isEmpty()) {
-        label = path + path_separator + label;
-      }
-      pending.push_back({command, label, top});
+  for_each_menu_bar_command(menu_bar, false, [&](QAction* action, const QString& top, const QStringList& submenus) {
+    const auto* command = command_by_action.value(action);
+    // Script commands sit in File > Scripts only once that menu has been opened; listing
+    // them by category keeps their rows the same whether or not it was.
+    if (command == nullptr || added.contains(command->id) || command->category == QStringLiteral("scripts")) {
+      return;
     }
-  };
-  if (menu_bar != nullptr) {
-    for (auto* top_action : menu_bar->actions()) {
-      if (auto* menu = top_action->menu(); menu != nullptr) {
-        walk(menu, clean_action_text(top_action), QString());
-      }
+    added.insert(command->id);
+    auto label = strip_menu_ellipsis(clean_action_text(action));
+    if (!submenus.isEmpty()) {
+      label = submenus.join(path_separator) + path_separator + label;
     }
-  }
+    pending.push_back({command, label, top});
+  });
   for (const auto& command : registry_.commands()) {
     if (added.contains(command.id) || command.action == nullptr) {
       continue;

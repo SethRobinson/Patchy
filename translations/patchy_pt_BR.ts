@@ -16619,6 +16619,13 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Search menu commands</source>
+        <translation>Pesquisar comandos do menu</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -29098,6 +29105,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation>Camadas de texto deste arquivo do GIMP pintadas depois que o texto foi definido: %1</translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
+        <translation>Pesquisar &amp;comandos...</translation>
     </message>
 </context>
 <context>

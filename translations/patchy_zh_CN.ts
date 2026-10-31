@@ -16576,6 +16576,13 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Search menu commands</source>
+        <translation>搜索菜单命令</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -29016,6 +29023,10 @@ Locked: %1</source>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation>此 GIMP 文件中设置文字后又被绘制过的文字图层：%1</translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
+        <translation>搜索命令(&amp;C)...</translation>
     </message>
 </context>
 <context>

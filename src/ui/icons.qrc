@@ -70,6 +70,7 @@
     <file alias="canvas-size.svg">icons/canvas-size.svg</file>
     <file alias="crop.svg">icons/crop.svg</file>
     <file alias="rotate.svg">icons/rotate.svg</file>
+    <file alias="search.svg">icons/search.svg</file>
     <file alias="zoom-in.svg">icons/zoom-in.svg</file>
     <file alias="zoom-out.svg">icons/zoom-out.svg</file>
     <file alias="fit.svg">icons/fit.svg</file>

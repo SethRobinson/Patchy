@@ -473,6 +473,10 @@ public:
   // Help > Set up AI Control: the paste-into-your-assistant dialog
   // (ai_setup_dialog.hpp), single non-modal instance like the guide.
   void open_ai_setup_dialog();
+  // Help > Search Commands (command_search.hpp, GitHub issue 554): a popup listing every
+  // enabled menu command, filtered as you type; Enter runs the chosen one. A second
+  // request while it is open closes it.
+  void show_command_search();
   // Help > Add Patchy to Applications Menu... / Remove Patchy from Applications Menu
   // (main_window_appimage_menu_entry.cpp): shown only when running from an AppImage,
   // unavailable when another tool or package already put Patchy in the menu.
@@ -3544,6 +3548,8 @@ private:
   // document may live in a float window).
   QPointer<CanvasWidget> preview_dialog_edit_lock_canvas_;
   QWidget* window_chrome_controls_{nullptr};
+  QToolButton* command_search_button_{nullptr};  // after the last menu title; null on macOS
+  QPointer<QFrame> command_search_popup_;
   QToolButton* maximize_button_{nullptr};
   ScreenMode screen_mode_{ScreenMode::Standard};
   std::optional<StandardScreenChrome> standard_screen_chrome_;

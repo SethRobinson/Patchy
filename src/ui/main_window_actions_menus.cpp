@@ -37,6 +37,7 @@
 #include "ui/new_document_dialog.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/warp_text_dialog.hpp"
+#include "ui/command_search.hpp"
 #include "ui/quick_mask_trace.hpp"
 #include "ui/update_checker.hpp"
 
@@ -46,6 +47,7 @@
 #include <QColor>
 #include <QDesktopServices>
 #include <QElapsedTimer>
+#include <QFrame>
 #include <QEvent>
 #include <QGuiApplication>
 #include <QInputMethodEvent>
@@ -66,6 +68,7 @@
 #include <QStringLiteral>
 #include <QStyle>
 #include <QTimer>
+#include <QToolButton>
 #include <QToolTip>
 #include <QUrl>
 #include <QWidget>
@@ -2903,6 +2906,21 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     rebuild_window_document_entries(window_menu);
   });
 
+  // GitHub issue 554: search the menus by name. The menu bar's search button after Help
+  // runs the same action; macOS's native Help menu has its own search, so no button there.
+  auto* search_commands_action = help_menu->addAction(tr("Search &Commands..."));
+  bind_action_text(search_commands_action, QT_TR_NOOP("Search &Commands..."));
+  search_commands_action->setObjectName(QStringLiteral("helpSearchCommandsAction"));
+  search_commands_action->setMenuRole(QAction::NoRole);
+  search_commands_action->setIcon(simple_icon(QStringLiteral("search")));
+  register_hotkey(search_commands_action, "help.search_commands",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Slash));
+  connect(search_commands_action, &QAction::triggered, this, [this] { show_command_search(); });
+#ifndef Q_OS_MACOS
+  command_search_button_ = add_menu_bar_search_button(menuBar(), search_commands_action);
+#endif
+  help_menu->addSeparator();
+
   auto* scripting_guide_action = help_menu->addAction(tr("&Scripting Guide"));
   scripting_guide_action->setObjectName(QStringLiteral("helpScriptingGuideAction"));
   register_hotkey(scripting_guide_action, "help.scripting_guide");
@@ -3047,6 +3065,35 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
       exclude_submenus_from_native_menu_roles(*menu);
     }
   }
+}
+
+void MainWindow::show_command_search() {
+  if (command_search_popup_ != nullptr) {
+    command_search_popup_->close();
+    return;
+  }
+  // The states these menus refresh when they open, so the list matches what the menus
+  // would show now; the Window menu's document entries and File > Scripts exist only
+  // once built.
+  refresh_smart_object_action_states();
+  refresh_merge_visible_action_state();
+  refresh_layer_color_action_states();
+  refresh_layer_visibility_action_text();
+  refresh_appimage_menu_entry_action();
+  rebuild_scripts_menu();
+  if (auto* window_menu = menuBar()->findChild<QMenu*>(QStringLiteral("windowMenu")); window_menu != nullptr) {
+    rebuild_window_document_entries(window_menu);
+  }
+  QPoint top_left;
+  if (command_search_button_ != nullptr && command_search_button_->isVisible()) {
+    top_left = command_search_button_->mapToGlobal(QPoint(0, command_search_button_->height()));
+  } else {
+    // Centered under the menu bar (or the window's top edge when it is hidden).
+    const int top = menuBar()->isVisible() && !menuBar()->isNativeMenuBar() ? menuBar()->height() : 0;
+    const QPoint anchor = mapToGlobal(QPoint(width() / 2, top));
+    top_left = anchor - QPoint(280, 0);
+  }
+  command_search_popup_ = show_command_search_popup(this, collect_menu_commands(menuBar()), top_left);
 }
 
 }  // namespace patchy::ui

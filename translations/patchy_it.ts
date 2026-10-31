@@ -16619,6 +16619,13 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Search menu commands</source>
+        <translation>Cerca comandi di menu</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -29098,6 +29105,10 @@ Bloccato: %1</translation>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation>Livelli di testo in questo file GIMP dipinti dopo averne impostato il testo: %1</translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
+        <translation>Ce&amp;rca comandi...</translation>
     </message>
 </context>
 <context>
