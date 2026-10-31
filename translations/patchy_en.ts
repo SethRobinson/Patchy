@@ -16941,10 +16941,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17018,6 +17014,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Scripts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

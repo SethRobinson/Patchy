@@ -16958,10 +16958,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Faire défiler la zone de travail (maintenir) ; pendant un glissement, déplace la sélection ou la forme</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>Définir l&apos;opacité de l&apos;outil (10 % à 100 %)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>Décaler le calque de 1 px / 10 px</translation>
     </message>
@@ -17036,6 +17032,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Scripts</source>
         <translation>Scripts</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>Définir l&apos;opacité de l&apos;outil ou du calque (1 % à 100 % ; tapez deux chiffres pour une valeur exacte)</translation>
     </message>
 </context>
 <context>

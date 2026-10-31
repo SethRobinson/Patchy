@@ -16914,10 +16914,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>平移畫布(按住);拖曳期間則移動選取範圍或形狀</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>設定工具不透明度(10%-100%)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>以 1 px / 10 px 微調圖層位置</translation>
     </message>
@@ -16992,6 +16988,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Scripts</source>
         <translation>指令碼</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>設定工具或圖層不透明度(1% 到 100%；輸入兩位數字可設為精確值)</translation>
     </message>
 </context>
 <context>

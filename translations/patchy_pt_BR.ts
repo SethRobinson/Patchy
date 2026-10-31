@@ -16958,10 +16958,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Deslocar a tela (manter pressionado); durante o arraste, move a seleção ou a forma</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>Definir a opacidade da ferramenta (10%-100%)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>Deslocar a camada em 1 px/10 px</translation>
     </message>
@@ -17036,6 +17032,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Scripts</source>
         <translation>Scripts</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>Definir a opacidade da ferramenta ou da camada (1% a 100%; digite dois dígitos para um valor exato)</translation>
     </message>
 </context>
 <context>

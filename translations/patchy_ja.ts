@@ -16914,10 +16914,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>キャンバスをパン（長押し）。ドラッグ中は選択範囲やシェイプを移動</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>ツールの不透明度を設定 (10%-100%)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>レイヤーを 1 px / 10 px 移動</translation>
     </message>
@@ -16992,6 +16988,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Scripts</source>
         <translation>スクリプト</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>ツールまたはレイヤーの不透明度を設定 (1% から 100%。2 桁入力で正確な値)</translation>
     </message>
 </context>
 <context>

@@ -16914,10 +16914,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>캔버스 이동(누르고 있기); 드래그 중에는 선택 영역이나 모양 이동</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>도구 불투명도 설정(10%-100%)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>레이어를 1px/10px씩 조금씩 이동</translation>
     </message>
@@ -16992,6 +16988,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Scripts</source>
         <translation>스크립트</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>도구 또는 레이어 불투명도 설정(1%-100%, 두 자리를 입력하면 정확한 값)</translation>
     </message>
 </context>
 <context>

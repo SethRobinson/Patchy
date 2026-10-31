@@ -16958,10 +16958,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Arbeitsfläche verschieben (gedrückt halten); beim Ziehen wird die Auswahl oder Form verschoben</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>Werkzeugdeckkraft festlegen (10 % bis 100 %)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>Ebene um 1 px / 10 px verschieben</translation>
     </message>
@@ -17036,6 +17032,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Scripts</source>
         <translation>Skripte</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>Deckkraft von Werkzeug oder Ebene festlegen (1 % bis 100 %; zwei Ziffern eingeben für einen genauen Wert)</translation>
     </message>
 </context>
 <context>

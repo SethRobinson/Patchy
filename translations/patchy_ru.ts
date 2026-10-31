@@ -17002,10 +17002,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Панорамирование холста (удерживать); при перетаскивании перемещает выделение или фигуру</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>Установите непрозрачность инструмента (10–100 %).</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>Сдвинуть слой на 1&#xa0;пиксель/10&#xa0;пикселей.</translation>
     </message>
@@ -17080,6 +17076,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Scripts</source>
         <translation>Скрипты</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>Установить непрозрачность инструмента или слоя (1–100 %; введите две цифры для точного значения)</translation>
     </message>
 </context>
 <context>

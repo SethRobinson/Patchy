@@ -16958,10 +16958,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Scorri il quadro (tieni premuto); durante il trascinamento sposta la selezione o la forma</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>Imposta l&apos;opacità dello strumento (10%-100%)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>Sposta il livello di 1 px / 10 px</translation>
     </message>
@@ -17036,6 +17032,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Scripts</source>
         <translation>Script</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>Imposta l&apos;opacità dello strumento o del livello (dall&apos;1% al 100%; digita due cifre per un valore esatto)</translation>
     </message>
 </context>
 <context>

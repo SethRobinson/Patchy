@@ -16958,10 +16958,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Desplazar la vista del lienzo (mantener pulsada); al arrastrar, mueve la selección o la forma</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>Definir la opacidad de la herramienta (10%-100%)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>Desplazar la capa 1 px / 10 px</translation>
     </message>
@@ -17036,6 +17032,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Scripts</source>
         <translation>Scripts</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>Definir la opacidad de la herramienta o de la capa (1% a 100%; escribe dos dígitos para un valor exacto)</translation>
     </message>
 </context>
 <context>
