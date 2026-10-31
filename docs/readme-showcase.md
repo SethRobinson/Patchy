@@ -66,8 +66,8 @@ The separate Levels, brush-dynamics, shape-appearance, and Affinity images are r
 from the gallery. Their existing scenes remain regression coverage; the driver
 does not publish those artifacts. Brush dynamics are described with brush tips.
 Long Shadow and Smart Objects remain in the gallery; the README's feature cards use
-Layer Styles and Object Selection instead; Flame is gallery-only too. Eight feature cards sit in pairs;
-Export for Web and then the eight-artboard Layered Imports capture each span a full row, so their labels read.
+Layer Styles and Object Selection instead; Flame is gallery-only too. All ten feature cards sit in pairs
+at the same size, in the README and the gallery alike; never give one a full-width row.
 
 The Object Selection scene crops the Havana street photo to its lower half and runs
 `doc.selection.objectSelect` with one loose box around the vintage car, on the High
