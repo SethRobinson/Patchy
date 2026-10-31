@@ -28811,6 +28811,14 @@ Locked: %1</source>
         <translation>栅格化图层</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>上一个预设</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>下一个预设</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>下方图层</translation>
     </message>

@@ -28811,6 +28811,14 @@ Locked: %1</source>
         <translation>레이어 래스터화</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>이전 사전 설정</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>다음 사전 설정</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>아래 레이어</translation>
     </message>

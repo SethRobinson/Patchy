@@ -57,6 +57,10 @@ Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (a
 
 - A canvas cursor change made while a popup holds the pointer (a slider popup's quick value redraws the brush cursor) is applied by Qt to the whole main window, which then shows it over the options bar until the pointer enters another widget. `MainWindow::eventFilter` calls `refresh_cursor_under_pointer` (dialog_utils) after any `Qt::Popup` hides, so every popup is covered (GitHub issue 293, `ui_slider_popup_close_restores_cursor_under_pointer`).
 
+## Preset keys
+
+- Previous Preset / Next Preset (, and .; hotkey ids `brush.preset_previous`, `brush.preset_next`; GitHub issue 543) step the bar's preset list for the active tool and wrap: the brush Preset combo for the tools whose bar shows it (`option_widget_serves_tool`), skipping the separator and the `__` Save/Manage entries, and the Gradient tool's presets. A brush step sets the combo index, so it runs the same handler as a pick. Every other tool, Fill and Pattern Stamp included, has no preset list and ignores the keys. A text field or the Text tool editor keeps both keys as text (`ui_preset_step_shortcuts_cycle_brush_and_gradient_presets`).
+
 ## Keyboard focus
 
 - Enter in a field (spin box, the font box) commits it; Esc puts back the value from before the edit (spin boxes: `ToolbarSpinboxEscapeReverter`, GitHub issue 186; the editable font box puts back its text from focus-in). Either key then hands the keyboard back to the active canvas, or to a live text session, so tool keys work again; Esc also leaves any other focused bar control. `MainWindow::handle_options_bar_focus_event` (application event filter) does it once for every bar control: the move is queued after the press, so the canvas never sees that Esc (it would deselect the layer), and it is skipped when the control lost focus meanwhile. A click elsewhere moves focus as usual. (GitHub issue 439; `ui_options_bar_enter_and_esc_return_the_keyboard_to_the_canvas`.)

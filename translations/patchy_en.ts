@@ -28812,6 +28812,14 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation type="unfinished"></translation>
     </message>

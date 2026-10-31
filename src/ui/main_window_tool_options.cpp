@@ -2197,21 +2197,24 @@ void MainWindow::edit_gradient_stops() {
   refresh_document_info();
 }
 
+void MainWindow::apply_gradient_preset_entry(const GradientLibraryEntry& entry) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  gradient_preset_id_ = entry.storage_id;
+  canvas_->set_gradient_stops(sampled_gradient_stops_from_definition(
+      entry.definition, canvas_->primary_color(), canvas_->secondary_color()));
+  refresh_gradient_controls_from_canvas();
+  save_tool_settings();
+  refresh_document_info();
+  statusBar()->showMessage(tr("Gradient preset: %1").arg(gradient_library_entry_display_name(entry)));
+}
+
 void MainWindow::choose_gradient_preset() {
   if (canvas_ == nullptr || gradient_presets_button_ == nullptr) {
     return;
   }
-  const auto apply_entry = [this](const GradientLibraryEntry& entry) {
-    if (canvas_ == nullptr) {
-      return;
-    }
-    canvas_->set_gradient_stops(sampled_gradient_stops_from_definition(
-        entry.definition, canvas_->primary_color(), canvas_->secondary_color()));
-    refresh_gradient_controls_from_canvas();
-    save_tool_settings();
-    refresh_document_info();
-    statusBar()->showMessage(tr("Gradient preset: %1").arg(gradient_library_entry_display_name(entry)));
-  };
+  const auto apply_entry = [this](const GradientLibraryEntry& entry) { apply_gradient_preset_entry(entry); };
   show_gradient_preset_popup(gradient_presets_button_, gradient_library(), apply_entry,
                              [this, apply_entry] {
                                const auto selected = request_gradient_manager(this, gradient_library(), {});
@@ -2219,6 +2222,66 @@ void MainWindow::choose_gradient_preset() {
                                  apply_entry(*entry);
                                }
                              });
+}
+
+void MainWindow::step_active_tool_preset(int direction) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  // The next index after `current` in a list of `count`, wrapping; with no current entry
+  // Next starts at the first and Previous at the last.
+  const auto stepped = [direction](qsizetype current, qsizetype count) {
+    if (current < 0) {
+      return direction > 0 ? qsizetype{0} : count - 1;
+    }
+    return (current + (direction > 0 ? 1 : count - 1)) % count;
+  };
+  if (brush_preset_combo_ != nullptr && option_widget_serves_tool(brush_preset_combo_, current_tool_)) {
+    // The combo's own entries, skipping its separator and the "__" Save/Manage commands.
+    QList<int> presets;
+    for (int index = 0; index < brush_preset_combo_->count(); ++index) {
+      const auto id = brush_preset_combo_->itemData(index).toString();
+      if (!id.isEmpty() && !id.startsWith(QStringLiteral("__"))) {
+        presets << index;
+      }
+    }
+    if (presets.isEmpty()) {
+      return;
+    }
+    const auto target = presets[stepped(presets.indexOf(brush_preset_combo_->currentIndex()), presets.size())];
+    // Picking the entry runs the combo's own handler, exactly as choosing it in the list.
+    brush_preset_combo_->setCurrentIndex(target);
+    statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_combo_->itemText(target)));
+    return;
+  }
+  if (gradient_presets_button_ != nullptr && option_widget_serves_tool(gradient_presets_button_, current_tool_)) {
+    auto& library = gradient_library();
+    const auto order = gradient_preset_popup_order(library);
+    if (order.isEmpty()) {
+      return;
+    }
+    auto current = order.indexOf(gradient_preset_id_);
+    if (current < 0 && canvas_->gradient_stops().has_value()) {
+      // After a restart only the stops are known: find the preset that produces them.
+      const auto& stops = *canvas_->gradient_stops();
+      const auto same_stop = [](const GradientStop& a, const GradientStop& b) {
+        return a.location == b.location && a.color.r == b.color.r && a.color.g == b.color.g &&
+               a.color.b == b.color.b && a.color.a == b.color.a;
+      };
+      for (qsizetype index = 0; index < order.size() && current < 0; ++index) {
+        if (const auto* entry = library.find_entry(order[index]); entry != nullptr) {
+          const auto sampled = sampled_gradient_stops_from_definition(entry->definition, canvas_->primary_color(),
+                                                                      canvas_->secondary_color());
+          if (std::equal(sampled.begin(), sampled.end(), stops.begin(), stops.end(), same_stop)) {
+            current = index;
+          }
+        }
+      }
+    }
+    if (const auto* entry = library.find_entry(order[stepped(current, order.size())]); entry != nullptr) {
+      apply_gradient_preset_entry(*entry);
+    }
+  }
 }
 
 void MainWindow::refresh_gradient_controls_from_canvas() {
@@ -3793,6 +3856,12 @@ void MainWindow::register_option_action(QWidget* widget, std::initializer_list<C
     return;
   }
   option_actions_.emplace_back(widget, std::vector<CanvasTool>(tools.begin(), tools.end()));
+}
+
+bool MainWindow::option_widget_serves_tool(const QWidget* widget, CanvasTool tool) const {
+  return std::any_of(option_actions_.begin(), option_actions_.end(), [widget, tool](const auto& entry) {
+    return entry.first == widget && std::find(entry.second.begin(), entry.second.end(), tool) != entry.second.end();
+  });
 }
 
 namespace {

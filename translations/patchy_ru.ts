@@ -28975,6 +28975,14 @@ Locked: %1</source>
         <translation>Растрировать слой</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>Предыдущая предустановка</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Следующая предустановка</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Слой ниже</translation>
     </message>

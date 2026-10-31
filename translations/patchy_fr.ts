@@ -28893,6 +28893,14 @@ Verrouillé : %1</translation>
         <translation>Pixelliser le calque</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>Préréglage précédent</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Préréglage suivant</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Calque inférieur</translation>
     </message>

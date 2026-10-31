@@ -28893,6 +28893,14 @@ Bloqueada: %1</translation>
         <translation>Rasterizar capa</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>Ajuste preestablecido anterior</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Ajuste preestablecido siguiente</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Capa inferior</translation>
     </message>

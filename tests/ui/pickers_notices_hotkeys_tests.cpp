@@ -24,6 +24,8 @@
 #include "ui/tool_cursors.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/gradient_library.hpp"
+#include "ui/gradient_preset_popup.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 #include <QAbstractItemView>
@@ -58,6 +60,8 @@
 #include <QTabWidget>
 #include <QTest>
 #include <QTimer>
+#include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVariant>
@@ -4055,6 +4059,151 @@ void ui_brush_hardness_shortcuts_step_by_quarters() {
   harder->trigger();
   CHECK(canvas->brush_softness() == resting);
 }
+// GitHub issue 543: , and . step back and forward through the active tool's presets, wrapping
+// at the ends: the brush Preset list (skipping its Save/Manage commands) for the tools whose bar
+// shows it, the gradient presets in the popup's order for the Gradient tool. Other tools ignore
+// them, and a text field takes the keys as text.
+void ui_preset_step_shortcuts_cycle_brush_and_gradient_presets() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  SettingsValueRestorer saved_brush_preset(QStringLiteral("tools/brushPreset"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/gradientUseCustomStops"));
+    settings.remove(QStringLiteral("tools/gradientStops"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  window.add_document_session(patchy::Document(64, 48, patchy::PixelFormat::rgba8()), QStringLiteral("Presets"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* previous = require_hotkey_action(window, QStringLiteral("brush.preset_previous"));
+  auto* next = require_hotkey_action(window, QStringLiteral("brush.preset_next"));
+  CHECK(previous->shortcut() == QKeySequence(Qt::Key_Comma));
+  CHECK(next->shortcut() == QKeySequence(Qt::Key_Period));
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(combo != nullptr);
+  QList<int> presets;
+  for (int index = 0; index < combo->count(); ++index) {
+    const auto id = combo->itemData(index).toString();
+    if (!id.isEmpty() && !id.startsWith(QStringLiteral("__"))) {
+      presets << index;
+    }
+  }
+  CHECK(presets.size() >= 3);
+  combo->setCurrentIndex(presets.front());
+  QApplication::processEvents();
+  next->trigger();
+  CHECK(combo->currentIndex() == presets[1]);
+  CHECK(combo->property("lastBrushPresetId") == combo->itemData(presets[1]));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Brush preset: ") + combo->itemText(presets[1]));
+  previous->trigger();
+  CHECK(combo->currentIndex() == presets.front());
+  previous->trigger();  // wraps past the Save/Manage commands to the last preset
+  CHECK(combo->currentIndex() == presets.back());
+  next->trigger();
+  CHECK(combo->currentIndex() == presets.front());
+
+  // Stepping applies the preset exactly as picking it: Square swaps in the square footprint.
+  const auto square_index = combo->findData(QStringLiteral("square"));
+  CHECK(square_index > 0);
+  CHECK(presets.indexOf(square_index) > 0);
+  combo->setCurrentIndex(presets[presets.indexOf(square_index) - 1]);
+  QApplication::processEvents();
+  next->trigger();
+  CHECK(combo->currentIndex() == square_index);
+  CHECK(canvas->brush_shape() == patchy::BrushShape::Square);
+  previous->trigger();
+  CHECK(canvas->brush_shape() == patchy::BrushShape::Round);
+
+  // The keys themselves: . on the canvas steps, a text field keeps , as text.
+  canvas->setFocus();
+  QApplication::processEvents();
+  const int before_key = combo->currentIndex();
+  QTest::keyClick(canvas, Qt::Key_Period);
+  QApplication::processEvents();
+  CHECK(combo->currentIndex() != before_key);
+  const int after_key = combo->currentIndex();
+  auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  CHECK(size_spin != nullptr);
+  auto* size_edit = size_spin->findChild<QLineEdit*>();
+  CHECK(size_edit != nullptr);
+  size_spin->setFocus();
+  QApplication::processEvents();
+  QTest::keyClick(size_edit, Qt::Key_Comma);
+  QApplication::processEvents();
+  CHECK(combo->currentIndex() == after_key);
+
+  // The Eraser shows the same list; the Move tool has none and ignores the keys.
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  QApplication::processEvents();
+  combo->setCurrentIndex(presets.front());
+  next->trigger();
+  CHECK(combo->currentIndex() == presets[1]);
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  next->trigger();
+  previous->trigger();
+  CHECK(combo->currentIndex() == presets[1]);
+
+  // Gradient: the popup's order, starting from the first preset when none was chosen.
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.gradient_library();
+  library.restore_default_gradients();  // suite-order independence: repair any deleted builtins
+  const auto order = patchy::ui::gradient_preset_popup_order(library);
+  CHECK(order.size() >= 3);
+  CHECK(order.size() == static_cast<qsizetype>(library.entries().size()));
+  auto* presets_button = window.findChild<QPushButton*>(QStringLiteral("gradientPresetsButton"));
+  CHECK(presets_button != nullptr);
+  presets_button->click();
+  QApplication::processEvents();
+  QPointer<QFrame> popup = presets_button->findChild<QFrame*>(QStringLiteral("gradientPresetsButtonPopup"));
+  CHECK(popup != nullptr);
+  auto* tree = popup->findChild<QTreeWidget*>(QStringLiteral("gradientPresetsButtonTree"));
+  CHECK(tree != nullptr);
+  QStringList tree_order;
+  for (QTreeWidgetItemIterator it(tree); *it != nullptr; ++it) {
+    if (const auto id = (*it)->data(0, Qt::UserRole).toString(); !id.isEmpty()) {
+      tree_order << id;
+    }
+  }
+  CHECK(tree_order == order);
+  popup->close();
+  QApplication::processEvents();
+
+  // The status line names the preset applied; the same preset gives the same stops each time.
+  const auto expect_entry = [&](const QString& storage_id) {
+    const auto* entry = library.find_entry(storage_id);
+    CHECK(entry != nullptr);
+    CHECK(canvas->gradient_stops().has_value());
+    CHECK(window.statusBar()->currentMessage() ==
+          QStringLiteral("Gradient preset: ") + patchy::ui::gradient_library_entry_display_name(*entry));
+  };
+  const auto stop_colors = [&] {
+    QList<quint32> colors;
+    for (const auto& stop : *canvas->gradient_stops()) {
+      colors << (quint32(stop.color.r) << 24 | quint32(stop.color.g) << 16 | quint32(stop.color.b) << 8 | stop.color.a);
+    }
+    return colors;
+  };
+  next->trigger();
+  expect_entry(order.front());
+  const auto first_colors = stop_colors();
+  next->trigger();
+  expect_entry(order[1]);
+  previous->trigger();
+  previous->trigger();  // wraps to the last
+  expect_entry(order.back());
+  next->trigger();
+  expect_entry(order.front());
+  CHECK(stop_colors() == first_colors);
+}
 // A saved override that puts Shift+<letter> back on a flyout member keeps the
 // old direct binding: overrides win the sequence and the cycle default is
 // suppressed rather than left ambiguous.
@@ -4778,6 +4927,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
       {"ui_brush_hardness_shortcuts_step_by_quarters", ui_brush_hardness_shortcuts_step_by_quarters},
+      {"ui_preset_step_shortcuts_cycle_brush_and_gradient_presets",
+       ui_preset_step_shortcuts_cycle_brush_and_gradient_presets},
       {"ui_new_layer_and_merge_visible_keys_moved_defaults_only", ui_new_layer_and_merge_visible_keys_moved_defaults_only},
       {"ui_tool_cycle_yields_to_member_override", ui_tool_cycle_yields_to_member_override},
       {"ui_hotkey_override_applies_at_startup", ui_hotkey_override_applies_at_startup},

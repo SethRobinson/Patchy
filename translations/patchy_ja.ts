@@ -28811,6 +28811,14 @@ Locked: %1</source>
         <translation>レイヤーをラスタライズ</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>前のプリセット</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>次のプリセット</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>下のレイヤー</translation>
     </message>

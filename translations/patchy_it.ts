@@ -28893,6 +28893,14 @@ Bloccato: %1</translation>
         <translation>Rasterizza livello</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>Predefinito precedente</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Predefinito successivo</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Livello sotto</translation>
     </message>

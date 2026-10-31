@@ -28893,6 +28893,14 @@ Fixiert: %1</translation>
         <translation>Ebene rastern</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>Vorherige Vorgabe</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Nächste Vorgabe</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Ebene darunter</translation>
     </message>

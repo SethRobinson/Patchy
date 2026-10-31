@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QStringList>
+
 #include <functional>
 
 class QPushButton;
@@ -20,5 +22,10 @@ void show_gradient_preset_popup(
     QPushButton *anchor, GradientLibrary &library,
     std::function<void(const GradientLibraryEntry &)> use_gradient,
     std::function<void()> manage_gradients);
+
+// The library's storage ids in the order the popup lists them (each folder's
+// entries and subfolders in first-appearance order, depth first), which is the
+// order Previous Preset / Next Preset step through (GitHub issue 543).
+[[nodiscard]] QStringList gradient_preset_popup_order(const GradientLibrary &library);
 
 } // namespace patchy::ui

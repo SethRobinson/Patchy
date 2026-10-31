@@ -28893,6 +28893,14 @@ Bloqueado: %1</translation>
         <translation>Rasterizar camada</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>Predefinição anterior</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Próxima predefinição</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Camada abaixo</translation>
     </message>

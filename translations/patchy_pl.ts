@@ -28975,6 +28975,14 @@ Zablokowano: %1</translation>
         <translation>Rasteryzuj warstwę</translation>
     </message>
     <message>
+        <source>Previous Preset</source>
+        <translation>Poprzednie ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Następne ustawienie wstępne</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Warstwa poniżej</translation>
     </message>

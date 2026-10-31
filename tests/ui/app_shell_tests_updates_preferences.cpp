@@ -3043,6 +3043,63 @@ void ui_preferences_hotkey_is_ctrl_k_off_macos() {
 #endif
 }
 
+// GitHub issue 526 follow-up: the 90 px minimum holds for the Application page's combos
+// (Toolbar icon size is a Fixed-size field whose own width is about 67 px) when a custom
+// theme is active as Preferences opens and after the theme changes while it is open.
+void ui_preferences_combos_keep_a_minimum_width_across_theme_changes() {
+  SettingsValueRestorer restore_size(QStringLiteral("preferences/dialogSize"));
+  SettingsValueRestorer restore_page(QStringLiteral("preferences/lastPage"));
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("preferences/dialogSize"));
+    settings.setValue(QStringLiteral("preferences/lastPage"), QStringLiteral("application"));
+    settings.sync();
+  }
+  constexpr int kMinimumComboWidth = 90;
+  const auto settle = [] {
+    for (int pass = 0; pass < 6; ++pass) {
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+      QApplication::processEvents();
+    }
+  };
+  const auto check_combos = [&](QDialog& dialog, const std::string& when) {
+    settle();
+    for (const auto* name : {"preferencesToolbarIconSizeCombo", "preferencesToolFlyoutOpenCombo",
+                             "preferencesLanguageCombo"}) {
+      auto* combo = dialog.findChild<QComboBox*>(QLatin1String(name));
+      CHECK(combo != nullptr);
+      if (combo == nullptr) {
+        continue;
+      }
+      if (combo->width() < kMinimumComboWidth) {
+        patchy::test::report_failure(when + ": " + name + " is " + std::to_string(combo->width()) + " px wide");
+      }
+    }
+  };
+  patchy::ui::CustomTheme gray;
+  gray.base = patchy::ui::ColorScheme::Dark;
+  gray.palette = patchy::ui::dark_palette();
+  gray.palette.window_bg = QColor(82, 82, 82);
+  patchy::ui::ThemeManager::instance().set_custom_theme(QStringLiteral("gray-526.patchytheme"), gray,
+                                                        /*persist=*/false);
+  QApplication::processEvents();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  run_preferences_dialog(window, /*accept=*/false, [&](QDialog& dialog) {
+    check_combos(dialog, "custom theme at open");
+    ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+    check_combos(dialog, "after Light");
+    ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+    check_combos(dialog, "after Dark");
+    patchy::ui::ThemeManager::instance().set_custom_theme(QStringLiteral("gray-526.patchytheme"), gray,
+                                                          /*persist=*/false);
+    check_combos(dialog, "after custom theme");
+  });
+  patchy::ui::ThemeManager::instance().clear_custom_theme(/*persist=*/false);
+}
+
 // GitHub issue 92: the interval gate of the startup update check, without any network.
 void ui_update_check_interval_gates_the_startup_check() {
   using patchy::ui::startup_update_check_due;
@@ -4227,6 +4284,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_preferences_minimum_width_fits_and_fields_stay_compact",
        ui_preferences_minimum_width_fits_and_fields_stay_compact},
       {"ui_preferences_combos_keep_a_minimum_width", ui_preferences_combos_keep_a_minimum_width},
+      {"ui_preferences_combos_keep_a_minimum_width_across_theme_changes",
+       ui_preferences_combos_keep_a_minimum_width_across_theme_changes},
       {"ui_update_check_interval_gates_the_startup_check", ui_update_check_interval_gates_the_startup_check},
       {"ui_update_startup_check_honors_stored_interval", ui_update_startup_check_honors_stored_interval},
       {"ui_update_preference_persists_check_interval", ui_update_preference_persists_check_interval},
