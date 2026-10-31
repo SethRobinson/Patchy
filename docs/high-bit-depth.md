@@ -196,7 +196,9 @@ Code comments cite these phase numbers. Each phase lands as verified commits.
      bits use 1.2473). At 32 bits there is no gamut limit and no clamp.
    - 32-bit Luminosity is the PDF SetLum without ClipColor (negatives survive).
    The eyedropper picks deep documents from the deep render; layer thumbnails read
-   any depth (`display_rgba8_at`). Large deep renders and flattens split into strips
+   any depth (`display_rgba8_at`), and mask and saved-channel previews (Layers and
+   Channels thumbnails, the mask view) read gray at any depth through `coverage8_at`
+   (#540, `ui_flat_alpha_mask_thumbnail_reads_deep_masks`). Large deep renders and flattens split into strips
    under the 8-bit rules (`PATCHY_RENDER_SINGLE_THREADED` included). The recovery
    store writes the same PSB writer and reopens through the normal loader, so it keeps
    depth whenever the gate is on. Testy's Patchy driver splits a 16-bit PNG export into

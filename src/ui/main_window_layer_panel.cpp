@@ -37,6 +37,7 @@
 #include "core/pixel_depth.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/click_modifier_recorder.hpp"
@@ -668,7 +669,9 @@ void draw_thumbnail_disabled_cross(QPainter& painter, QSize tile) {
 QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int document_height,
                              const std::optional<Rect>& crop = std::nullopt, int tile_size = 28) {
   const auto& mask = *layer.mask();
-  const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
+  // A mask is gray at the document's depth: a 16 or 32-bit one reads through coverage8_at
+  // (GitHub issue 540, where a 16-bit PNG's alpha opened as a mask drew a white tile).
+  const auto has_pixels = is_coverage_buffer(mask.pixels);
   // `mask.bounds` is document space and the mask reads `default_color` outside
   // it, which is exactly what the fill plus the in-bounds guard below produce.
   const auto preview = thumbnail_preview_space(
@@ -689,7 +692,7 @@ QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int documen
         if (source_x < 0 || source_x >= mask.pixels.width()) {
           continue;
         }
-        const auto value = *mask.pixels.pixel(source_x, source_y);
+        const auto value = coverage8_at(mask.pixels, source_x, source_y);
         image.setPixelColor(x, y, QColor(value, value, value));
       }
     }
@@ -2304,7 +2307,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
               "controls are disabled.");
     const auto mask_pixmap = [&layer, document_size, &thumbnail_crop](const SmartFilterMask& mask) {
       constexpr int kSize = 22;
-      const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
+      const auto has_pixels = is_coverage_buffer(mask.pixels);
       const auto preview = thumbnail_preview_space(
           document_size.width(), document_size.height(), mask.bounds,
           has_pixels ? QSize(mask.pixels.width(), mask.pixels.height())
@@ -2324,7 +2327,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
             if (source_x < 0 || source_x >= mask.pixels.width()) {
               continue;
             }
-            const auto value = *mask.pixels.pixel(source_x, source_y);
+            const auto value = coverage8_at(mask.pixels, source_x, source_y);
             image.setPixelColor(x, y, QColor(value, value, value));
           }
         }

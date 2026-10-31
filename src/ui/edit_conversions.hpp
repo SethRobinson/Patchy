@@ -5,6 +5,8 @@
 #include <QColor>
 #include <QImage>
 
+#include <cstdint>
+
 namespace patchy::ui {
 
 [[nodiscard]] EditColor edit_color(QColor color);
@@ -23,5 +25,12 @@ namespace patchy::ui {
 // composite. QPainter would otherwise show the linear values as display values, too dark.
 // Every other format comes back unchanged (16-bit images are already display-encoded).
 [[nodiscard]] QImage display_image_from_deep_qimage(const QImage& image, float exposure_stops);
+
+// Whether `pixels` is a single-channel coverage buffer (a layer or smart filter mask, a saved
+// channel) at any depth, so coverage8_at can read it.
+[[nodiscard]] bool is_coverage_buffer(const PixelBuffer& pixels) noexcept;
+// One sample of a coverage buffer at any depth as an 8-bit value for previews (mask
+// thumbnails, the mask view): 8-bit samples as they are, 16 and 32-bit scaled and rounded.
+[[nodiscard]] std::uint8_t coverage8_at(const PixelBuffer& pixels, int x, int y);
 
 }  // namespace patchy::ui

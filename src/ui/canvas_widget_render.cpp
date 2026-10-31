@@ -22,6 +22,7 @@
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/curves_clipping_preview.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/theme_palette.hpp"
@@ -3010,13 +3011,14 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
     bounds = QRect(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
     default_value = mask.default_color;
   }
-  const bool pixels_usable = pixels != nullptr && !pixels->empty() && pixels->format() == PixelFormat::gray8();
+  // Masks and channels are gray at the document's depth; deep ones read through coverage8_at.
+  const bool pixels_usable = pixels != nullptr && is_coverage_buffer(*pixels);
   for (const auto& rect : document_region) {
     for (int y = rect.top(); y <= rect.bottom(); ++y) {
       auto* row = reinterpret_cast<QRgb*>(mask_display_image_.scanLine(y));
       for (int x = rect.left(); x <= rect.right(); ++x) {
         const auto value = pixels_usable && bounds.contains(x, y)
-                               ? *pixels->pixel(x - bounds.x(), y - bounds.y())
+                               ? coverage8_at(*pixels, x - bounds.x(), y - bounds.y())
                                : default_value;
         if (grayscale) {
           row[x] = qRgb(value, value, value);
