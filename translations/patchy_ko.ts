@@ -28747,6 +28747,14 @@ Locked: %1</source>
         <source>Customize Layers Panel...</source>
         <translation>레이어 패널 사용자 지정...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>이전 사전 설정</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>다음 사전 설정</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

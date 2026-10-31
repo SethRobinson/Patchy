@@ -28829,6 +28829,14 @@ Bloccato: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Personalizza pannello Livelli...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Predefinito precedente</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Predefinito successivo</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

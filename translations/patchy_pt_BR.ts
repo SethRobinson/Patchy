@@ -28829,6 +28829,14 @@ Bloqueado: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Personalizar painel Camadas...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Predefinição anterior</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Próxima predefinição</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

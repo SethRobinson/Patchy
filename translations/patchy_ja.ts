@@ -28747,6 +28747,14 @@ Locked: %1</source>
         <source>Customize Layers Panel...</source>
         <translation>レイヤーパネルのカスタマイズ...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>前のプリセット</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>次のプリセット</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

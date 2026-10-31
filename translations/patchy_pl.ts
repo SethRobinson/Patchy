@@ -28911,6 +28911,14 @@ Zablokowano: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Dostosuj panel Warstwy...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Poprzednie ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Następne ustawienie wstępne</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

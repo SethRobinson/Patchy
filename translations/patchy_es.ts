@@ -28829,6 +28829,14 @@ Bloqueada: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Personalizar panel Capas...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Ajuste preestablecido anterior</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Ajuste preestablecido siguiente</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

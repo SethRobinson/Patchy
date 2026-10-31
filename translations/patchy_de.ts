@@ -28829,6 +28829,14 @@ Fixiert: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Ebenenbedienfeld anpassen...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Vorherige Vorgabe</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Nächste Vorgabe</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

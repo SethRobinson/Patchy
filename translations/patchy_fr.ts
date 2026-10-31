@@ -28829,6 +28829,14 @@ Verrouillé : %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Personnaliser le panneau Calques...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Préréglage précédent</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Préréglage suivant</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

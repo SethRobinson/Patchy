@@ -28747,6 +28747,14 @@ Locked: %1</source>
         <source>Customize Layers Panel...</source>
         <translation>自訂圖層面板...</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>上一個預設集</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>下一個預設集</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
