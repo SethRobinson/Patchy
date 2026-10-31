@@ -541,6 +541,11 @@ private:
     // Pixel copies: the session they were copied from, so Paste can put them back in place
     // in that document (GitHub issue 193, docs/tools.md "Clipboard pixel placement").
     std::int64_t source_session_id{0};
+    // Copied path components (GitHub #555): the selected shapes' subpaths, groups and ops kept,
+    // and when they came from a shape layer, that layer with only them (a paste that makes a new
+    // layer clones it; pattern_resources holds its tiles).
+    std::optional<patchy::VectorPath> path_components{};
+    std::vector<Layer> path_components_layer{};
   };
 
   // Defaults match the Round startup preset (brush_presets.cpp); load_tool_settings()
@@ -1810,6 +1815,28 @@ private:
   void simplify_target_path();
   void combine_selected_shape_layers(patchy::PathCombineOp op);
   void refresh_combine_shapes_action_states();
+  // Point, segment and component commands (GitHub #555, main_window_path_components.cpp;
+  // docs/vector-path-edits.md "Point and segment commands", "Component commands").
+  void create_path_component_actions(QMenu* layer_shape_menu);
+  void refresh_path_edit_action_states();
+  void run_path_point_command(int command);  // a CanvasWidget::PathPointCommand value
+  // Edit > Cut/Copy act on the selected components while Path or Direct Select has some.
+  [[nodiscard]] bool path_component_clipboard_active() const;
+  void copy_path_components(bool cutting);
+  // Pastes copied components into the target path, or as a new shape layer; false when the
+  // clipboard holds none.
+  bool paste_path_components();
+  void color_selected_path_components();
+  bool set_selected_path_components_color(QColor color);
+  void selected_path_components_to_new_layer(bool keep_originals);
+  // Removes `groups` from the target path inside an open undo step; a shape layer left empty goes.
+  void remove_path_components_in_open_undo_step(const std::vector<int>& groups);
+  // A new shape layer (not inserted) with the options-bar appearance, named "Shape N".
+  [[nodiscard]] Layer shape_layer_from_subpaths(std::vector<patchy::PathSubpath> subpaths);
+  [[nodiscard]] std::string unused_duplicate_layer_name(const std::string& source_name);
+  // Replaces a shape layer's content and re-rasterizes it (no undo step); paint parts drop
+  // groups the path no longer has.
+  void write_shape_layer_content(Layer& layer, patchy::VectorShapeContent content);
   void update_vector_swatch_icons();
   // The options bar's paint chip (the shape Fill/Stroke swatches and the Text color
   // button), drawn at the button's icon size with the theme's swatch outline.
@@ -2999,6 +3026,15 @@ private:
   // Unite / Subtract Front / Intersect / Exclude, enabled with a combinable
   // multi-selection (refresh_combine_shapes_action_states).
   std::array<QAction*, 4> layer_combine_actions_{};
+  // Break Path at Point, Join End Points, Merge into One Point, Delete Segment (PathPointCommand
+  // order), then the component commands (GitHub #555).
+  std::array<QAction*, 4> path_point_actions_{};
+  QAction* path_shapes_color_action_{nullptr};
+  QAction* path_shapes_to_new_layer_action_{nullptr};
+  QAction* path_shapes_copy_to_new_layer_action_{nullptr};
+  QAction* path_shapes_cut_action_{nullptr};
+  QAction* path_shapes_copy_action_{nullptr};
+  QAction* path_shapes_paste_action_{nullptr};
   // Layer > Arrange > Align (AlignEdge order) and Distribute (DistributeMode
   // order); the Move tool's options-bar buttons wrap these same QActions.
   std::array<QAction*, 6> layer_align_actions_{};

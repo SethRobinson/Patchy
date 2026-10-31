@@ -16314,6 +16314,38 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Clone source cleared</source>
         <translation>Origen de clonación borrado</translation>
     </message>
+    <message>
+        <source>Break path</source>
+        <translation>Dividir trazado</translation>
+    </message>
+    <message>
+        <source>Join end points</source>
+        <translation>Unir puntos finales</translation>
+    </message>
+    <message>
+        <source>Merge points</source>
+        <translation>Fusionar puntos</translation>
+    </message>
+    <message>
+        <source>Delete segment</source>
+        <translation>Eliminar segmento</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>Dividir trazado en el punto</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>Unir puntos finales</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>Fusionar en un punto</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>Eliminar segmento</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -29109,6 +29141,170 @@ Bloqueada: %1</translation>
     <message>
         <source>Search &amp;Commands...</source>
         <translation>Buscar &amp;comandos...</translation>
+    </message>
+    <message>
+        <source>The selected shapes only cut into others and paint nothing of their own</source>
+        <translation>Las formas seleccionadas solo recortan otras y no pintan nada propio</translation>
+    </message>
+    <message>
+        <source>Shapes combined with Intersect or Exclude share one color</source>
+        <translation>Las formas combinadas con Intersecar o Excluir comparten un color</translation>
+    </message>
+    <message>
+        <source>An inverted shape has one color</source>
+        <translation>Una forma invertida tiene un solo color</translation>
+    </message>
+    <message>
+        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
+        <translation>Seleccione formas en una capa de forma con Selección de trazado o Selección directa</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>Dividir trazado en el punto</translation>
+    </message>
+    <message>
+        <source>Open the path at the selected points</source>
+        <translation>Abrir el trazado en los puntos seleccionados</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>Unir puntos finales</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment</source>
+        <translation>Unir los dos puntos finales seleccionados con un segmento recto</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>Fusionar en un punto</translation>
+    </message>
+    <message>
+        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
+        <translation>Fusionar los puntos finales seleccionados, o una fila de puntos seleccionados, en un punto en su centro</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>Eliminar segmento</translation>
+    </message>
+    <message>
+        <source>Delete the selected segments and leave the path open</source>
+        <translation>Eliminar los segmentos seleccionados y dejar el trazado abierto</translation>
+    </message>
+    <message>
+        <source>Color Selected Shapes...</source>
+        <translation>Colorear formas seleccionadas...</translation>
+    </message>
+    <message>
+        <source>Give the selected shapes a fill color of their own</source>
+        <translation>Dar a las formas seleccionadas un color de relleno propio</translation>
+    </message>
+    <message>
+        <source>Move Selected Shapes to New Layer</source>
+        <translation>Mover formas seleccionadas a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Move the selected shapes to a new shape layer above</source>
+        <translation>Mover las formas seleccionadas a una capa de forma nueva encima</translation>
+    </message>
+    <message>
+        <source>Copy Selected Shapes to New Layer</source>
+        <translation>Copiar formas seleccionadas a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes to a new shape layer above</source>
+        <translation>Copiar las formas seleccionadas a una capa de forma nueva encima</translation>
+    </message>
+    <message>
+        <source>Cut Shapes</source>
+        <translation>Cortar formas</translation>
+    </message>
+    <message>
+        <source>Cut the selected shapes</source>
+        <translation>Cortar las formas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Copy Shapes</source>
+        <translation>Copiar formas</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes</source>
+        <translation>Copiar las formas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Paste Shapes</source>
+        <translation>Pegar formas</translation>
+    </message>
+    <message>
+        <source>Paste the copied shapes into the target path</source>
+        <translation>Pegar las formas copiadas en el trazado de destino</translation>
+    </message>
+    <message>
+        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
+        <translation>Seleccione con Selección directa un punto dentro de un trazado, o cualquier punto de un trazado cerrado</translation>
+    </message>
+    <message>
+        <source>Select two end points of open paths with Direct Select</source>
+        <translation>Seleccione con Selección directa dos puntos finales de trazados abiertos</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
+        <translation>Seleccione con Selección directa dos puntos finales, o puntos vecinos de un trazado</translation>
+    </message>
+    <message>
+        <source>Select a segment (both of its points) with Direct Select</source>
+        <translation>Seleccione con Selección directa un segmento (sus dos puntos)</translation>
+    </message>
+    <message>
+        <source>Cut shapes</source>
+        <translation>Cortar formas</translation>
+    </message>
+    <message>
+        <source>Cut %1 shape(s)</source>
+        <translation>%1 forma(s) cortada(s)</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s)</source>
+        <translation>%1 forma(s) copiada(s)</translation>
+    </message>
+    <message>
+        <source>Paste shapes</source>
+        <translation>Pegar formas</translation>
+    </message>
+    <message>
+        <source>Pasted %1 shape(s)</source>
+        <translation>%1 forma(s) pegada(s)</translation>
+    </message>
+    <message>
+        <source>Shape color</source>
+        <translation>Color de forma</translation>
+    </message>
+    <message>
+        <source>Colored %1 shape(s)</source>
+        <translation>%1 forma(s) coloreada(s)</translation>
+    </message>
+    <message>
+        <source>Shape Color</source>
+        <translation>Color de forma</translation>
+    </message>
+    <message>
+        <source>Select shapes with Path Select or Direct Select first</source>
+        <translation>Seleccione primero formas con Selección de trazado o Selección directa</translation>
+    </message>
+    <message>
+        <source>Copy shapes to new layer</source>
+        <translation>Copiar formas a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Move shapes to new layer</source>
+        <translation>Mover formas a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s) to a new layer</source>
+        <translation>%1 forma(s) copiada(s) a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Moved %1 shape(s) to a new layer</source>
+        <translation>%1 forma(s) movida(s) a una capa nueva</translation>
     </message>
 </context>
 <context>

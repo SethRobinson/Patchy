@@ -502,6 +502,58 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   statusBar()->showMessage(tr("Created shape layer %1.").arg(QString::fromStdString(name)));
 }
 
+Layer MainWindow::shape_layer_from_subpaths(std::vector<PathSubpath> subpaths) {
+  auto& doc = document();
+  std::set<std::string> existing_names;
+  collect_shape_layer_names(doc.layers(), existing_names);
+  int suffix = 1;
+  std::string name;
+  do {
+    name = tr("Shape %1").arg(suffix++).toStdString();
+  } while (existing_names.contains(name));
+  Layer layer(doc.allocate_layer_id(), name, PixelBuffer());
+  auto content = current_shape_appearance_content();
+  content.path.subpaths = std::move(subpaths);
+  ensure_vector_fill_patterns(doc, content, pattern_library());
+  layer.set_vector_shape(std::move(content));
+  layer.metadata()[kLayerMetadataVectorShape] = "1";
+  layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+  update_vector_shape_raster(layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+  return layer;
+}
+
+std::string MainWindow::unused_duplicate_layer_name(const std::string& source_name) {
+  std::set<std::string> existing_names;
+  collect_shape_layer_names(std::as_const(document()).layers(), existing_names);
+  return next_duplicate_name(source_name, existing_names);
+}
+
+void MainWindow::write_shape_layer_content(Layer& layer, VectorShapeContent content) {
+  auto& doc = document();
+  const auto old_effect_rect = to_qrect(layer_bounds_with_effects(std::as_const(layer), std::as_const(layer).bounds()));
+  // Paint parts name groups; a group that left the path must not paint a later one that reuses
+  // its number (next_shape_group).
+  if (!content.parts.empty()) {
+    std::set<std::int32_t> groups;
+    for (const auto& subpath : content.path.subpaths) {
+      groups.insert(subpath.shape_group);
+    }
+    for (auto& part : content.parts) {
+      std::erase_if(part.groups, [&groups](std::int32_t group) { return !groups.contains(group); });
+    }
+    std::erase_if(content.parts,
+                  [](const VectorShapePart& part) { return part.groups.empty() && !part.whole_canvas; });
+  }
+  layer.set_vector_shape(std::move(content));
+  layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+  mark_layer_vector_block_dirty(layer);
+  update_vector_shape_raster(layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+  if (canvas_ != nullptr) {
+    canvas_->document_changed_effect_bounds(old_effect_rect.united(
+        to_qrect(layer_bounds_with_effects(std::as_const(layer), std::as_const(layer).bounds()))));
+  }
+}
+
 void MainWindow::handle_vector_path_committed(VectorPath path, bool closed,
                                               VectorPathSource source) {
   (void)closed;  // open pen paths fill their implied chord like Photoshop
@@ -630,6 +682,7 @@ VectorShapeContent MainWindow::current_shape_appearance_content() const {
 }
 
 void MainWindow::refresh_path_point_count_chip() {
+  refresh_path_edit_action_states();  // the point commands follow the tool and the selection
   if (path_point_count_chip_ == nullptr) {
     return;
   }
@@ -3195,6 +3248,7 @@ void MainWindow::refresh_combine_shapes_action_states() {
       action->setEnabled(enabled);
     }
   }
+  refresh_path_edit_action_states();
 }
 
 void MainWindow::combine_selected_shape_layers(PathCombineOp op) {

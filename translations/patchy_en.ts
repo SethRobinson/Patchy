@@ -16297,6 +16297,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Clone source cleared</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Break path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Join end points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete segment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -29027,6 +29059,170 @@ Locked: %1</source>
     </message>
     <message>
         <source>Search &amp;Commands...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected shapes only cut into others and paint nothing of their own</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shapes combined with Intersect or Exclude share one color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>An inverted shape has one color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the path at the selected points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the selected segments and leave the path open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Selected Shapes...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Give the selected shapes a fill color of their own</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move Selected Shapes to New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the selected shapes to a new shape layer above</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Selected Shapes to New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes to a new shape layer above</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut the selected shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste the copied shapes into the target path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select two end points of open paths with Direct Select</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a segment (both of its points) with Direct Select</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut %1 shape(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pasted %1 shape(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shape color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colored %1 shape(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shape Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select shapes with Path Select or Direct Select first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy shapes to new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move shapes to new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s) to a new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Moved %1 shape(s) to a new layer</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

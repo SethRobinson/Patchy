@@ -2,6 +2,7 @@
 #include "core/document_path.hpp"
 #include "core/layer.hpp"
 #include "core/path_fit.hpp"
+#include "core/path_point_edits.hpp"
 #include "core/path_simplify.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/vector_live_shapes.hpp"
@@ -12,7 +13,10 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <memory>
+#include <set>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -763,6 +767,204 @@ void vector_layer_projective_transform_drops_live_shape() {
   CHECK(!layer.bounds().empty());
 }
 
+
+// GitHub #555: point and segment edits and component helpers (core/path_point_edits).
+PathSubpath corner_subpath(std::vector<std::pair<double, double>> points, bool closed, int group = 0,
+                           PathCombineOp op = PathCombineOp::Add) {
+  PathSubpath subpath;
+  subpath.closed = closed;
+  subpath.shape_group = group;
+  subpath.op = op;
+  for (const auto& [x, y] : points) {
+    PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    subpath.anchors.push_back(anchor);
+  }
+  return subpath;
+}
+
+bool at(const PathAnchor& anchor, double x, double y) {
+  return nearly(anchor.anchor_x, x, 1e-9) && nearly(anchor.anchor_y, y, 1e-9);
+}
+
+void path_break_at_point_opens_closed_and_splits_open_subpaths() {
+  VectorPath square;
+  square.subpaths = {corner_subpath({{0, 0}, {10, 0}, {10, 10}, {0, 10}}, true, 3)};
+  // A curved segment 0 -> 1 keeps its handles through the break at anchor 1.
+  square.subpaths[0].anchors[0].out_x = 4.0;
+  square.subpaths[0].anchors[1].in_x = 6.0;
+  square.subpaths[0].anchors[1].in_y = -3.0;
+  square.subpaths[0].anchors[1].out_y = 3.0;
+  const auto opened = patchy::break_path_at_points(square, {{0, 1}});
+  CHECK(opened.has_value());
+  CHECK(opened->path.subpaths.size() == 1);
+  const auto& run = opened->path.subpaths[0];
+  CHECK(!run.closed && run.shape_group == 3 && run.anchors.size() == 5);
+  CHECK(at(run.anchors.front(), 10, 0) && at(run.anchors.back(), 10, 0));
+  // The start keeps the handle toward anchor 2, the end the one from anchor 0.
+  CHECK(nearly(run.anchors.front().out_y, 3.0) && nearly(run.anchors.front().in_y, 0.0));
+  CHECK(nearly(run.anchors.back().in_x, 6.0) && nearly(run.anchors.back().in_y, -3.0));
+  CHECK(nearly(run.anchors.back().out_y, 0.0));
+  CHECK(opened->touched_groups == std::vector<int>{3});
+  CHECK((opened->selection == std::set<patchy::PathPointKey>{{0, 0}, {0, 4}}));
+  // Breaking that open run at an interior anchor splits it; its end points do not break.
+  CHECK(!patchy::break_path_at_points(opened->path, {{0, 0}, {0, 4}}).has_value());
+  const auto split = patchy::break_path_at_points(opened->path, {{0, 2}});
+  CHECK(split.has_value() && split->path.subpaths.size() == 2);
+  CHECK(split->path.subpaths[0].anchors.size() == 3 && split->path.subpaths[1].anchors.size() == 3);
+  CHECK(at(split->path.subpaths[0].anchors.back(), 0, 10) && at(split->path.subpaths[1].anchors.front(), 0, 10));
+  CHECK(split->path.subpaths[1].shape_group == 3);
+  CHECK((split->selection == std::set<patchy::PathPointKey>{{0, 2}, {1, 0}}));
+  // Two breaks on one loop make two open pieces.
+  const auto halves = patchy::break_path_at_points(square, {{0, 0}, {0, 2}});
+  CHECK(halves.has_value() && halves->path.subpaths.size() == 2);
+  CHECK(halves->path.subpaths[0].anchors.size() == 3 && halves->path.subpaths[1].anchors.size() == 3);
+}
+
+void path_join_end_points_closes_and_connects_subpaths() {
+  VectorPath path;
+  path.subpaths = {corner_subpath({{0, 0}, {10, 0}, {10, 10}}, false, 0),
+                   corner_subpath({{20, 0}, {30, 0}}, false, 1, PathCombineOp::Subtract)};
+  // Same subpath: a straight closing segment, or one point at the midpoint.
+  const auto closed = patchy::join_path_end_points(path, {0, 2}, {0, 0}, false);
+  CHECK(closed.has_value() && closed->path.subpaths[0].closed && closed->path.subpaths[0].anchors.size() == 3);
+  const auto merged = patchy::join_path_end_points(path, {0, 0}, {0, 2}, true);
+  CHECK(merged.has_value() && merged->path.subpaths[0].closed && merged->path.subpaths[0].anchors.size() == 2);
+  CHECK(at(merged->path.subpaths[0].anchors[0], 5, 5));
+  // Two subpaths: the first's end at 0 runs into the second's end at 30 (reversed): one subpath
+  // in the first's place, group and op.
+  const auto connected = patchy::join_path_end_points(path, {0, 0}, {1, 1}, false);
+  CHECK(connected.has_value() && connected->path.subpaths.size() == 1);
+  const auto& one = connected->path.subpaths[0];
+  CHECK(!one.closed && one.anchors.size() == 5 && one.shape_group == 0 && one.op == PathCombineOp::Add);
+  CHECK(at(one.anchors[0], 10, 10) && at(one.anchors[2], 0, 0) && at(one.anchors[3], 30, 0) &&
+        at(one.anchors[4], 20, 0));
+  CHECK((connected->touched_groups == std::vector<int>{0, 1}));
+  const auto fused = patchy::join_path_end_points(path, {0, 2}, {1, 0}, true);
+  CHECK(fused.has_value() && fused->path.subpaths[0].anchors.size() == 4);
+  CHECK(at(fused->path.subpaths[0].anchors[2], 15, 5));
+  CHECK((fused->selection == std::set<patchy::PathPointKey>{{0, 2}}));
+  // Coinciding end points merge even as a plain join; interior points never join.
+  VectorPath touching;
+  touching.subpaths = {corner_subpath({{0, 0}, {10, 0}}, false), corner_subpath({{10, 0}, {10, 10}}, false, 1)};
+  const auto touched = patchy::join_path_end_points(touching, {0, 1}, {1, 0}, false);
+  CHECK(touched.has_value() && touched->path.subpaths[0].anchors.size() == 3);
+  CHECK(!patchy::join_path_end_points(path, {0, 1}, {1, 0}, false).has_value());
+  VectorPath loop;
+  loop.subpaths = {corner_subpath({{0, 0}, {10, 0}, {10, 10}}, true)};
+  CHECK(!patchy::join_path_end_points(loop, {0, 0}, {0, 2}, false).has_value());
+}
+
+void path_delete_segment_leaves_closed_and_open_paths_open() {
+  VectorPath square;
+  square.subpaths = {corner_subpath({{0, 0}, {10, 0}, {10, 10}, {0, 10}}, true, 2)};
+  // Closed: the top segment goes, the path opens running 1 -> 2 -> 3 -> 0.
+  const auto opened = patchy::delete_path_segments(square, {{0, 0}});
+  CHECK(opened.has_value() && opened->path.subpaths.size() == 1);
+  const auto& run = opened->path.subpaths[0];
+  CHECK(!run.closed && run.anchors.size() == 4 && run.shape_group == 2);
+  CHECK(at(run.anchors.front(), 10, 0) && at(run.anchors.back(), 0, 0));
+  // The closing segment (3 -> 0) is a segment too.
+  const auto closing = patchy::delete_path_segments(square, {{0, 3}});
+  CHECK(closing.has_value() && at(closing->path.subpaths[0].anchors.front(), 0, 0) &&
+        at(closing->path.subpaths[0].anchors.back(), 0, 10));
+  // Open: the middle segment goes and the path splits in two, same group.
+  const auto split = patchy::delete_path_segments(opened->path, {{0, 1}});
+  CHECK(split.has_value() && split->path.subpaths.size() == 2);
+  CHECK(split->path.subpaths[0].anchors.size() == 2 && split->path.subpaths[1].anchors.size() == 2);
+  CHECK(split->path.subpaths[1].shape_group == 2);
+  // An end segment leaves a single point, which goes.
+  const auto trimmed = patchy::delete_path_segments(opened->path, {{0, 0}});
+  CHECK(trimmed.has_value() && trimmed->path.subpaths.size() == 1 && trimmed->path.subpaths[0].anchors.size() == 3);
+  // Selected points name segments: both ends selected.
+  CHECK((patchy::path_segments_between_points(square, {{0, 3}, {0, 0}}) == std::set<patchy::PathPointKey>{{0, 3}}));
+  CHECK(patchy::path_segments_between_points(opened->path, {{0, 3}, {0, 0}}).empty());
+  CHECK(!patchy::delete_path_segments(opened->path, {{0, 3}}).has_value());
+}
+
+void path_merge_points_collapses_a_segment_or_a_row() {
+  VectorPath path;
+  path.subpaths = {corner_subpath({{0, 0}, {10, 0}, {10, 10}, {0, 10}}, true)};
+  path.subpaths[0].anchors[0].in_y = 4.0;    // the handle toward anchor 3 survives the merge
+  path.subpaths[0].anchors[1].out_y = -2.0;  // and the one toward anchor 2
+  const auto collapsed = patchy::merge_path_points(path, {{0, 0}, {0, 1}});
+  CHECK(collapsed.has_value());
+  const auto& triangle = collapsed->path.subpaths[0];
+  CHECK(triangle.closed && triangle.anchors.size() == 3);
+  CHECK(at(triangle.anchors[0], 5, 0));
+  CHECK(nearly(triangle.anchors[0].in_x, 5.0) && nearly(triangle.anchors[0].in_y, 4.0));
+  CHECK(nearly(triangle.anchors[0].out_x, 5.0) && nearly(triangle.anchors[0].out_y, -2.0));
+  CHECK((collapsed->selection == std::set<patchy::PathPointKey>{{0, 0}}));
+  // A row across the loop's start (3, 0, 1) merges at its average.
+  const auto row = patchy::merge_path_points(path, {{0, 3}, {0, 0}, {0, 1}});
+  CHECK(row.has_value() && row->path.subpaths[0].anchors.size() == 2);
+  CHECK(at(row->path.subpaths[0].anchors[0], 10.0 / 3.0, 10.0 / 3.0));
+  // Points that are not neighbours, or the whole loop, do not merge.
+  CHECK(!patchy::merge_path_points(path, {{0, 0}, {0, 2}}).has_value());
+  CHECK(!patchy::merge_path_points(path, {{0, 0}, {0, 1}, {0, 2}, {0, 3}}).has_value());
+  // Two end points of different subpaths merge into one (join as one point).
+  VectorPath lines;
+  lines.subpaths = {corner_subpath({{0, 0}, {10, 0}}, false), corner_subpath({{12, 0}, {20, 0}}, false, 1)};
+  const auto fused = patchy::merge_path_points(lines, {{0, 1}, {1, 0}});
+  CHECK(fused.has_value() && fused->path.subpaths.size() == 1 && fused->path.subpaths[0].anchors.size() == 3);
+  CHECK(at(fused->path.subpaths[0].anchors[1], 11, 0));
+  // A two-point open line cannot collapse to one point.
+  VectorPath line;
+  line.subpaths = {corner_subpath({{0, 0}, {10, 0}}, false)};
+  CHECK(!patchy::merge_path_points(line, {{0, 0}, {0, 1}}).has_value());
+}
+
+void path_components_copy_append_and_recolor() {
+  patchy::VectorShapeContent content;
+  content.fill.color = patchy::RgbColor{200, 0, 0};
+  content.path.subpaths = {corner_subpath({{0, 0}, {40, 0}, {40, 40}, {0, 40}}, true, 0),
+                           corner_subpath({{10, 10}, {30, 10}, {30, 30}, {10, 30}}, true, 1, PathCombineOp::Subtract),
+                           corner_subpath({{50, 0}, {90, 0}, {90, 40}, {50, 40}}, true, 2)};
+  LiveShapeParams live;
+  live.kind = LiveShapeKind::Rectangle;
+  live.index = 2;
+  content.origination = {live};
+  const auto copied = patchy::vector_shape_content_for_groups(content, {2});
+  CHECK(copied.path.subpaths.size() == 1 && copied.path.subpaths[0].shape_group == 2);
+  CHECK(copied.origination.size() == 1 && copied.fill.color == content.fill.color);
+  CHECK(patchy::path_without_components(content.path, {0, 1}).subpaths.size() == 1);
+  auto target = content.path;
+  const auto renumbered = patchy::append_path_components(target, patchy::path_components(content.path, {0, 1}));
+  CHECK(target.subpaths.size() == 5);
+  CHECK((renumbered == std::map<int, int>{{0, 3}, {1, 4}}));
+  CHECK(target.subpaths[4].op == PathCombineOp::Subtract && target.subpaths[4].shape_group == 4);
+
+  // Recolor the right square: a base part keeps the red for the rest, the square paints blue,
+  // and the hole stays in the base part.
+  auto recolored = content;
+  CHECK(patchy::recolor_vector_shape_components(recolored, {2}, patchy::RgbColor{0, 0, 255}) ==
+        patchy::ComponentColorRefusal::None);
+  CHECK(recolored.parts.size() == 2);
+  CHECK((recolored.parts[0].groups == std::vector<std::int32_t>{0, 1}));
+  CHECK(recolored.parts[0].fill.color == content.fill.color);
+  CHECK((recolored.parts[1].groups == std::vector<std::int32_t>{2}));
+  CHECK((recolored.parts[1].fill.color == patchy::RgbColor{0, 0, 255}));
+  // Recolor the donut: the hole follows its square into the new part.
+  auto donut = content;
+  CHECK(patchy::recolor_vector_shape_components(donut, {0}, patchy::RgbColor{0, 255, 0}) ==
+        patchy::ComponentColorRefusal::None);
+  CHECK((donut.parts[0].groups == std::vector<std::int32_t>{2}));
+  CHECK((donut.parts[1].groups == std::vector<std::int32_t>{0, 1}));
+  // Every painting component listed: a plain fill change, no parts.
+  auto whole = content;
+  CHECK(patchy::recolor_vector_shape_components(whole, {0, 1, 2}, patchy::RgbColor{1, 2, 3}) ==
+        patchy::ComponentColorRefusal::None);
+  CHECK(whole.parts.empty() && (whole.fill.color == patchy::RgbColor{1, 2, 3}));
+  // A hole alone paints nothing; an Intersect in the part refuses.
+  CHECK(patchy::vector_shape_components_color_refusal(content, {1}) == patchy::ComponentColorRefusal::OnlyCutters);
+  auto intersect = content;
+  intersect.path.subpaths[2].op = PathCombineOp::Intersect;
+  CHECK(patchy::vector_shape_components_color_refusal(intersect, {0}) ==
+        patchy::ComponentColorRefusal::SharedOverlap);
+  CHECK(patchy::vector_shape_components_color_refusal(content, {9}) == patchy::ComponentColorRefusal::NoComponents);
+}
+
 std::vector<patchy::test::TestCase> vector_shape_tests() {
   return {
       {"vector_path_text_codec_round_trips", vector_path_text_codec_round_trips},
@@ -788,5 +990,11 @@ std::vector<patchy::test::TestCase> vector_shape_tests() {
       {"path_simplify_preserves_ops_groups_open_flag_and_never_grows",
        path_simplify_preserves_ops_groups_open_flag_and_never_grows},
       {"path_fit_long_staircase_does_not_depend_on_call_stack_depth", path_fit_long_staircase_does_not_depend_on_call_stack_depth},
+      {"path_break_at_point_opens_closed_and_splits_open_subpaths",
+       path_break_at_point_opens_closed_and_splits_open_subpaths},
+      {"path_join_end_points_closes_and_connects_subpaths", path_join_end_points_closes_and_connects_subpaths},
+      {"path_delete_segment_leaves_closed_and_open_paths_open", path_delete_segment_leaves_closed_and_open_paths_open},
+      {"path_merge_points_collapses_a_segment_or_a_row", path_merge_points_collapses_a_segment_or_a_row},
+      {"path_components_copy_append_and_recolor", path_components_copy_append_and_recolor},
   };
 }

@@ -484,6 +484,10 @@ std::size_t MainWindowTestAccess::active_session_undo_depth(MainWindow& window) 
   return window.session().history.undo_stack().size();
 }
 
+bool MainWindowTestAccess::set_selected_path_components_color(MainWindow& window, QColor color) {
+  return window.set_selected_path_components_color(color);
+}
+
 void MainWindowTestAccess::undo(MainWindow& window) {
   window.undo();
 }

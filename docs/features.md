@@ -40,9 +40,9 @@
 
 ## Vectors and typography
 
-- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint and custom stroke dashes, vector masks edited like paths, anchor editing, radius, sides and star inset editable later, and a Paths panel with fill, stroke and selection commands, all saved to PSDs that open in Photoshop
-- Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom, alongside pixels, masks, adjustments, and effects. Merge Layers can keep editable vectors and bitmap runs separate, merge within groups or make a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
-- Trace Image to Shapes: converts a pixel layer (logo, scan, photo) into a group of editable shape layers, one per color, with Illustrator-style presets, color, grayscale, and black-and-white modes, abutting or overlapping shapes, noise removal, and a live preview; export the result as SVG
+- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint and custom stroke dashes, vector masks edited like paths, anchor and segment editing (break, join, merge, delete), per-shape cut, copy, paste, color and move to a new layer, radius, sides and star inset editable later, and a Paths panel with fill, stroke and selection commands, all saved to PSDs that open in Photoshop
+- Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers can keep editable vectors and bitmap runs separate, merge within groups or make a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
+- Trace Image to Shapes: converts a pixel layer into a group of editable shape layers, one per color, with Illustrator-style presets, color, grayscale, and black-and-white modes, abutting or overlapping shapes, noise removal, and a live preview
 - Point text, paragraph (box) text, and area text that flows inside a closed shape or path, saved as native Photoshop text frames
 - Rich text with per-run color, font, size, and style, a searchable font picker, suggested stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, small caps, super/subscript, underline, strikethrough, ordinals, fractions) that edit selected text layers outside text editing
 - Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraph direction
