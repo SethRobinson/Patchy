@@ -28829,6 +28829,10 @@ Bloqueada: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Personalizar panel Capas...</translation>
     </message>
+    <message>
+        <source>Rasterize Layer</source>
+        <translation>Rasterizar capa</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

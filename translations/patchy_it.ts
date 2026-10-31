@@ -28829,6 +28829,10 @@ Bloccato: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Personalizza pannello Livelli...</translation>
     </message>
+    <message>
+        <source>Rasterize Layer</source>
+        <translation>Rasterizza livello</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

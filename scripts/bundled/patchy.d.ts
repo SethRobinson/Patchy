@@ -1652,8 +1652,8 @@ interface PatchyUi {
    * assign an object with any of its keys to change those. Tool ids are the tools' hotkey
    * ids ("tools.hand"); hidden tools keep their shortcuts. Layer button ids: "new_layer",
    * "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "move_up",
-   * "move_down", "merge_down", "animation", "delete"; "move_up", "move_down" and "merge_down"
-   * are hidden by default. An unknown id or layout throws.
+   * "move_down", "merge_down", "merge_visible", "rasterize", "animation", "delete"; "move_up",
+   * "move_down", "merge_down", "merge_visible" and "rasterize" are hidden by default. An unknown id or layout throws.
    */
   toolPalette: {
     hiddenTools?: string[];

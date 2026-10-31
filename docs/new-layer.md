@@ -23,12 +23,13 @@ Tests: `ui_new_layer_dialog_*`.
 
 Tests: `ui_new_layer_button_alt_click_opens_new_layer_dialog`, `ui_new_layer_button_ctrl_click_adds_below`, `ui_layer_add_mask_button_alt_click_hides_all_or_selection`, `ui_layer_add_mask_button_ctrl_click_adds_vector_mask`.
 
-## Optional arrange and merge buttons
+## Optional footer buttons
 
-Three footer buttons start hidden (#470; `kLayerFooterButtonIdsHiddenByDefault`, stored when shown: [tool-palette.md](tool-palette.md#customizing-the-palette)), so the footer keeps its one row. Alt wins over Shift; they are document widgets, and each command reports its own refusals.
+Five footer buttons start hidden (#470, #539; `kLayerFooterButtonIdsHiddenByDefault`, stored when shown: [tool-palette.md](tool-palette.md#customizing-the-palette)), so the footer keeps its one row. Alt wins over Shift; they are document widgets, and each command reports its own refusals.
 
 - `layerMoveUpButton` / `layerMoveDownButton`: Move Layer Up / Down (`move_active_layer`); Shift-click Bring to Front / Send to Back (`arrange_selected_layers_to_end`, core `arrange_layers_to_end`: the top or bottom of the layer's own folder, never under a Background, which is left out of the selection); Alt-click `move_selected_layers_out_of_folder` (core `move_layers_out_of_folder`: one level out, just above or below the folder; a layer at the root stays, with a status message).
 - `layerMergeDownButton`: Merge Down; Shift-click Merge Visible; Alt-click Merge Visible to New Layer (Photoshop's Ctrl+Alt+Shift+E).
+- `layerMergeVisibleButton` / `layerRasterizeButton` (#539): trigger Layer > Merge Visible (`layerMergeVisibleLayersAction`) and Rasterize (`layerRasterizeAction`); not document widgets: each mirrors its action's enabled state through `QAction::changed` (`refresh_merge_visible_action_state`, `refresh_layer_controls`), so Rasterize is off when nothing selected can rasterize. Icons `merge-visible.svg`, `rasterize.svg`.
 - Layer > Arrange > Bring to Front (`layer.bring_to_front`, Shift+Ctrl+]) and Send to Back (`layer.send_to_back`, Shift+Ctrl+[) run the same command (#468). Ctrl+] and Ctrl+[ stay Image > Rotate, so Move Layer Up / Down keep no default key.
 
-Tests: `ui_layer_footer_move_and_merge_buttons_follow_modifiers`, `ui_layer_footer_optional_buttons_start_hidden`, `ui_layer_arrange_bring_to_front_and_send_to_back`, core `arrange_layers_to_end_moves_within_each_folder`, `move_layers_out_of_folder_lands_beside_the_folder`.
+Tests: `ui_layer_footer_move_and_merge_buttons_follow_modifiers`, `ui_layer_footer_merge_visible_and_rasterize_buttons`, `ui_layer_footer_optional_buttons_start_hidden`, `ui_layer_arrange_bring_to_front_and_send_to_back`, core `arrange_layers_to_end_moves_within_each_folder`, `move_layers_out_of_folder_lands_beside_the_folder`.

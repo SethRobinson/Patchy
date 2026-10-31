@@ -14,6 +14,10 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-31 (additive): `patchy.ui.toolPalette.hiddenLayerButtons` knows the optional footer buttons
+`merge_visible` and `rasterize` (GitHub issue 539, Layer > Merge Visible and Rasterize), hidden by
+default like `merge_down`. Permanent identifiers: both ids. Pinned by
+`ui_layer_footer_merge_visible_and_rasterize_buttons`.
 2026-10-29 (additive): brush dynamics objects (`drawStrokes` `dynamics`, `patchy.brushes` settings
 and tip records) take `shapeDynamicsEnabled`, `scatteringEnabled` and `transferEnabled` (booleans,
 true by default): the Dynamics popup's section switches. Off keeps the section's values and paints

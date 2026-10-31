@@ -28747,6 +28747,10 @@ Locked: %1</source>
         <source>Customize Layers Panel...</source>
         <translation>自訂圖層面板...</translation>
     </message>
+    <message>
+        <source>Rasterize Layer</source>
+        <translation>點陣化圖層</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

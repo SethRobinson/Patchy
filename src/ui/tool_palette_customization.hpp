@@ -36,8 +36,9 @@ struct ToolPaletteCustomization {
   bool wheel_scroll{true};
   // Layers panel footer button ids (kLayerFooterButtonIds) left out of the footer. The
   // buttons of kLayerFooterButtonIdsHiddenByDefault start in it (GitHub issue 470).
-  QStringList hidden_layer_buttons{QStringLiteral("merge_down"), QStringLiteral("move_down"),
-                                   QStringLiteral("move_up")};
+  QStringList hidden_layer_buttons{QStringLiteral("merge_down"), QStringLiteral("merge_visible"),
+                                   QStringLiteral("move_down"), QStringLiteral("move_up"),
+                                   QStringLiteral("rasterize")};
   // The palette's bottom items (kToolPaletteFooterItemIds) left off it.
   QStringList hidden_footer_items;
   // The Layers footer buttons in the order the user set (GitHub issue 471), hidden ones
@@ -48,13 +49,15 @@ struct ToolPaletteCustomization {
 };
 
 // The footer buttons' permanent ids, in footer order.
-inline constexpr const char* kLayerFooterButtonIds[] = {"new_layer", "new_folder", "new_adjustment", "layer_styles",
-                                                        "add_mask",  "duplicate",  "move_up",        "move_down",
-                                                        "merge_down", "animation", "delete"};
+inline constexpr const char* kLayerFooterButtonIds[] = {
+    "new_layer", "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "move_up",
+    "move_down", "merge_down", "merge_visible", "rasterize", "animation", "delete"};
 // The optional buttons (GitHub issue 470): hidden until the user shows them, so the footer
 // keeps its one row. Shown ones are stored under their own key (layersPanel/shownFooterButtons),
-// so settings from before them, which name only what was hidden, keep them hidden.
-inline constexpr const char* kLayerFooterButtonIdsHiddenByDefault[] = {"move_up", "move_down", "merge_down"};
+// so settings from before them, which name only what was hidden, keep them hidden. Merge
+// Visible and Rasterize Layer joined them for GitHub issue 539.
+inline constexpr const char* kLayerFooterButtonIdsHiddenByDefault[] = {"move_up", "move_down", "merge_down",
+                                                                       "merge_visible", "rasterize"};
 
 // The ids of the palette's bottom items, top to bottom: the color swatches (with the swap
 // and default glyphs), the Quick Mask button and the screen mode button.

@@ -28829,6 +28829,10 @@ Verrouillé : %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Personnaliser le panneau Calques...</translation>
     </message>
+    <message>
+        <source>Rasterize Layer</source>
+        <translation>Pixelliser le calque</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

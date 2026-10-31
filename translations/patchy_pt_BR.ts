@@ -28829,6 +28829,10 @@ Bloqueado: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Personalizar painel Camadas...</translation>
     </message>
+    <message>
+        <source>Rasterize Layer</source>
+        <translation>Rasterizar camada</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

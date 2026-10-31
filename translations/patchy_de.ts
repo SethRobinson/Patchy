@@ -28829,6 +28829,10 @@ Fixiert: %1</translation>
         <source>Customize Layers Panel...</source>
         <translation>Ebenenbedienfeld anpassen...</translation>
     </message>
+    <message>
+        <source>Rasterize Layer</source>
+        <translation>Ebene rastern</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -28911,6 +28911,10 @@ Locked: %1</source>
         <source>Customize Layers Panel...</source>
         <translation>Настройка панели «Слои»...</translation>
     </message>
+    <message>
+        <source>Rasterize Layer</source>
+        <translation>Растрировать слой</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
