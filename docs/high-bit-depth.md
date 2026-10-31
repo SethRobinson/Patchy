@@ -361,11 +361,13 @@ Pencil, pixel shapes, fills, Edit > Fill and Fill With Background Color paint va
   `hdr_color_from_linear` keeps 0 stops within display range and otherwise sets the
   stops that bring the brightest channel to 1.0; the other channels keep 8-bit base
   precision.
-- **Not carried yet:** gradients built from the foreground and background (their stops
-  are 8-bit `GradientStop` colors), the Mixer Brush's pickup, text and shape layer
-  colors, layer-style and fill-layer colors, and the Info panel's picker readout.
-  `ui_hdr_color_intensity_paints_and_follows`, `ui_hdr_eyedropper_keeps_32_bit_values`,
-  `hdr_color_gain_paints_32_bit_layers_only` pin the behavior.
+- **Gradient tool.** `GradientStop::intensity_stops` scales a stop in
+  `gradient_color_at_deep` before the linear mix. FG/BG stops take the colors' Intensity
+  (presets interpolate it by location); Edit Gradient Stops edits the current stop's at
+  32 bits. `tools/gradientStops` writes `intensity` only when nonzero (old readers ignore
+  it). Fill layers, Gradient Overlay/Stroke, GRD and PSD gradients stay 8-bit.
+- **Not carried yet:** Mixer Brush pickup, text, shape, layer-style and fill-layer colors,
+  the Info readout. Tests: `ui_hdr_`, `hdr_color_`.
 
 ### Photoshop's 32-bit blend modes
 

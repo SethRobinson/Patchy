@@ -5,7 +5,7 @@
 ## Photoshop documents and non-destructive editing
 
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
-- 8, 16, and 32-bit (linear HDR) editing: 16/32-bit PSD/PSB edit and save at depth, Image > Mode converts (leaving 32 bits offers HDR Toning). 16-bit PNG and TIFF open and export at 16 bits; 32-bit documents export float TIFF. At 32 bits the color windows and Color panel show linear values and Intensity (stops, preview swatches); paint and the Eyedropper keep values over 1.0. The browser build stops at 16 bits, converting 32-bit files to 16
+- 8, 16, and 32-bit (linear HDR) editing: 16/32-bit PSD/PSB edit and save at depth, Image > Mode converts (leaving 32 bits offers HDR Toning). 16-bit PNG and TIFF open and export at 16 bits; 32-bit documents export float TIFF. At 32 bits the color windows and Color panel show linear values and Intensity (stops, swatches); paint, gradients and the Eyedropper keep values over 1.0 The browser build stops at 16 bits, converting 32-bit files to 16
 - CMYK, Grayscale, Lab, Bitmap, Indexed, Duotone, and Multichannel Photoshop documents convert to RGB on open (unedited CMYK PSDs save as CMYK; untagged Grayscale is Dot Gain 20%)
 - An opaque Background layer locks position and transparency like Photoshop's, so the Eraser paints the background color, and Image > Flatten Image merges the visible layers into it
 - Transparent flat images (PNG, WebP...) open as a transparent layer; a Preferences option opens their alpha as a layer mask
