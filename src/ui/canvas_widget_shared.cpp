@@ -380,6 +380,8 @@ EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int b
   primary.setAlpha(std::clamp(static_cast<int>(std::round(255.0 * static_cast<double>(brush_opacity) / 100.0)), 1, 255));
   options.primary = edit_color(primary);
   options.secondary = edit_color(secondary);
+  options.primary_gain = color_intensity_gain(canvas.paint_intensity().foreground);
+  options.secondary_gain = color_intensity_gain(canvas.paint_intensity().background);
   options.brush_size = brush_size;
   options.brush_softness = brush_softness;
   options.brush_roundness = std::clamp(brush_roundness, 1, 100);

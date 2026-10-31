@@ -36,6 +36,7 @@ class CmykWorkingSpace;
 namespace patchy::ui {
 
 class BackgroundPickCursor;
+class HdrColorControls;
 class ColorChannelTrack;
 class ColorWellSwatch;
 class ColorWellGlyphButton;
@@ -88,6 +89,12 @@ public:
   [[nodiscard]] QColor channel_color(Channel channel, int level) const;
   // Sets one channel of the foreground and emits the pick.
   void set_channel(Channel channel, int level);
+  // The compact 32-bit controls under the views (ui/hdr_color_controls.hpp): the
+  // foreground's linear value and Intensity. MainWindow shows them while the active
+  // document is 32-bit and connects their signals.
+  [[nodiscard]] HdrColorControls* hdr_controls() const noexcept { return hdr_controls_; }
+  // Returns whether that changed (the slider views' fitted height did too).
+  bool set_hdr_controls_visible(bool visible);
   // The working CMYK space changed (Preferences): the same foreground has other ink numbers.
   void working_cmyk_space_changed();
   // A press on a channel track: until its release the canvas's answer does not move it.
@@ -140,6 +147,7 @@ private:
   ColorWellGlyphButton* swap_{nullptr};
   ColorWellGlyphButton* default_{nullptr};
   QVBoxLayout* well_column_{nullptr};
+  HdrColorControls* hdr_controls_{nullptr};
   QToolButton* settings_button_{nullptr};
   QMenu* view_menu_{nullptr};
   QActionGroup* view_group_{nullptr};

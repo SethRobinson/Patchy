@@ -1805,7 +1805,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(delete_layer_action, &QAction::triggered, this, [this] { delete_active_layer(); });
   connect(fill_layer_action, &QAction::triggered, this, [this] { fill_active_layer(); });
   connect(fill_background_action, &QAction::triggered, this, [this] {
-    fill_active_layer_with_color(canvas_->secondary_color(), tr("Fill background"));
+    fill_active_layer_with_color(canvas_->secondary_color(), tr("Fill background"), std::nullopt,
+                                 canvas_->paint_intensity().background);
   });
   connect(clear_layer_action, &QAction::triggered, this, [this] { clear_active_layer(); });
   connect(flip_h_action, &QAction::triggered, this, [this] { flip_active_layer_horizontal(); });

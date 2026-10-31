@@ -8,6 +8,7 @@
 #include "core/layer.hpp"
 #include "core/palette.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/hdr_color_controls.hpp"
 #include "ui/image_save_options.hpp"
 #include "core/pixel_buffer.hpp"
 #include "ui/main_window.hpp"
@@ -17,6 +18,8 @@
 #include <QTimer>
 #include <QToolButton>
 #include "ui/canvas_widget.hpp"
+#include "ui/color_dock_panel.hpp"
+#include "ui/panel_column.hpp"
 #include "formats/jxl_document_io.hpp"
 #include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
@@ -1117,11 +1120,34 @@ void MainWindow::convert_to_profile_dialog() {
 }
 
 void MainWindow::refresh_hdr_exposure_control() {
+  const bool shown =
+      has_active_document() && std::as_const(document()).color_state().bit_depth == BitDepth::Float32;
+  // The 32-bit color controls follow the same document (docs/high-bit-depth.md, "Color
+  // choice at 32 bits"): the Color panel's for the foreground, an open Foreground or
+  // Background Color window's for its color.
+  const auto intensity = canvas_ != nullptr ? canvas_->paint_intensity() : paint_intensity_;
+  const auto foreground = canvas_ != nullptr ? canvas_->primary_color() : foreground_color_;
+  const auto background = canvas_ != nullptr ? canvas_->secondary_color() : background_color_;
+  if (color_dock_panel_ != nullptr) {
+    color_dock_panel_->hdr_controls()->set_color(foreground, intensity.foreground);
+    if (color_dock_panel_->set_hdr_controls_visible(shown) && panel_column_ != nullptr) {
+      panel_column_->refit_panel_height(QStringLiteral("colorDock"));
+    }
+  }
+  if (auto* hdr = color_dialog_ != nullptr ? color_dialog_->findChild<HdrColorControls*>() : nullptr; hdr != nullptr) {
+    const bool for_foreground = color_dialog_->property("patchy.colorTarget").toString() == QStringLiteral("foreground");
+    hdr->set_color(for_foreground ? foreground : background, for_foreground ? intensity.foreground : intensity.background);
+    if (hdr->isVisibleTo(color_dialog_) != shown) {
+      hdr->setVisible(shown);
+      if (shown) {
+        color_dialog_->resize(color_dialog_->width(),
+                              std::max(color_dialog_->height(), color_dialog_->sizeHint().height()));
+      }
+    }
+  }
   if (hdr_exposure_spin_ == nullptr) {
     return;
   }
-  const bool shown =
-      has_active_document() && std::as_const(document()).color_state().bit_depth == BitDepth::Float32;
   hdr_exposure_spin_->setVisible(shown);
   if (!shown) {
     return;

@@ -737,9 +737,10 @@ bool write_pixel_blend_deep(PixelBuffer& pixels, std::uint8_t* px, const EditOpt
   const auto channels = format.channels;
   const auto before = load_pixel(format, px);
   auto value = before;
-  const auto color_of = [linear](EditColor color) {
-    const auto channel = [linear](std::uint8_t v) {
-      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) : static_cast<float>(v);
+  const auto color_of = [linear](EditColor color, float gain) {
+    const auto channel = [linear, gain](std::uint8_t v) {
+      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) * gain
+                    : static_cast<float>(v);
     };
     return std::array<float, 3>{channel(color.r), channel(color.g), channel(color.b)};
   };
@@ -757,7 +758,7 @@ bool write_pixel_blend_deep(PixelBuffer& pixels, std::uint8_t* px, const EditOpt
       value[3] *= 1.0F - erase_alpha;
     } else {
       // No alpha channel, or locked transparency: erase to the background color (Photoshop).
-      const auto background = color_of(options.secondary);
+      const auto background = color_of(options.secondary, options.secondary_gain);
       for (std::size_t c = 0; c < 3U; ++c) {
         value[c] = background[c] * erase_alpha + value[c] * (1.0F - erase_alpha);
       }
@@ -770,7 +771,7 @@ bool write_pixel_blend_deep(PixelBuffer& pixels, std::uint8_t* px, const EditOpt
     paint = {(*options.deep_primary)[0], (*options.deep_primary)[1], (*options.deep_primary)[2]};
     paint_alpha = std::clamp((*options.deep_primary)[3], 0.0F, 255.0F);
   } else {
-    paint = color_of(options.primary);
+    paint = color_of(options.primary, options.primary_gain);
   }
   const auto source_alpha = paint_alpha / 255.0F * coverage;
   if (channels >= 4 && !locked_alpha && value[3] <= 0.0F) {
@@ -955,8 +956,10 @@ bool write_pixel_paint_mode(PixelBuffer& pixels, std::uint8_t* px, const EditOpt
     if (locked_alpha && before[3] <= 0.0F) {
       return false;
     }
-    const auto channel = [linear](std::uint8_t v) {
-      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) : static_cast<float>(v);
+    const auto gain = linear ? options.primary_gain : 1.0F;
+    const auto channel = [linear, gain](std::uint8_t v) {
+      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) * gain
+                    : static_cast<float>(v);
     };
     const DeepChannels paint{channel(options.primary.r), channel(options.primary.g), channel(options.primary.b)};
     const auto alpha = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F * coverage;
@@ -3063,8 +3066,10 @@ Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptio
     const auto bounds = deep->bounds();
     const bool linear = pixels.format().bit_depth == BitDepth::Float32;
     const auto domain = linear ? DeepDomain::Linear : DeepDomain::Encoded;
-    const auto channel = [linear](std::uint8_t v) {
-      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) : static_cast<float>(v);
+    const auto gain = linear ? options.secondary_gain : 1.0F;
+    const auto channel = [linear, gain](std::uint8_t v) {
+      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) * gain
+                    : static_cast<float>(v);
     };
     const std::array<float, 3> background{channel(options.secondary.r), channel(options.secondary.g),
                                           channel(options.secondary.b)};

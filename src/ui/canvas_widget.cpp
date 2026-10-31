@@ -885,6 +885,9 @@ void CanvasWidget::set_primary_color(QColor color) {
                                          static_cast<std::uint8_t>(color.blue()));
     color = QColor(snapped.red, snapped.green, snapped.blue, color.alpha());
   }
+  if (color.rgb() != primary_color_.rgb()) {
+    paint_intensity_.foreground = 0.0;
+  }
   primary_color_ = color;
   invalidate_brush_overlay();  // the Brush overlay paints in the foreground color
 }
@@ -903,6 +906,9 @@ void CanvasWidget::set_secondary_color(QColor color) {
                                          static_cast<std::uint8_t>(color.green()),
                                          static_cast<std::uint8_t>(color.blue()));
     color = QColor(snapped.red, snapped.green, snapped.blue, color.alpha());
+  }
+  if (color.rgb() != secondary_color_.rgb()) {
+    paint_intensity_.background = 0.0;
   }
   secondary_color_ = color;
 }

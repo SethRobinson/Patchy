@@ -3,6 +3,7 @@
 #include "color/color_management.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/background_pick_cursor.hpp"
+#include "ui/hdr_color_controls.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/tool_palette_footer.hpp"
@@ -245,11 +246,19 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   well_column_->setSpacing(4);
   well_column_->addWidget(well);
   well_column_->addStretch(1);
-  auto* layout = new QHBoxLayout(this);
+  auto* row = new QHBoxLayout;
+  row->setContentsMargins(0, 0, 0, 0);
+  row->setSpacing(8);
+  row->addLayout(well_column_);
+  row->addWidget(views_, 1);
+  hdr_controls_ = new HdrColorControls(HdrColorControls::Form::Compact, this);
+  hdr_controls_->setObjectName(QStringLiteral("colorPanelHdrControls"));
+  hdr_controls_->hide();
+  auto* layout = new QVBoxLayout(this);
   layout->setContentsMargins(8, 8, 8, 8);
-  layout->setSpacing(8);
-  layout->addLayout(well_column_);
-  layout->addWidget(views_, 1);
+  layout->setSpacing(6);
+  layout->addLayout(row, 1);
+  layout->addWidget(hdr_controls_);
   update_cmyk();
   refresh_channel_views();
   retranslate();
@@ -342,8 +351,17 @@ int ColorDockPanel::fitted_height() const {
   }
   const auto margins = layout()->contentsMargins();
   const auto* page = views_->currentWidget();
-  return margins.top() + margins.bottom() +
+  const int hdr = hdr_controls_->isVisibleTo(this) ? hdr_controls_->sizeHint().height() + layout()->spacing() : 0;
+  return margins.top() + margins.bottom() + hdr +
          std::max(well_column_->sizeHint().height(), page->layout()->sizeHint().height());
+}
+
+bool ColorDockPanel::set_hdr_controls_visible(bool visible) {
+  if (hdr_controls_->isVisibleTo(this) == visible) {
+    return false;
+  }
+  hdr_controls_->setVisible(visible);
+  return true;
 }
 
 QAction* ColorDockPanel::view_action(View view) const {

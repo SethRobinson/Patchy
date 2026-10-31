@@ -9,8 +9,11 @@
 #include "ui/canvas_widget.hpp"
 
 #include "core/document_channel.hpp"
+#include "core/hdr_color.hpp"
 #include "core/layer.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/pixel_buffer.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_shape.hpp"
@@ -1432,6 +1435,67 @@ std::optional<QColor> average_sample_color(const QImage& image) {
   return QColor(channel(red), channel(green), channel(blue));
 }
 
+// A 32-bit document's pick (docs/high-bit-depth.md, "Color choice at 32 bits"): the
+// alpha-weighted mean of a depth render's linear floats, values above 1.0 kept; nothing
+// for another format or a fully transparent square.
+std::optional<LinearRgb> average_linear_sample(const QImage& image) {
+  const bool premultiplied = image.format() == QImage::Format_RGBA32FPx4_Premultiplied;
+  if (image.format() != QImage::Format_RGBA32FPx4 && !premultiplied) {
+    return std::nullopt;
+  }
+  LinearRgb sum{};
+  double weight = 0.0;
+  for (int y = 0; y < image.height(); ++y) {
+    const auto* row = reinterpret_cast<const float*>(image.constScanLine(y));
+    for (int x = 0; x < image.width(); ++x) {
+      const auto* px = row + static_cast<std::size_t>(x) * 4U;
+      const auto alpha = std::clamp(static_cast<double>(px[3]), 0.0, 1.0);
+      if (alpha <= 0.0) {
+        continue;
+      }
+      for (std::size_t c = 0; c < 3U; ++c) {
+        sum[c] += premultiplied ? static_cast<double>(px[c]) : static_cast<double>(px[c]) * alpha;
+      }
+      weight += alpha;
+    }
+  }
+  if (weight <= 0.0) {
+    return std::nullopt;
+  }
+  return LinearRgb{sum[0] / weight, sum[1] / weight, sum[2] / weight};
+}
+
+// The Current Layer pick of a 32-bit layer: its own linear values, weighted like
+// active_layer_sample_region (pixel alpha, mask, opacity).
+std::optional<LinearRgb> average_linear_layer_sample(const Layer& layer, QRect area) {
+  const auto& pixels = layer.pixels();
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::Float32 || pixels.format().channels < 3 ||
+      !layer.visible() || layer.opacity() <= 0.0F) {
+    return std::nullopt;
+  }
+  const auto bounds = layer_pixel_bounds(layer);
+  const auto rect = to_qrect(bounds).intersected(area);
+  LinearRgb sum{};
+  double weight = 0.0;
+  for (int y = rect.top(); y <= rect.bottom() && !rect.isEmpty(); ++y) {
+    for (int x = rect.left(); x <= rect.right(); ++x) {
+      const auto value = load_pixel(pixels.format(), pixels.pixel(x - bounds.x, y - bounds.y));
+      const auto alpha = static_cast<double>(value[3]) / 255.0 * layer_mask_alpha_at(layer, x, y) * layer.opacity();
+      if (alpha <= 0.0) {
+        continue;
+      }
+      for (std::size_t c = 0; c < 3U; ++c) {
+        sum[c] += static_cast<double>(value[c]) / 255.0 * alpha;
+      }
+      weight += alpha;
+    }
+  }
+  if (weight <= 0.0) {
+    return std::nullopt;
+  }
+  return LinearRgb{sum[0] / weight, sum[1] / weight, sum[2] / weight};
+}
+
 }  // namespace
 
 void CanvasWidget::begin_color_pick(QPoint widget_position, QPoint global_position) {
@@ -1474,7 +1538,7 @@ void CanvasWidget::end_color_pick() {
   }
 }
 
-void CanvasWidget::set_picked_color(QColor picked) {
+void CanvasWidget::set_picked_color(QColor picked, double intensity_stops) {
   if (!picked.isValid()) {
     return;
   }
@@ -1482,10 +1546,14 @@ void CanvasWidget::set_picked_color(QColor picked) {
   // A drag over flat color samples the same color move after move: the first report of
   // the gesture always goes out, repeats of the color it already set do not (GitHub #478).
   const auto current = color_pick_to_background_ ? secondary_color_ : primary_color_;
-  if (color_picking_ && color_pick_reported_ && picked == current) {
+  auto& intensity = color_pick_to_background_ ? paint_intensity_.background : paint_intensity_.foreground;
+  if (color_picking_ && color_pick_reported_ && picked == current && intensity_stops == intensity) {
     return;
   }
   color_pick_reported_ = true;
+  // Set before the callbacks: their set_primary_color/set_secondary_color with the same
+  // color keeps it.
+  intensity = intensity_stops;
   if (color_pick_to_background_) {
     secondary_color_ = picked;
     if (background_color_picked_callback_) {
@@ -1506,6 +1574,17 @@ void CanvasWidget::pick_color(QPoint point) {
 
   const QRect area =
       eyedropper_sample_rect(point, eyedropper_sample_size_, QSize(document_->width(), document_->height()));
+  // A 32-bit document picks its linear values, not the display (which the preview exposure
+  // scales): a color above 1.0 comes back as its base color and Intensity.
+  const bool linear_document = std::as_const(*document_).color_state().bit_depth == BitDepth::Float32;
+  const auto set_linear_or_display_pick = [this](QColor display, std::optional<LinearRgb> linear) {
+    if (!linear.has_value()) {
+      set_picked_color(display);
+      return;
+    }
+    const auto hdr = hdr_color_from_linear(*linear);
+    set_picked_color(QColor(hdr.base[0], hdr.base[1], hdr.base[2]), hdr.stops);
+  };
   if (eyedropper_sample_layers_ == SampleLayers::CurrentLayer) {
     // Current Layer: the active layer's own pixels (mask and opacity folded into
     // alpha). A transparent spot leaves the color as it was, as in Photoshop.
@@ -1518,7 +1597,7 @@ void CanvasWidget::pick_color(QPoint point) {
       return;
     }
     if (const auto color = average_sample_color(active_layer_sample_region(*layer, area)); color.has_value()) {
-      set_picked_color(*color);
+      set_linear_or_display_pick(*color, linear_document ? average_linear_layer_sample(*layer, area) : std::nullopt);
     }
     return;
   }
@@ -1536,9 +1615,24 @@ void CanvasWidget::pick_color(QPoint point) {
       }
       return;
     }
+    if (linear_document) {
+      const ScopedDocumentDepthRender depth_render;
+      if (const auto linear =
+              average_linear_sample(qimage_from_document_rect_with_hidden_layers(document, area, true, *excluded))) {
+        set_linear_or_display_pick(QColor(), linear);
+        return;
+      }
+    }
     const auto image = qimage_from_document_rect_with_hidden_layers(document, area, true, *excluded);
     set_picked_color(average_sample_color(image).value_or(QColor(Qt::transparent)));
     return;
+  }
+  if (linear_document) {
+    const ScopedDocumentDepthRender depth_render;
+    if (const auto linear = average_linear_sample(qimage_from_document_rect(std::as_const(*document_), area, true))) {
+      set_linear_or_display_pick(QColor(), linear);
+      return;
+    }
   }
   if (area.width() == 1 && area.height() == 1) {
     set_picked_color(compose_document_pixel(point.x(), point.y()));

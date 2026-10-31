@@ -204,6 +204,7 @@ add_library(patchy_core
   src/core/photo_divide.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_depth.cpp
+  src/core/hdr_color.cpp
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
   src/core/rect_utils.cpp
@@ -1277,6 +1278,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/background_pick_cursor.cpp
       src/ui/color_dock_panel.hpp
       src/ui/color_dock_panel.cpp
+      src/ui/hdr_color_controls.hpp
+      src/ui/hdr_color_controls.cpp
       src/ui/clone_source_panel.hpp
       src/ui/clone_source_panel.cpp
       src/ui/color_field_widgets.hpp
@@ -2338,6 +2341,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/photo_develop_tests.cpp
     tests/core/photo_divide_tests.cpp
     tests/core/pixel_depth_tests.cpp
+    tests/core/hdr_color_tests.cpp
     tests/core/pixel_tools_tests.cpp
     tests/core/red_eye_tests.cpp
     tests/core/perspective_planes_tests.cpp
@@ -2546,6 +2550,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/gmic_tests.cpp
       tests/ui/history_panel_tests.cpp
       tests/ui/color_dock_panel_tests.cpp
+      tests/ui/hdr_color_choice_tests.cpp
       tests/ui/clone_source_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp

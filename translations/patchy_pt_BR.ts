@@ -16770,6 +16770,53 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
 </context>
 <context>
+    <name>patchy::ui::HdrColorControls</name>
+    <message>
+        <source>Linear  R %1  G %2  B %3</source>
+        <translation>Linear  R %1  G %2  B %3</translation>
+    </message>
+    <message>
+        <source>32-bit document: the color is stored as linear light, where 1.0 is display white. Intensity brightens or darkens it in stops; the swatches show it from 3 stops darker to 3 stops brighter.</source>
+        <translation>Documento de 32 bits: a cor é armazenada como luz linear, em que 1,0 é o branco da tela. A intensidade clareia ou escurece a cor em pontos; as amostras a mostram de 3 pontos mais escura a 3 pontos mais clara.</translation>
+    </message>
+    <message>
+        <source>Intensity:</source>
+        <translation>Intensidade:</translation>
+    </message>
+    <message>
+        <source>stops</source>
+        <translation>pontos</translation>
+    </message>
+    <message>
+        <source>Scales the color&apos;s light: +1 stop doubles it, -1 halves it. Paint on 32-bit layers takes it; 8 and 16-bit documents use the base color.</source>
+        <translation>Ajusta a luz da cor: +1 ponto a dobra, -1 a reduz pela metade. A pintura em camadas de 32 bits a usa; documentos de 8 e 16 bits usam a cor base.</translation>
+    </message>
+    <message>
+        <source>The color 3 stops darker to 3 stops brighter. Click a swatch to move the Intensity there.</source>
+        <translation>A cor de 3 pontos mais escura a 3 pontos mais clara. Clique em uma amostra para levar a intensidade até ela.</translation>
+    </message>
+    <message>
+        <source>Linear value:</source>
+        <translation>Valor linear:</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>G:</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>B:</translation>
+    </message>
+    <message>
+        <source>The linear light value the paint stores, above 1.0 for overbright colors</source>
+        <translation>O valor de luz linear que a pintura armazena, acima de 1,0 em cores superexpostas</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::HotkeyEditorPanel</name>
     <message>
         <source>Search commands or shortcuts...</source>

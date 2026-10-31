@@ -16726,6 +16726,53 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::HdrColorControls</name>
+    <message>
+        <source>Linear  R %1  G %2  B %3</source>
+        <translation>선형  R %1  G %2  B %3</translation>
+    </message>
+    <message>
+        <source>32-bit document: the color is stored as linear light, where 1.0 is display white. Intensity brightens or darkens it in stops; the swatches show it from 3 stops darker to 3 stops brighter.</source>
+        <translation>32비트 문서: 색상은 선형 빛으로 저장되며 1.0이 화면의 흰색입니다. 강도는 스톱 단위로 밝게 또는 어둡게 합니다. 견본은 3스톱 어두운 색부터 3스톱 밝은 색까지 보여 줍니다.</translation>
+    </message>
+    <message>
+        <source>Intensity:</source>
+        <translation>강도:</translation>
+    </message>
+    <message>
+        <source>stops</source>
+        <translation>스톱</translation>
+    </message>
+    <message>
+        <source>Scales the color&apos;s light: +1 stop doubles it, -1 halves it. Paint on 32-bit layers takes it; 8 and 16-bit documents use the base color.</source>
+        <translation>색상의 빛을 조절합니다. +1 스톱은 두 배, -1 스톱은 절반입니다. 32비트 레이어에 칠할 때 적용되며, 8비트와 16비트 문서는 기본 색상을 사용합니다.</translation>
+    </message>
+    <message>
+        <source>The color 3 stops darker to 3 stops brighter. Click a swatch to move the Intensity there.</source>
+        <translation>3스톱 어두운 색부터 3스톱 밝은 색까지입니다. 견본을 클릭하면 강도가 그 위치로 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Linear value:</source>
+        <translation>선형 값:</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>G:</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>B:</translation>
+    </message>
+    <message>
+        <source>The linear light value the paint stores, above 1.0 for overbright colors</source>
+        <translation>칠이 저장하는 선형 빛 값으로, 지나치게 밝은 색상은 1.0을 넘습니다</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::HotkeyEditorPanel</name>
     <message>
         <source>Search commands or shortcuts...</source>

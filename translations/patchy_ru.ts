@@ -16814,6 +16814,53 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::HdrColorControls</name>
+    <message>
+        <source>Linear  R %1  G %2  B %3</source>
+        <translation>Линейно  R %1  G %2  B %3</translation>
+    </message>
+    <message>
+        <source>32-bit document: the color is stored as linear light, where 1.0 is display white. Intensity brightens or darkens it in stops; the swatches show it from 3 stops darker to 3 stops brighter.</source>
+        <translation>32-битный документ: цвет хранится как линейный свет, где 1,0 — белый цвет экрана. Интенсивность осветляет или затемняет его ступенями экспозиции; образцы показывают его от 3 ступеней темнее до 3 ступеней светлее.</translation>
+    </message>
+    <message>
+        <source>Intensity:</source>
+        <translation>Интенсивность:</translation>
+    </message>
+    <message>
+        <source>stops</source>
+        <translation>ступ.</translation>
+    </message>
+    <message>
+        <source>Scales the color&apos;s light: +1 stop doubles it, -1 halves it. Paint on 32-bit layers takes it; 8 and 16-bit documents use the base color.</source>
+        <translation>Масштабирует свет цвета: +1 ступень удваивает его, -1 уменьшает вдвое. Рисование на 32-битных слоях учитывает её; 8- и 16-битные документы используют основной цвет.</translation>
+    </message>
+    <message>
+        <source>The color 3 stops darker to 3 stops brighter. Click a swatch to move the Intensity there.</source>
+        <translation>Цвет от 3 ступеней темнее до 3 ступеней светлее. Щёлкните образец, чтобы перенести туда интенсивность.</translation>
+    </message>
+    <message>
+        <source>Linear value:</source>
+        <translation>Линейное значение:</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>G:</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>B:</translation>
+    </message>
+    <message>
+        <source>The linear light value the paint stores, above 1.0 for overbright colors</source>
+        <translation>Линейное значение света, которое сохраняет краска; выше 1,0 у пересвеченных цветов</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::HotkeyEditorPanel</name>
     <message>
         <source>Search commands or shortcuts...</source>

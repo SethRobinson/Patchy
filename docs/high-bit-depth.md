@@ -291,8 +291,8 @@ Code comments cite these phase numbers. Each phase lands as verified commits.
    32-bit documents show a status-bar preview exposure
    (`hdrPreviewExposureSpin`, `DocumentColorState::view_exposure_stops`): it scales
    linear values whenever a 32-bit composite narrows to display values (canvas,
-   thumbnails, 8-bit exports, the eyedropper), is never saved, and undo keeps the
-   current value. The Info readout adds the linear values on 32-bit documents.
+   thumbnails, 8-bit exports), is never saved, and undo keeps the current value. The
+   Eyedropper reads the linear values instead ("Color choice at 32 bits" below). The Info readout adds the linear values on 32-bit documents.
    Histograms (Levels, Curves) and every `flatten_rgb8` consumer read a deep document's
    display values: `flatten_rgb8` returns the deep flatten narrowed (the 8-bit walk
    skips deep layers). Still to do: Info/picker values in 16-bit units, a histogram
@@ -329,6 +329,43 @@ Code comments cite these phase numbers. Each phase lands as verified commits.
    (`depth_supported_on_platform`): 32-bit files open converted to 16 with an import
    note, and Image > Mode, New Document and `convertBitDepth` offer no 32. Still to
    do: deep compositor speed, a full Testy run against the baseline.
+
+### Color choice at 32 bits
+
+A foreground or background color is its 8-bit sRGB base color plus an Intensity in
+stops (`core/hdr_color.hpp`: `HdrColor`, `PaintIntensity`, range -10 to +10). Its
+linear value is the decoded base times 2^stops; 1.0 is display white. Only 32-bit
+layers apply the Intensity (`EditOptions::primary_gain`/`secondary_gain`, read where the
+deep paint paths decode the paint color: `write_pixel_blend_deep`, the deep
+`write_pixel_paint_mode`, the deep clear, `render_brush_stroke_pixel_deep`), so Brush,
+Pencil, pixel shapes, fills, Edit > Fill and Fill With Background Color paint values above
+1.0; 8 and 16-bit documents paint the base color, unchanged.
+- **Where it lives.** `CanvasWidget::paint_intensity()` per canvas and
+  `MainWindow::paint_intensity_` across canvases (never saved; a restart is 0 stops).
+  `set_primary_color`/`set_secondary_color` that change the color reset their side to 0;
+  Swap swaps it, Default Colors clears it. Swatches, palettes, custom colors and the
+  settings keep 8-bit colors only (no format change).
+- **UI** (`ui/hdr_color_controls.hpp`, shown by `refresh_hdr_exposure_control` while the
+  active document is 32-bit). The Foreground and Background Color windows show the full
+  form under the picker: a caption naming the 32-bit document, a strip of swatches from
+  -3 to +3 stops around the color (`hdr_preview_color`: scaled, sRGB-encoded, clipped at
+  white; a click moves the Intensity by that offset), the Intensity slider and spin, and
+  editable linear R, G, B (`hdr_color_from_linear` splits a typed value into base and
+  stops). The Color panel shows the compact form (strip, Intensity, linear readout) below
+  its view, for the foreground. A base color picked in the window or the panel keeps the
+  Intensity they show. 16 bits keep the 0-255 fields: they are display-encoded and narrow
+  exactly, so a 0-1 or 0-32768 mode would add no precision a user can act on.
+- **Eyedropper.** A 32-bit document picks the linear values of a depth render (All
+  Layers, Current & Below and the no-adjustment choices) or of the layer's own floats
+  (Current Layer), not the display, so the preview exposure does not change a pick.
+  `hdr_color_from_linear` keeps 0 stops within display range and otherwise sets the
+  stops that bring the brightest channel to 1.0; the other channels keep 8-bit base
+  precision.
+- **Not carried yet:** gradients built from the foreground and background (their stops
+  are 8-bit `GradientStop` colors), the Mixer Brush's pickup, text and shape layer
+  colors, layer-style and fill-layer colors, and the Info panel's picker readout.
+  `ui_hdr_color_intensity_paints_and_follows`, `ui_hdr_eyedropper_keeps_32_bit_values`,
+  `hdr_color_gain_paints_32_bit_layers_only` pin the behavior.
 
 ### Photoshop's 32-bit blend modes
 

@@ -34,6 +34,11 @@ struct EditOptions {
   std::optional<std::array<float, 4>> deep_primary;
   EditColor primary{};
   EditColor secondary{255, 255, 255, 255};
+  // Linear-light multipliers of `primary` and `secondary` (2^stops of the color's Intensity,
+  // core/hdr_color.hpp): 32-bit layers scale the decoded colors by them, so a foreground
+  // above display white paints values above 1.0. 8 and 16-bit layers ignore them.
+  float primary_gain{1.0F};
+  float secondary_gain{1.0F};
   int brush_size{12};
   int brush_softness{0};
   int brush_roundness{100};

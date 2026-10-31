@@ -6,6 +6,7 @@
 #include "core/channel_view.hpp"
 #include "core/document.hpp"
 #include "core/document_recovery_store.hpp"
+#include "core/hdr_color.hpp"
 #include "ui/document_session_store.hpp"
 #include "core/layer_alignment.hpp"
 #include "core/layer_tree.hpp"
@@ -2176,8 +2177,11 @@ private:
     patchy::PaintMode mode{};
     bool preserve_transparency{false};
   };
+  // `intensity_stops` scales the color in linear light on 32-bit layers (the foreground's or
+  // background's Intensity; core/hdr_color.hpp).
   void fill_active_layer_with_color(QColor color, QString label,
-                                    std::optional<FillCommandBlend> blend = std::nullopt);
+                                    std::optional<FillCommandBlend> blend = std::nullopt,
+                                    double intensity_stops = 0.0);
   // Edit > Fill... (GitHub issue 530): the Fill dialog, then one Fill history step.
   void edit_fill_dialog();
   void clear_active_layer();
@@ -3755,6 +3759,9 @@ private:
   int current_polygon_star_inset_{0};
   QColor foreground_color_{Qt::black};
   QColor background_color_{Qt::white};
+  // The pair's Intensity in stops (core/hdr_color.hpp), carried across canvases like the
+  // colors; never saved.
+  patchy::PaintIntensity paint_intensity_{};
   // canvas_'s colors right after the pair was applied or last stashed: a difference
   // is a change made on the canvas. A palette document snaps its copy, which must
   // not count as a change of the pair.
