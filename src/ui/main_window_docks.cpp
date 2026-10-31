@@ -1928,22 +1928,18 @@ void MainWindow::create_docks() {
   styles_button->setMenu(styles_button_menu);
   // GitHub issue 539 follow-up: Rasterize opens its menu on a click, as Layer Styles and New
   // Fill or Adjustment Layer do (a press-and-hold menu behind a click that rasterized read as a
-  // button whose menu never opened). The entries are the shared actions of the layer context
-  // menu's Rasterize submenu, so shortcuts and enabled state follow it. The menu bar and the
-  // row menu hide those actions' icons (hide_menu_action_icons); this menu shows them while it
-  // is open.
+  // button whose menu never opened). The entries are the shared rasterize actions, so shortcuts
+  // and enabled state follow the Layer menu. Trace Image to Shapes goes the other way (pixels to
+  // shapes) and stays in Layer > New and the row menu (Seth, October 31, 2026). The menu bar and
+  // the row menu hide those actions' icons (hide_menu_action_icons); this menu shows them while
+  // it is open.
   auto* rasterize_button_menu = new QMenu(rasterize_button);
   rasterize_button_menu->setObjectName(QStringLiteral("layerRasterizeButtonMenu"));
-  const QList<QAction*> rasterize_actions{layer_rasterize_action_, layer_rasterize_layer_style_action_,
-                                          layer_trace_image_action_};
+  const QList<QAction*> rasterize_actions{layer_rasterize_action_, layer_rasterize_layer_style_action_};
   for (auto* action : rasterize_actions) {
-    if (action == nullptr) {
-      continue;
+    if (action != nullptr) {
+      rasterize_button_menu->addAction(action);
     }
-    if (action == layer_trace_image_action_) {
-      rasterize_button_menu->addSeparator();
-    }
-    rasterize_button_menu->addAction(action);
   }
   connect(rasterize_button_menu, &QMenu::aboutToShow, this, [rasterize_actions] {
     for (auto* action : rasterize_actions) {
@@ -2035,8 +2031,8 @@ void MainWindow::create_docks() {
     });
   };
   follow_action(merge_visible_button, layer_merge_visible_layers_action_);
-  // The Rasterize menu button is on while any of its entries is (Trace Image to Shapes works on
-  // the pixel layers Rasterize skips).
+  // The Rasterize menu button is on while either of its entries is, so it is off over a plain
+  // pixel layer.
   const auto refresh_rasterize_button = [rasterize_button, rasterize_actions] {
     rasterize_button->setEnabled(std::any_of(rasterize_actions.begin(), rasterize_actions.end(),
                                              [](const QAction* action) { return action != nullptr && action->isEnabled(); }));

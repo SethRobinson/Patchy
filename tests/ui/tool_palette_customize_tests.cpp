@@ -1695,8 +1695,8 @@ void ui_layer_footer_move_and_merge_buttons_follow_modifiers() {
 
 // GitHub issue 539: Merge Visible and Rasterize Layer are optional footer buttons, hidden by
 // default. Merge Visible runs the Layer menu's command and is enabled exactly when it is (off
-// with one visible layer); Rasterize opens its menu and is on while any entry is (Trace Image to
-// Shapes keeps it on over a pixel layer).
+// with one visible layer); Rasterize opens its menu and is on while either entry is, so it is
+// off over a plain pixel layer.
 void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   using Access = patchy::ui::MainWindowTestAccess;
   CustomizationSettingsGuard settings_guard;
@@ -1759,8 +1759,7 @@ void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
   CHECK(ran);
   settle();
-  const std::array<QAction*, 3> rasterize_entries{rasterize_action, require_action(window, "layerRasterizeLayerStyleAction"),
-                                                  require_action(window, "layerTraceImageAction")};
+  const std::array<QAction*, 2> rasterize_entries{rasterize_action, require_action(window, "layerRasterizeLayerStyleAction")};
   const auto follows_actions = [&] {
     CHECK(merge_visible->isEnabled() == merge_visible_action->isEnabled());
     const bool any_entry = std::any_of(rasterize_entries.begin(), rasterize_entries.end(),
@@ -1775,7 +1774,7 @@ void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   Access::select_layers(window, {paint_id}, paint_id);
   settle();
   follows_actions();
-  CHECK(merge_visible->isEnabled() && !rasterize_action->isEnabled() && rasterize->isEnabled());
+  CHECK(merge_visible->isEnabled() && !rasterize_action->isEnabled() && !rasterize->isEnabled());
   // A text layer: Rasterize turns on.
   patchy::Layer text(doc.allocate_layer_id(), "Text: Hi", patchy::LayerKind::Text);
   const auto text_id = text.id();
@@ -1804,9 +1803,9 @@ void ui_layer_footer_merge_visible_and_rasterize_buttons() {
 
 // GitHub issue 539 follow-up: Rasterize Layer is a menu button like Layer Styles. A real press
 // (through the window system, as a mouse delivers it) opens the menu at once and runs nothing;
-// the menu holds the layer context menu's Rasterize entries, each with its icon showing, and
-// picking Rasterize there rasterizes. Merge Down and Merge Visible stay plain buttons without a
-// menu.
+// the menu holds Rasterize and Rasterize (including layer style), each with its icon showing, and
+// picking Rasterize there rasterizes. Trace Image to Shapes is not on it (it goes the other way;
+// Seth, October 31, 2026). Merge Down and Merge Visible stay plain buttons without a menu.
 void ui_layer_footer_rasterize_button_opens_its_menu() {
   using Access = patchy::ui::MainWindowTestAccess;
   CustomizationSettingsGuard settings_guard;
@@ -1841,8 +1840,8 @@ void ui_layer_footer_rasterize_button_opens_its_menu() {
       CHECK(!action->icon().isNull());
     }
   }
-  CHECK(names == (QStringList{QStringLiteral("layerRasterizeAction"), QStringLiteral("layerRasterizeLayerStyleAction"),
-                              QStringLiteral("layerTraceImageAction")}));
+  CHECK(names == (QStringList{QStringLiteral("layerRasterizeAction"), QStringLiteral("layerRasterizeLayerStyleAction")}));
+  CHECK(menu->actions().size() == 2);  // no separator
   std::vector<bool> icons_before;
   for (const auto* action : entries) {
     icons_before.push_back(action->isIconVisibleInMenu());
@@ -1930,10 +1929,9 @@ void ui_layer_footer_rasterize_button_opens_its_menu() {
   CHECK(Access::active_session_undo_depth(window) == depth + 1);
   const auto* rasterized = std::as_const(doc).find_layer(text_id);
   CHECK(rasterized != nullptr && rasterized->kind() == patchy::LayerKind::Pixel);
-  // Nothing left to rasterize, but Trace Image to Shapes still works on the pixel layer, so the
-  // button stays on.
-  CHECK(!entries.front()->isEnabled());
-  CHECK(rasterize->isEnabled());
+  // Over the plain pixel layer neither entry can run, so the button greys out.
+  CHECK(!entries.front()->isEnabled() && !entries.back()->isEnabled());
+  CHECK(!rasterize->isEnabled());
 }
 
 QStringList footer_ids(std::initializer_list<const char*> ids) {
