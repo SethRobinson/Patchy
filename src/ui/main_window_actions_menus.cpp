@@ -1056,7 +1056,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_trace_image_action_ = trace_image_action;  // the Layers panel context menu reuses it
   trace_image_action->setObjectName(QStringLiteral("layerTraceImageAction"));
   trace_image_action->setProperty("patchy.channelViewBlocked", true);
-  trace_image_action->setIcon(simple_icon(QStringLiteral("TR"), QColor(170, 230, 190)));
+  trace_image_action->setIcon(simple_icon(QStringLiteral("trace-image")));
   trace_image_action->setStatusTip(tr("Convert the pixel layer into editable shape layers, one per color"));
   bind_action_text(trace_image_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Trace Image to Shapes..."));
   bind_translated_status_tip(trace_image_action,
@@ -1245,8 +1245,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(layer_menu, &QMenu::aboutToShow, this, [this] { refresh_merge_visible_action_state(); });
   auto* merge_down_action = new QAction(tr("Merge &Down"), layer_menu);
   merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));
-  layer_merge_down_action_ = merge_down_action;
-  layer_merge_visible_to_new_action_ = merge_visible_action;
   auto* rename_layer_action = new QAction(tr("&Rename Layer..."), layer_menu);
   rename_layer_action->setObjectName(QStringLiteral("layerRenameAction"));
   // Layer color labels (GitHub issue 244), Photoshop's lclr indices in order.
@@ -1513,8 +1511,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_copy_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   layer_paste_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   layer_delete_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(255, 150, 150)));
-  layer_rasterize_action_->setIcon(simple_icon(QStringLiteral("RA"), QColor(220, 220, 160)));
-  layer_rasterize_layer_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
+  // The Layers footer's Rasterize menu shows these three (GitHub issue 539 follow-up).
+  layer_rasterize_action_->setIcon(simple_icon(QStringLiteral("rasterize")));
+  layer_rasterize_layer_style_action_->setIcon(simple_icon(QStringLiteral("rasterize-layer-style")));
   layer_smart_object_to_normal_action_->setIcon(simple_icon(QStringLiteral("RA"), QColor(220, 220, 160)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
   merge_visible_action->setIcon(simple_icon(QStringLiteral("merge")));

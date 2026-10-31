@@ -40,7 +40,6 @@
 #include "ui/tool_palette_footer.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
-#include "ui/layer_merge.hpp"
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/palette_panel.hpp"
@@ -1786,10 +1785,10 @@ void MainWindow::create_docks() {
   // Hidden until the footer menu or Customize Tool Palette shows them (GitHub issue 470).
   auto* move_up_button = new QPushButton(layers_panel);
   auto* move_down_button = new QPushButton(layers_panel);
-  // Tool buttons so press and hold opens their menus (GitHub issue 539 follow-up).
-  auto* merge_down_button = new QToolButton(layers_panel);
+  auto* merge_down_button = new QPushButton(layers_panel);
   // Hidden by default too (GitHub issue 539): the Layer menu's Merge Visible and Rasterize.
-  auto* merge_visible_button = new QToolButton(layers_panel);
+  auto* merge_visible_button = new QPushButton(layers_panel);
+  // A menu button like Layer Styles: a click opens the rasterize commands (issue 539 follow-up).
   auto* rasterize_button = new QToolButton(layers_panel);
   auto* animation_button = new QPushButton(layers_panel);
   auto* delete_button = new QPushButton(layers_panel);
@@ -1860,7 +1859,7 @@ void MainWindow::create_docks() {
   bind_tooltip(animation_button, QT_TR_NOOP("Animation Preview"));
   bind_tooltip(delete_button, QT_TR_NOOP("Delete Layer"));
   for (auto* button : {add_button, add_folder_button, add_mask_button, duplicate_button, move_up_button,
-                       move_down_button, animation_button, delete_button}) {
+                       move_down_button, merge_down_button, merge_visible_button, animation_button, delete_button}) {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(38, 34);
@@ -1876,65 +1875,13 @@ void MainWindow::create_docks() {
     button->setAcceptDrops(true);
     button->installEventFilter(this);
   }
-  for (auto* button : {adjustment_button, styles_button}) {
+  for (auto* button : {adjustment_button, styles_button, rasterize_button}) {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(38, 34);
     button->setFocusPolicy(Qt::NoFocus);
     button->setPopupMode(QToolButton::InstantPopup);
   }
-  // GitHub issue 539 follow-up: Merge Down, Merge Visible and Rasterize Layer open like the tool
-  // palette's groups. A click runs the button's own command; a press and hold opens a menu of
-  // the related Layer menu commands (the layer context menu's Merge and Rasterize submenus),
-  // and the flyout corner marks that there is one. The entries are the shared actions, so
-  // shortcuts, enabled state and translations follow the Layer menu.
-  const auto make_footer_flyout = [this](QToolButton* button, const char* menu_name,
-                                         std::initializer_list<QAction*> actions) {
-    button->setProperty("layerActionButton", true);
-    button->setProperty("layerFooterFlyout", true);
-    button->setIconSize(QSize(24, 24));
-    button->setFixedSize(38, 34);
-    button->setFocusPolicy(Qt::NoFocus);
-    button->setPopupMode(QToolButton::DelayedPopup);
-    auto* menu = new QMenu(button);
-    menu->setObjectName(QLatin1String(menu_name));
-    for (auto* action : actions) {
-      if (action == nullptr) {
-        menu->addSeparator();
-      } else {
-        menu->addAction(action);
-      }
-    }
-    button->setMenu(menu);
-    return menu;
-  };
-  const auto make_merge_flyout = [&](QToolButton* button, const char* menu_name) {
-    auto* menu = make_footer_flyout(button, menu_name,
-                                    {layer_merge_down_action_, layer_merge_visible_layers_action_,
-                                     layer_merge_visible_to_new_action_, layer_merge_selected_to_new_action_, nullptr,
-                                     image_flatten_action_});
-    // As in the layer context menu: Merge Selected is off while nothing selected draws, and
-    // back on for its hotkey (the command reports it) once the menu closes.
-    connect(menu, &QMenu::aboutToShow, this, [this] {
-      refresh_merge_visible_action_state();
-      if (layer_merge_selected_to_new_action_ != nullptr && has_active_document()) {
-        layer_merge_selected_to_new_action_->setEnabled(
-            !selected_document_for_merge_copy(std::as_const(document()), selected_or_active_layer_ids())
-                 .layers()
-                 .empty());
-      }
-    });
-    connect(menu, &QMenu::aboutToHide, this, [this] {
-      if (layer_merge_selected_to_new_action_ != nullptr) {
-        layer_merge_selected_to_new_action_->setEnabled(has_active_document());
-      }
-    });
-  };
-  make_merge_flyout(merge_down_button, "layerMergeDownButtonMenu");
-  make_merge_flyout(merge_visible_button, "layerMergeVisibleButtonMenu");
-  make_footer_flyout(rasterize_button, "layerRasterizeButtonMenu",
-                     {layer_rasterize_action_, layer_rasterize_layer_style_action_, nullptr,
-                      layer_trace_image_action_});
   auto* adjustment_button_menu = new QMenu(adjustment_button);
   adjustment_button_menu->setObjectName(QStringLiteral("layerNewAdjustmentButtonMenu"));
   // The fill layers first, then the adjustments, built by the same functions as Layer > New
@@ -1979,6 +1926,42 @@ void MainWindow::create_docks() {
     }
   });
   styles_button->setMenu(styles_button_menu);
+  // GitHub issue 539 follow-up: Rasterize opens its menu on a click, as Layer Styles and New
+  // Fill or Adjustment Layer do (a press-and-hold menu behind a click that rasterized read as a
+  // button whose menu never opened). The entries are the shared actions of the layer context
+  // menu's Rasterize submenu, so shortcuts and enabled state follow it. The menu bar and the
+  // row menu hide those actions' icons (hide_menu_action_icons); this menu shows them while it
+  // is open.
+  auto* rasterize_button_menu = new QMenu(rasterize_button);
+  rasterize_button_menu->setObjectName(QStringLiteral("layerRasterizeButtonMenu"));
+  const QList<QAction*> rasterize_actions{layer_rasterize_action_, layer_rasterize_layer_style_action_,
+                                          layer_trace_image_action_};
+  for (auto* action : rasterize_actions) {
+    if (action == nullptr) {
+      continue;
+    }
+    if (action == layer_trace_image_action_) {
+      rasterize_button_menu->addSeparator();
+    }
+    rasterize_button_menu->addAction(action);
+  }
+  connect(rasterize_button_menu, &QMenu::aboutToShow, this, [rasterize_actions] {
+    for (auto* action : rasterize_actions) {
+      if (action != nullptr) {
+        action->setProperty("patchyIconWasVisibleInMenu", action->isIconVisibleInMenu());
+        action->setIconVisibleInMenu(true);
+      }
+    }
+  });
+  connect(rasterize_button_menu, &QMenu::aboutToHide, this, [rasterize_actions] {
+    for (auto* action : rasterize_actions) {
+      if (action != nullptr && action->property("patchyIconWasVisibleInMenu").isValid()) {
+        action->setIconVisibleInMenu(action->property("patchyIconWasVisibleInMenu").toBool());
+        action->setProperty("patchyIconWasVisibleInMenu", {});
+      }
+    }
+  });
+  rasterize_button->setMenu(rasterize_button_menu);
   layer_buttons->addWidget(add_button);
   layer_buttons->addWidget(add_folder_button);
   layer_buttons->addWidget(adjustment_button);
@@ -2007,8 +1990,7 @@ void MainWindow::create_docks() {
     }
   });
   // Shift-click moves to the top or bottom of the folder, Alt-click out of it (#470).
-  for (auto* button : {static_cast<QObject*>(move_up_button), static_cast<QObject*>(move_down_button),
-                       static_cast<QObject*>(merge_down_button)}) {
+  for (auto* button : {move_up_button, move_down_button, merge_down_button}) {
     record_click_modifiers(button);
   }
   const auto connect_move_button = [this](QPushButton* button, bool up) {
@@ -2026,7 +2008,7 @@ void MainWindow::create_docks() {
   connect_move_button(move_up_button, true);
   connect_move_button(move_down_button, false);
   // Shift-click is Merge Visible, Alt-click Merge Visible to New Layer (Photoshop's Ctrl+Alt+Shift+E).
-  connect(merge_down_button, &QToolButton::clicked, this, [this, merge_down_button] {
+  connect(merge_down_button, &QPushButton::clicked, this, [this, merge_down_button] {
     const auto modifiers = take_click_modifiers(merge_down_button);
     if ((modifiers & Qt::AltModifier) != 0) {
       merge_visible_to_new_layer();
@@ -2036,24 +2018,35 @@ void MainWindow::create_docks() {
       merge_down();
     }
   });
-  // Merge Visible and Rasterize Layer run the Layer menu's actions and follow their enabled
-  // state (refresh_merge_visible_action_state, refresh_layer_controls), so a button is off
-  // whenever the command is (GitHub issue 539).
-  const auto follow_action = [this](QAbstractButton* button, QAction* action) {
+  // Merge Visible runs the Layer menu's action and follows its enabled state
+  // (refresh_merge_visible_action_state), so the button is off whenever the command is (GitHub
+  // issue 539).
+  const auto follow_action = [this](QPushButton* button, QAction* action) {
     if (action == nullptr) {
       button->setEnabled(false);
       return;
     }
     button->setEnabled(action->isEnabled());
     connect(action, &QAction::changed, button, [button, action] { button->setEnabled(action->isEnabled()); });
-    connect(button, &QAbstractButton::clicked, action, [action] {
+    connect(button, &QPushButton::clicked, action, [action] {
       if (action->isEnabled()) {
         action->trigger();
       }
     });
   };
   follow_action(merge_visible_button, layer_merge_visible_layers_action_);
-  follow_action(rasterize_button, layer_rasterize_action_);
+  // The Rasterize menu button is on while any of its entries is (Trace Image to Shapes works on
+  // the pixel layers Rasterize skips).
+  const auto refresh_rasterize_button = [rasterize_button, rasterize_actions] {
+    rasterize_button->setEnabled(std::any_of(rasterize_actions.begin(), rasterize_actions.end(),
+                                             [](const QAction* action) { return action != nullptr && action->isEnabled(); }));
+  };
+  for (auto* action : rasterize_actions) {
+    if (action != nullptr) {
+      connect(action, &QAction::changed, rasterize_button, refresh_rasterize_button);
+    }
+  }
+  refresh_rasterize_button();
   connect(add_folder_button, &QPushButton::clicked, this, [this] { create_layer_folder(); });
   // Ctrl-click (Command-click on macOS) adds a vector mask instead, Ctrl+Alt a hide-all one (#447).
   connect(add_mask_button, &QPushButton::clicked, this, [this, add_mask_button] {

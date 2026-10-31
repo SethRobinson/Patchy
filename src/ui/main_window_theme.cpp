@@ -987,17 +987,6 @@ QString photoshop_style_template() {
       background: transparent;
       border-color: transparent;
     }
-    /* Merge Down, Merge Visible and Rasterize Layer open a menu on press and hold, marked
-       with the tool palette's flyout corner (GitHub issue 539 follow-up). */
-    QToolButton[layerFooterFlyout="true"]::menu-indicator {
-      image: url(@icon(tool-flyout-corner));
-      width: 7px;
-      height: 7px;
-      subcontrol-origin: padding;
-      subcontrol-position: bottom right;
-      bottom: 2px;
-      right: 2px;
-    }
     QToolButton[channelActionButton="true"] {
       padding: 0;
       min-width: 34px;

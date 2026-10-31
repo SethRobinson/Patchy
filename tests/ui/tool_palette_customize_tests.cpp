@@ -43,7 +43,6 @@
 #include <QRadioButton>
 #include <QScreen>
 #include <QScrollBar>
-#include <QStyle>
 #include <QStyleFactory>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
@@ -60,6 +59,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <array>
 #include <functional>
 #include <iostream>
 #include <initializer_list>
@@ -67,7 +67,6 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -1532,7 +1531,7 @@ void ui_layer_footer_optional_buttons_start_hidden() {
   settle();
   auto* move_up = window.findChild<QPushButton*>(QStringLiteral("layerMoveUpButton"));
   auto* move_down = window.findChild<QPushButton*>(QStringLiteral("layerMoveDownButton"));
-  auto* merge_down = window.findChild<QToolButton*>(QStringLiteral("layerMergeDownButton"));
+  auto* merge_down = window.findChild<QPushButton*>(QStringLiteral("layerMergeDownButton"));
   auto* duplicate = window.findChild<QPushButton*>(QStringLiteral("layerDuplicateButton"));
   auto* animation = window.findChild<QPushButton*>(QStringLiteral("layerAnimationButton"));
   CHECK(move_up != nullptr && move_down != nullptr && merge_down != nullptr && duplicate != nullptr &&
@@ -1606,7 +1605,7 @@ void ui_layer_footer_move_and_merge_buttons_follow_modifiers() {
   settle();
   auto* move_up = window.findChild<QPushButton*>(QStringLiteral("layerMoveUpButton"));
   auto* move_down = window.findChild<QPushButton*>(QStringLiteral("layerMoveDownButton"));
-  auto* merge_down = window.findChild<QToolButton*>(QStringLiteral("layerMergeDownButton"));
+  auto* merge_down = window.findChild<QPushButton*>(QStringLiteral("layerMergeDownButton"));
   CHECK(move_up != nullptr && move_down != nullptr && merge_down != nullptr);
   if (move_up == nullptr || move_down == nullptr || merge_down == nullptr) {
     return;
@@ -1647,7 +1646,7 @@ void ui_layer_footer_move_and_merge_buttons_follow_modifiers() {
     const auto* found = std::as_const(doc).find_layer(folder_id);
     return found != nullptr ? ids_of(found->children()) : Ids{};
   };
-  const auto click = [&](QAbstractButton* button, Qt::KeyboardModifiers modifiers, const Ids& selection,
+  const auto click = [&](QPushButton* button, Qt::KeyboardModifiers modifiers, const Ids& selection,
                          patchy::LayerId active) {
     Access::select_layers(window, selection, active);
     QApplication::processEvents();
@@ -1695,8 +1694,9 @@ void ui_layer_footer_move_and_merge_buttons_follow_modifiers() {
 }
 
 // GitHub issue 539: Merge Visible and Rasterize Layer are optional footer buttons, hidden by
-// default; shown, each runs the Layer menu's command and is enabled exactly when it is
-// (Rasterize off on a pixel layer, Merge Visible off with one visible layer).
+// default. Merge Visible runs the Layer menu's command and is enabled exactly when it is (off
+// with one visible layer); Rasterize opens its menu and is on while any entry is (Trace Image to
+// Shapes keeps it on over a pixel layer).
 void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   using Access = patchy::ui::MainWindowTestAccess;
   CustomizationSettingsGuard settings_guard;
@@ -1710,7 +1710,7 @@ void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   }
   auto&& [window, canvas] = ShownWindowFixture{};
   settle();
-  auto* merge_visible = window.findChild<QToolButton*>(QStringLiteral("layerMergeVisibleButton"));
+  auto* merge_visible = window.findChild<QPushButton*>(QStringLiteral("layerMergeVisibleButton"));
   auto* rasterize = window.findChild<QToolButton*>(QStringLiteral("layerRasterizeButton"));
   auto* merge_visible_action = require_action(window, "layerMergeVisibleLayersAction");
   auto* rasterize_action = require_action(window, "layerRasterizeAction");
@@ -1759,9 +1759,13 @@ void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
   CHECK(ran);
   settle();
+  const std::array<QAction*, 3> rasterize_entries{rasterize_action, require_action(window, "layerRasterizeLayerStyleAction"),
+                                                  require_action(window, "layerTraceImageAction")};
   const auto follows_actions = [&] {
     CHECK(merge_visible->isEnabled() == merge_visible_action->isEnabled());
-    CHECK(rasterize->isEnabled() == rasterize_action->isEnabled());
+    const bool any_entry = std::any_of(rasterize_entries.begin(), rasterize_entries.end(),
+                                       [](const QAction* action) { return action->isEnabled(); });
+    CHECK(rasterize->isEnabled() == any_entry);
   };
   // Background and Layer 1: two visible pixel layers, nothing to rasterize.
   auto& doc = Access::document(window);
@@ -1771,8 +1775,8 @@ void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   Access::select_layers(window, {paint_id}, paint_id);
   settle();
   follows_actions();
-  CHECK(merge_visible->isEnabled() && !rasterize->isEnabled());
-  // A text layer: Rasterize turns on and the button rasterizes it, one undo step.
+  CHECK(merge_visible->isEnabled() && !rasterize_action->isEnabled() && rasterize->isEnabled());
+  // A text layer: Rasterize turns on.
   patchy::Layer text(doc.allocate_layer_id(), "Text: Hi", patchy::LayerKind::Text);
   const auto text_id = text.id();
   text.set_bounds(patchy::Rect{8, 8, 96, 30});
@@ -1784,20 +1788,12 @@ void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   Access::select_layers(window, {text_id}, text_id);
   settle();
   follows_actions();
-  CHECK(rasterize->isEnabled());
+  CHECK(rasterize_action->isEnabled() && rasterize->isEnabled());
   if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel")); panel != nullptr) {
     (void)capture_widget_artifact("ui_layer_footer_merge_visible_and_rasterize", *panel);
   }
-  auto depth = Access::active_session_undo_depth(window);
-  QTest::mouseClick(rasterize, Qt::LeftButton);
-  settle();
-  CHECK(Access::active_session_undo_depth(window) == depth + 1);
-  const auto* rasterized = std::as_const(doc).find_layer(text_id);
-  CHECK(rasterized != nullptr && rasterized->kind() == patchy::LayerKind::Pixel);
-  follows_actions();
-  CHECK(!rasterize->isEnabled());
   // Merge Visible: the three visible layers become one, one undo step; then it turns off.
-  depth = Access::active_session_undo_depth(window);
+  const auto depth = Access::active_session_undo_depth(window);
   QTest::mouseClick(merge_visible, Qt::LeftButton);
   settle();
   CHECK(Access::active_session_undo_depth(window) == depth + 1);
@@ -1806,11 +1802,12 @@ void ui_layer_footer_merge_visible_and_rasterize_buttons() {
   CHECK(!merge_visible->isEnabled());
 }
 
-// GitHub issue 539 follow-up: Merge Down, Merge Visible and Rasterize Layer open a menu on press
-// and hold, like the tool palette's groups, while a click still runs the button's own command.
-// The menus hold the Layer menu's shared actions: the merge commands and Flatten Image, and the
-// two rasterize commands with Trace Image to Shapes.
-void ui_layer_footer_merge_and_rasterize_flyout_menus() {
+// GitHub issue 539 follow-up: Rasterize Layer is a menu button like Layer Styles. A real press
+// (through the window system, as a mouse delivers it) opens the menu at once and runs nothing;
+// the menu holds the layer context menu's Rasterize entries, each with its icon showing, and
+// picking Rasterize there rasterizes. Merge Down and Merge Visible stay plain buttons without a
+// menu.
+void ui_layer_footer_rasterize_button_opens_its_menu() {
   using Access = patchy::ui::MainWindowTestAccess;
   CustomizationSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -1818,48 +1815,41 @@ void ui_layer_footer_merge_and_rasterize_flyout_menus() {
   customization.hidden_layer_buttons.clear();
   window.apply_tool_palette_customization(customization);
   settle();
-  auto* merge_down = window.findChild<QToolButton*>(QStringLiteral("layerMergeDownButton"));
-  auto* merge_visible = window.findChild<QToolButton*>(QStringLiteral("layerMergeVisibleButton"));
+  for (const auto* name : {"layerMergeDownButton", "layerMergeVisibleButton"}) {
+    auto* button = window.findChild<QPushButton*>(QLatin1String(name));
+    CHECK(button != nullptr && button->menu() == nullptr && button->isVisible());
+  }
   auto* rasterize = window.findChild<QToolButton*>(QStringLiteral("layerRasterizeButton"));
   auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
-  CHECK(merge_down != nullptr && merge_visible != nullptr && rasterize != nullptr && panel != nullptr);
-  if (merge_down == nullptr || merge_visible == nullptr || rasterize == nullptr || panel == nullptr) {
+  CHECK(rasterize != nullptr && panel != nullptr);
+  if (rasterize == nullptr || panel == nullptr || rasterize->menu() == nullptr) {
+    CHECK(rasterize != nullptr && rasterize->menu() != nullptr);
     return;
   }
-  const QStringList merge_entries{QStringLiteral("layerMergeDownAction"),
-                                  QStringLiteral("layerMergeVisibleLayersAction"),
-                                  QStringLiteral("layerMergeVisibleAction"),
-                                  QStringLiteral("layerMergeSelectedToNewAction"),
-                                  QStringLiteral("imageFlattenAction")};
-  const QStringList rasterize_entries{QStringLiteral("layerRasterizeAction"),
-                                      QStringLiteral("layerRasterizeLayerStyleAction"),
-                                      QStringLiteral("layerTraceImageAction")};
-  const std::tuple<QToolButton*, const char*, QStringList> flyouts[] = {
-      {merge_down, "layerMergeDownButtonMenu", merge_entries},
-      {merge_visible, "layerMergeVisibleButtonMenu", merge_entries},
-      {rasterize, "layerRasterizeButtonMenu", rasterize_entries}};
-  for (const auto& [button, menu_name, entries] : flyouts) {
-    CHECK(button->popupMode() == QToolButton::DelayedPopup);
-    CHECK(button->property("layerFooterFlyout").toBool() && button->property("layerActionButton").toBool());
-    auto* menu = button->menu();
-    CHECK(menu != nullptr && menu->objectName() == QLatin1String(menu_name));
-    if (menu == nullptr) {
-      continue;
+  auto* menu = rasterize->menu();
+  CHECK(rasterize->popupMode() == QToolButton::InstantPopup);
+  CHECK(rasterize->property("layerActionButton").toBool());
+  CHECK(menu->objectName() == QStringLiteral("layerRasterizeButtonMenu"));
+  QList<QAction*> entries;
+  QStringList names;
+  for (auto* action : menu->actions()) {
+    if (!action->isSeparator()) {
+      entries.push_back(action);
+      names.push_back(action->objectName());
+      // The shared actions, each with its own icon.
+      CHECK(action == window.findChild<QAction*>(action->objectName()));
+      CHECK(!action->icon().isNull());
     }
-    QStringList names;
-    for (auto* action : menu->actions()) {
-      if (!action->isSeparator()) {
-        names.push_back(action->objectName());
-        // The shared actions, not copies.
-        CHECK(action == window.findChild<QAction*>(action->objectName()));
-      }
-    }
-    CHECK(names == entries);
+  }
+  CHECK(names == (QStringList{QStringLiteral("layerRasterizeAction"), QStringLiteral("layerRasterizeLayerStyleAction"),
+                              QStringLiteral("layerTraceImageAction")}));
+  std::vector<bool> icons_before;
+  for (const auto* action : entries) {
+    icons_before.push_back(action->isIconVisibleInMenu());
   }
 
-  // Layer 1 under a text layer: Rasterize and Merge Down both have something to do.
+  // Layer 1 under a text layer.
   auto& doc = Access::document(window);
-  const auto& layers = std::as_const(doc).layers();
   patchy::Layer text(doc.allocate_layer_id(), "Text: Hi", patchy::LayerKind::Text);
   const auto text_id = text.id();
   text.set_bounds(patchy::Rect{8, 8, 96, 30});
@@ -1870,79 +1860,80 @@ void ui_layer_footer_merge_and_rasterize_flyout_menus() {
   Access::refresh_layer_ui(window);
   Access::select_layers(window, {text_id}, text_id);
   settle();
-  CHECK(rasterize->isEnabled() && merge_down->isEnabled());
+  CHECK(rasterize->isEnabled());
 
-  // A hold opens the menu (showMenu blocks in exec, so a queued timer records it, saves the
-  // picture and closes it) and runs nothing.
-  const int delay = rasterize->style()->styleHint(QStyle::SH_ToolButton_PopupDelay, nullptr, rasterize);
-  const auto hold = [&](QToolButton* button, const char* artifact) {
-    auto* menu = button->menu();
-    if (menu == nullptr) {
-      return;
-    }
+  auto* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  const QPoint at = rasterize->mapTo(&window, rasterize->rect().center());
+  // Opens the menu with a real press; `in_menu` runs while it is open (exec blocks the press).
+  const auto press = [&](const std::function<void()>& in_menu) {
     int shows = 0;
-    bool shown = false;
     const auto connection = QObject::connect(menu, &QMenu::aboutToShow, menu, [&] {
       ++shows;
       QTimer::singleShot(0, menu, [&] {
-        shown = menu->isVisible();
-        // Opened upward from the button, as at the bottom of a screen (the offscreen screen
-        // places a menu anywhere).
-        menu->move(button->mapToGlobal(QPoint(0, -menu->height())));
-        QApplication::processEvents();
-        CHECK(capture_theme_mismatch(*menu).isEmpty());
-        const auto origin = panel->mapToGlobal(QPoint(0, 0));
-        const QRect menu_rect(menu->mapToGlobal(QPoint(0, 0)) - origin, menu->size());
-        const QRect all = QRect(QPoint(0, 0), panel->size()).united(menu_rect);
-        QImage shot(all.size(), QImage::Format_ARGB32_Premultiplied);
-        shot.fill(Qt::transparent);
-        {
-          QPainter painter(&shot);
-          painter.drawPixmap(-all.topLeft(), panel->grab());
-          painter.drawPixmap(menu_rect.topLeft() - all.topLeft(), menu->grab());
+        CHECK(menu->isVisible());
+        in_menu();
+        if (menu->isVisible()) {
+          menu->close();
         }
-        save_image_artifact(artifact, shot);
-        menu->close();
       });
     });
-    const auto depth = Access::active_session_undo_depth(window);
-    const QPoint center = button->rect().center();
-    send_mouse(*button, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
-    process_events_for(delay / 2);
-    CHECK(shows == 0);
-    process_events_until([&] { return shows > 0; }, delay + 1000);
-    send_mouse(*button, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
-    process_events_for(20);
+    // The press itself opens it (a hold-only menu, the first try, opened 200 ms later).
+    QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, at);
     CHECK(shows == 1);
-    CHECK(shown);
-    CHECK(!menu->isVisible());
-    CHECK(Access::active_session_undo_depth(window) == depth);
-    QObject::disconnect(connection);
-  };
-  hold(rasterize, "ui_layer_footer_rasterize_menu");
-  CHECK(require_action(window, "layerRasterizeAction")->isEnabled());
-  hold(merge_down, "ui_layer_footer_merge_menu");
-  // Merge Selected is back on for its hotkey once the menu closes.
-  CHECK(require_action(window, "layerMergeSelectedToNewAction")->isEnabled());
-
-  // A click runs the button's own command without opening its menu: Rasterize, then Merge Down.
-  const auto click_runs = [&](QToolButton* button) {
-    int shows = 0;
-    const auto connection = QObject::connect(button->menu(), &QMenu::aboutToShow, button, [&] { ++shows; });
-    const auto depth = Access::active_session_undo_depth(window);
-    click_widget_like_a_user(*button, button->rect().center());
-    process_events_for(delay + 200);
+    QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, at);
     settle();
-    CHECK(shows == 0);
-    CHECK(Access::active_session_undo_depth(window) == depth + 1);
     QObject::disconnect(connection);
+    CHECK(shows == 1);
+    CHECK(!menu->isVisible());
+    process_events_for(QApplication::doubleClickInterval() + 50);
   };
-  click_runs(rasterize);
+
+  // A press opens the menu at once, every entry showing its icon; closing it runs nothing.
+  auto depth = Access::active_session_undo_depth(window);
+  press([&] {
+    for (const auto* action : entries) {
+      CHECK(action->isIconVisibleInMenu());
+    }
+    // Opened upward from the button, as at the bottom of a screen (the offscreen screen
+    // places a menu anywhere).
+    menu->move(rasterize->mapToGlobal(QPoint(0, -menu->height())));
+    QApplication::processEvents();
+    CHECK(capture_theme_mismatch(*menu).isEmpty());
+    const auto origin = panel->mapToGlobal(QPoint(0, 0));
+    const QRect menu_rect(menu->mapToGlobal(QPoint(0, 0)) - origin, menu->size());
+    const QRect all = QRect(QPoint(0, 0), panel->size()).united(menu_rect);
+    QImage shot(all.size(), QImage::Format_ARGB32_Premultiplied);
+    shot.fill(Qt::transparent);
+    {
+      QPainter painter(&shot);
+      painter.drawPixmap(-all.topLeft(), panel->grab());
+      painter.drawPixmap(menu_rect.topLeft() - all.topLeft(), menu->grab());
+    }
+    save_image_artifact("ui_layer_footer_rasterize_menu", shot);
+  });
+  CHECK(Access::active_session_undo_depth(window) == depth);
+  CHECK(std::as_const(doc).find_layer(text_id)->kind() == patchy::LayerKind::Text);
+  // The shared actions' icon setting is back once the menu closes.
+  for (qsizetype index = 0; index < entries.size(); ++index) {
+    CHECK(entries[index]->isIconVisibleInMenu() == icons_before[static_cast<std::size_t>(index)]);
+  }
+
+  // Picking Rasterize in the menu rasterizes the text layer, one undo step.
+  press([&] {
+    const QRect row = menu->actionGeometry(entries.front());
+    QTest::mouseClick(menu, Qt::LeftButton, Qt::NoModifier, row.center());
+  });
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
   const auto* rasterized = std::as_const(doc).find_layer(text_id);
   CHECK(rasterized != nullptr && rasterized->kind() == patchy::LayerKind::Pixel);
-  const auto count = layers.size();
-  click_runs(merge_down);
-  CHECK(layers.size() == count - 1U);
+  // Nothing left to rasterize, but Trace Image to Shapes still works on the pixel layer, so the
+  // button stays on.
+  CHECK(!entries.front()->isEnabled());
+  CHECK(rasterize->isEnabled());
 }
 
 QStringList footer_ids(std::initializer_list<const char*> ids) {
@@ -3389,7 +3380,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_layer_footer_move_and_merge_buttons_follow_modifiers",
        ui_layer_footer_move_and_merge_buttons_follow_modifiers},
       {"ui_layer_footer_merge_visible_and_rasterize_buttons", ui_layer_footer_merge_visible_and_rasterize_buttons},
-      {"ui_layer_footer_merge_and_rasterize_flyout_menus", ui_layer_footer_merge_and_rasterize_flyout_menus},
+      {"ui_layer_footer_rasterize_button_opens_its_menu", ui_layer_footer_rasterize_button_opens_its_menu},
       {"ui_layer_footer_order_resolves_unknown_and_missing_ids", ui_layer_footer_order_resolves_unknown_and_missing_ids},
       {"ui_layer_footer_follows_stored_order", ui_layer_footer_follows_stored_order},
       {"ui_tool_palette_dialog_reorders_layer_buttons", ui_tool_palette_dialog_reorders_layer_buttons},

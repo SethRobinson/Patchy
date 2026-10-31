@@ -44,6 +44,8 @@
     <file alias="merge-down.svg">icons/merge-down.svg</file>
     <file alias="merge-visible.svg">icons/merge-visible.svg</file>
     <file alias="rasterize.svg">icons/rasterize.svg</file>
+    <file alias="rasterize-layer-style.svg">icons/rasterize-layer-style.svg</file>
+    <file alias="trace-image.svg">icons/trace-image.svg</file>
     <file alias="fill.svg">icons/fill.svg</file>
     <file alias="clear.svg">icons/clear.svg</file>
     <file alias="cancel.svg">icons/cancel.svg</file>
