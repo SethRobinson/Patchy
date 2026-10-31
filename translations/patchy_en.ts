@@ -25529,10 +25529,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation type="unfinished"></translation>
     </message>

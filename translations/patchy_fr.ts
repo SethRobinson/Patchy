@@ -25572,10 +25572,6 @@ Y : %2
         <translation>Modifier le fond, le contour, l&apos;opacité et le bord du calque de forme actif</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>Apparence...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>Modifier l&apos;apparence...</translation>
     </message>

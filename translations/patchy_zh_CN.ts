@@ -25513,10 +25513,6 @@ Y: %2
         <translation>编辑当前形状图层的填充、描边、不透明度和边缘</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>外观...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>编辑外观...</translation>
     </message>

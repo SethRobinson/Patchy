@@ -25572,10 +25572,6 @@ Y: %2
         <translation>Editar el relleno, trazo, opacidad y borde de la capa de forma activa</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>Apariencia...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>Editar apariencia...</translation>
     </message>

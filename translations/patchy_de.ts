@@ -25572,10 +25572,6 @@ Y: %2
         <translation>Füllung, Kontur, Deckkraft und Kante der aktiven Formebene bearbeiten</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>Darstellung...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>Darstellung bearbeiten...</translation>
     </message>

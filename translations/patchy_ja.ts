@@ -25513,10 +25513,6 @@ Clipped to the layer below</source>
         <translation>アクティブなシェイプレイヤーの塗り、線、不透明度、エッジを編集</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>外観...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>外観を編集...</translation>
     </message>
