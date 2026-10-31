@@ -175,6 +175,11 @@ bool shape_layer_exportable_as_vector(const Layer& layer, const PatternStore& pa
         (shape.stroke.opacity < 0.9999 || shape.stroke.alignment != VectorStrokeAlignment::Center)))) {
     return false;  // double-painted overlaps would differ from the union
   }
+  if (shape.stroke.enabled && shape.stroke.alignment != VectorStrokeAlignment::Center &&
+      std::any_of(shape.path.subpaths.begin(), shape.path.subpaths.end(),
+                  [](const PathSubpath& subpath) { return !subpath.closed; })) {
+    return false;  // an open contour's stroke moves sideways (rasterize_vector_stroke), no clip does that
+  }
   if (shape.stroke.enabled && shape.stroke.alignment == VectorStrokeAlignment::Outside &&
       (shape.fill.kind == VectorFillKind::None || !paint_is_opaque(shape.fill, patterns) ||
        !shape.stroke.fill_enabled)) {

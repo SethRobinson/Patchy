@@ -173,7 +173,8 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
   carry `data-patchy-stroke-align`/`-width` hints so a Patchy round trip
   restores the true alignment and width (the reader also skips the trick clip
   rather than importing it as a vector mask). Dashes convert width-multiples
-  -> absolute user units.
+  -> absolute user units. Inside/Outside on a path with an open subpath
+  rasterizes (the renderer moves that stroke sideways; no clip draws it).
 - Gradients invert the import mapping (center-chord span math, against the
   path bounds, or the canvas when align_with_layer is off); plain ramps
   emit their real stops (merged ascending union of color+alpha locations,
