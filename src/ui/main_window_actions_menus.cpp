@@ -2952,6 +2952,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   refresh_appimage_menu_entry_action();
 
   auto* about_action = help_menu->addAction(tr("&About Patchy"));
+  about_action->setObjectName(QStringLiteral("helpAboutAction"));
   about_action->setMenuRole(QAction::AboutRole);
   connect(about_action, &QAction::triggered, this, [this] { show_about(); });
 

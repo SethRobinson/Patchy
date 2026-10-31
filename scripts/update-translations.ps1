@@ -9,6 +9,8 @@
 # carry exactly the strings the code uses, then prints the unfinished count per language.
 # -Check runs the read-only build validator (fresh extraction plus all catalog
 # checks). It never updates tracked catalogs. See docs/localization.md.
+# Both modes then run the Search Commands description check (docs/command-search.md) from
+# the last built patchy_ui_visual_tests.exe and list any command without a description.
 param(
   [string]$Preset = "release",
   [switch]$Check
@@ -57,7 +59,38 @@ foreach ($catalog in $catalogs) {
   elseif ($unfinished.Count -gt 0) { $failed = $true; $note = "  <- needs translation" }
   Write-Host ("{0,-16} {1,8} {2,11}{3}" -f $catalog.Name, $messages.Count, $unfinished.Count, $note)
 }
+
+# Every Search Commands entry needs a short description (docs/command-search.md), written in
+# the same change as the command, like its translation. The UI test that checks it names what
+# is missing. It runs from the last built test program, so build patchy_ui_visual_tests first
+# when a command was added since.
+$describedOk = $true
+$testDir = @((Join-Path $repo "build\$Preset"), (Join-Path $repo "build\opt-dev")) |
+  Where-Object { Test-Path (Join-Path $_ "patchy_ui_visual_tests.exe") } | Select-Object -First 1
+if ($testDir -and ($IsWindows -or $env:OS -eq "Windows_NT")) {
+  $env:QT_QPA_PLATFORM = 'offscreen'
+  $output = & cmd /s /c "cd /d ""$testDir"" && ""$repo\scripts\run-throttled.bat"" .\patchy_ui_visual_tests.exe ui_command_search_every_command_has_a_description 2>&1"
+  $testExit = $LASTEXITCODE
+  $missingLines = @($output | Where-Object { $_ -match '^(missing command description|command without an id)' })
+  if ($testExit -eq 2 -and $missingLines.Count -eq 0) {
+    Write-Host "Search Commands description check skipped: $testDir\patchy_ui_visual_tests.exe predates it; build that target."
+  } elseif ($testExit -ne 0 -or $missingLines.Count -gt 0) {
+    $describedOk = $false
+    Write-Host ""
+    Write-Host "Search Commands entries without a description (test program in $testDir, exit $testExit):"
+    $missingLines | ForEach-Object { Write-Host "  $_" }
+    Write-Host "Add them to kCommandDescriptions in src\ui\command_search.cpp (docs/command-search.md)."
+  } else {
+    Write-Host "Every Search Commands entry has a description."
+  }
+} else {
+  Write-Host "Search Commands description check skipped: no built patchy_ui_visual_tests.exe."
+}
+
 if ($failed) {
   Write-Host "Fill the unfinished entries (docs/localization.md) and rerun with -Check."
+  exit 1
+}
+if (-not $describedOk) {
   exit 1
 }

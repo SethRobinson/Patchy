@@ -6,6 +6,7 @@
 
 #include "plugins/plugin_host.hpp"
 #include "plugins/plugin_api.h"
+#include "ui/command_search.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "core/layer.hpp"
 #include "core/vector_shape.hpp"
@@ -429,6 +430,7 @@ void MainWindow::rebuild_legacy_plugins_menu() {
     action->setData(identifier);
     action->setObjectName(QStringLiteral("legacyPluginAction"));
     action->setProperty(kLegacyPluginMenuEntryProperty, true);
+    action->setProperty(kCommandSearchDataEntryProperty, true);
     action->setProperty("patchy.channelViewBlocked", true);
     action->setStatusTip(tr("Run the %1 plug-in on the active layer").arg(legacy_plugin_sentence_name(entry->probe.display_name)));
     action->setIcon(simple_icon(QStringLiteral("8BF"), QColor(105, 185, 255)));

@@ -8,6 +8,7 @@
 #include "ui/ai_control_paths.hpp"
 #include "ui/main_window.hpp"
 #include <QStatusBar>
+#include "ui/command_search.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window_shared.hpp"
@@ -209,6 +210,7 @@ void MainWindow::refresh_script_commands(const ScriptScan& scan) {
             action->setMenuRole(QAction::NoRole);  // never merged on macOS (docs/platform.md)
             action->setObjectName(QStringLiteral("scriptAction.") + id);
             action->setProperty(kScriptCommandIdProperty, id);
+            action->setProperty(kCommandSearchDataEntryProperty, true);
             action->setProperty(kScriptHotkeyProperty, entry.hotkey);
             action->setProperty(kScriptRelativePathProperty, entry.relative_path);
             connect(action, &QAction::triggered, this, [this, action] {
