@@ -443,6 +443,7 @@ int main(int argc, char* argv[]) {
            vector_preview_tests,
            vector_point_editing_tests,
            vector_commands_tests,
+           vector_path_edits_tests,
            layer_merge_tests,
            vector_scripting_tests,
            svg_ui_tests,

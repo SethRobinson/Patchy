@@ -40,9 +40,9 @@
 
 ## Vectors and typography
 
-- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, preset, custom or saved stroke styles with a dash offset, vector masks edited like paths, radius, sides and star inset editable later, and a Paths panel (fill, stroke, selection), saved to PSDs that open in Photoshop
-- Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom, alongside pixels, masks, adjustments, and effects. Merge Layers can keep editable vectors and bitmap runs separate, merge within groups or make a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
-- Trace Image to Shapes: converts a pixel layer (logo, scan, photo) into a group of editable shape layers, one per color, with Illustrator-style presets, color, grayscale, and black-and-white modes, abutting or overlapping shapes, noise removal, and a live preview; export the result as SVG
+- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, preset, custom or saved dashes with an offset, vector masks edited like paths, anchor and segment edits (break, join, merge, delete), per-shape cut, copy, paste, color, move to a new layer, editable radius, sides and star inset, a Paths panel (fill, stroke, selection), saved to PSDs Photoshop opens
+- Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers can keep editable vectors and bitmap runs separate, merge within groups or make a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
+- Trace Image to Shapes: converts a pixel layer into a group of editable shape layers, one per color, with Illustrator-style presets, color, grayscale, and black-and-white modes, abutting or overlapping shapes, noise removal, and a live preview
 - Point text, paragraph (box) text, and area text that flows inside a closed shape or path, saved as native Photoshop text frames
 - Rich text with per-run color, font, size, and style, a searchable font picker, suggested stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, small caps, super/subscript, underline, strikethrough, ordinals, fractions) that edit selected text layers outside text editing
 - Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraph direction
@@ -64,7 +64,7 @@
 
 ## Files, photographs, and multiple documents
 
-- Multiple document interface: tabbed documents that can float in their own windows, Tile and Cascade arrangement, a Window menu listing every open document, and layers that drag or duplicate between documents. Open a folder of images as tabs (or drop the folder on the window), and export every open document as a numbered image set to a folder
+- Multiple document interface: tabs that can float in their own windows, Tile and Cascade, a Window menu of open documents, and layers that drag or duplicate between documents. Opening a file that is already open switches to its tab. Open a folder of images as tabs (or drop the folder on the window), and export every open document as a numbered image set to a folder
 - New Document templates in seven groups (screens, phones and tablets, social, web and ads, print paper, photo prints, icons and game art) showing paper sizes in mm or inches, a search across groups, a document name, color mode and bit depth (8 by default), an optional empty layer above the Background, and saved presets
 - Import multiple files as layers, preserving a layered file's contents in a group, through File > Import, a drop on the Layers panel, or pasted files. Paste a path copied as text to open it (Paste in Place: as a layer)
 - Scan and Divide Photos splits prints into images with editable crop regions, straightening, and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command are available on Windows and macOS

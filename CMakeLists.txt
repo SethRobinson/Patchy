@@ -196,6 +196,7 @@ add_library(patchy_core
   src/core/palette_presets.cpp
   src/core/font_substitutes.cpp
   src/core/path_fit.cpp
+  src/core/path_point_edits.cpp
   src/core/path_simplify.cpp
   src/core/shape_combine.cpp
   src/core/pattern_presets.cpp
@@ -1266,6 +1267,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget_spot_healing.cpp
       src/ui/canvas_widget_red_eye.cpp
       src/ui/canvas_widget_transform.cpp
+      src/ui/canvas_widget_path_edits.cpp
       src/ui/canvas_widget_vector_tools.cpp
       src/ui/canvas_widget_view.cpp
       src/ui/channel_panel.hpp
@@ -1449,6 +1451,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_stress_test.cpp
       src/ui/main_window_theme.cpp
       src/ui/main_window_theme_extras.cpp
+      src/ui/main_window_path_components.cpp
       src/ui/main_window_paths.cpp
       src/ui/main_window_tool_options.cpp
       src/ui/main_window_vector.cpp
@@ -2532,6 +2535,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_preview_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
       tests/ui/vector_commands_tests.cpp
+      tests/ui/vector_path_edits_tests.cpp
       tests/ui/layer_merge_tests.cpp
       tests/ui/vector_scripting_tests.cpp
       tests/ui/svg_ui_tests.cpp

@@ -74,7 +74,15 @@ CanvasWidget* MainWindowTestAccess::canvas(MainWindow& window) {
 }
 
 void MainWindowTestAccess::open_document_path(MainWindow& window, QString path) {
+  window.open_document_path(std::move(path), MainWindow::OpenExisting::LoadCopy);
+}
+
+void MainWindowTestAccess::open_document_path_as_user(MainWindow& window, QString path) {
   window.open_document_path(std::move(path));
+}
+
+void MainWindowTestAccess::open_recent_document(MainWindow& window, QString path) {
+  window.open_recent_document(std::move(path));
 }
 
 int MainWindowTestAccess::open_folder_path(MainWindow& window, const QString& directory) {
@@ -482,6 +490,10 @@ std::ptrdiff_t MainWindowTestAccess::undo_depth_for_canvas(MainWindow& window, C
 
 std::size_t MainWindowTestAccess::active_session_undo_depth(MainWindow& window) {
   return window.session().history.undo_stack().size();
+}
+
+bool MainWindowTestAccess::set_selected_path_components_color(MainWindow& window, QColor color) {
+  return window.set_selected_path_components_color(color);
 }
 
 void MainWindowTestAccess::undo(MainWindow& window) {

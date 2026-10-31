@@ -798,6 +798,11 @@ void MainWindow::cut_selection() {
                                                  : tr("Copied color %1").arg(color.name()));
     return;
   }
+  // Path Select or Direct Select with shapes selected: cut those (GitHub #555).
+  if (path_component_clipboard_active()) {
+    copy_path_components(true);
+    return;
+  }
   select_only_layer_if_none_active();
   auto ids = selected_layer_ids();
   if (ids.empty()) {
@@ -877,6 +882,10 @@ void MainWindow::copy_selection() {
   if (palette_panel_ != nullptr && QApplication::focusWidget() != nullptr &&
       palette_panel_->isAncestorOf(QApplication::focusWidget())) {
     copy_selected_palette_color();
+    return;
+  }
+  if (path_component_clipboard_active()) {
+    copy_path_components(false);  // the selected shapes (GitHub #555)
     return;
   }
   static_cast<void>(copy_selected_pixels(false));
@@ -1176,6 +1185,10 @@ void MainWindow::paste_clipboard(bool in_place) {
     if (!paste_clipboard_text_paths(false)) {
       show_status_error(tr("Clipboard does not contain an image"));
     }
+    return;
+  }
+  // Copied shapes paste into the target path, in place (GitHub #555).
+  if (paste_path_components()) {
     return;
   }
   if (canvas_ != nullptr) {

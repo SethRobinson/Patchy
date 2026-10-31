@@ -1199,6 +1199,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(path_simplify_action_, "path.simplify");
   connect(path_simplify_action_, &QAction::triggered, this, [this] { simplify_target_path(); });
   register_document_action(path_simplify_action_);
+  create_path_component_actions(layer_shape_menu);  // GitHub #555
   layer_shape_menu->addSeparator();
   struct CombineEntry {
     const char* text;

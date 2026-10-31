@@ -3111,6 +3111,10 @@ bool CanvasWidget::show_path_context_menu(QPointF widget_point, QPoint global_po
   add_edit_action(tr("Convert Point"), "pathMenuConvertPointAction", over_anchor,
                   PenHoverAction::Convert);
   menu.addSeparator();
+  // Break, Join, Merge, Delete Segment (GitHub #555): the point or segment under the pointer,
+  // else the selected points.
+  add_path_point_command_entries(menu, hit);
+  menu.addSeparator();
   // Path Select's selection is whole shapes, so its entries say so; the point
   // entries above act on what is under the pointer and keep their names.
   const bool shapes = path_edit_tool() == CanvasTool::PathSelect;

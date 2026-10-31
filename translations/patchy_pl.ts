@@ -16401,6 +16401,38 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Clone source cleared</source>
         <translation>Źródło klonowania wyczyszczone</translation>
     </message>
+    <message>
+        <source>Break path</source>
+        <translation>Podziel ścieżkę</translation>
+    </message>
+    <message>
+        <source>Join end points</source>
+        <translation>Połącz punkty końcowe</translation>
+    </message>
+    <message>
+        <source>Merge points</source>
+        <translation>Scal punkty</translation>
+    </message>
+    <message>
+        <source>Delete segment</source>
+        <translation>Usuń segment</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>Podziel ścieżkę w punkcie</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>Połącz punkty końcowe</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>Scal w jeden punkt</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>Usuń segment</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -23258,7 +23290,6 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>Zastosowano %1 (%2 cofa)</translation>
     </message>
     <message>
@@ -29240,6 +29271,178 @@ Zablokowano: %1</translation>
     <message>
         <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Kreski obrysu. Ustawienia z kreskami używają płaskich zakończeń, a ustawienia z kropkami okrągłych zakończeń i narożników</translation>
+    </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Obrazy z %1 są już otwarte</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 jest już otwarty</translation>
+    </message>
+    <message>
+        <source>The selected shapes only cut into others and paint nothing of their own</source>
+        <translation>Wybrane kształty tylko wycinają inne i same niczego nie malują</translation>
+    </message>
+    <message>
+        <source>Shapes combined with Intersect or Exclude share one color</source>
+        <translation>Kształty połączone przez część wspólną lub wykluczenie mają jeden kolor</translation>
+    </message>
+    <message>
+        <source>An inverted shape has one color</source>
+        <translation>Odwrócony kształt ma jeden kolor</translation>
+    </message>
+    <message>
+        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
+        <translation>Wybierz kształty na warstwie kształtu narzędziem Zaznaczanie ścieżki lub Zaznaczanie bezpośrednie</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>Podziel ścieżkę w punkcie</translation>
+    </message>
+    <message>
+        <source>Open the path at the selected points</source>
+        <translation>Otwórz ścieżkę w wybranych punktach</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>Połącz punkty końcowe</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment</source>
+        <translation>Połącz dwa wybrane punkty końcowe prostym segmentem</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>Scal w jeden punkt</translation>
+    </message>
+    <message>
+        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
+        <translation>Scal wybrane punkty końcowe lub ciąg wybranych punktów w jeden punkt pośrodku</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>Usuń segment</translation>
+    </message>
+    <message>
+        <source>Delete the selected segments and leave the path open</source>
+        <translation>Usuń wybrane segmenty i pozostaw ścieżkę otwartą</translation>
+    </message>
+    <message>
+        <source>Color Selected Shapes...</source>
+        <translation>Pokoloruj wybrane kształty...</translation>
+    </message>
+    <message>
+        <source>Give the selected shapes a fill color of their own</source>
+        <translation>Nadaj wybranym kształtom własny kolor wypełnienia</translation>
+    </message>
+    <message>
+        <source>Move Selected Shapes to New Layer</source>
+        <translation>Przenieś wybrane kształty na nową warstwę</translation>
+    </message>
+    <message>
+        <source>Move the selected shapes to a new shape layer above</source>
+        <translation>Przenieś wybrane kształty na nową warstwę kształtu powyżej</translation>
+    </message>
+    <message>
+        <source>Copy Selected Shapes to New Layer</source>
+        <translation>Kopiuj wybrane kształty na nową warstwę</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes to a new shape layer above</source>
+        <translation>Kopiuj wybrane kształty na nową warstwę kształtu powyżej</translation>
+    </message>
+    <message>
+        <source>Cut Shapes</source>
+        <translation>Wytnij kształty</translation>
+    </message>
+    <message>
+        <source>Cut the selected shapes</source>
+        <translation>Wytnij wybrane kształty</translation>
+    </message>
+    <message>
+        <source>Copy Shapes</source>
+        <translation>Kopiuj kształty</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes</source>
+        <translation>Kopiuj wybrane kształty</translation>
+    </message>
+    <message>
+        <source>Paste Shapes</source>
+        <translation>Wklej kształty</translation>
+    </message>
+    <message>
+        <source>Paste the copied shapes into the target path</source>
+        <translation>Wklej skopiowane kształty do ścieżki docelowej</translation>
+    </message>
+    <message>
+        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
+        <translation>Zaznaczaniem bezpośrednim wybierz punkt wewnątrz ścieżki lub dowolny punkt ścieżki zamkniętej</translation>
+    </message>
+    <message>
+        <source>Select two end points of open paths with Direct Select</source>
+        <translation>Zaznaczaniem bezpośrednim wybierz dwa punkty końcowe otwartych ścieżek</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
+        <translation>Zaznaczaniem bezpośrednim wybierz dwa punkty końcowe lub sąsiednie punkty jednej ścieżki</translation>
+    </message>
+    <message>
+        <source>Select a segment (both of its points) with Direct Select</source>
+        <translation>Zaznaczaniem bezpośrednim wybierz segment (oba jego punkty)</translation>
+    </message>
+    <message>
+        <source>Cut shapes</source>
+        <translation>Wytnij kształty</translation>
+    </message>
+    <message>
+        <source>Cut %1 shape(s)</source>
+        <translation>Wycięte kształty: %1</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s)</source>
+        <translation>Skopiowane kształty: %1</translation>
+    </message>
+    <message>
+        <source>Paste shapes</source>
+        <translation>Wklej kształty</translation>
+    </message>
+    <message>
+        <source>Pasted %1 shape(s)</source>
+        <translation>Wklejone kształty: %1</translation>
+    </message>
+    <message>
+        <source>Shape color</source>
+        <translation>Kolor kształtu</translation>
+    </message>
+    <message>
+        <source>Colored %1 shape(s)</source>
+        <translation>Pokolorowane kształty: %1</translation>
+    </message>
+    <message>
+        <source>Shape Color</source>
+        <translation>Kolor kształtu</translation>
+    </message>
+    <message>
+        <source>Select shapes with Path Select or Direct Select first</source>
+        <translation>Najpierw wybierz kształty narzędziem Zaznaczanie ścieżki lub Zaznaczanie bezpośrednie</translation>
+    </message>
+    <message>
+        <source>Copy shapes to new layer</source>
+        <translation>Kopiuj kształty na nową warstwę</translation>
+    </message>
+    <message>
+        <source>Move shapes to new layer</source>
+        <translation>Przenieś kształty na nową warstwę</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s) to a new layer</source>
+        <translation>Kształty skopiowane na nową warstwę: %1</translation>
+    </message>
+    <message>
+        <source>Moved %1 shape(s) to a new layer</source>
+        <translation>Kształty przeniesione na nową warstwę: %1</translation>
     </message>
 </context>
 <context>

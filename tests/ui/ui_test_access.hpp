@@ -13,6 +13,7 @@
 #include "ui/main_window.hpp"
 #include "ui/panel_column.hpp"
 
+#include <QColor>
 #include <QPoint>
 #include <QRect>
 #include <QString>
@@ -75,7 +76,11 @@ public:
 
   static CanvasWidget* canvas(MainWindow& window);
 
+  // Loads the file even when a document already shows it, as most tests reopen what they
+  // just saved; open_document_path_as_user switches to that document instead (issue 560).
   static void open_document_path(MainWindow& window, QString path);
+  static void open_document_path_as_user(MainWindow& window, QString path);
+  static void open_recent_document(MainWindow& window, QString path);
 
   static int open_folder_path(MainWindow& window, const QString& directory);
 
@@ -316,6 +321,9 @@ public:
   static std::size_t active_session_undo_depth(MainWindow& window);
 
   static void undo(MainWindow& window);
+
+  // Color Selected Shapes without its color picker (GitHub #555).
+  static bool set_selected_path_components_color(MainWindow& window, QColor color);
 
   // True while Layers-panel blend mode changes are still merging into one undo entry.
   static bool layer_blend_edit_pending(const MainWindow& window);

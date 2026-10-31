@@ -97,7 +97,9 @@ namespace patchy::ui {
 // definition per binary; this one only exposes what the perf scenarios need).
 class MainWindowTestAccess {
  public:
-  static void open_document_path(MainWindow& window, const QString& path) { window.open_document_path(path); }
+  static void open_document_path(MainWindow& window, const QString& path) {
+    window.open_document_path(path, MainWindow::OpenExisting::LoadCopy);
+  }
   static Document& document(MainWindow& window) { return window.document(); }
   static void toggle_layer_folder_expanded(MainWindow& window, patchy::LayerId id) {
     window.toggle_layer_folder_expanded(id);
