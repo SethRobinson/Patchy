@@ -349,7 +349,7 @@ struct VectorSpec {
   std::uint32_t cap{1};
   std::uint32_t join{2};
   float miter{4.0F};
-  std::vector<float> dashes;
+  std::vector<float> dashes{};
 };
 
 // PROP_VECTOR_LAYER as GIMP 3.2 writes it: colors as R'G'B'A float, a pattern resource.

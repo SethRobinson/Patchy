@@ -2039,14 +2039,14 @@ void MainWindow::create_docks() {
   // Merge Visible and Rasterize Layer run the Layer menu's actions and follow their enabled
   // state (refresh_merge_visible_action_state, refresh_layer_controls), so a button is off
   // whenever the command is (GitHub issue 539).
-  const auto follow_action = [this](QAbstractButton* button, QAction* action) {
+  const auto follow_action = [](QAbstractButton* button, QAction* action) {
     if (action == nullptr) {
       button->setEnabled(false);
       return;
     }
     button->setEnabled(action->isEnabled());
-    connect(action, &QAction::changed, button, [button, action] { button->setEnabled(action->isEnabled()); });
-    connect(button, &QAbstractButton::clicked, action, [action] {
+    QObject::connect(action, &QAction::changed, button, [button, action] { button->setEnabled(action->isEnabled()); });
+    QObject::connect(button, &QAbstractButton::clicked, action, [action] {
       if (action->isEnabled()) {
         action->trigger();
       }
