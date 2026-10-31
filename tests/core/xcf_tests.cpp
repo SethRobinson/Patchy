@@ -12,6 +12,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/style_contour.hpp"
+#include "core/vector_shape.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/image_open_diagnosis.hpp"
@@ -243,9 +244,11 @@ void check_structure_document(const Document& document) {
   CHECK(std::abs(document.print_settings().horizontal_ppi - 150.0) < 1e-6);
   const auto& layers = document.layers();
   CHECK(layers.size() == 3);
+  // GIMP's alpha-less bottom layer is an ordinary layer with only GIMP's locks (#547).
   CHECK(layers[0].name() == "Background");
-  CHECK(layers[0].pixels().format().channels == 3);  // GIMP's alpha-less bottom layer
-  CHECK(patchy::layer_locks_position(layers[0]));
+  CHECK(layers[0].lock_flags() == patchy::kLayerLockNone);
+  CHECK(patchy::background_layer(layers, document.width(), document.height()) == nullptr);
+  CHECK(rgba_at(layers[0], 10, 4) == (std::array<std::uint8_t, 4>{30, 20, 28, 255}));
   CHECK(layers[1].name() == "Group" && layers[1].kind() == patchy::LayerKind::Group);
   CHECK(layers[1].blend_mode() == BlendMode::PassThrough);
   CHECK(!patchy::layer_group_expanded(layers[1]));
@@ -278,6 +281,279 @@ void check_structure_document(const Document& document) {
 }
 
 // --- tests --------------------------------------------------------------------------------
+
+// GIMP has no Background layer (#547): an alpha-less bottom layer that covers the canvas
+// opens as an ordinary opaque layer with only the locks GIMP saved.
+void xcf_alpha_less_bottom_layer_keeps_only_gimps_locks() {
+  for (const bool locked : {false, true}) {
+    builder::Image image;
+    image.width = 16;
+    image.height = 12;
+    image.layers.push_back(pixel_layer("Top", builder::solid(4, 4, {255, 0, 0, 255}), 2, 2));
+    auto bottom = pixel_layer("Visible", gradient(16, 12, false));
+    if (locked) {
+      bottom.properties.push_back(builder::prop_u32(builder::kLockPosition, 1));
+      bottom.properties.push_back(builder::prop_u32(builder::kLockContent, 1));
+    }
+    image.layers.push_back(bottom);
+    const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+    const auto& layers = document.layers();
+    CHECK(layers.size() == 2 && layers[0].name() == "Visible");
+    CHECK(layers[0].lock_flags() ==
+          (locked ? patchy::kLayerLockPosition | patchy::kLayerLockImagePixels : patchy::kLayerLockNone));
+    CHECK(patchy::background_layer(layers, document.width(), document.height()) == nullptr);
+    CHECK(layers[0].bounds() == (patchy::Rect{0, 0, 16, 12}));
+    for (const auto [x, y] : {std::pair{0, 0}, std::pair{15, 11}, std::pair{7, 5}}) {
+      CHECK(rgba_at(layers[0], x, y) == (std::array<std::uint8_t, 4>{static_cast<std::uint8_t>(x * 3),
+                                                                     static_cast<std::uint8_t>(y * 5),
+                                                                     static_cast<std::uint8_t>((x + y) * 2), 255}));
+    }
+  }
+}
+
+// philipzae's file from #547 (local-test-fixtures/xcf-issue-547, README.txt there): the bottom
+// layer has no lock in GIMP and none in Patchy; the locks GIMP set on the others come through.
+void xcf_issue_547_bottom_layer_has_no_locks_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-547";
+  patchy::test::skip_unless_exists(dir / "README.txt");
+  const auto document = patchy::xcf::DocumentIo::read_file(dir / "layer-switches.xcf");
+  const auto& layers = document.layers();
+  CHECK(!layers.empty() && layers.front().name() == "Visible");
+  CHECK(layers.front().lock_flags() == patchy::kLayerLockNone);
+  CHECK(patchy::background_layer(layers, document.width(), document.height()) == nullptr);
+  const auto locks = [&](const char* name) {
+    const auto* layer = find_named(layers, name);
+    CHECK(layer != nullptr);
+    return layer != nullptr ? layer->lock_flags() : patchy::kLayerLockNone;
+  };
+  CHECK(locks("Lock alpha") == patchy::kLayerLockTransparentPixels);
+  CHECK(locks("Lock pixels") == patchy::kLayerLockImagePixels);
+  CHECK(locks("Lock position and size") == patchy::kLayerLockPosition);
+  CHECK(locks("Lock visibility") == patchy::kLayerLockNone);
+  CHECK(locks("Lock all") ==
+        (patchy::kLayerLockTransparentPixels | patchy::kLayerLockImagePixels | patchy::kLayerLockPosition));
+}
+
+// --- GIMP 3.2 vector layers (docs/xcf.md, "Vector layers") ----------------------------------
+
+struct VectorSpec {
+  bool modified{false};
+  std::uint32_t tattoo{5};
+  bool filled{true};
+  bool stroked{true};
+  std::uint32_t fill_style{0};
+  std::array<float, 4> fill{1.0F, 0.0F, 0.0F, 1.0F};
+  std::array<float, 4> stroke{0.0F, 0.0F, 1.0F, 1.0F};
+  float width{2.0F};
+  std::uint32_t cap{1};
+  std::uint32_t join{2};
+  float miter{4.0F};
+  std::vector<float> dashes;
+};
+
+// PROP_VECTOR_LAYER as GIMP 3.2 writes it: colors as R'G'B'A float, a pattern resource.
+[[nodiscard]] builder::Property vector_layer_property(const VectorSpec& spec) {
+  builder::Bytes b;
+  const auto color = [&b](const std::array<float, 4>& rgba) {
+    b.string("R'G'B'A float");
+    b.u32(16);
+    for (const float value : rgba) {
+      std::uint32_t bits = 0;
+      std::memcpy(&bits, &value, sizeof(bits));
+      for (int i = 0; i < 4; ++i) b.u8(static_cast<std::uint8_t>(bits >> (8 * i)));  // little-endian samples
+    }
+    b.u32(0);  // no profile
+  };
+  b.u32(spec.modified ? 1 : 0);
+  b.u32(spec.tattoo);
+  b.u32(spec.filled ? 1 : 0);
+  b.u32(spec.stroked ? 1 : 0);
+  b.u32(spec.fill_style);
+  b.u32(1);
+  color(spec.fill);
+  b.string("Pine");
+  b.string("${gimp_data_dir}/patterns/Wood/pine.pat");
+  b.u32(0);
+  b.u32(0);  // stroke style: solid
+  b.u32(1);
+  color(spec.stroke);
+  b.u32(0);  // a NULL pattern
+  b.f32(spec.width);
+  b.u32(spec.cap);
+  b.u32(spec.join);
+  b.f32(spec.miter);
+  b.u32(static_cast<std::uint32_t>(spec.dashes.size()));
+  for (const float dash : spec.dashes) b.f32(dash);
+  return builder::Property{47, b.data, std::nullopt};
+}
+
+// A version 18+ path record: one closed polygon (anchors only) per stroke.
+[[nodiscard]] std::vector<std::uint8_t> path_structure(const std::string& name, std::uint32_t tattoo,
+                                                       const std::vector<std::vector<std::pair<double, double>>>& strokes) {
+  builder::Bytes body;
+  body.u32(20);  // PROP_TATTOO
+  body.u32(4);
+  body.u32(tattoo);
+  body.u32(0);
+  body.u32(0);
+  body.u32(1);  // version
+  body.u32(static_cast<std::uint32_t>(strokes.size()));
+  for (const auto& points : strokes) {
+    body.u32(1);  // Bezier
+    body.u32(1);  // closed
+    body.u32(2);  // floats per point
+    body.u32(static_cast<std::uint32_t>(points.size()));
+    for (const auto& [x, y] : points) {
+      body.u32(0);  // anchor
+      body.f32(static_cast<float>(x));
+      body.f32(static_cast<float>(y));
+    }
+  }
+  builder::Bytes b;
+  b.string(name);
+  b.u32(static_cast<std::uint32_t>(body.data.size()));
+  b.append(body.data);
+  return b.data;
+}
+
+void xcf_vector_layers_open_as_shape_layers() {
+  builder::Image image;
+  image.version = 24;
+  image.width = 40;
+  image.height = 30;
+  // A square with a square hole: GIMP fills a path's strokes by the even-odd rule.
+  image.path_structures.push_back(
+      path_structure("Ring", 5, {{{4, 4}, {28, 4}, {28, 26}, {4, 26}}, {{12, 12}, {20, 12}, {20, 18}, {12, 18}}}));
+  image.path_structures.push_back(path_structure("Box", 9, {{{30, 2}, {38, 2}, {38, 10}, {30, 10}}}));
+  const auto vector_layer = [](const std::string& name, const VectorSpec& spec) {
+    auto layer = pixel_layer(name, builder::solid(40, 30, {0, 255, 0, 255}));
+    layer.properties.push_back(vector_layer_property(spec));
+    return layer;
+  };
+  image.layers.push_back(vector_layer("Lost path", VectorSpec{.tattoo = 77}));
+  image.layers.push_back(vector_layer("Painted on", VectorSpec{.modified = true, .tattoo = 9}));
+  image.layers.push_back(vector_layer("Pattern fill", VectorSpec{.tattoo = 9, .fill_style = 1}));
+  image.layers.push_back(vector_layer("Dashed outline",
+                                      VectorSpec{.tattoo = 9, .filled = false, .stroke = {1.0F, 1.0F, 0.0F, 0.5F},
+                                                 .width = 1.5F, .cap = 2, .join = 0, .miter = 0.0F,
+                                                 .dashes = {3.0F, 1.0F}}));
+  image.layers.push_back(vector_layer("Ring", VectorSpec{}));
+  const auto bytes = builder::write(image);
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read(bytes, &notices);
+
+  // Damaged vector records open or refuse, never crash.
+  std::uint64_t state = 0x2545F4914F6CDD1DULL;
+  for (int round = 0; round < 400; ++round) {
+    auto damaged = bytes;
+    state ^= state << 13U;
+    state ^= state >> 7U;
+    state ^= state << 17U;
+    damaged[static_cast<std::size_t>(state % damaged.size())] ^= static_cast<std::uint8_t>(1U << (state >> 61U));
+    if (round % 4 == 0) {
+      damaged.resize(static_cast<std::size_t>((state >> 8U) % damaged.size()));
+    }
+    try {
+      (void)patchy::xcf::DocumentIo::read(damaged);
+    } catch (const std::runtime_error&) {
+    }
+  }
+
+  const auto* ring = find_named(document.layers(), "Ring");
+  CHECK(ring != nullptr && patchy::layer_is_vector_shape(*ring));
+  if (ring != nullptr && ring->vector_shape() != nullptr) {
+    const auto& shape = *ring->vector_shape();
+    CHECK(shape.path.subpaths.size() == 2);
+    CHECK(shape.path.subpaths[0].shape_group == 0 && shape.path.subpaths[1].shape_group == 0);
+    CHECK(shape.path.subpaths[0].closed && shape.path.subpaths[0].anchors.size() == 4);
+    CHECK(shape.path.subpaths[0].anchors[1].anchor_x == 28.0 && shape.path.subpaths[0].anchors[1].anchor_y == 4.0);
+    CHECK(shape.fill.kind == patchy::VectorFillKind::Solid && shape.fill.color == (RgbColor{255, 0, 0}));
+    CHECK(shape.stroke.enabled && shape.stroke.width == 2.0);
+    CHECK(shape.stroke.alignment == patchy::VectorStrokeAlignment::Center);
+    CHECK(shape.stroke.cap == patchy::VectorStrokeCap::Round && shape.stroke.join == patchy::VectorStrokeJoin::Bevel);
+    CHECK(shape.stroke.miter_limit == 4.0 && shape.stroke.dashes.empty());
+    CHECK(shape.stroke.content.kind == patchy::VectorFillKind::Solid &&
+          shape.stroke.content.color == (RgbColor{0, 0, 255}));
+    // Patchy drew it: red inside, nothing in the hole, the stroke on the edge; GIMP's green
+    // raster is gone.
+    const auto at = [&](std::int32_t x, std::int32_t y) {
+      return rgba_at(*ring, x - ring->bounds().x, y - ring->bounds().y);
+    };
+    CHECK(at(8, 20) == (std::array<std::uint8_t, 4>{255, 0, 0, 255}));
+    CHECK(at(16, 15)[3] == 0);
+    CHECK(at(28, 15)[2] > 200 && at(28, 15)[0] < 60);
+  }
+
+  const auto* dashed = find_named(document.layers(), "Dashed outline");
+  CHECK(dashed != nullptr && patchy::layer_is_vector_shape(*dashed));
+  if (dashed != nullptr && dashed->vector_shape() != nullptr) {
+    const auto& shape = *dashed->vector_shape();
+    CHECK(shape.fill.kind == patchy::VectorFillKind::None);
+    CHECK(shape.stroke.enabled && shape.stroke.width == 1.5 && shape.stroke.cap == patchy::VectorStrokeCap::Square);
+    CHECK(shape.stroke.join == patchy::VectorStrokeJoin::Miter && shape.stroke.miter_limit == 1.0);
+    CHECK(shape.stroke.dashes == (std::vector<double>{3.0, 1.0}));
+    CHECK(std::abs(shape.stroke.opacity - 0.5) < 1e-6 && shape.stroke.content.color == (RgbColor{255, 255, 0}));
+  }
+
+  // What a shape cannot hold keeps GIMP's pixels, with one notice naming the Paths panel.
+  for (const char* name : {"Lost path", "Painted on", "Pattern fill"}) {
+    const auto* layer = find_named(document.layers(), name);
+    CHECK(layer != nullptr && !patchy::layer_is_vector_shape(*layer));
+    if (layer != nullptr) {
+      CHECK(rgba_at(*layer, 3, 3) == (std::array<std::uint8_t, 4>{0, 255, 0, 255}));
+    }
+  }
+  CHECK(std::count_if(notices.begin(), notices.end(), [](const std::string& notice) {
+          return notice.find("Paths panel") != std::string::npos;
+        }) == 1);
+  CHECK(document.paths().size() == 2);
+}
+
+// The committed GIMP 3.2 file (scripts/dev/xcf/make_vector_layer_fixture.py) and philipzae's
+// #548 file (local-test-fixtures/xcf-issue-548) against GIMP's merge of their visible layers.
+void xcf_vector_layers_match_gimp_renders() {
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read_file(
+      patchy::test::committed_format_fixture_path("xcf", "vector-layers.xcf"), &notices);
+  for (const char* name : {"Fill and stroke", "Fill only", "Stroke only", "Miter stroke", "Dashed stroke"}) {
+    const auto* layer = find_named(document.layers(), name);
+    CHECK(layer != nullptr && patchy::layer_is_vector_shape(*layer));
+  }
+  // Painted on after GIMP drew it: GIMP's pixels, the notice, and its path in the Paths panel.
+  const auto* painted = find_named(document.layers(), "Painted on");
+  CHECK(painted != nullptr && !patchy::layer_is_vector_shape(*painted));
+  CHECK(notices.size() == 1 && notices.front().find("Paths panel") != std::string::npos);
+  CHECK(document.paths().size() == 6);
+  // GIMP's Background has no alpha and no lock: an ordinary layer (#547).
+  CHECK(document.layers().front().name() == "Background" &&
+        document.layers().front().lock_flags() == patchy::kLayerLockNone);
+  const auto composite = composite_rgba8(document);
+  write_png_artifact("xcf-renders", "vector-layers", composite);
+  const auto difference =
+      compare_with_png(composite, patchy::test::committed_format_fixture_path("xcf", "vector-layers.png"));
+  CHECK(difference.has_value());
+  if (difference.has_value()) {
+    std::cout << "  vector-layers: mean " << std::setprecision(3) << difference->mean << ", worst " << difference->worst << "\n";
+    CHECK(difference->mean <= 1.7);  // measured 1.37: antialiased edges
+  }
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-548";
+  patchy::test::skip_unless_exists(dir / "README.txt");
+  const auto paths = patchy::xcf::DocumentIo::read_file(dir / "paths.xcf");
+  std::size_t shapes = 0;
+  for (const auto& layer : paths.layers()) {
+    shapes += patchy::layer_is_vector_shape(layer) ? 1U : 0U;
+  }
+  CHECK(shapes == 3);
+  CHECK(paths.paths().size() == 3);
+  const auto reporter_composite = composite_rgba8(paths);
+  write_png_artifact("xcf-renders", "issue-548-paths", reporter_composite);
+  const auto reporter = compare_with_png(reporter_composite, dir / "paths.png");
+  CHECK(reporter.has_value());
+  if (reporter.has_value()) {
+    std::cout << "  paths: mean " << std::setprecision(3) << reporter->mean << ", worst " << reporter->worst << "\n";
+    CHECK(reporter->mean <= 2.8);  // measured 2.21: also an aliased stroke Patchy draws smooth
+  }
+}
 
 // GIMP 3.2's renders of its legacy grain modes over 8-bit samples (modes-legacy.xcf in
 // local-test-fixtures/xcf matched these kernels on every opaque pixel).
@@ -2437,5 +2713,9 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_bottom_erase_layer_draws_as_normal", xcf_bottom_erase_layer_draws_as_normal},
       {"xcf_issue_487_samples_open_like_gimp", xcf_issue_487_samples_open_like_gimp},
       {"xcf_layer_trees_match_gimp_if_available", xcf_layer_trees_match_gimp_if_available},
+      {"xcf_alpha_less_bottom_layer_keeps_only_gimps_locks", xcf_alpha_less_bottom_layer_keeps_only_gimps_locks},
+      {"xcf_issue_547_bottom_layer_has_no_locks_if_available", xcf_issue_547_bottom_layer_has_no_locks_if_available},
+      {"xcf_vector_layers_open_as_shape_layers", xcf_vector_layers_open_as_shape_layers},
+      {"xcf_vector_layers_match_gimp_renders", xcf_vector_layers_match_gimp_renders},
   };
 }

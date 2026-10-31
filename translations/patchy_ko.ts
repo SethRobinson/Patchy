@@ -12623,10 +12623,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>일부 GIMP 레이어 효과는 Patchy에 대응하는 기능이 없어 적용하지 않았습니다. 해당 레이어는 효과 없이 픽셀을 표시합니다.</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>GIMP 벡터 레이어는 픽셀 레이어로 열렸습니다.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP 링크 레이어는 픽셀 레이어로 열렸으며 더 이상 연결된 파일을 따르지 않습니다.</translation>
     </message>
@@ -14225,6 +14221,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Layers Panel</source>
         <translation>레이어 패널</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>일부 GIMP 벡터 레이어는 모양 레이어가 담을 수 없는 칠이나 획(패턴 또는 나중에 그려 넣은 픽셀)이 있어 픽셀 레이어로 열렸습니다. 해당 패스는 패스 패널에 있습니다.</translation>
     </message>
 </context>
 <context>

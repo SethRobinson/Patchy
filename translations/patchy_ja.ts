@@ -12623,10 +12623,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>GIMP のレイヤー効果の一部は Patchy に相当するものがないため、適用していません。それらのレイヤーは効果なしのピクセルを表示します。</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>GIMP のベクターレイヤーはピクセルレイヤーとして開きました。</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP のリンクレイヤーはピクセルレイヤーとして開きました。リンク先のファイルにはもう追従しません。</translation>
     </message>
@@ -14225,6 +14221,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Layers Panel</source>
         <translation>レイヤーパネル</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>一部の GIMP ベクトルレイヤーは、シェイプレイヤーで保持できない塗りや線（パターン、または後から描き込んだピクセル）を持つため、ピクセルレイヤーとして開きました。そのパスはパスパネルにあります。</translation>
     </message>
 </context>
 <context>

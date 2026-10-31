@@ -12623,10 +12623,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>部分 GIMP 图层效果在 Patchy 中没有对应功能，未予应用；这些图层显示未加效果的像素。</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>GIMP 矢量图层已作为像素图层打开。</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP 链接图层已作为像素图层打开，不再跟随所链接的文件。</translation>
     </message>
@@ -14225,6 +14221,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Layers Panel</source>
         <translation>图层面板</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>部分 GIMP 矢量图层的填充或描边无法由形状图层保存（图案，或之后在其上绘制的像素），因此已作为像素图层打开。它们的路径在“路径”面板中。</translation>
     </message>
 </context>
 <context>

@@ -12691,10 +12691,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Некоторые эффекты слоёв GIMP не имеют аналога в Patchy и не применены; эти слои показывают свои пиксели без эффекта.</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>Векторные слои GIMP открыты как пиксельные слои.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Связанные слои GIMP открыты как пиксельные слои; они больше не следуют за связанными файлами.</translation>
     </message>
@@ -14311,6 +14307,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Layers Panel</source>
         <translation>Панель «Слои»</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>У некоторых векторных слоёв GIMP есть заливка или обводка, которую слой фигуры не может хранить (узор или пиксели, нарисованные позже), поэтому они открыты как пиксельные слои. Их контуры находятся на панели «Контуры».</translation>
     </message>
 </context>
 <context>

@@ -12657,10 +12657,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Einige GIMP-Ebeneneffekte haben in Patchy keine Entsprechung und wurden nicht angewendet; diese Ebenen zeigen ihre Pixel ohne den Effekt.</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>GIMP-Vektorebenen wurden als Pixelebenen geöffnet.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP-Verknüpfungsebenen wurden als Pixelebenen geöffnet; sie folgen ihren verknüpften Dateien nicht mehr.</translation>
     </message>
@@ -14268,6 +14264,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Layers Panel</source>
         <translation>Ebenenbedienfeld</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>Einige GIMP-Vektorebenen haben eine Füllung oder Kontur, die eine Formebene nicht aufnehmen kann (ein Muster oder später darauf gemalte Pixel), und wurden deshalb als Pixelebenen geöffnet. Ihre Pfade sind im Pfade-Bedienfeld.</translation>
     </message>
 </context>
 <context>

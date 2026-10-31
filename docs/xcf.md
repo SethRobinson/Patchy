@@ -80,13 +80,35 @@ curve before that conversion.
   label, brown to orange.
 - Layer and group masks become Patchy masks at the layer's bounds; PROP_APPLY_MASK off
   disables the mask.
-- A bottom layer without alpha covering the canvas at full opacity, Normal, with no mask,
-  effect or text becomes the Background layer (no alpha, position locked).
+- GIMP has no Background layer: an alpha-less bottom layer opens as an ordinary opaque layer
+  with only the locks GIMP saved, never as Patchy's Background (#547).
 - The floating selection opens as an ordinary layer above the layer it belongs to (notice);
   one attached to a channel or mask is dropped (notice).
-- GIMP 3.2 vector layers and link layers open as their pixels (notice).
+- GIMP 3.2 vector layers open as shape layers ("Vector layers" below); link layers open as
+  their pixels (notice).
 - GIMP's active layer stays active; when the import replaced it (an Erase or Split layer), its
   group stands in, else the top layer (#487: such a file failed to open).
+
+## Vector layers
+
+PROP_VECTOR_LAYER (XCF 24, GIMP 3.2), as the published description lays it out: modified,
+the path's tattoo, filled, stroked, then the fill (style 0 solid or 1 pattern, antialias, a
+GeglColor, a pattern RESOURCE) and the stroke (the same four, then width in pixels, cap 0 butt
+1 round 2 square, join 0 miter 1 round 2 bevel, miter limit, dash count and dashes in stroke
+widths). `vector_layer_shape` makes a shape layer from the path record with that tattoo
+(PROP_TATTOO in its properties): all of its strokes in one shape group, since GIMP fills a
+path even-odd; the solid fill color; a centered stroke with GIMP's width, cap, join, miter limit
+(below 1 read as 1, which bevels as GIMP does) and dashes, its color's alpha as the stroke
+opacity. Patchy draws the shape and drops GIMP's raster; the path also stays in the Paths panel.
+
+GIMP's pixels stay, with the notice that the path is in the Paths panel, for a pattern fill or
+stroke, a fill color with alpha, a color in a format `gegl_color_to_srgb` does not read, the
+modified flag (pixels painted on after GIMP drew the layer), any layer effect, a text parasite,
+or no path with the tattoo. Antialias off is not kept: the shape draws smooth. Against GIMP
+3.2.6 (`xcf_vector_layers_match_gimp_renders`): `test-fixtures/xcf/vector-layers.xcf`
+(`scripts/dev/xcf/make_vector_layer_fixture.py`) 1.4 levels mean, at antialiased edges;
+philipzae's #548 file (`local-test-fixtures/xcf-issue-548`) 2.2, mostly one stroke GIMP drew
+aliased, whose last dashes GIMP's aliased stroker places a few pixels away.
 
 ## Blend modes
 
@@ -276,7 +298,8 @@ values. A malformed list yields nothing.
 (`manifest.txt` lists what each covers); `render_with_gimp.py` renders any folder of .xcf files
 the same way; `tile_report.py` breaks a mode fixture's difference down per mode;
 `xcf_dump.py` prints a file's structure. The small GIMP-made files in `test-fixtures/xcf/`
-(text, structure, modes, modes-legacy, groups, indexed, the compressed trio) are committed.
+(text, structure, modes, modes-legacy, groups, indexed, vector-layers, the compressed trio)
+are committed.
 
 Differences in 8-bit levels on premultiplied RGBA (mean over the canvas, worst pixel),
 October 25, 2026: legacy modes 0.37 (worst 45 at soft tile edges); default modes 3.8 (the
@@ -317,7 +340,8 @@ outlines; philipzae's #508/#509 files in `local-test-fixtures/xcf-issue-508`), t
 channels, paths, guides and metadata, the wrappers, hostile input, the registry and
 open-by-content, a Unicode path, the committed GIMP files against GIMP's renders, the local
 fixture set and corpus when present, every local file's layer tree against GIMP's, the #487
-samples (Erase and Split layers, an active Split layer); `blend_math_gimp_*` pin the GIMP mode kernels. UI
+samples (Erase and Split layers, an active Split layer), the #547 bottom layer's locks, vector
+layers as shapes and their fallbacks (#548); `blend_math_gimp_*` pin the GIMP mode kernels. UI
 (`tests/ui/xcf_ui_tests.cpp`, filter `ui_xcf_`): opening by name, compressed name and content,
 GIMP modes in the Layers panel, editable text and its PSD save, outlined text redrawn with a
 Stroke style that an edit keeps.
