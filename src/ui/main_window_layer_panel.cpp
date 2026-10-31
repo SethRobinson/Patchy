@@ -4265,8 +4265,15 @@ QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
   const auto& layer = *row.layer;
   const auto effective_lock_flags = row.ancestor_lock_flags | layer_lock_flags(layer);
   // One line for every lock (GitHub issue 483): "Locked: All", or the partial locks joined.
+  // The Background names itself instead of the transparency, position and auto-nest locks it
+  // always carries, and adds only an Image lock (#483 follow-up): "Locked: Background, Image".
   QStringList locks;
-  if ((effective_lock_flags & kLayerLockAll) == kLayerLockAll) {
+  if (row.background_row) {
+    locks << tr("Background");
+    if ((effective_lock_flags & kLayerLockImagePixels) != kLayerLockNone) {
+      locks << tr("Image");
+    }
+  } else if ((effective_lock_flags & kLayerLockAll) == kLayerLockAll) {
     locks << tr("All");
   } else {
     if ((effective_lock_flags & kLayerLockTransparentPixels) != kLayerLockNone) {
@@ -4279,7 +4286,7 @@ QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
       locks << tr("Position");
     }
   }
-  if ((effective_lock_flags & kLayerLockArtboardAutonest) != kLayerLockNone) {
+  if (!row.background_row && (effective_lock_flags & kLayerLockArtboardAutonest) != kLayerLockNone) {
     locks << tr("Auto-nesting");
   }
   const auto lock_line =

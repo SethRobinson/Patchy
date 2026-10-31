@@ -6258,11 +6258,12 @@ void ui_layer_list_row_masks_map_scroll_bars_without_warnings() {
 }
 
 // A document with one layer per lock (GitHub issues 483, 484), above a Background.
-patchy::Document make_lock_rows_document() {
+patchy::Document make_lock_rows_document(
+    patchy::LayerLockFlags background_flags = patchy::kLayerLockTransparentPixels | patchy::kLayerLockPosition) {
   patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
   auto& background = document.add_pixel_layer(
       "Background", solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
-  patchy::set_layer_lock_flags(background, patchy::kLayerLockTransparentPixels | patchy::kLayerLockPosition);
+  patchy::set_layer_lock_flags(background, background_flags);
   const auto add = [&document](const char* name, patchy::LayerLockFlags flags, QColor color) -> patchy::Layer& {
     auto& layer = document.add_pixel_layer(name, solid_pixels(64, 48, patchy::PixelFormat::rgba8(), color));
     patchy::set_layer_lock_flags(layer, flags);
@@ -6284,7 +6285,8 @@ patchy::Document make_lock_rows_document() {
 }
 
 // GitHub issue 483: a row's tooltip names its locks on one line, "Locked: ...", for every lock
-// (the folder's locks pass to its children), and the old per-lock lines are gone.
+// (the folder's locks pass to its children), and the old per-lock lines are gone. The Background
+// says "Locked: Background" and adds only an Image lock (#483 follow-up).
 void ui_layer_row_tooltip_names_every_lock() {
   auto&& [window, canvas] = ShownWindowFixture{};
   window.add_document_session(make_lock_rows_document(), QStringLiteral("Lock Tooltips"));
@@ -6310,7 +6312,7 @@ void ui_layer_row_tooltip_names_every_lock() {
   CHECK(lock_lines("Two") == QStringList{QStringLiteral("Locked: Transparent, Position")});
   CHECK(lock_lines("Nesting") == QStringList{QStringLiteral("Locked: Auto-nesting")});
   CHECK(lock_lines("Everything") == QStringList{QStringLiteral("Locked: All")});
-  CHECK(lock_lines("Background") == QStringList{QStringLiteral("Locked: Transparent, Position")});
+  CHECK(lock_lines("Background") == QStringList{QStringLiteral("Locked: Background")});
   // A folder's lock reaches the rows inside it.
   CHECK(lock_lines("Locked Folder") == QStringList{QStringLiteral("Locked: All")});
   for (int index = 0; index < layer_list->count(); ++index) {
@@ -6319,6 +6321,13 @@ void ui_layer_row_tooltip_names_every_lock() {
     }
   }
   CHECK(tip("Everything").startsWith(QStringLiteral("Everything\n100% opacity\nLocked: All")));
+
+  // A Background with every lock, auto-nest included, names only the Image lock beside itself.
+  window.add_document_session(make_lock_rows_document(patchy::kLayerLockStoredFlags),
+                              QStringLiteral("Background Locks"));
+  QApplication::processEvents();
+  CHECK(lock_lines("Background") == QStringList{QStringLiteral("Locked: Background, Image")});
+  CHECK(lock_lines("Transparent") == QStringList{QStringLiteral("Locked: Transparent")});
 }
 
 // GitHub issue 484: the lock buttons' icons share one height, a 14 px glyph in a 16 px icon with
