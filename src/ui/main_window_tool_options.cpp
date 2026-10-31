@@ -68,6 +68,7 @@
 #include "ui/shape_appearance_dialog.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
+#include "ui/stroke_preset_manager_dialog.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/start_panel.hpp"
 #include "ui/tile_preview_window.hpp"
@@ -1063,12 +1064,25 @@ const std::vector<MainWindow::PresetManagerEntry>& MainWindow::preset_manager_en
       {QT_TR_NOOP("Shapes Manager..."), QT_TR_NOOP("Import .csh or SVG shapes for the Custom Shape tool."),
        "editPresetsCustomShapesAction", "preferencesPresetsCustomShapesButton", "edit.presets_custom_shapes",
        &MainWindow::open_custom_shape_manager, true},
+      {QT_TR_NOOP("Stroke Presets..."),
+       QT_TR_NOOP("Rename, sort and delete the stroke presets saved in Shape Appearance."),
+       "editPresetsStrokePresetsAction", "preferencesPresetsStrokePresetsButton", "edit.presets_stroke_presets",
+       &MainWindow::open_stroke_preset_manager, false},
   };
   return entries;
 }
 
 void MainWindow::open_style_manager(QWidget* parent) {
   (void)request_style_manager(parent != nullptr ? parent : this, style_library(), {}, /*offer_use=*/false);
+}
+
+void MainWindow::open_stroke_preset_manager(QWidget* parent) {
+  // Preselect the preset the options bar shows; edits are saved by the dialog.
+  const auto chosen = request_stroke_preset_manager(parent != nullptr ? parent : this, vector_stroke_preset_shown_);
+  refresh_vector_stroke_preset_menu();
+  if (chosen.has_value()) {
+    apply_vector_stroke_style_preset(*chosen);
+  }
 }
 
 void MainWindow::open_gradient_manager(QWidget* parent) {
@@ -2953,7 +2967,19 @@ void MainWindow::load_tool_settings() {
       1000.0);
   current_vector_stroke_dash_preset_ = stroke_dash_preset_from_token(
       settings.value(QStringLiteral("tools/vectorStrokeDashes")).toString().toStdString());
-  refresh_vector_stroke_dash_combo(current_vector_stroke_dash_preset_);
+  current_vector_stroke_style_.reset();
+  if (const auto style = parse_stroke_style_presets_json(
+          settings.value(QStringLiteral("tools/vectorStrokeStyle")).toString());
+      !style.empty()) {
+    VectorStroke stroke;
+    apply_stroke_style_preset(stroke, style.front());
+    current_vector_stroke_style_ = stroke;
+  }
+  refresh_vector_stroke_dash_combo(
+      current_vector_stroke_style_.has_value()
+          ? stroke_dash_preset_for(current_vector_stroke_style_->dashes, current_vector_stroke_style_->cap)
+          : std::optional<StrokeDashPreset>(current_vector_stroke_dash_preset_));
+  refresh_vector_stroke_preset_menu();
   // tools/vectorStrokeEnabled keeps its key: a saved "off" shows as 0 in the width field
   // (GitHub issue 311), and tools/vectorStrokeWidth keeps the last real width.
   if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
@@ -3464,6 +3490,14 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/vectorLineWeight"), current_vector_line_weight_);
   settings.setValue(QStringLiteral("tools/vectorStrokeDashes"),
                     QString::fromUtf8(stroke_dash_preset_token(current_vector_stroke_dash_preset_)));
+  // A one-entry stroke preset array (the shapeAppearance/strokeStylePresets format).
+  if (current_vector_stroke_style_.has_value()) {
+    settings.setValue(QStringLiteral("tools/vectorStrokeStyle"),
+                      stroke_style_presets_json({stroke_style_preset_from(*current_vector_stroke_style_,
+                                                                          QStringLiteral("current"))}));
+  } else {
+    settings.remove(QStringLiteral("tools/vectorStrokeStyle"));
+  }
   settings.setValue(QStringLiteral("tools/lineArrowStart"), current_line_arrow_start_);
   settings.setValue(QStringLiteral("tools/lineArrowEnd"), current_line_arrow_end_);
   if (auto* sides = findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")); sides != nullptr) {

@@ -14345,6 +14345,38 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Stroke preset %1</source>
         <translation>Konturvorgabe %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>Konturvorgaben</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>Noch keine gespeicherten Konturvorgaben. Richten Sie in Formdarstellung die Kontur ein und klicken Sie in der Zeile Vorgabe auf Speichern...</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>Ausgewählte Vorgabe löschen (Entf)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>Vorgabe verwenden</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>Die Vorgabe für neue Formen und die ausgewählten Formebenen verwenden</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>Konturvorgabe löschen</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>Konturvorgabe &quot;%1&quot; löschen?</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>Es gibt bereits eine Konturvorgabe namens &quot;%1&quot;.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29361,6 +29393,30 @@ Fixiert: %1</translation>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>%1 Form(en) auf eine neue Ebene verschoben</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>Gespeicherte Konturvorgaben: Ausrichtung, Enden, Ecken, Striche und Strichversatz</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>Konturvorgaben...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>In Formdarstellung gespeicherte Konturvorgaben umbenennen, sortieren und löschen.</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>Konturvorgabe: %1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>Vorgaben verwalten...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>Keine Konturvorgaben</translation>
     </message>
 </context>
 <context>

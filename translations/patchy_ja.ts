@@ -14302,6 +14302,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Stroke preset %1</source>
         <translation>線のプリセット %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>線のプリセット</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>保存された線のプリセットはまだありません。シェイプの外観で線を設定し、プリセット行の「保存...」をクリックしてください。</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>選択したプリセットを削除 (Del)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>プリセットを使用</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>新しいシェイプと選択したシェイプレイヤーにプリセットを使用</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>線のプリセットを削除</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>線のプリセット「%1」を削除しますか？</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>「%1」という名前の線のプリセットは既にあります。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29279,6 +29311,30 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>%1 個のシェイプを新規レイヤーへ移動しました</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>保存された線のプリセット: 整列、線端、角、破線、破線のオフセット</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>線のプリセット...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>シェイプの外観で保存した線のプリセットの名前変更、並べ替え、削除を行います。</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>線のプリセット: %1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>プリセットを管理...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>線のプリセットはありません</translation>
     </message>
 </context>
 <context>

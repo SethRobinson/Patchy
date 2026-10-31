@@ -14302,6 +14302,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Stroke preset %1</source>
         <translation>획 사전 설정 %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>획 사전 설정</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>저장된 획 사전 설정이 아직 없습니다. 모양 외형에서 획을 설정한 다음 사전 설정 행의 저장...을 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>선택한 사전 설정 삭제 (Del)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>사전 설정 사용</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>새 모양과 선택한 모양 레이어에 사전 설정 사용</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>획 사전 설정 삭제</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>획 사전 설정 &quot;%1&quot;을(를) 삭제할까요?</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>&quot;%1&quot;(이)라는 획 사전 설정이 이미 있습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29279,6 +29311,30 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>모양 %1개를 새 레이어로 이동했습니다</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>저장된 획 사전 설정: 정렬, 끝, 모서리, 대시, 대시 오프셋</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>획 사전 설정...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>모양 외형에서 저장한 획 사전 설정의 이름을 바꾸고 정렬하고 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>획 사전 설정: %1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>사전 설정 관리...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>획 사전 설정 없음</translation>
     </message>
 </context>
 <context>

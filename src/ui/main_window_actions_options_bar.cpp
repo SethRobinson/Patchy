@@ -4205,6 +4205,29 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
     set_vector_stroke_dash_preset_from_combo(static_cast<StrokeDashPreset>(preset));
   });
+  // The saved stroke presets (GitHub #557 follow-up) and Manage Presets..., which opens the
+  // Stroke Presets manager (Edit > Presets has it too): a compact menu button, so the Polygon
+  // bar still fits one row at 1366 px. The menu is rebuilt each time it opens.
+  vector_stroke_preset_button_ = new QToolButton(toolbar);
+  vector_stroke_preset_button_->setObjectName(QStringLiteral("vectorStrokePresetButton"));
+  vector_stroke_preset_button_->setIcon(simple_icon(QStringLiteral("stroke")));
+  vector_stroke_preset_button_->setIconSize(QSize(16, 16));
+  vector_stroke_preset_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  vector_stroke_preset_button_->setProperty("optionsBarMenuButton", true);
+  vector_stroke_preset_button_->setFocusPolicy(Qt::NoFocus);
+  vector_stroke_preset_button_->setPopupMode(QToolButton::InstantPopup);
+  bind_tooltip(vector_stroke_preset_button_,
+               QT_TR_NOOP("Saved stroke presets: Align, Caps, Corners, dashes and dash offset"));
+  {
+    auto* menu = new QMenu(vector_stroke_preset_button_);
+    menu->setObjectName(QStringLiteral("vectorStrokePresetMenu"));
+    menu->setToolTipsVisible(true);
+    vector_stroke_preset_button_->setMenu(menu);
+    connect(menu, &QMenu::aboutToShow, this, [this] { rebuild_vector_stroke_preset_menu(); });
+  }
+  add_option_widget(vector_stroke_preset_button_, vector_appearance_tools);
+  vector_shape_mode_option_widgets_.push_back(vector_stroke_preset_button_);
+  refresh_vector_stroke_preset_menu();
 
   // W / H of the ACTIVE shape layer (Photoshop's options-bar readouts): they
   // mirror the selected shape's bounds and resize it live (top-left anchored,

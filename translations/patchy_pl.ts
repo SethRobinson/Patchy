@@ -14388,6 +14388,38 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Stroke preset %1</source>
         <translation>Ustawienie wstępne obrysu %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>Ustawienia wstępne obrysu</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>Brak zapisanych ustawień wstępnych obrysu. W oknie Wygląd kształtu ustaw obrys i kliknij Zapisz... w wierszu Ustawienie wstępne.</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>Usuń zaznaczone ustawienie wstępne (Del)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>Użyj ustawienia wstępnego</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>Użyj ustawienia wstępnego dla nowych kształtów i zaznaczonych warstw kształtów</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>Usuń ustawienie wstępne obrysu</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>Usunąć ustawienie wstępne obrysu „%1”?</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>Ustawienie wstępne obrysu o nazwie „%1” już istnieje.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29443,6 +29475,30 @@ Zablokowano: %1</translation>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>Kształty przeniesione na nową warstwę: %1</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>Zapisane ustawienia wstępne obrysu: wyrównanie, zakończenia, narożniki, kreski i przesunięcie kresek</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>Ustawienia wstępne obrysu...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>Zmieniaj nazwy, kolejność i usuwaj ustawienia wstępne obrysu zapisane w oknie Wygląd kształtu.</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>Ustawienie wstępne obrysu: %1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>Zarządzaj ustawieniami wstępnymi...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>Brak ustawień wstępnych obrysu</translation>
     </message>
 </context>
 <context>

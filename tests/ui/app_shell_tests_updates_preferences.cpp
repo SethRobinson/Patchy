@@ -2541,7 +2541,8 @@ void ui_preferences_presets_page_opens_each_manager() {
       {"preferencesPresetsSavedBrushesButton", QStringLiteral("brushPresetManager")},
       {"preferencesPresetsGradientsButton", QStringLiteral("gradientManagerDialog")},
       {"preferencesPresetsPatternsButton", QStringLiteral("patternManagerDialog")},
-      {"preferencesPresetsCustomShapesButton", QStringLiteral("customShapeManagerDialog")}};
+      {"preferencesPresetsCustomShapesButton", QStringLiteral("customShapeManagerDialog")},
+      {"preferencesPresetsStrokePresetsButton", QStringLiteral("strokePresetManagerDialog")}};
   for (const auto preference :
        {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer::apply(preference);

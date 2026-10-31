@@ -175,7 +175,8 @@ public:
           "tools/vectorStrokeEnabled", "tools/vectorStrokeWidth", "tools/vectorLineWeight",
           "tools/vectorFillKind", "tools/vectorFillPatternId", "tools/vectorFillGradientId",
           "tools/vectorStrokePaintKind", "tools/vectorStrokePatternId",
-          "tools/vectorStrokeGradientId", "tools/vectorStrokeDashes", "tools/penAutoAddDelete",
+          "tools/vectorStrokeGradientId", "tools/vectorStrokeDashes", "tools/vectorStrokeStyle",
+          "tools/penAutoAddDelete",
           "paths/fillPatternScale",
           "paths/fillPatternAngle",
           "paths/fillPatternOffsetX", "paths/fillPatternOffsetY", "paths/fillPatternAlignLayer"}) {
@@ -198,6 +199,7 @@ private:
   SettingsValueRestorer stroke_pattern_id_{QStringLiteral("tools/vectorStrokePatternId")};
   SettingsValueRestorer stroke_gradient_id_{QStringLiteral("tools/vectorStrokeGradientId")};
   SettingsValueRestorer stroke_dashes_{QStringLiteral("tools/vectorStrokeDashes")};
+  SettingsValueRestorer stroke_style_{QStringLiteral("tools/vectorStrokeStyle")};
   SettingsValueRestorer corner_radius_{QStringLiteral("tools/shapeCornerRadius")};
   SettingsValueRestorer pen_auto_add_delete_{QStringLiteral("tools/penAutoAddDelete")};
   SettingsValueRestorer work_path_tolerance_{QStringLiteral("paths/makeWorkPathTolerance")};

@@ -14302,6 +14302,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Stroke preset %1</source>
         <translation>筆畫預設集 %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>筆畫預設集</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>還沒有儲存的筆畫預設集。請在「形狀外觀」中設定筆畫，然後按一下「預設集」列上的「儲存...」。</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>刪除所選預設集 (Del)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>使用預設集</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>將預設集用於新形狀和所選形狀圖層</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>刪除筆畫預設集</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>刪除筆畫預設集「%1」？</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>已有名為「%1」的筆畫預設集。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29279,6 +29311,30 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>已將 %1 個形狀移到新圖層</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>已儲存的筆畫預設集：對齊、端點、轉角、虛線和虛線位移</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>筆畫預設集...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>重新命名、排序和刪除在「形狀外觀」中儲存的筆畫預設集。</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>筆畫預設集：%1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>管理預設集...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>沒有筆畫預設集</translation>
     </message>
 </context>
 <context>

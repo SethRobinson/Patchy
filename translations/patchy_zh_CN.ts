@@ -14302,6 +14302,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Stroke preset %1</source>
         <translation>描边预设 %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>描边预设</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>还没有保存的描边预设。请在“形状外观”中设置描边，然后点击“预设”行上的“保存...”。</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>删除所选预设 (Del)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>使用预设</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>将预设用于新形状和所选形状图层</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>删除描边预设</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>删除描边预设“%1”？</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>已存在名为“%1”的描边预设。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29279,6 +29311,30 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>已将 %1 个形状移到新图层</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>已保存的描边预设：对齐、端点、转角、虚线和虚线偏移</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>描边预设...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>重命名、排序和删除在“形状外观”中保存的描边预设。</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>描边预设：%1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>管理预设...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>没有描边预设</translation>
     </message>
 </context>
 <context>

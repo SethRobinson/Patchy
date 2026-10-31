@@ -20,6 +20,7 @@
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
+#include "ui/stroke_preset_manager_dialog.hpp"
 #include "psd/asl_io.hpp"
 #include "psd/psd_layer_effects.hpp"
 #include "core/style_presets.hpp"
@@ -1502,6 +1503,11 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
   CHECK(styles.find_entry(style_storage_id) != nullptr);
   patchy::ui::CustomShapeLibrary shapes(directory.filePath(QStringLiteral("shapes")));
   CHECK(shapes.restore_default_shapes() > 0);
+  SettingsValueRestorer stroke_presets{QString::fromLatin1(patchy::ui::kStrokeStylePresetsKey)};
+  patchy::ui::save_stroke_style_presets(
+      {patchy::ui::StrokeStylePreset{QStringLiteral("Sweep dots"), patchy::VectorStrokeAlignment::Center,
+                                     patchy::VectorStrokeCap::Round, patchy::VectorStrokeJoin::Round,
+                                     std::vector<double>{0.0, 2.0}, 0.0}});
   int captured = 0;
   for (const auto preference :
        {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -1535,6 +1541,8 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     (void)patchy::ui::request_style_manager(nullptr, styles, styles.find_entry(style_storage_id)->id);
     grab_dialog(QStringLiteral("customShapeManagerDialog"), "custom_shape_manager");
     (void)patchy::ui::request_custom_shape_manager(nullptr, shapes, QStringLiteral("shape.builtin.heart"));
+    grab_dialog(QStringLiteral("strokePresetManagerDialog"), "stroke_preset_manager");
+    (void)patchy::ui::request_stroke_preset_manager(nullptr);
     grab_dialog(QStringLiteral("cameraRawFilterDialog"), "camera_raw_filter");
     patchy::ui::CameraRawFilterRequest camera_raw_request;
     camera_raw_request.source = std::make_shared<const patchy::PixelBuffer>(
@@ -1603,7 +1611,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 34);
+  CHECK(captured == 36);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

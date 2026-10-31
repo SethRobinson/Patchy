@@ -100,6 +100,7 @@ struct PanelSpec;
 class ToolPaletteFooter;
 class ToolPaletteLayout;
 class ArtboardPresetPicker;
+struct StrokeStylePreset;
 enum class LayerCtrlClickTarget;
 }  // namespace patchy::ui
 class QShowEvent;
@@ -1894,6 +1895,16 @@ private:
   // shows `shown`, or its unpickable Custom row for nullopt.
   void set_vector_stroke_dash_preset_from_combo(patchy::StrokeDashPreset preset);
   void refresh_vector_stroke_dash_combo(std::optional<patchy::StrokeDashPreset> shown);
+  // The options bar's stroke preset menu button (GitHub #557 follow-up): the saved stroke
+  // presets (load_stroke_style_presets) and Manage Presets.... A pick sets Align, Caps, Corners,
+  // the dashes and the offset for new shapes and the selected shape layers. The menu checks
+  // the preset `shown` matches (null: none); it is rebuilt each time it opens.
+  void apply_vector_stroke_style_preset(const StrokeStylePreset& preset);
+  void refresh_vector_stroke_preset_menu(const patchy::VectorStroke* shown);
+  void refresh_vector_stroke_preset_menu();
+  void rebuild_vector_stroke_preset_menu();
+  // A dash preset picked or synced from a layer also updates the saved-preset line settings.
+  void set_new_shape_stroke_dash_preset(patchy::StrokeDashPreset preset);
   bool apply_options_bar_appearance_to_active_shape(const std::vector<std::string>& fields = {});
   void schedule_vector_appearance_apply();
   void finish_pending_shape_appearance_edit();
@@ -2272,6 +2283,7 @@ private:
   void open_gradient_manager(QWidget* parent = nullptr);
   void open_pattern_manager(QWidget* parent = nullptr);
   void open_custom_shape_manager(QWidget* parent = nullptr);
+  void open_stroke_preset_manager(QWidget* parent = nullptr);
   void expand_selection_dialog();
   void contract_selection_dialog();
   void border_selection_dialog();
@@ -3838,6 +3850,10 @@ private:
   patchy::VectorFill current_vector_stroke_paint_{};
   double current_vector_stroke_width_{3.0};
   patchy::StrokeDashPreset current_vector_stroke_dash_preset_{patchy::StrokeDashPreset::Solid};
+  // Align, Caps, Corners, dashes and offset for new shapes once a saved stroke preset was
+  // picked (persisted as tools/vectorStrokeStyle); unset, new shapes use the dash preset
+  // and Inside alignment. Only those line fields are used.
+  std::optional<patchy::VectorStroke> current_vector_stroke_style_;
   // Library storage ids of the last PICKED gradient presets (persisted; a
   // custom gradient synced from a layer lives only for the session).
   QString current_vector_fill_gradient_id_;
@@ -3865,6 +3881,8 @@ private:
   QToolButton* vector_fill_swatch_button_{nullptr};
   QToolButton* vector_stroke_swatch_button_{nullptr};
   QComboBox* vector_stroke_dash_combo_{nullptr};
+  QToolButton* vector_stroke_preset_button_{nullptr};
+  QString vector_stroke_preset_shown_;  // the saved preset the menu checks, empty for none
   // Debounces live-editing bursts (stroke-width spin / its popup slider) into
   // one undo entry + one rasterize.
   QTimer* vector_appearance_apply_timer_{nullptr};

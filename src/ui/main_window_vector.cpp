@@ -50,6 +50,7 @@
 #include "ui/shape_appearance_dialog.hpp"
 #include "ui/appearance_properties.hpp"
 #include "ui/shape_create_dialog.hpp"
+#include "ui/stroke_preset_manager_dialog.hpp"
 #include "ui/mask_properties_dialog.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/localization.hpp"
@@ -67,6 +68,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QFormLayout>
 #include <QGradient>
 #include <QGradientStop>
@@ -680,6 +682,9 @@ VectorShapeContent MainWindow::current_shape_appearance_content() const {
   content.stroke.alignment = VectorStrokeAlignment::Inside;
   content.stroke.content = current_vector_stroke_paint_;
   apply_stroke_dash_preset(content.stroke, current_vector_stroke_dash_preset_);
+  if (current_vector_stroke_style_.has_value()) {
+    apply_stroke_style_preset(content.stroke, stroke_style_preset_from(*current_vector_stroke_style_, {}));
+  }
   return content;
 }
 
@@ -935,6 +940,8 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
       &doc.metadata().patterns, defaults.fill.color,
       {static_cast<std::uint8_t>(background.red()), static_cast<std::uint8_t>(background.green()),
        static_cast<std::uint8_t>(background.blue())}, dialog_field_units(), &context);
+  // Save... and Delete on the dialog's Preset row change the options bar's list too.
+  refresh_vector_stroke_preset_menu();
 
   if (accepted) {
     QElapsedTimer drain;
@@ -2147,7 +2154,7 @@ void MainWindow::refresh_vector_stroke_controls() {
   // stay usable whether or not a stroke is on.
   const bool enabled = has_active_document() && !preview_dialog_edit_locked();
   for (const char* name : {"vectorStrokeSwatchButton", "vectorStrokeWidthLabel", "vectorStrokeWidthSpin",
-                           "vectorStrokeDashCombo"}) {
+                           "vectorStrokeDashCombo", "vectorStrokePresetButton"}) {
     if (auto* widget = findChild<QWidget*>(QLatin1String(name)); widget != nullptr) {
       widget->setEnabled(enabled);
     }
@@ -2169,12 +2176,26 @@ void MainWindow::set_vector_stroke_width_from_field(double value) {
   schedule_vector_appearance_apply();
 }
 
-void MainWindow::set_vector_stroke_dash_preset_from_combo(StrokeDashPreset preset) {
+void MainWindow::set_new_shape_stroke_dash_preset(StrokeDashPreset preset) {
   current_vector_stroke_dash_preset_ = preset;
+  if (current_vector_stroke_style_.has_value() &&
+      stroke_dash_preset_for(current_vector_stroke_style_->dashes, current_vector_stroke_style_->cap) != preset) {
+    // The saved preset's alignment stays; the dashes, and the caps and corners a dash
+    // preset sets, follow the new pattern.
+    apply_stroke_dash_preset(*current_vector_stroke_style_, preset);
+    current_vector_stroke_style_->dash_offset = 0.0;
+  }
+}
+
+void MainWindow::set_vector_stroke_dash_preset_from_combo(StrokeDashPreset preset) {
+  set_new_shape_stroke_dash_preset(preset);
   refresh_vector_stroke_dash_combo(preset);
   schedule_save_tool_settings();
   finish_pending_shape_appearance_edit();
-  if (!has_active_document() || !vector_appearance_controls_live()) return;
+  if (!has_active_document() || !vector_appearance_controls_live()) {
+    refresh_vector_stroke_preset_menu();
+    return;
+  }
   // Every selected shape gets the same caps and pattern; corners only from a dot preset.
   ShapeAppearanceSettings settings;
   apply_stroke_dash_preset(settings.stroke, preset);
@@ -2187,6 +2208,90 @@ void MainWindow::set_vector_stroke_dash_preset_from_combo(StrokeDashPreset prese
       edits->append(property.capture(settings));
   settings.edits = std::move(edits);
   commit_shape_appearance_edit(editable_selected_shape_layer_ids(), settings);
+  refresh_vector_stroke_preset_menu();
+}
+
+void MainWindow::apply_vector_stroke_style_preset(const StrokeStylePreset& preset) {
+  VectorStroke line;
+  apply_stroke_style_preset(line, preset);
+  current_vector_stroke_style_ = line;
+  const auto dash_preset = stroke_dash_preset_for(preset.dashes, preset.cap);
+  if (dash_preset.has_value()) current_vector_stroke_dash_preset_ = *dash_preset;
+  refresh_vector_stroke_dash_combo(dash_preset);
+  schedule_save_tool_settings();
+  finish_pending_shape_appearance_edit();
+  if (has_active_document() && vector_appearance_controls_live()) {
+    // One undo step over every selected shape: the line settings only, never width or paint.
+    ShapeAppearanceSettings settings;
+    apply_stroke_style_preset(settings.stroke, preset);
+    auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
+    for (const auto& property : shape_appearance_properties())
+      if (property.key == "stroke.alignment" || property.key == "stroke.cap" || property.key == "stroke.join" ||
+          property.key == "stroke.dashes" || property.key == "stroke.dash_offset")
+        edits->append(property.capture(settings));
+    settings.edits = std::move(edits);
+    commit_shape_appearance_edit(editable_selected_shape_layer_ids(), settings);
+  }
+  refresh_vector_stroke_preset_menu();
+  statusBar()->showMessage(tr("Stroke preset: %1").arg(preset.name));
+}
+
+void MainWindow::refresh_vector_stroke_preset_menu() {
+  // A selected shape shows its own stroke (nothing while the selection is mixed); otherwise
+  // the line settings new shapes get.
+  if (has_active_document() && vector_appearance_controls_live()) {
+    const auto ids = editable_selected_shape_layer_ids();
+    if (!ids.empty()) {
+      std::optional<VectorStroke> shown;
+      bool mixed = false;
+      for (const auto id : ids) {
+        const auto* layer = std::as_const(document()).find_layer(id);
+        const auto* content = layer != nullptr ? std::as_const(*layer).vector_shape() : nullptr;
+        if (content == nullptr) continue;
+        if (!shown.has_value()) {
+          shown = content->stroke;
+        } else {
+          mixed |= !stroke_matches_style_preset(content->stroke, stroke_style_preset_from(*shown, {}));
+        }
+      }
+      refresh_vector_stroke_preset_menu(shown.has_value() && !mixed ? &*shown : nullptr);
+      return;
+    }
+  }
+  const auto stroke = current_shape_appearance_content().stroke;
+  refresh_vector_stroke_preset_menu(&stroke);
+}
+
+void MainWindow::refresh_vector_stroke_preset_menu(const VectorStroke* shown) {
+  vector_stroke_preset_shown_.clear();
+  if (shown == nullptr) return;
+  for (const auto& preset : load_stroke_style_presets()) {
+    if (stroke_matches_style_preset(*shown, preset)) {
+      vector_stroke_preset_shown_ = preset.name;
+      return;
+    }
+  }
+}
+
+void MainWindow::rebuild_vector_stroke_preset_menu() {
+  auto* menu = vector_stroke_preset_button_ != nullptr ? vector_stroke_preset_button_->menu() : nullptr;
+  if (menu == nullptr) return;
+  menu->clear();
+  const auto presets = load_stroke_style_presets();
+  for (const auto& preset : presets) {
+    auto* action = menu->addAction(preset.name);
+    action->setCheckable(true);
+    action->setChecked(preset.name == vector_stroke_preset_shown_);
+    action->setToolTip(stroke_style_preset_summary(preset));
+    connect(action, &QAction::triggered, this, [this, preset] { apply_vector_stroke_style_preset(preset); });
+  }
+  if (presets.empty()) {
+    menu->addAction(tr("No stroke presets"))->setEnabled(false);
+  }
+  menu->addSeparator();
+  auto* manage = menu->addAction(tr("Manage Presets..."));
+  manage->setObjectName(QStringLiteral("vectorStrokePresetManageAction"));
+  connect(manage, &QAction::triggered, this, [this] { open_stroke_preset_manager(); });
 }
 
 void MainWindow::refresh_vector_stroke_dash_combo(std::optional<StrokeDashPreset> shown) {
@@ -2216,6 +2321,7 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
                              "vectorStrokeDashCombo", "shapeCornerRadiusSpin"})
       set_appearance_mixed(findChild<QWidget*>(QLatin1String(name)), false);
     refresh_vector_stroke_dash_combo(current_vector_stroke_dash_preset_);
+    refresh_vector_stroke_preset_menu();
     if (auto* spin = findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"))) {
       const QSignalBlocker blocker(spin);
       spin->setValue(current_shape_corner_radius_);
@@ -2232,8 +2338,9 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
   current_vector_stroke_paint_ = content->stroke.content;
   // A preset pattern also becomes the default for new shapes; a custom one shows as Custom.
   const auto dash_preset = stroke_dash_preset_for(content->stroke.dashes, content->stroke.cap);
-  if (dash_preset.has_value()) current_vector_stroke_dash_preset_ = *dash_preset;
+  if (dash_preset.has_value()) set_new_shape_stroke_dash_preset(*dash_preset);
   refresh_vector_stroke_dash_combo(dash_preset);
+  refresh_vector_stroke_preset_menu();
   refresh_vector_stroke_controls();
   if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
       stroke_width != nullptr) {

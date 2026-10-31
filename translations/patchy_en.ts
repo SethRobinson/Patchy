@@ -14328,6 +14328,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Stroke preset %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29279,6 +29311,30 @@ Locked: %1</source>
     </message>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

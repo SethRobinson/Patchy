@@ -14345,6 +14345,38 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Stroke preset %1</source>
         <translation>Traccia predefinita %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>Tracce predefinite</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>Nessuna traccia predefinita salvata. In Aspetto forma, imposta la traccia e fai clic su Salva... nella riga Predefinito.</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>Elimina la traccia predefinita selezionata (Canc)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>Usa predefinito</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>Usa il predefinito per le nuove forme e i livelli forma selezionati</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>Elimina traccia predefinita</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>Eliminare la traccia predefinita &quot;%1&quot;?</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>Esiste già una traccia predefinita di nome &quot;%1&quot;.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29361,6 +29393,30 @@ Bloccato: %1</translation>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>%1 forma/e spostata/e in un nuovo livello</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>Tracce predefinite salvate: allineamento, estremità, angoli, tratteggio e sfasamento del tratteggio</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>Tracce predefinite...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>Rinomina, ordina ed elimina le tracce predefinite salvate in Aspetto forma.</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>Traccia predefinita: %1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>Gestisci predefiniti...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>Nessuna traccia predefinita</translation>
     </message>
 </context>
 <context>

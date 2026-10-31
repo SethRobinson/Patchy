@@ -14388,6 +14388,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Stroke preset %1</source>
         <translation>Настройка обводки %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>Наборы обводки</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>Сохранённых наборов обводки пока нет. В окне «Внешний вид фигуры» настройте обводку и нажмите «Сохранить...» в строке «Набор».</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>Удалить выбранный набор (Del)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>Использовать набор</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>Использовать набор для новых фигур и выбранных слоёв-фигур</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>Удалить набор обводки</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>Удалить набор обводки «%1»?</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>Набор обводки с именем «%1» уже существует.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29443,6 +29475,30 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>Перемещено фигур на новый слой: %1</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>Сохранённые наборы обводки: выравнивание, концы, углы, штрихи и смещение штрихов</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>Наборы обводки...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>Переименование, упорядочивание и удаление наборов обводки, сохранённых в окне «Внешний вид фигуры».</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>Набор обводки: %1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>Управление наборами...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>Нет наборов обводки</translation>
     </message>
 </context>
 <context>

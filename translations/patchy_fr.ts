@@ -14345,6 +14345,38 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Stroke preset %1</source>
         <translation>Contour prédéfini %1</translation>
     </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>Contours prédéfinis</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
+        <translation>Aucun contour prédéfini enregistré. Dans Apparence de la forme, réglez le contour puis cliquez sur Enregistrer... sur la ligne Paramètre prédéfini.</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>Supprimer le contour prédéfini sélectionné (Suppr)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>Utiliser le contour prédéfini</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>Utiliser le contour prédéfini pour les nouvelles formes et les calques de forme sélectionnés</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>Supprimer le contour prédéfini</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>Supprimer le contour prédéfini « %1 » ?</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>Un contour prédéfini nommé « %1 » existe déjà.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -29361,6 +29393,30 @@ Verrouillé : %1</translation>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>%1 forme(s) déplacée(s) vers un nouveau calque</translation>
+    </message>
+    <message>
+        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
+        <translation>Contours prédéfinis enregistrés : alignement, extrémités, angles, tirets et décalage des tirets</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>Contours prédéfinis...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>Renommer, trier et supprimer les contours prédéfinis enregistrés dans Apparence de la forme.</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>Contour prédéfini : %1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>Gérer les paramètres prédéfinis...</translation>
+    </message>
+    <message>
+        <source>No stroke presets</source>
+        <translation>Aucun contour prédéfini</translation>
     </message>
 </context>
 <context>
