@@ -879,6 +879,8 @@ private:
   [[nodiscard]] DocumentSession* session_for_canvas(CanvasWidget* canvas) noexcept;
   [[nodiscard]] const DocumentSession* session_for_canvas(CanvasWidget* canvas) const noexcept;
   [[nodiscard]] DocumentSession* session_with_id(std::int64_t session_id) noexcept;
+  // The open document whose file is `path` (compared by file_identity_key), else null.
+  [[nodiscard]] DocumentSession* session_for_file_path(const QString& path);
   [[nodiscard]] std::vector<DocumentSession*> open_smart_object_child_sessions(std::int64_t parent_session_id);
   void activate_document_session(DocumentSession& target_session);
   // The active document's session (resolved through canvas_), or null when no
@@ -973,7 +975,11 @@ private:
   // Defined in main_window.cpp (it needs the text render machinery there).
   void rerender_text_layers_through_transforms(DocumentSession& target);
   void open_document();
-  void open_document_path(QString path);
+  // What open_document_path does with a file a document already shows (GitHub issue 560):
+  // switch to that document (File > Open, Open Recent, drops, a second launch), or load
+  // another copy (app.open in scripts, which returns a new document, and Edit Contents).
+  enum class OpenExisting { Activate, LoadCopy };
+  void open_document_path(QString path, OpenExisting existing = OpenExisting::Activate);
   // File > Open Folder: every supported image directly inside the picked folder
   // (natural name order, PDFs excluded) opens as its own document, the first one
   // active and the rest as background tabs. Also the target of a dropped or

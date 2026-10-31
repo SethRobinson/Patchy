@@ -29192,6 +29192,14 @@ Locked: %1</source>
         <source>Search &amp;Commands...</source>
         <translation>&amp;Поиск команд...</translation>
     </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Изображения из %1 уже открыты</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 уже открыт</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

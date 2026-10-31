@@ -29192,6 +29192,14 @@ Zablokowano: %1</translation>
         <source>Search &amp;Commands...</source>
         <translation>&amp;Wyszukaj polecenia...</translation>
     </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Obrazy z %1 są już otwarte</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 jest już otwarty</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

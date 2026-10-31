@@ -74,7 +74,15 @@ CanvasWidget* MainWindowTestAccess::canvas(MainWindow& window) {
 }
 
 void MainWindowTestAccess::open_document_path(MainWindow& window, QString path) {
+  window.open_document_path(std::move(path), MainWindow::OpenExisting::LoadCopy);
+}
+
+void MainWindowTestAccess::open_document_path_as_user(MainWindow& window, QString path) {
   window.open_document_path(std::move(path));
+}
+
+void MainWindowTestAccess::open_recent_document(MainWindow& window, QString path) {
+  window.open_recent_document(std::move(path));
 }
 
 int MainWindowTestAccess::open_folder_path(MainWindow& window, const QString& directory) {

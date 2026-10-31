@@ -2335,6 +2335,7 @@ int MainWindow::open_folder_path(const QString& directory) {
 
   std::int64_t first_session_id = 0;
   int opened = 0;
+  int already_open = 0;
   bool cmyk_proof_opened = false;
   bool cancelled = false;
   QStringList failed;
@@ -2346,6 +2347,15 @@ int MainWindow::open_folder_path(const QString& directory) {
     if (progress.wasCanceled()) {
       cancelled = true;
       break;
+    }
+    if (const auto* open_session = session_for_file_path(path); open_session != nullptr) {
+      // Already open (GitHub issue 560): no second copy. It stands in as the first
+      // image when it comes first, so the folder still lands on that one.
+      ++already_open;
+      if (first_session_id == 0) {
+        first_session_id = open_session->session_id;
+      }
+      continue;
     }
     if (first_session_id == 0) {
       // Until one file has opened, each goes through the full single-open path so
@@ -2406,7 +2416,7 @@ int MainWindow::open_folder_path(const QString& directory) {
   if (auto* first = session_with_id(first_session_id); first != nullptr && first != active_session()) {
     activate_document_session(*first);
   }
-  if (opened > 0) {
+  if (opened + already_open > 0) {
     // The folder itself is the thing to come back to; one recent-file entry per
     // image would flush the list.
     add_recent_folder(directory);
@@ -2415,7 +2425,9 @@ int MainWindow::open_folder_path(const QString& directory) {
     }
   }
   auto status = cancelled ? tr("Opened %1 of %2 images from %3").arg(opened).arg(total).arg(native_directory)
-                          : tr("Opened %n image(s) from %1", nullptr, opened).arg(native_directory);
+                : opened == 0 && already_open > 0 && failed.isEmpty()
+                    ? tr("The images in %1 are already open").arg(native_directory)
+                    : tr("Opened %n image(s) from %1", nullptr, opened).arg(native_directory);
   if (!failed.isEmpty()) {
     status += tr(" (%n could not be opened)", nullptr, static_cast<int>(failed.size()));
     if (!unattended_automation()) {
@@ -3066,7 +3078,7 @@ void MainWindow::maybe_convert_af_image_layers(Document& target) {
                blocks.end());
 }
 
-void MainWindow::open_document_path(QString path) {
+void MainWindow::open_document_path(QString path, OpenExisting existing) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
     return;
@@ -3082,6 +3094,19 @@ void MainWindow::open_document_path(QString path) {
 #else
   constexpr bool browser_transfer = false;
 #endif
+  // A file that is already open switches to its document instead of loading a second
+  // copy (GitHub issue 560), unsaved changes and all: no reload prompt.
+  if (existing == OpenExisting::Activate && !browser_transfer) {
+    if (auto* open_session = session_for_file_path(path); open_session != nullptr) {
+      activate_document_session(*open_session);
+      add_recent_file(open_session->path);
+      statusBar()->showMessage(tr("%1 is already open").arg(QFileInfo(open_session->path).fileName()));
+#ifdef Q_OS_WASM
+      wasm_files::publish_open_probe(QStringLiteral("opened"), path);
+#endif
+      return;
+    }
+  }
   try {
     const bool allow_raw_dialog = !script_engine_host_ || !script_engine_host_->run_active() ||
                                   script_engine_host_->manual_edit_pause();

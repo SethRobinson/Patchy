@@ -29110,6 +29110,14 @@ Bloccato: %1</translation>
         <source>Search &amp;Commands...</source>
         <translation>Ce&amp;rca comandi...</translation>
     </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Le immagini in %1 sono già aperte</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 è già aperto</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -29110,6 +29110,14 @@ Verrouillé : %1</translation>
         <source>Search &amp;Commands...</source>
         <translation>&amp;Rechercher des commandes...</translation>
     </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Les images de %1 sont déjà ouvertes</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 est déjà ouvert</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

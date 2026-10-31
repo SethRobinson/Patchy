@@ -29110,6 +29110,14 @@ Fixiert: %1</translation>
         <source>Search &amp;Commands...</source>
         <translation>&amp;Befehle suchen...</translation>
     </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Die Bilder in %1 sind bereits geöffnet</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 ist bereits geöffnet</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1,6 +1,7 @@
 # Document tab context menu
 
-Read this before changing the menu a right-click on a document tab opens, or Rename File.
+Read this before changing the menu a right-click on a document tab opens, Rename File, or what
+opening an already open file does.
 Floating a document (also on this menu) is in [float-windows.md](float-windows.md).
 
 `MainWindow::show_document_tab_context_menu` (src/ui/main_window_sessions.cpp) builds the
@@ -69,6 +70,25 @@ and `MainWindow::rename_document_file` / `adopt_renamed_document_path`
   same as a rename in the file manager; they relink).
 
 No scripting function: the UI tests drive the real menu and dialog, so none was needed.
+
+## Opening a file that is already open
+
+`MainWindow::open_document_path` (src/ui/main_window_files.cpp), which File > Open (each
+picked file), Open Recent, drops on the window, the tab bar or an empty Layers panel, and a
+second launch's forwarded files all go through, first looks for a session showing the file
+(`session_for_file_path`, keyed by `file_identity_key` in src/ui/qt_paths.hpp: the canonical
+path when the file exists, else the cleaned absolute path, case-folded on Windows and macOS
+only). A match is activated (`activate_document_session`, so a floating document's window
+comes forward), the file moves to the top of Open Recent and the status bar says "<name> is
+already open"; nothing reloads and no prompt asks about unsaved changes (GitHub issue 560).
+Open Folder skips images already open the same way. Untitled and pathless sessions (browser
+picks, PDF pages after the first) never match; a renamed file matches by its new path.
+
+`OpenExisting::LoadCopy` keeps the old behavior: `app.open` in scripts (documented to return
+a new document), Edit Contents of a linked Smart Object (an open copy may belong to another
+parent), the stress test's PSD reloads, and the test helper `MainWindowTestAccess::open_document_path`
+(tests reopen files they just saved; `open_document_path_as_user` takes the user path).
+UI tests: `ui_open_already_open_file_switches_to_its_tab`, `ui_unicode_open_twice_keeps_one_document`.
 
 ## Tests
 

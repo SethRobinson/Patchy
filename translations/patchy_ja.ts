@@ -29028,6 +29028,14 @@ Locked: %1</source>
         <source>Search &amp;Commands...</source>
         <translation>コマンドを検索(&amp;C)...</translation>
     </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>%1 の画像はすでに開いています</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 はすでに開いています</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

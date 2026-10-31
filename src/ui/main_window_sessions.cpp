@@ -5,6 +5,7 @@
 // main_window.cpp; behavior must stay identical.
 
 #include "ui/main_window.hpp"
+#include "ui/qt_paths.hpp"
 #include "ui/theme_script_host.hpp"
 #include <QCheckBox>
 #include <QClipboard>
@@ -1499,6 +1500,19 @@ MainWindow::DocumentSession* MainWindow::session_with_id(std::int64_t session_id
 std::vector<MainWindow::DocumentSession*> MainWindow::open_smart_object_child_sessions(
     std::int64_t parent_session_id) {
   return sessions_.smart_object_children(parent_session_id);
+}
+
+MainWindow::DocumentSession* MainWindow::session_for_file_path(const QString& path) {
+  const auto key = file_identity_key(path);
+  if (key.isEmpty()) {
+    return nullptr;
+  }
+  for (const auto& candidate : sessions_) {
+    if (candidate != nullptr && !candidate->path.isEmpty() && file_identity_key(candidate->path) == key) {
+      return candidate.get();
+    }
+  }
+  return nullptr;
 }
 
 void MainWindow::activate_document_session(DocumentSession& target_session) {
