@@ -1888,8 +1888,8 @@ void MainWindow::create_docks() {
   // the related Layer menu commands (the layer context menu's Merge and Rasterize submenus),
   // and the flyout corner marks that there is one. The entries are the shared actions, so
   // shortcuts, enabled state and translations follow the Layer menu.
-  const auto make_footer_flyout = [this](QToolButton* button, const char* menu_name,
-                                         std::initializer_list<QAction*> actions) {
+  const auto make_footer_flyout = [](QToolButton* button, const char* menu_name,
+                                     std::initializer_list<QAction*> actions) {
     button->setProperty("layerActionButton", true);
     button->setProperty("layerFooterFlyout", true);
     button->setIconSize(QSize(24, 24));
