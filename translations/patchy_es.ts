@@ -16407,10 +16407,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Suelte para unir los puntos finales. Mantenga %ALT% para colocar el punto libremente.</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>Ajustado a un punto. Mantenga %ALT% para colocar el punto libremente.</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>Arrastre para mover el punto; suelte un punto final sobre otro para unirlos. Mayús+clic añade a la selección. Clic derecho para Dividir, Unir y Fusionar.</translation>
     </message>
@@ -16421,6 +16417,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>Flujo del pincel: %1% (Aerógrafo activado; Mayús+número define la opacidad)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>Puntos fusionados</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>Suelte para fusionar los puntos. Mantenga %ALT% para colocar el punto libremente.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>Ajustado a un punto. Solo los puntos finales o los puntos vecinos se convierten en un punto. Mantenga %ALT% para colocar el punto libremente.</translation>
     </message>
 </context>
 <context>

@@ -16364,10 +16364,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>松开即可连接端点。按住 %ALT% 可自由放置锚点。</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>已吸附到锚点。按住 %ALT% 可自由放置锚点。</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>拖动可移动锚点；把端点放到另一个端点上即可连接。Shift+单击添加到选区。右键单击可断开、连接和合并。</translation>
     </message>
@@ -16378,6 +16374,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>画笔流量：%1%(喷枪已开启；Shift+数字设置不透明度)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>已合并锚点</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>松开即可合并锚点。按住 %ALT% 可自由放置锚点。</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>已吸附到锚点。只有端点或相邻的锚点才能合并为一个锚点。按住 %ALT% 可自由放置锚点。</translation>
     </message>
 </context>
 <context>

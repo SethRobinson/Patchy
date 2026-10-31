@@ -40,8 +40,8 @@
 
 ## Vectors and typography
 
-- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, preset, custom or saved dashes with an offset, vector masks edited like paths, point edits (break, join, weld by drag, merge, delete segment), Merge Shapes to one outline, per-shape cut, copy, paste, color, align, new layer, editable radius, sides, star inset, a Paths panel (fill, stroke, selection), in PSDs Photoshop opens
-- Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps editable vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
+- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, preset, custom or saved dashes with an offset, vector masks edited like paths, point edits (break, join, weld or merge by drag, delete segment), Merge Shapes to one outline, per-shape cut, copy, paste, color, align, new layer, editable radius, sides, star inset, a Paths panel (fill, stroke, selection), in PSDs Photoshop opens
+- Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
 - Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with Illustrator-style presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal and a live preview
 - Point text, paragraph (box) text and area text that flows inside a closed shape or path, saved as native Photoshop text frames
 - Rich text with per-run color, font, size and style, a searchable font picker, suggested stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, small caps, super/subscript, underline, strikethrough, ordinals, fractions) that edit selected text layers outside text editing

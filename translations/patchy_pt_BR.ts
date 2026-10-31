@@ -16407,10 +16407,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Solte para unir os pontos finais. Segure %ALT% para posicionar o ponto livremente.</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>Ajustado a um ponto. Segure %ALT% para posicionar o ponto livremente.</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>Arraste para mover o ponto; solte um ponto final sobre outro para uni-los. Shift+clique adiciona à seleção. Botão direito para Dividir, Unir e Mesclar.</translation>
     </message>
@@ -16421,6 +16417,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>Fluxo do pincel: %1% (Aerógrafo ativado; Shift+número define a opacidade)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>Pontos mesclados</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>Solte para mesclar os pontos. Segure %ALT% para posicionar o ponto livremente.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>Ajustado a um ponto. Só pontos finais ou pontos vizinhos viram um único ponto. Segure %ALT% para posicionar o ponto livremente.</translation>
     </message>
 </context>
 <context>

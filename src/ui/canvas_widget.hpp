@@ -2283,9 +2283,16 @@ private:
                                                                                    const PenHoverHit* hit) const;
   bool run_path_point_command(PathPointCommand command, const PenHoverHit* hit);
   void add_path_point_command_entries(QMenu& menu, const PenHoverHit& hit);
-  // Weld on drag (GitHub #555): whether releasing the snapped drag joins two end points, and the
-  // join itself, inside the drag's undo entry.
-  [[nodiscard]] bool path_weld_would_join(const patchy::VectorPath& path) const;
+  // Weld on drag (GitHub #555): what releasing the snapped drag does (join two end points, merge
+  // two neighbouring points, or only snap), its status hint, and the weld itself, inside the
+  // drag's undo entry.
+  struct PathWeld {
+    enum class Kind { SnapOnly, Join, MergeNeighbours };
+    Kind kind{Kind::SnapOnly};
+    std::optional<patchy::PathPointEditResult> result;
+  };
+  [[nodiscard]] PathWeld plan_path_weld(const patchy::VectorPath& path) const;
+  [[nodiscard]] QString path_weld_hint(const patchy::VectorPath& path) const;
   void weld_dragged_path_point();
   // The Pen plus the Add/Delete/Convert anchor tools, which share its handlers.
   [[nodiscard]] bool pen_family_tool_active() const noexcept;
