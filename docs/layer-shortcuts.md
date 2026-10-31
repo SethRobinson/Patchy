@@ -15,8 +15,12 @@ from the submenus, and opening Merge refreshes Merge Visible's state. Pin:
 
 ## Opacity digits (#527)
 
-With a tool that has no opacity of its own, the bare digit keys on the canvas set the selected
-layers' opacity, as Photoshop does. The tools are listed in `tool_sets_layer_opacity_with_digit_keys`
+With a tool that has no opacity of its own, the bare digit keys set the selected layers'
+opacity, as Photoshop does. Like every 0-9 opacity key they work anywhere in the main window
+(issue 562): `MainWindow::handle_opacity_digit_key_event` sends a digit pressed with the tool
+palette, a panel or an options-bar button focused to the active canvas. Text fields, spin boxes,
+editable combos, Tab-focused options-bar controls (`spacebar_canvas_pan_blocked_by_text_input`),
+dialogs, float windows and open menus keep their digits. The tools are listed in `tool_sets_layer_opacity_with_digit_keys`
 (canvas_widget_events.cpp): Move, Artboard, the marquees, lassos, Magic Wand, Quick Select, Object
 Selection, Pick, Ruler, Type (while not editing), Hand, Zoom, the Pen and path tools, Polygon,
 Custom Shape, Patch and Red Eye. Tools in `tool_supports_opacity_digit_keys` keep the digits for
@@ -26,13 +30,15 @@ the crop tools. No tool takes them during a pointer drag (`pointer_gesture_activ
 Transform, Warp or path transform, whose commit owns the next history entry.
 
 The value follows `CanvasWidget::handle_opacity_digit_key`'s rules: 1 to 9 are 10 to 90%, 0 is
-100%, a second digit within 800 ms refines the first ("0" then "5" is 5%, "00" is 100%). Shift
+100%, a second digit within 800 ms refines the first ("0" then "5" is 5%; "00" is 0% for layers,
+as in Photoshop, and 100% for a tool's own Opacity or Flow, which stop at 1%). Shift
 with a digit does nothing here. `MainWindow::set_layer_opacity_from_digit_keys` sets the value
 through the Layers panel's Opacity field (its pending edit, so the field shows it) and holds the
 edit open with `layer_opacity_digit_finish_timer_` (1 s, longer than the pair window) instead of
 the field's 250 ms idle pause: a run of digits, a two-digit entry included, is one undo entry.
 A value every selected layer already has writes nothing. Bare digits cannot be bound as hotkeys
-(`is_reserved_binding_key`), so no command competes. Pin: `ui_layer_opacity_digit_keys_with_move_tool`.
+(`is_reserved_binding_key`), so no command competes. Pins: `ui_layer_opacity_digit_keys_with_move_tool`,
+`ui_opacity_digit_keys_work_from_panels`.
 
 ## Lock Transparent Pixels (#529)
 

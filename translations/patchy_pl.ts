@@ -16461,6 +16461,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
         <translation>Zaznaczaniem bezpośrednim wybierz dwa punkty końcowe do połączenia albo punkt otwartej ścieżki, aby ją zamknąć</translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Przepływ pędzla: %1% (Aerograf włączony; Shift+cyfra ustawia krycie)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17670,8 +17674,8 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Skrypty</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>Ustaw krycie narzędzia lub warstwy (1%-100%; wpisz dwie cyfry, aby podać dokładną wartość)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>Ustaw krycie narzędzia lub warstwy (1 = 10%, 0 = 100%; wpisz szybko dwie cyfry, aby podać dokładną wartość)</translation>
     </message>
 </context>
 <context>

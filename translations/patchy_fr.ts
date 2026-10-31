@@ -16418,6 +16418,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
         <translation>Sélectionnez avec Sélection directe deux extrémités à joindre, ou un point d&apos;un tracé ouvert pour le fermer</translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Flux du pinceau : %1% (Aérographe activé ; Maj+chiffre règle l&apos;opacité)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17626,8 +17630,8 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Scripts</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>Définir l&apos;opacité de l&apos;outil ou du calque (1 % à 100 % ; tapez deux chiffres pour une valeur exacte)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>Définir l&apos;opacité de l&apos;outil ou du calque (1 = 10 %, 0 = 100 % ; tapez vite deux chiffres pour une valeur exacte)</translation>
     </message>
 </context>
 <context>

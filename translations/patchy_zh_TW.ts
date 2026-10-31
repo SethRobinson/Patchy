@@ -16375,6 +16375,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
         <translation>請用直接選取工具選取要連接的兩個端點，或選取開放路徑上的一個錨點以封閉它</translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>筆刷流量:%1%(噴槍已開啟；Shift+數字設定不透明度)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17582,8 +17586,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>指令碼</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>設定工具或圖層不透明度(1% 到 100%；輸入兩位數字可設為精確值)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>設定工具或圖層不透明度(1 = 10%，0 = 100%；快速輸入兩位數字可設為精確值)</translation>
     </message>
 </context>
 <context>

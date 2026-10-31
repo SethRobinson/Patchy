@@ -1484,6 +1484,10 @@ public:
   // Digit keys with a tool that has no opacity of its own (Move, the selection and path
   // tools; GitHub issue 527) ask the host to set the selected layers' opacity to `percent`.
   void set_layer_opacity_digit_callback(std::function<void(int)> callback);
+  // The 0-9 opacity keys (and Shift+digits for Flow). keyPressEvent calls it, and so does the
+  // main window for a digit typed while a panel or the tool palette has focus (GitHub issue
+  // 562). False when the key is not one the current tool takes.
+  bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   // The canvas asks the host (the layer panel is the selection's source of
   // truth) to make exactly these layers selected with active_id current; the
   // host pushes the result back through set_selected_layer_ids. Move-tool
@@ -3063,7 +3067,6 @@ private:
   void refresh_sample_loupe(QPoint widget_position, QPoint document_point);
   void clear_sample_loupe();
   void draw_sample_loupe(QPainter& painter) const;
-  bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   bool perform_pen_button_action(PenButtonAction action, const PenInputSample& sample);
   bool dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample);
 

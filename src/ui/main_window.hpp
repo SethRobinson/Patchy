@@ -681,6 +681,7 @@ private:
   void update_window_resize_cursor(Qt::Edges edges);
   void clear_window_resize_cursor();
   bool handle_spacebar_canvas_pan_event(QObject* watched, QEvent* event);
+  bool handle_opacity_digit_key_event(QObject* watched, QEvent* event);
   [[nodiscard]] bool spacebar_canvas_pan_target_in_window(QWidget* widget) const noexcept;
   [[nodiscard]] bool spacebar_canvas_pan_target_is_canvas(QWidget* widget) const noexcept;
   [[nodiscard]] bool spacebar_canvas_pan_blocked_by_text_input(QWidget* widget) const noexcept;

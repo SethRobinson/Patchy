@@ -16418,6 +16418,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
         <translation>Seleziona con Selezione diretta due punti finali da unire, o un punto di un tracciato aperto per chiuderlo</translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Flusso pennello: %1% (Aerografo attivo; Maiusc+numero imposta l&apos;opacità)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17626,8 +17630,8 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Script</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>Imposta l&apos;opacità dello strumento o del livello (dall&apos;1% al 100%; digita due cifre per un valore esatto)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>Imposta l&apos;opacità dello strumento o del livello (1 = 10%, 0 = 100%; digita due cifre in fretta per un valore esatto)</translation>
     </message>
 </context>
 <context>

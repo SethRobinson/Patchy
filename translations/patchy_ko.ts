@@ -16375,6 +16375,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
         <translation>직접 선택으로 연결할 끝점 두 개 또는 닫을 열린 패스의 점을 선택하세요</translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>브러시 흐름: %1%(에어브러시 켜짐, Shift+숫자로 불투명도 설정)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17582,8 +17586,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>스크립트</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>도구 또는 레이어 불투명도 설정(1%-100%, 두 자리를 입력하면 정확한 값)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>도구 또는 레이어 불투명도 설정(1 = 10%, 0 = 100%, 두 자리를 빠르게 입력하면 정확한 값)</translation>
     </message>
 </context>
 <context>
