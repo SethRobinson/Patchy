@@ -3008,6 +3008,10 @@ private:
   QAction* layer_toggle_visibility_action_{nullptr};
   // Layer > Merge > Merge Visible (refresh_merge_visible_action_state).
   QAction* layer_merge_visible_layers_action_{nullptr};
+  // Layer > Merge > Merge Down and Merge Visible to New Layer (Copy); the footer's merge
+  // menus reuse them (GitHub issue 539).
+  QAction* layer_merge_down_action_{nullptr};
+  QAction* layer_merge_visible_to_new_action_{nullptr};
   // Merge Selected to New Layer (Copy): the layer context menu's Merge submenu and the window.
   QAction* layer_merge_selected_to_new_action_{nullptr};
   QAction* layer_align_to_selection_action_{nullptr};
