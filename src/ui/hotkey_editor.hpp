@@ -14,6 +14,8 @@ class QKeySequence;
 class QLabel;
 class QLineEdit;
 class QMenuBar;
+class QScrollArea;
+class QVBoxLayout;
 class QToolButton;
 
 namespace patchy::ui {
@@ -36,6 +38,9 @@ public:
   void commit();
   // Fills the search field (Script Manager's "Assign Hotkey..." lands on the script's row).
   void set_search_text(const QString& text);
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
   struct Row {
@@ -77,6 +82,9 @@ private:
   std::vector<Row> rows_;
   QHash<QFrame*, QString> panel_titles_;
   QLineEdit* search_edit_{nullptr};
+  QWidget* header_{nullptr};
+  QScrollArea* list_scroll_{nullptr};
+  QVBoxLayout* list_layout_{nullptr};
   HotkeyCaptureEdit* capture_edit_{nullptr};
   QFrame* conflict_banner_{nullptr};
   struct PendingCapture {

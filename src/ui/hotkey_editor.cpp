@@ -13,6 +13,8 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSet>
 #include <QTimer>
 #include <QToolButton>
@@ -158,11 +160,22 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
     : QWidget(parent), registry_(registry), staged_(registry.overrides()) {
   setObjectName(QStringLiteral("hotkeyEditorPanel"));
 
+  // The search row and hint stay put above the command list, which scrolls on its own
+  // (GitHub issue 561). Preferences hosts the panel with no right inset, so the list's
+  // scroll bar sits at the page edge; the 12 px right margins keep the rows and the
+  // search row off it, and the header widens its margin by the bar while it shows.
   auto* layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(10);
 
-  auto* top_row = new QWidget(this);
+  header_ = new QWidget(this);
+  header_->setObjectName(QStringLiteral("hotkeyEditorHeader"));
+  auto* header_layout = new QVBoxLayout(header_);
+  header_layout->setContentsMargins(0, 0, 12, 0);
+  header_layout->setSpacing(10);
+  layout->addWidget(header_);
+
+  auto* top_row = new QWidget(header_);
   auto* top_layout = new QHBoxLayout(top_row);
   top_layout->setContentsMargins(0, 0, 0, 0);
   top_layout->setSpacing(8);
@@ -175,15 +188,33 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   reset_all_button->setObjectName(QStringLiteral("hotkeyResetAllButton"));
   reset_all_button->setToolTip(tr("Restore every hotkey to its default"));
   top_layout->addWidget(reset_all_button);
-  layout->addWidget(top_row);
+  header_layout->addWidget(top_row);
 
   auto* hint = new QLabel(
-      tr("Click a shortcut to change it. Backspace clears it. Esc cancels. Changes apply when you click OK."), this);
+      tr("Click a shortcut to change it. Backspace clears it. Esc cancels. Changes apply when you click OK."),
+      header_);
   hint->setProperty("hotkeyDim", true);
   hint->setWordWrap(true);
-  layout->addWidget(hint);
+  header_layout->addWidget(hint);
 
-  connect(search_edit_, &QLineEdit::textChanged, this, [this] { filter_rows(); });
+  list_scroll_ = new QScrollArea(this);
+  list_scroll_->setObjectName(QStringLiteral("hotkeyListScroll"));
+  list_scroll_->setWidgetResizable(true);
+  list_scroll_->setFrameShape(QFrame::NoFrame);
+  list_scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  auto* list = new QWidget(list_scroll_);
+  list->setObjectName(QStringLiteral("hotkeyListContent"));
+  list_layout_ = new QVBoxLayout(list);
+  list_layout_->setContentsMargins(0, 0, 12, 12);
+  list_layout_->setSpacing(10);
+  list_scroll_->setWidget(list);
+  layout->addWidget(list_scroll_, 1);
+  list_scroll_->verticalScrollBar()->installEventFilter(this);
+
+  connect(search_edit_, &QLineEdit::textChanged, this, [this] {
+    filter_rows();
+    list_scroll_->verticalScrollBar()->setValue(0);
+  });
   connect(reset_all_button, &QPushButton::clicked, this, [this] {
     QTimer::singleShot(0, this, [this] {
       staged_.clear();
@@ -196,6 +227,11 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   // to repolish every descendant, which measured multiple seconds with the
   // full command list (the September 2026 Preferences-open slowdown).
   set_themed_style(*this, QStringLiteral(R"(
+    QWidget#hotkeyEditorPanel QWidget#hotkeyEditorHeader,
+    QWidget#hotkeyEditorPanel QScrollArea#hotkeyListScroll,
+    QWidget#hotkeyEditorPanel QWidget#hotkeyListContent {
+      background: transparent;
+    }
     QWidget#hotkeyEditorPanel QLabel[hotkeyCategoryHeader="true"] {
       color: @hotkey_hint_text;
       font-size: 11px;
@@ -285,7 +321,24 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   )"));
 
   build_rows(menu_bar);
+  list_layout_->addStretch(1);
   refresh_rows();
+}
+
+bool HotkeyEditorPanel::eventFilter(QObject* watched, QEvent* event) {
+  // Keeps the search row's right edge in line with the rows' while the list's scroll
+  // bar comes and goes (a search that fits hides it).
+  if (list_scroll_ != nullptr && watched == list_scroll_->verticalScrollBar() &&
+      (event->type() == QEvent::Show || event->type() == QEvent::Hide || event->type() == QEvent::Resize)) {
+    const auto* bar = list_scroll_->verticalScrollBar();
+    const int bar_width = bar->isVisibleTo(list_scroll_) ? bar->width() : 0;
+    auto margins = header_->layout()->contentsMargins();
+    if (margins.right() != 12 + bar_width) {
+      margins.setRight(12 + bar_width);
+      header_->layout()->setContentsMargins(margins);
+    }
+  }
+  return QWidget::eventFilter(watched, event);
 }
 
 void HotkeyEditorPanel::commit() {
@@ -293,7 +346,7 @@ void HotkeyEditorPanel::commit() {
 }
 
 QFrame* HotkeyEditorPanel::add_category_panel(const QString& title, bool dimmed) {
-  auto* panel = new QFrame(this);
+  auto* panel = new QFrame(list_layout_->parentWidget());
   panel->setProperty("preferencesPanel", true);
   auto* panel_layout = new QVBoxLayout(panel);
   panel_layout->setContentsMargins(12, 8, 12, 6);
@@ -305,7 +358,7 @@ QFrame* HotkeyEditorPanel::add_category_panel(const QString& title, bool dimmed)
   // styled label's contents margins with the rule's box values.
   header->setProperty("hotkeyCategoryGap", true);
   panel_layout->addWidget(header);
-  layout()->addWidget(panel);
+  list_layout_->addWidget(panel);
   panel_titles_.insert(panel, title);
   return panel;
 }

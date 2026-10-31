@@ -59,6 +59,8 @@
 #include <QListWidget>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QStringList>
 #include <QSlider>
@@ -4493,6 +4495,87 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
   QApplication::processEvents();
   CHECK(saw_dialog);
 }
+// GitHub issue 561: only the command list scrolls; the search row and hint stay put at the
+// top of the page. GitHub issue 562: the 0-9 row names layer opacity and the 1% to 100% range.
+void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_hotkeys_tab(*dialog);
+    QApplication::processEvents();
+    auto* panel = dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel"));
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+    auto* list_scroll = dialog->findChild<QScrollArea*>(QStringLiteral("hotkeyListScroll"));
+    CHECK(panel != nullptr && search != nullptr && list_scroll != nullptr);
+    if (panel == nullptr || search == nullptr || list_scroll == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // No page-level scroll area wraps the panel, and the search field is outside the list.
+    for (QWidget* ancestor = panel->parentWidget(); ancestor != nullptr && ancestor != dialog;
+         ancestor = ancestor->parentWidget()) {
+      CHECK(qobject_cast<QScrollArea*>(ancestor) == nullptr);
+    }
+    CHECK(!list_scroll->isAncestorOf(search));
+
+    auto* bar = list_scroll->verticalScrollBar();
+    CHECK(bar->maximum() > 0);
+    bar->setValue(0);
+    QApplication::processEvents();
+    const QRect search_before(search->mapTo(dialog, QPoint(0, 0)), search->size());
+    bar->setValue(bar->maximum());
+    QApplication::processEvents();
+    const QRect search_after(search->mapTo(dialog, QPoint(0, 0)), search->size());
+    CHECK(search->isVisible());
+    CHECK(search_after == search_before);
+    CHECK(search_after.bottom() < list_scroll->mapTo(dialog, QPoint(0, 0)).y());
+    // The rows end where the search row ends, beside the scroll bar.
+    auto* reset_all = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
+    auto* list = list_scroll->widget();
+    CHECK(reset_all != nullptr && list != nullptr);
+    if (reset_all != nullptr && list != nullptr) {
+      const int reset_right = reset_all->mapTo(dialog, QPoint(reset_all->width(), 0)).x();
+      int panel_right = 0;
+      for (auto* frame : list->findChildren<QFrame*>(Qt::FindDirectChildrenOnly)) {
+        if (frame->isVisible()) {
+          panel_right = std::max(panel_right, frame->mapTo(dialog, QPoint(frame->width(), 0)).x());
+        }
+      }
+      CHECK(panel_right > 0);
+      CHECK(std::abs(reset_right - panel_right) <= 1);
+    }
+
+    // The bottom of the list is the built-in keys panel, with the 0-9 row's new text.
+    bool saw_opacity_row = false;
+    for (auto* label : list->findChildren<QLabel*>()) {
+      if (label->text() == QStringLiteral("Set tool or layer opacity (1% to 100%; type two digits for an exact value)")) {
+        saw_opacity_row = label->isVisible();
+      }
+      CHECK(!label->text().contains(QStringLiteral("10%-100%")));
+    }
+    CHECK(saw_opacity_row);
+    save_widget_artifact("hotkey_editor_scrolled_to_bottom", *dialog);
+
+    // A search starts the list at the top again.
+    search->setText(QStringLiteral("opacity"));
+    QApplication::processEvents();
+    CHECK(bar->value() == 0);
+    search->clear();
+    QApplication::processEvents();
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
 // GitHub issue 554: Help > Search Commands (and the menu bar's button after Help) lists every
 // enabled menu command with its menu path and shortcut, filters as you type, and Enter runs
 // the chosen command once the popup has closed.
@@ -5265,6 +5348,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_editor_steals_conflicting_shortcut", ui_hotkey_editor_steals_conflicting_shortcut},
       {"ui_hotkey_editor_reset_all_clears_overrides", ui_hotkey_editor_reset_all_clears_overrides},
       {"ui_hotkey_editor_lists_scripts_category", ui_hotkey_editor_lists_scripts_category},
+      {"ui_hotkey_editor_search_row_stays_while_list_scrolls", ui_hotkey_editor_search_row_stays_while_list_scrolls},
       {"ui_color_picker_accepts_css_rgba_and_names", ui_color_picker_accepts_css_rgba_and_names},
       {"ui_color_picker_opens_with_hex_field_selected_for_paste", ui_color_picker_opens_with_hex_field_selected_for_paste},
       {"ui_color_picker_cmyk_fields_follow_working_space", ui_color_picker_cmyk_fields_follow_working_space},

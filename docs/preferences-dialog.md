@@ -25,7 +25,7 @@ settings; Application holds app-level settings (language, interface scale and te
 The pages are listed down the left (issue 451): `preferencesPageList`, a QListWidget, drives
 `preferencesPageStack`, a QStackedWidget, so a new page adds a row instead of widening the
 dialog (the tab row it replaced did). Each page is a `preferencesTabHost` holding a
-vertical-only `preferencesTabScroll`.
+vertical-only `preferencesTabScroll`, except Hotkeys (below).
 
 - **Widths.** The list is fixed to its longest title in the current language, measured after
   the dialog sheet is set so the row padding counts. Titles stay the tab-style strings
@@ -63,7 +63,9 @@ vertical-only `preferencesTabScroll`.
   `@text_on_raised` text and an `@accent` bar on its left edge. No colors in code ([ui-conventions.md](ui-conventions.md#color-scheme)).
 - **Keyboard.** The list takes the focus on open, so Up and Down step through the pages.
 - **Hotkeys page.** Its ~150 rows are built on the first visit (the stack's `currentChanged`),
-  after the dialog sheet, so Qt never repolishes them. Keep the page at its position.
+  after the dialog sheet, so Qt never repolishes them. Keep the page at its position. It has
+  no `preferencesTabScroll`: the search row and hint stay on top and only the panel's
+  `hotkeyListScroll` scrolls (issue 561); the width fit measures that list too.
 - **Colors and Themes page.** Its widgets are built with the dialog, but the themes are read on
   the first visit (the same `currentChanged`), because loading every theme package is slow.
 
