@@ -53,6 +53,30 @@ std::string write_svg(const Document& document, std::vector<std::string>* notice
   return std::string(bytes.begin(), bytes.end());
 }
 
+// GitHub #557: stroke-dasharray and stroke-dashoffset read into stroke-width
+// multiples and write back as the same user units.
+void svg_stroke_dash_offset_round_trips() {
+  const auto first_stroke = [](const Document& document) -> patchy::VectorStroke {
+    for (const auto& layer : document.layers()) {
+      if (const auto* shape = layer.vector_shape(); shape != nullptr) return shape->stroke;
+    }
+    CHECK(false);
+    return {};
+  };
+  const auto document = read_svg(R"(<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60">
+  <rect x="10" y="10" width="80" height="40" fill="none" stroke="#000" stroke-width="4"
+        stroke-dasharray="8 4" stroke-dashoffset="6"/>
+</svg>)");
+  const auto stroke = first_stroke(document);
+  CHECK((stroke.dashes == std::vector<double>{2.0, 1.0}));
+  CHECK(std::abs(stroke.dash_offset - 1.5) < 1e-9);
+  const auto text = write_svg(document);
+  CHECK(text.find("stroke-dashoffset=\"6\"") != std::string::npos);
+  const auto reread = first_stroke(read_svg(text));
+  CHECK((reread.dashes == std::vector<double>{2.0, 1.0}));
+  CHECK(std::abs(reread.dash_offset - 1.5) < 1e-9);
+}
+
 // --- svg_xml -----------------------------------------------------------------
 
 void svg_xml_parses_entities_dtd_cdata_and_namespaces() {
@@ -1155,6 +1179,7 @@ void svg_baked_content_dry_run_matches_writer() {
 std::vector<patchy::test::TestCase> svg_tests() {
   return {
       {"svg_xml_parses_entities_dtd_cdata_and_namespaces", svg_xml_parses_entities_dtd_cdata_and_namespaces},
+      {"svg_stroke_dash_offset_round_trips", svg_stroke_dash_offset_round_trips},
       {"svg_xml_reports_malformed_input", svg_xml_reports_malformed_input},
       {"svg_xml_transcodes_utf16", svg_xml_transcodes_utf16},
       {"svg_path_grammar_parses_all_commands", svg_path_grammar_parses_all_commands},

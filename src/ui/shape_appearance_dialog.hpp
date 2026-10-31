@@ -55,6 +55,27 @@ struct ShapeAppearanceSettings {
 // A dash preset's name, as the Dashes combo and the options bar's dash combo show it.
 [[nodiscard]] QString stroke_dash_preset_label(StrokeDashPreset preset);
 
+// A stroke style the user saved in Shape Appearance (GitHub #557): the line
+// settings without width or paint. Saved in the app settings under
+// kStrokeStylePresetsKey as a JSON array (stroke_style_presets_json).
+struct StrokeStylePreset {
+  QString name;
+  VectorStrokeAlignment alignment{VectorStrokeAlignment::Inside};
+  VectorStrokeCap cap{VectorStrokeCap::Butt};
+  VectorStrokeJoin join{VectorStrokeJoin::Miter};
+  std::vector<double> dashes;  // stroke widths; empty is solid
+  double dash_offset{0.0};     // stroke widths
+};
+inline constexpr const char* kStrokeStylePresetsKey = "shapeAppearance/strokeStylePresets";
+[[nodiscard]] StrokeStylePreset stroke_style_preset_from(const VectorStroke& stroke, QString name);
+void apply_stroke_style_preset(VectorStroke& stroke, const StrokeStylePreset& preset);
+[[nodiscard]] bool stroke_matches_style_preset(const VectorStroke& stroke, const StrokeStylePreset& preset);
+[[nodiscard]] QString stroke_style_presets_json(const std::vector<StrokeStylePreset>& presets);
+// Skips entries it cannot read (no name, unusable dashes).
+[[nodiscard]] std::vector<StrokeStylePreset> parse_stroke_style_presets_json(const QString& json);
+[[nodiscard]] std::vector<StrokeStylePreset> load_stroke_style_presets();
+void save_stroke_style_presets(const std::vector<StrokeStylePreset>& presets);
+
 // Live-preview dialog for a shape layer's fill and stroke (the
 // request_levels_settings convention): every control change fires
 // preview_changed with the full settings; returns nullopt on cancel. Pattern

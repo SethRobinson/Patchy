@@ -14309,6 +14309,42 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Dash dot dot</source>
         <translation>Strich-Punkt-Punkt</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>Gespeicherte Konturvorgabe anwenden</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>Ausrichtung, Enden, Ecken, Striche und Strichversatz als Vorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>Gewählte Vorgabe löschen</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>Verschiebt das Strichmuster entlang des Pfads, in Konturbreiten</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>Strichversatz:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>Keine gespeicherten Vorgaben</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>Vorgabe wählen</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>Konturvorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>Konturvorgabe %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

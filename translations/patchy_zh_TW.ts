@@ -14266,6 +14266,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash dot dot</source>
         <translation>雙點劃線</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>套用已儲存的筆畫預設集</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>將對齊、端點、轉角、虛線和虛線位移儲存為預設集</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>刪除所選的預設集</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>沿路徑移動虛線圖樣，以筆畫寬度為單位</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>虛線位移:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>沒有已儲存的預設集</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>選擇預設集</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>儲存筆畫預設集</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>筆畫預設集 %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14309,6 +14309,42 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Dash dot dot</source>
         <translation>Tiret-point-point</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>Appliquer un contour prédéfini enregistré</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>Enregistrer Alignement, Extrémités, Angles, Tirets et Décalage des tirets comme contour prédéfini</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>Supprimer le contour prédéfini choisi</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>Déplace le motif des tirets le long du tracé, en largeurs de contour</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>Décalage des tirets :</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>Aucun contour prédéfini enregistré</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>Choisir un contour prédéfini</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>Enregistrer le contour prédéfini</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>Contour prédéfini %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14266,6 +14266,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash dot dot</source>
         <translation>二点鎖線</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>保存した線のプリセットを適用</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>整列、線端、角、破線、破線のオフセットをプリセットとして保存</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>選択したプリセットを削除</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>破線パターンをパスに沿って移動します (単位は線幅)</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>破線のオフセット:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>保存したプリセットはありません</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>プリセットを選択</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>線のプリセットを保存</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>線のプリセット %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

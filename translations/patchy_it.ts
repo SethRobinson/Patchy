@@ -14309,6 +14309,42 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Dash dot dot</source>
         <translation>Tratto punto punto</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>Applica una traccia predefinita salvata</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>Salva Allineamento, Estremità, Angoli, Tratti e Spostamento dei tratti come predefinito</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>Elimina il predefinito scelto</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>Sposta lo schema dei tratti lungo il tracciato, in larghezze della traccia</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>Spostamento dei tratti:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>Nessun predefinito salvato</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>Scegli un predefinito</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>Salva traccia predefinita</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>Traccia predefinita %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

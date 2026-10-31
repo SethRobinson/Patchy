@@ -979,6 +979,51 @@ void psd_authored_custom_and_dotted_dashes_round_trip() {
   CHECK(metrics.max_channel_delta == 0);
 }
 
+// GitHub #557: Shape Appearance's Dash offset (stroke widths) writes to vstk
+// strokeStyleLineDashOffset in points and reopens at the same value, at 72 and
+// 300 ppi.
+void psd_authored_dash_offset_round_trip() {
+  for (const double resolution : {72.0, 300.0}) {
+    patchy::Document document(96, 40, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("bg", patchy::test::solid_rgba(96, 40, 255, 255, 255, 255));
+    patchy::Layer shape(document.allocate_layer_id(), "Shape", patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Rectangle;
+    params.left = 8;
+    params.top = 8;
+    params.right = 88;
+    params.bottom = 30;
+    patchy::populate_live_shape_box_corners(params);
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    content.origination = {params};
+    content.fill.kind = patchy::VectorFillKind::None;
+    content.stroke.enabled = true;
+    content.stroke.fill_enabled = false;
+    content.stroke.width = 3.0;
+    content.stroke.resolution = resolution;
+    content.stroke.dashes = {4.0, 2.0};
+    content.stroke.dash_offset = 1.5;
+    content.stroke.content.kind = patchy::VectorFillKind::Solid;
+    content.stroke.content.color = patchy::RgbColor{30, 30, 30};
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(96, 40), nullptr);
+    document.add_layer(std::move(shape));
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto reread = patchy::psd::DocumentIo::read(written, {});
+    CHECK(reread.layers().size() == 2);
+    const auto* roundtrip = reread.layers()[1].vector_shape();
+    CHECK(roundtrip != nullptr);
+    if (roundtrip == nullptr) continue;
+    CHECK(std::fabs(roundtrip->stroke.dash_offset - 1.5) < 1e-6);
+    CHECK((roundtrip->stroke.dashes == std::vector<double>{4.0, 2.0}));
+    const auto metrics = rgb_diff_metrics(patchy::Compositor{}.flatten_rgb8(document),
+                                          patchy::Compositor{}.flatten_rgb8(reread));
+    CHECK(metrics.max_channel_delta == 0);
+  }
+}
+
 // GitHub #548 follow-up: every Shape Appearance dash preset, on Butt and Round
 // caps, writes to vstk strokeStyleLineDashSet and reopens as the same preset.
 void psd_authored_dash_presets_round_trip() {
@@ -2874,6 +2919,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
       {"psd_authored_custom_and_dotted_dashes_round_trip", psd_authored_custom_and_dotted_dashes_round_trip},
       {"psd_authored_dash_presets_round_trip", psd_authored_dash_presets_round_trip},
+      {"psd_authored_dash_offset_round_trip", psd_authored_dash_offset_round_trip},
       {"live_polygon_regenerates_resolves_and_writes_a_plain_path",
        live_polygon_regenerates_resolves_and_writes_a_plain_path},
       {"psd_compound_group_writes_continuation_records_and_round_trips",

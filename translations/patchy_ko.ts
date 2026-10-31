@@ -14266,6 +14266,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash dot dot</source>
         <translation>이점 쇄선</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>저장된 획 사전 설정 적용</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>정렬, 끝, 모서리, 점선, 점선 오프셋을 사전 설정으로 저장</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>선택한 사전 설정 삭제</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>점선 패턴을 패스를 따라 이동합니다(획 두께 단위)</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>점선 오프셋:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>저장된 사전 설정 없음</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>사전 설정 선택</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>획 사전 설정 저장</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>획 사전 설정 %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14352,6 +14352,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash dot dot</source>
         <translation>Штрихпунктирная с двумя точками</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>Применить сохранённую настройку обводки</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>Сохранить выравнивание, концы, углы, штрихи и смещение штрихов как настройку</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>Удалить выбранную настройку</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>Сдвигает шаблон штрихов вдоль контура, в ширинах обводки</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>Смещение штрихов:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>Нет сохранённых настроек</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>Выберите настройку</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>Сохранить настройку обводки</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>Настройка обводки %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

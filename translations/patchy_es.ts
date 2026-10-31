@@ -14309,6 +14309,42 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Dash dot dot</source>
         <translation>Raya y dos puntos</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>Aplicar un ajuste preestablecido de trazo guardado</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>Guardar Alinear, Extremos, Esquinas, Guiones y Desplazamiento de guiones como ajuste preestablecido</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>Eliminar el ajuste preestablecido elegido</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>Desplaza el patrón de guiones a lo largo del trazado, en anchos de trazo</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>Desplazamiento de guiones:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>No hay ajustes preestablecidos guardados</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>Elegir un ajuste preestablecido</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>Guardar ajuste preestablecido de trazo</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>Ajuste preestablecido de trazo %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

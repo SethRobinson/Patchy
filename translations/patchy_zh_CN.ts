@@ -14266,6 +14266,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash dot dot</source>
         <translation>双点划线</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>应用已存储的描边预设</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>将对齐、端点、角点、虚线和虚线偏移存储为预设</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>删除所选预设</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>沿路径移动虚线图案，以描边宽度为单位</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>虚线偏移:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>没有已存储的预设</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>选择预设</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>存储描边预设</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>描边预设 %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

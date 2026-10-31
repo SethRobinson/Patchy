@@ -14352,6 +14352,42 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Dash dot dot</source>
         <translation>Kreska kropka kropka</translation>
     </message>
+    <message>
+        <source>Apply a saved stroke preset</source>
+        <translation>Zastosuj zapisane ustawienie wstępne obrysu</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>Zapisz Wyrównanie, Zakończenia, Narożniki, Kreski i Przesunięcie kresek jako ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>Usuń wybrane ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>Przesuwa wzór kresek wzdłuż ścieżki, w szerokościach obrysu</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>Przesunięcie kresek:</translation>
+    </message>
+    <message>
+        <source>No saved presets</source>
+        <translation>Brak zapisanych ustawień wstępnych</translation>
+    </message>
+    <message>
+        <source>Choose a preset</source>
+        <translation>Wybierz ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>Zapisz ustawienie wstępne obrysu</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>Ustawienie wstępne obrysu %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
