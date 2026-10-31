@@ -21030,10 +21030,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Raio de canto arredondado para a ferramenta retângulo (0 = cantos vivos)</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>Aparência...</translation>
-    </message>
-    <message>
         <source>Fill opacity for the Fill tool and Fill shortcut</source>
         <translation>Opacidade de preenchimento para a ferramenta Preenchimento e atalho de Preenchimento</translation>
     </message>

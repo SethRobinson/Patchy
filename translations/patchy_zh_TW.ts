@@ -25517,10 +25517,6 @@ Y：%2
         <translation>編輯目前形狀圖層的填色、筆畫、不透明度和邊緣</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>外觀...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>編輯外觀...</translation>
     </message>

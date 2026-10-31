@@ -2118,8 +2118,14 @@ void ui_line_options_bar_fits_one_row_with_room_to_spare() {
 
   window.resize(1366, 738);
   settle();
-  auto* appearance = window.findChild<QPushButton*>(QStringLiteral("vectorAppearanceButton"));
+  auto* appearance = window.findChild<QToolButton*>(QStringLiteral("vectorAppearanceButton"));
   CHECK(appearance != nullptr && appearance->isVisible());
+  if (appearance != nullptr) {
+    // A gear icon button now (GitHub issue 556 follow-up), named for screen readers.
+    CHECK(appearance->text().isEmpty() && !appearance->icon().isNull());
+    CHECK(appearance->toolTip() == QStringLiteral("Shape Appearance..."));
+    CHECK(appearance->accessibleName() == appearance->toolTip());
+  }
   CHECK(options_row_extent(*options).second == 1);
   if (appearance != nullptr) {
     CHECK(std::abs(appearance->geometry().center().y() - mode->geometry().center().y()) <= 2);

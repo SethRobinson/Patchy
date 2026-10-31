@@ -3607,6 +3607,23 @@ void ui_options_bar_dash_combo_applies_presets() {
     CHECK(combo->itemData(row).toInt() == static_cast<int>(presets[static_cast<std::size_t>(row)]));
   }
   CHECK(combo->itemText(custom_row) == QObject::tr("Custom"));
+  {
+    // The closed combo shows every preset name in full (GitHub issue 556 follow-up).
+    QStyleOptionComboBox option;
+    option.initFrom(combo);
+    option.rect = combo->rect();
+    const QRect field =
+        combo->style()->subControlRect(QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, combo);
+    const QFontMetrics metrics(combo->font());
+    for (int row = 0; row < custom_row; ++row) {
+      const int text_width = metrics.horizontalAdvance(combo->itemText(row));
+      if (text_width > field.width()) {
+        std::printf("  dash preset '%s' needs %d px, field %d px\n", qPrintable(combo->itemText(row)), text_width,
+                    field.width());
+      }
+      CHECK(text_width <= field.width());
+    }
+  }
   auto* view = qobject_cast<QListView*>(combo->view());
   auto* model = qobject_cast<QStandardItemModel*>(combo->model());
   CHECK(view != nullptr && model != nullptr);
@@ -3675,6 +3692,21 @@ void ui_options_bar_dash_combo_applies_presets() {
   QApplication::processEvents();
   CHECK(combo->currentData().toInt() == static_cast<int>(StrokeDashPreset::DashDot));
   CHECK(view->isRowHidden(custom_row));
+
+  // At 1366 px the Rectangle bar keeps the wider combo and the Appearance gear on one row.
+  window.resize(1366, 738);
+  QApplication::processEvents();
+  process_events_for(20);
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  auto* appearance = window.findChild<QToolButton*>(QStringLiteral("vectorAppearanceButton"));
+  CHECK(options != nullptr && appearance != nullptr && appearance->isVisible());
+  if (options != nullptr && appearance != nullptr) {
+    const QPoint gear = appearance->mapTo(options, appearance->rect().center());
+    const QPoint dashes = combo->mapTo(options, combo->rect().center());
+    CHECK(std::abs(gear.y() - dashes.y()) <= 2);
+    const QRect strip(0, 0, appearance->mapTo(options, appearance->rect().bottomRight()).x() + 8, options->height());
+    save_image_artifact("issue556_rectangle_options_bar_1366", options->grab(strip).toImage());
+  }
 }
 
 // GitHub #557 follow-up: the Stroke Presets manager renames, reorders and deletes the
@@ -4963,7 +4995,7 @@ void ui_shape_options_group_stroke_controls_and_end_with_appearance() {
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
   auto* stroke_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorStrokeSwatchButton"));
   auto* stroke_label = window.findChild<QLabel*>(QStringLiteral("vectorStrokeWidthLabel"));
-  auto* appearance = window.findChild<QPushButton*>(QStringLiteral("vectorAppearanceButton"));
+  auto* appearance = window.findChild<QToolButton*>(QStringLiteral("vectorAppearanceButton"));
   auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
   CHECK(stroke_width && stroke_swatch && stroke_label && appearance && options);
   CHECK(window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck")) == nullptr);  // issue 311
@@ -8263,7 +8295,7 @@ void ui_shape_appearance_entry_points_open_the_dialog() {
   // (a) Options-bar button in Shape mode.
   require_action(window, "toolRectAction")->trigger();
   QApplication::processEvents();
-  auto* appearance_button = window.findChild<QPushButton*>(QStringLiteral("vectorAppearanceButton"));
+  auto* appearance_button = window.findChild<QToolButton*>(QStringLiteral("vectorAppearanceButton"));
   CHECK(appearance_button != nullptr && appearance_button->isVisible() && appearance_button->isEnabled());
   CHECK(opens_dialog([&] { appearance_button->click(); }));
 

@@ -21074,10 +21074,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Promień zaokrąglonego narożnika narzędzia Prostokąt (0 = ostre narożniki)</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>Wygląd...</translation>
-    </message>
-    <message>
         <source>Fill opacity for the Fill tool and Fill shortcut</source>
         <translation>Krycie wypełnienia dla narzędzia Wypełnienie i skrótu Wypełnienie</translation>
     </message>

@@ -3903,7 +3903,7 @@ private:
   UnitSpinBox* vector_shape_width_spin_{nullptr};
   UnitSpinBox* vector_shape_height_spin_{nullptr};
   QPushButton* vector_shape_link_size_button_{nullptr};
-  QPushButton* vector_appearance_button_{nullptr};
+  QToolButton* vector_appearance_button_{nullptr};
   QTimer* vector_shape_size_apply_timer_{nullptr};
   double vector_shape_size_ratio_{1.0};  // width / height at the last sync (link button)
   // Per-mode refinement of the shape tools' options bar, applied after the

@@ -21074,10 +21074,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Радиус закругления углов инструмента «Прямоугольник» (0 = острые углы)</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>Внешний вид...</translation>
-    </message>
-    <message>
         <source>Fill opacity for the Fill tool and Fill shortcut</source>
         <translation>Непрозрачность заливки для инструмента «Заливка» и сочетания клавиш «Заливка»</translation>
     </message>

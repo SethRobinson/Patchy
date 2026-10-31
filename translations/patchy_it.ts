@@ -25576,10 +25576,6 @@ Y: %2
         <translation>Modifica riempimento, traccia, opacità e bordo del livello forma attivo</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>Aspetto...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>Modifica aspetto...</translation>
     </message>

@@ -350,7 +350,7 @@ and vector masks (convert to a smart object or rasterize first).
 ## Appearance editing and fill layers
 
 The Shape Appearance dialog opens from the vector badge, the layer and
-canvas context menus ([tools.md](tools.md)), the options-bar Appearance... button, Layer >
+canvas context menus ([tools.md](tools.md)), the options-bar Appearance gear, Layer >
 Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
 panel's Edit Appearance..., and a Path Select / Direct Select double-click on
 the shape's geometry. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes

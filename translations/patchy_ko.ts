@@ -20986,10 +20986,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>직사각형 도구의 둥근 모서리 반경(0 = 날카로운 모서리)</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>외형...</translation>
-    </message>
-    <message>
         <source>Fill opacity for the Fill tool and Fill shortcut</source>
         <translation>채우기 도구와 채우기 단축키에 적용할 불투명도</translation>
     </message>
