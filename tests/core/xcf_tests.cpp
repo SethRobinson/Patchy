@@ -1076,6 +1076,92 @@ void xcf_text_layers_open_as_editable_text_over_gimps_raster() {
                     [](const std::string& n) { return n.find("painted on") != std::string::npos; }));
 }
 
+// GitHub issue 551: a text layer GIMP marks as painted on opens as GIMP's pixels and keeps the
+// text it would have opened with, outline included, for Type > Restore GIMP Text; a move carries
+// the stored text box along, and taking the text puts the editable keys back.
+void xcf_painted_text_layers_keep_gimps_text() {
+  builder::Image image;
+  image.width = 80;
+  image.height = 60;
+  auto painted = pixel_layer("Painted", builder::solid(30, 12, {1, 2, 3, 255}), 40, 20);
+  painted.properties.push_back(builder::prop_parasites({builder::text_parasite(
+      "(text \"Painted\")\n(font \"Serif Bold\")\n(font-size 10)\n(font-size-unit pixels)\n"
+      "(color (color-rgb 0 0 1))\n(box-mode dynamic)\n")}));
+  painted.properties.push_back(builder::prop_u32(builder::kTextLayerFlags, 3));
+  image.layers.push_back(painted);
+  auto outlined = pixel_layer("Outlined", builder::solid(30, 12, {1, 2, 3, 255}), 5, 30);
+  outlined.properties.push_back(builder::prop_parasites({builder::text_parasite(
+      "(text \"Edge\")\n(font-size 12)\n(font-size-unit pixels)\n(outline stroke-only)\n"
+      "(outline-direction outer)\n(outline-width 2)\n(outline-unit pixels)\n"
+      "(outline-foreground (color-rgb 1 0 0))\n")}));
+  outlined.properties.push_back(builder::prop_u32(builder::kTextLayerFlags, 2));
+  image.layers.push_back(outlined);
+  auto unreadable = pixel_layer("Blank", builder::solid(10, 10, {1, 2, 3, 255}), 0, 0);
+  unreadable.properties.push_back(builder::prop_parasites({builder::text_parasite("(text \" \")\n(font-size 10)\n")}));
+  unreadable.properties.push_back(builder::prop_u32(builder::kTextLayerFlags, 2));
+  image.layers.push_back(unreadable);
+  std::vector<std::string> notices;
+  auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+  CHECK(std::any_of(notices.begin(), notices.end(),
+                    [](const std::string& n) { return n.find("Restore GIMP Text") != std::string::npos; }));
+  const auto stored = [](const patchy::Layer& layer, const char* key) {
+    return metadata_of(layer, (std::string(patchy::kLayerMetadataXcfStoredTextPrefix) + key).c_str());
+  };
+  const auto* painted_layer = find_named(document.layers(), "Painted");
+  CHECK(painted_layer != nullptr);
+  if (painted_layer == nullptr) {
+    return;
+  }
+  CHECK(!patchy::layer_is_text(*painted_layer) && patchy::layer_has_stored_xcf_text(*painted_layer));
+  CHECK(rgba_at(*painted_layer, 0, 0) == (std::array<std::uint8_t, 4>{1, 2, 3, 255}));  // GIMP's pixels
+  CHECK(metadata_of(*painted_layer, patchy::kLayerMetadataXcfStoredTextBox) == "40 20 30 12");
+  CHECK(stored(*painted_layer, patchy::kLayerMetadataText) == "Painted");
+  CHECK(stored(*painted_layer, patchy::kLayerMetadataTextFont) == "Serif");
+  CHECK(stored(*painted_layer, patchy::kLayerMetadataTextBold) == "true");
+  CHECK(stored(*painted_layer, patchy::kLayerMetadataTextColor) == "#0000ff");
+  const auto* outlined_layer = find_named(document.layers(), "Outlined");
+  CHECK(outlined_layer != nullptr && !patchy::layer_is_text(*outlined_layer));
+  if (outlined_layer != nullptr) {
+    CHECK(stored(*outlined_layer, patchy::kLayerMetadataText) == "Edge");
+    CHECK(stored(*outlined_layer, patchy::kLayerMetadataXcfPendingOutline) == "outside 2 #ff0000 1 nofill");
+    CHECK(!outlined_layer->metadata().contains(patchy::kLayerMetadataXcfPendingOutline));
+  }
+  const auto* blank = find_named(document.layers(), "Blank");
+  CHECK(blank != nullptr && !patchy::layer_has_stored_xcf_text(*blank));
+
+  auto moved = *painted_layer;
+  patchy::translate_moved_layer_metadata(moved, -5, 7, document.width(), document.height());
+  CHECK(metadata_of(moved, patchy::kLayerMetadataXcfStoredTextBox) == "35 27 30 12");
+  const auto box = patchy::take_stored_xcf_text(moved);
+  CHECK(box.has_value() && (*box == patchy::Rect{35, 27, 30, 12}));
+  CHECK(patchy::layer_is_text(moved) && !patchy::layer_has_stored_xcf_text(moved));
+  CHECK(metadata_of(moved, patchy::kLayerMetadataText) == "Painted");
+  CHECK(metadata_of(moved, patchy::kLayerMetadataTextColor) == "#0000ff");
+  CHECK(std::none_of(moved.metadata().begin(), moved.metadata().end(), [](const auto& entry) {
+    return entry.first.starts_with(patchy::kLayerMetadataXcfStoredTextPrefix);
+  }));
+  CHECK(!patchy::take_stored_xcf_text(moved).has_value());
+}
+
+// philipzae's #551 file (local-test-fixtures/xcf-issue-547, the same file as #547's): its "Lock
+// all" text layer was painted on in GIMP and keeps GIMP's text.
+void xcf_issue_551_painted_text_layer_keeps_its_text_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-547";
+  patchy::test::skip_unless_exists(dir / "layer-switches.xcf");
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read_file(dir / "layer-switches.xcf", &notices);
+  const auto* layer = find_named(document.layers(), "Lock all");
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  CHECK(!patchy::layer_is_text(*layer) && patchy::layer_has_stored_xcf_text(*layer));
+  CHECK(!metadata_of(*layer, (std::string(patchy::kLayerMetadataXcfStoredTextPrefix) + patchy::kLayerMetadataText).c_str())
+             .empty());
+  CHECK(std::any_of(notices.begin(), notices.end(),
+                    [](const std::string& n) { return n.find("Restore GIMP Text") != std::string::npos; }));
+}
+
 // The text parasites of philipzae's GIMP 3.2 samples (GitHub issues 508 and 509; fonthash,
 // psname and the outline defaults trimmed). Each layer's name lists what was set in GIMP.
 constexpr const char* kCalibriParasite = R"((markup "<markup><u>Calibri Italics</u></markup>")
@@ -2682,6 +2768,9 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_maps_every_gimp_layer_mode", xcf_maps_every_gimp_layer_mode},
       {"xcf_text_parasites_parse_gimp_2_and_3_forms", xcf_text_parasites_parse_gimp_2_and_3_forms},
       {"xcf_text_layers_open_as_editable_text_over_gimps_raster", xcf_text_layers_open_as_editable_text_over_gimps_raster},
+      {"xcf_painted_text_layers_keep_gimps_text", xcf_painted_text_layers_keep_gimps_text},
+      {"xcf_issue_551_painted_text_layer_keeps_its_text_if_available",
+       xcf_issue_551_painted_text_layer_keeps_its_text_if_available},
       {"xcf_text_parasite_reads_hsv_colors_span_fonts_and_outlines", xcf_text_parasite_reads_hsv_colors_span_fonts_and_outlines},
       {"xcf_text_layers_keep_gimp_styling_and_outlines", xcf_text_layers_keep_gimp_styling_and_outlines},
       {"xcf_issue_508_509_samples_open_as_text_if_available", xcf_issue_508_509_samples_open_as_text_if_available},

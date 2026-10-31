@@ -1936,6 +1936,16 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   register_hotkey(resolve_fonts_action, "type.resolve_missing_fonts");
   connect(resolve_fonts_action, &QAction::triggered, this, [this] { show_resolve_missing_fonts_dialog(); });
   register_document_action(resolve_fonts_action);
+  // GIMP text layers painted on after their text was set open as pixels with the text kept
+  // (GitHub issue 551, docs/xcf.md): this turns the selected ones back into editable text.
+  type_restore_gimp_text_action_ = ctx.type_menu->addAction(QString());
+  bind_action_text(type_restore_gimp_text_action_, QT_TR_NOOP("Restore GIMP Text"));
+  type_restore_gimp_text_action_->setObjectName(QStringLiteral("typeRestoreGimpTextAction"));
+  type_restore_gimp_text_action_->setMenuRole(QAction::NoRole);
+  type_restore_gimp_text_action_->setEnabled(false);
+  register_hotkey(type_restore_gimp_text_action_, "type.restore_gimp_text");
+  connect(type_restore_gimp_text_action_, &QAction::triggered, this,
+          [this] { restore_gimp_text_of_layers(rasterize_target_layer_ids(selected_or_active_layer_ids())); });
 
   // The color well and Quick Mask live in a footer pinned to the bar's bottom,
   // outside the toolbar layout, so they never fold into the extension and stay

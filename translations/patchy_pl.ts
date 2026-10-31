@@ -12671,10 +12671,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Pływające zaznaczenie było przypięte do kanału lub maski warstwy, więc je pominięto.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
-        <translation>Na niektórych warstwach tekstowych malowano w GIMP po ustawieniu tekstu, więc otwarto je jako warstwy pikselowe.</translation>
-    </message>
-    <message>
         <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
         <translation>Niektórych warstw tekstowych nie udało się odczytać jako tekstu, więc otwarto je jako warstwy pikselowe.</translation>
     </message>
@@ -14311,6 +14307,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
         <translation>Warstwa ukryta. Kliknij, aby pokazać. %ALT%-kliknięcie pokazuje tylko tę warstwę.</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
+        <translation>Na niektórych warstwach tekstowych malowano w GIMP po ustawieniu tekstu, więc otwarto je jako warstwy pikselowe. Tekst &gt; Przywróć tekst GIMP zamienia je z powrotem w edytowalny tekst, bez namalowanych zmian.</translation>
     </message>
 </context>
 <context>
@@ -29080,6 +29080,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Sh&amp;ow All Layers</source>
         <translation>Pokaż wszystkie w&amp;arstwy</translation>
+    </message>
+    <message>
+        <source>No selected layer has GIMP text to restore</source>
+        <translation>Żadna zaznaczona warstwa nie ma tekstu GIMP do przywrócenia</translation>
+    </message>
+    <message>
+        <source>Restore GIMP Text</source>
+        <translation>Przywróć tekst GIMP</translation>
+    </message>
+    <message>
+        <source>Restored GIMP text</source>
+        <translation>Przywrócono tekst GIMP</translation>
     </message>
 </context>
 <context>

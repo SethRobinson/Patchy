@@ -191,7 +191,17 @@ size and color follow the first run, since a span can restyle all of the text.
   has the outline baked in, so the reader writes `patchy.xcf.pending_outline` and
   `MainWindow::render_pending_xcf_text_layers` redraws the text at open (origin at the layer's
   top-left) and adds the style (notice). Pattern and dashed outlines open as pixels (notice).
-- A layer GIMP marks as painted on (PROP_TEXT_LAYER_FLAGS bit 2) opens as pixels (notice).
+- A layer GIMP marks as painted on (PROP_TEXT_LAYER_FLAGS bit 2) opens as GIMP's pixels
+  (notice) and keeps the text it would have opened with (#551): every key the editable layer
+  gets (outline included) under `patchy.xcf.stored_text.`, plus `patchy.xcf.stored_text_box`,
+  GIMP's layer rect, which a move carries along (`translate_moved_layer_metadata`). Type >
+  Restore GIMP Text (`type.restore_gimp_text`, also in the layer context menu over such a
+  layer) puts the keys back and draws the text from the box's top-left like the outline redraw,
+  dropping the paint as GIMP does on a text edit, in one undo step over every selected layer
+  (folders count through their contents); a pixel-locked layer is refused. There is no open-time
+  prompt or preference: opening stays dialog-free and shows GIMP's rendering. The stored text is
+  in memory only: no format writes it (a PSD has no Photoshop-safe place for it), so a saved and
+  reopened file has plain pixels.
   Patchy's redraw of an edited layer starts within a few pixels of GIMP's
   (`ui_xcf_text_layers_stay_editable`); its glyphs are Patchy's.
 

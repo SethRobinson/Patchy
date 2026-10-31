@@ -5002,6 +5002,9 @@ void MainWindow::refresh_layer_controls() {
     if (layer_rasterize_layer_style_action_ != nullptr) {
       layer_rasterize_layer_style_action_->setEnabled(false);
     }
+    if (type_restore_gimp_text_action_ != nullptr) {
+      type_restore_gimp_text_action_->setEnabled(false);
+    }
     if (delete_layer_mask_action_ != nullptr) {
       delete_layer_mask_action_->setEnabled(false);
     }
@@ -5162,6 +5165,14 @@ void MainWindow::refresh_layer_controls() {
     layer_rasterize_layer_style_action_->setEnabled(
         edit_allowed &&
         can_rasterize_any([](const Layer& candidate) { return layer_can_rasterize_layer_style(candidate); }));
+  }
+  // On over a locked layer too, so the command can say why it does nothing.
+  if (type_restore_gimp_text_action_ != nullptr) {
+    type_restore_gimp_text_action_->setEnabled(
+        edit_allowed && std::any_of(rasterize_ids.begin(), rasterize_ids.end(), [this](LayerId id) {
+          const auto* candidate = std::as_const(document()).find_layer(id);
+          return candidate != nullptr && layer_has_stored_xcf_text(*candidate);
+        }));
   }
   if (delete_layer_mask_action_ != nullptr) {
     delete_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());

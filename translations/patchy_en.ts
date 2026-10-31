@@ -12621,10 +12621,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14250,6 +14246,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -28916,6 +28916,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>Sh&amp;ow All Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No selected layer has GIMP text to restore</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore GIMP Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restored GIMP text</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

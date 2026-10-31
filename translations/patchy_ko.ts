@@ -12603,10 +12603,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>떠 있는 선택 영역이 채널 또는 레이어 마스크에 연결되어 있어 제외했습니다.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
-        <translation>일부 텍스트 레이어는 GIMP에서 텍스트를 입력한 뒤 그 위에 그림을 그렸기 때문에 픽셀 레이어로 열렸습니다.</translation>
-    </message>
-    <message>
         <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
         <translation>일부 텍스트 레이어를 텍스트로 읽을 수 없어 픽셀 레이어로 열렸습니다.</translation>
     </message>
@@ -14225,6 +14221,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
         <translation>레이어가 숨겨졌습니다. 표시하려면 클릭하세요. %ALT%-클릭: 이 레이어만 표시.</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
+        <translation>일부 텍스트 레이어는 GIMP에서 텍스트를 입력한 뒤 그 위에 그림을 그렸기 때문에 픽셀 레이어로 열렸습니다. 문자 &gt; GIMP 텍스트 복원을 사용하면 그린 부분 없이 다시 편집 가능한 텍스트가 됩니다.</translation>
     </message>
 </context>
 <context>
@@ -28916,6 +28916,18 @@ Locked: %1</source>
     <message>
         <source>Sh&amp;ow All Layers</source>
         <translation>모든 레이어 표시(&amp;O)</translation>
+    </message>
+    <message>
+        <source>No selected layer has GIMP text to restore</source>
+        <translation>선택한 레이어에 복원할 GIMP 텍스트가 없습니다</translation>
+    </message>
+    <message>
+        <source>Restore GIMP Text</source>
+        <translation>GIMP 텍스트 복원</translation>
+    </message>
+    <message>
+        <source>Restored GIMP text</source>
+        <translation>GIMP 텍스트를 복원했습니다</translation>
     </message>
 </context>
 <context>

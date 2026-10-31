@@ -9,6 +9,7 @@
 #include "psd/psd_document_io.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/layer_list_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/panel_column.hpp"
 #include "ui/qt_paths.hpp"
@@ -26,6 +27,7 @@
 #include <QDir>
 #include <QFile>
 #include <QLabel>
+#include <QMenu>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
@@ -602,6 +604,254 @@ void ui_xcf_issue_508_review_capture() {
   }
 }
 
+// Writes GIMP file bytes into `dir` and returns the path.
+QString write_xcf_file(const QTemporaryDir& dir, const char* name, const std::vector<std::uint8_t>& bytes) {
+  const auto path = dir.filePath(QString::fromLatin1(name));
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  CHECK(file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+        static_cast<qint64>(bytes.size()));
+  file.close();
+  return path;
+}
+
+// The object names of the layer context menu's own rows, opened over `id`'s row.
+QStringList layer_context_menu_actions(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  QStringList names;
+  if (layer_list == nullptr) {
+    return names;
+  }
+  QPoint position;
+  for (int row = 0; row < layer_list->count(); ++row) {
+    if (static_cast<patchy::LayerId>(layer_list->item(row)->data(patchy::ui::kLayerIdRole).toULongLong()) == id) {
+      position = layer_list->visualItemRect(layer_list->item(row)).center();
+    }
+  }
+  bool saw_menu = false;
+  int attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&] {
+    if (++attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->objectName() == QStringLiteral("layerContextMenu") && menu->isVisible()) {
+        saw_menu = true;
+        for (auto* action : menu->actions()) {
+          names << action->objectName();
+        }
+        menu->close();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  QMetaObject::invokeMethod(
+      &window, [&window, position] { patchy::ui::MainWindowTestAccess::show_layer_context_menu(window, position); },
+      Qt::QueuedConnection);
+  for (int i = 0; i < 200 && !saw_menu && attempts <= 500; ++i) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  poller.stop();
+  CHECK(saw_menu);
+  return names;
+}
+
+std::size_t stack_index(const std::vector<patchy::Layer>& layers, patchy::LayerId id) {
+  const auto found =
+      std::find_if(layers.begin(), layers.end(), [id](const patchy::Layer& layer) { return layer.id() == id; });
+  return static_cast<std::size_t>(found - layers.begin());
+}
+
+// GitHub issue 551: Type > Restore GIMP Text is on only over a painted-on GIMP text layer and
+// turns it into editable text GIMP stored, dropping the paint, in one undo step that keeps the
+// layer's name, place, opacity, blend mode and visibility; a pixel-locked layer stays as it is.
+void ui_xcf_restore_gimp_text_replaces_a_painted_layer() {
+  namespace builder = patchy::test::xcf;
+  builder::Image image;
+  image.width = 240;
+  image.height = 120;
+  builder::Layer plain;
+  plain.name = "Plain";
+  plain.drawable = builder::solid(240, 120, {255, 255, 255, 255});
+  plain.properties.push_back(builder::prop_offsets(0, 0));
+  const auto painted_text = [](const std::string& name, std::int32_t y) {
+    builder::Layer layer;
+    layer.name = name;
+    layer.type = 1;
+    layer.drawable = builder::solid(80, 30, {255, 0, 0, 255});
+    layer.properties.push_back(builder::prop_offsets(20, y));
+    layer.properties.push_back(builder::prop_u32(builder::kTextLayerFlags, 3));
+    layer.properties.push_back(builder::prop_parasites({builder::text_parasite(
+        "(text \"Hello\")\n(font \"Sans-serif\")\n(font-size 24)\n(font-size-unit pixels)\n"
+        "(color (color-rgb 0 0 1))\n(box-mode dynamic)\n")}));
+    return layer;
+  };
+  auto painted = painted_text("Painted", 10);
+  painted.properties.push_back(builder::prop_f32(builder::kFloatOpacity, 0.5F));
+  auto locked = painted_text("Locked", 70);
+  locked.properties.push_back(builder::prop_u32(builder::kLockContent, 1));
+  // GIMP lists the top layer first.
+  image.layers.push_back(locked);
+  image.layers.push_back(painted);
+  image.layers.push_back(plain);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto path = write_xcf_file(temp, "painted-text.xcf", builder::write(image));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeRestoreGimpTextAction"));
+  CHECK(action != nullptr && action->menuRole() == QAction::NoRole);
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* plain_layer = find_named(document.layers(), "Plain");
+  const auto* painted_layer = find_named(document.layers(), "Painted");
+  const auto* locked_layer = find_named(document.layers(), "Locked");
+  CHECK(plain_layer != nullptr && painted_layer != nullptr && locked_layer != nullptr);
+  if (action == nullptr || plain_layer == nullptr || painted_layer == nullptr || locked_layer == nullptr) {
+    return;
+  }
+  const auto plain_id = plain_layer->id();
+  const auto painted_id = painted_layer->id();
+  const auto locked_id = locked_layer->id();
+  CHECK(!patchy::layer_is_text(*painted_layer) && patchy::layer_has_stored_xcf_text(*painted_layer));
+
+  patchy::ui::MainWindowTestAccess::select_layers(window, {plain_id}, plain_id);
+  QApplication::processEvents();
+  CHECK(!action->isEnabled());
+  CHECK(!layer_context_menu_actions(window, plain_id).contains(QStringLiteral("typeRestoreGimpTextAction")));
+  patchy::ui::MainWindowTestAccess::select_layers(window, {painted_id}, painted_id);
+  QApplication::processEvents();
+  CHECK(action->isEnabled());
+  CHECK(layer_context_menu_actions(window, painted_id).contains(QStringLiteral("typeRestoreGimpTextAction")));
+  patchy::ui::MainWindowTestAccess::select_layers(window, {painted_id}, painted_id);
+  QApplication::processEvents();
+
+  const auto opacity = painted_layer->opacity();
+  const auto blend = painted_layer->blend_mode();
+  const auto visible = painted_layer->visible();
+  const auto index = stack_index(document.layers(), painted_id);
+  const auto bounds = painted_layer->bounds();
+  CHECK(bounds == (patchy::Rect{20, 10, 80, 30}));
+  patchy::ui::MainWindowTestAccess::mark_active_session_saved(window);
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  const auto* restored = document.find_layer(painted_id);
+  CHECK(restored != nullptr);
+  if (restored == nullptr) {
+    return;
+  }
+  CHECK(patchy::layer_is_text(*restored) && !patchy::layer_has_stored_xcf_text(*restored));
+  CHECK(layer_metadata_of(*restored, patchy::kLayerMetadataText) == "Hello");
+  CHECK(layer_metadata_of(*restored, patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  CHECK(restored->name() == "Painted" && restored->opacity() == opacity && restored->blend_mode() == blend &&
+        restored->visible() == visible && stack_index(document.layers(), painted_id) == index);
+  // Patchy's glyphs in GIMP's blue replace the red paint, starting near GIMP's text box.
+  CHECK(std::abs(restored->bounds().x - 20) <= 6 && std::abs(restored->bounds().y - 10) <= 10);
+  const auto& pixels = restored->pixels();
+  bool inked = false;
+  bool red = false;
+  for (int y = 0; y < pixels.height(); ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      const auto* p = pixels.pixel(x, y);
+      inked = inked || (p[3] > 128 && p[2] > 128);
+      red = red || (p[3] > 0 && p[0] > p[2]);
+    }
+  }
+  CHECK(inked && !red);
+
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  const auto* undone = document.find_layer(painted_id);
+  CHECK(undone != nullptr && !patchy::layer_is_text(*undone) && patchy::layer_has_stored_xcf_text(*undone));
+  if (undone != nullptr) {
+    CHECK(undone->bounds() == bounds);
+    CHECK(undone->pixels().pixel(0, 0)[0] == 255 && undone->pixels().pixel(0, 0)[2] == 0);
+  }
+  patchy::ui::MainWindowTestAccess::redo(window);
+  QApplication::processEvents();
+  const auto* redone = document.find_layer(painted_id);
+  CHECK(redone != nullptr && layer_metadata_of(*redone, patchy::kLayerMetadataText) == "Hello");
+
+  // A pixel lock keeps the layer as it is; the command stays on to say why.
+  patchy::ui::MainWindowTestAccess::select_layers(window, {locked_id}, locked_id);
+  QApplication::processEvents();
+  CHECK(action->isEnabled());
+  const auto locked_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == locked_depth);
+  const auto* still_locked = document.find_layer(locked_id);
+  CHECK(still_locked != nullptr && !patchy::layer_is_text(*still_locked) &&
+        patchy::layer_has_stored_xcf_text(*still_locked));
+}
+
+// For the #551 card: philipzae's file (local-test-fixtures/xcf-issue-547) with its "Lock all"
+// text layer unlocked, restored to text and edited, and the Type menu.
+void ui_xcf_issue_551_review_capture() {
+  const auto sample = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-547" / "layer-switches.xcf";
+  if (!std::filesystem::exists(sample)) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1280, 800);
+  window.set_cli_automation_mode(true);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(sample.wstring()));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer = document.find_layer([&] {
+    const auto* found = find_named(std::as_const(document).layers(), "Lock all");
+    return found != nullptr ? found->id() : patchy::LayerId{};
+  }());
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto id = layer->id();
+  layer->set_lock_flags(patchy::kLayerLockNone);
+  patchy::ui::MainWindowTestAccess::select_layers(window, {id}, id);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  patchy::ui::MainWindowTestAccess::canvas(window)->set_zoom_centered(1.0);
+  QApplication::processEvents();
+  auto* action = window.findChild<QAction*>(QStringLiteral("typeRestoreGimpTextAction"));
+  CHECK(action != nullptr && action->isEnabled());
+  if (action == nullptr) {
+    return;
+  }
+  for (auto* object : action->associatedObjects()) {
+    if (auto* menu = qobject_cast<QMenu*>(object); menu != nullptr && menu->parentWidget() != nullptr) {
+      menu->popup(window.mapToGlobal(QPoint(300, 40)));
+      QApplication::processEvents();
+      patchy::test::ui::save_widget_artifact("xcf551_type_menu", *menu);
+      menu->hide();
+    }
+  }
+  window.statusBar()->clearMessage();
+  QApplication::processEvents();
+  patchy::test::ui::save_widget_artifact("xcf551_open", window);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::layer_is_text(*std::as_const(document).find_layer(id)));
+  QApplication::processEvents();
+  patchy::test::ui::save_widget_artifact("xcf551_restored", window);
+  (void)patchy::ui::MainWindowTestAccess::cli_append_text_to_text_layers(window, QStringLiteral(" (edited)"));
+  window.statusBar()->clearMessage();
+  QApplication::processEvents();
+  patchy::test::ui::save_widget_artifact("xcf551_edited", window);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> xcf_ui_tests() {
@@ -611,6 +861,8 @@ std::vector<patchy::test::TestCase> xcf_ui_tests() {
       {"ui_xcf_text_layers_stay_editable", ui_xcf_text_layers_stay_editable},
       {"ui_xcf_outlined_text_opens_editable_with_a_stroke", ui_xcf_outlined_text_opens_editable_with_a_stroke},
       {"ui_xcf_issue_508_review_capture", ui_xcf_issue_508_review_capture},
+      {"ui_xcf_restore_gimp_text_replaces_a_painted_layer", ui_xcf_restore_gimp_text_replaces_a_painted_layer},
+      {"ui_xcf_issue_551_review_capture", ui_xcf_issue_551_review_capture},
       {"ui_script_opens_xcf_files", ui_script_opens_xcf_files},
       {"ui_xcf_review_capture", ui_xcf_review_capture},
       {"ui_xcf_metadata_reaches_file_info", ui_xcf_metadata_reaches_file_info},

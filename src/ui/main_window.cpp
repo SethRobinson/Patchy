@@ -9411,6 +9411,54 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
   process(process, target.layers());
 }
 
+namespace {
+
+// Draws a GIMP text layer's text as Patchy's raster, GIMP's text box starting at the layer's
+// top-left (docs/xcf.md, "Text layers"), and adds `outline` (the parts of a
+// kLayerMetadataXcfPendingOutline value, or none) as a Stroke style. False, with the layer
+// unchanged, when the text draws nothing.
+bool draw_xcf_text_layer(Layer& layer, const QStringList& outline) {
+  auto rendered_text = render_text_layer_from_metadata(layer);
+  if (!rendered_text.has_value() || rendered_text->pixels.empty()) {
+    return false;
+  }
+  // The buffer starts local_rect.topLeft() from the text origin (overhanging glyph ink).
+  const auto origin = std::as_const(layer).bounds();
+  auto pixels = convert_pixel_buffer_depth(rendered_text->pixels, std::as_const(layer).pixels().format().bit_depth,
+                                           SampleKind::Color);
+  const Rect placed{origin.x + static_cast<std::int32_t>(std::lround(rendered_text->local_rect.left())),
+                    origin.y + static_cast<std::int32_t>(std::lround(rendered_text->local_rect.top())),
+                    pixels.width(), pixels.height()};
+  // set_pixels resets bounds to the buffer at the origin, so the bounds
+  // must follow it (the text-commit ordering convention).
+  layer.set_pixels(std::move(pixels));
+  layer.set_bounds(placed);
+  store_text_layout_metrics(layer, rendered_text->metrics);
+  layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+  if (outline.size() < 5) {
+    return true;
+  }
+  LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.position = outline[0] == QLatin1String("inside")    ? LayerStrokePosition::Inside
+                    : outline[0] == QLatin1String("outside") ? LayerStrokePosition::Outside
+                                                             : LayerStrokePosition::Center;
+  stroke.size = std::clamp(outline[1].toFloat(), 1.0F, 250.0F);
+  const QColor color(outline[2]);
+  if (color.isValid()) {
+    stroke.color = RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                            static_cast<std::uint8_t>(color.blue())};
+  }
+  stroke.opacity = std::clamp(outline[3].toFloat(), 0.0F, 1.0F);
+  layer.layer_style().strokes.push_back(stroke);
+  if (outline[4] == QLatin1String("nofill")) {
+    layer.set_fill_opacity(0.0F);
+  }
+  return true;
+}
+
+}  // namespace
+
 void MainWindow::render_pending_xcf_text_layers(Document& target) {
   const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
     for (auto& layer : layers) {
@@ -9427,43 +9475,70 @@ void MainWindow::render_pending_xcf_text_layers(Document& target) {
       if (parts.size() < 5 || !layer_is_text(std::as_const(layer))) {
         continue;
       }
-      auto rendered_text = render_text_layer_from_metadata(layer);
-      if (!rendered_text.has_value() || rendered_text->pixels.empty()) {
-        continue;  // GIMP's raster, outline included, stays until the text is edited
-      }
-      LayerStroke stroke;
-      stroke.enabled = true;
-      stroke.position = parts[0] == QLatin1String("inside")    ? LayerStrokePosition::Inside
-                        : parts[0] == QLatin1String("outside") ? LayerStrokePosition::Outside
-                                                               : LayerStrokePosition::Center;
-      stroke.size = std::clamp(parts[1].toFloat(), 1.0F, 250.0F);
-      const QColor color(parts[2]);
-      if (color.isValid()) {
-        stroke.color = RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-                                static_cast<std::uint8_t>(color.blue())};
-      }
-      stroke.opacity = std::clamp(parts[3].toFloat(), 0.0F, 1.0F);
-      // GIMP's text box starts at the layer's top-left; the buffer starts local_rect.topLeft()
-      // from the text origin (overhanging glyph ink).
-      const auto origin = std::as_const(layer).bounds();
-      auto pixels = convert_pixel_buffer_depth(rendered_text->pixels,
-                                               std::as_const(layer).pixels().format().bit_depth, SampleKind::Color);
-      const Rect placed{origin.x + static_cast<std::int32_t>(std::lround(rendered_text->local_rect.left())),
-                        origin.y + static_cast<std::int32_t>(std::lround(rendered_text->local_rect.top())),
-                        pixels.width(), pixels.height()};
-      // set_pixels resets bounds to the buffer at the origin, so the bounds
-      // must follow it (the text-commit ordering convention).
-      layer.set_pixels(std::move(pixels));
-      layer.set_bounds(placed);
-      store_text_layout_metrics(layer, rendered_text->metrics);
-      metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
-      layer.layer_style().strokes.push_back(stroke);
-      if (parts[4] == QLatin1String("nofill")) {
-        layer.set_fill_opacity(0.0F);
-      }
+      // When nothing draws, GIMP's raster, outline included, stays until the text is edited.
+      (void)draw_xcf_text_layer(layer, parts);
     }
   };
   process(process, target.layers());
+}
+
+void MainWindow::restore_gimp_text_of_layers(const std::vector<LayerId>& ids) {
+  finish_active_text_editor();
+  auto& doc = document();
+  struct PendingRestore {
+    LayerId id{};
+    Layer layer;
+    Rect before;
+  };
+  std::vector<PendingRestore> pending;
+  bool locked = false;
+  for (const auto id : ids) {
+    const auto* layer = std::as_const(doc).find_layer(id);
+    if (layer == nullptr || !layer_has_stored_xcf_text(*layer)) {
+      continue;
+    }
+    if (layer_id_locks_image_pixels(id)) {
+      locked = true;
+      continue;
+    }
+    // The text GIMP stored replaces the layer's pixels, paint included, as GIMP does when its
+    // text is edited; name, stacking, opacity, blend mode, mask and locks stay.
+    Layer restored = *layer;
+    const auto box = take_stored_xcf_text(restored);
+    if (!box.has_value()) {
+      continue;
+    }
+    QStringList outline;
+    if (const auto found = std::as_const(restored).metadata().find(kLayerMetadataXcfPendingOutline);
+        found != std::as_const(restored).metadata().end()) {
+      outline = QString::fromStdString(found->second).split(QLatin1Char(' '));
+      restored.metadata().erase(kLayerMetadataXcfPendingOutline);
+    }
+    restored.set_bounds(*box);
+    if (!draw_xcf_text_layer(restored, outline)) {
+      continue;
+    }
+    pending.push_back(PendingRestore{id, std::move(restored), layer_render_bounds(*layer)});
+  }
+  if (pending.empty()) {
+    show_status_error(locked ? tr("Layer pixels are locked.") : tr("No selected layer has GIMP text to restore"));
+    return;
+  }
+  push_undo_snapshot(tr("Restore GIMP Text"));
+  Rect affected;
+  for (auto& change : pending) {
+    auto* layer = doc.find_layer(change.id);
+    if (layer == nullptr) {
+      continue;
+    }
+    affected = unite_rect(affected, change.before);
+    *layer = std::move(change.layer);
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed(affected.empty() ? QRect() : to_qrect(affected));
+  statusBar()->showMessage(tr("Restored GIMP text"));
 }
 
 void MainWindow::render_pending_pdf_text_layers(Document& target) {
