@@ -14269,6 +14269,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation>En GIMP se pintó sobre algunas capas de texto después de escribir el texto, así que se abrieron como capas de píxeles. Texto &gt; Restaurar texto de GIMP las vuelve a convertir en texto editable, sin lo pintado.</translation>
     </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
+        <translation>Longitudes de guiones y huecos en anchos de trazo, separadas por espacios, por ejemplo 4 2 o 6 2 1 2. Una longitud de 0 dibuja un punto con extremos redondos o cuadrados.</translation>
+    </message>
+    <message>
+        <source>x width</source>
+        <translation>x anchura</translation>
+    </message>
+    <message>
+        <source>Dash pattern:</source>
+        <translation>Patrón de guiones:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14226,6 +14226,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation>部分文字图层在 GIMP 中设置文字后又被绘制过，因此已作为像素图层打开。使用“文字 &gt; 恢复 GIMP 文字”可将其重新变为可编辑文字，绘制的内容会被丢弃。</translation>
     </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
+        <translation>以描边宽度为单位的虚线和间隙长度，用空格分隔，例如 4 2 或 6 2 1 2。长度为 0 时，圆形或方形端点会画出一个点。</translation>
+    </message>
+    <message>
+        <source>x width</source>
+        <translation>x 宽度</translation>
+    </message>
+    <message>
+        <source>Dash pattern:</source>
+        <translation>虚线图案:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

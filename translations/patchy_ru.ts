@@ -14312,6 +14312,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation>На некоторых текстовых слоях в GIMP рисовали после ввода текста, поэтому они открыты как пиксельные слои. Команда «Текст &gt; Восстановить текст GIMP» снова делает их редактируемым текстом, без нарисованного.</translation>
     </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
+        <translation>Длины штрихов и промежутков в ширинах обводки через пробел, например 4 2 или 6 2 1 2. Длина 0 рисует точку при круглых или квадратных концах.</translation>
+    </message>
+    <message>
+        <source>x width</source>
+        <translation>x ширина</translation>
+    </message>
+    <message>
+        <source>Dash pattern:</source>
+        <translation>Шаблон штрихов:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -270,6 +270,26 @@ void ui_script_vector_all_paints_and_pattern_collision() {
   CHECK(patchy::ui::presets::pattern_tiles_equal(doc.metadata().patterns.find(id)->tile, resource->tile));
   CHECK(doc.metadata().patterns.find(collision.id)->tile.width() == 1);
 }
+// GitHub #548 follow-up: a 0 dash is a dot, so a Dotted stroke read back from
+// getShape() writes again; a pattern with no length is still refused.
+void ui_script_vector_stroke_accepts_zero_length_dots() {
+  MainWindow window; show_window_empty(window);
+  run(window, R"JS(
+    var d=app.newDocument(64,64);
+    var s=d.addShape('Dots',{type:'rectangle',x:8,y:8,width:40,height:40},
+      {fill:'none',stroke:{width:4,paint:'#000000',cap:'round',dashes:[0,2]}});
+    var stroke=s.getShape().stroke;
+    check(stroke.dashes.length===2 && stroke.dashes[0]===0 && stroke.dashes[1]===2,'dots kept');
+    s.updateShape({stroke:{dashes:stroke.dashes}});
+    s.updateShape({stroke:{dashes:[6,2,1,2]}});
+    check(s.getShape().stroke.dashes.join(',')==='6,2,1,2','custom pattern');
+    reject(function(){ s.updateShape({stroke:{dashes:[0,0]}}); });
+    reject(function(){ s.updateShape({stroke:{dashes:[2,-1]}}); });
+    patchy.setResult(s.getShape().stroke.dashes.join(','));
+  )JS");
+  CHECK(window.script_engine_host().last_result().toString() == QStringLiteral("6,2,1,2"));
+}
+
 void ui_script_vector_path_raster_painting() {
   MainWindow window; show_window_empty(window);
   run(window, R"JS(
@@ -344,5 +364,6 @@ std::vector<patchy::test::TestCase> vector_scripting_tests() {
     {"ui_script_vector_masks_paths_selection_and_history", ui_script_vector_masks_paths_selection_and_history},
     {"ui_script_vector_all_paints_and_pattern_collision", ui_script_vector_all_paints_and_pattern_collision},
     {"ui_script_vector_path_raster_painting", ui_script_vector_path_raster_painting},
+    {"ui_script_vector_stroke_accepts_zero_length_dots", ui_script_vector_stroke_accepts_zero_length_dots},
     {"ui_script_vector_psd_svg_unicode_round_trip", ui_script_vector_psd_svg_unicode_round_trip}};
 }

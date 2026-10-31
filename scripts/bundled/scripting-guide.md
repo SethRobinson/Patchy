@@ -167,7 +167,8 @@ hold; script timer callbacks cannot reenter the current script.
 Fills and stroke paints accept `"none"`, RGB color strings, or typed solid,
 gradient, and pattern objects. Solid opacity belongs to the layer or stroke.
 Stroke fields include width, alignment, cap, join, miter limit, dashes/dashOffset
-(width multiples), opacity (0..1), blendMode, scaleLock, adjust, and fillEnabled.
+(width multiples; a 0 dash is a dot with round or square caps, so `dashes:[0,2]` with
+`cap:'round'` draws dots), opacity (0..1), blendMode, scaleLock, adjust, and fillEnabled.
 Partial updates preserve omitted values; explicitly enable a previously disabled
 stroke with `enabled:true`.
 

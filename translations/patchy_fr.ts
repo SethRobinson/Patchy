@@ -14269,6 +14269,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation>Certains calques de texte ont été peints dans GIMP après la saisie du texte ; ils ont donc été ouverts comme calques de pixels. Texte &gt; Restaurer le texte GIMP les rend de nouveau modifiables, sans la peinture.</translation>
     </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
+        <translation>Longueurs des tirets et des espaces en largeurs de contour, séparées par des espaces, par exemple 4 2 ou 6 2 1 2. Une longueur de 0 dessine un point avec des extrémités arrondies ou carrées.</translation>
+    </message>
+    <message>
+        <source>x width</source>
+        <translation>x largeur</translation>
+    </message>
+    <message>
+        <source>Dash pattern:</source>
+        <translation>Motif des tirets :</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

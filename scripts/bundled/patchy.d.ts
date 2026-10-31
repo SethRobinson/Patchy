@@ -2024,7 +2024,7 @@ interface PatchyVectorStroke {
   enabled?: boolean; fillEnabled?: boolean; width?: number; paint?: PatchyVectorPaint;
   alignment?: "inside" | "center" | "outside";
   cap?: "butt" | "round" | "square"; join?: "miter" | "round" | "bevel";
-  /** Dash values and offset are stroke-width multiples; at most 64 positive values. */
+  /** Dash values and offset are stroke-width multiples; at most 64 values, none negative and at least one above 0 (a 0 dash is a dot with round or square caps). */
   dashes?: number[]; dashOffset?: number; miterLimit?: number;
   /** 0..1 */ opacity?: number; blendMode?: string; scaleLock?: boolean; adjust?: boolean;
 }

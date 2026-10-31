@@ -155,6 +155,13 @@ struct VectorStroke {
   friend bool operator==(const VectorStroke&, const VectorStroke&) = default;
 };
 
+// The Dotted dash preset for a cap (stroke-width multiples). Zero-length
+// dashes draw only through a round or square cap (Photoshop and SVG draw
+// nothing for them with butt caps), so a butt-capped stroke's dots are
+// one-width dashes: the same square dots a square cap draws from {0, 2}.
+std::vector<double> dotted_dash_pattern(VectorStrokeCap cap);
+bool is_dotted_dash_pattern(const std::vector<double>& dashes, VectorStrokeCap cap);
+
 // Live-shape parameter kinds. Values are Patchy's own; the PSD keyOriginType
 // integers (rect 1, rounded rect 2, line 4, ellipse 5) map at I/O. Kinds
 // Photoshop was not observed writing import as Custom with the raw origination

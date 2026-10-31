@@ -40,7 +40,7 @@
 
 ## Vectors and typography
 
-- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, vector masks edited like paths, path and anchor editing, radius, sides and star inset editable after drawing, and a Paths panel with fill, stroke, and make-selection commands, all saved to PSDs that open in Photoshop
+- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint and custom stroke dashes, vector masks edited like paths, anchor editing, radius, sides and star inset editable later, and a Paths panel with fill, stroke and selection commands, all saved to PSDs that open in Photoshop
 - Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom, alongside pixels, masks, adjustments, and effects. Merge Layers can keep editable vectors and bitmap runs separate, merge within groups or make a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible also bakes a layer's mask or effects
 - Trace Image to Shapes: converts a pixel layer (logo, scan, photo) into a group of editable shape layers, one per color, with Illustrator-style presets, color, grayscale, and black-and-white modes, abutting or overlapping shapes, noise removal, and a live preview; export the result as SVG
 - Point text, paragraph (box) text, and area text that flows inside a closed shape or path, saved as native Photoshop text frames

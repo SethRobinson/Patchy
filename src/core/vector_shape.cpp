@@ -72,6 +72,17 @@ void extend_bounds(VectorPathBounds& bounds, bool& any, double x, double y) noex
 
 }  // namespace
 
+std::vector<double> dotted_dash_pattern(VectorStrokeCap cap) {
+  if (cap == VectorStrokeCap::Butt) {
+    return {1.0, 1.0};
+  }
+  return {0.0, 2.0};
+}
+
+bool is_dotted_dash_pattern(const std::vector<double>& dashes, VectorStrokeCap cap) {
+  return dashes == std::vector<double>{0.0, 2.0} || dashes == dotted_dash_pattern(cap);
+}
+
 bool VectorPath::empty() const noexcept {
   for (const auto& subpath : subpaths) {
     if (!subpath.anchors.empty()) {

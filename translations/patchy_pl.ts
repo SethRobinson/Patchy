@@ -14312,6 +14312,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation>Na niektórych warstwach tekstowych malowano w GIMP po ustawieniu tekstu, więc otwarto je jako warstwy pikselowe. Tekst &gt; Przywróć tekst GIMP zamienia je z powrotem w edytowalny tekst, bez namalowanych zmian.</translation>
     </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
+        <translation>Długości kresek i przerw w szerokościach obrysu, oddzielone spacjami, na przykład 4 2 lub 6 2 1 2. Długość 0 rysuje kropkę przy zakończeniach okrągłych lub kwadratowych.</translation>
+    </message>
+    <message>
+        <source>x width</source>
+        <translation>x szerokość</translation>
+    </message>
+    <message>
+        <source>Dash pattern:</source>
+        <translation>Wzór kresek:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

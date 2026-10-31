@@ -14226,6 +14226,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation>일부 텍스트 레이어는 GIMP에서 텍스트를 입력한 뒤 그 위에 그림을 그렸기 때문에 픽셀 레이어로 열렸습니다. 문자 &gt; GIMP 텍스트 복원을 사용하면 그린 부분 없이 다시 편집 가능한 텍스트가 됩니다.</translation>
     </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
+        <translation>선 너비 단위의 대시와 간격 길이를 공백으로 구분해 입력합니다(예: 4 2 또는 6 2 1 2). 길이 0은 둥근 끝이나 사각 끝에서 점을 그립니다.</translation>
+    </message>
+    <message>
+        <source>x width</source>
+        <translation>x 너비</translation>
+    </message>
+    <message>
+        <source>Dash pattern:</source>
+        <translation>점선 길이:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -193,7 +193,9 @@ VectorStroke stroke(ScriptEngineHost& host, const QJsonObject& v, PatternStore& 
   if (v.contains("dashes")) {
     if (!v["dashes"].isArray() || v["dashes"].toArray().size() > 64) { invalid("dashes"); }
     s.dashes.clear();
-    for (const auto& d : v["dashes"].toArray()) { s.dashes.push_back(required_number({{"dash", d}}, "dash", 0.0001, 10000)); }
+    for (const auto& d : v["dashes"].toArray()) { s.dashes.push_back(required_number({{"dash", d}}, "dash", 0, 10000)); }
+    // A 0 entry is a dot (Round or Square caps); the pattern still needs a length.
+    if (!s.dashes.empty() && std::none_of(s.dashes.begin(), s.dashes.end(), [](double d) { return d > 0.0; })) { invalid("dashes"); }
   }
   return s;
 }

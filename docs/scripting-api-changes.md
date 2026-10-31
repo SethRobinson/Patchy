@@ -14,6 +14,10 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-10-31 (behavioral): shape stroke `dashes` take 0 entries (a dot with round or square caps);
+the list still needs one value above 0. Before, any 0 was refused, so a Dotted stroke read back
+from `getShape()` ([0, 2]) could not be written again (GitHub issue 548). Pinned by
+`ui_script_vector_stroke_accepts_zero_length_dots`.
 2026-10-31 (additive): `patchy.ui.toolPalette.hiddenLayerButtons` knows the optional footer buttons
 `merge_visible` and `rasterize` (GitHub issue 539, Layer > Merge Visible and Rasterize), hidden by
 default like `merge_down`. Permanent identifiers: both ids. Pinned by

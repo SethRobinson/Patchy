@@ -4,8 +4,11 @@
 #include "ui/unit_spin_box.hpp"
 #include "ui/appearance_edits.hpp"
 
+#include <QString>
+
 #include <functional>
 #include <optional>
+#include <vector>
 
 class QWidget;
 
@@ -43,6 +46,12 @@ struct ShapeAppearanceSettings {
 [[nodiscard]] GradientDefinition resolve_gradient_definition(GradientDefinition definition,
                                                              RgbColor foreground,
                                                              RgbColor background);
+
+// The Dashes > Custom "Dash pattern" field's text: lengths in stroke widths, space
+// separated in the UI locale. Parsing returns nullopt for text that is not a
+// usable pattern; an odd count repeats once (SVG's reading).
+[[nodiscard]] QString dash_pattern_text(const std::vector<double>& dashes);
+[[nodiscard]] std::optional<std::vector<double>> parse_dash_pattern_text(const QString& text);
 
 // Live-preview dialog for a shape layer's fill and stroke (the
 // request_levels_settings convention): every control change fires

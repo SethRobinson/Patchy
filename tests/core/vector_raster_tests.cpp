@@ -842,6 +842,49 @@ void stroke_zero_length_dots_keep_first_dot_and_tangent() {
   CHECK(stroke_coverage(path, stroke, Rect{0, 0, 192, 192}).bounds.empty());
 }
 
+// GitHub #548 follow-up: Dotted on a Butt-capped stroke is one-width dashes,
+// the same square dots a Square cap draws from {0, 2}, on every alignment
+// (a {0, 2} Butt stroke draws nothing: stroke_zero_length_dots_keep_first_dot_and_tangent).
+void stroke_dotted_pattern_draws_on_butt_caps() {
+  CHECK((patchy::dotted_dash_pattern(patchy::VectorStrokeCap::Butt) == std::vector<double>{1.0, 1.0}));
+  CHECK((patchy::dotted_dash_pattern(patchy::VectorStrokeCap::Round) == std::vector<double>{0.0, 2.0}));
+  CHECK(patchy::is_dotted_dash_pattern({0.0, 2.0}, patchy::VectorStrokeCap::Butt));
+  CHECK(patchy::is_dotted_dash_pattern({1.0, 1.0}, patchy::VectorStrokeCap::Butt));
+  CHECK(!patchy::is_dotted_dash_pattern({1.0, 1.0}, patchy::VectorStrokeCap::Round));
+  VectorPath line;
+  line.subpaths = {open_line(20, 40, 180, 40)};
+  VectorPath box;
+  box.subpaths = {rect_subpath(32, 32, 224, 224, PathCombineOp::Add, 0)};
+  for (const auto alignment : {patchy::VectorStrokeAlignment::Center,
+                               patchy::VectorStrokeAlignment::Inside,
+                               patchy::VectorStrokeAlignment::Outside}) {
+    for (const auto* path : {&line, &box}) {
+      if (path == &line && alignment != patchy::VectorStrokeAlignment::Center) continue;
+      patchy::VectorStroke stroke;
+      stroke.width = 12;
+      stroke.alignment = alignment;
+      stroke.cap = patchy::VectorStrokeCap::Butt;
+      stroke.dashes = patchy::dotted_dash_pattern(stroke.cap);
+      const auto butt = stroke_coverage(*path, stroke, Rect{0, 0, 256, 256});
+      CHECK(!butt.bounds.empty());
+      stroke.cap = patchy::VectorStrokeCap::Square;
+      stroke.dashes = patchy::dotted_dash_pattern(stroke.cap);
+      const auto square = stroke_coverage(*path, stroke, Rect{0, 0, 256, 256});
+      // The dots sit half a width later along the path; their count and size match.
+      int butt_ink = 0;
+      int square_ink = 0;
+      for (int y = 0; y < 256; ++y) {
+        for (int x = 0; x < 256; ++x) {
+          butt_ink += coverage_pixel(butt, x, y) > 127 ? 1 : 0;
+          square_ink += coverage_pixel(square, x, y) > 127 ? 1 : 0;
+        }
+      }
+      CHECK(butt_ink > 7 * 12 * 12 - 24);
+      CHECK(std::abs(butt_ink - square_ink) * 10 <= square_ink);
+    }
+  }
+}
+
 void stroke_aligned_round_dots_keep_circles_on_curves() {
   VectorPath path;
   path.subpaths = {circle_subpath(96, 96, 64)};
@@ -1607,6 +1650,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_aligned_dots_follow_compound_fill_side", stroke_aligned_dots_follow_compound_fill_side},
       {"stroke_zero_length_dots_keep_first_dot_and_tangent", stroke_zero_length_dots_keep_first_dot_and_tangent},
       {"stroke_aligned_round_dots_keep_circles_on_curves", stroke_aligned_round_dots_keep_circles_on_curves},
+      {"stroke_dotted_pattern_draws_on_butt_caps", stroke_dotted_pattern_draws_on_butt_caps},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
       {"stroke_bezier_circle_is_translation_stable", stroke_bezier_circle_is_translation_stable},
       {"stroke_miter_spike_stays_in_bounds", stroke_miter_spike_stays_in_bounds},

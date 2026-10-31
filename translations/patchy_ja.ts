@@ -14226,6 +14226,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation>一部のテキストレイヤーは、GIMP でテキストを入力した後に描き込まれていたため、ピクセルレイヤーとして開きました。「文字 &gt; GIMP のテキストを復元」で、描き込みのない編集可能なテキストに戻せます。</translation>
     </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
+        <translation>線幅を単位とした破線と間隔の長さをスペースで区切って入力します (例: 4 2、6 2 1 2)。長さ 0 は、丸型または四角形の線端で点を描きます。</translation>
+    </message>
+    <message>
+        <source>x width</source>
+        <translation>x 幅</translation>
+    </message>
+    <message>
+        <source>Dash pattern:</source>
+        <translation>破線パターン:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

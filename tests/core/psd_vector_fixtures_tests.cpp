@@ -923,6 +923,62 @@ void psd_authored_shape_layer_writes_native_blocks() {
   CHECK(metrics.max_channel_delta == 0);
 }
 
+// GitHub #548 follow-up: a custom dash pattern typed in Shape Appearance and the
+// Butt-cap Dotted pattern write to vstk strokeStyleLineDashSet and reopen exactly.
+void psd_authored_custom_and_dotted_dashes_round_trip() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(96, 64, 255, 255, 255, 255));
+  const std::vector<std::pair<std::vector<double>, patchy::VectorStrokeCap>> strokes{
+      {{6.0, 2.0, 1.0, 2.0}, patchy::VectorStrokeCap::Round},
+      {patchy::dotted_dash_pattern(patchy::VectorStrokeCap::Butt), patchy::VectorStrokeCap::Butt},
+      {{0.0, 2.5}, patchy::VectorStrokeCap::Square}};
+  for (std::size_t i = 0; i < strokes.size(); ++i) {
+    patchy::Layer shape(document.allocate_layer_id(), "Shape " + std::to_string(i + 1), patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Rectangle;
+    params.left = 8;
+    params.top = 8 + static_cast<double>(i) * 16;
+    params.right = 88;
+    params.bottom = params.top + 10;
+    patchy::populate_live_shape_box_corners(params);
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    content.origination = {params};
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.stroke.enabled = true;
+    content.stroke.fill_enabled = false;
+    content.stroke.width = 2.0;
+    content.stroke.cap = strokes[i].second;
+    content.stroke.dashes = strokes[i].first;
+    content.stroke.content.kind = patchy::VectorFillKind::Solid;
+    content.stroke.content.color = patchy::RgbColor{200, 40, 40};
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(96, 64), nullptr);
+    document.add_layer(std::move(shape));
+  }
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  if (const auto dump_path = patchy::environment_variable("PATCHY_DUMP_AUTHORED_PSD")) {
+    std::ofstream dump(*dump_path, std::ios::binary);
+    dump.write(reinterpret_cast<const char*>(written.data()),
+               static_cast<std::streamsize>(written.size()));
+  }
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers().size() == strokes.size() + 1);
+  for (std::size_t i = 0; i < strokes.size(); ++i) {
+    const auto* roundtrip = reread.layers()[i + 1].vector_shape();
+    CHECK(roundtrip != nullptr);
+    CHECK(roundtrip->stroke.cap == strokes[i].second);
+    CHECK(roundtrip->stroke.dashes.size() == strokes[i].first.size());
+    for (std::size_t d = 0; d < strokes[i].first.size(); ++d) {
+      CHECK(std::fabs(roundtrip->stroke.dashes[d] - strokes[i].first[d]) < 1e-9);
+    }
+  }
+  const auto metrics = rgb_diff_metrics(patchy::Compositor{}.flatten_rgb8(document),
+                                        patchy::Compositor{}.flatten_rgb8(reread));
+  CHECK(metrics.max_channel_delta == 0);
+}
+
 // GitHub #521: a live polygon regenerates from its parameters, survives a move (resolved by
 // translation) and an axis-aligned scale, ends at a point edit, and stays out of the PSD:
 // Photoshop's polygon origination is unprobed, so the file carries a plain path and no vogk.
@@ -2751,6 +2807,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
       {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
+      {"psd_authored_custom_and_dotted_dashes_round_trip", psd_authored_custom_and_dotted_dashes_round_trip},
       {"live_polygon_regenerates_resolves_and_writes_a_plain_path",
        live_polygon_regenerates_resolves_and_writes_a_plain_path},
       {"psd_compound_group_writes_continuation_records_and_round_trips",

@@ -14269,6 +14269,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
         <translation>Auf einige Textebenen wurde in GIMP nach dem Setzen des Textes gemalt; sie wurden deshalb als Pixelebenen geöffnet. Schrift &gt; GIMP-Text wiederherstellen macht sie wieder zu bearbeitbarem Text, ohne die Malerei.</translation>
     </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
+        <translation>Strich- und Lückenlängen in Konturbreiten, durch Leerzeichen getrennt, zum Beispiel 4 2 oder 6 2 1 2. Eine Länge von 0 zeichnet mit runden oder eckigen Enden einen Punkt.</translation>
+    </message>
+    <message>
+        <source>x width</source>
+        <translation>x Breite</translation>
+    </message>
+    <message>
+        <source>Dash pattern:</source>
+        <translation>Strichmuster:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

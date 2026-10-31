@@ -348,8 +348,15 @@ The Shape Appearance dialog opens from the vector badge, the layer and
 canvas context menus ([tools.md](tools.md)), the options-bar Appearance... button, Layer >
 Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
 panel's Edit Appearance..., and a Path Select / Direct Select double-click on
-the shape's geometry. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dash presets
-(Custom keeps PSD dash arrays). `pattern_linked` anchors at the effects
+the shape's geometry. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
+(Solid, Dashed {2, 2}, Dotted, Custom). Custom's Dash pattern field
+(`shapeStrokeDashPatternEdit`, `parse_dash_pattern_text`) takes lengths in stroke widths,
+space separated; an odd count repeats once (SVG's reading) and one length must be above 0.
+It holds any file's array and commits on Enter or focus-out. Zero-length dashes draw only
+through Round or Square caps (Photoshop, SVG and the stroker draw nothing for them with
+Butt caps), so Dotted is `dotted_dash_pattern(cap)`: {0, 2}, or {1, 1} with Butt caps, the
+same square dots; changing Caps while Dotted is chosen swaps the array (GitHub issue 548).
+`pattern_linked` anchors at the effects
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
 
