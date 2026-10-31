@@ -1327,6 +1327,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/blend_if_range_editor.cpp
       src/ui/gradient_stops_editor.hpp
       src/ui/gradient_stops_editor.cpp
+      src/ui/command_search.hpp
+      src/ui/command_search.cpp
       src/ui/hotkey_editor.hpp
       src/ui/hotkey_editor.cpp
       src/ui/hotkey_registry.hpp

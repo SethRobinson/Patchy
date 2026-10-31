@@ -16602,6 +16602,13 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Search menu commands</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -29016,6 +29023,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

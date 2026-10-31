@@ -16619,6 +16619,13 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Search menu commands</source>
+        <translation>Buscar comandos de menú</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -29098,6 +29105,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation>Capas de texto de este archivo de GIMP sobre las que se pintó después de escribir el texto: %1</translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
+        <translation>Buscar &amp;comandos...</translation>
     </message>
 </context>
 <context>

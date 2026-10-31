@@ -26,6 +26,8 @@
 #include "ui/app_settings.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_preset_popup.hpp"
+#include "ui/command_search.hpp"
+#include "ui/hotkey_registry.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 #include <QAbstractItemView>
@@ -52,6 +54,8 @@
 #include <QMessageBox>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPointer>
+#include <QListWidget>
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QSpinBox>
@@ -4352,6 +4356,183 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
   QApplication::processEvents();
   CHECK(saw_dialog);
 }
+// GitHub issue 554: Help > Search Commands (and the menu bar's button after Help) lists every
+// enabled menu command with its menu path and shortcut, filters as you type, and Enter runs
+// the chosen command once the popup has closed.
+void ui_command_search_popup_filters_and_runs_commands() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* search_action = require_action(window, "helpSearchCommandsAction");
+  CHECK(search_action->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Slash));
+  CHECK(search_action->menuRole() == QAction::NoRole);
+  QApplication::processEvents();
+#ifndef Q_OS_MACOS
+  auto* button = window.menuBar()->findChild<QToolButton*>(QStringLiteral("menuBarCommandSearchButton"));
+  CHECK(button != nullptr);
+  if (button != nullptr && !window.menuBar()->isNativeMenuBar()) {
+    CHECK(button->isVisible());
+    QAction* help = nullptr;
+    for (auto* action : window.menuBar()->actions()) {
+      if (action->menu() != nullptr && action->isVisible()) {  // a theme's menu hides when unused
+        help = action;
+      }
+    }
+    CHECK(help != nullptr && help->text() == QStringLiteral("&Help"));
+    if (help != nullptr) {
+      CHECK(button->x() > window.menuBar()->actionGeometry(help).right());
+    }
+    CHECK(button->toolTip().startsWith(QStringLiteral("Search Commands")));
+    // A press on the button is the button's, never a title-bar drag.
+    CHECK(!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, button->geometry().center()));
+  }
+#endif
+
+  // The shared matcher: every word must appear in the name or path; names starting with
+  // the query rank first.
+  const std::vector<patchy::ui::MenuCommandEntry> sample{
+      {nullptr, QStringLiteral("Motion Blur"), QStringLiteral("Filter › Blur")},
+      {nullptr, QStringLiteral("Blur"), QStringLiteral("Filter › Blur")},
+      {nullptr, QStringLiteral("Levels"), QStringLiteral("Image › Adjustments")},
+  };
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("blur")) == std::vector<int>{1, 0}));
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("adjust lev")) == std::vector<int>{2}));
+  CHECK(patchy::ui::match_menu_commands(sample, QStringLiteral("sharpen")).empty());
+  CHECK(patchy::ui::match_menu_commands(sample, QString()).size() == 3);
+
+  search_action->trigger();
+  QApplication::processEvents();
+  QPointer<QFrame> popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  CHECK(popup->isVisible());
+  auto* edit = popup->findChild<QLineEdit*>(QStringLiteral("commandSearchEdit"));
+  auto* list = popup->findChild<QListWidget*>(QStringLiteral("commandSearchList"));
+  CHECK(edit != nullptr && list != nullptr);
+  if (edit == nullptr || list == nullptr) {
+    return;
+  }
+  CHECK(list->count() > 100);  // every enabled command, before typing
+  CHECK(list->viewport()->height() >= 10 * list->sizeHintForRow(0));  // a dozen rows show at once
+  for (int row = 0; row < list->count(); ++row) {
+    CHECK(!list->item(row)->text().endsWith(QStringLiteral("...")));
+  }
+  const auto find_row = [list](const QString& name) -> QListWidgetItem* {
+    for (int row = 0; row < list->count(); ++row) {
+      if (list->item(row)->text() == name) {
+        return list->item(row);
+      }
+    }
+    return nullptr;
+  };
+
+  edit->setText(QStringLiteral("blur"));
+  QApplication::processEvents();
+  auto* gaussian = find_row(QStringLiteral("Gaussian Blur"));
+  CHECK(gaussian != nullptr);
+  if (gaussian != nullptr) {
+    CHECK(gaussian->data(Qt::UserRole + 1).toString() == QStringLiteral("Filter › Blur"));
+  }
+  for (int row = 0; row < list->count(); ++row) {
+    CHECK(list->item(row)->text().contains(QStringLiteral("blur"), Qt::CaseInsensitive) ||
+          list->item(row)->data(Qt::UserRole + 1).toString().contains(QStringLiteral("blur"), Qt::CaseInsensitive));
+  }
+  save_window_popup_artifact("command_search_blur", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("levels"));
+  QApplication::processEvents();
+  auto* levels = find_row(QStringLiteral("Levels"));
+  CHECK(levels != nullptr);
+  if (levels != nullptr) {
+    CHECK(levels->data(Qt::UserRole + 1).toString() == QStringLiteral("Image › Adjustments"));
+    CHECK(levels->data(Qt::UserRole + 2).toString() ==
+          QKeySequence(Qt::CTRL | Qt::Key_L).toString(QKeySequence::NativeText));
+  }
+  // A checkable command reports its state.
+  auto* rulers_action = window.hotkey_registry().find_command(QStringLiteral("view.rulers")) != nullptr
+                            ? window.hotkey_registry().find_command(QStringLiteral("view.rulers"))->action.data()
+                            : nullptr;
+  CHECK(rulers_action != nullptr && rulers_action->isCheckable());
+  if (rulers_action != nullptr) {
+    edit->setText(patchy::ui::strip_menu_ellipsis(patchy::ui::clean_action_text(rulers_action)));
+    QApplication::processEvents();
+    auto* rulers = find_row(edit->text());
+    CHECK(rulers != nullptr);
+    if (rulers != nullptr) {
+      CHECK(rulers->data(Qt::UserRole + 3).toInt() == (rulers_action->isChecked() ? 1 : 0));
+    }
+  }
+  // No match leaves an empty list; Enter then does nothing and the popup stays.
+  edit->setText(QStringLiteral("zzqqxx"));
+  QApplication::processEvents();
+  CHECK(list->count() == 0);
+  {
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(edit, &enter);
+  }
+  QApplication::processEvents();
+  CHECK(popup != nullptr && popup->isVisible());
+
+  // Up/Down move the choice; Enter runs it once the popup has closed.
+  const auto* select_all_command = window.hotkey_registry().find_command(QStringLiteral("select.all"));
+  CHECK(select_all_command != nullptr && select_all_command->action != nullptr);
+  if (select_all_command == nullptr || select_all_command->action == nullptr) {
+    return;
+  }
+  QAction* select_all = select_all_command->action.data();
+  int select_all_runs = 0;
+  QObject::connect(select_all, &QAction::triggered, &window, [&select_all_runs] { ++select_all_runs; });
+  edit->setText(QStringLiteral("select all"));
+  QApplication::processEvents();
+  CHECK(list->count() >= 1);
+  CHECK(list->currentRow() == 0);
+  if (list->count() > 1) {
+    QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+    QApplication::sendEvent(edit, &down);
+    CHECK(list->currentRow() == 1);
+    QKeyEvent up(QEvent::KeyPress, Qt::Key_Up, Qt::NoModifier);
+    QApplication::sendEvent(edit, &up);
+    CHECK(list->currentRow() == 0);
+  }
+  int select_all_row = -1;
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->text() == patchy::ui::strip_menu_ellipsis(patchy::ui::clean_action_text(select_all))) {
+      select_all_row = row;
+    }
+  }
+  CHECK(select_all_row >= 0);
+  list->setCurrentRow(select_all_row);
+  {
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(edit, &enter);
+  }
+  CHECK(select_all_runs == 0);  // deferred until the popup is gone
+  CHECK(process_events_until([&] { return popup == nullptr; }));
+  CHECK(process_events_until([&] { return select_all_runs == 1; }));
+
+  // Esc closes; a second request while it is open closes it too.
+  search_action->trigger();
+  QApplication::processEvents();
+  popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+  CHECK(popup != nullptr);
+  if (popup != nullptr) {
+    auto* reopened_edit = popup->findChild<QLineEdit*>(QStringLiteral("commandSearchEdit"));
+    CHECK(reopened_edit != nullptr && reopened_edit->text().isEmpty());
+    if (reopened_edit != nullptr) {
+      QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+      QApplication::sendEvent(reopened_edit, &escape);
+    }
+    CHECK(process_events_until([&] { return popup == nullptr; }));
+  }
+  search_action->trigger();
+  QApplication::processEvents();
+  popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+  CHECK(popup != nullptr);
+  search_action->trigger();
+  CHECK(process_events_until([&] { return popup == nullptr; }));
+}
 void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
   HotkeySettingsGroupRestorer restore_hotkeys;
   clear_hotkey_overrides();
@@ -4926,6 +5107,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
+      {"ui_command_search_popup_filters_and_runs_commands", ui_command_search_popup_filters_and_runs_commands},
       {"ui_brush_hardness_shortcuts_step_by_quarters", ui_brush_hardness_shortcuts_step_by_quarters},
       {"ui_preset_step_shortcuts_cycle_brush_and_gradient_presets",
        ui_preset_step_shortcuts_cycle_brush_and_gradient_presets},

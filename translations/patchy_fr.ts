@@ -16619,6 +16619,13 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Search menu commands</source>
+        <translation>Rechercher des commandes de menu</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -29098,6 +29105,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation>Calques de texte de ce fichier GIMP peints après la saisie du texte : %1</translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
+        <translation>&amp;Rechercher des commandes...</translation>
     </message>
 </context>
 <context>

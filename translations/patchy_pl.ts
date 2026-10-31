@@ -16662,6 +16662,13 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Search menu commands</source>
+        <translation>Wyszukaj polecenia menu</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -29180,6 +29187,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation>Warstwy tekstowe w tym pliku GIMP, na których malowano po ustawieniu tekstu: %1</translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
+        <translation>&amp;Wyszukaj polecenia...</translation>
     </message>
 </context>
 <context>
