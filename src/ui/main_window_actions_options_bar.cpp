@@ -4178,7 +4178,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     vector_stroke_dash_combo_->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
   }
   vector_stroke_dash_combo_->addItem(QObject::tr("Custom"), -1);
-  vector_stroke_dash_combo_->setFixedWidth(ui_text_length(80));
+  vector_stroke_dash_combo_->setFixedWidth(ui_text_length(160));  // presets in full (#556 follow-up)
   widen_combo_popup_to_items(vector_stroke_dash_combo_);
   bind_tooltip(vector_stroke_dash_combo_,
                QT_TR_NOOP("Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners"));
@@ -4595,18 +4595,29 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   apply_shape_style_settings();
 
   // Extra settings follow every shape-specific control at the end of the row.
-  vector_appearance_button_ = new QPushButton(tr("Appearance..."), toolbar);
+  // A gear rather than an "Appearance..." text button (GitHub issue 556 follow-up): the room
+  // went to the dash combo. Same 20 px rule as the bar's other icon buttons; it opens a dialog,
+  // not a menu, and keeps focus so it is reachable by keyboard.
+  vector_appearance_button_ = new QToolButton(toolbar);
   vector_appearance_button_->setObjectName(QStringLiteral("vectorAppearanceButton"));
-  bind_widget_text(vector_appearance_button_, QT_TR_NOOP("Appearance..."));
-  bind_tooltip(vector_appearance_button_, QT_TR_NOOP("Edit the active shape layer's fill, stroke, opacity, and edge"));
-  vector_appearance_button_->setProperty("optionsBarButton", true);
-  vector_appearance_button_->setMinimumHeight(24);
-  vector_appearance_button_->setMaximumHeight(26);
+  vector_appearance_button_->setIcon(simple_icon(QStringLiteral("gear")));
+  vector_appearance_button_->setIconSize(QSize(16, 16));
+  vector_appearance_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  vector_appearance_button_->setProperty("optionsBarMenuButton", true);
+  bind_tooltip(vector_appearance_button_, QT_TR_NOOP("Shape Appearance..."));
+  {
+    QPointer<QToolButton> appearance_pointer(vector_appearance_button_);
+    register_retranslation([appearance_pointer] {
+      if (appearance_pointer != nullptr) {
+        appearance_pointer->setAccessibleName(appearance_pointer->toolTip());
+      }
+    });
+  }
   add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
                         CanvasTool::Polygon, CanvasTool::CustomShape});
   add_option_widget(vector_appearance_button_, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_appearance_button_);
-  connect(vector_appearance_button_, &QPushButton::clicked, this, [this] { edit_active_shape_appearance(); });
+  connect(vector_appearance_button_, &QToolButton::clicked, this, [this] { edit_active_shape_appearance(); });
 
   // Fill tool / Fill hotkey settings (independent of the brush; default 100% opacity, 0 softness).
   add_option_label(QT_TR_NOOP("Opacity:"), {CanvasTool::Fill});
