@@ -6422,14 +6422,6 @@
         <translation>Capa %1</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>Capa visible. Haga clic para ocultarla.</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>Capa oculta. Haga clic para mostrarla.</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>Píxeles transparentes bloqueados</translation>
     </message>
@@ -14268,6 +14260,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>Algunas capas vectoriales de GIMP tienen un relleno o trazo que una capa de forma no puede contener (un motivo, o píxeles pintados después), así que se abrieron como capas de píxeles. Sus trazados están en el panel Trazados.</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>Capa visible. Haga clic para ocultarla. %ALT%+clic muestra solo esta capa.</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>Capa oculta. Haga clic para mostrarla. %ALT%+clic muestra solo esta capa.</translation>
     </message>
 </context>
 <context>
@@ -28994,6 +28994,10 @@ Bloqueada: %1</translation>
     <message>
         <source>&amp;Merge</source>
         <translation>Co&amp;mbinar</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>Mostrar todas las &amp;capas</translation>
     </message>
 </context>
 <context>

@@ -6658,14 +6658,6 @@
         <translation>획 색상</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>레이어가 표시됩니다. 숨기려면 클릭하세요.</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>레이어가 숨겨졌습니다. 표시하려면 클릭하세요.</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>투명 픽셀이 잠겼습니다.</translation>
     </message>
@@ -14225,6 +14217,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>일부 GIMP 벡터 레이어는 모양 레이어가 담을 수 없는 칠이나 획(패턴 또는 나중에 그려 넣은 픽셀)이 있어 픽셀 레이어로 열렸습니다. 해당 패스는 패스 패널에 있습니다.</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>레이어가 표시됩니다. 숨기려면 클릭하세요. %ALT%-클릭: 이 레이어만 표시.</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>레이어가 숨겨졌습니다. 표시하려면 클릭하세요. %ALT%-클릭: 이 레이어만 표시.</translation>
     </message>
 </context>
 <context>
@@ -28912,6 +28912,10 @@ Locked: %1</source>
     <message>
         <source>&amp;Merge</source>
         <translation>병합(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>모든 레이어 표시(&amp;O)</translation>
     </message>
 </context>
 <context>

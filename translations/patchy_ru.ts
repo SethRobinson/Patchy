@@ -6680,14 +6680,6 @@
         <translation>Цвет обводки</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>Виден слой. Нажмите, чтобы скрыть.</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>Слой скрыт. Нажмите, чтобы показать.</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>Прозрачные пиксели заблокированы</translation>
     </message>
@@ -14311,6 +14303,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>У некоторых векторных слоёв GIMP есть заливка или обводка, которую слой фигуры не может хранить (узор или пиксели, нарисованные позже), поэтому они открыты как пиксельные слои. Их контуры находятся на панели «Контуры».</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>Виден слой. Нажмите, чтобы скрыть. Щелчок с %ALT% показывает только этот слой.</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>Слой скрыт. Нажмите, чтобы показать. Щелчок с %ALT% показывает только этот слой.</translation>
     </message>
 </context>
 <context>
@@ -29076,6 +29076,10 @@ Locked: %1</source>
     <message>
         <source>&amp;Merge</source>
         <translation>Объ&amp;единить</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>П&amp;оказать все слои</translation>
     </message>
 </context>
 <context>

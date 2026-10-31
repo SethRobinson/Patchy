@@ -6422,14 +6422,6 @@
         <translation>Livello %1</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>Livello visibile. Fai clic per nasconderlo.</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>Livello nascosto. Fai clic per mostrarlo.</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>Pixel trasparenti bloccati</translation>
     </message>
@@ -14268,6 +14260,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>Alcuni livelli vettoriali di GIMP hanno un riempimento o una traccia che un livello forma non può contenere (un pattern, o pixel dipinti in seguito), quindi sono stati aperti come livelli di pixel. I loro tracciati sono nel pannello Tracciati.</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>Livello visibile. Fai clic per nasconderlo. %ALT%+clic mostra solo questo livello.</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>Livello nascosto. Fai clic per mostrarlo. %ALT%+clic mostra solo questo livello.</translation>
     </message>
 </context>
 <context>
@@ -28994,6 +28994,10 @@ Bloccato: %1</translation>
     <message>
         <source>&amp;Merge</source>
         <translation>&amp;Unisci</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>Mostra tutti i &amp;livelli</translation>
     </message>
 </context>
 <context>

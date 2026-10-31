@@ -1265,6 +1265,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(layer_toggle_visibility_action_, &QAction::triggered, this, [this] { toggle_selected_layers_visibility(); });
   register_document_action(layer_toggle_visibility_action_);
   connect(layer_menu, &QMenu::aboutToShow, this, [this] { refresh_layer_visibility_action_text(); });
+  // Show All Layers (GitHub issue 550): the eye menu's command on Ctrl+Alt+, (Cmd+Option+, on
+  // macOS), every depth, outside history like the eye.
+  auto* show_all_layers_action = new QAction(tr("Sh&ow All Layers"), layer_menu);
+  show_all_layers_action->setObjectName(QStringLiteral("layerShowAllLayersAction"));
+  bind_action_text(show_all_layers_action, QT_TR_NOOP("Sh&ow All Layers"));
+  show_all_layers_action->setMenuRole(QAction::NoRole);
+  register_hotkey(show_all_layers_action, "layer.show_all_layers", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Comma));
+  connect(show_all_layers_action, &QAction::triggered, this, [this] { set_all_layers_visible(true); });
+  register_document_action(show_all_layers_action);
   // Lock Layers... (GitHub issue 544): every lock of the selection in one dialog, Ctrl+/ ("/"
   // alone stays Lock Transparent Pixels).
   auto* lock_layers_action = new QAction(tr("&Lock Layers..."), layer_menu);
@@ -1668,7 +1677,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_menu->addMenu(new_fill_layer_menu);
   layer_menu->addSeparator();
   layer_menu->addActions({duplicate_layer_action, delete_layer_action, rename_layer_action,
-                          layer_color_menu_->menuAction(), layer_toggle_visibility_action_, lock_layers_action});
+                          layer_color_menu_->menuAction(), layer_toggle_visibility_action_, show_all_layers_action,
+                          lock_layers_action});
   layer_menu->addSeparator();
   layer_menu->addMenu(layer_mask_menu);
   layer_menu->addAction(layer_clipping_mask_action_);

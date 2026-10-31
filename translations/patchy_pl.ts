@@ -6680,14 +6680,6 @@
         <translation>Kolor obrysu</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>Warstwa widoczna. Kliknij, aby ukryć.</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>Warstwa ukryta. Kliknij, aby pokazać.</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>Przezroczyste piksele zablokowane</translation>
     </message>
@@ -14311,6 +14303,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>Niektóre warstwy wektorowe GIMP mają wypełnienie lub obrys, którego warstwa kształtu nie może przechować (wzorek lub piksele domalowane później), więc otwarto je jako warstwy pikselowe. Ich ścieżki są w panelu Ścieżki.</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>Warstwa widoczna. Kliknij, aby ukryć. %ALT%-kliknięcie pokazuje tylko tę warstwę.</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>Warstwa ukryta. Kliknij, aby pokazać. %ALT%-kliknięcie pokazuje tylko tę warstwę.</translation>
     </message>
 </context>
 <context>
@@ -29076,6 +29076,10 @@ Zablokowano: %1</translation>
     <message>
         <source>&amp;Merge</source>
         <translation>Sca&amp;l</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>Pokaż wszystkie w&amp;arstwy</translation>
     </message>
 </context>
 <context>
