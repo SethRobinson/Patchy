@@ -5,6 +5,7 @@
 #include <QSettings>
 #include <QWindow>
 #include <QCursor>
+#include <QApplicationStateChangeEvent>
 #include <QScopeGuard>
 
 
@@ -629,6 +630,9 @@ void ui_blocked_window_cursor_shows_the_arrow_until_unblocked() {
     field->setEnabled(false);
     field->setEnabled(true);
     CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+    // Qt's enter and leave dispatch sets the window's cursor with no widget event.
+    handle->setCursor(Qt::CrossCursor);
+    CHECK(handle->cursor().shape() == Qt::ArrowCursor);
     // A nested modal leaves the first block alone, and closing it keeps this window blocked.
     {
       QDialog inner(&dialog);
@@ -709,6 +713,127 @@ void ui_blocked_window_cursor_covers_preferences_over_the_canvas() {
   CHECK(handle->cursor().shape() == canvas->cursor().shape());
   CHECK(handle->cursor().shape() != Qt::ArrowCursor);
   qApp->removeEventFilter(filter);
+}
+
+// The issue 504 and 215 follow-ups (Patchy 1.23 on KDE): with Preferences open over the canvas,
+// Alt+Tab away and back put the tool cursor on the main window again (the canvas re-applies
+// it when the window is reactivated), and on Qt before 6.10 on Wayland the themes page's wait
+// cursor ended with the main window's tool cursor over the dialog. Both filters run as main()
+// installs them; the cursor each window holds is what the plug-in shows over it.
+void ui_blocked_window_cursor_survives_reactivation_and_tool_switches() {
+  // Put the pointer back afterwards: a later test reads canvas hover from where it rests.
+  const auto restore_pointer = qScopeGuard([pointer = QCursor::pos()] { QCursor::setPos(pointer); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(30);
+  QApplication::processEvents();
+  QWindow* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  QObject* wayland_filter = patchy::ui::create_wayland_pointer_cursor_filter(&window);
+  qApp->installEventFilter(wayland_filter);
+  QObject* blocked_filter = patchy::ui::create_blocked_window_cursor_filter(&window);
+  qApp->installEventFilter(blocked_filter);
+  QCursor::setPos(canvas->mapToGlobal(canvas->rect().center()));
+  handle->setCursor(canvas->cursor());
+
+  // Counts the cursors the main window sends to the platform.
+  class CursorChangeCounter : public QObject {
+   public:
+    int count = 0;
+
+   protected:
+    bool eventFilter(QObject*, QEvent* event) override {
+      count += event->type() == QEvent::CursorChange ? 1 : 0;
+      return false;
+    }
+  } main_changes;
+  handle->installEventFilter(&main_changes);
+
+  // The checks inside the dialog's event loop are collected: a failing CHECK throws, and Qt
+  // aborts on an exception from an event handler.
+  bool checked = false;
+  std::vector<std::string> failures;
+  const auto expect = [&failures](bool ok, const char* what) {
+    if (!ok) {
+      failures.emplace_back(what);
+    }
+  };
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    expect(dialog != nullptr && dialog->isModal(), "Preferences is open and modal");
+    auto* pages = dialog != nullptr ? preferences_page_list(*dialog) : nullptr;
+    QWindow* dialog_handle = dialog != nullptr ? dialog->windowHandle() : nullptr;
+    expect(pages != nullptr && dialog_handle != nullptr, "the page list and the dialog window exist");
+    if (pages == nullptr || dialog_handle == nullptr) {
+      return;
+    }
+    QApplication::processEvents();  // the opening wait cursor comes down
+    expect(handle->cursor().shape() == Qt::ArrowCursor, "arrow once Preferences is up");
+
+    // Alt+Tab away and back with the pointer on the main window.
+    for (const auto state : {Qt::ApplicationInactive, Qt::ApplicationActive}) {
+      QApplicationStateChangeEvent change(state);
+      QCoreApplication::sendEvent(qApp, &change);
+    }
+    for (const auto type : {QEvent::WindowDeactivate, QEvent::WindowActivate, QEvent::ActivationChange}) {
+      QEvent event(type);
+      QCoreApplication::sendEvent(&window, &event);
+    }
+    expect(handle->cursor().shape() == Qt::ArrowCursor, "arrow after Alt+Tab away and back");
+    canvas->refresh_tool_cursor();
+    expect(handle->cursor().shape() == Qt::ArrowCursor, "arrow after the canvas refreshes its tool cursor");
+    // A tool switch behind the dialog, and Qt's enter dispatch giving the window the canvas's
+    // cursor with no widget event.
+    require_action(window, "toolPathSelectAction")->trigger();
+    expect(handle->cursor().shape() == Qt::ArrowCursor, "arrow after a tool switch");
+    handle->setCursor(canvas->cursor());
+    expect(handle->cursor().shape() == Qt::ArrowCursor, "arrow after Qt gives the window the canvas cursor");
+
+    // The pointer rests on the page list. Opening Colors and Themes fills its list under a
+    // wait cursor; restoring it re-applies every window's cursor, and the plug-in showed the
+    // last one (the main window's) over the dialog. The dialog's own cursor goes back.
+    for (QWidget* widget : {static_cast<QWidget*>(dialog), static_cast<QWidget*>(pages), pages->viewport()}) {
+      QEnterEvent enter(QPointF(4, 4), QPointF(4, 4), QPointF(4, 4));
+      QCoreApplication::sendEvent(widget, &enter);
+    }
+    dialog_handle->setCursor(Qt::CrossCursor);
+    expect(select_preferences_page(*dialog, QStringLiteral("Colors and Themes")), "Colors and Themes opens");
+    QApplication::processEvents();
+    expect(QApplication::overrideCursor() == nullptr, "the wait cursor is down");
+    expect(dialog_handle->cursor().shape() == Qt::ArrowCursor, "the dialog cursor is back after the themes page filled");
+    // Back from another application with the pointer on the dialog.
+    dialog_handle->setCursor(Qt::CrossCursor);
+    QApplicationStateChangeEvent active(Qt::ApplicationActive);
+    QCoreApplication::sendEvent(qApp, &active);
+    expect(dialog_handle->cursor().shape() == Qt::ArrowCursor, "the dialog cursor is back after reactivation");
+    // Off the dialog onto the blocked window, which Qt gives no enter: the arrow is sent.
+    const int sent_before = main_changes.count;
+    for (QWidget* widget : {pages->viewport(), static_cast<QWidget*>(pages), static_cast<QWidget*>(dialog)}) {
+      QEvent leave(QEvent::Leave);
+      QCoreApplication::sendEvent(widget, &leave);
+    }
+    expect(main_changes.count > sent_before, "the arrow is sent when the pointer leaves the dialog");
+    expect(handle->cursor().shape() == Qt::ArrowCursor, "arrow after leaving the dialog");
+    checked = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  for (const auto& failure : failures) {
+    std::printf("  failed inside Preferences: %s\n", failure.c_str());
+  }
+  CHECK(failures.empty());
+  CHECK(checked);
+  // Preferences closed with the pointer on the canvas: the Path Select cursor is back.
+  CHECK(handle->cursor().shape() == canvas->cursor().shape());
+  handle->removeEventFilter(&main_changes);
+  qApp->removeEventFilter(blocked_filter);
+  qApp->removeEventFilter(wayland_filter);
 }
 
 void ui_recent_history_checks_in_background_and_skips_network_paths() {
@@ -4270,6 +4395,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
        ui_blocked_window_cursor_shows_the_arrow_until_unblocked},
       {"ui_blocked_window_cursor_covers_preferences_over_the_canvas",
        ui_blocked_window_cursor_covers_preferences_over_the_canvas},
+      {"ui_blocked_window_cursor_survives_reactivation_and_tool_switches",
+       ui_blocked_window_cursor_survives_reactivation_and_tool_switches},
       {"ui_recent_history_checks_in_background_and_skips_network_paths", ui_recent_history_checks_in_background_and_skips_network_paths},
       {"ui_open_dialog_hides_name_filter_details", ui_open_dialog_hides_name_filter_details},
       {"ui_open_dialog_lists_formats_alphabetically", ui_open_dialog_lists_formats_alphabetically},
