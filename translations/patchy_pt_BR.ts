@@ -16322,6 +16322,38 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Clone source cleared</source>
         <translation>Fonte de clonagem removida</translation>
     </message>
+    <message>
+        <source>Break path</source>
+        <translation>Dividir demarcador</translation>
+    </message>
+    <message>
+        <source>Join end points</source>
+        <translation>Unir pontos finais</translation>
+    </message>
+    <message>
+        <source>Merge points</source>
+        <translation>Mesclar pontos</translation>
+    </message>
+    <message>
+        <source>Delete segment</source>
+        <translation>Excluir segmento</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>Dividir demarcador no ponto</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>Unir pontos finais</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>Mesclar em um ponto</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>Excluir segmento</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -29129,6 +29161,170 @@ Bloqueado: %1</translation>
     <message>
         <source>%1 is already open</source>
         <translation>%1 já está aberto</translation>
+    </message>
+    <message>
+        <source>The selected shapes only cut into others and paint nothing of their own</source>
+        <translation>As formas selecionadas só recortam outras e não pintam nada próprio</translation>
+    </message>
+    <message>
+        <source>Shapes combined with Intersect or Exclude share one color</source>
+        <translation>Formas combinadas com Cruzar ou Excluir compartilham uma cor</translation>
+    </message>
+    <message>
+        <source>An inverted shape has one color</source>
+        <translation>Uma forma invertida tem uma só cor</translation>
+    </message>
+    <message>
+        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
+        <translation>Selecione formas em uma camada de forma com Seleção de demarcador ou Seleção direta</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>Dividir demarcador no ponto</translation>
+    </message>
+    <message>
+        <source>Open the path at the selected points</source>
+        <translation>Abrir o demarcador nos pontos selecionados</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>Unir pontos finais</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment</source>
+        <translation>Unir os dois pontos finais selecionados com um segmento reto</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>Mesclar em um ponto</translation>
+    </message>
+    <message>
+        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
+        <translation>Mesclar os pontos finais selecionados, ou uma sequência de pontos selecionados, em um ponto no meio deles</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>Excluir segmento</translation>
+    </message>
+    <message>
+        <source>Delete the selected segments and leave the path open</source>
+        <translation>Excluir os segmentos selecionados e deixar o demarcador aberto</translation>
+    </message>
+    <message>
+        <source>Color Selected Shapes...</source>
+        <translation>Colorir formas selecionadas...</translation>
+    </message>
+    <message>
+        <source>Give the selected shapes a fill color of their own</source>
+        <translation>Dar às formas selecionadas uma cor de preenchimento própria</translation>
+    </message>
+    <message>
+        <source>Move Selected Shapes to New Layer</source>
+        <translation>Mover formas selecionadas para nova camada</translation>
+    </message>
+    <message>
+        <source>Move the selected shapes to a new shape layer above</source>
+        <translation>Mover as formas selecionadas para uma nova camada de forma acima</translation>
+    </message>
+    <message>
+        <source>Copy Selected Shapes to New Layer</source>
+        <translation>Copiar formas selecionadas para nova camada</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes to a new shape layer above</source>
+        <translation>Copiar as formas selecionadas para uma nova camada de forma acima</translation>
+    </message>
+    <message>
+        <source>Cut Shapes</source>
+        <translation>Recortar formas</translation>
+    </message>
+    <message>
+        <source>Cut the selected shapes</source>
+        <translation>Recortar as formas selecionadas</translation>
+    </message>
+    <message>
+        <source>Copy Shapes</source>
+        <translation>Copiar formas</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes</source>
+        <translation>Copiar as formas selecionadas</translation>
+    </message>
+    <message>
+        <source>Paste Shapes</source>
+        <translation>Colar formas</translation>
+    </message>
+    <message>
+        <source>Paste the copied shapes into the target path</source>
+        <translation>Colar as formas copiadas no demarcador de destino</translation>
+    </message>
+    <message>
+        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
+        <translation>Selecione com Seleção direta um ponto dentro de um demarcador, ou qualquer ponto de um demarcador fechado</translation>
+    </message>
+    <message>
+        <source>Select two end points of open paths with Direct Select</source>
+        <translation>Selecione com Seleção direta dois pontos finais de demarcadores abertos</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
+        <translation>Selecione com Seleção direta dois pontos finais, ou pontos vizinhos de um demarcador</translation>
+    </message>
+    <message>
+        <source>Select a segment (both of its points) with Direct Select</source>
+        <translation>Selecione com Seleção direta um segmento (seus dois pontos)</translation>
+    </message>
+    <message>
+        <source>Cut shapes</source>
+        <translation>Recortar formas</translation>
+    </message>
+    <message>
+        <source>Cut %1 shape(s)</source>
+        <translation>%1 forma(s) recortada(s)</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s)</source>
+        <translation>%1 forma(s) copiada(s)</translation>
+    </message>
+    <message>
+        <source>Paste shapes</source>
+        <translation>Colar formas</translation>
+    </message>
+    <message>
+        <source>Pasted %1 shape(s)</source>
+        <translation>%1 forma(s) colada(s)</translation>
+    </message>
+    <message>
+        <source>Shape color</source>
+        <translation>Cor da forma</translation>
+    </message>
+    <message>
+        <source>Colored %1 shape(s)</source>
+        <translation>%1 forma(s) colorida(s)</translation>
+    </message>
+    <message>
+        <source>Shape Color</source>
+        <translation>Cor da forma</translation>
+    </message>
+    <message>
+        <source>Select shapes with Path Select or Direct Select first</source>
+        <translation>Selecione primeiro formas com Seleção de demarcador ou Seleção direta</translation>
+    </message>
+    <message>
+        <source>Copy shapes to new layer</source>
+        <translation>Copiar formas para nova camada</translation>
+    </message>
+    <message>
+        <source>Move shapes to new layer</source>
+        <translation>Mover formas para nova camada</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s) to a new layer</source>
+        <translation>%1 forma(s) copiada(s) para uma nova camada</translation>
+    </message>
+    <message>
+        <source>Moved %1 shape(s) to a new layer</source>
+        <translation>%1 forma(s) movida(s) para uma nova camada</translation>
     </message>
 </context>
 <context>

@@ -15,6 +15,7 @@
 #include "core/layer_alignment.hpp"
 #include "core/layer_tree.hpp"
 #include "core/magnetic_lasso.hpp"
+#include "core/path_point_edits.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/spot_heal.hpp"
@@ -908,6 +909,16 @@ public:
   // the bottom-most keeps its op, every other selected component takes `op`, the layer
   // combine's per-component rule. One undo step named `label`; false with fewer than two.
   bool combine_selected_path_components(patchy::PathCombineOp op, const QString& label);
+  // Point and segment commands (GitHub #555; docs/vector-path-edits.md): Break Path at Point,
+  // Join End Points, Merge into One Point and Delete Segment, on the target path's Direct Select
+  // point selection (Layer > Shape; the path context menu also acts on the point or segment under
+  // the pointer). One undo step each; false (nothing done) when the selection does not fit.
+  enum class PathPointCommand { BreakAtPoint, JoinEndPoints, MergePoints, DeleteSegment };
+  [[nodiscard]] bool path_point_command_available(PathPointCommand command) const;
+  bool run_path_point_command(PathPointCommand command);
+  // What owns path_edit_target_path() (None when nothing is targetable).
+  enum class PathEditTargetKind { None, VectorMask, DocumentPath, TextArea, ShapeLayer, WorkPath };
+  [[nodiscard]] PathEditTargetKind path_edit_target_kind() const;
   void clear_path_edit_selection();
   // Appends subpaths to the active layer's vector mask (undo + cache rebake);
   // used by pen commits and shape drags while the VectorMask target is active.
@@ -2261,6 +2272,11 @@ private:
   // Applies the hit's Add/Delete/Convert edit to the target path; false for
   // Draw and Close. Shared by the pen click, the anchor tools, and the menu.
   bool apply_pen_hover_edit(const PenHoverHit& hit);
+  // The path_point_command plan for `hit` (the context menu's press; null: the selection only).
+  [[nodiscard]] std::optional<patchy::PathPointEditResult> plan_path_point_command(PathPointCommand command,
+                                                                                   const PenHoverHit* hit) const;
+  bool run_path_point_command(PathPointCommand command, const PenHoverHit* hit);
+  void add_path_point_command_entries(QMenu& menu, const PenHoverHit& hit);
   // The Pen plus the Add/Delete/Convert anchor tools, which share its handlers.
   [[nodiscard]] bool pen_family_tool_active() const noexcept;
   // Returns the badge it applied (Draw while the arrow shows).

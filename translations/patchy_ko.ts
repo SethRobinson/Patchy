@@ -16279,6 +16279,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Clone source cleared</source>
         <translation>복제 소스를 해제했습니다</translation>
     </message>
+    <message>
+        <source>Break path</source>
+        <translation>패스 분할</translation>
+    </message>
+    <message>
+        <source>Join end points</source>
+        <translation>끝점 연결</translation>
+    </message>
+    <message>
+        <source>Merge points</source>
+        <translation>점 병합</translation>
+    </message>
+    <message>
+        <source>Delete segment</source>
+        <translation>세그먼트 삭제</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>점에서 패스 분할</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>끝점 연결</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>하나의 점으로 병합</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>세그먼트 삭제</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -29047,6 +29079,170 @@ Locked: %1</source>
     <message>
         <source>%1 is already open</source>
         <translation>%1이(가) 이미 열려 있습니다</translation>
+    </message>
+    <message>
+        <source>The selected shapes only cut into others and paint nothing of their own</source>
+        <translation>선택한 모양은 다른 모양을 잘라낼 뿐 자체로는 아무것도 칠하지 않습니다</translation>
+    </message>
+    <message>
+        <source>Shapes combined with Intersect or Exclude share one color</source>
+        <translation>교차 또는 제외로 결합된 모양은 하나의 색을 공유합니다</translation>
+    </message>
+    <message>
+        <source>An inverted shape has one color</source>
+        <translation>반전된 모양은 한 가지 색입니다</translation>
+    </message>
+    <message>
+        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
+        <translation>패스 선택 또는 직접 선택으로 모양 레이어의 모양을 선택하세요</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>점에서 패스 분할</translation>
+    </message>
+    <message>
+        <source>Open the path at the selected points</source>
+        <translation>선택한 점에서 패스 열기</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>끝점 연결</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment</source>
+        <translation>선택한 두 끝점을 직선 세그먼트로 연결</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>하나의 점으로 병합</translation>
+    </message>
+    <message>
+        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
+        <translation>선택한 끝점 또는 연속으로 선택한 점을 그 가운데의 한 점으로 병합</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>세그먼트 삭제</translation>
+    </message>
+    <message>
+        <source>Delete the selected segments and leave the path open</source>
+        <translation>선택한 세그먼트를 삭제하고 패스를 열린 상태로 두기</translation>
+    </message>
+    <message>
+        <source>Color Selected Shapes...</source>
+        <translation>선택한 모양 색 지정...</translation>
+    </message>
+    <message>
+        <source>Give the selected shapes a fill color of their own</source>
+        <translation>선택한 모양에 고유한 칠 색 지정</translation>
+    </message>
+    <message>
+        <source>Move Selected Shapes to New Layer</source>
+        <translation>선택한 모양을 새 레이어로 이동</translation>
+    </message>
+    <message>
+        <source>Move the selected shapes to a new shape layer above</source>
+        <translation>선택한 모양을 위쪽의 새 모양 레이어로 이동</translation>
+    </message>
+    <message>
+        <source>Copy Selected Shapes to New Layer</source>
+        <translation>선택한 모양을 새 레이어로 복사</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes to a new shape layer above</source>
+        <translation>선택한 모양을 위쪽의 새 모양 레이어로 복사</translation>
+    </message>
+    <message>
+        <source>Cut Shapes</source>
+        <translation>모양 잘라내기</translation>
+    </message>
+    <message>
+        <source>Cut the selected shapes</source>
+        <translation>선택한 모양 잘라내기</translation>
+    </message>
+    <message>
+        <source>Copy Shapes</source>
+        <translation>모양 복사</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes</source>
+        <translation>선택한 모양 복사</translation>
+    </message>
+    <message>
+        <source>Paste Shapes</source>
+        <translation>모양 붙여넣기</translation>
+    </message>
+    <message>
+        <source>Paste the copied shapes into the target path</source>
+        <translation>복사한 모양을 대상 패스에 붙여넣기</translation>
+    </message>
+    <message>
+        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
+        <translation>직접 선택으로 패스 안쪽의 점이나 닫힌 패스의 아무 점을 선택하세요</translation>
+    </message>
+    <message>
+        <source>Select two end points of open paths with Direct Select</source>
+        <translation>직접 선택으로 열린 패스의 끝점 두 개를 선택하세요</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
+        <translation>직접 선택으로 끝점 두 개 또는 한 패스의 인접한 점을 선택하세요</translation>
+    </message>
+    <message>
+        <source>Select a segment (both of its points) with Direct Select</source>
+        <translation>직접 선택으로 세그먼트(양쪽 점)를 선택하세요</translation>
+    </message>
+    <message>
+        <source>Cut shapes</source>
+        <translation>모양 잘라내기</translation>
+    </message>
+    <message>
+        <source>Cut %1 shape(s)</source>
+        <translation>모양 %1개를 잘라냈습니다</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s)</source>
+        <translation>모양 %1개를 복사했습니다</translation>
+    </message>
+    <message>
+        <source>Paste shapes</source>
+        <translation>모양 붙여넣기</translation>
+    </message>
+    <message>
+        <source>Pasted %1 shape(s)</source>
+        <translation>모양 %1개를 붙여넣었습니다</translation>
+    </message>
+    <message>
+        <source>Shape color</source>
+        <translation>모양 색</translation>
+    </message>
+    <message>
+        <source>Colored %1 shape(s)</source>
+        <translation>모양 %1개에 색을 지정했습니다</translation>
+    </message>
+    <message>
+        <source>Shape Color</source>
+        <translation>모양 색</translation>
+    </message>
+    <message>
+        <source>Select shapes with Path Select or Direct Select first</source>
+        <translation>먼저 패스 선택 또는 직접 선택으로 모양을 선택하세요</translation>
+    </message>
+    <message>
+        <source>Copy shapes to new layer</source>
+        <translation>모양을 새 레이어로 복사</translation>
+    </message>
+    <message>
+        <source>Move shapes to new layer</source>
+        <translation>모양을 새 레이어로 이동</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s) to a new layer</source>
+        <translation>모양 %1개를 새 레이어로 복사했습니다</translation>
+    </message>
+    <message>
+        <source>Moved %1 shape(s) to a new layer</source>
+        <translation>모양 %1개를 새 레이어로 이동했습니다</translation>
     </message>
 </context>
 <context>

@@ -13,6 +13,7 @@
 #include "ui/main_window.hpp"
 #include "ui/panel_column.hpp"
 
+#include <QColor>
 #include <QPoint>
 #include <QRect>
 #include <QString>
@@ -320,6 +321,9 @@ public:
   static std::size_t active_session_undo_depth(MainWindow& window);
 
   static void undo(MainWindow& window);
+
+  // Color Selected Shapes without its color picker (GitHub #555).
+  static bool set_selected_path_components_color(MainWindow& window, QColor color);
 
   // True while Layers-panel blend mode changes are still merging into one undo entry.
   static bool layer_blend_edit_pending(const MainWindow& window);
