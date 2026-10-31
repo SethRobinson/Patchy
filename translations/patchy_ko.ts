@@ -29028,6 +29028,10 @@ Locked: %1</source>
         <source>Search &amp;Commands...</source>
         <translation>명령 검색(&amp;C)...</translation>
     </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>선 점선 패턴. 대시 사전 설정은 맞대기 캡을, 점 사전 설정은 원형 캡과 원형 모서리를 사용합니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

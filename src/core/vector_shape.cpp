@@ -141,6 +141,71 @@ bool stroke_dash_preset_is_dots(StrokeDashPreset preset) {
   return preset == StrokeDashPreset::Dotted || preset == StrokeDashPreset::SparseDots;
 }
 
+std::optional<VectorStrokeCap> stroke_dash_preset_cap(StrokeDashPreset preset) {
+  switch (preset) {
+    case StrokeDashPreset::Solid:
+      return std::nullopt;
+    case StrokeDashPreset::Dashed:
+    case StrokeDashPreset::LongDashes:
+    case StrokeDashPreset::ShortDashes:
+      return VectorStrokeCap::Butt;
+    case StrokeDashPreset::Dotted:
+    case StrokeDashPreset::SparseDots:
+    case StrokeDashPreset::DashDot:
+    case StrokeDashPreset::DashDotDot:
+      return VectorStrokeCap::Round;
+  }
+  return std::nullopt;
+}
+
+std::optional<VectorStrokeJoin> stroke_dash_preset_join(StrokeDashPreset preset) {
+  if (stroke_dash_preset_cap(preset) == VectorStrokeCap::Round) return VectorStrokeJoin::Round;
+  return std::nullopt;
+}
+
+void apply_stroke_dash_preset(VectorStroke& stroke, StrokeDashPreset preset) {
+  if (const auto cap = stroke_dash_preset_cap(preset)) stroke.cap = *cap;
+  if (const auto join = stroke_dash_preset_join(preset)) stroke.join = *join;
+  stroke.dashes = stroke_dash_preset_pattern(preset, stroke.cap);
+}
+
+const std::array<StrokeDashPreset, 8>& stroke_dash_presets_in_menu_order() {
+  static constexpr std::array<StrokeDashPreset, 8> kMenuOrder{
+      StrokeDashPreset::Solid,      StrokeDashPreset::Dashed,     StrokeDashPreset::LongDashes,
+      StrokeDashPreset::ShortDashes, StrokeDashPreset::Dotted,    StrokeDashPreset::SparseDots,
+      StrokeDashPreset::DashDot,    StrokeDashPreset::DashDotDot};
+  return kMenuOrder;
+}
+
+const char* stroke_dash_preset_token(StrokeDashPreset preset) {
+  switch (preset) {
+    case StrokeDashPreset::Solid:
+      return "solid";
+    case StrokeDashPreset::Dashed:
+      return "dashed";
+    case StrokeDashPreset::Dotted:
+      return "dotted";
+    case StrokeDashPreset::LongDashes:
+      return "long-dashes";
+    case StrokeDashPreset::ShortDashes:
+      return "short-dashes";
+    case StrokeDashPreset::SparseDots:
+      return "sparse-dots";
+    case StrokeDashPreset::DashDot:
+      return "dash-dot";
+    case StrokeDashPreset::DashDotDot:
+      return "dash-dot-dot";
+  }
+  return "solid";
+}
+
+StrokeDashPreset stroke_dash_preset_from_token(std::string_view token) {
+  for (const auto preset : kStrokeDashPresets) {
+    if (token == stroke_dash_preset_token(preset)) return preset;
+  }
+  return StrokeDashPreset::Solid;
+}
+
 std::optional<StrokeDashPreset> stroke_dash_preset_for(const std::vector<double>& dashes,
                                                        VectorStrokeCap cap) {
   if (dashes.empty()) return StrokeDashPreset::Solid;

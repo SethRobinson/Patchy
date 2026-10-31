@@ -77,6 +77,7 @@
 #include <QLatin1String>
 #include <QLineEdit>
 #include <QLinearGradient>
+#include <QListView>
 #include <QMenu>
 #include <QMetaObject>
 #include <QPainter>
@@ -626,6 +627,7 @@ VectorShapeContent MainWindow::current_shape_appearance_content() const {
   // Photoshop's default for new shapes: the stroke hugs the inside of the path.
   content.stroke.alignment = VectorStrokeAlignment::Inside;
   content.stroke.content = current_vector_stroke_paint_;
+  apply_stroke_dash_preset(content.stroke, current_vector_stroke_dash_preset_);
   return content;
 }
 
@@ -2091,7 +2093,8 @@ void MainWindow::refresh_vector_stroke_controls() {
   // The width is the stroke switch (0 = none, GitHub issue 311), so the stroke controls
   // stay usable whether or not a stroke is on.
   const bool enabled = has_active_document() && !preview_dialog_edit_locked();
-  for (const char* name : {"vectorStrokeSwatchButton", "vectorStrokeWidthLabel", "vectorStrokeWidthSpin"}) {
+  for (const char* name : {"vectorStrokeSwatchButton", "vectorStrokeWidthLabel", "vectorStrokeWidthSpin",
+                           "vectorStrokeDashCombo"}) {
     if (auto* widget = findChild<QWidget*>(QLatin1String(name)); widget != nullptr) {
       widget->setEnabled(enabled);
     }
@@ -2113,6 +2116,39 @@ void MainWindow::set_vector_stroke_width_from_field(double value) {
   schedule_vector_appearance_apply();
 }
 
+void MainWindow::set_vector_stroke_dash_preset_from_combo(StrokeDashPreset preset) {
+  current_vector_stroke_dash_preset_ = preset;
+  refresh_vector_stroke_dash_combo(preset);
+  schedule_save_tool_settings();
+  finish_pending_shape_appearance_edit();
+  if (!has_active_document() || !vector_appearance_controls_live()) return;
+  // Every selected shape gets the same caps and pattern; corners only from a dot preset.
+  ShapeAppearanceSettings settings;
+  apply_stroke_dash_preset(settings.stroke, preset);
+  const bool sets_cap = stroke_dash_preset_cap(preset).has_value();
+  const bool sets_join = stroke_dash_preset_join(preset).has_value();
+  auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
+  for (const auto& property : shape_appearance_properties())
+    if (property.key == "stroke.dashes" || (sets_cap && property.key == "stroke.cap") ||
+        (sets_join && property.key == "stroke.join"))
+      edits->append(property.capture(settings));
+  settings.edits = std::move(edits);
+  commit_shape_appearance_edit(editable_selected_shape_layer_ids(), settings);
+}
+
+void MainWindow::refresh_vector_stroke_dash_combo(std::optional<StrokeDashPreset> shown) {
+  auto* combo = vector_stroke_dash_combo_;
+  if (combo == nullptr) return;
+  const int custom_row = combo->count() - 1;
+  const int row = shown.has_value() ? combo->findData(static_cast<int>(*shown)) : custom_row;
+  if (auto* model = qobject_cast<QStandardItemModel*>(combo->model())) {
+    if (auto* item = model->item(custom_row)) item->setEnabled(false);
+  }
+  if (auto* view = qobject_cast<QListView*>(combo->view())) view->setRowHidden(custom_row, row != custom_row);
+  const QSignalBlocker blocker(combo);
+  combo->setCurrentIndex(std::max(0, row));
+}
+
 void MainWindow::sync_shape_appearance_options_from_active_layer() {
   // A pending debounced user edit outranks a passive sync; without this guard
   // a refresh between the spin edit and the apply would revert the mirror and
@@ -2124,8 +2160,9 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
   const auto* layer = ids.empty() ? nullptr : std::as_const(document()).find_layer(ids.front());
   if (layer == nullptr) {
     for (const char* name : {"vectorFillSwatchButton", "vectorStrokeSwatchButton", "vectorStrokeWidthSpin",
-                             "shapeCornerRadiusSpin"})
+                             "vectorStrokeDashCombo", "shapeCornerRadiusSpin"})
       set_appearance_mixed(findChild<QWidget*>(QLatin1String(name)), false);
+    refresh_vector_stroke_dash_combo(current_vector_stroke_dash_preset_);
     if (auto* spin = findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"))) {
       const QSignalBlocker blocker(spin);
       spin->setValue(current_shape_corner_radius_);
@@ -2140,6 +2177,10 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
   current_vector_stroke_enabled_ = content->stroke.enabled;
   current_vector_stroke_width_ = std::clamp(content->stroke.width, 0.1, 1000.0);
   current_vector_stroke_paint_ = content->stroke.content;
+  // A preset pattern also becomes the default for new shapes; a custom one shows as Custom.
+  const auto dash_preset = stroke_dash_preset_for(content->stroke.dashes, content->stroke.cap);
+  if (dash_preset.has_value()) current_vector_stroke_dash_preset_ = *dash_preset;
+  refresh_vector_stroke_dash_combo(dash_preset);
   refresh_vector_stroke_controls();
   if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
       stroke_width != nullptr) {
@@ -2157,6 +2198,9 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
   set_appearance_mixed(vector_stroke_swatch_button_, mixed([](const auto& value) { return value.stroke.content; }));
   set_appearance_mixed(findChild<QWidget*>(QStringLiteral("vectorStrokeWidthSpin")), mixed([](const auto& value) {
                          return value.stroke.enabled ? value.stroke.width : 0.0;
+                       }));
+  set_appearance_mixed(vector_stroke_dash_combo_, mixed([](const auto& value) {
+                         return stroke_dash_preset_for(value.stroke.dashes, value.stroke.cap);
                        }));
   if (auto* spin = findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"))) {
     std::optional<double> radius;

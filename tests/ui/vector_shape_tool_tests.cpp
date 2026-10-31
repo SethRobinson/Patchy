@@ -6,6 +6,9 @@
 #include "ui/modifier_names.hpp"
 #include "render/compositor.hpp"
 #include <QAbstractItemView>
+#include <QListView>
+#include <QStandardItemModel>
+#include <QToolBar>
 #include "ui/edit_conversions.hpp"
 #include "ui/tool_cursors.hpp"
 #include "ui/canvas_widget.hpp"
@@ -3033,7 +3036,8 @@ void ui_shape_appearance_dotted_draws_on_butt_caps() {
 
 // GitHub #548 follow-up: the Dashes combo lists the named presets with Custom
 // last; each row writes its stroke_dash_preset_pattern for the current cap,
-// the dot rows switch Caps to Round, and a reopened layer shows its row.
+// the dash rows set Butt caps and the rows with dots Round caps and Round
+// corners (apply_stroke_dash_preset), and a reopened layer shows its row.
 void ui_shape_appearance_dash_presets_set_patterns() {
   using patchy::StrokeDashPreset;
   VectorSettingsGuard settings_guard;
@@ -3076,9 +3080,10 @@ void ui_shape_appearance_dash_presets_set_patterns() {
       auto* width_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
       auto* align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
       auto* caps = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeCapCombo"));
+      auto* joins = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeJoinCombo"));
       auto* dashes = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeDashCombo"));
       CHECK(fill_kind != nullptr && width_spin != nullptr && align != nullptr && caps != nullptr &&
-            dashes != nullptr);
+            joins != nullptr && dashes != nullptr);
       CHECK(dashes->count() == static_cast<int>(rows.size()) + 1);
       for (std::size_t r = 0; r < rows.size(); ++r) {
         CHECK(dashes->itemText(static_cast<int>(r)) == QObject::tr(rows[r].label));
@@ -3088,12 +3093,18 @@ void ui_shape_appearance_dash_presets_set_patterns() {
       fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::None)));
       width_spin->setValue(width);
       align->setCurrentIndex(align->findData(static_cast<int>(patchy::VectorStrokeAlignment::Center)));
-      caps->setCurrentIndex(caps->findData(static_cast<int>(patchy::VectorStrokeCap::Butt)));
+      // Start from Square caps and Bevel corners so every preset's own choice shows.
+      caps->setCurrentIndex(caps->findData(static_cast<int>(patchy::VectorStrokeCap::Square)));
+      joins->setCurrentIndex(joins->findData(static_cast<int>(patchy::VectorStrokeJoin::Bevel)));
       dashes->setCurrentIndex(static_cast<int>(i));
       QApplication::processEvents();
-      const bool dots = patchy::stroke_dash_preset_is_dots(row.preset);
       CHECK(caps->currentData().toInt() ==
-            static_cast<int>(dots ? patchy::VectorStrokeCap::Round : patchy::VectorStrokeCap::Butt));
+            static_cast<int>(patchy::stroke_dash_preset_cap(row.preset).value_or(patchy::VectorStrokeCap::Square)));
+      CHECK(joins->currentData().toInt() ==
+            static_cast<int>(patchy::stroke_dash_preset_join(row.preset).value_or(patchy::VectorStrokeJoin::Bevel)));
+      if (row.preset == StrokeDashPreset::Dotted) {
+        save_widget_artifact("shape_appearance_dotted_round_caps_corners", *dialog);
+      }
       if (row.preset == StrokeDashPreset::SparseDots) {
         dashes->showPopup();
         QApplication::processEvents();
@@ -3157,6 +3168,105 @@ void ui_shape_appearance_dash_presets_set_patterns() {
   ensure_artifact_dir();
   patchy::ui::display_qimage_from_pixel_buffer(patchy::Compositor{}.flatten_rgb8(document))
       .save(QStringLiteral("test-artifacts/shape_appearance_dash_presets_canvas.png"));
+}
+
+// GitHub #556: the shape bars' dash combo, right after the Stroke swatch, lists
+// Shape Appearance's presets. Picking one restyles the selected shape layer in
+// one undo step with the preset's caps and corners (apply_stroke_dash_preset)
+// and seeds the next shape; a selected shape whose pattern matches no preset
+// shows the Custom row, which cannot be picked.
+void ui_options_bar_dash_combo_applies_presets() {
+  using patchy::StrokeDashPreset;
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("vectorStrokeDashCombo"));
+  CHECK(radius_spin != nullptr && stroke_width != nullptr && combo != nullptr);
+  radius_spin->setValue(0);
+  stroke_width->setValue(6.0);
+  QApplication::processEvents();
+
+  const auto& presets = patchy::stroke_dash_presets_in_menu_order();
+  const int custom_row = static_cast<int>(presets.size());
+  CHECK(combo->count() == custom_row + 1);
+  for (int row = 0; row < custom_row; ++row) {
+    CHECK(combo->itemText(row) == patchy::ui::stroke_dash_preset_label(presets[static_cast<std::size_t>(row)]));
+    CHECK(combo->itemData(row).toInt() == static_cast<int>(presets[static_cast<std::size_t>(row)]));
+  }
+  CHECK(combo->itemText(custom_row) == QObject::tr("Custom"));
+  auto* view = qobject_cast<QListView*>(combo->view());
+  auto* model = qobject_cast<QStandardItemModel*>(combo->model());
+  CHECK(view != nullptr && model != nullptr);
+  CHECK(!model->item(custom_row)->isEnabled());
+  CHECK(view->isRowHidden(custom_row));
+  CHECK(combo->currentData().toInt() == static_cast<int>(StrokeDashPreset::Solid));
+
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto first = document.active_layer_id();
+  CHECK(first.has_value());
+  QApplication::processEvents();
+  CHECK(combo->isVisible() && combo->isEnabled());
+  const auto stroke_of = [&](patchy::LayerId id) {
+    const auto* layer = std::as_const(document).find_layer(id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    return layer->vector_shape()->stroke;
+  };
+  CHECK(stroke_of(*first).enabled);
+  CHECK(stroke_of(*first).dashes.empty());
+
+  // Dotted: Round caps and Round corners, one undo step.
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  combo->setCurrentIndex(combo->findData(static_cast<int>(StrokeDashPreset::Dotted)));
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  auto stroke = stroke_of(*first);
+  CHECK(stroke.cap == patchy::VectorStrokeCap::Round);
+  CHECK(stroke.join == patchy::VectorStrokeJoin::Round);
+  CHECK(stroke.dashes == patchy::stroke_dash_preset_pattern(StrokeDashPreset::Dotted, patchy::VectorStrokeCap::Round));
+  save_widget_artifact("issue_556_options_bar_dash_combo", *window.findChild<QToolBar*>(QStringLiteral("Options")));
+  // Long dashes: Butt caps; the corners stay Round.
+  combo->setCurrentIndex(combo->findData(static_cast<int>(StrokeDashPreset::LongDashes)));
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  stroke = stroke_of(*first);
+  CHECK(stroke.cap == patchy::VectorStrokeCap::Butt);
+  CHECK(stroke.join == patchy::VectorStrokeJoin::Round);
+  CHECK(stroke.dashes == patchy::stroke_dash_preset_pattern(StrokeDashPreset::LongDashes, patchy::VectorStrokeCap::Butt));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(stroke_of(*first).cap == patchy::VectorStrokeCap::Round);
+
+  // The next shape takes the last pick.
+  combo->setCurrentIndex(combo->findData(static_cast<int>(StrokeDashPreset::DashDot)));
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(100, 260), QPoint(300, 380));
+  const auto second = document.active_layer_id();
+  CHECK(second.has_value() && *second != *first);
+  stroke = stroke_of(*second);
+  CHECK(stroke.cap == patchy::VectorStrokeCap::Round);
+  CHECK(stroke.join == patchy::VectorStrokeJoin::Round);
+  CHECK(stroke.dashes == patchy::stroke_dash_preset_pattern(StrokeDashPreset::DashDot, patchy::VectorStrokeCap::Round));
+
+  // An odd pattern on the first shape shows as Custom when it is selected, and the
+  // preset for new shapes stays.
+  if (auto* layer = document.find_layer(*first); layer != nullptr && layer->vector_shape() != nullptr) {
+    auto content = *layer->vector_shape();
+    content.stroke.dashes = {7.0, 1.5};  // no preset on any cap ({5, 3} is Round-cap Long dashes)
+    layer->set_vector_shape(std::move(content));
+  }
+  MainWindowTestAccess::select_layers(window, {*first}, *first);
+  QApplication::processEvents();
+  CHECK(combo->currentIndex() == custom_row);
+  CHECK(!view->isRowHidden(custom_row));
+  MainWindowTestAccess::select_layers(window, {*second}, *second);
+  QApplication::processEvents();
+  CHECK(combo->currentData().toInt() == static_cast<int>(StrokeDashPreset::DashDot));
+  CHECK(view->isRowHidden(custom_row));
 }
 
 // Issues 327 and 329: the px fields (UnitSpinBox, a QDoubleSpinBox) drew the
@@ -8077,6 +8187,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_appearance_custom_dash_pattern_edits_stroke},
       {"ui_shape_appearance_dotted_draws_on_butt_caps", ui_shape_appearance_dotted_draws_on_butt_caps},
       {"ui_shape_appearance_dash_presets_set_patterns", ui_shape_appearance_dash_presets_set_patterns},
+      {"ui_options_bar_dash_combo_applies_presets", ui_options_bar_dash_combo_applies_presets},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
       {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},
       {"ui_shape_pattern_fill_uses_custom_library_pattern",

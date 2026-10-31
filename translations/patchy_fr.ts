@@ -29110,6 +29110,10 @@ Verrouillé : %1</translation>
         <source>Search &amp;Commands...</source>
         <translation>&amp;Rechercher des commandes...</translation>
     </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Tirets du contour. Les préréglages à tirets utilisent des extrémités aplaties ; ceux à points, des extrémités et des angles arrondis</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

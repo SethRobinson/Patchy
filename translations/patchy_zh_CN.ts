@@ -29028,6 +29028,10 @@ Locked: %1</source>
         <source>Search &amp;Commands...</source>
         <translation>搜索命令(&amp;C)...</translation>
     </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>描边虚线。虚线预设使用平头端点；点线预设使用圆形端点和圆形拐角</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

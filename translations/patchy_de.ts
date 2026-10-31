@@ -29110,6 +29110,10 @@ Fixiert: %1</translation>
         <source>Search &amp;Commands...</source>
         <translation>&amp;Befehle suchen...</translation>
     </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Striche der Kontur. Strich-Vorgaben verwenden einen abgeflachten Abschluss, Punkt-Vorgaben einen runden Abschluss und runde Ecken</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

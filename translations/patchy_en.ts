@@ -29029,6 +29029,10 @@ Locked: %1</source>
         <source>Search &amp;Commands...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -29192,6 +29192,10 @@ Zablokowano: %1</translation>
         <source>Search &amp;Commands...</source>
         <translation>&amp;Wyszukaj polecenia...</translation>
     </message>
+    <message>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Kreski obrysu. Ustawienia z kreskami używają płaskich zakończeń, a ustawienia z kropkami okrągłych zakończeń i narożników</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

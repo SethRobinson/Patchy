@@ -885,6 +885,51 @@ void stroke_dotted_pattern_draws_on_butt_caps() {
   }
 }
 
+// GitHub #548 follow-up (philipzae): picking a preset sets Butt caps for the
+// dash presets, Round caps and Round corners for every preset with dots, and
+// leaves both alone for Solid; the pattern matches the cap it set, and the
+// settings token round-trips.
+void stroke_dash_presets_set_caps_and_corners() {
+  using patchy::StrokeDashPreset;
+  using patchy::VectorStrokeCap;
+  using patchy::VectorStrokeJoin;
+  struct Expect {
+    StrokeDashPreset preset;
+    std::optional<VectorStrokeCap> cap;
+    std::optional<VectorStrokeJoin> join;
+  };
+  const std::array expected{
+      Expect{StrokeDashPreset::Solid, std::nullopt, std::nullopt},
+      Expect{StrokeDashPreset::Dashed, VectorStrokeCap::Butt, std::nullopt},
+      Expect{StrokeDashPreset::LongDashes, VectorStrokeCap::Butt, std::nullopt},
+      Expect{StrokeDashPreset::ShortDashes, VectorStrokeCap::Butt, std::nullopt},
+      Expect{StrokeDashPreset::Dotted, VectorStrokeCap::Round, VectorStrokeJoin::Round},
+      Expect{StrokeDashPreset::SparseDots, VectorStrokeCap::Round, VectorStrokeJoin::Round},
+      Expect{StrokeDashPreset::DashDot, VectorStrokeCap::Round, VectorStrokeJoin::Round},
+      Expect{StrokeDashPreset::DashDotDot, VectorStrokeCap::Round, VectorStrokeJoin::Round}};
+  CHECK(patchy::stroke_dash_presets_in_menu_order().size() == expected.size());
+  for (std::size_t i = 0; i < expected.size(); ++i) {
+    const auto& row = expected[i];
+    CHECK(patchy::stroke_dash_presets_in_menu_order()[i] == row.preset);
+    CHECK(patchy::stroke_dash_preset_cap(row.preset) == row.cap);
+    CHECK(patchy::stroke_dash_preset_join(row.preset) == row.join);
+    CHECK(patchy::stroke_dash_preset_from_token(patchy::stroke_dash_preset_token(row.preset)) == row.preset);
+    for (const auto start_cap : {VectorStrokeCap::Butt, VectorStrokeCap::Round, VectorStrokeCap::Square}) {
+      patchy::VectorStroke stroke;
+      stroke.cap = start_cap;
+      stroke.join = VectorStrokeJoin::Bevel;
+      stroke.dashes = {7.0, 3.0};
+      patchy::apply_stroke_dash_preset(stroke, row.preset);
+      CHECK(stroke.cap == row.cap.value_or(start_cap));
+      CHECK(stroke.join == row.join.value_or(VectorStrokeJoin::Bevel));
+      CHECK(stroke.dashes == patchy::stroke_dash_preset_pattern(row.preset, stroke.cap));
+      CHECK(patchy::stroke_dash_preset_for(stroke.dashes, stroke.cap) == row.preset);
+    }
+  }
+  CHECK(patchy::stroke_dash_preset_from_token("") == StrokeDashPreset::Solid);
+  CHECK(patchy::stroke_dash_preset_from_token("zigzag") == StrokeDashPreset::Solid);
+}
+
 // GitHub #548 follow-up: Shape Appearance's named dash presets. Each maps back
 // to itself on every cap, a repeated period maps like the period, and each
 // draws dashes and gaps on Butt and Round caps.
@@ -1811,6 +1856,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_aligned_round_dots_keep_circles_on_curves", stroke_aligned_round_dots_keep_circles_on_curves},
       {"stroke_dotted_pattern_draws_on_butt_caps", stroke_dotted_pattern_draws_on_butt_caps},
       {"stroke_dash_presets_follow_caps_and_map_back", stroke_dash_presets_follow_caps_and_map_back},
+      {"stroke_dash_presets_set_caps_and_corners", stroke_dash_presets_set_caps_and_corners},
       {"stroke_open_path_alignment_moves_band_sideways", stroke_open_path_alignment_moves_band_sideways},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
       {"stroke_bezier_circle_is_translation_stable", stroke_bezier_circle_is_translation_stable},

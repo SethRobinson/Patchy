@@ -95,6 +95,28 @@ QLocale dash_pattern_locale() {
 
 }  // namespace
 
+QString stroke_dash_preset_label(StrokeDashPreset preset) {
+  switch (preset) {
+    case StrokeDashPreset::Solid:
+      return QObject::tr("Solid");
+    case StrokeDashPreset::Dashed:
+      return QObject::tr("Dashed");
+    case StrokeDashPreset::LongDashes:
+      return QObject::tr("Long dashes");
+    case StrokeDashPreset::ShortDashes:
+      return QObject::tr("Short dashes");
+    case StrokeDashPreset::Dotted:
+      return QObject::tr("Dotted");
+    case StrokeDashPreset::SparseDots:
+      return QObject::tr("Sparse dots");
+    case StrokeDashPreset::DashDot:
+      return QObject::tr("Dash dot");
+    case StrokeDashPreset::DashDotDot:
+      return QObject::tr("Dash dot dot");
+  }
+  return {};
+}
+
 QString dash_pattern_text(const std::vector<double>& dashes) {
   const auto locale = dash_pattern_locale();
   QStringList parts;
@@ -938,14 +960,9 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
 
   auto* stroke_dash_combo = new QComboBox(stroke_group);
   stroke_dash_combo->setObjectName(QStringLiteral("shapeStrokeDashCombo"));
-  stroke_dash_combo->addItem(QObject::tr("Solid"), static_cast<int>(StrokeDashPreset::Solid));
-  stroke_dash_combo->addItem(QObject::tr("Dashed"), static_cast<int>(StrokeDashPreset::Dashed));
-  stroke_dash_combo->addItem(QObject::tr("Long dashes"), static_cast<int>(StrokeDashPreset::LongDashes));
-  stroke_dash_combo->addItem(QObject::tr("Short dashes"), static_cast<int>(StrokeDashPreset::ShortDashes));
-  stroke_dash_combo->addItem(QObject::tr("Dotted"), static_cast<int>(StrokeDashPreset::Dotted));
-  stroke_dash_combo->addItem(QObject::tr("Sparse dots"), static_cast<int>(StrokeDashPreset::SparseDots));
-  stroke_dash_combo->addItem(QObject::tr("Dash dot"), static_cast<int>(StrokeDashPreset::DashDot));
-  stroke_dash_combo->addItem(QObject::tr("Dash dot dot"), static_cast<int>(StrokeDashPreset::DashDotDot));
+  for (const auto preset : stroke_dash_presets_in_menu_order()) {
+    stroke_dash_combo->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
+  }
   stroke_dash_combo->addItem(QObject::tr("Custom"), kDashCustom);
   stroke_form->addRow(QObject::tr("Dashes:"), stroke_dash_combo);
 
@@ -1515,7 +1532,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   QObject::connect(stroke_dash_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
     const auto row = stroke_dash_combo->currentData().toInt();
     state->custom_dash_row = row == kDashCustom;
-    bool cap_changed = false;
+    std::vector<std::string> changed{"stroke.dashes"};
     if (row == kDashCustom) {
       // Start from the pattern on screen, the last custom one, or 4 on, 2 off.
       if (state->custom_dashes.empty()) {
@@ -1527,24 +1544,22 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       stroke_dash_pattern_edit->setText(dash_pattern_text(state->custom_dashes));
       stroke_dash_pattern_edit->setModified(false);
     } else {
+      // The preset sets its caps and corners too (apply_stroke_dash_preset); both
+      // stay editable after.
       const auto preset = static_cast<StrokeDashPreset>(row);
-      // Dots read as dots with round caps; the other presets keep the cap.
-      if (stroke_dash_preset_is_dots(preset) && state->settings.stroke.cap != VectorStrokeCap::Round) {
-        state->settings.stroke.cap = VectorStrokeCap::Round;
-        QSignalBlocker cap_blocker(stroke_cap_combo);
-        stroke_cap_combo->setCurrentIndex(
-            std::max(0, stroke_cap_combo->findData(static_cast<int>(VectorStrokeCap::Round))));
-        cap_changed = true;
-      }
-      state->settings.stroke.dashes = stroke_dash_preset_pattern(preset, state->settings.stroke.cap);
+      if (stroke_dash_preset_cap(preset).has_value()) changed.push_back("stroke.cap");
+      if (stroke_dash_preset_join(preset).has_value()) changed.push_back("stroke.join");
+      apply_stroke_dash_preset(state->settings.stroke, preset);
+      QSignalBlocker cap_blocker(stroke_cap_combo);
+      stroke_cap_combo->setCurrentIndex(
+          std::max(0, stroke_cap_combo->findData(static_cast<int>(state->settings.stroke.cap))));
+      QSignalBlocker join_blocker(stroke_join_combo);
+      stroke_join_combo->setCurrentIndex(
+          std::max(0, stroke_join_combo->findData(static_cast<int>(state->settings.stroke.join))));
     }
     refresh_stroke_rows();
     grow_to_fit();
-    if (cap_changed) {
-      notify({"stroke.cap", "stroke.dashes"});
-    } else {
-      notify({"stroke.dashes"});
-    }
+    notify(changed);
   });
   QObject::connect(stroke_dash_pattern_edit, &QLineEdit::editingFinished, &dialog, [=] {
     // Commits on Enter or focus-out, like the value spins; leaving the field
