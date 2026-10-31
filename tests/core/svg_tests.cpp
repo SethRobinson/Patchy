@@ -995,6 +995,38 @@ void svg_export_stroke_alignment_hints_round_trip() {
   CHECK(reimported.layers()[0].vector_mask() == nullptr);  // the trick clip is not a mask
 }
 
+void svg_export_rasterizes_open_path_with_aligned_stroke() {
+  // Issue 553: an Inside or Outside stroke on an open path moves sideways in
+  // the renderer; no SVG clip draws that, so the layer exports as pixels.
+  Document document(120, 80, PixelFormat::rgba8());
+  VectorShapeContent content;
+  patchy::PathSubpath line;
+  line.closed = false;
+  line.anchors = {patchy::PathAnchor{10, 20, 10, 20, 10, 20, false},
+                  patchy::PathAnchor{100, 60, 100, 60, 100, 60, false}};
+  content.path.subpaths = {line};
+  content.stroke.enabled = true;
+  content.stroke.width = 8.0;
+  content.stroke.alignment = VectorStrokeAlignment::Inside;
+  content.stroke.content.kind = VectorFillKind::Solid;
+  content.stroke.content.color = {255, 0, 0};
+  Layer layer(document.allocate_layer_id(), "Line", LayerKind::Pixel);
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::mark_layer_vector_block_dirty(layer);
+  layer.set_vector_shape(std::move(content));
+  patchy::update_vector_shape_raster(layer, Rect::from_size(document.width(), document.height()),
+                                     &document.metadata().patterns);
+  CHECK(!layer.bounds().empty());  // the line has pixels to export
+  document.add_layer(std::move(layer));
+  CHECK(write_svg(document).find("<image") != std::string::npos);
+  {
+    auto centered = *document.layers()[0].vector_shape();
+    centered.stroke.alignment = VectorStrokeAlignment::Center;
+    document.layers()[0].set_vector_shape(std::move(centered));
+  }
+  CHECK(write_svg(document).find("<image") == std::string::npos);  // a centered line stays vector
+}
+
 void svg_export_rasterizes_unsupported_and_reports() {
   Document document(40, 40, PixelFormat::rgba8());
   PixelBuffer pixels(40, 40, PixelFormat::rgba8());
@@ -1153,6 +1185,7 @@ std::vector<patchy::test::TestCase> svg_tests() {
       {"svg_export_is_deterministic_and_vector", svg_export_is_deterministic_and_vector},
       {"svg_export_reimport_round_trips_model", svg_export_reimport_round_trips_model},
       {"svg_export_stroke_alignment_hints_round_trip", svg_export_stroke_alignment_hints_round_trip},
+      {"svg_export_rasterizes_open_path_with_aligned_stroke", svg_export_rasterizes_open_path_with_aligned_stroke},
       {"svg_export_rasterizes_unsupported_and_reports", svg_export_rasterizes_unsupported_and_reports},
       {"svg_fixture_reexport_writes_artifact", svg_fixture_reexport_writes_artifact},
       {"svg_export_masks_and_hidden_layers", svg_export_masks_and_hidden_layers},
