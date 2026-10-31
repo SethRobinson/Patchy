@@ -16352,10 +16352,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>请用直接选择工具选择两个端点，或同一路径上相邻的锚点，或右键单击线段</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>用直接选择工具单击线段以选中它，或右键单击它</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>已连接端点</translation>
     </message>
@@ -16386,6 +16382,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>已吸附到锚点。只有端点或相邻的锚点才能合并为一个锚点。按住 %ALT% 可自由放置锚点。</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>用直接选择工具按住 Shift 单击线段以选中它，或右键单击它</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>单击添加锚点，拖动调整形状，Shift+单击选择线段</translation>
     </message>
 </context>
 <context>

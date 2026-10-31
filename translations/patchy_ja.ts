@@ -16352,10 +16352,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ダイレクト選択で 2 つの端点、または 1 つのパスの隣り合うポイントを選択するか、セグメントを右クリックしてください</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>ダイレクト選択でセグメントをクリックして選択するか、右クリックしてください</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>端点を連結しました</translation>
     </message>
@@ -16386,6 +16382,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>ポイントにスナップしました。1 つのポイントになるのは端点どうし、または隣り合うポイントだけです。%ALT% を押したままにすると自由に配置します。</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>ダイレクト選択でセグメントを Shift+クリックして選択するか、右クリックしてください</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>クリックでポイントを追加、ドラッグで変形、Shift+クリックでセグメントを選択</translation>
     </message>
 </context>
 <context>

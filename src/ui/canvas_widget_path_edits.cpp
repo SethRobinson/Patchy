@@ -102,7 +102,7 @@ QString CanvasWidget::path_point_command_requirement(PathPointCommand command) {
       return tr("Select two end points, or neighbouring points of one path, with Direct Select, or right-click "
                 "a segment");
     case PathPointCommand::DeleteSegment:
-      return tr("Click a segment with Direct Select to select it, or right-click it");
+      return tr("Shift+click a segment with Direct Select to select it, or right-click it");
   }
   return {};
 }

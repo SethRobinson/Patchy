@@ -16395,10 +16395,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Seleziona con Selezione diretta due punti finali, o punti vicini di un tracciato, o fai clic destro su un segmento</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>Fai clic su un segmento con Selezione diretta per selezionarlo, o fai clic destro su di esso</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>Punti finali uniti</translation>
     </message>
@@ -16429,6 +16425,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>Agganciato a un punto. Solo i punti finali o i punti vicini diventano un solo punto. Tieni premuto %ALT% per posizionare il punto liberamente.</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Fai Maiusc+clic su un segmento con Selezione diretta per selezionarlo, o fai clic destro su di esso</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>Fai clic per aggiungere un punto, trascina per rimodellare, Maiusc+clic per selezionare il segmento</translation>
     </message>
 </context>
 <context>

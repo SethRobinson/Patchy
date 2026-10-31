@@ -225,10 +225,10 @@ Tests: `ui_path_select_*` in tests/ui/vector_point_editing_tests.cpp,
 
 Direct Select (or the Pen's Ctrl latch) drags every selected anchor when the
 press lands on a selected anchor OR on a segment whose two ends are already
-selected (a marquee, then a drag on any of its lines); Shift on a segment
-adds it, an unselected segment replaces the selection with its two ends.
-Test: `ui_direct_select_drags_marquee_selection_by_segment`. One-point drags weld:
-[vector-path-edits.md](vector-path-edits.md#weld-while-dragging).
+selected (a marquee, then a drag on any of its lines); Shift+click adds a
+segment's ends, a plain click [adds a point](vector-path-edits.md#direct-select-click-on-a-segment).
+Test: `ui_direct_select_drags_marquee_selection_by_segment`. One-point drags
+[weld](vector-path-edits.md#weld-while-dragging).
 
 Shift during the drag constrains movement to the nearest horizontal,
 vertical, or 45-degree axis (`constrain_drag_to_axes`), re-evaluated every

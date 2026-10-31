@@ -16395,10 +16395,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Sélectionnez avec Sélection directe deux extrémités, ou des points voisins d&apos;un tracé, ou faites un clic droit sur un segment</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>Cliquez sur un segment avec Sélection directe pour le sélectionner, ou faites un clic droit dessus</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>Extrémités jointes</translation>
     </message>
@@ -16429,6 +16425,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>Aligné sur un point. Seules les extrémités ou les points voisins deviennent un seul point. Maintenez %ALT% pour placer le point librement.</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Maj+cliquez sur un segment avec Sélection directe pour le sélectionner, ou faites un clic droit dessus</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>Cliquez pour ajouter un point, faites glisser pour remodeler, Maj+clic pour sélectionner le segment</translation>
     </message>
 </context>
 <context>

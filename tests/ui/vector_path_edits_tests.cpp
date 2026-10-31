@@ -170,8 +170,14 @@ void ui_path_point_commands_edit_menus_and_undo() {
   auto* delete_action = require_action(window, "pathDeleteSegmentAction");
   CHECK(!break_action->isEnabled() && !join_action->isEnabled() && !delete_action->isEnabled());
 
-  // A segment click selects its two points: the segment commands apply, Join does not.
-  click(*canvas, QPoint(200, 100));
+  // A Shift+click on a segment selects its two points (a plain click adds a point): the segment
+  // commands apply, Join does not.
+  {
+    const auto top = canvas->widget_position_for_document_point(QPoint(200, 100));
+    send_mouse(*canvas, QEvent::MouseButtonPress, top, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, top, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+    QApplication::processEvents();
+  }
   CHECK(canvas->path_edit_selected_anchor_count() == 2);
   CHECK(delete_action->isEnabled() && merge_action->isEnabled() && break_action->isEnabled());
   CHECK(!join_action->isEnabled());
@@ -911,10 +917,128 @@ void ui_path_weld_on_drag_merges_neighbours() {
   CHECK(!has_zero_length_segment(shape_of(document, id).path));
 }
 
+
+// Seth's ask (#555): with Direct Select, a segment under the pointer shows a plus and a plain click
+// adds a point there (selected, one "Add anchor" step); a drag still reshapes without adding,
+// Shift+click selects the segment, Alt+click the whole subpath; the Pen's Ctrl latch adds nothing.
+void ui_direct_select_click_on_segment_adds_a_point() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  // A curved top edge, so the added point must keep the curve's shape.
+  {
+    auto path = shape_of(document, id).path;
+    auto& anchors = path.subpaths[0].anchors;
+    for (auto& anchor : anchors) {
+      if (std::abs(anchor.anchor_y - 100.0) < 0.5 && std::abs(anchor.anchor_x - 100.0) < 0.5) {
+        anchor.out_y = 60.0;
+        anchor.out_x = 160.0;
+      }
+      if (std::abs(anchor.anchor_y - 100.0) < 0.5 && std::abs(anchor.anchor_x - 300.0) < 0.5) {
+        anchor.in_y = 60.0;
+        anchor.in_x = 240.0;
+      }
+    }
+    set_target_path(*canvas, path);
+  }
+  const auto curve_before = shape_of(document, id).path;
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  const auto hover = [&](QPoint point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(point), Qt::NoButton,
+               Qt::NoButton, modifiers);
+    QApplication::processEvents();
+    return canvas->cursor().pixmap().toImage();
+  };
+  // The top edge's middle (the curve bulges to y = 70 there).
+  const QPoint on_edge(200, 70);
+  const auto plain = hover(QPoint(500, 400));
+  const auto over_point = hover(QPoint(100, 220));
+  const auto over_edge = hover(on_edge);
+  CHECK(over_point == plain);
+  CHECK(over_edge != plain);
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Click to add a point")));
+  save_widget_artifact("ui_i555_direct_select_add_cursor", *canvas);
+  {
+    // The cursor itself, enlarged, for the card.
+    auto cursor_image = over_edge.scaled(over_edge.size() * 3, Qt::KeepAspectRatio, Qt::FastTransformation);
+    save_image_artifact("ui_i555_direct_select_add_cursor_badge", cursor_image);
+  }
+
+  // A plain click adds exactly one point on the curve, selected, in one undo step; the curve
+  // keeps its shape (the fill is the same along it).
+  const std::vector<QPoint> probes{{200, 72}, {200, 66}, {130, 85}, {270, 85}, {200, 150}};
+  std::vector<int> alpha_before;
+  for (const auto& probe : probes) {
+    alpha_before.push_back(layer_rgba_at(document, id, probe)[3]);
+  }
+  const auto undo_before = undo_depth(window);
+  click(*canvas, on_edge);
+  const auto& added = shape_of(document, id).path.subpaths[0];
+  CHECK(added.anchors.size() == 5);
+  CHECK(undo_depth(window) == undo_before + 1);
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  int near_click = 0;
+  for (const auto& anchor : added.anchors) {
+    if (std::hypot(anchor.anchor_x - 200.0, anchor.anchor_y - 70.0) < 3.0) {
+      ++near_click;
+    }
+  }
+  CHECK(near_click == 1);
+  for (std::size_t i = 0; i < probes.size(); ++i) {
+    CHECK(std::abs(layer_rgba_at(document, id, probes[i])[3] - alpha_before[i]) <= 2);
+  }
+  save_widget_artifact("ui_i555_direct_select_added_point", *canvas);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(shape_of(document, id).path == curve_before);
+
+  // A drag reshapes the segment and adds nothing.
+  shape_drag(*canvas, QPoint(300, 160), QPoint(330, 160));  // the right edge
+  CHECK(shape_of(document, id).path.subpaths[0].anchors.size() == 4);
+  CHECK(std::abs(shape_of(document, id).path.subpaths[0].anchors[2].anchor_x - 330.0) < 0.5 ||
+        std::abs(shape_of(document, id).path.subpaths[0].anchors[1].anchor_x - 330.0) < 0.5);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+
+  // Shift+click selects the segment's two points and adds nothing.
+  const auto right = canvas->widget_position_for_document_point(QPoint(300, 160));
+  click(*canvas, QPoint(500, 400));  // empty canvas: deselect
+  send_mouse(*canvas, QEvent::MouseButtonPress, right, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, right, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(shape_of(document, id).path.subpaths[0].anchors.size() == 4);
+  CHECK(canvas->path_edit_selected_anchor_count() == 2);
+  CHECK(require_action(window, "pathDeleteSegmentAction")->isEnabled());
+
+  // Alt+click selects the whole subpath and adds nothing.
+  send_mouse(*canvas, QEvent::MouseButtonPress, right, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, right, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(shape_of(document, id).path.subpaths[0].anchors.size() == 4);
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+
+  // The Pen's Ctrl latch: a Ctrl+click on the edge selects like Direct Select and adds nothing
+  // (the Pen adds through its own Auto Add/Delete click, once).
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonPress, right, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, right, Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(shape_of(document, id).path.subpaths[0].anchors.size() == 4);
+  click(*canvas, QPoint(300, 160));  // a plain Pen click with Auto Add/Delete adds one point
+  CHECK(shape_of(document, id).path.subpaths[0].anchors.size() == 5);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_path_edits_tests() {
   return {
+      {"ui_direct_select_click_on_segment_adds_a_point", ui_direct_select_click_on_segment_adds_a_point},
       {"ui_path_weld_on_drag_merges_neighbours", ui_path_weld_on_drag_merges_neighbours},
       {"ui_path_align_shapes_inside_a_layer", ui_path_align_shapes_inside_a_layer},
       {"ui_path_split_shape_with_break_and_join", ui_path_split_shape_with_break_and_join},

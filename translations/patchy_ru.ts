@@ -16438,10 +16438,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Выберите прямым выделением две конечные точки или соседние точки одного контура или щёлкните сегмент правой кнопкой</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>Щёлкните сегмент прямым выделением, чтобы выбрать его, или щёлкните его правой кнопкой</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>Конечные точки соединены</translation>
     </message>
@@ -16472,6 +16468,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>Привязано к точке. В одну точку сливаются только конечные или соседние точки. Удерживайте %ALT%, чтобы поставить точку свободно.</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Щёлкните сегмент с Shift прямым выделением, чтобы выбрать его, или щёлкните его правой кнопкой</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>Щелчок добавляет точку, перетаскивание меняет форму, Shift+щелчок выбирает сегмент</translation>
     </message>
 </context>
 <context>

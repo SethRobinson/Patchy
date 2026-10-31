@@ -2294,6 +2294,9 @@ private:
   [[nodiscard]] PathWeld plan_path_weld(const patchy::VectorPath& path) const;
   [[nodiscard]] QString path_weld_hint(const patchy::VectorPath& path) const;
   void weld_dragged_path_point();
+  // Whether a plain click on a segment adds a point: Direct Select (or Path Select's Ctrl swap)
+  // with an editable target; never the Pen's Ctrl latch.
+  [[nodiscard]] bool direct_select_click_adds_point() const;
   // The Pen plus the Add/Delete/Convert anchor tools, which share its handlers.
   [[nodiscard]] bool pen_family_tool_active() const noexcept;
   // Returns the badge it applied (Draw while the arrow shows).
@@ -3204,6 +3207,10 @@ private:
   std::pair<int, int> path_drag_anchor_{-1, -1};
   // The point a one-point Direct Select drag snapped onto (GitHub #555; Alt suppresses it).
   std::optional<std::pair<int, int>> path_weld_target_;
+  // A plain Direct Select press on a segment: a click (released before the drag distance) adds
+  // a point there; a drag drops it and moves the segment (GitHub #555).
+  std::optional<PenHoverHit> path_segment_click_;
+  QPointF path_segment_click_press_{};
   QPointF path_drag_last_document_{};
   // Anchor-drag Shift constraint: raw press origin, last raw pointer position
   // (replayed on Shift key transitions), and the total delta already applied.

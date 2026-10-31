@@ -16352,10 +16352,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>직접 선택으로 끝점 두 개 또는 한 패스의 인접한 점을 선택하거나 세그먼트를 마우스 오른쪽 버튼으로 클릭하세요</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>직접 선택으로 세그먼트를 클릭해 선택하거나 마우스 오른쪽 버튼으로 클릭하세요</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>끝점을 연결했습니다</translation>
     </message>
@@ -16386,6 +16382,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>점에 맞췄습니다. 끝점끼리 또는 인접한 점만 하나의 점이 됩니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>직접 선택으로 세그먼트를 Shift+클릭해 선택하거나 마우스 오른쪽 버튼으로 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>클릭하면 점 추가, 드래그하면 모양 변경, Shift+클릭하면 세그먼트 선택</translation>
     </message>
 </context>
 <context>
