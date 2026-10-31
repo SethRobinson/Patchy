@@ -28889,6 +28889,10 @@ Bloccato: %1</translation>
         <translation>Personalizza pannello Livelli...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>Rasterizza livello</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Livello sotto</translation>
     </message>

@@ -28971,6 +28971,10 @@ Locked: %1</source>
         <translation>Настройка панели «Слои»...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>Растрировать слой</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Слой ниже</translation>
     </message>

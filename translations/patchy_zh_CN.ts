@@ -28807,6 +28807,10 @@ Locked: %1</source>
         <translation>自定义图层面板...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>栅格化图层</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>下方图层</translation>
     </message>

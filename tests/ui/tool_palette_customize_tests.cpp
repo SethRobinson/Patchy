@@ -6,6 +6,7 @@
 // (213 follow-up), and when tool groups open: click and hold, click or hover (459). Groups with
 // one tool, no tool groups, clicks handed on from an open flyout, the two-column footer and
 // the shortcut key column (499), and the resizable dialog's preview that shows the rows that fit (499 comment).
+#include "core/layer_metadata.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/app_style.hpp"
@@ -619,7 +620,8 @@ void ui_layer_footer_buttons_hide_from_their_menu() {
   CHECK(!animation->isVisible());
   // With the optional buttons (GitHub issue 470), still hidden by default.
   const QStringList hidden_with_animation{QStringLiteral("animation"), QStringLiteral("merge_down"),
-                                          QStringLiteral("move_down"), QStringLiteral("move_up")};
+                                          QStringLiteral("merge_visible"), QStringLiteral("move_down"),
+                                          QStringLiteral("move_up"), QStringLiteral("rasterize")};
   CHECK(window.tool_palette_customization().hidden_layer_buttons == hidden_with_animation);
   CHECK(patchy::ui::stored_tool_palette_customization().hidden_layer_buttons == hidden_with_animation);
   CHECK(patchy::ui::app_settings().value(QStringLiteral("layersPanel/hiddenFooterButtons")).toStringList() ==
@@ -1502,7 +1504,8 @@ void ui_script_tool_palette_reads_and_sets() {
 // no key at all.
 void ui_layer_footer_optional_buttons_start_hidden() {
   CustomizationSettingsGuard settings_guard;
-  const char* const optional_names[] = {"layerMoveUpButton", "layerMoveDownButton", "layerMergeDownButton"};
+  const char* const optional_names[] = {"layerMoveUpButton", "layerMoveDownButton", "layerMergeDownButton",
+                                        "layerMergeVisibleButton", "layerRasterizeButton"};
   {
     auto&& [window, canvas] = ShownWindowFixture{};
     settle();
@@ -1575,7 +1578,8 @@ void ui_layer_footer_optional_buttons_start_hidden() {
   CHECK(move_up->isVisible() && move_down->isVisible() && merge_down->isVisible() && animation->isVisible());
   CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/hiddenFooterButtons")));
   CHECK(patchy::ui::app_settings().value(QStringLiteral("layersPanel/shownFooterButtons")).toStringList() ==
-        (QStringList{QStringLiteral("merge_down"), QStringLiteral("move_down"), QStringLiteral("move_up")}));
+        (QStringList{QStringLiteral("merge_down"), QStringLiteral("merge_visible"), QStringLiteral("move_down"),
+                     QStringLiteral("move_up"), QStringLiteral("rasterize")}));
   if (auto* layers_panel = duplicate->parentWidget(); layers_panel != nullptr) {
     (void)capture_widget_artifact("ui_layer_footer_with_arrange_buttons", *layers_panel);
   }
@@ -1688,6 +1692,118 @@ void ui_layer_footer_move_and_merge_buttons_follow_modifiers() {
   CHECK(layers.size() < count - 1U);
 }
 
+// GitHub issue 539: Merge Visible and Rasterize Layer are optional footer buttons, hidden by
+// default; shown, each runs the Layer menu's command and is enabled exactly when it is
+// (Rasterize off on a pixel layer, Merge Visible off with one visible layer).
+void ui_layer_footer_merge_visible_and_rasterize_buttons() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  CustomizationSettingsGuard settings_guard;
+  const auto listed = [](const auto& ids, const char* wanted) {
+    return std::any_of(std::begin(ids), std::end(ids), [wanted](const char* id) { return std::string(id) == wanted; });
+  };
+  for (const auto* id : {"merge_visible", "rasterize"}) {
+    CHECK(listed(patchy::ui::kLayerFooterButtonIds, id));
+    CHECK(listed(patchy::ui::kLayerFooterButtonIdsHiddenByDefault, id));
+    CHECK(ToolPaletteCustomization{}.hidden_layer_buttons.contains(QLatin1String(id)));
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  settle();
+  auto* merge_visible = window.findChild<QPushButton*>(QStringLiteral("layerMergeVisibleButton"));
+  auto* rasterize = window.findChild<QPushButton*>(QStringLiteral("layerRasterizeButton"));
+  auto* merge_visible_action = require_action(window, "layerMergeVisibleLayersAction");
+  auto* rasterize_action = require_action(window, "layerRasterizeAction");
+  CHECK(merge_visible != nullptr && rasterize != nullptr && merge_visible_action != nullptr &&
+        rasterize_action != nullptr);
+  if (merge_visible == nullptr || rasterize == nullptr || merge_visible_action == nullptr ||
+      rasterize_action == nullptr) {
+    return;
+  }
+  CHECK(!merge_visible->isVisible() && !rasterize->isVisible());
+  CHECK(merge_visible->toolTip() == QStringLiteral("Merge Visible"));
+  CHECK(rasterize->toolTip() == QStringLiteral("Rasterize Layer"));
+  auto customization = window.tool_palette_customization();
+  customization.hidden_layer_buttons.removeAll(QStringLiteral("merge_visible"));
+  customization.hidden_layer_buttons.removeAll(QStringLiteral("rasterize"));
+  window.apply_tool_palette_customization(customization);
+  settle();
+  CHECK(merge_visible->isVisible() && rasterize->isVisible());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("layersPanel/shownFooterButtons")).toStringList() ==
+        (QStringList{QStringLiteral("merge_visible"), QStringLiteral("rasterize")}));
+  // Customize Tool Palette's Layers Panel tab lists both, ticked, under their tooltip names.
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* list = dialog.findChild<QListWidget*>(QStringLiteral("layerFooterButtonsList"));
+    CHECK(list != nullptr);
+    if (list != nullptr) {
+      for (const auto& [id, name] :
+           {std::pair{"merge_visible", "Merge Visible"}, std::pair{"rasterize", "Rasterize Layer"}}) {
+        QListWidgetItem* row = nullptr;
+        for (int index = 0; index < list->count(); ++index) {
+          if (list->item(index)->data(Qt::UserRole).toString() == QLatin1String(id)) {
+            row = list->item(index);
+          }
+        }
+        CHECK(row != nullptr && row->text() == QLatin1String(name) && row->checkState() == Qt::Checked);
+        if (row != nullptr) {
+          list->scrollToItem(row);
+        }
+      }
+      QApplication::processEvents();
+      (void)capture_widget_artifact("ui_tool_palette_customize_merge_visible_and_rasterize", dialog);
+    }
+    press_dialog_button(dialog, QDialogButtonBox::Cancel);
+  });
+  window.show_tool_palette_customization(patchy::ui::ToolPaletteCustomizeTab::LayerButtons);
+  CHECK(ran);
+  settle();
+  const auto follows_actions = [&] {
+    CHECK(merge_visible->isEnabled() == merge_visible_action->isEnabled());
+    CHECK(rasterize->isEnabled() == rasterize_action->isEnabled());
+  };
+  // Background and Layer 1: two visible pixel layers, nothing to rasterize.
+  auto& doc = Access::document(window);
+  const auto& layers = std::as_const(doc).layers();
+  CHECK(layers.size() == 2U);
+  const auto paint_id = layers.back().id();
+  Access::select_layers(window, {paint_id}, paint_id);
+  settle();
+  follows_actions();
+  CHECK(merge_visible->isEnabled() && !rasterize->isEnabled());
+  // A text layer: Rasterize turns on and the button rasterizes it, one undo step.
+  patchy::Layer text(doc.allocate_layer_id(), "Text: Hi", patchy::LayerKind::Text);
+  const auto text_id = text.id();
+  text.set_bounds(patchy::Rect{8, 8, 96, 30});
+  text.metadata()[patchy::kLayerMetadataText] = "Hi";
+  text.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  text.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+  doc.add_layer(std::move(text));
+  Access::refresh_layer_ui(window);
+  Access::select_layers(window, {text_id}, text_id);
+  settle();
+  follows_actions();
+  CHECK(rasterize->isEnabled());
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel")); panel != nullptr) {
+    (void)capture_widget_artifact("ui_layer_footer_merge_visible_and_rasterize", *panel);
+  }
+  auto depth = Access::active_session_undo_depth(window);
+  QTest::mouseClick(rasterize, Qt::LeftButton);
+  settle();
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  const auto* rasterized = std::as_const(doc).find_layer(text_id);
+  CHECK(rasterized != nullptr && rasterized->kind() == patchy::LayerKind::Pixel);
+  follows_actions();
+  CHECK(!rasterize->isEnabled());
+  // Merge Visible: the three visible layers become one, one undo step; then it turns off.
+  depth = Access::active_session_undo_depth(window);
+  QTest::mouseClick(merge_visible, Qt::LeftButton);
+  settle();
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  CHECK(layers.size() == 1U);
+  follows_actions();
+  CHECK(!merge_visible->isEnabled());
+}
+
 QStringList footer_ids(std::initializer_list<const char*> ids) {
   QStringList out;
   for (const auto* id : ids) {
@@ -1711,15 +1827,16 @@ void ui_layer_footer_order_resolves_unknown_and_missing_ids() {
   CustomizationSettingsGuard settings_guard;
   using patchy::ui::resolved_layer_footer_order;
   const auto moved_delete = footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles",
-                                        "add_mask", "duplicate", "move_up", "move_down", "merge_down", "animation"});
+                                        "add_mask", "duplicate", "move_up", "move_down", "merge_down",
+                                        "merge_visible", "rasterize", "animation"});
   CHECK(resolved_layer_footer_order({}) == default_footer_order());
   CHECK(resolved_layer_footer_order(footer_ids({"delete", "future_button", "new_layer", "delete"})) == moved_delete);
   CHECK(resolved_layer_footer_order(footer_ids({"delete", "new_folder"})) ==
         footer_ids({"new_layer", "delete", "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate",
-                    "move_up", "move_down", "merge_down", "animation"}));
+                    "move_up", "move_down", "merge_down", "merge_visible", "rasterize", "animation"}));
   CHECK(resolved_layer_footer_order(footer_ids({"animation", "duplicate"})) ==
         footer_ids({"new_layer", "new_folder", "new_adjustment", "layer_styles", "add_mask", "animation", "delete",
-                    "duplicate", "move_up", "move_down", "merge_down"}));
+                    "duplicate", "move_up", "move_down", "merge_down", "merge_visible", "rasterize"}));
 
   ToolPaletteCustomization value;
   value.layer_button_order = default_footer_order();
@@ -1755,7 +1872,8 @@ void ui_layer_footer_follows_stored_order() {
   }
   CHECK(new_button->x() < duplicate->x() && duplicate->x() < delete_button->x());
   const auto expected = footer_ids({"delete", "duplicate", "new_layer", "new_folder", "new_adjustment", "layer_styles",
-                                    "add_mask", "move_up", "move_down", "merge_down", "animation"});
+                                    "add_mask", "move_up", "move_down", "merge_down",
+                                    "merge_visible", "rasterize", "animation"});
   auto customization = window.tool_palette_customization();
   customization.layer_button_order = expected;
   window.apply_tool_palette_customization(customization);
@@ -1837,7 +1955,8 @@ void ui_tool_palette_dialog_reorders_layer_buttons() {
     list->item(row_ids(*list).indexOf(QStringLiteral("move_up")))->setCheckState(Qt::Checked);
     QApplication::processEvents();
     CHECK(row_ids(*list) == footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles",
-                                        "duplicate", "add_mask", "move_up", "move_down", "merge_down", "animation"}));
+                                        "duplicate", "add_mask", "move_up", "move_down", "merge_down",
+                                        "merge_visible", "rasterize", "animation"}));
     (void)capture_widget_artifact("ui_tool_palette_customize_layer_button_order", dialog);
     press_dialog_button(dialog, QDialogButtonBox::Ok);
   });
@@ -1845,7 +1964,8 @@ void ui_tool_palette_dialog_reorders_layer_buttons() {
   CHECK(ran);
   settle();
   const auto expected = footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles", "duplicate",
-                                    "add_mask", "move_up", "move_down", "merge_down", "animation"});
+                                    "add_mask", "move_up", "move_down", "merge_down",
+                                    "merge_visible", "rasterize", "animation"});
   CHECK(window.tool_palette_customization().layer_button_order == expected);
   CHECK(!window.tool_palette_customization().hidden_layer_buttons.contains(QStringLiteral("move_up")));
   auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
@@ -2074,9 +2194,9 @@ void ui_tool_palette_dialog_layer_button_presets() {
 // accent roles, so both show at every footer icon size in Dark and Light. Saves the sheet the
 // card shows.
 void ui_layer_footer_arrange_icons_draw_in_both_schemes() {
-  const char* const names[] = {"layer-up", "layer-down", "merge-down"};
+  const char* const names[] = {"layer-up", "layer-down", "merge-down", "merge-visible", "rasterize"};
   constexpr int kCell = 44;
-  QImage sheet(QSize(kCell * 3 * static_cast<int>(patchy::ui::kToolbarIconSizes.size()), kCell * 2),
+  QImage sheet(QSize(kCell * static_cast<int>(std::size(names) * patchy::ui::kToolbarIconSizes.size()), kCell * 2),
                QImage::Format_ARGB32_Premultiplied);
   int scheme_row = 0;
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -2181,7 +2301,7 @@ void ui_layer_footer_wraps_one_button_at_a_time() {
       if (panel == nullptr) {
         return;
       }
-      const auto expected_count = all_buttons ? 11 : 8;
+      const auto expected_count = all_buttons ? 13 : 8;
       const auto opening = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
       const auto compact = patchy::ui::MainWindowTestAccess::right_dock_compact_width(window);
       int previous_first_row = expected_count;
@@ -3127,6 +3247,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_layer_footer_optional_buttons_start_hidden", ui_layer_footer_optional_buttons_start_hidden},
       {"ui_layer_footer_move_and_merge_buttons_follow_modifiers",
        ui_layer_footer_move_and_merge_buttons_follow_modifiers},
+      {"ui_layer_footer_merge_visible_and_rasterize_buttons", ui_layer_footer_merge_visible_and_rasterize_buttons},
       {"ui_layer_footer_order_resolves_unknown_and_missing_ids", ui_layer_footer_order_resolves_unknown_and_missing_ids},
       {"ui_layer_footer_follows_stored_order", ui_layer_footer_follows_stored_order},
       {"ui_tool_palette_dialog_reorders_layer_buttons", ui_tool_palette_dialog_reorders_layer_buttons},

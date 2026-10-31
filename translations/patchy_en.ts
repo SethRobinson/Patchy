@@ -28808,6 +28808,10 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation type="unfinished"></translation>
     </message>

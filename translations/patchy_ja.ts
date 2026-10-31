@@ -28807,6 +28807,10 @@ Locked: %1</source>
         <translation>レイヤーパネルのカスタマイズ...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>レイヤーをラスタライズ</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>下のレイヤー</translation>
     </message>

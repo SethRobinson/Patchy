@@ -28889,6 +28889,10 @@ Verrouillé : %1</translation>
         <translation>Personnaliser le panneau Calques...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>Pixelliser le calque</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Calque inférieur</translation>
     </message>

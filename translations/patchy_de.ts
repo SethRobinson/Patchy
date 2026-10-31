@@ -28889,6 +28889,10 @@ Fixiert: %1</translation>
         <translation>Ebenenbedienfeld anpassen...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>Ebene rastern</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Ebene darunter</translation>
     </message>

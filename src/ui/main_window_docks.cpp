@@ -1785,6 +1785,9 @@ void MainWindow::create_docks() {
   auto* move_up_button = new QPushButton(layers_panel);
   auto* move_down_button = new QPushButton(layers_panel);
   auto* merge_down_button = new QPushButton(layers_panel);
+  // Hidden by default too (GitHub issue 539): the Layer menu's Merge Visible and Rasterize.
+  auto* merge_visible_button = new QPushButton(layers_panel);
+  auto* rasterize_button = new QPushButton(layers_panel);
   auto* animation_button = new QPushButton(layers_panel);
   auto* delete_button = new QPushButton(layers_panel);
   add_button->setObjectName(QStringLiteral("layerNewButton"));
@@ -1796,6 +1799,8 @@ void MainWindow::create_docks() {
   move_up_button->setObjectName(QStringLiteral("layerMoveUpButton"));
   move_down_button->setObjectName(QStringLiteral("layerMoveDownButton"));
   merge_down_button->setObjectName(QStringLiteral("layerMergeDownButton"));
+  merge_visible_button->setObjectName(QStringLiteral("layerMergeVisibleButton"));
+  rasterize_button->setObjectName(QStringLiteral("layerRasterizeButton"));
   animation_button->setObjectName(QStringLiteral("layerAnimationButton"));
   delete_button->setObjectName(QStringLiteral("layerDeleteButton"));
   add_button->setIcon(simple_icon(QStringLiteral("new")));
@@ -1808,6 +1813,8 @@ void MainWindow::create_docks() {
   move_up_button->setIcon(simple_icon(QStringLiteral("layer-up")));
   move_down_button->setIcon(simple_icon(QStringLiteral("layer-down")));
   merge_down_button->setIcon(simple_icon(QStringLiteral("merge-down")));
+  merge_visible_button->setIcon(simple_icon(QStringLiteral("merge-visible")));
+  rasterize_button->setIcon(simple_icon(QStringLiteral("rasterize")));
   animation_button->setIcon(simple_icon(QStringLiteral("film")));
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
   const auto apply_new_layer_tooltip = [add_button] {
@@ -1845,10 +1852,13 @@ void MainWindow::create_docks() {
   };
   apply_arrange_tooltips();
   register_retranslation(apply_arrange_tooltips);
+  bind_tooltip(merge_visible_button, QT_TR_NOOP("Merge Visible"));
+  bind_tooltip(rasterize_button, QT_TR_NOOP("Rasterize Layer"));
   bind_tooltip(animation_button, QT_TR_NOOP("Animation Preview"));
   bind_tooltip(delete_button, QT_TR_NOOP("Delete Layer"));
   for (auto* button : {add_button, add_folder_button, add_mask_button, duplicate_button, move_up_button,
-                       move_down_button, merge_down_button, animation_button, delete_button}) {
+                       move_down_button, merge_down_button, merge_visible_button, rasterize_button, animation_button,
+                       delete_button}) {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(38, 34);
@@ -1924,6 +1934,8 @@ void MainWindow::create_docks() {
   layer_buttons->addWidget(move_up_button);
   layer_buttons->addWidget(move_down_button);
   layer_buttons->addWidget(merge_down_button);
+  layer_buttons->addWidget(merge_visible_button);
+  layer_buttons->addWidget(rasterize_button);
   layer_buttons->addWidget(animation_button);
   layer_buttons->addWidget(delete_button);
   layers_layout->addLayout(layer_buttons);
@@ -1969,6 +1981,24 @@ void MainWindow::create_docks() {
       merge_down();
     }
   });
+  // Merge Visible and Rasterize Layer run the Layer menu's actions and follow their enabled
+  // state (refresh_merge_visible_action_state, refresh_layer_controls), so a button is off
+  // whenever the command is (GitHub issue 539).
+  const auto follow_action = [this](QPushButton* button, QAction* action) {
+    if (action == nullptr) {
+      button->setEnabled(false);
+      return;
+    }
+    button->setEnabled(action->isEnabled());
+    connect(action, &QAction::changed, button, [button, action] { button->setEnabled(action->isEnabled()); });
+    connect(button, &QPushButton::clicked, action, [action] {
+      if (action->isEnabled()) {
+        action->trigger();
+      }
+    });
+  };
+  follow_action(merge_visible_button, layer_merge_visible_layers_action_);
+  follow_action(rasterize_button, layer_rasterize_action_);
   connect(add_folder_button, &QPushButton::clicked, this, [this] { create_layer_folder(); });
   // Ctrl-click (Command-click on macOS) adds a vector mask instead, Ctrl+Alt a hide-all one (#447).
   connect(add_mask_button, &QPushButton::clicked, this, [this, add_mask_button] {
@@ -2006,6 +2036,8 @@ void MainWindow::create_docks() {
                            {"move_up", move_up_button, QT_TR_NOOP("Move Layer Up")},
                            {"move_down", move_down_button, QT_TR_NOOP("Move Layer Down")},
                            {"merge_down", merge_down_button, QT_TR_NOOP("Merge Down")},
+                           {"merge_visible", merge_visible_button, QT_TR_NOOP("Merge Visible")},
+                           {"rasterize", rasterize_button, QT_TR_NOOP("Rasterize Layer")},
                            {"animation", animation_button, QT_TR_NOOP("Animation Preview")},
                            {"delete", delete_button, QT_TR_NOOP("Delete Layer")}};
   for (const auto& footer : layer_footer_buttons_) {

@@ -28889,6 +28889,10 @@ Bloqueada: %1</translation>
         <translation>Personalizar panel Capas...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>Rasterizar capa</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Capa inferior</translation>
     </message>

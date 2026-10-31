@@ -28971,6 +28971,10 @@ Zablokowano: %1</translation>
         <translation>Dostosuj panel Warstwy...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>Rasteryzuj warstwę</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Warstwa poniżej</translation>
     </message>

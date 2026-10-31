@@ -28807,6 +28807,10 @@ Locked: %1</source>
         <translation>레이어 패널 사용자 지정...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>레이어 래스터화</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>아래 레이어</translation>
     </message>

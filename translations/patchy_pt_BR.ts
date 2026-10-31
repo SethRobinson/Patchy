@@ -28889,6 +28889,10 @@ Bloqueado: %1</translation>
         <translation>Personalizar painel Camadas...</translation>
     </message>
     <message>
+        <source>Rasterize Layer</source>
+        <translation>Rasterizar camada</translation>
+    </message>
+    <message>
         <source>Layer Below</source>
         <translation>Camada abaixo</translation>
     </message>
