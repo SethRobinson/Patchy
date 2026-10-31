@@ -1,6 +1,7 @@
 #include "core/pixel_tools.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/hdr_color.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/pixel_tools_internal.hpp"
 
@@ -1430,6 +1431,11 @@ EditColor gradient_color_at(const std::vector<GradientStop>& sorted_stops, float
 
 // gradient_color_at for 16/32-bit layers: the same stops and opacity without the byte
 // rounding, as straight RGBA on the deep scale; `linear` interpolates linear light.
+// A stop's Intensity for an EditOptions gain (the foreground's or background's 2^stops).
+static float gradient_intensity_from_gain(float gain) {
+  return gain > 0.0F && std::isfinite(gain) ? std::log2(gain) : 0.0F;
+}
+
 std::array<float, 4> gradient_color_at_deep(const std::vector<GradientStop>& sorted_stops, float opacity, bool reverse,
                                            double position, bool linear) {
   if (sorted_stops.empty()) {
@@ -1437,27 +1443,30 @@ std::array<float, 4> gradient_color_at_deep(const std::vector<GradientStop>& sor
   }
   position = std::clamp(reverse ? 1.0 - position : position, 0.0, 1.0);
   opacity = std::clamp(opacity, 0.0F, 1.0F);
-  const auto channel = [linear](std::uint8_t value) {
-    return linear ? srgb_decode(static_cast<double>(value) / 255.0) * 255.0 : static_cast<double>(value);
-  };
-  const auto as_deep = [&](EditColor color) {
-    return std::array<double, 4>{channel(color.r), channel(color.g), channel(color.b), static_cast<double>(color.a)};
+  // 32-bit stops take their Intensity in linear light before mixing.
+  const auto as_deep = [linear](const GradientStop& stop) {
+    const double gain = linear ? static_cast<double>(color_intensity_gain(stop.intensity_stops)) : 1.0;
+    const auto channel = [linear, gain](std::uint8_t value) {
+      return linear ? srgb_decode(static_cast<double>(value) / 255.0) * 255.0 * gain : static_cast<double>(value);
+    };
+    return std::array<double, 4>{channel(stop.color.r), channel(stop.color.g), channel(stop.color.b),
+                                 static_cast<double>(stop.color.a)};
   };
   std::array<double, 4> mixed{};
   if (position <= sorted_stops.front().location) {
-    mixed = as_deep(sorted_stops.front().color);
+    mixed = as_deep(sorted_stops.front());
   } else if (position >= sorted_stops.back().location) {
-    mixed = as_deep(sorted_stops.back().color);
+    mixed = as_deep(sorted_stops.back());
   } else {
-    mixed = as_deep(sorted_stops.back().color);
+    mixed = as_deep(sorted_stops.back());
     for (std::size_t index = 1; index < sorted_stops.size(); ++index) {
       const auto& right = sorted_stops[index];
       const auto& left = sorted_stops[index - 1U];
       if (position <= right.location) {
         const auto span = std::max(0.0001F, right.location - left.location);
         const auto t = std::clamp((position - left.location) / static_cast<double>(span), 0.0, 1.0);
-        const auto a = as_deep(left.color);
-        const auto b = as_deep(right.color);
+        const auto a = as_deep(left);
+        const auto b = as_deep(right);
         for (std::size_t c = 0; c < 4U; ++c) {
           mixed[c] = a[c] + (b[c] - a[c]) * t;
         }
@@ -3177,8 +3186,10 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
   const auto radius = std::sqrt(length_squared);
   auto stops = normalized_gradient_stops(gradient.stops.empty()
                                              ? std::vector<GradientStop>{
-                                                   GradientStop{0.0F, options.primary},
-                                                   GradientStop{1.0F, options.secondary}}
+                                                   GradientStop{0.0F, options.primary,
+                                                                gradient_intensity_from_gain(options.primary_gain)},
+                                                   GradientStop{1.0F, options.secondary,
+                                                                gradient_intensity_from_gain(options.secondary_gain)}}
                                              : gradient.stops);
   auto gradient_options = options;
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
@@ -3228,8 +3239,9 @@ Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0,
   GradientOptions gradient;
   gradient.method = GradientMethod::Linear;
   gradient.opacity = 1.0F;
-  gradient.stops.push_back(GradientStop{0.0F, options.primary});
-  gradient.stops.push_back(GradientStop{1.0F, options.secondary});
+  gradient.stops.push_back(GradientStop{0.0F, options.primary, gradient_intensity_from_gain(options.primary_gain)});
+  gradient.stops.push_back(
+      GradientStop{1.0F, options.secondary, gradient_intensity_from_gain(options.secondary_gain)});
   return draw_gradient(document, layer_id, x0, y0, x1, y1, options, gradient);
 }
 

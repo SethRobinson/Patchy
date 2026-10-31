@@ -965,7 +965,10 @@ std::vector<GradientStop> CanvasWidget::effective_gradient_stops() const {
   primary.a = 255;
   auto secondary = edit_color(secondary_color_);
   secondary.a = 255;
-  return normalized_gradient_stops({GradientStop{0.0F, primary}, GradientStop{1.0F, secondary}});
+  // The colors' Intensity rides along; only 32-bit layers use it.
+  return normalized_gradient_stops(
+      {GradientStop{0.0F, primary, static_cast<float>(paint_intensity_.foreground)},
+       GradientStop{1.0F, secondary, static_cast<float>(paint_intensity_.background)}});
 }
 
 void CanvasWidget::set_clone_aligned(bool aligned) noexcept {

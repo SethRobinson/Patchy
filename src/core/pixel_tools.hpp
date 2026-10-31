@@ -146,6 +146,10 @@ enum class GradientMethod {
 struct GradientStop {
   float location{0.0F};
   EditColor color{};
+  // The stop's Intensity in stops (core/hdr_color.hpp): 32-bit layers scale its decoded color
+  // by 2^stops before interpolating, so a gradient can run above 1.0. 8 and 16-bit layers
+  // ignore it (docs/high-bit-depth.md, "Color choice at 32 bits").
+  float intensity_stops{0.0F};
 };
 
 struct GradientOptions {

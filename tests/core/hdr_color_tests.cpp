@@ -126,6 +126,53 @@ void hdr_color_gain_paints_32_bit_layers_only() {
   CHECK(near(background[2], decoded(220) * 2.0 * 255.0, 0.5));
 }
 
+// Gradient stops carry an Intensity: a 32-bit layer interpolates the scaled linear colors
+// (values above 1.0), and the default foreground-to-background stops take the EditOptions
+// gains; 8 and 16-bit layers paint the same bytes with or without it.
+void hdr_color_gradient_stops_run_above_one_on_32_bit_layers() {
+  GradientOptions gradient;
+  gradient.stops = {GradientStop{0.0F, EditColor{255, 0, 0, 255}, 2.0F},
+                    GradientStop{1.0F, EditColor{255, 255, 255, 255}, 0.0F}};
+  EditOptions options;
+  auto linear = flat_document(BitDepth::Float32);
+  CHECK(!draw_gradient(linear, linear.layers().front().id(), 0, 0, 8, 0, options, gradient).empty());
+  const auto& layer = std::as_const(linear).layers().front();
+  const auto start = load_pixel(layer.pixels().format(), layer.pixels().pixel(0, 3));
+  CHECK(near(start[0], 4.0 * 255.0, 0.01));
+  CHECK(near(start[1], 0.0, 0.01));
+  // Half way: the linear mix of 4.0 red and 1.0 white.
+  const auto middle = load_pixel(layer.pixels().format(), layer.pixels().pixel(4, 3));
+  CHECK(near(middle[0], 2.5 * 255.0, 0.5));
+  CHECK(near(middle[1], 0.5 * 255.0, 0.5));
+
+  // An empty stop list runs from the foreground to the background with their gains.
+  GradientOptions from_colors;
+  EditOptions gained;
+  gained.primary = EditColor{0, 0, 255, 255};
+  gained.secondary = EditColor{0, 0, 0, 255};
+  gained.primary_gain = 8.0F;
+  auto defaulted = flat_document(BitDepth::Float32);
+  CHECK(!draw_gradient(defaulted, defaulted.layers().front().id(), 0, 0, 8, 0, gained, from_colors).empty());
+  const auto& defaulted_layer = std::as_const(defaulted).layers().front();
+  CHECK(near(load_pixel(defaulted_layer.pixels().format(), defaulted_layer.pixels().pixel(0, 0))[2], 8.0 * 255.0,
+             0.05));
+
+  auto without = gradient;
+  for (auto& stop : without.stops) {
+    stop.intensity_stops = 0.0F;
+  }
+  for (const auto depth : {BitDepth::UInt8, BitDepth::UInt16}) {
+    auto a = flat_document(depth);
+    auto b = flat_document(depth);
+    CHECK(!draw_gradient(a, a.layers().front().id(), 0, 0, 8, 0, gained, gradient).empty());
+    CHECK(!draw_gradient(b, b.layers().front().id(), 0, 0, 8, 0, gained, without).empty());
+    const auto& pa = std::as_const(a).layers().front().pixels();
+    const auto& pb = std::as_const(b).layers().front().pixels();
+    CHECK(std::vector<std::uint8_t>(pa.data().begin(), pa.data().end()) ==
+          std::vector<std::uint8_t>(pb.data().begin(), pb.data().end()));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> hdr_color_tests() {
@@ -134,5 +181,6 @@ std::vector<patchy::test::TestCase> hdr_color_tests() {
       {"hdr_color_preview_swatches_scale_light_and_clip_at_white",
        hdr_color_preview_swatches_scale_light_and_clip_at_white},
       {"hdr_color_gain_paints_32_bit_layers_only", hdr_color_gain_paints_32_bit_layers_only},
+      {"hdr_color_gradient_stops_run_above_one_on_32_bit_layers", hdr_color_gradient_stops_run_above_one_on_32_bit_layers},
   };
 }

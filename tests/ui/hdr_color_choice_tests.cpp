@@ -19,6 +19,9 @@
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QLabel>
+#include <QPushButton>
+#include <QTableWidget>
+#include <QTimer>
 #include <QScopeGuard>
 #include <QString>
 #include <cmath>
@@ -270,6 +273,114 @@ void ui_hdr_eyedropper_keeps_32_bit_values() {
   canvas.set_document(nullptr);
 }
 
+// Gradients at 32 bits (follow-up): the Edit Gradient Stops dialog shows the current stop's
+// Intensity only in a 32-bit document and stores an edit on that stop; the Gradient tool's
+// Foreground to Background runs above 1.0 from a +2 stop foreground, and the Eyedropper reads
+// it back. Captures: gradient-editor-32bit.png and gradient-32bit-eyedropper.png.
+void ui_hdr_gradient_stops_carry_intensity() {
+  patchy::set_deep_editing_override(true);
+  const auto restore = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  SettingsValueRestorer view_setting(QStringLiteral("colorPanel/view"));
+  SettingsValueRestorer foreground_setting(QStringLiteral("tools/foregroundColor"));
+  SettingsValueRestorer background_setting(QStringLiteral("tools/backgroundColor"));
+  SettingsValueRestorer use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_stops(QStringLiteral("tools/gradientStops"));
+  SettingsValueRestorer saved_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_reverse(QStringLiteral("tools/gradientReverse"));
+  SettingsValueRestorer saved_opacity(QStringLiteral("tools/gradientOpacity"));
+  for (const int bits : {8, 32}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1200, 760);
+    CHECK(run_script(window, QStringLiteral("var doc = app.newDocument(240, 120); doc.convertBitDepth(%1);").arg(bits)));
+    auto* canvas = require_canvas(window);
+    auto* panel = open_color_panel(window);
+    if (panel == nullptr) {
+      CHECK(false);
+      return;
+    }
+    set_panel_rgb(*panel, 255, 0, 0);
+    canvas->set_secondary_color(Qt::white);
+    canvas->paint_intensity() = {2.0, 0.0};
+    canvas->set_gradient_stops(std::nullopt);
+    canvas->set_tool(patchy::ui::CanvasTool::Gradient);
+    QApplication::processEvents();
+    const bool deep = bits == 32;
+
+    // The dialog: the 32-bit row only at 32 bits, showing and editing the current stop.
+    bool checked = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* hdr = dialog->findChild<HdrColorControls*>(QStringLiteral("gradientStopHdrControls"));
+      auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
+      CHECK(hdr != nullptr && table != nullptr);
+      if (hdr != nullptr && table != nullptr) {
+        CHECK(shown_in(hdr, dialog) == deep);
+        table->setCurrentCell(0, 0);
+        QApplication::processEvents();
+        CHECK(hdr->stops() == 2.0);
+        if (deep) {
+          table->setCurrentCell(1, 0);
+          QApplication::processEvents();
+          CHECK(hdr->stops() == 0.0);
+          hdr->intensity_spin()->setValue(1.0);
+          QApplication::processEvents();
+          dialog->resize(dialog->width(), std::max(dialog->height(), dialog->sizeHint().height()));
+          QApplication::processEvents();
+          save_capture(*dialog, QStringLiteral("gradient-editor-32bit"));
+        }
+        checked = true;
+      }
+      QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
+    });
+    window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"))->click();
+    QApplication::processEvents();
+    CHECK(checked);
+    if (deep) {
+      // The edit made the stops custom; the background stop now carries +1.
+      CHECK(canvas->gradient_stops().has_value());
+      if (canvas->gradient_stops().has_value()) {
+        CHECK(canvas->gradient_stops()->back().intensity_stops == 1.0F);
+        CHECK(canvas->gradient_stops()->front().intensity_stops == 2.0F);
+      }
+      canvas->set_gradient_stops(std::nullopt);
+    }
+
+    // Foreground to Background across the document.
+    const auto from = canvas->widget_position_for_document_point(QPoint(0, 60));
+    const auto to = canvas->widget_position_for_document_point(QPoint(239, 60));
+    send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto* layer = active_layer(window);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      return;
+    }
+    const auto& pixels = layer->pixels();
+    const auto bounds = layer->bounds();
+    const auto start = patchy::load_pixel(pixels.format(), pixels.pixel(2 - bounds.x, 60 - bounds.y));
+    if (deep) {
+      CHECK(start[0] / 255.0F > 3.5F);  // 4.0 red at the foreground end
+      canvas->set_tool(patchy::ui::CanvasTool::Eyedropper);
+      const auto pick = canvas->widget_position_for_document_point(QPoint(1, 60));
+      send_mouse(*canvas, QEvent::MouseButtonPress, pick, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, pick, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      CHECK(canvas->paint_intensity().foreground > 1.8);
+      CHECK(panel->hdr_controls()->stops() > 1.8);
+      save_capture(window, QStringLiteral("gradient-32bit-eyedropper"));
+    } else {
+      CHECK(start[0] > 250.0F && start[0] <= 255.0F);  // 8 bits: the base color, as before
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> hdr_color_choice_tests() {
@@ -277,5 +388,6 @@ std::vector<patchy::test::TestCase> hdr_color_choice_tests() {
       {"ui_hdr_color_choice_captures", ui_hdr_color_choice_captures},
       {"ui_hdr_color_intensity_paints_and_follows", ui_hdr_color_intensity_paints_and_follows},
       {"ui_hdr_eyedropper_keeps_32_bit_values", ui_hdr_eyedropper_keeps_32_bit_values},
+      {"ui_hdr_gradient_stops_carry_intensity", ui_hdr_gradient_stops_carry_intensity},
   };
 }
