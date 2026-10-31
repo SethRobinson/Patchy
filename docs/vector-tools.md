@@ -352,13 +352,20 @@ canvas context menus ([tools.md](tools.md)), the options-bar Appearance... butto
 Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
 panel's Edit Appearance..., and a Path Select / Direct Select double-click on
 the shape's geometry. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
-(Solid, Dashed {2, 2}, Dotted, Custom). Custom's Dash pattern field
+(Solid, Dashed {2, 2}, Long dashes, Short dashes, Dotted, Sparse dots, Dash dot, Dash dot dot,
+Custom; rows carry `StrokeDashPreset` ids as item data, Custom last). Custom's Dash pattern field
 (`shapeStrokeDashPatternEdit`, `parse_dash_pattern_text`) takes lengths in stroke widths,
 space separated; an odd count repeats once (SVG's reading) and one length must be above 0.
 It holds any file's array and commits on Enter or focus-out. Zero-length dashes draw only
 through Round or Square caps (Photoshop, SVG and the stroker draw nothing for them with
 Butt caps), so Dotted is `dotted_dash_pattern(cap)`: {0, 2}, or {1, 1} with Butt caps, the
 same square dots; changing Caps while Dotted is chosen swaps the array (GitHub issue 548).
+The other new presets follow the cap the same way (`stroke_dash_preset_pattern`: written for
+Butt caps, each dash one width shorter and each gap one width longer for Round or Square), so
+they look alike on every cap; Dashed alone stays a fixed {2, 2}. Picking Dotted or Sparse dots
+also sets Caps to Round, so the dots are round. `stroke_dash_preset_for` maps a file's array to
+its row by its shortest repeating period (GIMP repeats each pattern to fill its dash table), so
+GIMP's Dense dots on Butt caps is Dotted; arrays matching no preset show as Custom.
 `pattern_linked` anchors at the effects
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).

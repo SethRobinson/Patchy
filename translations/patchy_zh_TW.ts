@@ -14238,6 +14238,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash pattern:</source>
         <translation>虛線圖樣:</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>長虛線</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>短虛線</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>稀疏點線</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>點劃線</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>雙點劃線</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

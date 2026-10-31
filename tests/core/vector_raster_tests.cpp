@@ -885,6 +885,83 @@ void stroke_dotted_pattern_draws_on_butt_caps() {
   }
 }
 
+// GitHub #548 follow-up: Shape Appearance's named dash presets. Each maps back
+// to itself on every cap, a repeated period maps like the period, and each
+// draws dashes and gaps on Butt and Round caps.
+void stroke_dash_presets_follow_caps_and_map_back() {
+  using patchy::StrokeDashPreset;
+  using patchy::VectorStrokeCap;
+  const std::array presets{StrokeDashPreset::Dashed,     StrokeDashPreset::Dotted,
+                           StrokeDashPreset::LongDashes, StrokeDashPreset::ShortDashes,
+                           StrokeDashPreset::SparseDots, StrokeDashPreset::DashDot,
+                           StrokeDashPreset::DashDotDot};
+  const std::array caps{VectorStrokeCap::Butt, VectorStrokeCap::Round, VectorStrokeCap::Square};
+  CHECK(patchy::stroke_dash_preset_for({}, VectorStrokeCap::Butt) == StrokeDashPreset::Solid);
+  CHECK((patchy::stroke_dash_preset_pattern(StrokeDashPreset::DashDot, VectorStrokeCap::Butt) ==
+         std::vector<double>{4.0, 2.0, 1.0, 2.0}));
+  CHECK((patchy::stroke_dash_preset_pattern(StrokeDashPreset::DashDot, VectorStrokeCap::Round) ==
+         std::vector<double>{3.0, 3.0, 0.0, 3.0}));
+  CHECK((patchy::stroke_dash_preset_pattern(StrokeDashPreset::Dashed, VectorStrokeCap::Round) ==
+         std::vector<double>{2.0, 2.0}));
+  VectorPath line;
+  line.subpaths = {open_line(10, 40, 250, 40)};
+  for (const auto preset : presets) {
+    for (const auto cap : caps) {
+      const auto dashes = patchy::stroke_dash_preset_pattern(preset, cap);
+      CHECK(!dashes.empty() && dashes.size() % 2 == 0);
+      CHECK(patchy::stroke_dash_preset_for(dashes, cap) == preset);
+      auto twice = dashes;
+      twice.insert(twice.end(), dashes.begin(), dashes.end());
+      CHECK(patchy::stroke_dash_preset_for(twice, cap) == preset);
+      if (cap == VectorStrokeCap::Square) continue;
+      patchy::VectorStroke stroke;
+      stroke.width = 8;
+      stroke.cap = cap;
+      stroke.dashes = dashes;
+      const auto coverage = stroke_coverage(line, stroke, Rect{0, 0, 260, 80});
+      int ink = 0;
+      int gaps = 0;
+      for (int x = 20; x < 240; ++x) {
+        if (coverage_pixel(coverage, x, 40) > 127) {
+          ++ink;
+        } else {
+          ++gaps;
+        }
+      }
+      CHECK(ink > 20);
+      CHECK(gaps > 20);
+    }
+  }
+  // Dot presets also match their zero-length form on a Butt cap (as Dotted did).
+  CHECK(patchy::stroke_dash_preset_for({0.0, 4.0}, VectorStrokeCap::Butt) == StrokeDashPreset::SparseDots);
+  CHECK(!patchy::stroke_dash_preset_for({5.0, 3.0}, VectorStrokeCap::Butt).has_value());
+  CHECK(!patchy::stroke_dash_preset_for({6.0, 2.0, 6.0}, VectorStrokeCap::Butt).has_value());
+
+  // GIMP 3.2's dash presets as philipzae's #548 file stores them (stroke widths,
+  // each repeated to fill GIMP's dash table): Line and Dense dots are Patchy
+  // presets; the rest have other lengths and open as Custom.
+  struct GimpDash {
+    std::vector<double> dashes;
+    VectorStrokeCap cap;
+    std::optional<StrokeDashPreset> preset;
+  };
+  const std::vector<GimpDash> gimp{
+      {{}, VectorStrokeCap::Butt, StrokeDashPreset::Solid},
+      {{9, 3}, VectorStrokeCap::Butt, std::nullopt},
+      {{6, 6}, VectorStrokeCap::Round, std::nullopt},
+      {{3, 9}, VectorStrokeCap::Butt, std::nullopt},
+      {{1, 5, 1, 5}, VectorStrokeCap::Round, std::nullopt},
+      {{1, 3, 1, 3, 1, 3}, VectorStrokeCap::Square, std::nullopt},
+      {std::vector<double>(12, 1.0), VectorStrokeCap::Butt, StrokeDashPreset::Dotted},
+      {std::vector<double>(24, 0.5), VectorStrokeCap::Butt, std::nullopt},
+      {{7, 2, 1, 2}, VectorStrokeCap::Square, std::nullopt},
+      {{7, 1, 1, 1, 1, 1}, VectorStrokeCap::Butt, std::nullopt},
+  };
+  for (const auto& entry : gimp) {
+    CHECK(patchy::stroke_dash_preset_for(entry.dashes, entry.cap) == entry.preset);
+  }
+}
+
 void stroke_open_path_alignment_moves_band_sideways() {
   // Issue 553: an open two-point Pen path has no area, so an Inside stroke
   // clipped to its fill drew nothing. Photoshop moves the centered stroke half
@@ -1733,6 +1810,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_zero_length_dots_keep_first_dot_and_tangent", stroke_zero_length_dots_keep_first_dot_and_tangent},
       {"stroke_aligned_round_dots_keep_circles_on_curves", stroke_aligned_round_dots_keep_circles_on_curves},
       {"stroke_dotted_pattern_draws_on_butt_caps", stroke_dotted_pattern_draws_on_butt_caps},
+      {"stroke_dash_presets_follow_caps_and_map_back", stroke_dash_presets_follow_caps_and_map_back},
       {"stroke_open_path_alignment_moves_band_sideways", stroke_open_path_alignment_moves_band_sideways},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
       {"stroke_bezier_circle_is_translation_stable", stroke_bezier_circle_is_translation_stable},

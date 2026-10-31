@@ -14264,6 +14264,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash pattern:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

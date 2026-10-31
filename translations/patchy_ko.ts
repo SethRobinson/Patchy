@@ -14238,6 +14238,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash pattern:</source>
         <translation>점선 길이:</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>긴 파선</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>짧은 파선</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>성긴 점선</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>일점 쇄선</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>이점 쇄선</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

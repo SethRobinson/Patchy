@@ -162,6 +162,33 @@ struct VectorStroke {
 std::vector<double> dotted_dash_pattern(VectorStrokeCap cap);
 bool is_dotted_dash_pattern(const std::vector<double>& dashes, VectorStrokeCap cap);
 
+// Shape Appearance's named dash patterns (GitHub #548). Values are UI row ids (3 is its Custom row),
+// not saved anywhere; files keep only the dash array. Dashed is a fixed {2, 2};
+// the others are written for butt caps and, with a round or square cap, each
+// dash is one width shorter and each gap one width longer, so they look the
+// same on every cap (a dot becomes a zero-length dash: Dotted is
+// dotted_dash_pattern).
+enum class StrokeDashPreset {
+  Solid = 0,
+  Dashed = 1,
+  Dotted = 2,
+  LongDashes = 4,
+  ShortDashes = 5,
+  SparseDots = 6,
+  DashDot = 7,
+  DashDotDot = 8,
+};
+std::vector<double> stroke_dash_preset_pattern(StrokeDashPreset preset, VectorStrokeCap cap);
+// Whether the preset's array depends on the cap (all but Solid and Dashed).
+bool stroke_dash_preset_follows_cap(StrokeDashPreset preset);
+// Whether the preset draws dots alone, which read as dots with round caps.
+bool stroke_dash_preset_is_dots(StrokeDashPreset preset);
+// The preset a file's dash array shows as, or nullopt (Custom). Arrays that
+// repeat a shorter period ({1, 1, 1, 1}) compare by that period; a dot preset
+// also matches its zero-length form on any cap, as Dotted always has.
+std::optional<StrokeDashPreset> stroke_dash_preset_for(const std::vector<double>& dashes,
+                                                       VectorStrokeCap cap);
+
 // Live-shape parameter kinds. Values are Patchy's own; the PSD keyOriginType
 // integers (rect 1, rounded rect 2, line 4, ellipse 5) map at I/O. Kinds
 // Photoshop was not observed writing import as Custom with the raw origination

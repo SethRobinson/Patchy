@@ -14324,6 +14324,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Dash pattern:</source>
         <translation>Шаблон штрихов:</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>Длинные штрихи</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>Короткие штрихи</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>Редкие точки</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>Штрихпунктирная</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>Штрихпунктирная с двумя точками</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -77,31 +77,14 @@ QIcon color_swatch_icon(RgbColor color) {
   return QIcon(pixmap);
 }
 
-// Dashes combo rows. Patterns are stroke-width multiples like the vstk
-// descriptor; Dotted depends on the cap (dotted_dash_pattern).
-enum DashRow { kDashSolid = 0, kDashDashed = 1, kDashDotted = 2, kDashCustom = 3 };
-
-const std::vector<double>& dashed_dash_pattern() {
-  static const std::vector<double> kDashed{2.0, 2.0};
-  return kDashed;
-}
-
-std::vector<double> dash_preset(int row, VectorStrokeCap cap) {
-  switch (row) {
-    case kDashDashed:
-      return dashed_dash_pattern();
-    case kDashDotted:
-      return dotted_dash_pattern(cap);
-    default:
-      return {};
-  }
-}
+// Dashes combo rows carry a StrokeDashPreset id (or kDashCustom) as item data;
+// the patterns are stroke-width multiples like the vstk descriptor and most
+// follow the cap (stroke_dash_preset_pattern).
+constexpr int kDashCustom = 3;
 
 int dash_row_for(const std::vector<double>& dashes, VectorStrokeCap cap) {
-  if (dashes.empty()) return kDashSolid;
-  if (dashes == dashed_dash_pattern()) return kDashDashed;
-  if (is_dotted_dash_pattern(dashes, cap)) return kDashDotted;
-  return kDashCustom;
+  const auto preset = stroke_dash_preset_for(dashes, cap);
+  return preset.has_value() ? static_cast<int>(*preset) : kDashCustom;
 }
 
 QLocale dash_pattern_locale() {
@@ -955,10 +938,15 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
 
   auto* stroke_dash_combo = new QComboBox(stroke_group);
   stroke_dash_combo->setObjectName(QStringLiteral("shapeStrokeDashCombo"));
-  stroke_dash_combo->addItem(QObject::tr("Solid"));
-  stroke_dash_combo->addItem(QObject::tr("Dashed"));
-  stroke_dash_combo->addItem(QObject::tr("Dotted"));
-  stroke_dash_combo->addItem(QObject::tr("Custom"));
+  stroke_dash_combo->addItem(QObject::tr("Solid"), static_cast<int>(StrokeDashPreset::Solid));
+  stroke_dash_combo->addItem(QObject::tr("Dashed"), static_cast<int>(StrokeDashPreset::Dashed));
+  stroke_dash_combo->addItem(QObject::tr("Long dashes"), static_cast<int>(StrokeDashPreset::LongDashes));
+  stroke_dash_combo->addItem(QObject::tr("Short dashes"), static_cast<int>(StrokeDashPreset::ShortDashes));
+  stroke_dash_combo->addItem(QObject::tr("Dotted"), static_cast<int>(StrokeDashPreset::Dotted));
+  stroke_dash_combo->addItem(QObject::tr("Sparse dots"), static_cast<int>(StrokeDashPreset::SparseDots));
+  stroke_dash_combo->addItem(QObject::tr("Dash dot"), static_cast<int>(StrokeDashPreset::DashDot));
+  stroke_dash_combo->addItem(QObject::tr("Dash dot dot"), static_cast<int>(StrokeDashPreset::DashDotDot));
+  stroke_dash_combo->addItem(QObject::tr("Custom"), kDashCustom);
   stroke_form->addRow(QObject::tr("Dashes:"), stroke_dash_combo);
 
   auto* stroke_dash_pattern_row = new QWidget(stroke_group);
@@ -1089,7 +1077,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     set_row_visible(stroke_pattern_offset_x_spin, pattern_paint);
     set_row_visible(stroke_pattern_offset_y_spin, pattern_paint);
     set_row_visible(stroke_pattern_align_check, pattern_paint);
-    set_row_visible(stroke_dash_pattern_edit, stroke_dash_combo->currentIndex() == kDashCustom);
+    set_row_visible(stroke_dash_pattern_edit, stroke_dash_combo->currentData().toInt() == kDashCustom);
     for (QWidget* field :
          std::initializer_list<QWidget*>{stroke_width_spin, stroke_opacity_spin, stroke_paint_combo,
                                          stroke_color_button, stroke_gradient_combo,
@@ -1202,7 +1190,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     // A pattern that matches no preset is the Custom row's, restorable after
     // trying the presets.
     if (dash_row == kDashCustom) state->custom_dashes = dashes;
-    stroke_dash_combo->setCurrentIndex(dash_row);
+    stroke_dash_combo->setCurrentIndex(std::max(0, stroke_dash_combo->findData(dash_row)));
     stroke_dash_pattern_edit->setText(dash_pattern_text(state->custom_dashes));
     stroke_dash_pattern_edit->setModified(false);
       for (auto* spin : {layer_opacity_spin, layer_fill_opacity_spin, stroke_opacity_spin, density_spin}) {
@@ -1508,9 +1496,12 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   });
   QObject::connect(stroke_cap_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
     state->settings.stroke.cap = static_cast<VectorStrokeCap>(stroke_cap_combo->currentData().toInt());
-    // Dotted follows the cap, so a Butt cap still draws its dots.
-    if (stroke_dash_combo->currentIndex() == kDashDotted) {
-      state->settings.stroke.dashes = dotted_dash_pattern(state->settings.stroke.cap);
+    // The presets follow the cap, so a Butt cap still draws Dotted's dots and
+    // a Round cap keeps the gaps open.
+    const auto dash_row = stroke_dash_combo->currentData().toInt();
+    if (dash_row != kDashCustom && stroke_dash_preset_follows_cap(static_cast<StrokeDashPreset>(dash_row))) {
+      state->settings.stroke.dashes =
+          stroke_dash_preset_pattern(static_cast<StrokeDashPreset>(dash_row), state->settings.stroke.cap);
       notify({"stroke.cap", "stroke.dashes"});
       return;
     }
@@ -1521,9 +1512,11 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         static_cast<VectorStrokeJoin>(stroke_join_combo->currentData().toInt());
     notify({"stroke.join"});
   });
-  QObject::connect(stroke_dash_combo, &QComboBox::currentIndexChanged, &dialog, [=](int index) {
-    state->custom_dash_row = index == kDashCustom;
-    if (index == kDashCustom) {
+  QObject::connect(stroke_dash_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
+    const auto row = stroke_dash_combo->currentData().toInt();
+    state->custom_dash_row = row == kDashCustom;
+    bool cap_changed = false;
+    if (row == kDashCustom) {
       // Start from the pattern on screen, the last custom one, or 4 on, 2 off.
       if (state->custom_dashes.empty()) {
         state->custom_dashes = !state->settings.stroke.dashes.empty()
@@ -1534,11 +1527,24 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       stroke_dash_pattern_edit->setText(dash_pattern_text(state->custom_dashes));
       stroke_dash_pattern_edit->setModified(false);
     } else {
-      state->settings.stroke.dashes = dash_preset(index, state->settings.stroke.cap);
+      const auto preset = static_cast<StrokeDashPreset>(row);
+      // Dots read as dots with round caps; the other presets keep the cap.
+      if (stroke_dash_preset_is_dots(preset) && state->settings.stroke.cap != VectorStrokeCap::Round) {
+        state->settings.stroke.cap = VectorStrokeCap::Round;
+        QSignalBlocker cap_blocker(stroke_cap_combo);
+        stroke_cap_combo->setCurrentIndex(
+            std::max(0, stroke_cap_combo->findData(static_cast<int>(VectorStrokeCap::Round))));
+        cap_changed = true;
+      }
+      state->settings.stroke.dashes = stroke_dash_preset_pattern(preset, state->settings.stroke.cap);
     }
     refresh_stroke_rows();
     grow_to_fit();
-    notify({"stroke.dashes"});
+    if (cap_changed) {
+      notify({"stroke.cap", "stroke.dashes"});
+    } else {
+      notify({"stroke.dashes"});
+    }
   });
   QObject::connect(stroke_dash_pattern_edit, &QLineEdit::editingFinished, &dialog, [=] {
     // Commits on Enter or focus-out, like the value spins; leaving the field

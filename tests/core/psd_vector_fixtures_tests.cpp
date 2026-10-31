@@ -979,6 +979,71 @@ void psd_authored_custom_and_dotted_dashes_round_trip() {
   CHECK(metrics.max_channel_delta == 0);
 }
 
+// GitHub #548 follow-up: every Shape Appearance dash preset, on Butt and Round
+// caps, writes to vstk strokeStyleLineDashSet and reopens as the same preset.
+void psd_authored_dash_presets_round_trip() {
+  using patchy::StrokeDashPreset;
+  const std::array presets{StrokeDashPreset::Dashed,     StrokeDashPreset::Dotted,
+                           StrokeDashPreset::LongDashes, StrokeDashPreset::ShortDashes,
+                           StrokeDashPreset::SparseDots, StrokeDashPreset::DashDot,
+                           StrokeDashPreset::DashDotDot};
+  struct Entry {
+    StrokeDashPreset preset;
+    patchy::VectorStrokeCap cap;
+  };
+  std::vector<Entry> entries;
+  for (const auto preset : presets) {
+    for (const auto cap : {patchy::VectorStrokeCap::Butt, patchy::VectorStrokeCap::Round}) {
+      entries.push_back({preset, cap});
+    }
+  }
+  const int height = 16 * static_cast<int>(entries.size()) + 8;
+  patchy::Document document(120, height, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(120, height, 255, 255, 255, 255));
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    patchy::Layer shape(document.allocate_layer_id(), "Shape " + std::to_string(i + 1), patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Rectangle;
+    params.left = 8;
+    params.top = 8 + static_cast<double>(i) * 16;
+    params.right = 112;
+    params.bottom = params.top + 8;
+    patchy::populate_live_shape_box_corners(params);
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    content.origination = {params};
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.stroke.enabled = true;
+    content.stroke.fill_enabled = false;
+    content.stroke.width = 2.0;
+    content.stroke.cap = entries[i].cap;
+    content.stroke.dashes = patchy::stroke_dash_preset_pattern(entries[i].preset, entries[i].cap);
+    content.stroke.content.kind = patchy::VectorFillKind::Solid;
+    content.stroke.content.color = patchy::RgbColor{40, 40, 200};
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(120, height), nullptr);
+    document.add_layer(std::move(shape));
+  }
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers().size() == entries.size() + 1);
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    const auto* roundtrip = reread.layers()[i + 1].vector_shape();
+    CHECK(roundtrip != nullptr);
+    CHECK(roundtrip->stroke.cap == entries[i].cap);
+    const auto expected = patchy::stroke_dash_preset_pattern(entries[i].preset, entries[i].cap);
+    CHECK(roundtrip->stroke.dashes.size() == expected.size());
+    for (std::size_t d = 0; d < expected.size(); ++d) {
+      CHECK(std::fabs(roundtrip->stroke.dashes[d] - expected[d]) < 1e-9);
+    }
+    CHECK(patchy::stroke_dash_preset_for(roundtrip->stroke.dashes, roundtrip->stroke.cap) == entries[i].preset);
+  }
+  const auto metrics = rgb_diff_metrics(patchy::Compositor{}.flatten_rgb8(document),
+                                        patchy::Compositor{}.flatten_rgb8(reread));
+  CHECK(metrics.max_channel_delta == 0);
+}
+
 // GitHub #521: a live polygon regenerates from its parameters, survives a move (resolved by
 // translation) and an axis-aligned scale, ends at a point edit, and stays out of the PSD:
 // Photoshop's polygon origination is unprobed, so the file carries a plain path and no vogk.
@@ -2808,6 +2873,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
       {"psd_authored_custom_and_dotted_dashes_round_trip", psd_authored_custom_and_dotted_dashes_round_trip},
+      {"psd_authored_dash_presets_round_trip", psd_authored_dash_presets_round_trip},
       {"live_polygon_regenerates_resolves_and_writes_a_plain_path",
        live_polygon_regenerates_resolves_and_writes_a_plain_path},
       {"psd_compound_group_writes_continuation_records_and_round_trips",
