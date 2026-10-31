@@ -15971,10 +15971,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Klicken Sie, um die Form auszuwählen, und ziehen Sie, um sie zu verschieben. %CTRL%+T transformiert sie.</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>Ziehen Sie, um den Punkt zu verschieben. Shift+Klicken fügt ihn der Auswahl hinzu; Delete entfernt die ausgewählten Punkte.</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>Ziehen Sie den Griff, um die Kurve umzuformen</translation>
     </message>
@@ -16389,6 +16385,38 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Delete Segment</source>
         <translation>Segment löschen</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>Wählen Sie mit der Direktauswahl einen Punkt aus (innerhalb eines offenen Pfads oder einen beliebigen Punkt eines geschlossenen) oder klicken Sie mit der rechten Maustaste auf einen Punkt</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>Wählen Sie mit der Direktauswahl zwei Endpunkte oder benachbarte Punkte eines Pfads aus, oder klicken Sie mit der rechten Maustaste auf ein Segment</translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Klicken Sie mit der Direktauswahl auf ein Segment, um es auszuwählen, oder klicken Sie mit der rechten Maustaste darauf</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>Endpunkte verbunden</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>Loslassen verbindet die Endpunkte. %ALT% gedrückt halten, um den Punkt frei zu setzen.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation>An einem Punkt ausgerichtet. %ALT% gedrückt halten, um den Punkt frei zu setzen.</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>Ziehen verschiebt den Punkt; einen Endpunkt auf einem anderen ablegen verbindet beide. Umschalt+Klick erweitert die Auswahl. Rechtsklick für Teilen, Verbinden und Zusammenführen.</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>Wählen Sie mit der Direktauswahl zwei Endpunkte zum Verbinden oder einen Punkt eines offenen Pfads zum Schließen aus</translation>
     </message>
 </context>
 <context>
@@ -29227,10 +29255,6 @@ Fixiert: %1</translation>
         <translation>Endpunkte verbinden</translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>Die beiden ausgewählten Endpunkte mit einem geraden Segment verbinden</translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation>Zu einem Punkt zusammenführen</translation>
     </message>
@@ -29295,22 +29319,6 @@ Fixiert: %1</translation>
         <translation>Die kopierten Formen in den Zielpfad einfügen</translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>Wählen Sie mit der Direktauswahl einen Punkt innerhalb eines Pfads oder einen beliebigen Punkt eines geschlossenen Pfads aus</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>Wählen Sie mit der Direktauswahl zwei Endpunkte offener Pfade aus</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>Wählen Sie mit der Direktauswahl zwei Endpunkte oder benachbarte Punkte eines Pfads aus</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>Wählen Sie mit der Direktauswahl ein Segment (seine beiden Punkte) aus</translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation>Formen ausschneiden</translation>
     </message>
@@ -29361,6 +29369,62 @@ Fixiert: %1</translation>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>%1 Form(en) auf eine neue Ebene verschoben</translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation>Formen zusammenführen</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>Die ausgewählten Formen so, wie sie kombiniert erscheinen, in eine Kontur umwandeln, die Sie verschieben und bearbeiten können</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>Formen zusammenführen: die ausgewählten Formen so, wie sie kombiniert erscheinen, in eine Kontur umwandeln</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>Wählen Sie zuerst eine Formebene oder einen Pfad aus</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>Ein Textbereich behält eine Kontur</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>Der Pfad enthält keine Formen</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>Formen mit eigenen Farben können nicht mit anderen zusammengeführt werden</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>Formen zusammenführen</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>Von den Formen bleibt keine Fläche übrig; die Ebene wurde entfernt</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>%1 Form(en) zu einer Kontur zusammengeführt</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>Die beiden ausgewählten Endpunkte mit einem geraden Segment verbinden oder jeden offenen Pfad mit einem ausgewählten Punkt schließen</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>Die ausgewählten Formen sind bereits ausgerichtet</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>Formen ausrichten</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>%1 Form(en) ausgerichtet</translation>
     </message>
 </context>
 <context>

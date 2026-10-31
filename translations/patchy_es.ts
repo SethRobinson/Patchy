@@ -15971,10 +15971,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Haga clic para seleccionar la forma y arrastre para moverla. %CTRL%+T la transforma.</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>Arrastre para mover el punto. Shift+clic lo añade a la selección; Delete elimina los puntos seleccionados.</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>Arrastre el manejador para modificar la curva</translation>
     </message>
@@ -16389,6 +16385,38 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Delete Segment</source>
         <translation>Eliminar segmento</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>Seleccione un punto con Selección directa (dentro de un trazado abierto, o cualquier punto de uno cerrado), o haga clic derecho en un punto</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>Seleccione con Selección directa dos puntos finales, o puntos vecinos de un trazado, o haga clic derecho en un segmento</translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Haga clic en un segmento con Selección directa para seleccionarlo, o haga clic derecho en él</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>Puntos finales unidos</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>Suelte para unir los puntos finales. Mantenga %ALT% para colocar el punto libremente.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation>Ajustado a un punto. Mantenga %ALT% para colocar el punto libremente.</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>Arrastre para mover el punto; suelte un punto final sobre otro para unirlos. Mayús+clic añade a la selección. Clic derecho para Dividir, Unir y Fusionar.</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>Seleccione con Selección directa dos puntos finales para unirlos, o un punto de un trazado abierto para cerrarlo</translation>
     </message>
 </context>
 <context>
@@ -29227,10 +29255,6 @@ Bloqueada: %1</translation>
         <translation>Unir puntos finales</translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>Unir los dos puntos finales seleccionados con un segmento recto</translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation>Fusionar en un punto</translation>
     </message>
@@ -29295,22 +29319,6 @@ Bloqueada: %1</translation>
         <translation>Pegar las formas copiadas en el trazado de destino</translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>Seleccione con Selección directa un punto dentro de un trazado, o cualquier punto de un trazado cerrado</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>Seleccione con Selección directa dos puntos finales de trazados abiertos</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>Seleccione con Selección directa dos puntos finales, o puntos vecinos de un trazado</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>Seleccione con Selección directa un segmento (sus dos puntos)</translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation>Cortar formas</translation>
     </message>
@@ -29361,6 +29369,62 @@ Bloqueada: %1</translation>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>%1 forma(s) movida(s) a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation>Fusionar formas</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>Convertir las formas seleccionadas, combinadas tal como se ven, en un solo contorno que puede mover y editar</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>Fusionar formas: convertir las formas seleccionadas, combinadas tal como se ven, en un solo contorno</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>Seleccione primero una capa de forma o un trazado</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>Un área de texto conserva un solo contorno</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>El trazado no tiene formas</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>Las formas con colores propios no se pueden fusionar con otras</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>Fusionar formas</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>Las formas no dejaron área; se eliminó la capa</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>%1 forma(s) fusionada(s) en un solo contorno</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>Unir los dos puntos finales seleccionados con un segmento recto, o cerrar cada trazado abierto que tenga un punto seleccionado</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>Las formas seleccionadas ya están alineadas</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>Alinear formas</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>%1 forma(s) alineada(s)</translation>
     </message>
 </context>
 <context>

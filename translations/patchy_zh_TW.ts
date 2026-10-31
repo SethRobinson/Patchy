@@ -15928,10 +15928,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>按一下可選取形狀,拖曳可移動形狀。按 %CTRL%+T 可進行變形。</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>拖曳可移動錨點。按住 Shift 並按一下可將它加入選取範圍;按 Delete 可刪除選取的錨點。</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>拖曳控制把手可調整曲線形狀</translation>
     </message>
@@ -16346,6 +16342,38 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Delete Segment</source>
         <translation>刪除線段</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>請用直接選取工具選取一個錨點（開放路徑內部的錨點，或封閉路徑的任一錨點），或在錨點上按右鍵</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>請用直接選取工具選取兩個端點，或同一路徑上相鄰的錨點，或在線段上按右鍵</translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation>用直接選取工具按一下線段以選取它，或在它上面按右鍵</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>已連接端點</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>放開即可連接端點。按住 %ALT% 可自由放置錨點。</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation>已貼齊錨點。按住 %ALT% 可自由放置錨點。</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>拖曳可移動錨點；把端點放到另一個端點上即可連接。Shift+按一下會加入選取範圍。按右鍵可分割、連接和合併。</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>請用直接選取工具選取要連接的兩個端點，或選取開放路徑上的一個錨點以封閉它</translation>
     </message>
 </context>
 <context>
@@ -29145,10 +29173,6 @@ Locked: %1</source>
         <translation>連接端點</translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>以直線段連接兩個選取的端點</translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation>合併為一個錨點</translation>
     </message>
@@ -29213,22 +29237,6 @@ Locked: %1</source>
         <translation>將拷貝的形狀貼到目標路徑</translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>請用直接選取工具選取路徑內部的錨點，或封閉路徑的任一錨點</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>請用直接選取工具選取開放路徑的兩個端點</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>請用直接選取工具選取兩個端點，或同一路徑上相鄰的錨點</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>請用直接選取工具選取一條線段（它的兩個錨點）</translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation>剪下形狀</translation>
     </message>
@@ -29279,6 +29287,62 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>已將 %1 個形狀移到新圖層</translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation>融合形狀</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>將選取的形狀依顯示的組合方式變成一個可移動、可編輯的輪廓</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>融合形狀：將選取的形狀依顯示的組合方式變成一個輪廓</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>請先選取形狀圖層或路徑</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>文字區域保持一個輪廓</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>路徑中沒有形狀</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>擁有獨立顏色的形狀不能與其他形狀融合</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>融合形狀</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>形狀沒有剩下任何區域；已移除該圖層</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>已將 %1 個形狀融合為一個輪廓</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>以直線段連接兩個選取的端點，或封閉每條含有選取錨點的開放路徑</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>選取的形狀已經對齊</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>對齊形狀</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>已對齊 %1 個形狀</translation>
     </message>
 </context>
 <context>

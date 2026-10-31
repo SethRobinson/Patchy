@@ -71,6 +71,10 @@ namespace {
 constexpr double kPenCloseHitRadiusPx = 8.0;   // screen pixels
 constexpr double kPenSmoothDragThresholdPx = 2.0;  // document pixels
 constexpr double kPathHitRadiusPx = 7.0;       // half of the 14 px hit rect
+// A dragged point snaps onto another point of its path within this many screen pixels, and the
+// overlay rings the target this wide (GitHub #555).
+constexpr double kWeldSnapPx = 8.0;
+constexpr double kWeldRingRadiusPx = 9.0;
 // Handle knobs grab from a little farther than anchors (GitHub issue 105: the
 // knobs were too small to hit); a press closer to the anchor stays the anchor's.
 constexpr double kHandleHitRadiusPx = 9.0;
@@ -534,6 +538,7 @@ bool CanvasWidget::handle_move_vector_mask_press(QMouseEvent* event, QPointF doc
   path_drag_origin_document_ = document_point;
   path_drag_raw_document_ = document_point;
   path_drag_applied_delta_ = QPointF(0.0, 0.0);
+  path_weld_target_.reset();
   path_drag_mode_ = PathEditDrag::Anchors;
   path_drag_anchor_ = {0, 0};
   notify_path_selection_changed();
@@ -2004,6 +2009,7 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   path_drag_origin_document_ = document_point;
   path_drag_raw_document_ = document_point;
   path_drag_applied_delta_ = QPointF(0.0, 0.0);
+  path_weld_target_.reset();
   const auto selection_before = path_selected_anchors_;
   const auto extras_before = extra_selected_anchors_;
   const auto notify_if_changed = [&] {
@@ -2379,13 +2385,52 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   }
   double dx = 0.0;
   double dy = 0.0;
+  bool weld_hint_due = false;  // shown after the edit, whose undo label also reaches the status bar
   if (path_drag_mode_ == PathEditDrag::Anchors) {
     // Anchor drags track the total delta from the press so Shift can constrain
     // (and un-constrain) against it; each frame still applies an increment.
     const auto raw_total = document_point - path_drag_origin_document_;
-    const auto effective_total = (modifiers & Qt::ShiftModifier) != 0
-                                     ? constrain_drag_to_axes(raw_total)
-                                     : raw_total;
+    auto effective_total = (modifiers & Qt::ShiftModifier) != 0
+                               ? constrain_drag_to_axes(raw_total)
+                               : raw_total;
+    // One point dragged with Direct Select snaps onto another point of the path; dropped on an
+    // end point it welds there (GitHub #555). Alt held turns the snap off.
+    const auto previous_weld = path_weld_target_;
+    path_weld_target_.reset();
+    if (edit_tool == CanvasTool::DirectSelect && path_selected_anchors_.size() == 1 &&
+        extra_selected_anchors_.empty() && (modifiers & Qt::AltModifier) == 0) {
+      const auto key = *path_selected_anchors_.begin();
+      if (key.first >= 0 && key.first < static_cast<int>(path->subpaths.size()) && key.second >= 0 &&
+          key.second < static_cast<int>(path->subpaths[static_cast<std::size_t>(key.first)].anchors.size())) {
+        const auto& dragged = path->subpaths[static_cast<std::size_t>(key.first)].anchors[static_cast<std::size_t>(key.second)];
+        const QPointF would_be(dragged.anchor_x + effective_total.x() - path_drag_applied_delta_.x(),
+                               dragged.anchor_y + effective_total.y() - path_drag_applied_delta_.y());
+        double best = kWeldSnapPx / std::max(zoom_, 1e-6);
+        for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
+          const auto& anchors = path->subpaths[static_cast<std::size_t>(s)].anchors;
+          for (int a = 0; a < static_cast<int>(anchors.size()); ++a) {
+            if (s == key.first && a == key.second) {
+              continue;
+            }
+            const auto& other = anchors[static_cast<std::size_t>(a)];
+            const double distance = std::hypot(other.anchor_x - would_be.x(), other.anchor_y - would_be.y());
+            if (distance <= best) {
+              best = distance;
+              path_weld_target_ = std::pair{s, a};
+            }
+          }
+        }
+        if (path_weld_target_.has_value()) {
+          const auto& target = path->subpaths[static_cast<std::size_t>(path_weld_target_->first)]
+                                   .anchors[static_cast<std::size_t>(path_weld_target_->second)];
+          effective_total += QPointF(target.anchor_x - would_be.x(), target.anchor_y - would_be.y());
+        }
+      }
+    }
+    if (path_weld_target_ != previous_weld) {
+      update();  // the snap ring
+      weld_hint_due = path_weld_target_.has_value();
+    }
     dx = effective_total.x() - path_drag_applied_delta_.x();
     dy = effective_total.y() - path_drag_applied_delta_.y();
     if (dx == 0.0 && dy == 0.0) {
@@ -2507,6 +2552,12 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   }
   path_edit_changed_ = true;
   apply_path_edit(std::move(working), label, touched_groups);
+  if (weld_hint_due && status_callback_) {
+    const auto* edited = path_edit_target_path();
+    status_callback_(edited != nullptr && path_weld_would_join(*edited)
+                         ? resolve_modifier_names(tr("Release to join the end points. Hold %ALT% to place the point freely."))
+                         : resolve_modifier_names(tr("Snapped to a point. Hold %ALT% to place the point freely.")));
+  }
   return true;
 }
 
@@ -2524,6 +2575,10 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
   }
   // The last moves before the release land first, so the drop is where the pointer was.
   flush_pending_path_edit_drag();
+  if (path_drag_mode_ == PathEditDrag::Anchors && path_weld_target_.has_value()) {
+    weld_dragged_path_point();
+  }
+  path_weld_target_.reset();
   if (path_drag_mode_ == PathEditDrag::Marquee) {
     const auto* path = path_edit_target_path();
     path_selection_by_path_select_ = edit_tool == CanvasTool::PathSelect;
@@ -3050,8 +3105,8 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
   }
   switch (target) {
     case PathHoverTarget::Anchor:
-      status_callback_(tr("Drag to move the point. Shift+click adds it to the selection; "
-                          "Delete removes the selected points."));
+      status_callback_(tr("Drag to move the point; drop an end point on another to join them. Shift+click "
+                          "adds to the selection. Right-click for Break, Join and Merge."));
       return;
     case PathHoverTarget::Handle:
       status_callback_(tr("Drag the handle to reshape the curve"));
@@ -3394,6 +3449,23 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
     }
   }
 
+  if (path_weld_target_.has_value() && path_drag_mode_ == PathEditDrag::Anchors &&
+      path_weld_target_->first < static_cast<int>(path->subpaths.size()) &&
+      path_weld_target_->second <
+          static_cast<int>(path->subpaths[static_cast<std::size_t>(path_weld_target_->first)].anchors.size())) {
+    // The snap target (GitHub #555): a ring, doubled where releasing joins the two end points.
+    const auto& target = path->subpaths[static_cast<std::size_t>(path_weld_target_->first)]
+                             .anchors[static_cast<std::size_t>(path_weld_target_->second)];
+    const auto center = to_screen(target_transform, target.anchor_x, target.anchor_y);
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(QColor(0, 0, 0, 120), 3.5));
+    painter.drawEllipse(center, kWeldRingRadiusPx, kWeldRingRadiusPx);
+    painter.setPen(QPen(accent, 1.6));
+    painter.drawEllipse(center, kWeldRingRadiusPx, kWeldRingRadiusPx);
+    if (path_weld_would_join(*path)) {
+      painter.drawEllipse(center, kWeldRingRadiusPx + 4.0, kWeldRingRadiusPx + 4.0);
+    }
+  }
   if (path_drag_mode_ == PathEditDrag::Marquee) {
     painter.setPen(QPen(accent, 1.0, Qt::DashLine));
     painter.setBrush(Qt::NoBrush);

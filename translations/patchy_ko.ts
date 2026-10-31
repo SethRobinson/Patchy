@@ -16072,10 +16072,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>클릭하여 도형을 선택하고 드래그하여 이동하세요. %CTRL%+T는 그것을 변환합니다.</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>드래그하여 점을 이동합니다. Shift+클릭으로 선택 영역에 추가하고, Delete로 선택한 점을 삭제합니다.</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>핸들을 드래그하여 곡선 모양을 변경하세요.</translation>
     </message>
@@ -16346,6 +16342,38 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Delete Segment</source>
         <translation>세그먼트 삭제</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>직접 선택으로 점(열린 패스의 안쪽 점 또는 닫힌 패스의 아무 점)을 선택하거나 점을 마우스 오른쪽 버튼으로 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>직접 선택으로 끝점 두 개 또는 한 패스의 인접한 점을 선택하거나 세그먼트를 마우스 오른쪽 버튼으로 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation>직접 선택으로 세그먼트를 클릭해 선택하거나 마우스 오른쪽 버튼으로 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>끝점을 연결했습니다</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>놓으면 끝점이 연결됩니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation>점에 맞췄습니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>드래그해 점을 이동하고, 끝점을 다른 끝점에 놓으면 연결됩니다. Shift+클릭으로 선택에 추가합니다. 마우스 오른쪽 버튼으로 분할, 연결, 병합을 사용할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>직접 선택으로 연결할 끝점 두 개 또는 닫을 열린 패스의 점을 선택하세요</translation>
     </message>
 </context>
 <context>
@@ -29145,10 +29173,6 @@ Locked: %1</source>
         <translation>끝점 연결</translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>선택한 두 끝점을 직선 세그먼트로 연결</translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation>하나의 점으로 병합</translation>
     </message>
@@ -29213,22 +29237,6 @@ Locked: %1</source>
         <translation>복사한 모양을 대상 패스에 붙여넣기</translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>직접 선택으로 패스 안쪽의 점이나 닫힌 패스의 아무 점을 선택하세요</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>직접 선택으로 열린 패스의 끝점 두 개를 선택하세요</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>직접 선택으로 끝점 두 개 또는 한 패스의 인접한 점을 선택하세요</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>직접 선택으로 세그먼트(양쪽 점)를 선택하세요</translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation>모양 잘라내기</translation>
     </message>
@@ -29279,6 +29287,62 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>모양 %1개를 새 레이어로 이동했습니다</translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation>모양 병합</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>선택한 모양을 보이는 대로 결합해 이동하고 편집할 수 있는 하나의 윤곽선으로 만듭니다</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>모양 병합: 선택한 모양을 보이는 대로 결합해 하나의 윤곽선으로 만듭니다</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>먼저 모양 레이어나 패스를 선택하세요</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>텍스트 영역은 하나의 윤곽선을 유지합니다</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>패스에 모양이 없습니다</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>고유한 색이 있는 모양은 다른 모양과 병합할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>모양 병합</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>모양의 영역이 남지 않아 레이어를 제거했습니다</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>모양 %1개를 하나의 윤곽선으로 병합했습니다</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>선택한 두 끝점을 직선 세그먼트로 연결하거나, 선택한 점이 있는 열린 패스를 각각 닫습니다</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>선택한 모양이 이미 정렬되어 있습니다</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>모양 정렬</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>모양 %1개를 정렬했습니다</translation>
     </message>
 </context>
 <context>

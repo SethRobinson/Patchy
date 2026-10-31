@@ -1,5 +1,8 @@
 #include "core/path_point_edits.hpp"
 
+#include "core/path_fit.hpp"
+#include "core/vector_raster.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -307,6 +310,43 @@ std::optional<PathPointEditResult> join_path_end_points(const VectorPath& path, 
   return result;
 }
 
+std::optional<PathPointEditResult> close_open_subpaths(const VectorPath& path,
+                                                      const std::set<PathPointKey>& points) {
+  std::set<int> subpaths;
+  for (const auto& key : points) {
+    if (valid_point(path, key)) {
+      const auto& subpath = path.subpaths[static_cast<std::size_t>(key.first)];
+      if (!subpath.closed && subpath.anchors.size() >= 3) {
+        subpaths.insert(key.first);
+      }
+    }
+  }
+  if (subpaths.empty()) {
+    return std::nullopt;
+  }
+  PathPointEditResult result{path, {}, {}};
+  for (const int index : subpaths) {
+    auto& subpath = result.path.subpaths[static_cast<std::size_t>(index)];
+    auto& start = subpath.anchors.front();
+    auto& end = subpath.anchors.back();
+    if (same_place(start, end) && subpath.anchors.size() >= 4) {
+      start = merged_anchor(end, start);
+      subpath.anchors.pop_back();
+    } else {
+      collapse_in(start);
+      collapse_out(end);
+    }
+    subpath.closed = true;
+    add_group(result.touched_groups, subpath.shape_group);
+    for (int a = 0; a < static_cast<int>(subpath.anchors.size()); ++a) {
+      if (a == 0 || a == static_cast<int>(subpath.anchors.size()) - 1) {
+        result.selection.insert({index, a});
+      }
+    }
+  }
+  return result;
+}
+
 std::optional<PathPointEditResult> merge_path_points(const VectorPath& path, const std::set<PathPointKey>& points) {
   if (points.size() == 2) {
     if (auto joined = join_path_end_points(path, *points.begin(), *std::next(points.begin()), true);
@@ -465,6 +505,87 @@ std::map<int, int> append_path_components(VectorPath& path, const VectorPath& co
     path.subpaths.push_back(std::move(copy));
   }
   return renumbered;
+}
+
+std::optional<MergeComponentsResult> merge_path_components(const VectorPath& path, const std::vector<int>& groups,
+                                                           double tolerance) {
+  // The listed groups in path order.
+  std::vector<int> ordered;
+  for (const auto& subpath : path.subpaths) {
+    if (std::find(groups.begin(), groups.end(), subpath.shape_group) != groups.end() &&
+        std::find(ordered.begin(), ordered.end(), subpath.shape_group) == ordered.end()) {
+      ordered.push_back(subpath.shape_group);
+    }
+  }
+  if (ordered.empty()) {
+    return std::nullopt;
+  }
+  const auto group_op = [&path](int group) {
+    for (const auto& subpath : path.subpaths) {
+      if (subpath.shape_group == group) {
+        return subpath.op;
+      }
+    }
+    return PathCombineOp::Add;
+  };
+  const auto first_op = group_op(ordered.front());
+  const bool all_cutters = std::all_of(ordered.begin(), ordered.end(),
+                                       [&](int group) { return group_op(group) == PathCombineOp::Subtract; });
+  // The listed components alone, consecutive and in order, the first as the base.
+  VectorPath subset;
+  for (const int group : ordered) {
+    for (const auto& subpath : path.subpaths) {
+      if (subpath.shape_group != group) {
+        continue;
+      }
+      auto copy = subpath;
+      if (all_cutters || group == ordered.front()) {
+        copy.op = PathCombineOp::Add;
+      }
+      subset.subpaths.push_back(std::move(copy));
+    }
+  }
+  PathFitOptions fit;
+  fit.tolerance = tolerance;
+  fit.corner_angle_degrees = 45.0;
+  fit.snap_curves_to_lines = true;
+  fit.refine_iterations = 8;
+  std::vector<PathSubpath> merged;
+  for (const auto& contour : vector_path_fill_contours(subset)) {
+    std::vector<FitPoint> points;
+    points.reserve(contour.size());
+    for (const auto& point : contour) {
+      points.push_back({point[0], point[1]});
+    }
+    auto subpath = fit_closed_loop(points, fit);
+    if (subpath.anchors.size() < 2) {
+      continue;
+    }
+    subpath.closed = true;
+    subpath.shape_group = ordered.front();
+    subpath.op = first_op;
+    merged.push_back(std::move(subpath));
+  }
+  MergeComponentsResult result;
+  result.merged_group = ordered.front();
+  result.merged_subpaths = merged.size();
+  result.removed_groups.assign(ordered.begin() + 1, ordered.end());
+  result.path.fill_rule_value = path.fill_rule_value;
+  result.path.initial_fill_value = path.initial_fill_value;
+  bool placed = false;
+  for (const auto& subpath : path.subpaths) {
+    if (std::find(ordered.begin(), ordered.end(), subpath.shape_group) == ordered.end()) {
+      result.path.subpaths.push_back(subpath);
+      continue;
+    }
+    if (!placed) {
+      placed = true;
+      for (auto& piece : merged) {
+        result.path.subpaths.push_back(std::move(piece));
+      }
+    }
+  }
+  return result;
 }
 
 void make_first_component_paint(VectorPath& path) {

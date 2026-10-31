@@ -7,6 +7,7 @@
 
 #include "core/path_point_edits.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/dialog_utils.hpp"
 
 #include <QAction>
 #include <QLatin1String>
@@ -65,10 +66,14 @@ std::optional<PathPointEditResult> CanvasWidget::plan_path_point_command(PathPoi
       }
       return break_path_at_points(*path, selection);
     case PathPointCommand::JoinEndPoints:
-      if (selection.size() != 2) {
-        return std::nullopt;
+      // Two end points join each other; otherwise every open path with a selected point closes.
+      if (selection.size() == 2) {
+        if (auto joined = join_path_end_points(*path, *selection.begin(), *std::next(selection.begin()), false);
+            joined.has_value()) {
+          return joined;
+        }
       }
-      return join_path_end_points(*path, *selection.begin(), *std::next(selection.begin()), false);
+      return close_open_subpaths(*path, selection);
     case PathPointCommand::MergePoints:
       if (over_segment) {
         const auto& subpath = path->subpaths[static_cast<std::size_t>(hit->segment.first)];
@@ -83,6 +88,22 @@ std::optional<PathPointEditResult> CanvasWidget::plan_path_point_command(PathPoi
       return delete_path_segments(*path, path_segments_between_points(*path, selection));
   }
   return std::nullopt;
+}
+
+QString CanvasWidget::path_point_command_requirement(PathPointCommand command) {
+  switch (command) {
+    case PathPointCommand::BreakAtPoint:
+      return tr("Select a point with Direct Select (inside an open path, or any point of a closed one), or "
+                "right-click a point");
+    case PathPointCommand::JoinEndPoints:
+      return tr("Select two end points to join, or a point of an open path to close it, with Direct Select");
+    case PathPointCommand::MergePoints:
+      return tr("Select two end points, or neighbouring points of one path, with Direct Select, or right-click "
+                "a segment");
+    case PathPointCommand::DeleteSegment:
+      return tr("Click a segment with Direct Select to select it, or right-click it");
+  }
+  return {};
 }
 
 bool CanvasWidget::path_point_command_available(PathPointCommand command) const {
@@ -132,6 +153,32 @@ bool CanvasWidget::run_path_point_command(PathPointCommand command, const PenHov
   return true;
 }
 
+bool CanvasWidget::path_weld_would_join(const VectorPath& path) const {
+  if (!path_weld_target_.has_value() || path_selected_anchors_.size() != 1) {
+    return false;
+  }
+  return join_path_end_points(path, *path_selected_anchors_.begin(), *path_weld_target_, true).has_value();
+}
+
+void CanvasWidget::weld_dragged_path_point() {
+  const auto* path = path_edit_target_path();
+  if (path == nullptr || path_selected_anchors_.size() != 1 || !path_weld_target_.has_value() ||
+      path_edit_target_kind() == PathEditTargetKind::TextArea) {
+    return;
+  }
+  auto joined = join_path_end_points(*path, *path_selected_anchors_.begin(), *path_weld_target_, true);
+  if (!joined.has_value()) {
+    return;  // snapped onto a point that is not an end point: the drag just lands there
+  }
+  // The drag armed the undo entry: the weld joins it, so one Undo takes both back.
+  apply_path_edit(std::move(joined->path), tr("Edit path"), joined->touched_groups);
+  path_selected_anchors_ = std::move(joined->selection);
+  notify_path_selection_changed();
+  if (status_callback_) {
+    status_callback_(tr("Joined the end points"));
+  }
+}
+
 void CanvasWidget::add_path_point_command_entries(QMenu& menu, const PenHoverHit& hit) {
   struct Entry {
     PathPointCommand command;
@@ -147,7 +194,11 @@ void CanvasWidget::add_path_point_command_entries(QMenu& menu, const PenHoverHit
   for (const auto& entry : entries) {
     auto* action = menu.addAction(entry.text);
     action->setObjectName(QLatin1String(entry.object_name));
-    action->setEnabled(plan_path_point_command(entry.command, &hit).has_value());
+    const bool available = plan_path_point_command(entry.command, &hit).has_value();
+    action->setEnabled(available);
+    if (!available) {
+      action->setProperty(kActionDisabledReasonProperty, path_point_command_requirement(entry.command));
+    }
     const auto command = entry.command;
     connect(action, &QAction::triggered, this, [this, hit, command] { run_path_point_command(command, &hit); });
   }

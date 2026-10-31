@@ -227,14 +227,13 @@ Direct Select (or the Pen's Ctrl latch) drags every selected anchor when the
 press lands on a selected anchor OR on a segment whose two ends are already
 selected (a marquee, then a drag on any of its lines); Shift on a segment
 adds it, an unselected segment replaces the selection with its two ends.
-Test: `ui_direct_select_drags_marquee_selection_by_segment`.
+Test: `ui_direct_select_drags_marquee_selection_by_segment`. One-point drags weld:
+[vector-path-edits.md](vector-path-edits.md#weld-while-dragging).
 
-Shift held during the drag constrains movement to the nearest horizontal,
+Shift during the drag constrains movement to the nearest horizontal,
 vertical, or 45-degree axis (`constrain_drag_to_axes`), re-evaluated every
-move against the total delta from the press (never latched); the points follow
-the mouse's projection onto that axis. Anchor drags track the total delta
-(`path_drag_applied_delta_`) and apply per-move increments
-(`update_path_edit_drag`). Shift pressed or released with a stationary cursor
+move against the total delta from the press (never latched). Anchor drags track
+the total delta (`path_drag_applied_delta_`) and apply per-move increments. Shift pressed or released with a stationary cursor
 replays the drag at the last raw pointer position. Shift at press keeps its
 additive meaning. Handle drags and the Pen's in-session Ctrl anchor drag stay
 unconstrained.

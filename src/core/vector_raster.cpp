@@ -505,6 +505,8 @@ struct StrokeRun {
   DPoint dot_direction{};
 };
 
+std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std::vector<StrokeRun>& original);
+
 // A shape's stroke follows the Boolean result, not the hidden contours of its
 // operands. Split the flattened segments at crossings, retain only edges with
 // different final fill on their two sides, then walk the directed boundaries.
@@ -523,6 +525,14 @@ std::vector<StrokeRun> combined_stroke_contours(const VectorPath& path) {
   if (!multiple_groups && all_closed && !path.subpaths.empty() &&
       path.subpaths.front().op == PathCombineOp::Intersect) return {};
   if (!multiple_groups || !all_closed) return original;
+  return fill_boundary_contours(path, original);
+}
+
+// The directed boundary of the path's combined fill (inside on the left): the flattened
+// segments of every contour split at crossings, kept where the fill differs on the two sides,
+// then walked into closed loops on the 1/256 lattice. `original` holds the flattened contours of
+// path.subpaths in order (open ones close with their chord, as the fill does).
+std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std::vector<StrokeRun>& original) {
   struct Segment { DPoint a, b; std::vector<double> cuts{0.0, 1.0}; };
   std::vector<Segment> segments;
   for (const auto& contour : original) {
@@ -1013,6 +1023,27 @@ void append_run_outline(const StrokeRun& run, double h, double cap_half_width,
 }
 
 }  // namespace
+
+std::vector<std::vector<std::array<double, 2>>> vector_path_fill_contours(const VectorPath& path) {
+  std::vector<std::vector<std::array<double, 2>>> result;
+  if (path.subpaths.empty()) {
+    return result;
+  }
+  std::vector<StrokeRun> original;
+  original.reserve(path.subpaths.size());
+  for (const auto& subpath : path.subpaths) {
+    original.push_back({subpath_polyline(subpath), subpath.closed});
+  }
+  for (const auto& contour : fill_boundary_contours(path, original)) {
+    std::vector<std::array<double, 2>> points;
+    points.reserve(contour.points.size());
+    for (const auto& point : contour.points) {
+      points.push_back({point.x, point.y});
+    }
+    result.push_back(std::move(points));
+  }
+  return result;
+}
 
 std::vector<std::array<double, 2>> flatten_subpath_polyline(const PathSubpath& subpath) {
   std::vector<std::array<double, 2>> points;

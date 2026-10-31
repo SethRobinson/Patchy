@@ -15916,10 +15916,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>クリックでシェイプを選択、ドラッグで移動。%CTRL%+Tで変形します。</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>ドラッグでポイントを移動。Shift+クリックで選択に追加、Deleteで選択したポイントを削除します。</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>ハンドルをドラッグして曲線を変形</translation>
     </message>
@@ -16346,6 +16342,38 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Delete Segment</source>
         <translation>セグメントを削除</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>ダイレクト選択でポイント (開いたパスの内側のポイント、または閉じたパスの任意のポイント) を選択するか、ポイントを右クリックしてください</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>ダイレクト選択で 2 つの端点、または 1 つのパスの隣り合うポイントを選択するか、セグメントを右クリックしてください</translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation>ダイレクト選択でセグメントをクリックして選択するか、右クリックしてください</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>端点を連結しました</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>離すと端点を連結します。%ALT% を押したままにすると自由に配置します。</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation>ポイントにスナップしました。%ALT% を押したままにすると自由に配置します。</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>ドラッグでポイントを移動。端点を別の端点にドロップすると連結します。Shift+クリックで選択に追加。右クリックで分割、連結、統合。</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>ダイレクト選択で、連結する 2 つの端点、または閉じる開いたパスのポイントを選択してください</translation>
     </message>
 </context>
 <context>
@@ -29145,10 +29173,6 @@ Locked: %1</source>
         <translation>端点を連結</translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>選択した 2 つの端点を直線セグメントで連結</translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation>1 つのポイントに統合</translation>
     </message>
@@ -29213,22 +29237,6 @@ Locked: %1</source>
         <translation>コピーしたシェイプを対象パスに貼り付け</translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>ダイレクト選択で、パスの内側のポイント、または閉じたパスの任意のポイントを選択してください</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>ダイレクト選択で、開いたパスの端点を 2 つ選択してください</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>ダイレクト選択で、2 つの端点、または 1 つのパスの隣り合うポイントを選択してください</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>ダイレクト選択でセグメント (その両方のポイント) を選択してください</translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation>シェイプを切り取り</translation>
     </message>
@@ -29279,6 +29287,62 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>%1 個のシェイプを新規レイヤーへ移動しました</translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation>シェイプを統合</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>選択したシェイプを、表示どおりに組み合わせて、移動や編集ができる 1 つの輪郭にします</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>シェイプを統合: 選択したシェイプを、表示どおりに組み合わせて 1 つの輪郭にします</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>先にシェイプレイヤーまたはパスを選択してください</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>テキスト領域の輪郭は 1 つのままです</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>パスにシェイプがありません</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>独自の色を持つシェイプは他のシェイプと統合できません</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>シェイプを統合</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>シェイプの領域が残らなかったため、レイヤーを削除しました</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>%1 個のシェイプを 1 つの輪郭に統合しました</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>選択した 2 つの端点を直線セグメントで連結するか、選択したポイントを含む開いたパスをそれぞれ閉じます</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>選択したシェイプはすでに整列しています</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>シェイプを整列</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>%1 個のシェイプを整列しました</translation>
     </message>
 </context>
 <context>

@@ -915,6 +915,8 @@ public:
   // the pointer). One undo step each; false (nothing done) when the selection does not fit.
   enum class PathPointCommand { BreakAtPoint, JoinEndPoints, MergePoints, DeleteSegment };
   [[nodiscard]] bool path_point_command_available(PathPointCommand command) const;
+  // What the command needs, for a disabled entry's tooltip and the status bar.
+  [[nodiscard]] static QString path_point_command_requirement(PathPointCommand command);
   bool run_path_point_command(PathPointCommand command);
   // What owns path_edit_target_path() (None when nothing is targetable).
   enum class PathEditTargetKind { None, VectorMask, DocumentPath, TextArea, ShapeLayer, WorkPath };
@@ -2277,6 +2279,10 @@ private:
                                                                                    const PenHoverHit* hit) const;
   bool run_path_point_command(PathPointCommand command, const PenHoverHit* hit);
   void add_path_point_command_entries(QMenu& menu, const PenHoverHit& hit);
+  // Weld on drag (GitHub #555): whether releasing the snapped drag joins two end points, and the
+  // join itself, inside the drag's undo entry.
+  [[nodiscard]] bool path_weld_would_join(const patchy::VectorPath& path) const;
+  void weld_dragged_path_point();
   // The Pen plus the Add/Delete/Convert anchor tools, which share its handlers.
   [[nodiscard]] bool pen_family_tool_active() const noexcept;
   // Returns the badge it applied (Draw while the arrow shows).
@@ -3186,6 +3192,8 @@ private:
   std::map<LayerId, std::set<std::pair<int, int>>> extra_selected_anchors_;
   PathEditDrag path_drag_mode_{PathEditDrag::None};
   std::pair<int, int> path_drag_anchor_{-1, -1};
+  // The point a one-point Direct Select drag snapped onto (GitHub #555; Alt suppresses it).
+  std::optional<std::pair<int, int>> path_weld_target_;
   QPointF path_drag_last_document_{};
   // Anchor-drag Shift constraint: raw press origin, last raw pointer position
   // (replayed on Shift key transitions), and the total delta already applied.

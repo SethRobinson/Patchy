@@ -15954,10 +15954,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16371,6 +16367,38 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Delete Segment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -29146,10 +29174,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation type="unfinished"></translation>
     </message>
@@ -29214,22 +29238,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation type="unfinished"></translation>
     </message>
@@ -29279,6 +29287,62 @@ Locked: %1</source>
     </message>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -16158,10 +16158,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Нажмите, чтобы выбрать фигуру, перетащите, чтобы переместить ее. %CTRL%+T преобразует его.</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>Перетаскивайте точку для перемещения. Shift+щелчок добавляет её к выделению; Delete удаляет выделенные точки.</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>Перетащите маркер, чтобы изменить форму кривой</translation>
     </message>
@@ -16432,6 +16428,38 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Delete Segment</source>
         <translation>Удалить сегмент</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>Выберите точку прямым выделением (внутри разомкнутого контура или любую точку замкнутого) или щёлкните точку правой кнопкой</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>Выберите прямым выделением две конечные точки или соседние точки одного контура или щёлкните сегмент правой кнопкой</translation>
+    </message>
+    <message>
+        <source>Click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Щёлкните сегмент прямым выделением, чтобы выбрать его, или щёлкните его правой кнопкой</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>Конечные точки соединены</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>Отпустите, чтобы соединить конечные точки. Удерживайте %ALT%, чтобы поставить точку свободно.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
+        <translation>Привязано к точке. Удерживайте %ALT%, чтобы поставить точку свободно.</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>Перетащите, чтобы переместить точку; отпустите конечную точку на другой, чтобы соединить их. Shift+щелчок добавляет к выделению. Правая кнопка: разорвать, соединить, слить.</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>Выберите прямым выделением две конечные точки, чтобы соединить их, или точку разомкнутого контура, чтобы замкнуть его</translation>
     </message>
 </context>
 <context>
@@ -29309,10 +29337,6 @@ Locked: %1</source>
         <translation>Соединить конечные точки</translation>
     </message>
     <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>Соединить две выбранные конечные точки прямым сегментом</translation>
-    </message>
-    <message>
         <source>Merge into One Point</source>
         <translation>Слить в одну точку</translation>
     </message>
@@ -29377,22 +29401,6 @@ Locked: %1</source>
         <translation>Вставить скопированные фигуры в целевой контур</translation>
     </message>
     <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>Выберите прямым выделением точку внутри контура или любую точку замкнутого контура</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>Выберите прямым выделением две конечные точки разомкнутых контуров</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>Выберите прямым выделением две конечные точки или соседние точки одного контура</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>Выберите прямым выделением сегмент (обе его точки)</translation>
-    </message>
-    <message>
         <source>Cut shapes</source>
         <translation>Вырезать фигуры</translation>
     </message>
@@ -29443,6 +29451,62 @@ Locked: %1</source>
     <message>
         <source>Moved %1 shape(s) to a new layer</source>
         <translation>Перемещено фигур на новый слой: %1</translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation>Слить фигуры</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>Превратить выбранные фигуры, объединённые так, как они видны, в один контур, который можно перемещать и редактировать</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>Слить фигуры: превратить выбранные фигуры, объединённые так, как они видны, в один контур</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>Сначала выберите слой-фигуру или контур</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>Текстовая область сохраняет один контур</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>В контуре нет фигур</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>Фигуры с собственными цветами нельзя слить с другими</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>Слить фигуры</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>От фигур не осталось площади; слой удалён</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>Слито фигур в один контур: %1</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>Соединить две выбранные конечные точки прямым сегментом или замкнуть каждый разомкнутый контур с выбранной точкой</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>Выбранные фигуры уже выровнены</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>Выровнять фигуры</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>Выровнено фигур: %1</translation>
     </message>
 </context>
 <context>

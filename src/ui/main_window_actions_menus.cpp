@@ -1199,7 +1199,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(path_simplify_action_, "path.simplify");
   connect(path_simplify_action_, &QAction::triggered, this, [this] { simplify_target_path(); });
   register_document_action(path_simplify_action_);
-  create_path_component_actions(layer_shape_menu);  // GitHub #555
   layer_shape_menu->addSeparator();
   struct CombineEntry {
     const char* text;
@@ -1229,6 +1228,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     action->setEnabled(false);
     layer_combine_actions_[i] = action;
   }
+  // Merge Shapes after the combine commands, then the point and component commands (GitHub #555).
+  create_path_component_actions(layer_shape_menu);
   auto* duplicate_layer_action = new QAction(tr("&Duplicate Layer"), layer_menu);
   auto* merge_visible_action = new QAction(tr("Merge &Visible to New Layer (Copy)"), layer_menu);
   merge_visible_action->setObjectName(QStringLiteral("layerMergeVisibleAction"));
