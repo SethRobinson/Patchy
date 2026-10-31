@@ -60,6 +60,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/color_dock_panel.hpp"
 #include "ui/color_panel.hpp"
+#include "ui/hdr_color_controls.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_lock_dialog.hpp"
@@ -2063,16 +2064,50 @@ void MainWindow::show_color_panel(bool foreground) {
           return;
         }
         color.setAlpha(255);
+        // In a 32-bit document a new base color keeps the Intensity the window shows.
+        const auto* hdr = color_dialog_ != nullptr ? color_dialog_->findChild<HdrColorControls*>() : nullptr;
+        const auto kept = hdr != nullptr && hdr->isVisibleTo(color_dialog_) ? hdr->stops() : 0.0;
         if (foreground) {
           apply_foreground_color(color);
+          canvas_->paint_intensity().foreground = kept;
           statusBar()->showMessage(tr("Foreground color changed"));
         } else {
           canvas_->set_secondary_color(color);
+          canvas_->paint_intensity().background = kept;
           statusBar()->showMessage(tr("Background color changed"));
         }
         refresh_color_buttons();
       });
   dialog->setProperty("patchy.colorTarget", color_target);
+  // The 32-bit controls (docs/high-bit-depth.md, "Color choice at 32 bits"), shown by
+  // refresh_hdr_exposure_control while the active document is 32-bit.
+  auto* hdr = add_hdr_color_controls(*dialog);
+  connect(hdr, &HdrColorControls::intensity_changed, this, [this, foreground](double stops) {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    (foreground ? canvas_->paint_intensity().foreground : canvas_->paint_intensity().background) = stops;
+    refresh_color_buttons();
+    statusBar()->showMessage(foreground ? tr("Foreground color changed") : tr("Background color changed"));
+  });
+  connect(hdr, &HdrColorControls::linear_color_entered, this, [this, foreground, dialog](QColor base, double stops) {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    if (foreground) {
+      apply_foreground_color(base);
+      canvas_->paint_intensity().foreground = stops;
+    } else {
+      canvas_->set_secondary_color(base);
+      canvas_->paint_intensity().background = stops;
+    }
+    if (auto* picker = dialog->findChild<PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"))) {
+      const QSignalBlocker blocker(picker);
+      picker->setCurrentColor(base);
+    }
+    refresh_color_buttons();
+    statusBar()->showMessage(foreground ? tr("Foreground color changed") : tr("Background color changed"));
+  });
   // The Foreground Color window's Alt pick sets the background, as the docked Color
   // panel's does (GitHub issue 365). The Background Color window has none: it already
   // edits the background, and Alt there keeps acting like a plain click.
@@ -2087,6 +2122,7 @@ void MainWindow::show_color_panel(bool foreground) {
       color_dialog_ = nullptr;
     }
   });
+  refresh_hdr_exposure_control();
   dialog->show();
   dialog->raise();
   dialog->activateWindow();
@@ -2113,8 +2149,10 @@ void MainWindow::swap_colors() {
     return;
   }
   const auto primary = canvas_->primary_color();
+  const auto intensity = canvas_->paint_intensity();
   canvas_->set_primary_color(canvas_->secondary_color());
   canvas_->set_secondary_color(primary);
+  canvas_->paint_intensity() = {intensity.background, intensity.foreground};
   apply_primary_color_to_active_text_editor(canvas_->primary_color());
   refresh_color_buttons();
   statusBar()->showMessage(tr("Swapped foreground/background"));
@@ -2126,6 +2164,7 @@ void MainWindow::default_colors() {
   }
   canvas_->set_primary_color(Qt::black);
   canvas_->set_secondary_color(Qt::white);
+  canvas_->paint_intensity() = {};
   apply_primary_color_to_active_text_editor(canvas_->primary_color());
   refresh_color_buttons();
   statusBar()->showMessage(tr("Default colors"));
@@ -2161,6 +2200,7 @@ void MainWindow::refresh_color_buttons() {
     color_dock_panel_->background_chip()->setToolTip(
         named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
   }
+  refresh_hdr_exposure_control();
   refresh_text_color_button();
   if (color_drag_in_progress()) {
     gradient_controls_refresh_pending_ = true;
@@ -3439,6 +3479,7 @@ void MainWindow::stash_active_colors() {
   if (canvas_ == nullptr || canvas_->quick_mask_active()) {
     return;
   }
+  paint_intensity_ = canvas_->paint_intensity();
   bool changed = false;
   if (const auto foreground = canvas_->primary_color(); foreground != canvas_applied_foreground_) {
     foreground_color_ = foreground;
@@ -3467,6 +3508,7 @@ void MainWindow::apply_active_colors_to_canvas() {
   }
   canvas_->set_primary_color(foreground_color_);
   canvas_->set_secondary_color(background_color_);
+  canvas_->paint_intensity() = paint_intensity_;
   canvas_applied_foreground_ = canvas_->primary_color();
   canvas_applied_background_ = canvas_->secondary_color();
 }

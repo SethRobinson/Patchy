@@ -5,7 +5,7 @@
 ## Photoshop documents and non-destructive editing
 
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
-- 8, 16, and 32-bit (linear HDR) editing: 16 and 32-bit PSD/PSB files edit and save at their depth, Image > Mode converts between depths (leaving 32 bits offers HDR Toning), and New Document starts at 8 bits with a Bit Depth choice. 16-bit PNG and TIFF open and export at 16 bits; 32-bit documents export float TIFF. The browser build stops at 16 bits and opens 32-bit files converted to 16
+- 8, 16, and 32-bit (linear HDR) editing: 16/32-bit PSD/PSB edit and save at depth, Image > Mode converts (leaving 32 bits offers HDR Toning). 16-bit PNG and TIFF open and export at 16 bits; 32-bit documents export float TIFF. At 32 bits the color windows and Color panel show linear values and Intensity (stops, preview swatches); paint and the Eyedropper keep values over 1.0. The browser build stops at 16 bits, converting 32-bit files to 16
 - CMYK, Grayscale, Lab, Bitmap, Indexed, Duotone, and Multichannel Photoshop documents convert to RGB on open (unedited CMYK PSDs save as CMYK; untagged Grayscale is Dot Gain 20%)
 - An opaque Background layer locks position and transparency like Photoshop's, so the Eraser paints the background color, and Image > Flatten Image merges the visible layers into it
 - Transparent flat images (PNG, WebP...) open as a transparent layer; a Preferences option opens their alpha as a layer mask
@@ -65,7 +65,7 @@
 ## Files, photographs, and multiple documents
 
 - Multiple document interface: tabbed documents that can float in their own windows, Tile and Cascade arrangement, a Window menu listing every open document, and layers that drag or duplicate between documents. Open a folder of images as tabs (or drop the folder on the window), and export every open document as a numbered image set to a folder
-- New Document templates in seven groups (screens, phones and tablets, social, web and ads, print paper, photo prints, icons and game art) showing paper sizes in mm or inches, a search across groups, a document name, color mode and bit depth, an optional empty layer above the Background, and saved presets
+- New Document templates in seven groups (screens, phones and tablets, social, web and ads, print paper, photo prints, icons and game art) showing paper sizes in mm or inches, a search across groups, a document name, color mode and bit depth (8 by default), an optional empty layer above the Background, and saved presets
 - Import multiple files as layers, preserving a layered file's contents in a group, through File > Import, a drop on the Layers panel, or pasted files. Paste a path copied as text to open it (Paste in Place: as a layer)
 - Scan and Divide Photos splits prints into images with editable crop regions, straightening, and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command are available on Windows and macOS
 - Automatic document recovery saves copies of modified documents at a set interval and reopens them after a crash
@@ -112,9 +112,9 @@
 
 ## Current Status
 
-Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-trip from/to Photoshop mostly works with RGB/RGBA documents (8, 16, or 32 bits per channel) that use basic pixel layers, text objects, groups, masks, blend modes, layer styles, and the currently supported adjustment layers.
+Patchy does not cover the full PSD surface yet, but a Photoshop round-trip mostly works with RGB/RGBA documents (8, 16, or 32 bits per channel) that use basic pixel layers, text objects, groups, masks, blend modes, layer styles, and supported adjustment layers.
 
-Important Photoshop features that are not supported yet, or are only partially supported:
+Photoshop features not supported yet, or only partly:
 
 - Editable Smart Filters cover many classic filters and Image > Adjustments commands with paintable shared masks and per-filter opacity and blend modes; unsupported imported filter types (including the Blur Gallery and Liquify smart filters) remain preview-locked and byte-preserved
 - Photoshop's newer **Color and Vibrance** adjustment opens as a preserved placeholder without applying its effect (legacy **Vibrance** is supported)

@@ -197,6 +197,7 @@ int main(int argc, char** argv) {
            floating_selection_tests,
            atomic_write_recovery_tests,
            pixel_depth_tests,
+           hdr_color_tests,
            psd_deep_io_tests,
            psd_cmyk_proof_tests,
            rgb_profile_tests,

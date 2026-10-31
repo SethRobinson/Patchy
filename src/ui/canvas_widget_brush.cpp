@@ -1528,7 +1528,7 @@ std::array<std::uint8_t, 4> CanvasWidget::brush_stroke_original_pixel(std::int32
 
 // 16/32-bit strokes (docs/high-bit-depth.md): render_brush_stroke_pixel_from_snapshot_target's
 // arithmetic on the stroke-start pixel at its depth, without byte rounding. 32-bit layers
-// blend in linear light, so the 8-bit paint colors decode first.
+// blend in linear light, so the 8-bit paint colors decode first and take their Intensity.
 bool CanvasWidget::render_brush_stroke_pixel_deep(std::int32_t x, std::int32_t y, std::uint8_t* pixel,
                                                   EditColor primary, EditColor secondary,
                                                   bool lock_transparent_pixels, float target_alpha,
@@ -1547,9 +1547,11 @@ bool CanvasWidget::render_brush_stroke_pixel_deep(std::int32_t x, std::int32_t y
   if (locked_alpha && original[3] <= 0.0F) {
     return false;
   }
-  const auto color_of = [linear](EditColor color) {
-    const auto channel = [linear](std::uint8_t v) {
-      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) : static_cast<float>(v);
+  const auto color_of = [linear](EditColor color, double stops) {
+    const auto gain = color_intensity_gain(stops);
+    const auto channel = [linear, gain](std::uint8_t v) {
+      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) * gain
+                    : static_cast<float>(v);
     };
     return std::array<float, 3>{channel(color.r), channel(color.g), channel(color.b)};
   };
@@ -1560,16 +1562,16 @@ bool CanvasWidget::render_brush_stroke_pixel_deep(std::int32_t x, std::int32_t y
       value[3] = original[3] * (1.0F - target_alpha);
     } else {
       // No alpha channel, or locked transparency: erase to the background color (Photoshop).
-      const auto background = color_of(secondary);
+      const auto background = color_of(secondary, paint_intensity_.background);
       for (std::size_t c = 0; c < 3U; ++c) {
         value[c] = background[c] * target_alpha + original[c] * (1.0F - target_alpha);
       }
     }
   } else if (!brush_stroke_paint_mode_.is_normal()) {
-    value = patchy::composite_paint_deep(original, color_of(primary), target_alpha, brush_stroke_paint_mode_, x, y,
+    value = patchy::composite_paint_deep(original, color_of(primary, paint_intensity_.foreground), target_alpha, brush_stroke_paint_mode_, x, y,
                                          channels >= 4, locked_alpha, linear ? DeepDomain::Linear : DeepDomain::Encoded);
   } else {
-    const auto paint = color_of(primary);
+    const auto paint = color_of(primary, paint_intensity_.foreground);
     if (channels >= 4 && !locked_alpha) {
       const auto destination_alpha = original[3] / 255.0F;
       const auto out_alpha = target_alpha + destination_alpha * (1.0F - target_alpha);

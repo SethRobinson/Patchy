@@ -460,6 +460,7 @@ int main(int argc, char* argv[]) {
            gmic_ui_tests,
            history_panel_tests,
            color_dock_panel_tests,
+           hdr_color_choice_tests,
            clone_source_tests,
            history_stroke_patch_tests,
            file_info_tests,

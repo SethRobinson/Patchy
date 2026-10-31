@@ -4,6 +4,7 @@
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/pattern_presets.hpp"
+#include "ui/hdr_color_controls.hpp"
 #include "ui/web_export.hpp"
 #include "ui/tool_palette_customization.hpp"
 #include "ui/fill_dialog.hpp"
@@ -1583,6 +1584,15 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     ++captured;
     picker.close();
     QApplication::processEvents();
+    // The 32-bit controls the Foreground and Background Color windows add under the picker.
+    patchy::ui::HdrColorControls hdr_controls(patchy::ui::HdrColorControls::Form::Full);
+    hdr_controls.set_color(QColor(149, 33, 33), 1.7);
+    hdr_controls.show();
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_dialog_sweep_hdr_color_controls_" + scheme, hdr_controls);
+    ++captured;
+    hdr_controls.close();
+    QApplication::processEvents();
     // The animation preview is a non-modal tool window; built here without a document.
     patchy::ui::AnimationPreviewWindow animation_preview([]() -> patchy::Document* { return nullptr; }, {}, {},
                                                          nullptr);
@@ -1593,7 +1603,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 32);
+  CHECK(captured == 34);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

@@ -11,6 +11,7 @@
 #include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/exemplar_inpaint.hpp"
+#include "core/hdr_color.hpp"
 #include "core/layer_alignment.hpp"
 #include "core/layer_tree.hpp"
 #include "core/magnetic_lasso.hpp"
@@ -322,6 +323,12 @@ public:
   [[nodiscard]] QColor primary_color() const noexcept;
   void set_secondary_color(QColor color);
   [[nodiscard]] QColor secondary_color() const noexcept;
+  // The colors' Intensity in stops (core/hdr_color.hpp, docs/high-bit-depth.md): 32-bit
+  // layers paint the decoded color times 2^stops. A set_primary_color or set_secondary_color
+  // that changes the color drops its side back to 0; the color window and the Color panel
+  // set it after the color.
+  [[nodiscard]] PaintIntensity& paint_intensity() noexcept { return paint_intensity_; }
+  [[nodiscard]] const PaintIntensity& paint_intensity() const noexcept { return paint_intensity_; }
   // Palette-mode write constraint for the current document; null when palette mode
   // is off. palette_snap_for_edits() additionally returns null while a layer MASK
   // is the edit target (masks are grayscale coverage, never palette colors). The
@@ -2496,7 +2503,7 @@ private:
   void begin_color_pick(QPoint widget_position, QPoint global_position);
   void update_color_pick(QPoint widget_position, QPoint global_position);
   void end_color_pick();
-  void set_picked_color(QColor color);
+  void set_picked_color(QColor color, double intensity_stops = 0.0);
   void pick_color(QPoint point);
   void magic_wand_select(QPoint start);
   // Quick Select stroke lifecycle. The drag only accumulates the brush footprint (seed mask +
@@ -3251,6 +3258,7 @@ private:
   std::array<std::array<QRgb, 256>, 4> plate_ink_colors_{};
   std::shared_ptr<const CmykWorkingSpace> plate_ink_colors_space_;
   QColor primary_color_{Qt::black};
+  PaintIntensity paint_intensity_{};
   QColor secondary_color_{Qt::white};
   // Palette-mode snap cache; rebuilt lazily when the document palette changes
   // (revisions are app-globally unique, so equal revision = identical palette).

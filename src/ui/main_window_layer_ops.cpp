@@ -177,6 +177,8 @@ EditOptions edit_options(CanvasWidget& canvas) {
   EditOptions options;
   options.primary = edit_color(canvas.primary_color());
   options.secondary = edit_color(canvas.secondary_color());
+  options.primary_gain = color_intensity_gain(canvas.paint_intensity().foreground);
+  options.secondary_gain = color_intensity_gain(canvas.paint_intensity().background);
   options.brush_size = canvas.brush_size();
   options.brush_softness = canvas.brush_softness();
   options.progress_callback = [&canvas] {
@@ -4714,7 +4716,8 @@ void MainWindow::flatten_image() {
 }
 
 void MainWindow::fill_active_layer() {
-  fill_active_layer_with_color(canvas_->primary_color(), tr("Fill"));
+  fill_active_layer_with_color(canvas_->primary_color(), tr("Fill"), std::nullopt,
+                               canvas_->paint_intensity().foreground);
 }
 
 void MainWindow::edit_fill_dialog() {
@@ -4756,11 +4759,16 @@ void MainWindow::edit_fill_dialog() {
     return;
   }
   const auto color = fill_contents_color(*chosen, canvas_->primary_color(), canvas_->secondary_color());
+  const auto intensity = chosen->contents == FillContents::Foreground   ? canvas_->paint_intensity().foreground
+                         : chosen->contents == FillContents::Background ? canvas_->paint_intensity().background
+                                                                        : 0.0;
   fill_active_layer_with_color(color, tr("Fill"),
-                               FillCommandBlend{chosen->opacity, chosen->mode, chosen->preserve_transparency});
+                               FillCommandBlend{chosen->opacity, chosen->mode, chosen->preserve_transparency},
+                               intensity);
 }
 
-void MainWindow::fill_active_layer_with_color(QColor color, QString label, std::optional<FillCommandBlend> blend) {
+void MainWindow::fill_active_layer_with_color(QColor color, QString label, std::optional<FillCommandBlend> blend,
+                                              double intensity_stops) {
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
     canvas_->begin_processing_operation();
     const auto finish_processing = qScopeGuard([this] {
@@ -4853,6 +4861,7 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label, std::
   push_undo_snapshot(label);
   auto options = edit_options(*canvas_);
   options.primary = edit_color(color);
+  options.primary_gain = color_intensity_gain(intensity_stops);
   // Fill honors its own Opacity and Soft settings (Fill tool options bar; default 100% / 0). Opacity
   // scales the fill alpha; Soft feathers the fill inward from the selection edge. Tol and
   // Contiguous only matter to the Fill tool's flood. Edit > Fill brings its own Opacity and

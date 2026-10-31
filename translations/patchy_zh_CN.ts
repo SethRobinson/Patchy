@@ -16726,6 +16726,53 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::HdrColorControls</name>
+    <message>
+        <source>Linear  R %1  G %2  B %3</source>
+        <translation>线性  R %1  G %2  B %3</translation>
+    </message>
+    <message>
+        <source>32-bit document: the color is stored as linear light, where 1.0 is display white. Intensity brightens or darkens it in stops; the swatches show it from 3 stops darker to 3 stops brighter.</source>
+        <translation>32 位文档：颜色以线性光存储，1.0 为屏幕白色。强度按档位调亮或调暗颜色；色板显示从暗 3 档到亮 3 档的颜色。</translation>
+    </message>
+    <message>
+        <source>Intensity:</source>
+        <translation>强度：</translation>
+    </message>
+    <message>
+        <source>stops</source>
+        <translation>档</translation>
+    </message>
+    <message>
+        <source>Scales the color&apos;s light: +1 stop doubles it, -1 halves it. Paint on 32-bit layers takes it; 8 and 16-bit documents use the base color.</source>
+        <translation>缩放颜色的光量：+1 档加倍，-1 档减半。在 32 位图层上绘画时使用；8 位和 16 位文档使用基础颜色。</translation>
+    </message>
+    <message>
+        <source>The color 3 stops darker to 3 stops brighter. Click a swatch to move the Intensity there.</source>
+        <translation>从暗 3 档到亮 3 档的颜色。单击色板可将强度移到该处。</translation>
+    </message>
+    <message>
+        <source>Linear value:</source>
+        <translation>线性值：</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R：</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>G：</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>B：</translation>
+    </message>
+    <message>
+        <source>The linear light value the paint stores, above 1.0 for overbright colors</source>
+        <translation>绘画存储的线性光值，过亮颜色会超过 1.0</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::HotkeyEditorPanel</name>
     <message>
         <source>Search commands or shortcuts...</source>

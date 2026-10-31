@@ -7,6 +7,7 @@
 
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
+#include "ui/hdr_color_controls.hpp"
 #include "ui/channel_panel.hpp"
 #include "ui/click_modifier_recorder.hpp"
 #include "core/document_channel.hpp"
@@ -2594,6 +2595,14 @@ void MainWindow::create_color_dock(std::vector<PanelSpec>& specs) {
   connect(color_dock_panel_, &ColorDockPanel::color_picked, this,
           [this](QColor color, bool background) { apply_color_panel_pick(color, background); });
   connect(color_dock_panel_, &ColorDockPanel::pick_finished, this, [this] { finish_color_panel_drag(); });
+  connect(color_dock_panel_->hdr_controls(), &HdrColorControls::intensity_changed, this, [this](double stops) {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    canvas_->paint_intensity().foreground = stops;
+    refresh_color_buttons();
+    statusBar()->showMessage(tr("Foreground color changed"));
+  });
   connect(color_dock_panel_->foreground_chip(), &QPushButton::clicked, this, [this] { choose_primary_color(); });
   connect(color_dock_panel_->background_chip(), &QPushButton::clicked, this, [this] { choose_secondary_color(); });
   register_document_widget(color_dock_panel_);
@@ -2630,7 +2639,11 @@ void MainWindow::apply_color_panel_pick(QColor color, bool background) {
   if (background) {
     canvas_->set_secondary_color(color);
   } else {
+    // In a 32-bit document a new base color keeps the Intensity the panel shows.
+    const auto* hdr = color_dock_panel_ != nullptr ? color_dock_panel_->hdr_controls() : nullptr;
+    const auto kept = hdr != nullptr && hdr->isVisibleTo(color_dock_panel_) ? hdr->stops() : 0.0;
     apply_foreground_color(color);
+    canvas_->paint_intensity().foreground = kept;
   }
   // An open Foreground or Background Color window for the same color follows, blocked so
   // its own callback does not apply the color a second time.
