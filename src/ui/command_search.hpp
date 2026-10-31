@@ -16,6 +16,8 @@ class QWidget;
 
 namespace patchy::ui {
 
+class HotkeyRegistry;
+
 // Help > Search Commands (GitHub issue 554; docs/command-search.md).
 
 // A menu label without its "opens a dialog" ellipsis ("Levels..." -> "Levels").
@@ -33,17 +35,33 @@ void for_each_menu_bar_command(
 struct MenuCommandEntry {
   QPointer<QAction> action;
   QString name;  // mnemonics and the trailing ellipsis removed
-  QString path;  // "Filter › Blur": the menus the command sits in
+  QString path;  // "Filter › Blur": the menus the command sits in; "Tools"; empty for a key outside them
+  QString description{};  // optional short "what it does" line, searched and shown on the row
 };
 
 // What the command search lists: every enabled, visible menu-bar command, in menu order.
 // A command reachable from two menus is listed once, at its first place.
 [[nodiscard]] std::vector<MenuCommandEntry> collect_menu_commands(const QMenuBar* menu_bar);
 
+// collect_menu_commands, each with its description (command_search_description, else the
+// action's status tip when it says more than the name), followed by the registered commands
+// that are in no menu: the tools as "Tools" in palette order, the other keyboard commands
+// (Color, Brush, Blend Mode keys) after them. Disabled or unnamed commands are left out.
+[[nodiscard]] std::vector<MenuCommandEntry> collect_search_commands(const QMenuBar* menu_bar,
+                                                                    const HotkeyRegistry& registry);
+
+// The translated short description written for the hotkey command `id` (GitHub issue 554
+// follow-up), or an empty string.
+[[nodiscard]] QString command_search_description(const QString& id);
+// Every hotkey command id with a written description, for the test that checks each one
+// still names a registered command.
+[[nodiscard]] QStringList command_search_described_ids();
+
 // Indexes into `entries` of the commands that match `query`, best first. Every
-// whitespace-separated word must appear (case-insensitive) in the name or the path. Names
-// that start with the query come first, then names holding every word, then the rest
-// (some words only in the path); ties keep menu order. An empty query lists everything.
+// whitespace-separated word must appear (case-insensitive) in the name or the path, or start
+// a word of the description. A name (or description) equal to the query comes first, then one that starts
+// with it, then the rest; each group keeps the entries' order (menu bar order, then tools,
+// then keys outside the menus). An empty query lists everything in that order.
 [[nodiscard]] std::vector<int> match_menu_commands(const std::vector<MenuCommandEntry>& entries,
                                                    const QString& query);
 
