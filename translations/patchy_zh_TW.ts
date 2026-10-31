@@ -16384,10 +16384,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>請用直接選取工具選取兩個端點，或同一路徑上相鄰的錨點，或在線段上按右鍵</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>用直接選取工具按一下線段以選取它，或在它上面按右鍵</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>已連接端點</translation>
     </message>
@@ -16418,6 +16414,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>已貼齊錨點。只有端點或相鄰的錨點才能合併為一個錨點。按住 %ALT% 可自由放置錨點。</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>用直接選取工具按住 Shift 按一下線段以選取它，或在它上面按右鍵</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>按一下新增錨點，拖曳調整形狀，Shift+按一下選取線段</translation>
     </message>
 </context>
 <context>

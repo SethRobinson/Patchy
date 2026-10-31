@@ -16427,10 +16427,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Wählen Sie mit der Direktauswahl zwei Endpunkte oder benachbarte Punkte eines Pfads aus, oder klicken Sie mit der rechten Maustaste auf ein Segment</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>Klicken Sie mit der Direktauswahl auf ein Segment, um es auszuwählen, oder klicken Sie mit der rechten Maustaste darauf</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>Endpunkte verbunden</translation>
     </message>
@@ -16461,6 +16457,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>An einem Punkt ausgerichtet. Nur Endpunkte oder benachbarte Punkte werden zu einem Punkt. %ALT% gedrückt halten, um den Punkt frei zu setzen.</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Klicken Sie mit der Direktauswahl bei gedrückter Umschalttaste auf ein Segment, um es auszuwählen, oder klicken Sie mit der rechten Maustaste darauf</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>Klicken fügt einen Punkt hinzu, Ziehen formt um, Umschalt+Klick wählt das Segment aus</translation>
     </message>
 </context>
 <context>

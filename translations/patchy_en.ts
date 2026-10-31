@@ -16410,10 +16410,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16443,6 +16439,14 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

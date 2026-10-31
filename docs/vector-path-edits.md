@@ -25,7 +25,8 @@ What they act on (`CanvasWidget::plan_path_point_command`): the menu's press fir
 Break, a segment for Merge and Delete Segment), else the Direct Select point selection of the
 target path. Path Select's selection is whole shapes, so under it only the press counts. A
 selected segment is one whose two end points are both selected, which is what a Direct Select
-segment click selects (`path_segments_between_points`); there is no separate segment selection.
+Shift+click on a segment selects (`path_segments_between_points`); there is no separate
+segment selection.
 A command that does not fit is disabled, never hidden (`refresh_path_edit_action_states`, run on
 every selection change, tool change and Shape menu show); a hotkey on a stale state reports why
 in the status bar. Not for text-area paths (a text area must stay one closed outline). Every
@@ -95,6 +96,20 @@ A new layer whose first component subtracts would paint the canvas around it, so
 component becomes Add (`make_first_component_paint`); the rest keep their ops. The path context
 menu lists the six component entries under Path Select and Direct Select
 (`pathShapesCutAction` ... `pathShapesCopyToNewLayerAction`), before the Paths panel commands.
+
+## Direct Select click on a segment
+
+Under Direct Select (and Path Select's Ctrl swap; `direct_select_click_adds_point`), a segment of
+the target path under the pointer shows `direct_select_add_cursor` (the arrow with a plus for the
+anchor badge) and the hint "Click to add a point, drag to reshape, Shift+click to select the
+segment". A plain press on a segment selects its two ends as before and records a pending add
+(`path_segment_click_`); the drag waits for `QApplication::startDragDistance` and, once past it,
+drops the add and drags the segment as before. Released before that, the click runs the Pen's
+Add anchor edit (`apply_pen_hover_edit`, exact de Casteljau split, so the curve keeps its shape;
+one "Add anchor" step) and selects the new point, ready to drag. Shift+click selects the
+segment's two points without adding; Alt+click selects the whole subpath. Over a point or a
+handle the cursor stays the plain Direct Select arrow. The Pen's Ctrl latch never adds (the Pen
+adds through its own Auto Add/Delete click). Test: `ui_direct_select_click_on_segment_adds_a_point`.
 
 ## Weld while dragging
 
@@ -183,7 +198,8 @@ Everyday shape and path tasks in the current build: how, steps, and the test tha
 | Merge two neighbouring points into one | Direct Select drag a point onto the next one (a rectangle corner: a triangle) | 1 | `ui_path_weld_on_drag_merges_neighbours` |
 | Fuse two shapes that touch | Merge Shapes (the shared edge goes) | 1 | `path_merge_components_matches_the_live_combine` |
 | Split a shape into two closed halves | Click a point, Shift+click another, Break, Join End Points | 4 | `ui_path_split_shape_with_break_and_join` |
-| Open a path or cut a segment out | Click the segment, Delete Segment (or right-click it) | 1 to 2 | `ui_path_point_commands_edit_menus_and_undo` |
+| Open a path or cut a segment out | Right-click the segment > Delete Segment (or Shift+click it, Delete Segment) | 1 to 2 | `ui_path_point_commands_edit_menus_and_undo` |
+| Add a point on an edge | Direct Select click on the edge (the cursor shows a plus) | 1 | `ui_direct_select_click_on_segment_adds_a_point` |
 | Close an open path | Click a point of it, Join End Points | 2 | `path_close_open_subpaths_splits_a_shape_in_two` |
 | Extend an open path | Pen click on its end point, click on, Enter | 2+ | `ui_pen_click_on_an_open_end_continues_the_path` |
 | Reshape point by point | Direct Select drag points and handles | 1 per edit | vector_point_editing_tests |

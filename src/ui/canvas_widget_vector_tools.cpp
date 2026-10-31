@@ -26,6 +26,7 @@
 #include "ui/tool_cursors.hpp"
 
 #include <QAction>
+#include <QApplication>
 #include <QBrush>
 #include <QColor>
 #include <QDateTime>
@@ -74,6 +75,36 @@ constexpr double kPathHitRadiusPx = 7.0;       // half of the 14 px hit rect
 // A dragged point snaps onto another point of its path within this many screen pixels, and the
 // overlay rings the target this wide (GitHub #555).
 constexpr double kWeldSnapPx = 8.0;
+
+// The curve parameter of the point on segment (a, b) nearest `point` (document space), searched
+// finely around `t`, the hit test's coarse answer: a click adds its point where it was made.
+double nearest_segment_t(const PathAnchor& a, const PathAnchor& b, double t, QPointF point) {
+  const auto at = [&a, &b](double s) {
+    const double u = 1.0 - s;
+    return QPointF(u * u * u * a.anchor_x + 3 * u * u * s * a.out_x + 3 * u * s * s * b.in_x + s * s * s * b.anchor_x,
+                   u * u * u * a.anchor_y + 3 * u * u * s * a.out_y + 3 * u * s * s * b.in_y + s * s * s * b.anchor_y);
+  };
+  double best_t = t;
+  double best = std::numeric_limits<double>::max();
+  double low = std::max(0.0, t - 1.0 / 24.0);
+  double high = std::min(1.0, t + 1.0 / 24.0);
+  for (int round = 0; round < 3; ++round) {
+    constexpr int kSteps = 32;
+    for (int step = 0; step <= kSteps; ++step) {
+      const double s = low + (high - low) * step / kSteps;
+      const auto p = at(s);
+      const double distance = std::hypot(p.x() - point.x(), p.y() - point.y());
+      if (distance < best) {
+        best = distance;
+        best_t = s;
+      }
+    }
+    const double span = (high - low) / kSteps;
+    low = std::max(0.0, best_t - span);
+    high = std::min(1.0, best_t + span);
+  }
+  return best_t;
+}
 constexpr double kWeldRingRadiusPx = 9.0;
 // Handle knobs grab from a little farther than anchors (GitHub issue 105: the
 // knobs were too small to hit); a press closer to the anchor stays the anchor's.
@@ -891,7 +922,20 @@ void CanvasWidget::apply_arrow_cursor() {
     apply_path_transform_cursor(last_mouse_position_, path_transform_cursor_modifiers_);
     return;
   }
-  setCursor(path_edit_tool() == CanvasTool::DirectSelect ? direct_select_cursor() : path_select_cursor());
+  if (path_edit_tool() == CanvasTool::DirectSelect) {
+    // Over a segment a click adds a point: the plus badge says so (GitHub #555).
+    const bool adds = path_drag_mode_ == PathEditDrag::None && direct_select_click_adds_point() &&
+                      path_hover_target_at(QPointF(last_mouse_position_)) == PathHoverTarget::Segment;
+    setCursor(adds ? direct_select_add_cursor() : direct_select_cursor());
+    return;
+  }
+  setCursor(path_select_cursor());
+}
+
+bool CanvasWidget::direct_select_click_adds_point() const {
+  // The arrow tools only: the Pen's Ctrl latch keeps the Pen's own add (Auto Add/Delete).
+  return (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) &&
+         path_edit_tool() == CanvasTool::DirectSelect && path_edit_target_path() != nullptr && !edit_locked_;
 }
 
 void CanvasWidget::set_pen_auto_add_delete(bool enabled) {
@@ -2010,6 +2054,7 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   path_drag_raw_document_ = document_point;
   path_drag_applied_delta_ = QPointF(0.0, 0.0);
   path_weld_target_.reset();
+  path_segment_click_.reset();
   const auto selection_before = path_selected_anchors_;
   const auto extras_before = extra_selected_anchors_;
   const auto notify_if_changed = [&] {
@@ -2144,9 +2189,22 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
       if ((event->modifiers() & Qt::ShiftModifier) != 0) {
         path_selected_anchors_.insert(start);
         path_selected_anchors_.insert(end);
-      } else if (!path_selected_anchors_.contains(start) || !path_selected_anchors_.contains(end)) {
-        path_selected_anchors_ = {start, end};
-        extra_selected_anchors_.clear();
+      } else {
+        if (!path_selected_anchors_.contains(start) || !path_selected_anchors_.contains(end)) {
+          path_selected_anchors_ = {start, end};
+          extra_selected_anchors_.clear();
+        }
+        // A plain click (no drag) adds a point here on release (GitHub #555).
+        if (direct_select_click_adds_point()) {
+          PenHoverHit add;
+          add.action = PenHoverAction::Add;
+          add.segment = segment;
+          add.segment_t = nearest_segment_t(subpath.anchors[static_cast<std::size_t>(segment.second)],
+                                            subpath.anchors[static_cast<std::size_t>((segment.second + 1) % anchor_count)],
+                                            segment_t, document_position_f(widget_point));
+          path_segment_click_ = add;
+          path_segment_click_press_ = widget_point;
+        }
       }
     }
     path_drag_mode_ = PathEditDrag::Anchors;
@@ -2267,6 +2325,14 @@ bool CanvasWidget::handle_path_edit_move(QMouseEvent* event, QPointF document_po
     path_marquee_current_ = constrain_marquee_current(document_point, event->modifiers());
     update();
     return true;
+  }
+  if (path_segment_click_.has_value()) {
+    // A segment press is a click (add a point) until it moves past the drag distance; then it
+    // drags the segment as before, from where it was pressed.
+    if ((event->position() - path_segment_click_press_).manhattanLength() < QApplication::startDragDistance()) {
+      return true;
+    }
+    path_segment_click_.reset();
   }
   path_drag_raw_document_ = document_point;
   path_drag_pending_modifiers_ = event->modifiers();
@@ -2579,6 +2645,20 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
     weld_dragged_path_point();
   }
   path_weld_target_.reset();
+  if (path_segment_click_.has_value()) {
+    // A click on a segment adds a point there (the Pen's Add anchor edit) and selects it.
+    const auto add = *path_segment_click_;
+    path_segment_click_.reset();
+    path_drag_mode_ = PathEditDrag::None;
+    if (apply_pen_hover_edit(add)) {
+      path_selected_anchors_ = {{add.segment.first, add.segment.second + 1}};
+      extra_selected_anchors_.clear();
+      notify_path_selection_changed();
+    }
+    restore_path_drag_effects();
+    update();
+    return true;
+  }
   if (path_drag_mode_ == PathEditDrag::Marquee) {
     const auto* path = path_edit_target_path();
     path_selection_by_path_select_ = edit_tool == CanvasTool::PathSelect;
@@ -3112,7 +3192,9 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
       status_callback_(tr("Drag the handle to reshape the curve"));
       return;
     case PathHoverTarget::Segment:
-      status_callback_(tr("Drag to move the segment, or the whole selection when its points are selected"));
+      status_callback_(direct_select_click_adds_point()
+                           ? tr("Click to add a point, drag to reshape, Shift+click to select the segment")
+                           : tr("Drag to move the segment, or the whole selection when its points are selected"));
       return;
     case PathHoverTarget::Fill:
     case PathHoverTarget::None:

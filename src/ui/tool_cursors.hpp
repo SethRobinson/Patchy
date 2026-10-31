@@ -37,6 +37,9 @@ namespace patchy::ui {
 // hollow anchor square at its lower right (it edits points). Built once and cached.
 [[nodiscard]] QCursor path_select_cursor();
 [[nodiscard]] QCursor direct_select_cursor();
+// Direct Select over a segment of the target path, where a click adds a point (GitHub #555):
+// the same arrow with a plus in place of the anchor badge. Built once and cached.
+[[nodiscard]] QCursor direct_select_add_cursor();
 
 // Free Transform gesture hints (GitHub issue 225): shown over a box handle or side while
 // the held modifiers (or the Edit > Transform mode) turn a drag into that gesture, before

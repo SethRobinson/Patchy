@@ -16470,10 +16470,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Wybierz Zaznaczaniem bezpośrednim dwa punkty końcowe lub sąsiednie punkty jednej ścieżki albo kliknij segment prawym przyciskiem</translation>
     </message>
     <message>
-        <source>Click a segment with Direct Select to select it, or right-click it</source>
-        <translation>Kliknij segment Zaznaczaniem bezpośrednim, aby go wybrać, albo kliknij go prawym przyciskiem</translation>
-    </message>
-    <message>
         <source>Joined the end points</source>
         <translation>Połączono punkty końcowe</translation>
     </message>
@@ -16504,6 +16500,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
         <translation>Przyciągnięto do punktu. W jeden punkt łączą się tylko punkty końcowe lub sąsiednie. Przytrzymaj %ALT%, aby umieścić punkt swobodnie.</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Kliknij segment z Shift Zaznaczaniem bezpośrednim, aby go wybrać, albo kliknij go prawym przyciskiem</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>Kliknij, aby dodać punkt, przeciągnij, aby zmienić kształt, Shift+klik wybiera segment</translation>
     </message>
 </context>
 <context>
