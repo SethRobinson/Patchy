@@ -3091,9 +3091,9 @@ void MainWindow::show_command_search() {
     // Centered under the menu bar (or the window's top edge when it is hidden).
     const int top = menuBar()->isVisible() && !menuBar()->isNativeMenuBar() ? menuBar()->height() : 0;
     const QPoint anchor = mapToGlobal(QPoint(width() / 2, top));
-    top_left = anchor - QPoint(280, 0);
+    top_left = anchor - QPoint(340, 0);
   }
-  command_search_popup_ = show_command_search_popup(this, collect_menu_commands(menuBar()), top_left);
+  command_search_popup_ = show_command_search_popup(this, collect_search_commands(menuBar(), hotkey_registry_), top_left);
 }
 
 }  // namespace patchy::ui
