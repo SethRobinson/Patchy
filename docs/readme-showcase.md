@@ -1,6 +1,6 @@
 # Rebuilding the README showcase
 
-The README uses a hero image and eleven feature captures. The [full gallery](screenshots.md)
+The README uses a hero image and ten feature captures. The [full gallery](screenshots.md)
 keeps the other examples. Every capture has a script or a `shot_readme_*` scene;
 do not replace one with a manually arranged desktop screenshot.
 
@@ -44,7 +44,7 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `tilt_shift.png` | `shot_readme_tilt_shift` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg` |
 | `gmic.png` | `shot_readme_gmic` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped around the car; needs a build with the G'MIC engine |
 | `web_export.png` | `shot_readme_web_export` | `test-fixtures/readme/san_francisco_cityscape_cc0.jpg`, graded into eight frame layers in the scene |
-| `flame.png` | `shot_readme_flame` | Generated night backdrop and Arial Black lettering; the letters' outline is a saved path |
+| `flame.png` (gallery only) | `shot_readme_flame` | Generated night backdrop and Arial Black lettering; the letters' outline is a saved path |
 | `perspective_planes.png` (gallery only) | `shot_readme_perspective_planes` | `test-fixtures/readme/brick_wall_new_brunswick_cc0.jpg` (CC0), with posters made from the San Francisco, Havana and sunset images |
 | `long_shadow.png` (gallery only) | `shot_readme_long_shadow` | Generated editable type and live continuous shadows; no external artwork |
 
@@ -66,8 +66,8 @@ The separate Levels, brush-dynamics, shape-appearance, and Affinity images are r
 from the gallery. Their existing scenes remain regression coverage; the driver
 does not publish those artifacts. Brush dynamics are described with brush tips.
 Long Shadow and Smart Objects remain in the gallery; the README's feature cards use
-Layer Styles and Object Selection instead. Ten feature cards sit in pairs;
-the eight-artboard Layered Imports capture spans the final row so its labels read.
+Layer Styles and Object Selection instead; Flame is gallery-only too. Eight feature cards sit in pairs;
+Export for Web and then the eight-artboard Layered Imports capture each span a full row, so their labels read.
 
 The Object Selection scene crops the Havana street photo to its lower half and runs
 `doc.selection.objectSelect` with one loose box around the vintage car, on the High
