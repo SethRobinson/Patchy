@@ -191,6 +191,7 @@ class ThemeEffectsOverlay;
 class PatternLibrary;
 struct StartupLibraryPreloads;
 class GradientLibrary;
+struct GradientLibraryEntry;
 class ScriptEngineHost;
 class ScriptEditorDialog;
 class StyleLibrary;
@@ -2468,6 +2469,10 @@ private:
   void refresh_text_color_button();
   void edit_gradient_stops();
   void choose_gradient_preset();
+  void apply_gradient_preset_entry(const GradientLibraryEntry& entry);
+  // Previous Preset / Next Preset (GitHub issue 543): steps the active tool's preset list
+  // (the brush Preset combo or the gradient presets), wrapping at the ends.
+  void step_active_tool_preset(int direction);
   void refresh_gradient_controls_from_canvas();
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
@@ -2651,6 +2656,7 @@ private:
   void apply_transform_controls_from_ui();
   void sync_transform_controls_from_canvas();
   void register_option_action(QWidget* widget, std::initializer_list<CanvasTool> tools);
+  [[nodiscard]] bool option_widget_serves_tool(const QWidget* widget, CanvasTool tool) const;
   void register_retranslation(std::function<void()> callback);
   void retranslate_ui();
   void retranslate_bound_children();
@@ -3250,6 +3256,9 @@ private:
   QCheckBox* gradient_reverse_check_{nullptr};
   QPushButton* gradient_preview_button_{nullptr};
   QPushButton* gradient_presets_button_{nullptr};
+  // The gradient preset last applied from the presets popup or Previous/Next Preset
+  // (session only); Next Preset steps on from it.
+  QString gradient_preset_id_;
   QPushButton* gradient_edit_stops_button_{nullptr};
   QFontComboBox* text_font_combo_{nullptr};
   UnitSpinBox* text_size_spin_{nullptr};

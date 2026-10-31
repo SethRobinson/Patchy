@@ -28833,6 +28833,14 @@ Fixiert: %1</translation>
         <source>Rasterize Layer</source>
         <translation>Ebene rastern</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Vorherige Vorgabe</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Nächste Vorgabe</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

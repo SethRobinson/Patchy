@@ -28833,6 +28833,14 @@ Bloqueada: %1</translation>
         <source>Rasterize Layer</source>
         <translation>Rasterizar capa</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Ajuste preestablecido anterior</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Ajuste preestablecido siguiente</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

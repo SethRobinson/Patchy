@@ -28833,6 +28833,14 @@ Verrouillé : %1</translation>
         <source>Rasterize Layer</source>
         <translation>Pixelliser le calque</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Préréglage précédent</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Préréglage suivant</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

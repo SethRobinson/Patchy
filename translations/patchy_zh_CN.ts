@@ -28751,6 +28751,14 @@ Locked: %1</source>
         <source>Rasterize Layer</source>
         <translation>栅格化图层</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>上一个预设</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>下一个预设</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

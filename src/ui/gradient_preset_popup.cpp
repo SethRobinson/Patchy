@@ -16,8 +16,52 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <utility>
+#include <vector>
 
 namespace patchy::ui {
+
+QStringList gradient_preset_popup_order(const GradientLibrary &library) {
+  // Mirrors the tree show_gradient_preset_popup builds: a folder sits where its
+  // first entry appears, under its parent folder.
+  struct Child {
+    bool folder{false};
+    QString key;
+  };
+  QHash<QString, std::vector<Child>> children;
+  for (const auto &entry : library.entries()) {
+    QString path;
+    for (const auto &part :
+         entry.folder.split(QLatin1Char('/'), Qt::SkipEmptyParts)) {
+      QString child_path = path;
+      if (!child_path.isEmpty())
+        child_path += QLatin1Char('/');
+      child_path += part;
+      if (!children.contains(child_path)) {
+        children[path].push_back({true, child_path});
+        children.insert(child_path, {});
+      }
+      path = child_path;
+    }
+    children[path].push_back({false, entry.storage_id});
+  }
+  QStringList order;
+  std::vector<std::pair<QString, std::size_t>> stack{{QString(), 0}};
+  while (!stack.empty()) {
+    auto &[path, next] = stack.back();
+    const auto list = children.constFind(path);
+    if (list == children.cend() || next >= list->size()) {
+      stack.pop_back();
+      continue;
+    }
+    const auto child = (*list)[next++];
+    if (child.folder)
+      stack.emplace_back(child.key, 0);
+    else
+      order << child.key;
+  }
+  return order;
+}
 
 void show_gradient_preset_popup(
     QPushButton *anchor, GradientLibrary &library,

@@ -28915,6 +28915,14 @@ Locked: %1</source>
         <source>Rasterize Layer</source>
         <translation>Растрировать слой</translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation>Предыдущая предустановка</translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation>Следующая предустановка</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

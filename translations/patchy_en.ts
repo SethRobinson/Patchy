@@ -28752,6 +28752,14 @@ Locked: %1</source>
         <source>Rasterize Layer</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Previous Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

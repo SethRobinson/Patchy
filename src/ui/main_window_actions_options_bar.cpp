@@ -3831,6 +3831,22 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     addAction(action);
     register_document_action(action);
   }
+  // , and . step back and forward through the active tool's presets (GitHub issue 543): the
+  // brush Preset list for the tools whose bar shows it, the gradient presets for the Gradient
+  // tool. Other tools ignore them. A text field or the Text tool's editor takes the keys as text.
+  for (const auto& [object_name, text, hotkey_id, key, direction] :
+       {std::tuple{"previousPresetAction", QT_TR_NOOP("Previous Preset"), "brush.preset_previous", Qt::Key_Comma, -1},
+        std::tuple{"nextPresetAction", QT_TR_NOOP("Next Preset"), "brush.preset_next", Qt::Key_Period, 1}}) {
+    auto* action = new QAction(tr(text), this);
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QLatin1String(hotkey_id), QKeySequence(key), QStringLiteral("brush"));
+    const int preset_direction = direction;
+    connect(action, &QAction::triggered, this, [this, preset_direction] { step_active_tool_preset(preset_direction); });
+    addAction(action);
+    register_document_action(action);
+  }
 
   // Spelled out and set apart from the checkboxes (GitHub issue 290).
   add_option_label(QT_TR_NOOP("Tolerance:"), {CanvasTool::MagicWand});
