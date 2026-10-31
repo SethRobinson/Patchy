@@ -12603,10 +12603,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>浮動選取範圍附加在色版或圖層遮色片上，因此已略去。</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
-        <translation>部分文字圖層在 GIMP 中設定文字後又被繪製過，因此已作為像素圖層開啟。</translation>
-    </message>
-    <message>
         <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
         <translation>部分文字圖層無法作為文字讀取，因此已作為像素圖層開啟。</translation>
     </message>
@@ -14225,6 +14221,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
         <translation>圖層已隱藏。按一下可顯示。按住 %ALT% 按一下只顯示此圖層。</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
+        <translation>部分文字圖層在 GIMP 中設定文字後又被繪製過，因此已作為像素圖層開啟。使用「文字 &gt; 還原 GIMP 文字」可將其重新變為可編輯文字，繪製的內容會被捨棄。</translation>
     </message>
 </context>
 <context>
@@ -28916,6 +28916,18 @@ Locked: %1</source>
     <message>
         <source>Sh&amp;ow All Layers</source>
         <translation>顯示所有圖層(&amp;O)</translation>
+    </message>
+    <message>
+        <source>No selected layer has GIMP text to restore</source>
+        <translation>所選圖層中沒有可還原的 GIMP 文字</translation>
+    </message>
+    <message>
+        <source>Restore GIMP Text</source>
+        <translation>還原 GIMP 文字</translation>
+    </message>
+    <message>
+        <source>Restored GIMP text</source>
+        <translation>已還原 GIMP 文字</translation>
     </message>
 </context>
 <context>

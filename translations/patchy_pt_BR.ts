@@ -12637,10 +12637,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>A seleção flutuante estava anexada a um canal ou a uma máscara de camada, por isso foi deixada de fora.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
-        <translation>Algumas camadas de texto foram pintadas no GIMP depois que o texto foi definido, por isso foram abertas como camadas de pixels.</translation>
-    </message>
-    <message>
         <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
         <translation>Algumas camadas de texto não puderam ser lidas como texto, por isso foram abertas como camadas de pixels.</translation>
     </message>
@@ -14268,6 +14264,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
         <translation>Camada oculta. Clique para mostrar. %ALT%-clique mostra só esta camada.</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
+        <translation>Algumas camadas de texto foram pintadas no GIMP depois que o texto foi definido, por isso foram abertas como camadas de pixels. Texto &gt; Restaurar texto do GIMP as torna texto editável novamente, sem a pintura.</translation>
     </message>
 </context>
 <context>
@@ -28998,6 +28998,18 @@ Bloqueado: %1</translation>
     <message>
         <source>Sh&amp;ow All Layers</source>
         <translation>Mostrar todas as &amp;camadas</translation>
+    </message>
+    <message>
+        <source>No selected layer has GIMP text to restore</source>
+        <translation>Nenhuma camada selecionada tem texto do GIMP para restaurar</translation>
+    </message>
+    <message>
+        <source>Restore GIMP Text</source>
+        <translation>Restaurar texto do GIMP</translation>
+    </message>
+    <message>
+        <source>Restored GIMP text</source>
+        <translation>Texto do GIMP restaurado</translation>
     </message>
 </context>
 <context>

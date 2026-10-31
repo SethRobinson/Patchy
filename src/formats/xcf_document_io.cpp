@@ -1631,7 +1631,8 @@ enum class Notice : std::uint8_t {
     case Notice::TextModified:
       return PATCHY_TRANSLATE_NOOP(
           "QObject",
-          "Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.");
+          "Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type > "
+          "Restore GIMP Text makes them editable text again, without the paint.");
     case Notice::TextUnreadable:
       return PATCHY_TRANSLATE_NOOP(
           "QObject", "Some text layers could not be read as text, so they opened as pixel layers.");
@@ -2698,6 +2699,35 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
   return content;
 }
 
+// A text layer GIMP marks as painted on keeps GIMP's pixels and stores the text it would
+// have opened with under kLayerMetadataXcfStoredTextPrefix (Type > Restore GIMP Text).
+void store_painted_text(const Build& build, const LayerRecord& record, const Parasite& text, Layer& layer) {
+  try {
+    const std::string_view source(reinterpret_cast<const char*>(text.data.data()), text.data.size());
+    const auto parsed = detail::parse_text_parasite(source);
+    detail::TextLayerContext text_context{build.ppi, static_cast<std::int32_t>(record.width),
+                                          static_cast<std::int32_t>(record.height)};
+    const auto before = std::as_const(layer).metadata();
+    const auto result = detail::apply_text_parasite(parsed, text_context, layer);
+    auto& metadata = layer.metadata();
+    std::map<std::string, std::string> stored;
+    for (const auto& [key, value] : std::as_const(metadata)) {
+      if (const auto old = before.find(key); old == before.end() || old->second != value) {
+        stored[kLayerMetadataXcfStoredTextPrefix + key] = value;
+      }
+    }
+    metadata = before;
+    if (result != detail::TextImport::Editable && result != detail::TextImport::OutlineRedrawn) {
+      return;
+    }
+    metadata.insert(stored.begin(), stored.end());
+    metadata[kLayerMetadataXcfStoredTextBox] = std::to_string(record.x) + " " + std::to_string(record.y) + " " +
+                                               std::to_string(record.width) + " " + std::to_string(record.height);
+  } catch (const std::exception& error) {
+    trace(std::string("painted text parasite: ") + error.what());
+  }
+}
+
 [[nodiscard]] Layer build_layer(Build& build, const LayerRecord& record) {
   const auto map = map_mode(record.have_mode ? record.mode : 0, record.group, record.blend_space);
   if (map.fit == ModeFit::Approximate) {
@@ -2777,6 +2807,7 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
   if (const auto* text = find_parasite(record.parasites, "gimp-text-layer"); text != nullptr) {
     if ((record.text_flags & 2U) != 0) {
       build.notices.insert(Notice::TextModified);
+      store_painted_text(build, record, *text, layer);
     } else {
       try {
         const std::string_view source(reinterpret_cast<const char*>(text->data.data()), text->data.size());

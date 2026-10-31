@@ -12671,10 +12671,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Плавающее выделение было прикреплено к каналу или маске слоя, поэтому оно пропущено.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
-        <translation>На некоторых текстовых слоях в GIMP рисовали после ввода текста, поэтому они открыты как пиксельные слои.</translation>
-    </message>
-    <message>
         <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
         <translation>Некоторые текстовые слои не удалось прочитать как текст, поэтому они открыты как пиксельные слои.</translation>
     </message>
@@ -14311,6 +14307,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
         <translation>Слой скрыт. Нажмите, чтобы показать. Щелчок с %ALT% показывает только этот слой.</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
+        <translation>На некоторых текстовых слоях в GIMP рисовали после ввода текста, поэтому они открыты как пиксельные слои. Команда «Текст &gt; Восстановить текст GIMP» снова делает их редактируемым текстом, без нарисованного.</translation>
     </message>
 </context>
 <context>
@@ -29080,6 +29080,18 @@ Locked: %1</source>
     <message>
         <source>Sh&amp;ow All Layers</source>
         <translation>П&amp;оказать все слои</translation>
+    </message>
+    <message>
+        <source>No selected layer has GIMP text to restore</source>
+        <translation>Ни в одном выбранном слое нет текста GIMP для восстановления</translation>
+    </message>
+    <message>
+        <source>Restore GIMP Text</source>
+        <translation>Восстановить текст GIMP</translation>
+    </message>
+    <message>
+        <source>Restored GIMP text</source>
+        <translation>Текст GIMP восстановлен</translation>
     </message>
 </context>
 <context>

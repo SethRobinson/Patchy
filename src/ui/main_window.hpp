@@ -1045,6 +1045,9 @@ private:
   // GIMP text layers with an outline (kLayerMetadataXcfPendingOutline, docs/xcf.md): redraws
   // the text and adds the outline as a Stroke style.
   void render_pending_xcf_text_layers(Document& target);
+  // Type > Restore GIMP Text (docs/xcf.md): the text GIMP stored on painted-on text layers
+  // replaces their pixels, as one undo step.
+  void restore_gimp_text_of_layers(const std::vector<LayerId>& ids);
   // PDF post-open passes (same pattern): text layers render through the full text
   // matrix the reader stored (a PDF Tm may rotate or shear a run) with an x-scale
   // correction so a substituted font keeps the authored run width; image layers
@@ -3430,6 +3433,7 @@ private:
   QAction* image_flatten_action_{nullptr};
   QAction* layer_trace_image_action_{nullptr};
   QAction* layer_rasterize_layer_style_action_{nullptr};
+  QAction* type_restore_gimp_text_action_{nullptr};
   QAction* layer_clipping_mask_action_{nullptr};
   QAction* layer_convert_smart_object_action_{nullptr};
   QAction* layer_smart_object_edit_action_{nullptr};

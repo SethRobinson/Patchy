@@ -8,6 +8,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -404,6 +405,19 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
     }
   }
 
+  if (const auto& stored = std::as_const(layer).metadata(); stored.contains(kLayerMetadataXcfStoredTextBox)) {
+    std::istringstream stream(stored.at(kLayerMetadataXcfStoredTextBox));
+    std::int64_t x = 0;
+    std::int64_t y = 0;
+    std::int64_t width = 0;
+    std::int64_t height = 0;
+    if (stream >> x >> y >> width >> height) {
+      layer.metadata_without_content_bump()[kLayerMetadataXcfStoredTextBox] =
+          std::to_string(x + dx) + " " + std::to_string(y + dy) + " " + std::to_string(width) + " " +
+          std::to_string(height);
+    }
+  }
+
   if (!layer_is_text(layer)) {
     return;
   }
@@ -463,6 +477,45 @@ void clear_layer_text_metadata(Layer& layer) {
   std::erase_if(blocks, [](const UnknownPsdBlock& block) {
     return block.key == "TySh" || block.key == "tySh";
   });
+}
+
+bool layer_has_stored_xcf_text(const Layer& layer) {
+  return layer.metadata().contains(kLayerMetadataXcfStoredTextBox);
+}
+
+std::optional<Rect> take_stored_xcf_text(Layer& layer) {
+  const auto& stored = std::as_const(layer).metadata();
+  const auto box = stored.find(kLayerMetadataXcfStoredTextBox);
+  if (box == stored.end()) {
+    return std::nullopt;
+  }
+  std::istringstream stream(box->second);
+  std::int64_t x = 0;
+  std::int64_t y = 0;
+  std::int64_t width = 0;
+  std::int64_t height = 0;
+  constexpr std::int64_t kLimit = std::numeric_limits<std::int32_t>::max() / 2;
+  if (!(stream >> x >> y >> width >> height) || width <= 0 || height <= 0 || std::abs(x) > kLimit ||
+      std::abs(y) > kLimit || width > kLimit || height > kLimit) {
+    return std::nullopt;
+  }
+  const std::string_view prefix(kLayerMetadataXcfStoredTextPrefix);
+  std::vector<std::pair<std::string, std::string>> keys;
+  for (auto it = stored.lower_bound(std::string(prefix)); it != stored.end() && it->first.starts_with(prefix); ++it) {
+    keys.emplace_back(it->first.substr(prefix.size()), it->second);
+  }
+  if (std::none_of(keys.begin(), keys.end(), [](const auto& entry) { return entry.first == kLayerMetadataText; })) {
+    return std::nullopt;
+  }
+  clear_layer_text_metadata(layer);
+  auto& metadata = layer.metadata();
+  std::erase_if(metadata, [prefix](const auto& entry) { return entry.first.starts_with(prefix); });
+  metadata.erase(kLayerMetadataXcfStoredTextBox);
+  for (auto& [key, value] : keys) {
+    metadata[key] = std::move(value);
+  }
+  return Rect{static_cast<std::int32_t>(x), static_cast<std::int32_t>(y), static_cast<std::int32_t>(width),
+              static_cast<std::int32_t>(height)};
 }
 
 }  // namespace patchy

@@ -12603,10 +12603,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>フローティング選択範囲はチャンネルまたはレイヤーマスクに付いていたため、省きました。</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
-        <translation>一部のテキストレイヤーは、GIMP でテキストを入力した後に描き込まれていたため、ピクセルレイヤーとして開きました。</translation>
-    </message>
-    <message>
         <source>Some text layers could not be read as text, so they opened as pixel layers.</source>
         <translation>一部のテキストレイヤーはテキストとして読み込めなかったため、ピクセルレイヤーとして開きました。</translation>
     </message>
@@ -14225,6 +14221,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
         <translation>レイヤーは非表示です。クリックで表示します。%ALT%クリックでこのレイヤーだけを表示します。</translation>
+    </message>
+    <message>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
+        <translation>一部のテキストレイヤーは、GIMP でテキストを入力した後に描き込まれていたため、ピクセルレイヤーとして開きました。「文字 &gt; GIMP のテキストを復元」で、描き込みのない編集可能なテキストに戻せます。</translation>
     </message>
 </context>
 <context>
@@ -28916,6 +28916,18 @@ Locked: %1</source>
     <message>
         <source>Sh&amp;ow All Layers</source>
         <translation>すべてのレイヤーを表示(&amp;O)</translation>
+    </message>
+    <message>
+        <source>No selected layer has GIMP text to restore</source>
+        <translation>選択したレイヤーに復元できる GIMP のテキストはありません</translation>
+    </message>
+    <message>
+        <source>Restore GIMP Text</source>
+        <translation>GIMP のテキストを復元</translation>
+    </message>
+    <message>
+        <source>Restored GIMP text</source>
+        <translation>GIMP のテキストを復元しました</translation>
     </message>
 </context>
 <context>

@@ -126,6 +126,14 @@ inline constexpr const char* kLayerMetadataAfTextXfrm = "patchy.af.text_xfrm";
 // "<outside|inside|center> <size px> <#rrggbb> <opacity 0..1> <fill|nofill>".
 inline constexpr const char* kLayerMetadataXcfPendingOutline = "patchy.xcf.pending_outline";
 
+// GIMP text layers painted on after their text was set open as pixels and keep the text GIMP
+// stored (docs/xcf.md, "Text layers"): every key the editable layer would have had (the
+// patchy.text.* keys and kLayerMetadataXcfPendingOutline), each under this prefix, and the
+// box key, GIMP's layer rect "x y width height" where the text box starts. Type > Restore
+// GIMP Text moves them back. In memory only: no file format writes them.
+inline constexpr const char* kLayerMetadataXcfStoredTextPrefix = "patchy.xcf.stored_text.";
+inline constexpr const char* kLayerMetadataXcfStoredTextBox = "patchy.xcf.stored_text_box";
+
 // PDF vector import handoff (same pattern as SVG and .af). The Qt-free reader emits
 // the story under the standard patchy.text.* keys plus these markers, and
 // MainWindow::render_pending_pdf_text_layers renders post-open and drops them.
@@ -204,6 +212,12 @@ void set_layer_group_expanded(Layer& layer, bool expanded);
 // Drops every text key and the TySh block: the layer keeps its raster as plain pixels
 // (Layer > Rasterize, and Perspective Crop under a non-affine map).
 void clear_layer_text_metadata(Layer& layer);
+
+// The stored GIMP text of a painted-on layer (kLayerMetadataXcfStoredTextBox).
+[[nodiscard]] bool layer_has_stored_xcf_text(const Layer& layer);
+// Moves the stored text keys back into place, dropping the stored copy, and returns GIMP's
+// layer rect; nullopt (nothing changed) without a readable stored text.
+[[nodiscard]] std::optional<Rect> take_stored_xcf_text(Layer& layer);
 
 [[nodiscard]] std::optional<LayerAffineTransform> parse_layer_affine_transform(std::string_view text);
 [[nodiscard]] std::string serialize_layer_affine_transform(const LayerAffineTransform& transform);
