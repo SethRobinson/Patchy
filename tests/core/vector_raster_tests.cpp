@@ -1044,6 +1044,69 @@ void stroke_open_path_alignment_moves_band_sideways() {
   CHECK(coverage_pixel(both, 70, 69) == 0);
 }
 
+void stroke_open_path_alignment_dashes_follow_the_path() {
+  // Issue 558: Photoshop spaces an Inside or Outside open stroke's dashes along
+  // the path itself and then moves each dash sideways, so the dashes after a
+  // corner keep the centered stroke's phase. Offsetting first shortened the
+  // inner side and lengthened the outer side by the join's reach.
+  VectorPath path;
+  PathSubpath bend;
+  bend.closed = false;
+  bend.op = PathCombineOp::Add;
+  bend.anchors = {corner(20, 20), corner(80, 20), corner(80, 90)};  // east, then south
+  path.subpaths = {bend};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 10.0;
+  stroke.dashes = {2, 2};  // 20 px on, 20 px off: on again 20 to 40 px down the second leg
+  const Rect clip{0, 0, 120, 120};
+  stroke.alignment = patchy::VectorStrokeAlignment::Inside;  // right of a south leg: x 70..80
+  const auto inside = stroke_coverage(path, stroke, clip);
+  CHECK(coverage_pixel(inside, 75, 35) == 0);
+  CHECK(coverage_pixel(inside, 75, 45) == 255);
+  CHECK(coverage_pixel(inside, 75, 55) == 255);
+  CHECK(coverage_pixel(inside, 75, 65) == 0);
+  CHECK(coverage_pixel(inside, 85, 50) == 0);
+  stroke.alignment = patchy::VectorStrokeAlignment::Outside;  // x 80..90
+  const auto outside = stroke_coverage(path, stroke, clip);
+  CHECK(coverage_pixel(outside, 85, 35) == 0);
+  CHECK(coverage_pixel(outside, 85, 45) == 255);
+  CHECK(coverage_pixel(outside, 85, 55) == 255);
+  CHECK(coverage_pixel(outside, 85, 65) == 0);
+  CHECK(coverage_pixel(outside, 75, 50) == 0);
+
+  // Round-cap dots every 20 px along the path: the one 20 px down the second
+  // leg is a whole circle beside it.
+  stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+  stroke.dashes = {0, 2};
+  stroke.cap = patchy::VectorStrokeCap::Round;
+  const auto dotted = stroke_coverage(path, stroke, clip);
+  CHECK(coverage_pixel(dotted, 75, 40) == 255);
+  CHECK(coverage_pixel(dotted, 75, 43) == 255);
+  CHECK(coverage_pixel(dotted, 75, 47) == 0);
+  CHECK(coverage_pixel(dotted, 75, 32) == 0);
+  CHECK(coverage_pixel(dotted, 81, 40) == 0);
+  CHECK(coverage_pixel(dotted, 40, 25) == 255);  // first leg: dots below the line
+  CHECK(coverage_pixel(dotted, 40, 15) == 0);
+
+  // The reporter's file (Photoshop render): a 10 px square-cap {2,2} Inside
+  // line (28,155) (142,165) (182,42). Photoshop's first dash on the second leg
+  // runs 0.6 to 30.1 px past the corner, the next from 40.6 px.
+  VectorPath reporter;
+  PathSubpath dashed;
+  dashed.closed = false;
+  dashed.op = PathCombineOp::Add;
+  dashed.anchors = {corner(28, 155), corner(142, 165), corner(182, 42)};
+  reporter.subpaths = {dashed};
+  stroke.dashes = {2, 2};
+  stroke.cap = patchy::VectorStrokeCap::Square;
+  stroke.join = patchy::VectorStrokeJoin::Bevel;
+  const auto ps_dashed = stroke_coverage(reporter, stroke, Rect{0, 0, 200, 200});
+  CHECK(coverage_pixel(ps_dashed, 155, 140) == 255);  // 27 px past the corner
+  CHECK(coverage_pixel(ps_dashed, 157, 133) == 0);  // 35 px: the gap
+  CHECK(coverage_pixel(ps_dashed, 160, 124) == 255);  // 45 px
+}
+
 void stroke_aligned_round_dots_keep_circles_on_curves() {
   VectorPath path;
   path.subpaths = {circle_subpath(96, 96, 64)};
@@ -1812,6 +1875,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_dotted_pattern_draws_on_butt_caps", stroke_dotted_pattern_draws_on_butt_caps},
       {"stroke_dash_presets_follow_caps_and_map_back", stroke_dash_presets_follow_caps_and_map_back},
       {"stroke_open_path_alignment_moves_band_sideways", stroke_open_path_alignment_moves_band_sideways},
+      {"stroke_open_path_alignment_dashes_follow_the_path", stroke_open_path_alignment_dashes_follow_the_path},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
       {"stroke_bezier_circle_is_translation_stable", stroke_bezier_circle_is_translation_stable},
       {"stroke_miter_spike_stays_in_bounds", stroke_miter_spike_stays_in_bounds},
