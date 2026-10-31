@@ -2871,6 +2871,14 @@ RGB: %2, %3, %4</translation>
         <translation>Patchy は認識できる編集可能データを保持し、Photoshop や他の PSD エディターと異なる可能性のある領域を示しました。</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>今後表示しない</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>今後、インポートの警告とノートはステータスバーに表示されます。ポップアップは 環境設定 &gt; アプリケーション で再びオンにできます。</translation>
+    </message>
+    <message>
         <source>Layer Style</source>
         <translation>レイヤースタイル</translation>
     </message>
@@ -16271,38 +16279,6 @@ Each item&apos;s own View setting still applies.</source>
         <source>Clone source cleared</source>
         <translation>クローン元を解除しました</translation>
     </message>
-    <message>
-        <source>Break path</source>
-        <translation>パスを分割</translation>
-    </message>
-    <message>
-        <source>Join end points</source>
-        <translation>端点を連結</translation>
-    </message>
-    <message>
-        <source>Merge points</source>
-        <translation>ポイントを統合</translation>
-    </message>
-    <message>
-        <source>Delete segment</source>
-        <translation>セグメントを削除</translation>
-    </message>
-    <message>
-        <source>Break Path at Point</source>
-        <translation>ポイントでパスを分割</translation>
-    </message>
-    <message>
-        <source>Join End Points</source>
-        <translation>端点を連結</translation>
-    </message>
-    <message>
-        <source>Merge into One Point</source>
-        <translation>1 つのポイントに統合</translation>
-    </message>
-    <message>
-        <source>Delete Segment</source>
-        <translation>セグメントを削除</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -24554,6 +24530,7 @@ Clipped to the layer below</source>
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1 を適用しました (%2 で取り消せます)</translation>
     </message>
     <message>
@@ -29061,168 +29038,8 @@ Locked: %1</source>
         <translation>コマンドを検索(&amp;C)...</translation>
     </message>
     <message>
-        <source>The selected shapes only cut into others and paint nothing of their own</source>
-        <translation>選択したシェイプは他を切り抜くだけで、それ自体は何も描画しません</translation>
-    </message>
-    <message>
-        <source>Shapes combined with Intersect or Exclude share one color</source>
-        <translation>交差または除外で組み合わされたシェイプは 1 つの色を共有します</translation>
-    </message>
-    <message>
-        <source>An inverted shape has one color</source>
-        <translation>反転したシェイプは 1 色です</translation>
-    </message>
-    <message>
-        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
-        <translation>パス選択またはダイレクト選択でシェイプレイヤー上のシェイプを選択してください</translation>
-    </message>
-    <message>
-        <source>Break Path at Point</source>
-        <translation>ポイントでパスを分割</translation>
-    </message>
-    <message>
-        <source>Open the path at the selected points</source>
-        <translation>選択したポイントでパスを開く</translation>
-    </message>
-    <message>
-        <source>Join End Points</source>
-        <translation>端点を連結</translation>
-    </message>
-    <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>選択した 2 つの端点を直線セグメントで連結</translation>
-    </message>
-    <message>
-        <source>Merge into One Point</source>
-        <translation>1 つのポイントに統合</translation>
-    </message>
-    <message>
-        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
-        <translation>選択した端点、または連続した選択ポイントを、その中央の 1 つのポイントに統合</translation>
-    </message>
-    <message>
-        <source>Delete Segment</source>
-        <translation>セグメントを削除</translation>
-    </message>
-    <message>
-        <source>Delete the selected segments and leave the path open</source>
-        <translation>選択したセグメントを削除し、パスを開いたままにする</translation>
-    </message>
-    <message>
-        <source>Color Selected Shapes...</source>
-        <translation>選択したシェイプに色を設定...</translation>
-    </message>
-    <message>
-        <source>Give the selected shapes a fill color of their own</source>
-        <translation>選択したシェイプに独自の塗りの色を設定</translation>
-    </message>
-    <message>
-        <source>Move Selected Shapes to New Layer</source>
-        <translation>選択したシェイプを新規レイヤーへ移動</translation>
-    </message>
-    <message>
-        <source>Move the selected shapes to a new shape layer above</source>
-        <translation>選択したシェイプを上の新規シェイプレイヤーへ移動</translation>
-    </message>
-    <message>
-        <source>Copy Selected Shapes to New Layer</source>
-        <translation>選択したシェイプを新規レイヤーへコピー</translation>
-    </message>
-    <message>
-        <source>Copy the selected shapes to a new shape layer above</source>
-        <translation>選択したシェイプを上の新規シェイプレイヤーへコピー</translation>
-    </message>
-    <message>
-        <source>Cut Shapes</source>
-        <translation>シェイプを切り取り</translation>
-    </message>
-    <message>
-        <source>Cut the selected shapes</source>
-        <translation>選択したシェイプを切り取り</translation>
-    </message>
-    <message>
-        <source>Copy Shapes</source>
-        <translation>シェイプをコピー</translation>
-    </message>
-    <message>
-        <source>Copy the selected shapes</source>
-        <translation>選択したシェイプをコピー</translation>
-    </message>
-    <message>
-        <source>Paste Shapes</source>
-        <translation>シェイプを貼り付け</translation>
-    </message>
-    <message>
-        <source>Paste the copied shapes into the target path</source>
-        <translation>コピーしたシェイプを対象パスに貼り付け</translation>
-    </message>
-    <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>ダイレクト選択で、パスの内側のポイント、または閉じたパスの任意のポイントを選択してください</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>ダイレクト選択で、開いたパスの端点を 2 つ選択してください</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>ダイレクト選択で、2 つの端点、または 1 つのパスの隣り合うポイントを選択してください</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>ダイレクト選択でセグメント (その両方のポイント) を選択してください</translation>
-    </message>
-    <message>
-        <source>Cut shapes</source>
-        <translation>シェイプを切り取り</translation>
-    </message>
-    <message>
-        <source>Cut %1 shape(s)</source>
-        <translation>%1 個のシェイプを切り取りました</translation>
-    </message>
-    <message>
-        <source>Copied %1 shape(s)</source>
-        <translation>%1 個のシェイプをコピーしました</translation>
-    </message>
-    <message>
-        <source>Paste shapes</source>
-        <translation>シェイプを貼り付け</translation>
-    </message>
-    <message>
-        <source>Pasted %1 shape(s)</source>
-        <translation>%1 個のシェイプを貼り付けました</translation>
-    </message>
-    <message>
-        <source>Shape color</source>
-        <translation>シェイプの色</translation>
-    </message>
-    <message>
-        <source>Colored %1 shape(s)</source>
-        <translation>%1 個のシェイプに色を設定しました</translation>
-    </message>
-    <message>
-        <source>Shape Color</source>
-        <translation>シェイプの色</translation>
-    </message>
-    <message>
-        <source>Select shapes with Path Select or Direct Select first</source>
-        <translation>先にパス選択またはダイレクト選択でシェイプを選択してください</translation>
-    </message>
-    <message>
-        <source>Copy shapes to new layer</source>
-        <translation>シェイプを新規レイヤーへコピー</translation>
-    </message>
-    <message>
-        <source>Move shapes to new layer</source>
-        <translation>シェイプを新規レイヤーへ移動</translation>
-    </message>
-    <message>
-        <source>Copied %1 shape(s) to a new layer</source>
-        <translation>%1 個のシェイプを新規レイヤーへコピーしました</translation>
-    </message>
-    <message>
-        <source>Moved %1 shape(s) to a new layer</source>
-        <translation>%1 個のシェイプを新規レイヤーへ移動しました</translation>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>線の破線。破線のプリセットは先端をバットに、点のプリセットは先端と角を丸にします</translation>
     </message>
 </context>
 <context>

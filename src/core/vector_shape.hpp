@@ -183,6 +183,22 @@ std::vector<double> stroke_dash_preset_pattern(StrokeDashPreset preset, VectorSt
 bool stroke_dash_preset_follows_cap(StrokeDashPreset preset);
 // Whether the preset draws dots alone, which read as dots with round caps.
 bool stroke_dash_preset_is_dots(StrokeDashPreset preset);
+// The caps and corners picking a preset sets (GitHub #548): Dashed, Long
+// dashes and Short dashes set Butt caps; the presets with dots (Dotted, Sparse
+// dots, Dash dot, Dash dot dot) set Round caps and Round corners, so every dot
+// is round; Solid sets neither. Both stay editable afterwards.
+std::optional<VectorStrokeCap> stroke_dash_preset_cap(StrokeDashPreset preset);
+std::optional<VectorStrokeJoin> stroke_dash_preset_join(StrokeDashPreset preset);
+// Picks the preset on a stroke: its caps and corners, then its dash array for
+// that cap. Shape Appearance and the options bar's dash combo both use it.
+void apply_stroke_dash_preset(VectorStroke& stroke, StrokeDashPreset preset);
+// Every preset, in menu order (Solid, Dashed, Long dashes, Short dashes,
+// Dotted, Sparse dots, Dash dot, Dash dot dot).
+const std::array<StrokeDashPreset, 8>& stroke_dash_presets_in_menu_order();
+// The preset's settings token for the options bar's last pick
+// (tools/vectorStrokeDashes; persisted, never rename one). An unknown token reads as Solid.
+const char* stroke_dash_preset_token(StrokeDashPreset preset);
+StrokeDashPreset stroke_dash_preset_from_token(std::string_view token);
 // The preset a file's dash array shows as, or nullopt (Custom). Arrays that
 // repeat a shorter period ({1, 1, 1, 1}) compare by that period; a dot preset
 // also matches its zero-length form on any cap, as Dotted always has.

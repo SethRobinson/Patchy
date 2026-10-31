@@ -29,6 +29,7 @@
 #include "ui/command_search.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "psd/psd_document_io.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include <QAbstractItemView>
 #include <QAbstractSpinBox>
@@ -744,7 +745,63 @@ void ui_compatibility_report_flags_psd_text_placeholders() {
   CHECK(!warnings.isEmpty());
   CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("placeholder")));
   CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("TySh")));
-  CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("unknown PSD layer block")));
+  // The text block is understood data (its own note above), not an unknown block.
+  CHECK(!warnings.join(QLatin1Char('\n')).contains(QStringLiteral("unknown PSD layer block")));
+}
+// The blocks Photoshop writes on every ordinary layer are routine or modeled data, not
+// "unknown PSD layer block(s)" (GitHub issue 559: about nine per layer); a key nothing
+// handles still is.
+void ui_compatibility_report_counts_routine_photoshop_blocks_as_known() {
+  patchy::Document document(60, 40, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Shape", solid_pixels(60, 40, patchy::PixelFormat::rgba8(),
+                                                               QColor(20, 80, 200, 255)));
+  for (const char* key : {"luni", "lnsr", "lyid", "clbl", "infx", "knko", "lspf", "lclr", "shmd", "fxrp",
+                          "lyvr", "vscg", "vsms", "vogk", "vstk", "tsly", "lmgm", "vmgm", "sn2P", "ffxi",
+                          "cinf", "lfxs", "lmfx", "TySh", "artd"}) {
+    CHECK(patchy::psd::is_understood_layer_block_key(key));
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{key, {0, 0, 0, 1}});
+  }
+  CHECK(!patchy::psd::is_understood_layer_block_key("zzzz"));
+  auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+  if (!warnings.isEmpty()) {
+    std::fprintf(stderr, "  %s\n", qPrintable(warnings.join(QLatin1Char('\n'))));
+  }
+  CHECK(warnings.isEmpty());
+  document.layers().front().unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
+  warnings = patchy::ui::compatibility_warnings_for_document(document);
+  CHECK(warnings.size() == 1);
+  CHECK(!warnings.isEmpty() && warnings.front().contains(QStringLiteral("Shape preserves 1 unknown PSD layer block")));
+  // Document-level blocks: Photoshop's Patt and FMsk are understood, an unknown key is not.
+  document.layers().front().unknown_psd_blocks().pop_back();
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"Patt", {}});
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"FMsk", {0, 0, 0, 0}});
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"Txt2", {0, 0}});
+  CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
+  warnings = patchy::ui::compatibility_warnings_for_document(document);
+  CHECK(warnings.size() == 1);
+  CHECK(!warnings.isEmpty() && warnings.front().contains(QStringLiteral("preserves 1 unknown PSD image resource")));
+}
+// A file Patchy saved reopens with nothing to report: its Background carries the 'lspf'
+// lock block from the second save on (GitHub issue 559).
+void ui_compatibility_report_is_empty_for_patchy_saved_background() {
+  patchy::Document document(60, 40, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(60, 40, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+  document.add_pixel_layer("Layer 1", solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(200, 30, 30, 128)));
+  const auto first = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto second = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(first));
+  bool saw_lspf = false;
+  for (const auto& layer : second.layers()) {
+    for (const auto& block : layer.unknown_psd_blocks()) {
+      saw_lspf = saw_lspf || block.key == "lspf";
+    }
+  }
+  CHECK(saw_lspf);
+  const auto warnings = patchy::ui::compatibility_warnings_for_document(second);
+  if (!warnings.isEmpty()) {
+    std::fprintf(stderr, "  %s\n", qPrintable(warnings.join(QLatin1Char('\n'))));
+  }
+  CHECK(warnings.isEmpty());
 }
 void ui_compatibility_report_ignores_patchy_written_psd_blocks() {
   patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
@@ -1133,6 +1190,86 @@ void ui_psd_import_warning_dialog_shows_when_enabled() {
   CHECK(saw_compatibility_report);
   CHECK(tabs->count() == original_tab_count + 1);
   CHECK(tabs->tabText(tabs->currentIndex()) == QFileInfo(psd_path).fileName());
+}
+// The reporter's files from GitHub issue 559 (local fixtures): a Photoshop file of six
+// stroke-preset shape layers and a Patchy-saved one both reopen with nothing to report.
+void ui_compatibility_report_is_empty_for_issue_559_files_if_available() {
+  const auto folder = patchy::test::source_root_path() / "local-test-fixtures" / "issue-559";
+  for (const char* name : {"photoshop-stroke-presets.psd", "patchy-dashes-test-2.psd"}) {
+    const auto path = folder / name;
+    patchy::test::skip_unless_exists(path);
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+    if (!warnings.isEmpty()) {
+      std::fprintf(stderr, "  %s: %s\n", name, qPrintable(warnings.join(QLatin1Char('\n'))));
+    }
+    CHECK(warnings.isEmpty());
+  }
+}
+// With the popup preference on, a PSD whose layers carry only routine Photoshop blocks opens
+// without the report; on a file with a real unknown block, "Don't show this again" turns the
+// preference off (GitHub issue 559).
+void ui_compatibility_report_dont_show_turns_popup_preference_off() {
+  SettingsValueRestorer restore_psd_warning_check(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+    settings.sync();
+  }
+  ensure_artifact_dir();
+  const auto routine_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("psd-routine-blocks.psd")))
+          .absoluteFilePath();
+  {
+    patchy::Document document(8, 6, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer(
+        "Routine Blocks", solid_pixels(8, 6, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"lnsr", {'l', 'a', 'y', 'r'}});
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"lyvr", {0, 0, 0, 70}});
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"shmd", {0, 0, 0, 0}});
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"knko", {0, 0, 0, 0}});
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(routine_path));
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  const auto open_and_answer = [&window](const QString& path, bool tick_dont_show) {
+    auto saw_report = std::make_shared<bool>(false);
+    auto done = std::make_shared<bool>(false);
+    auto poll = std::make_shared<std::function<void(int)>>();
+    *poll = [saw_report, done, tick_dont_show, weak = std::weak_ptr<std::function<void(int)>>(poll)](int attempts) {
+      QTimer::singleShot(50, [saw_report, done, tick_dont_show, attempts, weak] {
+        if (*done) {
+          return;
+        }
+        auto* dialog = find_top_level_dialog(QStringLiteral("patchyCompatibilityReportDialog"));
+        if (dialog != nullptr) {
+          auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("compatibilityReportDontShowCheck"));
+          if (check == nullptr) {
+            patchy::test::report_failure("compatibility report has no Don't show this again check");
+          } else if (tick_dont_show) {
+            check->setChecked(true);
+            save_widget_artifact("i559-compatibility-report-dont-show", *dialog);
+          }
+          *saw_report = true;
+          *done = true;
+          dialog->accept();
+          return;
+        }
+        if (const auto next = weak.lock(); next != nullptr && attempts > 0) {
+          (*next)(attempts - 1);
+        }
+      });
+    };
+    (*poll)(2400);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    *done = true;
+    QApplication::processEvents();
+    return *saw_report;
+  };
+  CHECK(!open_and_answer(routine_path, false));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool());
+  const auto unknown_path = write_psd_import_warning_fixture(QStringLiteral("psd-import-warning-dont-show.psd"));
+  CHECK(open_and_answer(unknown_path, true));
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), true).toBool());
 }
 void ui_alt_left_click_samples_foreground_color() {
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -5031,6 +5168,14 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_compatibility_report_flags_psd_text_placeholders},
       {"ui_compatibility_report_ignores_patchy_written_psd_blocks",
        ui_compatibility_report_ignores_patchy_written_psd_blocks},
+      {"ui_compatibility_report_counts_routine_photoshop_blocks_as_known",
+       ui_compatibility_report_counts_routine_photoshop_blocks_as_known},
+      {"ui_compatibility_report_is_empty_for_patchy_saved_background",
+       ui_compatibility_report_is_empty_for_patchy_saved_background},
+      {"ui_compatibility_report_is_empty_for_issue_559_files_if_available",
+       ui_compatibility_report_is_empty_for_issue_559_files_if_available},
+      {"ui_compatibility_report_dont_show_turns_popup_preference_off",
+       ui_compatibility_report_dont_show_turns_popup_preference_off},
       {"ui_compatibility_report_treats_native_adjustment_blocks_as_known",
        ui_compatibility_report_treats_native_adjustment_blocks_as_known},
       {"ui_compatibility_report_treats_levels_as_native_psd_adjustment",

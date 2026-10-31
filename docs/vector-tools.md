@@ -362,8 +362,11 @@ Butt caps), so Dotted is `dotted_dash_pattern(cap)`: {0, 2}, or {1, 1} with Butt
 same square dots; changing Caps while Dotted is chosen swaps the array (GitHub issue 548).
 The other new presets follow the cap the same way (`stroke_dash_preset_pattern`: written for
 Butt caps, each dash one width shorter and each gap one width longer for Round or Square), so
-they look alike on every cap; Dashed alone stays a fixed {2, 2}. Picking Dotted or Sparse dots
-also sets Caps to Round, so the dots are round. `stroke_dash_preset_for` maps a file's array to
+they look alike on every cap; Dashed alone stays a fixed {2, 2}. Picking a preset also sets
+its caps and corners (`apply_stroke_dash_preset`, shared with the options bar's dash combo;
+GitHub issue 548 follow-up): Dashed, Long dashes and Short dashes set Butt caps; Dotted, Sparse
+dots, Dash dot and Dash dot dot set Round caps and Round corners, so every dot is round; Solid
+sets neither. Caps and Corners stay editable after. `stroke_dash_preset_for` maps a file's array to
 its row by its shortest repeating period (GIMP repeats each pattern to fill its dash table), so
 GIMP's Dense dots on Butt caps is Dotted; arrays matching no preset show as Custom.
 `pattern_linked` anchors at the effects

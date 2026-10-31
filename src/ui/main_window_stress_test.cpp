@@ -1027,6 +1027,7 @@ private:
     saved_vector_stroke_paint_ = w.current_vector_stroke_paint_;
     saved_vector_stroke_enabled_ = w.current_vector_stroke_enabled_;
     saved_vector_stroke_width_ = w.current_vector_stroke_width_;
+    saved_vector_stroke_dash_preset_ = w.current_vector_stroke_dash_preset_;
     saved_vector_tool_mode_ = w.current_vector_tool_mode_;
     saved_vector_combine_index_ = w.current_vector_combine_index_;
     saved_shape_corner_radius_ = w.current_shape_corner_radius_;
@@ -1045,6 +1046,7 @@ private:
     w.current_vector_stroke_paint_ = saved_vector_stroke_paint_;
     w.current_vector_stroke_enabled_ = saved_vector_stroke_enabled_;
     w.current_vector_stroke_width_ = saved_vector_stroke_width_;
+    w.current_vector_stroke_dash_preset_ = saved_vector_stroke_dash_preset_;
     w.current_vector_tool_mode_ = saved_vector_tool_mode_;
     w.current_vector_combine_index_ = saved_vector_combine_index_;
     w.current_shape_corner_radius_ = saved_shape_corner_radius_;
@@ -1062,6 +1064,7 @@ private:
     w.current_vector_fill_ = fill;
     w.current_vector_stroke_enabled_ = stroke_enabled;
     w.current_vector_stroke_width_ = stroke_width;
+    w.current_vector_stroke_dash_preset_ = StrokeDashPreset::Solid;
     w.current_vector_stroke_paint_ = solid_vector_fill(stroke_color);
   }
 
@@ -1543,6 +1546,7 @@ private:
   VectorFill saved_vector_stroke_paint_{};
   bool saved_vector_stroke_enabled_{false};
   double saved_vector_stroke_width_{3.0};
+  StrokeDashPreset saved_vector_stroke_dash_preset_{StrokeDashPreset::Solid};
   VectorToolMode saved_vector_tool_mode_{VectorToolMode::Shape};
   int saved_vector_combine_index_{0};
   int saved_shape_corner_radius_{0};

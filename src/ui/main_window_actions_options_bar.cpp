@@ -50,6 +50,7 @@
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/shape_appearance_dialog.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/tile_preview_window.hpp"
@@ -4168,6 +4169,42 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
   connect(vector_stroke_swatch_button_, &QToolButton::clicked, this,
           [this] { show_vector_paint_menu(true); });
+  // Shape Appearance's dash presets (GitHub #556). The last row, Custom, shows only for a
+  // selected shape whose pattern matches no preset and cannot be picked here
+  // (refresh_vector_stroke_dash_combo); Shape Appearance edits that pattern.
+  vector_stroke_dash_combo_ = new QComboBox(toolbar);
+  vector_stroke_dash_combo_->setObjectName(QStringLiteral("vectorStrokeDashCombo"));
+  for (const auto preset : stroke_dash_presets_in_menu_order()) {
+    vector_stroke_dash_combo_->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
+  }
+  vector_stroke_dash_combo_->addItem(QObject::tr("Custom"), -1);
+  vector_stroke_dash_combo_->setFixedWidth(ui_text_length(80));
+  widen_combo_popup_to_items(vector_stroke_dash_combo_);
+  bind_tooltip(vector_stroke_dash_combo_,
+               QT_TR_NOOP("Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners"));
+  QPointer<QComboBox> dash_combo_pointer(vector_stroke_dash_combo_);
+  register_retranslation([dash_combo_pointer] {
+    if (dash_combo_pointer == nullptr) {
+      return;
+    }
+    const QSignalBlocker blocker(dash_combo_pointer);
+    const auto& presets = stroke_dash_presets_in_menu_order();
+    for (int row = 0; row < static_cast<int>(presets.size()); ++row) {
+      dash_combo_pointer->setItemText(row, stroke_dash_preset_label(presets[static_cast<std::size_t>(row)]));
+    }
+    dash_combo_pointer->setItemText(static_cast<int>(presets.size()), QObject::tr("Custom"));
+    widen_combo_popup_to_items(dash_combo_pointer);
+  });
+  add_option_widget(vector_stroke_dash_combo_, vector_appearance_tools);
+  vector_shape_mode_option_widgets_.push_back(vector_stroke_dash_combo_);
+  refresh_vector_stroke_dash_combo(current_vector_stroke_dash_preset_);
+  connect(vector_stroke_dash_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    const auto preset = vector_stroke_dash_combo_->itemData(index).toInt();
+    if (preset < 0) {
+      return;
+    }
+    set_vector_stroke_dash_preset_from_combo(static_cast<StrokeDashPreset>(preset));
+  });
 
   // W / H of the ACTIVE shape layer (Photoshop's options-bar readouts): they
   // mirror the selected shape's bounds and resize it live (top-left anchored,

@@ -1883,6 +1883,11 @@ private:
   // 0 while the stroke is off, and a 0 entry turns it off while keeping the last real width.
   double vector_stroke_field_value() const;
   void set_vector_stroke_width_from_field(double value);
+  // The options bar's dash combo (GitHub #556): a preset applies to new shapes and the
+  // selected shape layers with its caps and corners (apply_stroke_dash_preset). The combo
+  // shows `shown`, or its unpickable Custom row for nullopt.
+  void set_vector_stroke_dash_preset_from_combo(patchy::StrokeDashPreset preset);
+  void refresh_vector_stroke_dash_combo(std::optional<patchy::StrokeDashPreset> shown);
   bool apply_options_bar_appearance_to_active_shape(const std::vector<std::string>& fields = {});
   void schedule_vector_appearance_apply();
   void finish_pending_shape_appearance_edit();
@@ -3826,6 +3831,7 @@ private:
   bool current_vector_stroke_enabled_{false};
   patchy::VectorFill current_vector_stroke_paint_{};
   double current_vector_stroke_width_{3.0};
+  patchy::StrokeDashPreset current_vector_stroke_dash_preset_{patchy::StrokeDashPreset::Solid};
   // Library storage ids of the last PICKED gradient presets (persisted; a
   // custom gradient synced from a layer lives only for the session).
   QString current_vector_fill_gradient_id_;
@@ -3852,6 +3858,7 @@ private:
   bool current_line_arrow_end_{false};
   QToolButton* vector_fill_swatch_button_{nullptr};
   QToolButton* vector_stroke_swatch_button_{nullptr};
+  QComboBox* vector_stroke_dash_combo_{nullptr};
   // Debounces live-editing bursts (stroke-width spin / its popup slider) into
   // one undo entry + one rasterize.
   QTimer* vector_appearance_apply_timer_{nullptr};

@@ -3706,6 +3706,14 @@
         <translation>Patchy hat die bearbeitbaren Daten, die es versteht, beibehalten und Bereiche markiert, die von Photoshop oder anderen PSD-Editoren abweichen können.</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>Nicht mehr anzeigen</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>Importwarnungen und Hinweise erscheinen ab jetzt in der Statusleiste. Das Popup lässt sich unter Voreinstellungen &gt; Anwendung wieder einschalten.</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>Gradationskurven-Diagramm</translation>
     </message>
@@ -16314,38 +16322,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Clone source cleared</source>
         <translation>Kopierquelle entfernt</translation>
     </message>
-    <message>
-        <source>Break path</source>
-        <translation>Pfad teilen</translation>
-    </message>
-    <message>
-        <source>Join end points</source>
-        <translation>Endpunkte verbinden</translation>
-    </message>
-    <message>
-        <source>Merge points</source>
-        <translation>Punkte zusammenführen</translation>
-    </message>
-    <message>
-        <source>Delete segment</source>
-        <translation>Segment löschen</translation>
-    </message>
-    <message>
-        <source>Break Path at Point</source>
-        <translation>Pfad an Punkt teilen</translation>
-    </message>
-    <message>
-        <source>Join End Points</source>
-        <translation>Endpunkte verbinden</translation>
-    </message>
-    <message>
-        <source>Merge into One Point</source>
-        <translation>Zu einem Punkt zusammenführen</translation>
-    </message>
-    <message>
-        <source>Delete Segment</source>
-        <translation>Segment löschen</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -24623,6 +24599,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1 angewendet (%2 macht es rückgängig)</translation>
     </message>
     <message>
@@ -29143,168 +29120,8 @@ Fixiert: %1</translation>
         <translation>&amp;Befehle suchen...</translation>
     </message>
     <message>
-        <source>The selected shapes only cut into others and paint nothing of their own</source>
-        <translation>Die ausgewählten Formen schneiden nur aus anderen aus und malen selbst nichts</translation>
-    </message>
-    <message>
-        <source>Shapes combined with Intersect or Exclude share one color</source>
-        <translation>Mit Schnittmenge oder Ausschließen kombinierte Formen haben eine gemeinsame Farbe</translation>
-    </message>
-    <message>
-        <source>An inverted shape has one color</source>
-        <translation>Eine umgekehrte Form hat eine Farbe</translation>
-    </message>
-    <message>
-        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
-        <translation>Wählen Sie Formen auf einer Formebene mit Pfadauswahl oder Direktauswahl aus</translation>
-    </message>
-    <message>
-        <source>Break Path at Point</source>
-        <translation>Pfad an Punkt teilen</translation>
-    </message>
-    <message>
-        <source>Open the path at the selected points</source>
-        <translation>Den Pfad an den ausgewählten Punkten öffnen</translation>
-    </message>
-    <message>
-        <source>Join End Points</source>
-        <translation>Endpunkte verbinden</translation>
-    </message>
-    <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>Die beiden ausgewählten Endpunkte mit einem geraden Segment verbinden</translation>
-    </message>
-    <message>
-        <source>Merge into One Point</source>
-        <translation>Zu einem Punkt zusammenführen</translation>
-    </message>
-    <message>
-        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
-        <translation>Die ausgewählten Endpunkte oder eine Reihe ausgewählter Punkte zu einem Punkt in ihrer Mitte zusammenführen</translation>
-    </message>
-    <message>
-        <source>Delete Segment</source>
-        <translation>Segment löschen</translation>
-    </message>
-    <message>
-        <source>Delete the selected segments and leave the path open</source>
-        <translation>Die ausgewählten Segmente löschen und den Pfad dort offen lassen</translation>
-    </message>
-    <message>
-        <source>Color Selected Shapes...</source>
-        <translation>Ausgewählte Formen einfärben...</translation>
-    </message>
-    <message>
-        <source>Give the selected shapes a fill color of their own</source>
-        <translation>Den ausgewählten Formen eine eigene Füllfarbe geben</translation>
-    </message>
-    <message>
-        <source>Move Selected Shapes to New Layer</source>
-        <translation>Ausgewählte Formen auf neue Ebene verschieben</translation>
-    </message>
-    <message>
-        <source>Move the selected shapes to a new shape layer above</source>
-        <translation>Die ausgewählten Formen auf eine neue Formebene darüber verschieben</translation>
-    </message>
-    <message>
-        <source>Copy Selected Shapes to New Layer</source>
-        <translation>Ausgewählte Formen auf neue Ebene kopieren</translation>
-    </message>
-    <message>
-        <source>Copy the selected shapes to a new shape layer above</source>
-        <translation>Die ausgewählten Formen auf eine neue Formebene darüber kopieren</translation>
-    </message>
-    <message>
-        <source>Cut Shapes</source>
-        <translation>Formen ausschneiden</translation>
-    </message>
-    <message>
-        <source>Cut the selected shapes</source>
-        <translation>Die ausgewählten Formen ausschneiden</translation>
-    </message>
-    <message>
-        <source>Copy Shapes</source>
-        <translation>Formen kopieren</translation>
-    </message>
-    <message>
-        <source>Copy the selected shapes</source>
-        <translation>Die ausgewählten Formen kopieren</translation>
-    </message>
-    <message>
-        <source>Paste Shapes</source>
-        <translation>Formen einfügen</translation>
-    </message>
-    <message>
-        <source>Paste the copied shapes into the target path</source>
-        <translation>Die kopierten Formen in den Zielpfad einfügen</translation>
-    </message>
-    <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>Wählen Sie mit der Direktauswahl einen Punkt innerhalb eines Pfads oder einen beliebigen Punkt eines geschlossenen Pfads aus</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>Wählen Sie mit der Direktauswahl zwei Endpunkte offener Pfade aus</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>Wählen Sie mit der Direktauswahl zwei Endpunkte oder benachbarte Punkte eines Pfads aus</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>Wählen Sie mit der Direktauswahl ein Segment (seine beiden Punkte) aus</translation>
-    </message>
-    <message>
-        <source>Cut shapes</source>
-        <translation>Formen ausschneiden</translation>
-    </message>
-    <message>
-        <source>Cut %1 shape(s)</source>
-        <translation>%1 Form(en) ausgeschnitten</translation>
-    </message>
-    <message>
-        <source>Copied %1 shape(s)</source>
-        <translation>%1 Form(en) kopiert</translation>
-    </message>
-    <message>
-        <source>Paste shapes</source>
-        <translation>Formen einfügen</translation>
-    </message>
-    <message>
-        <source>Pasted %1 shape(s)</source>
-        <translation>%1 Form(en) eingefügt</translation>
-    </message>
-    <message>
-        <source>Shape color</source>
-        <translation>Formfarbe</translation>
-    </message>
-    <message>
-        <source>Colored %1 shape(s)</source>
-        <translation>%1 Form(en) eingefärbt</translation>
-    </message>
-    <message>
-        <source>Shape Color</source>
-        <translation>Formfarbe</translation>
-    </message>
-    <message>
-        <source>Select shapes with Path Select or Direct Select first</source>
-        <translation>Wählen Sie zuerst Formen mit Pfadauswahl oder Direktauswahl aus</translation>
-    </message>
-    <message>
-        <source>Copy shapes to new layer</source>
-        <translation>Formen auf neue Ebene kopieren</translation>
-    </message>
-    <message>
-        <source>Move shapes to new layer</source>
-        <translation>Formen auf neue Ebene verschieben</translation>
-    </message>
-    <message>
-        <source>Copied %1 shape(s) to a new layer</source>
-        <translation>%1 Form(en) auf eine neue Ebene kopiert</translation>
-    </message>
-    <message>
-        <source>Moved %1 shape(s) to a new layer</source>
-        <translation>%1 Form(en) auf eine neue Ebene verschoben</translation>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Striche der Kontur. Strich-Vorgaben verwenden einen abgeflachten Abschluss, Punkt-Vorgaben einen runden Abschluss und runde Ecken</translation>
     </message>
 </context>
 <context>

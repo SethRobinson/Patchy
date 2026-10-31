@@ -52,6 +52,8 @@ struct ShapeAppearanceSettings {
 // usable pattern; an odd count repeats once (SVG's reading).
 [[nodiscard]] QString dash_pattern_text(const std::vector<double>& dashes);
 [[nodiscard]] std::optional<std::vector<double>> parse_dash_pattern_text(const QString& text);
+// A dash preset's name, as the Dashes combo and the options bar's dash combo show it.
+[[nodiscard]] QString stroke_dash_preset_label(StrokeDashPreset preset);
 
 // Live-preview dialog for a shape layer's fill and stroke (the
 // request_levels_settings convention): every control change fires

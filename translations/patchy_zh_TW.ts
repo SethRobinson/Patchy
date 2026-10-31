@@ -3699,6 +3699,14 @@
         <translation>Patchy 已保留其可理解的可編輯資料，並標示出可能與 Photoshop 或其他 PSD 編輯器不同的部分。</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>不再顯示</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>今後匯入警告和注意事項將顯示於狀態列。可在 偏好設定 &gt; 應用程式 中重新開啟彈出視窗。</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>曲線圖表</translation>
     </message>
@@ -16271,38 +16279,6 @@ Each item&apos;s own View setting still applies.</source>
         <source>Clone source cleared</source>
         <translation>仿製來源已清除</translation>
     </message>
-    <message>
-        <source>Break path</source>
-        <translation>分割路徑</translation>
-    </message>
-    <message>
-        <source>Join end points</source>
-        <translation>連接端點</translation>
-    </message>
-    <message>
-        <source>Merge points</source>
-        <translation>合併錨點</translation>
-    </message>
-    <message>
-        <source>Delete segment</source>
-        <translation>刪除線段</translation>
-    </message>
-    <message>
-        <source>Break Path at Point</source>
-        <translation>在錨點處分割路徑</translation>
-    </message>
-    <message>
-        <source>Join End Points</source>
-        <translation>連接端點</translation>
-    </message>
-    <message>
-        <source>Merge into One Point</source>
-        <translation>合併為一個錨點</translation>
-    </message>
-    <message>
-        <source>Delete Segment</source>
-        <translation>刪除線段</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -24554,6 +24530,7 @@ Y：%2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>已套用 %1（按 %2 可還原）</translation>
     </message>
     <message>
@@ -29061,168 +29038,8 @@ Locked: %1</source>
         <translation>搜尋命令(&amp;C)...</translation>
     </message>
     <message>
-        <source>The selected shapes only cut into others and paint nothing of their own</source>
-        <translation>選取的形狀只會從其他形狀中減去，本身不繪製任何內容</translation>
-    </message>
-    <message>
-        <source>Shapes combined with Intersect or Exclude share one color</source>
-        <translation>以相交或排除組合的形狀共用一種顏色</translation>
-    </message>
-    <message>
-        <source>An inverted shape has one color</source>
-        <translation>反轉的形狀只有一種顏色</translation>
-    </message>
-    <message>
-        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
-        <translation>請用路徑選取或直接選取工具選取形狀圖層上的形狀</translation>
-    </message>
-    <message>
-        <source>Break Path at Point</source>
-        <translation>在錨點處分割路徑</translation>
-    </message>
-    <message>
-        <source>Open the path at the selected points</source>
-        <translation>在選取的錨點處分割路徑</translation>
-    </message>
-    <message>
-        <source>Join End Points</source>
-        <translation>連接端點</translation>
-    </message>
-    <message>
-        <source>Join the two selected end points with a straight segment</source>
-        <translation>以直線段連接兩個選取的端點</translation>
-    </message>
-    <message>
-        <source>Merge into One Point</source>
-        <translation>合併為一個錨點</translation>
-    </message>
-    <message>
-        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
-        <translation>將選取的端點或一串選取的錨點合併為位於其中間的一個錨點</translation>
-    </message>
-    <message>
-        <source>Delete Segment</source>
-        <translation>刪除線段</translation>
-    </message>
-    <message>
-        <source>Delete the selected segments and leave the path open</source>
-        <translation>刪除選取的線段，讓路徑保持開放</translation>
-    </message>
-    <message>
-        <source>Color Selected Shapes...</source>
-        <translation>為選取的形狀上色...</translation>
-    </message>
-    <message>
-        <source>Give the selected shapes a fill color of their own</source>
-        <translation>為選取的形狀設定獨立的填色</translation>
-    </message>
-    <message>
-        <source>Move Selected Shapes to New Layer</source>
-        <translation>將選取的形狀移到新圖層</translation>
-    </message>
-    <message>
-        <source>Move the selected shapes to a new shape layer above</source>
-        <translation>將選取的形狀移到上方的新形狀圖層</translation>
-    </message>
-    <message>
-        <source>Copy Selected Shapes to New Layer</source>
-        <translation>將選取的形狀拷貝到新圖層</translation>
-    </message>
-    <message>
-        <source>Copy the selected shapes to a new shape layer above</source>
-        <translation>將選取的形狀拷貝到上方的新形狀圖層</translation>
-    </message>
-    <message>
-        <source>Cut Shapes</source>
-        <translation>剪下形狀</translation>
-    </message>
-    <message>
-        <source>Cut the selected shapes</source>
-        <translation>剪下選取的形狀</translation>
-    </message>
-    <message>
-        <source>Copy Shapes</source>
-        <translation>拷貝形狀</translation>
-    </message>
-    <message>
-        <source>Copy the selected shapes</source>
-        <translation>拷貝選取的形狀</translation>
-    </message>
-    <message>
-        <source>Paste Shapes</source>
-        <translation>貼上形狀</translation>
-    </message>
-    <message>
-        <source>Paste the copied shapes into the target path</source>
-        <translation>將拷貝的形狀貼到目標路徑</translation>
-    </message>
-    <message>
-        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
-        <translation>請用直接選取工具選取路徑內部的錨點，或封閉路徑的任一錨點</translation>
-    </message>
-    <message>
-        <source>Select two end points of open paths with Direct Select</source>
-        <translation>請用直接選取工具選取開放路徑的兩個端點</translation>
-    </message>
-    <message>
-        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
-        <translation>請用直接選取工具選取兩個端點，或同一路徑上相鄰的錨點</translation>
-    </message>
-    <message>
-        <source>Select a segment (both of its points) with Direct Select</source>
-        <translation>請用直接選取工具選取一條線段（它的兩個錨點）</translation>
-    </message>
-    <message>
-        <source>Cut shapes</source>
-        <translation>剪下形狀</translation>
-    </message>
-    <message>
-        <source>Cut %1 shape(s)</source>
-        <translation>已剪下 %1 個形狀</translation>
-    </message>
-    <message>
-        <source>Copied %1 shape(s)</source>
-        <translation>已拷貝 %1 個形狀</translation>
-    </message>
-    <message>
-        <source>Paste shapes</source>
-        <translation>貼上形狀</translation>
-    </message>
-    <message>
-        <source>Pasted %1 shape(s)</source>
-        <translation>已貼上 %1 個形狀</translation>
-    </message>
-    <message>
-        <source>Shape color</source>
-        <translation>形狀顏色</translation>
-    </message>
-    <message>
-        <source>Colored %1 shape(s)</source>
-        <translation>已為 %1 個形狀上色</translation>
-    </message>
-    <message>
-        <source>Shape Color</source>
-        <translation>形狀顏色</translation>
-    </message>
-    <message>
-        <source>Select shapes with Path Select or Direct Select first</source>
-        <translation>請先用路徑選取或直接選取工具選取形狀</translation>
-    </message>
-    <message>
-        <source>Copy shapes to new layer</source>
-        <translation>將形狀拷貝到新圖層</translation>
-    </message>
-    <message>
-        <source>Move shapes to new layer</source>
-        <translation>將形狀移到新圖層</translation>
-    </message>
-    <message>
-        <source>Copied %1 shape(s) to a new layer</source>
-        <translation>已將 %1 個形狀拷貝到新圖層</translation>
-    </message>
-    <message>
-        <source>Moved %1 shape(s) to a new layer</source>
-        <translation>已將 %1 個形狀移到新圖層</translation>
+        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>描邊虛線。虛線預設使用平端端點；點線預設使用圓形端點和圓形轉角</translation>
     </message>
 </context>
 <context>
