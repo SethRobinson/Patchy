@@ -16708,7 +16708,571 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::CommandSearch</name>
     <message>
-        <source>Search menu commands</source>
+        <source>Create a new blank image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open an image file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New image from the clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open every image in a folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save to a new file or format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save a flattened copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Optimize and save for the web</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the layers as a GIF animation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Combine the layers into one sheet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insert an image as a Smart Object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insert a linked image file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open several images as layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan an image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Author, copyright and other metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove EXIF and other metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Settings and options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Patchy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Take back the last change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Redo the change you took back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the selection to the clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selection to the clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy what all visible layers show</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste from the clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste at the same position</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with a color or pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw an outline along the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale, rotate or move freely</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resize the layer or selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the layer or selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bend the layer with a grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase an object and fill the gap</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a brush from the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a custom shape from a path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the color profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage pattern presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resize or scale the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add or remove space around the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop the image to the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove empty borders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set the black point, white point and midtones</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adjust the tones with a curve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change colors, saturation and lightness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift the colors of shadows and highlights</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the image gray</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make muted colors stronger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brighten or darken the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fix tone and color automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reduce the image to a color palette</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use 16 bits per channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add an empty layer at once</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the layer name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put the selected layers in a folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selection to a new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the selection to a new layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Combine with the layer below</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Combine all visible layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a layer mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bake the mask into the pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drop shadow, stroke, glow and other effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clip to the layer below</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show or hide layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Protect layers from changes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the layer up the stack</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the layer down the stack</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with the foreground color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with the background color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase the layer or selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select the whole image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bring back the last selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Swap selected and unselected areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select every layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the selection larger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the selection smaller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a band along the edge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add neighboring similar colors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add similar colors anywhere</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paint a selection as a mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magnify the view</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show more of the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the whole image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom to 100%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show or hide the rulers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show or hide the grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show or hide the guides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Line up with guides and edges while dragging</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the pixel grid when zoomed in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a guide line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove all guides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move layers and selections</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a rectangle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select an ellipse or circle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a freehand selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select with straight edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select along edges it finds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select similar colors with a click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paint a selection that finds edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select an object automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paint with a brush</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mix paint with the colors under it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy pixels from one place to another</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paint with a pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Repair blemishes with sampled pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove spots with one click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Replace an area with pixels from elsewhere</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fix red eyes in photos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smear paint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lighten areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Darken areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the color saturation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soften areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sharpen areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a color gradient</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill an area with color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a straight line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a rectangle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw an ellipse or circle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a polygon or star</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw a custom shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pick a color from the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Measure distances and angles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom in and out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw paths and curves</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit points and handles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a point to a path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove a point from a path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch points between corner and smooth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop or straighten the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop and fix the perspective</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add and arrange artboards</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search commands and tools</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -16969,10 +17533,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17046,6 +17606,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Scripts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

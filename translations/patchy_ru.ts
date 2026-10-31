@@ -16768,8 +16768,572 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::CommandSearch</name>
     <message>
-        <source>Search menu commands</source>
-        <translation>Поиск команд меню</translation>
+        <source>Create a new blank image</source>
+        <translation>Создать новое пустое изображение</translation>
+    </message>
+    <message>
+        <source>Open an image file</source>
+        <translation>Открыть файл изображения</translation>
+    </message>
+    <message>
+        <source>New image from the clipboard</source>
+        <translation>Новое изображение из буфера обмена</translation>
+    </message>
+    <message>
+        <source>Open every image in a folder</source>
+        <translation>Открыть все изображения из папки</translation>
+    </message>
+    <message>
+        <source>Save the document</source>
+        <translation>Сохранить документ</translation>
+    </message>
+    <message>
+        <source>Save to a new file or format</source>
+        <translation>Сохранить в новый файл или формат</translation>
+    </message>
+    <message>
+        <source>Save a flattened copy</source>
+        <translation>Сохранить сведённую копию</translation>
+    </message>
+    <message>
+        <source>Optimize and save for the web</source>
+        <translation>Оптимизировать и сохранить для веба</translation>
+    </message>
+    <message>
+        <source>Save the layers as a GIF animation</source>
+        <translation>Сохранить слои как GIF-анимацию</translation>
+    </message>
+    <message>
+        <source>Combine the layers into one sheet</source>
+        <translation>Объединить слои в один лист</translation>
+    </message>
+    <message>
+        <source>Insert an image as a Smart Object</source>
+        <translation>Вставить изображение как смарт-объект</translation>
+    </message>
+    <message>
+        <source>Insert a linked image file</source>
+        <translation>Вставить связанный файл изображения</translation>
+    </message>
+    <message>
+        <source>Open several images as layers</source>
+        <translation>Открыть несколько изображений как слои</translation>
+    </message>
+    <message>
+        <source>Scan an image</source>
+        <translation>Сканировать изображение</translation>
+    </message>
+    <message>
+        <source>Author, copyright and other metadata</source>
+        <translation>Автор, авторские права и другие метаданные</translation>
+    </message>
+    <message>
+        <source>Remove EXIF and other metadata</source>
+        <translation>Удалить EXIF и другие метаданные</translation>
+    </message>
+    <message>
+        <source>Print the image</source>
+        <translation>Напечатать изображение</translation>
+    </message>
+    <message>
+        <source>Close the document</source>
+        <translation>Закрыть документ</translation>
+    </message>
+    <message>
+        <source>Settings and options</source>
+        <translation>Настройки и параметры</translation>
+    </message>
+    <message>
+        <source>Exit Patchy</source>
+        <translation>Выйти из Patchy</translation>
+    </message>
+    <message>
+        <source>Take back the last change</source>
+        <translation>Отменить последнее изменение</translation>
+    </message>
+    <message>
+        <source>Redo the change you took back</source>
+        <translation>Повторить отменённое изменение</translation>
+    </message>
+    <message>
+        <source>Move the selection to the clipboard</source>
+        <translation>Переместить выделение в буфер обмена</translation>
+    </message>
+    <message>
+        <source>Copy the selection to the clipboard</source>
+        <translation>Скопировать выделение в буфер обмена</translation>
+    </message>
+    <message>
+        <source>Copy what all visible layers show</source>
+        <translation>Скопировать то, что показывают все видимые слои</translation>
+    </message>
+    <message>
+        <source>Paste from the clipboard</source>
+        <translation>Вставить из буфера обмена</translation>
+    </message>
+    <message>
+        <source>Paste at the same position</source>
+        <translation>Вставить в то же место</translation>
+    </message>
+    <message>
+        <source>Fill with a color or pattern</source>
+        <translation>Заливка цветом или узором</translation>
+    </message>
+    <message>
+        <source>Draw an outline along the selection</source>
+        <translation>Обвести контур вдоль выделения</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or move freely</source>
+        <translation>Свободно масштабировать, поворачивать или перемещать</translation>
+    </message>
+    <message>
+        <source>Resize the layer or selection</source>
+        <translation>Изменить размер слоя или выделения</translation>
+    </message>
+    <message>
+        <source>Turn the layer or selection</source>
+        <translation>Повернуть слой или выделение</translation>
+    </message>
+    <message>
+        <source>Bend the layer with a grid</source>
+        <translation>Изогнуть слой с помощью сетки</translation>
+    </message>
+    <message>
+        <source>Erase an object and fill the gap</source>
+        <translation>Стереть объект и заполнить пустоту</translation>
+    </message>
+    <message>
+        <source>Make a brush from the selection</source>
+        <translation>Создать кисть из выделения</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from a path</source>
+        <translation>Создать произвольную фигуру из контура</translation>
+    </message>
+    <message>
+        <source>Change the color profile</source>
+        <translation>Изменить цветовой профиль</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Управление наборами градиентов</translation>
+    </message>
+    <message>
+        <source>Manage pattern presets</source>
+        <translation>Управление наборами узоров</translation>
+    </message>
+    <message>
+        <source>Resize or scale the image</source>
+        <translation>Изменить размер или масштаб изображения</translation>
+    </message>
+    <message>
+        <source>Add or remove space around the image</source>
+        <translation>Добавить или убрать место вокруг изображения</translation>
+    </message>
+    <message>
+        <source>Crop the image to the selection</source>
+        <translation>Обрезать изображение по выделению</translation>
+    </message>
+    <message>
+        <source>Remove empty borders</source>
+        <translation>Удалить пустые края</translation>
+    </message>
+    <message>
+        <source>Set the black point, white point and midtones</source>
+        <translation>Задать точку чёрного, точку белого и средние тона</translation>
+    </message>
+    <message>
+        <source>Adjust the tones with a curve</source>
+        <translation>Настроить тона с помощью кривой</translation>
+    </message>
+    <message>
+        <source>Change colors, saturation and lightness</source>
+        <translation>Изменить цвета, насыщенность и яркость</translation>
+    </message>
+    <message>
+        <source>Shift the colors of shadows and highlights</source>
+        <translation>Сместить цвета теней и светов</translation>
+    </message>
+    <message>
+        <source>Turn the image gray</source>
+        <translation>Сделать изображение серым</translation>
+    </message>
+    <message>
+        <source>Make muted colors stronger</source>
+        <translation>Усилить приглушённые цвета</translation>
+    </message>
+    <message>
+        <source>Brighten or darken the image</source>
+        <translation>Осветлить или затемнить изображение</translation>
+    </message>
+    <message>
+        <source>Fix tone and color automatically</source>
+        <translation>Автоматически исправить тон и цвет</translation>
+    </message>
+    <message>
+        <source>Reduce the image to a color palette</source>
+        <translation>Свести изображение к палитре цветов</translation>
+    </message>
+    <message>
+        <source>Use 16 bits per channel</source>
+        <translation>Использовать 16 бит на канал</translation>
+    </message>
+    <message>
+        <source>Add New Layer</source>
+        <translation>Добавить новый слой</translation>
+    </message>
+    <message>
+        <source>Add an empty layer at once</source>
+        <translation>Сразу добавить пустой слой</translation>
+    </message>
+    <message>
+        <source>Copy the layer</source>
+        <translation>Скопировать слой</translation>
+    </message>
+    <message>
+        <source>Remove the layer</source>
+        <translation>Удалить слой</translation>
+    </message>
+    <message>
+        <source>Change the layer name</source>
+        <translation>Изменить имя слоя</translation>
+    </message>
+    <message>
+        <source>Put the selected layers in a folder</source>
+        <translation>Поместить выбранные слои в папку</translation>
+    </message>
+    <message>
+        <source>Copy the selection to a new layer</source>
+        <translation>Скопировать выделение на новый слой</translation>
+    </message>
+    <message>
+        <source>Move the selection to a new layer</source>
+        <translation>Переместить выделение на новый слой</translation>
+    </message>
+    <message>
+        <source>Combine with the layer below</source>
+        <translation>Объединить со слоем ниже</translation>
+    </message>
+    <message>
+        <source>Combine all visible layers</source>
+        <translation>Объединить все видимые слои</translation>
+    </message>
+    <message>
+        <source>Add a layer mask</source>
+        <translation>Добавить маску слоя</translation>
+    </message>
+    <message>
+        <source>Bake the mask into the pixels</source>
+        <translation>Применить маску к пикселям</translation>
+    </message>
+    <message>
+        <source>Drop shadow, stroke, glow and other effects</source>
+        <translation>Тень, обводка, свечение и другие эффекты</translation>
+    </message>
+    <message>
+        <source>Clip to the layer below</source>
+        <translation>Обрезать по слою ниже</translation>
+    </message>
+    <message>
+        <source>Show or hide layers</source>
+        <translation>Показать или скрыть слои</translation>
+    </message>
+    <message>
+        <source>Protect layers from changes</source>
+        <translation>Защитить слои от изменений</translation>
+    </message>
+    <message>
+        <source>Move the layer up the stack</source>
+        <translation>Переместить слой выше в стопке</translation>
+    </message>
+    <message>
+        <source>Move the layer down the stack</source>
+        <translation>Переместить слой ниже в стопке</translation>
+    </message>
+    <message>
+        <source>Fill with the foreground color</source>
+        <translation>Залить основным цветом</translation>
+    </message>
+    <message>
+        <source>Fill with the background color</source>
+        <translation>Залить фоновым цветом</translation>
+    </message>
+    <message>
+        <source>Erase the layer or selection</source>
+        <translation>Стереть слой или выделение</translation>
+    </message>
+    <message>
+        <source>Select the whole image</source>
+        <translation>Выделить всё изображение</translation>
+    </message>
+    <message>
+        <source>Clear the selection</source>
+        <translation>Снять выделение</translation>
+    </message>
+    <message>
+        <source>Bring back the last selection</source>
+        <translation>Вернуть последнее выделение</translation>
+    </message>
+    <message>
+        <source>Swap selected and unselected areas</source>
+        <translation>Поменять выделенные и невыделенные области</translation>
+    </message>
+    <message>
+        <source>Select every layer</source>
+        <translation>Выбрать все слои</translation>
+    </message>
+    <message>
+        <source>Make the selection larger</source>
+        <translation>Увеличить выделение</translation>
+    </message>
+    <message>
+        <source>Make the selection smaller</source>
+        <translation>Уменьшить выделение</translation>
+    </message>
+    <message>
+        <source>Select a band along the edge</source>
+        <translation>Выделить полосу вдоль края</translation>
+    </message>
+    <message>
+        <source>Add neighboring similar colors</source>
+        <translation>Добавить соседние похожие цвета</translation>
+    </message>
+    <message>
+        <source>Add similar colors anywhere</source>
+        <translation>Добавить похожие цвета по всему изображению</translation>
+    </message>
+    <message>
+        <source>Paint a selection as a mask</source>
+        <translation>Нарисовать выделение как маску</translation>
+    </message>
+    <message>
+        <source>Magnify the view</source>
+        <translation>Увеличить вид</translation>
+    </message>
+    <message>
+        <source>Show more of the image</source>
+        <translation>Показать большую часть изображения</translation>
+    </message>
+    <message>
+        <source>Show the whole image</source>
+        <translation>Показать всё изображение</translation>
+    </message>
+    <message>
+        <source>Zoom to 100%</source>
+        <translation>Масштаб 100%</translation>
+    </message>
+    <message>
+        <source>Show or hide the rulers</source>
+        <translation>Показать или скрыть линейки</translation>
+    </message>
+    <message>
+        <source>Show or hide the grid</source>
+        <translation>Показать или скрыть сетку</translation>
+    </message>
+    <message>
+        <source>Show or hide the guides</source>
+        <translation>Показать или скрыть направляющие</translation>
+    </message>
+    <message>
+        <source>Line up with guides and edges while dragging</source>
+        <translation>Выравнивать по направляющим и краям при перетаскивании</translation>
+    </message>
+    <message>
+        <source>Show the pixel grid when zoomed in</source>
+        <translation>Показывать пиксельную сетку при увеличении</translation>
+    </message>
+    <message>
+        <source>Add a guide line</source>
+        <translation>Добавить направляющую</translation>
+    </message>
+    <message>
+        <source>Remove all guides</source>
+        <translation>Удалить все направляющие</translation>
+    </message>
+    <message>
+        <source>Move layers and selections</source>
+        <translation>Перемещать слои и выделения</translation>
+    </message>
+    <message>
+        <source>Select a rectangle</source>
+        <translation>Выделить прямоугольник</translation>
+    </message>
+    <message>
+        <source>Select an ellipse or circle</source>
+        <translation>Выделить эллипс или круг</translation>
+    </message>
+    <message>
+        <source>Draw a freehand selection</source>
+        <translation>Нарисовать выделение от руки</translation>
+    </message>
+    <message>
+        <source>Select with straight edges</source>
+        <translation>Выделять прямыми отрезками</translation>
+    </message>
+    <message>
+        <source>Select along edges it finds</source>
+        <translation>Выделять вдоль найденных краёв</translation>
+    </message>
+    <message>
+        <source>Select similar colors with a click</source>
+        <translation>Выделить похожие цвета щелчком</translation>
+    </message>
+    <message>
+        <source>Paint a selection that finds edges</source>
+        <translation>Рисовать выделение, которое находит края</translation>
+    </message>
+    <message>
+        <source>Select an object automatically</source>
+        <translation>Выделить объект автоматически</translation>
+    </message>
+    <message>
+        <source>Paint with a brush</source>
+        <translation>Рисовать кистью</translation>
+    </message>
+    <message>
+        <source>Mix paint with the colors under it</source>
+        <translation>Смешивать краску с цветами под ней</translation>
+    </message>
+    <message>
+        <source>Copy pixels from one place to another</source>
+        <translation>Копировать пиксели из одного места в другое</translation>
+    </message>
+    <message>
+        <source>Paint with a pattern</source>
+        <translation>Рисовать узором</translation>
+    </message>
+    <message>
+        <source>Repair blemishes with sampled pixels</source>
+        <translation>Исправлять дефекты образцами пикселей</translation>
+    </message>
+    <message>
+        <source>Remove spots with one click</source>
+        <translation>Удалять пятна одним щелчком</translation>
+    </message>
+    <message>
+        <source>Replace an area with pixels from elsewhere</source>
+        <translation>Заменить область пикселями из другого места</translation>
+    </message>
+    <message>
+        <source>Fix red eyes in photos</source>
+        <translation>Устранить эффект красных глаз на фото</translation>
+    </message>
+    <message>
+        <source>Smear paint</source>
+        <translation>Размазывать краску</translation>
+    </message>
+    <message>
+        <source>Lighten areas</source>
+        <translation>Осветлять области</translation>
+    </message>
+    <message>
+        <source>Darken areas</source>
+        <translation>Затемнять области</translation>
+    </message>
+    <message>
+        <source>Change the color saturation</source>
+        <translation>Изменять насыщенность цвета</translation>
+    </message>
+    <message>
+        <source>Soften areas</source>
+        <translation>Смягчать области</translation>
+    </message>
+    <message>
+        <source>Sharpen areas</source>
+        <translation>Повышать резкость областей</translation>
+    </message>
+    <message>
+        <source>Erase pixels</source>
+        <translation>Стирать пиксели</translation>
+    </message>
+    <message>
+        <source>Draw a color gradient</source>
+        <translation>Рисовать цветовой градиент</translation>
+    </message>
+    <message>
+        <source>Fill an area with color</source>
+        <translation>Залить область цветом</translation>
+    </message>
+    <message>
+        <source>Draw a straight line</source>
+        <translation>Нарисовать прямую линию</translation>
+    </message>
+    <message>
+        <source>Draw a rectangle</source>
+        <translation>Нарисовать прямоугольник</translation>
+    </message>
+    <message>
+        <source>Draw an ellipse or circle</source>
+        <translation>Нарисовать эллипс или круг</translation>
+    </message>
+    <message>
+        <source>Draw a polygon or star</source>
+        <translation>Нарисовать многоугольник или звезду</translation>
+    </message>
+    <message>
+        <source>Draw a custom shape</source>
+        <translation>Нарисовать произвольную фигуру</translation>
+    </message>
+    <message>
+        <source>Pick a color from the image</source>
+        <translation>Взять цвет из изображения</translation>
+    </message>
+    <message>
+        <source>Measure distances and angles</source>
+        <translation>Измерять расстояния и углы</translation>
+    </message>
+    <message>
+        <source>Add text</source>
+        <translation>Добавить текст</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>Прокручивать вид</translation>
+    </message>
+    <message>
+        <source>Zoom in and out</source>
+        <translation>Увеличивать и уменьшать масштаб</translation>
+    </message>
+    <message>
+        <source>Draw paths and curves</source>
+        <translation>Рисовать контуры и кривые</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes</source>
+        <translation>Выделять и перемещать фигуры целиком</translation>
+    </message>
+    <message>
+        <source>Edit points and handles</source>
+        <translation>Редактировать точки и маркеры</translation>
+    </message>
+    <message>
+        <source>Add a point to a path</source>
+        <translation>Добавить точку на контур</translation>
+    </message>
+    <message>
+        <source>Remove a point from a path</source>
+        <translation>Удалить точку с контура</translation>
+    </message>
+    <message>
+        <source>Switch points between corner and smooth</source>
+        <translation>Переключать точки между угловой и гладкой</translation>
+    </message>
+    <message>
+        <source>Crop or straighten the image</source>
+        <translation>Обрезать или выровнять изображение</translation>
+    </message>
+    <message>
+        <source>Crop and fix the perspective</source>
+        <translation>Обрезать и исправить перспективу</translation>
+    </message>
+    <message>
+        <source>Add and arrange artboards</source>
+        <translation>Добавлять и размещать монтажные области</translation>
+    </message>
+    <message>
+        <source>Search commands and tools</source>
+        <translation>Поиск команд и инструментов</translation>
     </message>
 </context>
 <context>
@@ -17030,10 +17594,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Панорамирование холста (удерживать); при перетаскивании перемещает выделение или фигуру</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>Установите непрозрачность инструмента (10–100 %).</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>Сдвинуть слой на 1&#xa0;пиксель/10&#xa0;пикселей.</translation>
     </message>
@@ -17108,6 +17668,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Scripts</source>
         <translation>Скрипты</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <translation>Установить непрозрачность инструмента или слоя (1–100 %; введите две цифры для точного значения)</translation>
     </message>
 </context>
 <context>

@@ -1901,7 +1901,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   snapping_layout->addStretch(1);
   add_page(snapping_page, tr("Snapping"), QStringLiteral("snapping"));
 
-  auto [hotkeys_page, hotkeys_layout] = make_tab_page(page_stack);
+  // No page-level scroll area here: the panel keeps its search row on top and scrolls only
+  // its command list (GitHub issue 561). The insets match a scrolled page's, less the right
+  // one, so the list's scroll bar sits at the page edge like the others'.
+  auto* hotkeys_page = new QWidget(page_stack);
+  hotkeys_page->setObjectName(QStringLiteral("preferencesTabHost"));
+  auto* hotkeys_layout = new QVBoxLayout(hotkeys_page);
+  hotkeys_layout->setContentsMargins(12, 18, 0, 6);
+  hotkeys_layout->setSpacing(10);
   hotkeys_layout->addStretch(1);
   const int hotkeys_tab_index = add_page(hotkeys_page, tr("Hotkeys"), QStringLiteral("hotkeys"));
 
@@ -1927,7 +1934,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     // A script added since startup gets its row too.
     refresh_script_commands(scan_scripts(bundled_scripts_directory(), user_scripts_directory()));
     hotkey_editor = new HotkeyEditorPanel(hotkey_registry_, menuBar(), hotkeys_page);
-    hotkeys_layout->insertWidget(0, hotkey_editor);
+    hotkeys_layout->insertWidget(0, hotkey_editor, 1);
+    // The panel takes the page's height; the stretch only held the loading note up top.
+    hotkeys_layout->setStretch(hotkeys_layout->count() - 1, 0);
     // Shown now: a widget added to a page already on screen otherwise shows one event later,
     // after the "Loading..." note has gone.
     hotkey_editor->show();
@@ -2283,6 +2292,13 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
         page_content_width = std::max(page_content_width, content_widget->minimumSizeHint().width() +
                                                               scroll->verticalScrollBar()->sizeHint().width());
       }
+    }
+    // The Hotkeys page scrolls only its command list, inside the panel (GitHub issue 561).
+    if (const auto* list_scroll = page_stack->findChild<QScrollArea*>(QStringLiteral("hotkeyListScroll"));
+        list_scroll != nullptr && list_scroll->widget() != nullptr) {
+      list_scroll->widget()->ensurePolished();
+      page_content_width = std::max(page_content_width, 12 + list_scroll->widget()->minimumSizeHint().width() +
+                                                            list_scroll->verticalScrollBar()->sizeHint().width());
     }
     page_stack->setMinimumWidth(page_content_width + 2 * page_stack->frameWidth());
 

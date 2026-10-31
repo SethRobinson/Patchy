@@ -373,8 +373,8 @@ its row by its shortest repeating period (GIMP repeats each pattern to fill its 
 GIMP's Dense dots on Butt caps is Dotted; arrays matching no preset show as Custom.
 Dash offset (`shapeStrokeDashOffsetSpin`, stroke widths; vstk strokeStyleLineDashOffset, SVG
 `stroke-dashoffset`) is enabled only while dashed. Saved stroke presets (#557):
-[style-presets.md](style-presets.md#shape-appearance-stroke-presets). A gradient paint's Style, Angle
-and Scale labels indent 16 px under Gradient (#552).
+[style-presets.md](style-presets.md#shape-appearance-stroke-presets). A gradient's and a pattern's own
+rows are a nested form in their picker row's field column (#552).
 `pattern_linked` anchors at the effects
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).

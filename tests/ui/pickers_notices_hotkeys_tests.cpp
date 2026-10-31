@@ -59,6 +59,8 @@
 #include <QListWidget>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QStringList>
 #include <QSlider>
@@ -4493,6 +4495,87 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
   QApplication::processEvents();
   CHECK(saw_dialog);
 }
+// GitHub issue 561: only the command list scrolls; the search row and hint stay put at the
+// top of the page. GitHub issue 562: the 0-9 row names layer opacity and the 1% to 100% range.
+void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_hotkeys_tab(*dialog);
+    QApplication::processEvents();
+    auto* panel = dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel"));
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+    auto* list_scroll = dialog->findChild<QScrollArea*>(QStringLiteral("hotkeyListScroll"));
+    CHECK(panel != nullptr && search != nullptr && list_scroll != nullptr);
+    if (panel == nullptr || search == nullptr || list_scroll == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // No page-level scroll area wraps the panel, and the search field is outside the list.
+    for (QWidget* ancestor = panel->parentWidget(); ancestor != nullptr && ancestor != dialog;
+         ancestor = ancestor->parentWidget()) {
+      CHECK(qobject_cast<QScrollArea*>(ancestor) == nullptr);
+    }
+    CHECK(!list_scroll->isAncestorOf(search));
+
+    auto* bar = list_scroll->verticalScrollBar();
+    CHECK(bar->maximum() > 0);
+    bar->setValue(0);
+    QApplication::processEvents();
+    const QRect search_before(search->mapTo(dialog, QPoint(0, 0)), search->size());
+    bar->setValue(bar->maximum());
+    QApplication::processEvents();
+    const QRect search_after(search->mapTo(dialog, QPoint(0, 0)), search->size());
+    CHECK(search->isVisible());
+    CHECK(search_after == search_before);
+    CHECK(search_after.bottom() < list_scroll->mapTo(dialog, QPoint(0, 0)).y());
+    // The rows end where the search row ends, beside the scroll bar.
+    auto* reset_all = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
+    auto* list = list_scroll->widget();
+    CHECK(reset_all != nullptr && list != nullptr);
+    if (reset_all != nullptr && list != nullptr) {
+      const int reset_right = reset_all->mapTo(dialog, QPoint(reset_all->width(), 0)).x();
+      int panel_right = 0;
+      for (auto* frame : list->findChildren<QFrame*>(Qt::FindDirectChildrenOnly)) {
+        if (frame->isVisible()) {
+          panel_right = std::max(panel_right, frame->mapTo(dialog, QPoint(frame->width(), 0)).x());
+        }
+      }
+      CHECK(panel_right > 0);
+      CHECK(std::abs(reset_right - panel_right) <= 1);
+    }
+
+    // The bottom of the list is the built-in keys panel, with the 0-9 row's new text.
+    bool saw_opacity_row = false;
+    for (auto* label : list->findChildren<QLabel*>()) {
+      if (label->text() == QStringLiteral("Set tool or layer opacity (1% to 100%; type two digits for an exact value)")) {
+        saw_opacity_row = label->isVisible();
+      }
+      CHECK(!label->text().contains(QStringLiteral("10%-100%")));
+    }
+    CHECK(saw_opacity_row);
+    save_widget_artifact("hotkey_editor_scrolled_to_bottom", *dialog);
+
+    // A search starts the list at the top again.
+    search->setText(QStringLiteral("opacity"));
+    QApplication::processEvents();
+    CHECK(bar->value() == 0);
+    search->clear();
+    QApplication::processEvents();
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
 // GitHub issue 554: Help > Search Commands (and the menu bar's button after Help) lists every
 // enabled menu command with its menu path and shortcut, filters as you type, and Enter runs
 // the chosen command once the popup has closed.
@@ -4574,7 +4657,8 @@ void ui_command_search_popup_filters_and_runs_commands() {
   }
   for (int row = 0; row < list->count(); ++row) {
     CHECK(list->item(row)->text().contains(QStringLiteral("blur"), Qt::CaseInsensitive) ||
-          list->item(row)->data(Qt::UserRole + 1).toString().contains(QStringLiteral("blur"), Qt::CaseInsensitive));
+          list->item(row)->data(Qt::UserRole + 1).toString().contains(QStringLiteral("blur"), Qt::CaseInsensitive) ||
+          list->item(row)->data(Qt::UserRole + 5).toString().contains(QStringLiteral("blur"), Qt::CaseInsensitive));
   }
   save_window_popup_artifact("command_search_blur", window, *window.menuBar(), *popup);
 
@@ -4669,6 +4753,185 @@ void ui_command_search_popup_filters_and_runs_commands() {
   CHECK(popup != nullptr);
   search_action->trigger();
   CHECK(process_events_until([&] { return popup == nullptr; }));
+}
+// GitHub issue 554 follow-up: results keep menu bar order after the exact and starts-with
+// matches, the tools and the keys outside the menus are listed with their shortcuts, and a
+// short description per command is searched and shown.
+void ui_command_search_lists_tools_keys_and_descriptions() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  const auto& registry = window.hotkey_registry();
+
+  // Every written description names a registered command (ids are permanent).
+  for (const auto& id : patchy::ui::command_search_described_ids()) {
+    if (registry.find_command(id) == nullptr) {
+      std::cerr << "described command id not registered: " << id.toStdString() << '\n';
+      CHECK(false);
+    }
+  }
+  CHECK(patchy::ui::command_search_description(QStringLiteral("layer.new_with_dialog")) ==
+        QStringLiteral("Add New Layer"));
+  CHECK(patchy::ui::command_search_description(QStringLiteral("no.such.command")).isEmpty());
+
+  // The matcher: an exact name or description first, then starts-with, then menu order.
+  const std::vector<patchy::ui::MenuCommandEntry> sample{
+      {nullptr, QStringLiteral("New Layer"), QStringLiteral("Layer › New"), QStringLiteral("Add New Layer")},
+      {nullptr, QStringLiteral("Duplicate Layer"), QStringLiteral("Layer")},
+      {nullptr, QStringLiteral("Layer via Copy"), QStringLiteral("Layer › New")},
+      {nullptr, QStringLiteral("Move"), QStringLiteral("Tools"), QStringLiteral("Move layers and selections")},
+      {nullptr, QStringLiteral("Layer"), QStringLiteral("Window")},
+  };
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("layer")) == std::vector<int>{4, 2, 0, 1, 3}));
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("add new layer")) == std::vector<int>{0}));
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("selections")) == std::vector<int>{3}));
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("tools move")) == std::vector<int>{3}));
+  CHECK(patchy::ui::match_menu_commands(sample, QStringLiteral("ections")).empty());  // descriptions: word starts
+
+  const auto entries = patchy::ui::collect_search_commands(window.menuBar(), registry);
+  const auto find_entry = [&entries](const QAction* action) -> const patchy::ui::MenuCommandEntry* {
+    for (const auto& entry : entries) {
+      if (entry.action.data() == action) {
+        return &entry;
+      }
+    }
+    return nullptr;
+  };
+  const auto action_of = [&registry](const char* id) -> QAction* {
+    const auto* command = registry.find_command(QLatin1String(id));
+    return command != nullptr ? command->action.data() : nullptr;
+  };
+  // Menu bar order: every File command before the first Edit command.
+  int last_file = -1;
+  int first_edit = -1;
+  for (int index = 0; index < static_cast<int>(entries.size()); ++index) {
+    const auto& path = entries[static_cast<std::size_t>(index)].path;
+    if (path == QStringLiteral("File") || path.startsWith(QStringLiteral("File ›"))) {
+      last_file = index;
+    }
+    if (first_edit < 0 && (path == QStringLiteral("Edit") || path.startsWith(QStringLiteral("Edit ›")))) {
+      first_edit = index;
+    }
+  }
+  CHECK(last_file >= 0 && first_edit > last_file);
+
+  // Every palette tool, as "Tools" after the menu commands unless a menu holds it.
+  auto* move_tool = action_of("tools.move");
+  auto* ruler_tool = action_of("tools.ruler");
+  CHECK(move_tool != nullptr && ruler_tool != nullptr);
+  const auto* move_entry = find_entry(move_tool);
+  CHECK(move_entry != nullptr);
+  if (move_entry != nullptr) {
+    CHECK(move_entry->path == QStringLiteral("Tools"));
+    CHECK(move_entry->name == QStringLiteral("Move"));
+    CHECK(move_entry->description == QStringLiteral("Move layers and selections"));
+    CHECK(move_entry > &entries[static_cast<std::size_t>(first_edit)]);
+  }
+  // The Type tool is also in the Type menu, so it is listed there instead.
+  for (const auto& command : registry.commands()) {
+    if (command.category == QStringLiteral("tools") && command.action != nullptr && command.action->isEnabled()) {
+      const auto* entry = find_entry(command.action.data());
+      if (entry == nullptr || entry->path.isEmpty()) {
+        std::cerr << "tool missing from the command search: " << command.id.toStdString() << '\n';
+        CHECK(false);
+      }
+    }
+  }
+  // A key outside the menus, with no path.
+  auto* blend_normal = action_of("layer.blend_mode.normal");
+  CHECK(blend_normal != nullptr && blend_normal->isEnabled());
+  const auto* blend_entry = find_entry(blend_normal);
+  CHECK(blend_entry != nullptr);
+  if (blend_entry != nullptr) {
+    CHECK(blend_entry->name == QStringLiteral("Blend Mode: Normal"));
+    CHECK(blend_entry->path.isEmpty());
+  }
+  // A menu command keeps its menu path and is listed once.
+  const auto* new_layer_entry = find_entry(action_of("layer.new_with_dialog"));
+  CHECK(new_layer_entry != nullptr);
+  if (new_layer_entry != nullptr) {
+    CHECK(new_layer_entry->path == QStringLiteral("Layer › New"));
+    CHECK(new_layer_entry->description == QStringLiteral("Add New Layer"));
+  }
+  int new_layer_rows = 0;
+  for (const auto& entry : entries) {
+    new_layer_rows += entry.action.data() == action_of("layer.new_with_dialog") ? 1 : 0;
+  }
+  CHECK(new_layer_rows == 1);
+
+  // The popup shows them: the description finds New Layer first, a tool row shows its key,
+  // and Enter on it selects the tool.
+  auto* search_action = require_action(window, "helpSearchCommandsAction");
+  search_action->trigger();
+  QApplication::processEvents();
+  QPointer<QFrame> popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  auto* edit = popup->findChild<QLineEdit*>(QStringLiteral("commandSearchEdit"));
+  auto* list = popup->findChild<QListWidget*>(QStringLiteral("commandSearchList"));
+  CHECK(edit != nullptr && list != nullptr);
+  if (edit == nullptr || list == nullptr) {
+    return;
+  }
+  edit->setText(QStringLiteral("add new layer"));
+  QApplication::processEvents();
+  CHECK(list->count() >= 1);
+  if (list->count() >= 1) {
+    CHECK(list->item(0)->text() == QStringLiteral("New Layer"));
+    CHECK(list->item(0)->data(Qt::UserRole + 1).toString() == QStringLiteral("Layer › New"));
+    CHECK(list->item(0)->data(Qt::UserRole + 5).toString() == QStringLiteral("Add New Layer"));
+  }
+  save_window_popup_artifact("command_search_add_new_layer", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("blend mode"));
+  QApplication::processEvents();
+  bool blend_row = false;
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->text() == QStringLiteral("Blend Mode: Normal")) {
+      blend_row = true;
+      CHECK(list->item(row)->data(Qt::UserRole + 2).toString() ==
+            QKeySequence(Qt::SHIFT | Qt::ALT | Qt::Key_N).toString(QKeySequence::NativeText));
+    }
+  }
+  CHECK(blend_row);
+  save_window_popup_artifact("command_search_blend_mode", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("move"));
+  QApplication::processEvents();
+  CHECK(list->count() >= 1);
+  if (list->count() >= 1) {
+    CHECK(list->item(0)->text() == QStringLiteral("Move"));  // the exact name first
+    CHECK(list->item(0)->data(Qt::UserRole + 1).toString() == QStringLiteral("Tools"));
+    CHECK(list->item(0)->data(Qt::UserRole + 2).toString() == QStringLiteral("V"));
+  }
+  for (int row = 0; row < list->count(); ++row) {
+    CHECK(list->item(row)->text() != QStringLiteral("Strip All Metadata"));  // "Remove EXIF" is no match
+  }
+  save_window_popup_artifact("command_search_move", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("layer"));
+  QApplication::processEvents();
+  save_window_popup_artifact("command_search_layer", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("measure"));
+  QApplication::processEvents();
+  int ruler_row = -1;
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->text() == patchy::ui::strip_menu_ellipsis(patchy::ui::clean_action_text(ruler_tool))) {
+      ruler_row = row;
+    }
+  }
+  CHECK(ruler_row >= 0);
+  CHECK(ruler_tool != nullptr && !ruler_tool->isChecked());
+  list->setCurrentRow(std::max(0, ruler_row));
+  {
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(edit, &enter);
+  }
+  CHECK(process_events_until([&] { return popup == nullptr; }));
+  CHECK(process_events_until([&] { return ruler_tool != nullptr && ruler_tool->isChecked(); }));
 }
 void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
   HotkeySettingsGroupRestorer restore_hotkeys;
@@ -5253,6 +5516,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
       {"ui_command_search_popup_filters_and_runs_commands", ui_command_search_popup_filters_and_runs_commands},
+      {"ui_command_search_lists_tools_keys_and_descriptions", ui_command_search_lists_tools_keys_and_descriptions},
       {"ui_brush_hardness_shortcuts_step_by_quarters", ui_brush_hardness_shortcuts_step_by_quarters},
       {"ui_preset_step_shortcuts_cycle_brush_and_gradient_presets",
        ui_preset_step_shortcuts_cycle_brush_and_gradient_presets},
@@ -5265,6 +5529,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_editor_steals_conflicting_shortcut", ui_hotkey_editor_steals_conflicting_shortcut},
       {"ui_hotkey_editor_reset_all_clears_overrides", ui_hotkey_editor_reset_all_clears_overrides},
       {"ui_hotkey_editor_lists_scripts_category", ui_hotkey_editor_lists_scripts_category},
+      {"ui_hotkey_editor_search_row_stays_while_list_scrolls", ui_hotkey_editor_search_row_stays_while_list_scrolls},
       {"ui_color_picker_accepts_css_rgba_and_names", ui_color_picker_accepts_css_rgba_and_names},
       {"ui_color_picker_opens_with_hex_field_selected_for_paste", ui_color_picker_opens_with_hex_field_selected_for_paste},
       {"ui_color_picker_cmyk_fields_follow_working_space", ui_color_picker_cmyk_fields_follow_working_space},

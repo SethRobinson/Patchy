@@ -1,12 +1,8 @@
 #include "ui/blocked_window_cursor.hpp"
 
-#include "ui/wayland_pointer_cursor.hpp"
-
 #include <QApplication>
 #include <QCursor>
 #include <QEvent>
-#include <QGuiApplication>
-#include <QLibraryInfo>
 #include <QPointer>
 #include <QWidget>
 #include <QWindow>
@@ -38,11 +34,19 @@ class BlockedWindowCursorFilter : public QObject {
       } else if (handle != nullptr) {
         unblock(*handle);
       }
-    } else if (widget != nullptr && !blocked_.empty()) {
+    } else if (blocked_.empty()) {
+      return false;
+    } else if (widget != nullptr) {
       // The widget already applied its cursor (or the arrow, when disabled) to the window.
       if (QWindow* handle = cursor_native_window(*widget); handle != nullptr && is_blocked(*handle)) {
         handle->setCursor(Qt::ArrowCursor);
       }
+    } else if (auto* handle = qobject_cast<QWindow*>(watched); handle != nullptr && is_blocked(*handle) &&
+                                                               handle->cursor().shape() != Qt::ArrowCursor) {
+      // Every cursor Qt gives a window passes QWindow::setCursor, which sends this: a widget's
+      // own change, and also the ones no widget announces (enter and leave dispatch, Qt's
+      // synthetic enter when a widget under the pointer shows or hides).
+      handle->setCursor(Qt::ArrowCursor);
     }
     return false;
   }
@@ -112,11 +116,9 @@ QObject* create_blocked_window_cursor_filter(QObject* parent) {
 }
 
 void install_blocked_window_cursor_fix() {
-  auto* app = qApp;
-  if (app == nullptr || wayland_pointer_cursor_fix_needed(QGuiApplication::platformName(), QLibraryInfo::version())) {
-    return;
+  if (auto* app = qApp; app != nullptr) {
+    app->installEventFilter(create_blocked_window_cursor_filter(app));
   }
-  app->installEventFilter(create_blocked_window_cursor_filter(app));
 }
 
 }  // namespace patchy::ui

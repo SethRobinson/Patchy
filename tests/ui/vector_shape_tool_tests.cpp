@@ -1,5 +1,7 @@
 #include <QJsonObject>
 #include <QFormLayout>
+#include <QScopeGuard>
+#include <QGroupBox>
 #include <QLayout>
 #include <QScrollBar>
 #include <QSlider>
@@ -3264,7 +3266,8 @@ void ui_shape_appearance_dash_offset_and_stroke_presets() {
     offset->setValue(1.5);
     joins->setCurrentIndex(joins->findData(static_cast<int>(patchy::VectorStrokeJoin::Bevel)));
     QApplication::processEvents();
-    CHECK(stroke_of_layer().dash_offset == 1.5);  // the live preview
+    // The live preview applies once an in-flight preview render finishes.
+    CHECK(process_events_until([&] { return stroke_of_layer().dash_offset == 1.5; }, 10000));
 
     answer_name_prompt(QStringLiteral("Offset dashes"));
     save->click();
@@ -3301,6 +3304,10 @@ void ui_shape_appearance_dash_offset_and_stroke_presets() {
     CHECK(dashes->currentData().toInt() == static_cast<int>(patchy::StrokeDashPreset::Dashed));
     CHECK(offset->isEnabled() && offset->value() == 1.5);
     CHECK(presets->currentIndex() == 0);
+    CHECK(process_events_until([&] {
+      const auto stroke = stroke_of_layer();
+      return stroke.dashes == std::vector<double>{2.0, 2.0} && stroke.join == patchy::VectorStrokeJoin::Bevel;
+    }, 10000));
     const auto previewed = stroke_of_layer();
     CHECK((previewed.dashes == std::vector<double>{2.0, 2.0}) && previewed.dash_offset == 1.5);
 
@@ -3351,8 +3358,11 @@ void ui_shape_appearance_dash_offset_and_stroke_presets() {
   CHECK(checked);
 }
 
-// GitHub #552 follow-up: with a Gradient fill or stroke, the Style, Angle and
-// Scale labels sit indented under the Gradient row.
+// GitHub #552 follow-up: with a Gradient fill or stroke, Style, Angle, Scale
+// and Reverse form a nested block under the Gradient row: its labels start at
+// or after the Gradient picker (the outer field column), its fields share a
+// column further right, and the rows around it keep the outer field column.
+// The block hides with the other paint kinds.
 void ui_shape_appearance_gradient_rows_indent() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -3365,41 +3375,195 @@ void ui_shape_appearance_gradient_rows_indent() {
     auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
     auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
     auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
-    CHECK(fill_kind != nullptr && stroke_paint != nullptr && width != nullptr);
-    if (fill_kind == nullptr || stroke_paint == nullptr || width == nullptr) return;
+    auto* align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
+    auto* fill_block = dialog->findChild<QWidget*>(QStringLiteral("shapeFillGradientBlock"));
+    auto* stroke_block = dialog->findChild<QWidget*>(QStringLiteral("shapeStrokeGradientBlock"));
+    CHECK(fill_kind != nullptr && stroke_paint != nullptr && width != nullptr && align != nullptr &&
+          fill_block != nullptr && stroke_block != nullptr);
+    if (fill_kind == nullptr || stroke_paint == nullptr || width == nullptr || align == nullptr ||
+        fill_block == nullptr || stroke_block == nullptr) {
+      return;
+    }
+    CHECK(!fill_block->isVisibleTo(dialog) && !stroke_block->isVisibleTo(dialog));
     fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
     width->setValue(8.0);
     stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
     QApplication::processEvents();
     QApplication::processEvents();
-    // The label text's left edge, in dialog coordinates.
-    const auto text_left = [dialog](QFormLayout* form, QWidget* field) {
-      auto* label = form != nullptr ? qobject_cast<QLabel*>(form->labelForField(field)) : nullptr;
-      CHECK(label != nullptr && label->isVisibleTo(dialog));
-      return label != nullptr ? label->mapTo(dialog, label->contentsRect().topLeft()).x() : 0;
-    };
-    const auto check_section = [&](const char* gradient_name, const char* type_name, const char* angle_name,
-                                   const char* scale_name) {
+    CHECK(fill_block->isVisibleTo(dialog) && stroke_block->isVisibleTo(dialog));
+    const auto left = [dialog](const QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+    const auto check_block = [&](QWidget* block, QWidget* outer_field, const char* gradient_name,
+                                 const char* type_name, const char* angle_name, const char* scale_name,
+                                 const char* reverse_name) {
       auto* gradient = dialog->findChild<QComboBox*>(QLatin1String(gradient_name));
       auto* type = dialog->findChild<QComboBox*>(QLatin1String(type_name));
       auto* angle = dialog->findChild<QAbstractSpinBox*>(QLatin1String(angle_name));
       auto* scale = dialog->findChild<QAbstractSpinBox*>(QLatin1String(scale_name));
-      CHECK(gradient != nullptr && type != nullptr && angle != nullptr && scale != nullptr);
-      if (gradient == nullptr || type == nullptr || angle == nullptr || scale == nullptr) return;
-      auto* form = qobject_cast<QFormLayout*>(gradient->parentWidget()->layout()->itemAt(0)->layout());
-      CHECK(form != nullptr);
-      const int base = text_left(form, gradient);
-      if ((form->labelAlignment() & Qt::AlignRight) == 0) {
-        CHECK(text_left(form, type) == base + 16);
-        CHECK(text_left(form, angle->parentWidget()) == base + 16);
-        CHECK(text_left(form, scale->parentWidget()) == base + 16);
+      auto* reverse = dialog->findChild<QCheckBox*>(QLatin1String(reverse_name));
+      auto* inner = qobject_cast<QFormLayout*>(block->layout());
+      CHECK(gradient != nullptr && type != nullptr && angle != nullptr && scale != nullptr && reverse != nullptr &&
+            inner != nullptr);
+      if (gradient == nullptr || type == nullptr || angle == nullptr || scale == nullptr || reverse == nullptr ||
+          inner == nullptr) {
+        return;
       }
+      const int gradient_x = left(gradient);
+      // The rows outside the block keep the outer field column.
+      CHECK(left(outer_field) == gradient_x);
+      CHECK(block->isAncestorOf(type) && block->isAncestorOf(angle) && block->isAncestorOf(scale) &&
+            block->isAncestorOf(reverse));
+      const int field_x = left(type);
+      CHECK(field_x > gradient_x + 20);
+      for (QWidget* field : std::initializer_list<QWidget*>{type, angle->parentWidget(), scale->parentWidget()}) {
+        auto* label = qobject_cast<QLabel*>(inner->labelForField(field));
+        CHECK(label != nullptr && label->isVisibleTo(dialog));
+        if (label != nullptr) {
+          CHECK(left(label) >= gradient_x);
+          CHECK(left(label) + label->width() <= field_x);
+        }
+        CHECK(left(field) == field_x);
+      }
+      CHECK(left(reverse) == field_x);
     };
-    check_section("shapeFillGradientCombo", "shapeGradientTypeCombo", "shapeGradientAngleSpin",
-                  "shapeGradientScaleSpin");
-    check_section("shapeStrokeGradientCombo", "shapeStrokeGradientTypeCombo", "shapeStrokeGradientAngleSpin",
-                  "shapeStrokeGradientScaleSpin");
+    check_block(fill_block, fill_kind, "shapeFillGradientCombo", "shapeGradientTypeCombo", "shapeGradientAngleSpin",
+                "shapeGradientScaleSpin", "shapeGradientReverseCheck");
+    check_block(stroke_block, align, "shapeStrokeGradientCombo", "shapeStrokeGradientTypeCombo",
+                "shapeStrokeGradientAngleSpin", "shapeStrokeGradientScaleSpin", "shapeStrokeGradientReverseCheck");
     patchy::test::ui::save_widget_artifact("issue552_shape_appearance_gradient_indent", *dialog);
+    // The Fill group down to the stroke's gradient block, for the issue reply.
+    auto* fill_group = fill_kind->parentWidget();
+    while (fill_group != nullptr && qobject_cast<QGroupBox*>(fill_group) == nullptr) {
+      fill_group = fill_group->parentWidget();
+    }
+    CHECK(fill_group != nullptr);
+    if (fill_group != nullptr) {
+      const QRect fill_rect(fill_group->mapTo(dialog, QPoint(0, 0)), fill_group->size());
+      const QRect block_rect(stroke_block->mapTo(dialog, QPoint(0, 0)), stroke_block->size());
+      const QRect crop(fill_rect.left(), fill_rect.top(), fill_rect.width(),
+                       block_rect.bottom() + 8 - fill_rect.top());
+      ensure_artifact_dir();
+      dialog->grab(crop).save(QStringLiteral("test-artifacts/issue552_shape_appearance_gradient_indent_crop.png"));
+    }
+    // Another paint kind hides the whole block.
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Solid)));
+    QApplication::processEvents();
+    CHECK(!stroke_block->isVisibleTo(dialog));
+    checked = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(checked);
+}
+
+// GitHub #552 follow-up: a Pattern fill or stroke nests Scale, Angle, Offset
+// X/Y and Align with layer under the Pattern row the same way: labels at or
+// after the Pattern picker, fields and the checkbox in one inner column, the
+// outer rows unmoved, and the block hidden for the other paint kinds.
+void ui_shape_appearance_pattern_rows_indent() {
+  VectorSettingsGuard settings_guard;
+  // Seed the default patterns into the test library (the app does on first
+  // run) so the pickers in the reply screenshot show a real pattern; the
+  // scratch library and the version setting go back afterwards.
+  SettingsValueRestorer pattern_version_restorer(QStringLiteral("patterns/defaultPatternsVersion"));
+  clear_pattern_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 0);
+    settings.sync();
+  }
+  const auto clear_seeded_patterns = qScopeGuard([] { clear_pattern_test_state(); });
+  auto&& [window, canvas] = ShownWindowFixture{};
+  make_rect_shape_layer(window, *canvas);
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+    auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
+    auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+    auto* align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
+    auto* fill_block = dialog->findChild<QWidget*>(QStringLiteral("shapeFillPatternBlock"));
+    auto* stroke_block = dialog->findChild<QWidget*>(QStringLiteral("shapeStrokePatternBlock"));
+    CHECK(fill_kind != nullptr && stroke_paint != nullptr && width != nullptr && align != nullptr &&
+          fill_block != nullptr && stroke_block != nullptr);
+    if (fill_kind == nullptr || stroke_paint == nullptr || width == nullptr || align == nullptr ||
+        fill_block == nullptr || stroke_block == nullptr) {
+      return;
+    }
+    CHECK(!fill_block->isVisibleTo(dialog) && !stroke_block->isVisibleTo(dialog));
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
+    width->setValue(8.0);
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
+    // Visible patterns in both pickers, so the swatch and name show.
+    for (const auto& [combo_name, pattern_name] :
+         {std::pair{"shapeFillPatternCombo", "Bricks"}, std::pair{"shapeStrokePatternCombo", "Polka Dots"}}) {
+      auto* combo = dialog->findChild<QComboBox*>(QLatin1String(combo_name));
+      CHECK(combo != nullptr);
+      if (combo == nullptr) continue;
+      const int row = combo->findText(QLatin1String(pattern_name));
+      CHECK(row >= 0);
+      if (row >= 0) combo->setCurrentIndex(row);
+    }
+    QApplication::processEvents();
+    QApplication::processEvents();
+    CHECK(fill_block->isVisibleTo(dialog) && stroke_block->isVisibleTo(dialog));
+    const auto left = [dialog](const QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+    const auto check_block = [&](QWidget* block, QWidget* outer_field, const char* picker_name,
+                                 const std::array<const char*, 4>& spin_names, const char* check_name) {
+      auto* picker = dialog->findChild<QComboBox*>(QLatin1String(picker_name));
+      auto* align_check = dialog->findChild<QCheckBox*>(QLatin1String(check_name));
+      auto* inner = qobject_cast<QFormLayout*>(block->layout());
+      CHECK(picker != nullptr && align_check != nullptr && inner != nullptr);
+      if (picker == nullptr || align_check == nullptr || inner == nullptr) return;
+      const int picker_x = left(picker);
+      CHECK(left(outer_field) == picker_x);
+      CHECK(block->isAncestorOf(align_check));
+      std::optional<int> field_x;
+      for (const char* name : spin_names) {
+        auto* spin = dialog->findChild<QAbstractSpinBox*>(QLatin1String(name));
+        CHECK(spin != nullptr && block->isAncestorOf(spin));
+        if (spin == nullptr) continue;
+        QWidget* field = spin->parentWidget();
+        if (!field_x.has_value()) field_x = left(field);
+        CHECK(left(field) == *field_x);
+        auto* label = qobject_cast<QLabel*>(inner->labelForField(field));
+        CHECK(label != nullptr && label->isVisibleTo(dialog));
+        if (label != nullptr) {
+          CHECK(left(label) >= picker_x);
+          CHECK(left(label) + label->width() <= *field_x);
+        }
+      }
+      CHECK(field_x.has_value() && *field_x > picker_x + 20);
+      CHECK(field_x.has_value() && left(align_check) == *field_x);
+    };
+    check_block(fill_block, fill_kind, "shapeFillPatternCombo",
+                {"shapePatternScaleSpin", "shapePatternAngleSpin", "shapePatternOffsetXSpin", "shapePatternOffsetYSpin"},
+                "shapePatternAlignCheck");
+    check_block(stroke_block, align, "shapeStrokePatternCombo",
+                {"shapeStrokePatternScaleSpin", "shapeStrokePatternAngleSpin", "shapeStrokePatternOffsetXSpin",
+                 "shapeStrokePatternOffsetYSpin"},
+                "shapeStrokePatternAlignCheck");
+    patchy::test::ui::save_widget_artifact("issue552_shape_appearance_pattern_block", *dialog);
+    // The Fill group down to the stroke's pattern block, for the issue reply.
+    auto* fill_group = fill_kind->parentWidget();
+    while (fill_group != nullptr && qobject_cast<QGroupBox*>(fill_group) == nullptr) {
+      fill_group = fill_group->parentWidget();
+    }
+    CHECK(fill_group != nullptr);
+    if (fill_group != nullptr) {
+      const QRect fill_rect(fill_group->mapTo(dialog, QPoint(0, 0)), fill_group->size());
+      const QRect block_rect(stroke_block->mapTo(dialog, QPoint(0, 0)), stroke_block->size());
+      const QRect crop(fill_rect.left(), fill_rect.top(), fill_rect.width(),
+                       block_rect.bottom() + 8 - fill_rect.top());
+      ensure_artifact_dir();
+      dialog->grab(crop).save(QStringLiteral("test-artifacts/issue552_shape_appearance_pattern_block_crop.png"));
+    }
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Solid)));
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    CHECK(!fill_block->isVisibleTo(dialog) && !stroke_block->isVisibleTo(dialog));
     checked = true;
     dialog->reject();
   });
@@ -8427,6 +8591,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_appearance_dash_presets_set_patterns", ui_shape_appearance_dash_presets_set_patterns},
       {"ui_shape_appearance_dash_offset_and_stroke_presets", ui_shape_appearance_dash_offset_and_stroke_presets},
       {"ui_shape_appearance_gradient_rows_indent", ui_shape_appearance_gradient_rows_indent},
+      {"ui_shape_appearance_pattern_rows_indent", ui_shape_appearance_pattern_rows_indent},
       {"ui_options_bar_dash_combo_applies_presets", ui_options_bar_dash_combo_applies_presets},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
       {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},

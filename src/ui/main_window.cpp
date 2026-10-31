@@ -5594,10 +5594,12 @@ void MainWindow::changeEvent(QEvent* event) {
   if (event->type() == QEvent::LanguageChange) {
     retranslate_ui();
   }
-  if (event->type() == QEvent::ActivationChange && isActiveWindow() && canvas_ != nullptr) {
+  if (event->type() == QEvent::ActivationChange && isActiveWindow() && canvas_ != nullptr &&
+      QApplication::activeModalWidget() == nullptr) {
     // Windows resets the cursor to an arrow when the window is re-activated;
     // re-apply the tool cursor so a hovering pen shows the brush immediately
-    // instead of waiting for the first move event.
+    // instead of waiting for the first move event. Not while a modal dialog is up: the
+    // window is blocked and shows the arrow (GitHub issue 504, Alt+Tab back to Patchy).
     canvas_->refresh_tool_cursor();
   }
   if (event->type() == QEvent::WindowStateChange) {
