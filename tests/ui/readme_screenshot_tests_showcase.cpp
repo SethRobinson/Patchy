@@ -1,10 +1,13 @@
 // README screenshots (shot_readme_*), part 3: gallery scenes for the dialogs a
-// script cannot open (Export for Web, Perspective Planes).
+// script cannot open (Export for Web, Perspective Planes, Flame).
 // The group-wide story lives in the aggregator (readme_screenshot_tests.cpp);
 // helpers shared with the other parts live in readme_screenshot_test_support.
 
+#include "core/document_path.hpp"
 #include "core/perspective_planes.hpp"
+#include "core/vector_shape.hpp"
 #include "local_psd_fixtures.hpp"
+#include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/image_document_io.hpp"
@@ -19,13 +22,19 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDialog>
 #include <QFont>
+#include <QFontDatabase>
 #include <QImage>
 #include <QLabel>
+#include <QLinearGradient>
+#include <QListWidget>
 #include <QMenu>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPushButton>
+#include <QRadialGradient>
 #include <QSpinBox>
 #include <QTest>
 #include <QTimer>
@@ -35,6 +44,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <exception>
 #include <memory>
 #include <string>
@@ -375,11 +385,199 @@ void shot_readme_perspective_planes() {
   CHECK(!result.accepted);
 }
 
+// --- Flame: the word FIRE burning along its own outline ---------------------
+
+constexpr int kFireWidth = 1400;
+constexpr int kFireHeight = 800;
+
+// A glyph outline as Paths-panel subpaths: each cubic segment's control points become
+// its end anchors' handles, and the closing point folds into the first anchor.
+patchy::VectorPath vector_path_from_outline(const QPainterPath& outline) {
+  const auto corner = [](double x, double y) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    return anchor;
+  };
+  patchy::VectorPath path;
+  const auto close_last = [&path] {
+    if (path.subpaths.empty()) return;
+    auto& anchors = path.subpaths.back().anchors;
+    if (anchors.size() > 2 && std::abs(anchors.front().anchor_x - anchors.back().anchor_x) < 1e-6 &&
+        std::abs(anchors.front().anchor_y - anchors.back().anchor_y) < 1e-6) {
+      anchors.front().in_x = anchors.back().in_x;
+      anchors.front().in_y = anchors.back().in_y;
+      anchors.pop_back();
+    }
+  };
+  for (int i = 0; i < outline.elementCount(); ++i) {
+    const auto element = outline.elementAt(i);
+    if (element.isMoveTo()) {
+      close_last();
+      path.subpaths.emplace_back();
+      path.subpaths.back().anchors.push_back(corner(element.x, element.y));
+    } else if (element.isLineTo()) {
+      path.subpaths.back().anchors.push_back(corner(element.x, element.y));
+    } else if (element.isCurveTo() && i + 2 < outline.elementCount()) {
+      const auto second = outline.elementAt(i + 1);
+      const auto end = outline.elementAt(i + 2);
+      auto& anchors = path.subpaths.back().anchors;
+      anchors.back().out_x = element.x;
+      anchors.back().out_y = element.y;
+      auto next = corner(end.x, end.y);
+      next.in_x = second.x;
+      next.in_y = second.y;
+      anchors.push_back(next);
+      i += 2;
+    }
+  }
+  close_last();
+  return path;
+}
+
+bool same_rgba_pixels(const patchy::PixelBuffer& a, const patchy::PixelBuffer& b) {
+  if (a.width() != b.width() || a.height() != b.height()) return false;
+  for (int y = 0; y < a.height(); ++y) {
+    if (std::memcmp(a.pixel(0, y), b.pixel(0, y), static_cast<std::size_t>(a.width()) * 4U) != 0) return false;
+  }
+  return true;
+}
+
+// Flame following a path: the word FIRE in charred Arial Black on a night backdrop, its
+// outline saved in the Paths panel, and the Flame dialog previewing Campfire along that
+// path, live on the canvas and in the dialog's own preview.
+void shot_readme_flame() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  // Offscreen, ariblk.ttf registers as the Black style of Arial (its typographic family).
+  const bool black_style = QFontDatabase::styles(QStringLiteral("Arial")).contains(QStringLiteral("Black"));
+  if (!black_style && !QFontDatabase::families().contains(QStringLiteral("Arial Black"))) {
+    patchy::test::skip("Arial Black is not installed");
+  }
+  const auto arial_black = [black_style](int pixel_size) {
+    QFont font = black_style ? QFontDatabase::font(QStringLiteral("Arial"), QStringLiteral("Black"), 12)
+                             : QFont(QStringLiteral("Arial Black"));
+    font.setPixelSize(pixel_size);
+    return font;
+  };
+  const auto letters = arial_black(300);
+  QPainterPath outline;
+  outline.addText(QPointF(0.0, 0.0), letters, QStringLiteral("FIRE"));
+  const auto glyphs = outline.boundingRect();
+  outline.translate(50.0 - glyphs.left(), 560.0 - glyphs.bottom());
+  const auto box = outline.boundingRect();
+
+  QImage night(kFireWidth, kFireHeight, QImage::Format_RGBA8888);
+  {
+    QPainter painter(&night);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    QLinearGradient sky(0.0, 0.0, 0.0, kFireHeight);
+    sky.setColorAt(0.0, QColor(5, 5, 11));
+    sky.setColorAt(0.6, QColor(13, 8, 11));
+    sky.setColorAt(1.0, QColor(32, 11, 6));
+    painter.fillRect(night.rect(), sky);
+    QRadialGradient warmth(box.center() + QPointF(0.0, 140.0), 780.0);
+    warmth.setColorAt(0.0, QColor(140, 40, 8, 120));
+    warmth.setColorAt(1.0, QColor(140, 40, 8, 0));
+    painter.fillRect(night.rect(), warmth);
+    QLinearGradient charcoal(0.0, box.top(), 0.0, box.bottom());
+    charcoal.setColorAt(0.0, QColor(20, 9, 8));
+    charcoal.setColorAt(1.0, QColor(66, 22, 10));
+    painter.fillPath(outline, charcoal);
+    auto tagline = arial_black(26);
+    tagline.setLetterSpacing(QFont::AbsoluteSpacing, 9.0);
+    painter.setFont(tagline);
+    painter.setPen(QColor(196, 132, 88));
+    painter.drawText(QPointF(box.left() + 6.0, box.bottom() + 78.0), QStringLiteral("FILTER  /  RENDER  /  FLAME"));
+  }
+  auto document = patchy::ui::document_from_qimage(night, "Night");
+  patchy::DocumentPath fire_path(document.allocate_path_id(), "FIRE outline", patchy::DocumentPathKind::Saved,
+                                 vector_path_from_outline(outline));
+  fire_path.mark_dirty();
+  document.add_path(std::move(fire_path));
+
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.resize(1920, 1080);
+  QApplication::processEvents();
+  window.add_document_session(std::move(document), QStringLiteral("fire.psd"));
+  close_untitled_start_tab(window);
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("pathsDock"));
+  patchy::ui::MainWindowTestAccess::refresh_paths_panel(window);
+  auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+  CHECK(paths_list != nullptr && paths_list->count() == 1);
+  paths_list->setCurrentRow(0);
+  QApplication::processEvents();
+
+  const auto layer_pixels = [&window] {
+    const auto& staged = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto active = staged.active_layer_id();
+    const auto* layer = active.has_value() ? staged.find_layer(*active) : nullptr;
+    CHECK(layer != nullptr);
+    return layer->pixels();
+  };
+  const auto original = layer_pixels();
+
+  bool captured = false;
+  std::exception_ptr error;
+  QTimer::singleShot(0, &window, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFilterDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameColorsCombo"));
+      auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameModeCombo"));
+      auto* rise = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameRiseCombo"));
+      auto* length = dialog->findChild<QSpinBox*>(QStringLiteral("filterLengthSpin"));
+      auto* core = dialog->findChild<QSpinBox*>(QStringLiteral("filterCoreSpin"));
+      auto* density = dialog->findChild<QSpinBox*>(QStringLiteral("filterDensitySpin"));
+      auto* glow = dialog->findChild<QSpinBox*>(QStringLiteral("filterGlowSpin"));
+      auto* sparks = dialog->findChild<QSpinBox*>(QStringLiteral("filterSparksSpin"));
+      auto* notice = dialog->findChild<QLabel*>(QStringLiteral("filterDialogNotice"));
+      CHECK(preset != nullptr && mode != nullptr && rise != nullptr && length != nullptr && core != nullptr && density != nullptr &&
+            glow != nullptr && sparks != nullptr && notice != nullptr);
+      preset->setCurrentIndex(preset->findData(QStringLiteral("classic")));
+      mode->setCurrentIndex(mode->findData(QStringLiteral("follow_path")));
+      rise->setCurrentIndex(rise->findData(QStringLiteral("from_path")));
+      length->setValue(18);
+      density->setValue(70);
+      core->setValue(65);
+      glow->setValue(140);
+      sparks->setValue(160);
+      QApplication::processEvents();
+      CHECK(!notice->isVisibleTo(dialog));
+      dialog->resize(900, 560);
+      CHECK(process_events_until([&] { return !same_rgba_pixels(layer_pixels(), original); }, 60000));
+      // Let the last queued preview land on the canvas and in the dialog.
+      process_events_for(2500);
+      // Far below and right of the letters nothing burns.
+      CHECK(std::memcmp(layer_pixels().pixel(kFireWidth - 20, kFireHeight - 20),
+                        original.pixel(kFireWidth - 20, kFireHeight - 20), 4) == 0);
+      reset_readme_status_bar(window);
+      const auto framed = readme_captioned_dialog(*dialog, window.windowIcon());
+      const QPoint offset(window.width() - framed.width() - 14, window.height() - framed.height() - 44);
+      auto base = window.grab().toImage();
+      draw_readme_overlay(base, framed, offset);
+      save_readme_shot("shot_readme_flame", base);
+      captured = true;
+    } catch (...) {
+      error = std::current_exception();
+    }
+    if (dialog != nullptr) dialog->reject();
+  });
+  require_action(window, "filterAction_patchy_filters_flame")->trigger();
+  QApplication::processEvents();
+  if (error) std::rethrow_exception(error);
+  CHECK(captured);
+  CHECK(same_rgba_pixels(layer_pixels(), original));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> readme_screenshot_tests_part3() {
   return {
       {"shot_readme_web_export", shot_readme_web_export},
       {"shot_readme_perspective_planes", shot_readme_perspective_planes},
+      {"shot_readme_flame", shot_readme_flame},
   };
 }

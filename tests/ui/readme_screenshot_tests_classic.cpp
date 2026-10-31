@@ -1084,33 +1084,6 @@ void shot_readme_long_shadow() {
   CHECK(captured);
 }
 
-// A natively framed dialog grabs without its title bar, which the desktop draws. Adds the
-// dark caption Windows shows for Patchy's dialogs (app icon, title, close glyph) so the
-// overlay reads as the window people see.
-QImage readme_captioned_dialog(QWidget& dialog, const QIcon& icon) {
-  constexpr int kCaption = 32;
-  const auto content = dialog.grab().toImage();
-  QImage framed(content.width(), content.height() + kCaption, QImage::Format_ARGB32_Premultiplied);
-  const auto background = content.pixelColor(4, 4);
-  framed.fill(background.darker(108));
-  QPainter painter(&framed);
-  painter.setRenderHint(QPainter::Antialiasing, true);
-  painter.drawImage(0, kCaption, content);
-  painter.drawPixmap(10, (kCaption - 18) / 2, icon.pixmap(18, 18));
-  QFont title(QStringLiteral("Segoe UI"));
-  title.setPixelSize(15);
-  painter.setFont(title);
-  painter.setPen(QColor(232, 232, 232));
-  painter.drawText(QRect(36, 0, framed.width() - 80, kCaption), Qt::AlignVCenter | Qt::AlignLeft,
-                   dialog.windowTitle());
-  painter.setPen(QPen(QColor(205, 205, 205), 1.3));
-  const QPointF close(framed.width() - 22.0, kCaption / 2.0);
-  painter.drawLine(close + QPointF(-5, -5), close + QPointF(5, 5));
-  painter.drawLine(close + QPointF(-5, 5), close + QPointF(5, -5));
-  painter.end();
-  return framed;
-}
-
 // Live typography specimen: warped type, mixed-run paragraph text with the Character
 // panel's styles, tracking, and real Japanese vertical columns, with the Warp Text dialog
 // and the Character and Paragraph panels open.

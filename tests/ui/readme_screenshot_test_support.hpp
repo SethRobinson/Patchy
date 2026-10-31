@@ -5,10 +5,12 @@
 // readme_screenshot_tests part TU). Moved, never copied.
 
 #include <string>
+#include <QIcon>
 #include <QImage>
 #include <QListWidget>
 #include <QPoint>
 #include <QString>
+#include <QWidget>
 #include "ui/main_window.hpp"
 
 namespace patchy::test::ui {
@@ -43,5 +45,10 @@ void draw_readme_overlay(QImage& base, const QImage& overlay, QPoint position);
 // PSD group rows keep the expansion state saved in the file, so a child row
 // only exists in the list widget after its folder row is expanded.
 void expand_layer_folder_row(QListWidget& layer_list, const QString& folder_name);
+
+// A natively framed dialog grabs without its title bar, which the desktop draws. Adds the
+// dark caption Windows shows for Patchy's dialogs (app icon, title, close glyph) so the
+// overlay reads as the window people see.
+[[nodiscard]] QImage readme_captioned_dialog(QWidget& dialog, const QIcon& icon);
 
 }  // namespace patchy::test::ui

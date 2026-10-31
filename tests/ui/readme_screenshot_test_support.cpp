@@ -4,6 +4,8 @@
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
+#include <QFont>
+#include <QIcon>
 #include <QImage>
 #include <QListWidget>
 #include <QMetaObject>
@@ -108,6 +110,30 @@ void expand_layer_folder_row(QListWidget& layer_list, const QString& folder_name
     QApplication::processEvents();
     QApplication::processEvents();
   }
+}
+
+QImage readme_captioned_dialog(QWidget& dialog, const QIcon& icon) {
+  constexpr int kCaption = 32;
+  const auto content = dialog.grab().toImage();
+  QImage framed(content.width(), content.height() + kCaption, QImage::Format_ARGB32_Premultiplied);
+  const auto background = content.pixelColor(4, 4);
+  framed.fill(background.darker(108));
+  QPainter painter(&framed);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.drawImage(0, kCaption, content);
+  painter.drawPixmap(10, (kCaption - 18) / 2, icon.pixmap(18, 18));
+  QFont title(QStringLiteral("Segoe UI"));
+  title.setPixelSize(15);
+  painter.setFont(title);
+  painter.setPen(QColor(232, 232, 232));
+  painter.drawText(QRect(36, 0, framed.width() - 80, kCaption), Qt::AlignVCenter | Qt::AlignLeft,
+                   dialog.windowTitle());
+  painter.setPen(QPen(QColor(205, 205, 205), 1.3));
+  const QPointF close(framed.width() - 22.0, kCaption / 2.0);
+  painter.drawLine(close + QPointF(-5, -5), close + QPointF(5, 5));
+  painter.drawLine(close + QPointF(-5, 5), close + QPointF(5, -5));
+  painter.end();
+  return framed;
 }
 
 }  // namespace patchy::test::ui
