@@ -59,8 +59,9 @@ target and no activation happens. `ui_duplicate_layer_to_document_dialog_copies`
 ## Layer export (Quick Export as PNG, Export As...)
 
 The Export submenus (#462) of the row menu and the pixel thumbnail menu hold `layerQuickExportPngAction`
-and `layerExportAsAction` (hotkey ids `layer.quick_export_png`, `layer.export_as`, no
-default keys, on the window for that reason). Both run `MainWindow::export_selected_layers`
+and `layerExportAsAction` (hotkey ids `layer.quick_export_png`, `layer.export_as`, default
+Ctrl+Shift+' and Ctrl+Shift+Alt+'; #545), as does Layer > Export (`layerExportMenu`, the Layer
+menu's last row). Both run `MainWindow::export_selected_layers`
 (main_window_files.cpp) over `selected_or_active_layer_ids()`: each layer renders alone
 (`render_layer_isolated`, a group as its composite, a hidden layer as if shown) and is
 written by `write_flat_image_file` (atomic) to a file named after it

@@ -392,6 +392,7 @@ int main(int argc, char* argv[]) {
            canvas_view_tools_tests,
            layer_context_lifecycle_tests,
            layer_export_tests,
+           layer_menu_commands_tests,
            brush_pattern_palette_tests,
            layer_panel_organization_tests,
            layer_effect_rows_tests,

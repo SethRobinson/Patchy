@@ -22,6 +22,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests();
 std::vector<patchy::test::TestCase> canvas_view_tools_tests();
 std::vector<patchy::test::TestCase> layer_context_lifecycle_tests();
 std::vector<patchy::test::TestCase> layer_export_tests();
+std::vector<patchy::test::TestCase> layer_menu_commands_tests();
 std::vector<patchy::test::TestCase> brush_pattern_palette_tests();
 std::vector<patchy::test::TestCase> layer_panel_organization_tests();
 std::vector<patchy::test::TestCase> layer_effect_rows_tests();

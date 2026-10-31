@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>Ebenen fixieren</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>Ausgewählte Ebenen: %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>Bearbeitung</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Alle</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>Alle drei Bearbeitungssperren fixieren oder lösen</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Transparente Pixel</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>Nur dort malen und füllen, wo die Ebene bereits Pixel hat</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>Bildpixel</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>Die Pixel der Ebene vor Malen und Bearbeiten schützen</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Position</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>Die Ebene vor Verschieben und Transformieren schützen</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>Zeichenflächen</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Automatisches Einordnen verhindern</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>Die Ebene beim Ziehen nicht in eine Zeichenfläche hinein- oder aus ihr herausbewegen</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28840,6 +28899,46 @@ Fixiert: %1</translation>
     <message>
         <source>Next Preset</source>
         <translation>Nächste Vorgabe</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>Ebene darunter</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>Ebene darüber</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>Ebene darunter zur Auswahl hinzufügen</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>Ebene darüber zur Auswahl hinzufügen</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>Ebenen a&amp;usblenden</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>Ebenen &amp;fixieren...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>Ebenen eingeblendet</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>Ebenen ausgeblendet</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>Ebenen ei&amp;nblenden</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>Ebenensperren geändert</translation>
     </message>
 </context>
 <context>

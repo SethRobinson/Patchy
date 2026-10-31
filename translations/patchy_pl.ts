@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>Zablokuj warstwy</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>Zaznaczone warstwy: %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>Edycja</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Wszystko</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>Włącz lub wyłącz wszystkie trzy blokady edycji</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Przezroczyste piksele</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>Maluj i wypełniaj tylko tam, gdzie warstwa ma już piksele</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>Piksele obrazu</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>Chroń piksele warstwy przed malowaniem i edycją</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Pozycja</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>Chroń warstwę przed przesuwaniem i przekształcaniem</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>Obszary robocze</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Zapobiegaj automatycznemu zagnieżdżaniu</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>Nie pozwalaj, by przeciągana warstwa wchodziła do obszaru roboczego lub z niego wychodziła</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28922,6 +28981,46 @@ Zablokowano: %1</translation>
     <message>
         <source>Next Preset</source>
         <translation>Następne ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>Warstwa poniżej</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>Warstwa powyżej</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>Dodaj warstwę poniżej do zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>Dodaj warstwę powyżej do zaznaczenia</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>&amp;Ukryj warstwy</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>Za&amp;blokuj warstwy...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>Pokazano warstwy</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>Ukryto warstwy</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>&amp;Pokaż warstwy</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>Zmieniono blokady warstw</translation>
     </message>
 </context>
 <context>

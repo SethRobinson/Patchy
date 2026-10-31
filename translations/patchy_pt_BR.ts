@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>Bloquear camadas</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>Camadas selecionadas: %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>Edição</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Tudo</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>Ativar ou desativar os três bloqueios de edição</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Pixels transparentes</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>Pintar e preencher só onde a camada já tem pixels</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>Pixels de imagem</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>Impedir que os pixels da camada sejam pintados ou editados</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Posição</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>Impedir que a camada seja movida ou transformada</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>Pranchetas</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Impedir aninhamento automático</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>Impedir que a camada entre ou saia de uma prancheta ao ser arrastada</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28840,6 +28899,46 @@ Bloqueado: %1</translation>
     <message>
         <source>Next Preset</source>
         <translation>Próxima predefinição</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>Camada abaixo</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>Camada acima</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>Adicionar camada abaixo à seleção</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>Adicionar camada acima à seleção</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>&amp;Ocultar camadas</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>&amp;Bloquear camadas...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>Camadas mostradas</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>Camadas ocultas</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>Mos&amp;trar camadas</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>Bloqueios de camada alterados</translation>
     </message>
 </context>
 <context>

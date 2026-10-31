@@ -3413,7 +3413,7 @@ void ui_main_window_renders_color_controls() {
   // row bound keeps it from silently regrowing.
   auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu"));
   CHECK(layer_menu != nullptr);
-  CHECK(layer_menu->actions().size() <= 23);
+  CHECK(layer_menu->actions().size() <= 26);
   auto* layer_new_menu = window.findChild<QMenu*>(QStringLiteral("layerNewMenu"));
   CHECK(layer_new_menu != nullptr);
   CHECK(layer_new_menu->actions().contains(require_action(window, "layerNewAction")));

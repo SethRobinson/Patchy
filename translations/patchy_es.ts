@@ -214,6 +214,65 @@
     </message>
 </context>
 <context>
+    <name>LayerLockDialog</name>
+    <message>
+        <source>Lock Layers</source>
+        <translation>Bloquear capas</translation>
+    </message>
+    <message>
+        <source>Selected layers: %1</source>
+        <translation>Capas seleccionadas: %1</translation>
+    </message>
+    <message>
+        <source>Editing</source>
+        <translation>Edición</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Todo</translation>
+    </message>
+    <message>
+        <source>Lock or unlock all three editing locks</source>
+        <translation>Activar o desactivar los tres bloqueos de edición</translation>
+    </message>
+    <message>
+        <source>Transparent Pixels</source>
+        <translation>Píxeles transparentes</translation>
+    </message>
+    <message>
+        <source>Paint and fill only where the layer already has pixels</source>
+        <translation>Pintar y rellenar solo donde la capa ya tiene píxeles</translation>
+    </message>
+    <message>
+        <source>Image Pixels</source>
+        <translation>Píxeles de imagen</translation>
+    </message>
+    <message>
+        <source>Keep the layer&apos;s pixels from being painted or edited</source>
+        <translation>Impedir que se pinten o editen los píxeles de la capa</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Posición</translation>
+    </message>
+    <message>
+        <source>Keep the layer from being moved or transformed</source>
+        <translation>Impedir que la capa se mueva o transforme</translation>
+    </message>
+    <message>
+        <source>Artboards</source>
+        <translation>Mesas de trabajo</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Impedir anidamiento automático</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving into or out of an artboard when it is dragged</source>
+        <translation>Impedir que la capa entre o salga de una mesa de trabajo al arrastrarla</translation>
+    </message>
+</context>
+<context>
     <name>LayerMerge</name>
     <message>
         <source>Merging layers...</source>
@@ -28840,6 +28899,46 @@ Bloqueada: %1</translation>
     <message>
         <source>Next Preset</source>
         <translation>Ajuste preestablecido siguiente</translation>
+    </message>
+    <message>
+        <source>Layer Below</source>
+        <translation>Capa inferior</translation>
+    </message>
+    <message>
+        <source>Layer Above</source>
+        <translation>Capa superior</translation>
+    </message>
+    <message>
+        <source>Add Layer Below to Selection</source>
+        <translation>Añadir capa inferior a la selección</translation>
+    </message>
+    <message>
+        <source>Add Layer Above to Selection</source>
+        <translation>Añadir capa superior a la selección</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Layers</source>
+        <translation>&amp;Ocultar capas</translation>
+    </message>
+    <message>
+        <source>&amp;Lock Layers...</source>
+        <translation>&amp;Bloquear capas...</translation>
+    </message>
+    <message>
+        <source>Layers shown</source>
+        <translation>Capas mostradas</translation>
+    </message>
+    <message>
+        <source>Layers hidden</source>
+        <translation>Capas ocultas</translation>
+    </message>
+    <message>
+        <source>S&amp;how Layers</source>
+        <translation>Mos&amp;trar capas</translation>
+    </message>
+    <message>
+        <source>Layer locks changed</source>
+        <translation>Bloqueos de capa cambiados</translation>
     </message>
 </context>
 <context>
