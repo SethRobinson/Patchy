@@ -1,6 +1,7 @@
 #include <QJsonObject>
 #include <QLayout>
 #include <QScrollBar>
+#include <QSlider>
 #include <QStatusBar>
 #include "ui/modifier_names.hpp"
 #include "ui/tool_cursors.hpp"
@@ -6928,6 +6929,65 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
   CHECK(checked);
 }
 
+void ui_shape_appearance_grows_to_fit_gradient_stroke() {
+  // GitHub issue 552: switching Stroke Paint to Gradient added five rows but
+  // left the dialog at its opening size, so a scroll bar appeared and the
+  // right column's wider gradient combo squeezed the left column until the
+  // Opacity and Fill Opacity sliders collapsed to a box.
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  make_rect_shape_layer(window, *canvas);
+
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
+    auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll"));
+    auto* page = dialog->findChild<QWidget*>(QStringLiteral("shapeAppearancePage"));
+    auto* opacity = dialog->findChild<QSlider*>(QStringLiteral("shapeLayerOpacitySlider"));
+    auto* fill_opacity = dialog->findChild<QSlider*>(QStringLiteral("shapeLayerFillOpacitySlider"));
+    CHECK(stroke_paint != nullptr && scroll != nullptr && page != nullptr && opacity != nullptr &&
+          fill_opacity != nullptr);
+    if (stroke_paint == nullptr || scroll == nullptr || page == nullptr || opacity == nullptr ||
+        fill_opacity == nullptr) {
+      return;
+    }
+    const int opened_height = dialog->height();
+    const int opened_slider_width = opacity->width();
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    QApplication::processEvents();
+    patchy::test::ui::save_widget_artifact("issue552_shape_appearance_gradient_stroke", *dialog);
+    const auto* screen = dialog->screen();
+    CHECK(screen != nullptr);
+    const int max_height = screen != nullptr ? screen->availableGeometry().height() - 40
+                                             : std::numeric_limits<int>::max();
+    // The dialog grew for the new rows, up to the screen's height...
+    CHECK(dialog->height() > opened_height || dialog->height() >= max_height);
+    // ...so the scroll bar stays away unless the screen cap applied.
+    if (dialog->height() < max_height) {
+      CHECK(scroll->verticalScrollBar()->maximum() == 0);
+    }
+    // Scroll bar or not, the columns keep their preferred width: nothing is squeezed.
+    CHECK(page->width() >= page->sizeHint().width());
+    // The sliders never collapse: a floor of their own, and still their opening width.
+    for (auto* slider : {opacity, fill_opacity}) {
+      CHECK(slider->minimumWidth() >= 72);
+      CHECK(slider->width() >= slider->minimumWidth());
+      CHECK(slider->width() >= std::min(opened_slider_width, 72));
+    }
+    checked = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(checked);
+}
+
 void ui_shape_appearance_spins_have_step_buttons() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -7746,6 +7806,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_geometry_radius_link_edits_all_corners},
       {"ui_shape_appearance_dialog_fits_1080p_and_has_two_columns",
        ui_shape_appearance_dialog_fits_1080p_and_has_two_columns},
+      {"ui_shape_appearance_grows_to_fit_gradient_stroke", ui_shape_appearance_grows_to_fit_gradient_stroke},
       {"ui_shape_appearance_spins_have_step_buttons", ui_shape_appearance_spins_have_step_buttons},
       {"ui_shape_appearance_reset_restores_factory_defaults",
        ui_shape_appearance_reset_restores_factory_defaults},

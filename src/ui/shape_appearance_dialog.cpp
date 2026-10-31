@@ -42,12 +42,14 @@
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSize>
+#include <QSlider>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <memory>
 #include <utility>
@@ -1144,10 +1146,17 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     sync_stroke_paint_controls();
   };
   sync_all_controls();
+  // The Opacity and Fill Opacity sliders keep a usable width: the box layout
+  // shrinks a column toward its minimum when the other one asks for more, and
+  // a bare QSlider's minimum is a few pixels (issue 552).
+  for (auto* slider : page->findChildren<QSlider*>()) {
+    slider->setMinimumWidth(std::max(slider->minimumWidth(), 72));
+  }
   // Measure the page while EVERY per-kind row is still visible, so switching
-  // a paint kind later never widens the columns past the viewport (a hidden
-  // horizontal bar would clip the steppers) and the dialog never changes
-  // width under the pointer - the Layer Style stroke-page rule.
+  // a paint kind later never pushes the columns' minimum past the viewport (a
+  // hidden horizontal bar would clip the steppers), the Layer Style
+  // stroke-page rule. grow_to_fit below may still widen the dialog to the
+  // page's preferred width.
   page->layout()->activate();
   // Reserve the vertical scrollbar's width too: a paint-kind switch that
   // makes the page taller than the dialog adds the bar, which would otherwise
@@ -1156,6 +1165,85 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
                           scroll->verticalScrollBar()->sizeHint().width());
   refresh_fill_rows();
   refresh_stroke_rows();
+
+  // The dialog size that shows the whole page with the rows visible now.
+  // Sized from the page's own hint (QScrollArea::sizeHint caps at ~24 font
+  // heights, which would show a needless scrollbar on any normal screen) and
+  // capped at the screen's available height; past that cap the scrollbar
+  // shows, and its width is added so it never takes width from the columns.
+  // Rows hidden or shown since the last measurement invalidated their
+  // layouts but not the hints cached in each parent layout's item
+  // (QWidgetItemV2), which only a widget's own updateGeometry clears (before
+  // the dialog shows, the posted layout requests have not run). Clear them so
+  // the height counts the visible rows only.
+  QDialog* const dialog_ptr = &dialog;
+  const auto fitted_dialog_size = [page, scroll, dialog_layout](const QScreen* screen) {
+    for (auto* child : page->findChildren<QWidget*>()) {
+      child->updateGeometry();
+    }
+    for (auto* layout : page->findChildren<QLayout*>()) {
+      layout->invalidate();
+    }
+    page->layout()->activate();
+    scroll->updateGeometry();
+    dialog_layout->invalidate();
+    const auto page_hint = page->sizeHint();
+    const auto margins = dialog_layout->contentsMargins();
+    int page_width = page_hint.width();
+    // The dialog layout's own hint counts every row under the page (the Preview
+    // checkbox, the button box) with their spacings and margins; only its scroll
+    // area entry is wrong (the capped QScrollArea hint), so swap that for the
+    // page's hint. Summing the rows by hand missed the Preview row and opened
+    // the dialog one row short, with a scrollbar on a tall screen (Seth,
+    // October 2026).
+    int height = dialog_layout->sizeHint().height() - scroll->sizeHint().height() + page_hint.height();
+    int max_width = std::numeric_limits<int>::max();
+    if (screen != nullptr) {
+      const auto available = screen->availableGeometry();
+      const auto max_height = std::max(320, available.height() - 40);
+      if (height > max_height) {
+        height = max_height;
+        page_width += scroll->verticalScrollBar()->sizeHint().width();
+      }
+      max_width = std::max(320, available.width() - 40);
+    }
+    const int width = std::max(page_width, scroll->minimumWidth()) + margins.left() + margins.right();
+    return QSize(std::min(width, max_width), height);
+  };
+  // A paint or fill kind switch that adds rows grows the open dialog to show
+  // them, up to the screen, instead of leaving a scrollbar that narrows the
+  // columns (issue 552). It never shrinks: a size the user dragged larger stays.
+  const auto grow_to_fit = [dialog_ptr, fitted_dialog_size] {
+    if (!dialog_ptr->isVisible()) {
+      return;
+    }
+    const QScreen* screen = dialog_ptr->screen();
+    const auto current = dialog_ptr->size();
+    const auto grown = current.expandedTo(fitted_dialog_size(screen));
+    if (grown == current) {
+      return;
+    }
+    const auto frame = dialog_ptr->frameGeometry();
+    const auto frame_extra = frame.size() - current;
+    dialog_ptr->resize(grown);
+    if (screen == nullptr) {
+      return;
+    }
+    // Keep the grown dialog on its screen: it grows down and right, so move
+    // it up or left as far as the screen's edge allows.
+    const auto available = screen->availableGeometry();
+    const auto grown_frame = grown + frame_extra;
+    auto top_left = frame.topLeft();
+    if (top_left.y() + grown_frame.height() > available.bottom() + 1) {
+      top_left.setY(std::max(available.top(), available.bottom() + 1 - grown_frame.height()));
+    }
+    if (top_left.x() + grown_frame.width() > available.right() + 1) {
+      top_left.setX(std::max(available.left(), available.right() + 1 - grown_frame.width()));
+    }
+    if (top_left != frame.topLeft()) {
+      dialog_ptr->move(top_left);
+    }
+  };
 
   // --- Wiring ---
   QObject::connect(reset_button, &QPushButton::clicked, &dialog, [=] {
@@ -1180,6 +1268,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     sync_all_controls();
     refresh_fill_rows();
     refresh_stroke_rows();
+    grow_to_fit();
     notify();
   });
   QObject::connect(fill_kind_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
@@ -1211,6 +1300,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       state->settings.fill.pattern_name = saved_pattern_name(fill_pattern_combo);
     }
     refresh_fill_rows();
+    grow_to_fit();
     notify({"fill.kind"});
   });
 
@@ -1379,6 +1469,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       content.pattern_name = saved_pattern_name(stroke_pattern_combo);
     }
     refresh_stroke_rows();
+    grow_to_fit();
     notify({"stroke.content.kind"});
   });
   QObject::connect(stroke_gradient_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
@@ -1604,46 +1695,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     spin->setKeyboardTracking(false);
   }
 
-  // Size from the page's own hint (QScrollArea::sizeHint caps at ~24 font
-  // heights, which would show a needless scrollbar on any normal screen) and
-  // cap at the available screen height; the scrollbar earns its width only
-  // when the cap applies. Resizing here, before remember_dialog_position,
-  // keeps the centering and on-screen clamp working from the real size.
-  // The width measurement above cached every widget's hint inside its parent
-  // layout's item (QWidgetItemV2) with all rows visible; the per-kind hides
-  // since then invalidated layouts but not those caches, which only a
-  // widget's own updateGeometry clears (the dialog is not shown yet, so the
-  // posted layout requests have not run). Clear them so the height below
-  // counts the visible rows only.
-  for (auto* child : page->findChildren<QWidget*>()) {
-    child->updateGeometry();
-  }
-  for (auto* layout : page->findChildren<QLayout*>()) {
-    layout->invalidate();
-  }
-  page->layout()->activate();
-  const auto page_hint = page->sizeHint();
-  const auto margins = dialog_layout->contentsMargins();
-  int width = std::max(page_hint.width(), scroll->minimumWidth()) + margins.left() + margins.right();
-  // The dialog layout's own hint counts every row under the page (the Preview
-  // checkbox, the button box) with their spacings and margins; only its scroll
-  // area entry is wrong (the capped QScrollArea hint), so swap that for the
-  // page's hint. Summing the rows by hand missed the Preview row and opened
-  // the dialog one row short, with a scrollbar on a tall screen (Seth,
-  // October 2026).
-  int height = dialog_layout->sizeHint().height() - scroll->sizeHint().height() + page_hint.height();
+  // Open at the size that shows the visible rows. Resizing here, before
+  // remember_dialog_position, keeps the centering and on-screen clamp
+  // working from the real size.
   const QScreen* screen = parent != nullptr ? parent->screen() : nullptr;
   if (screen == nullptr) {
     screen = QGuiApplication::primaryScreen();
   }
-  if (screen != nullptr) {
-    const auto available = screen->availableGeometry();
-    const auto max_height = std::max(320, available.height() - 40);
-    if (height > max_height) {
-      height = max_height;  // the bar's width is already reserved above
-    }
-  }
-  dialog.resize(width, height);
+  dialog.resize(fitted_dialog_size(screen));
 
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
