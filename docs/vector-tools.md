@@ -20,7 +20,9 @@ line with Weight) and the options-bar paints. Stroke alignment defaults to
 Inside, like PS. An open subpath (a two-point Pen line) has no area to clip
 to, so `rasterize_vector_stroke` moves its centered stroke half a width to the
 right of the path's direction for Inside, to the left for Outside, as PS draws
-it (issue 553, measured on a PS file); closed subpaths keep the clip. Combine (New Layer / Add / Subtract / Intersect / Exclude)
+it (issue 553, measured on a PS file); closed subpaths keep the clip. Dashes
+are spaced along the path itself and each dash is then moved, so dashes past
+a corner keep the centered stroke's phase (issue 558, PS COM renders). Combine (New Layer / Add / Subtract / Intersect / Exclude)
 appends a group with that op to the active shape layer (Shift at the press: Add
 once; Ctrl: [Path Select](vector-commands.md#tool-roles)). Path mode appends
 to the work path; Pixels keeps the raster commit byte-identical.
