@@ -16279,6 +16279,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Clone source cleared</source>
         <translation>仿制源已清除</translation>
     </message>
+    <message>
+        <source>Break path</source>
+        <translation>断开路径</translation>
+    </message>
+    <message>
+        <source>Join end points</source>
+        <translation>连接端点</translation>
+    </message>
+    <message>
+        <source>Merge points</source>
+        <translation>合并锚点</translation>
+    </message>
+    <message>
+        <source>Delete segment</source>
+        <translation>删除线段</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>在锚点处断开路径</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>连接端点</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>合并为一个锚点</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>删除线段</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -24530,7 +24562,6 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>已应用 %1（按 %2 可还原）</translation>
     </message>
     <message>
@@ -29040,6 +29071,170 @@ Locked: %1</source>
     <message>
         <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>描边虚线。虚线预设使用平头端点；点线预设使用圆形端点和圆形拐角</translation>
+    </message>
+    <message>
+        <source>The selected shapes only cut into others and paint nothing of their own</source>
+        <translation>选中的形状只从其他形状中减去，自身不绘制任何内容</translation>
+    </message>
+    <message>
+        <source>Shapes combined with Intersect or Exclude share one color</source>
+        <translation>以相交或排除组合的形状共用一种颜色</translation>
+    </message>
+    <message>
+        <source>An inverted shape has one color</source>
+        <translation>反相的形状只有一种颜色</translation>
+    </message>
+    <message>
+        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
+        <translation>请用路径选择或直接选择工具选择形状图层上的形状</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>在锚点处断开路径</translation>
+    </message>
+    <message>
+        <source>Open the path at the selected points</source>
+        <translation>在选中的锚点处断开路径</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>连接端点</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment</source>
+        <translation>用直线段连接两个选中的端点</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>合并为一个锚点</translation>
+    </message>
+    <message>
+        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
+        <translation>将选中的端点或一串选中的锚点合并为位于其中间的一个锚点</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>删除线段</translation>
+    </message>
+    <message>
+        <source>Delete the selected segments and leave the path open</source>
+        <translation>删除选中的线段，使路径保持开放</translation>
+    </message>
+    <message>
+        <source>Color Selected Shapes...</source>
+        <translation>为选中的形状着色...</translation>
+    </message>
+    <message>
+        <source>Give the selected shapes a fill color of their own</source>
+        <translation>为选中的形状设置独立的填充颜色</translation>
+    </message>
+    <message>
+        <source>Move Selected Shapes to New Layer</source>
+        <translation>将选中的形状移到新图层</translation>
+    </message>
+    <message>
+        <source>Move the selected shapes to a new shape layer above</source>
+        <translation>将选中的形状移到上方的新形状图层</translation>
+    </message>
+    <message>
+        <source>Copy Selected Shapes to New Layer</source>
+        <translation>将选中的形状拷贝到新图层</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes to a new shape layer above</source>
+        <translation>将选中的形状拷贝到上方的新形状图层</translation>
+    </message>
+    <message>
+        <source>Cut Shapes</source>
+        <translation>剪切形状</translation>
+    </message>
+    <message>
+        <source>Cut the selected shapes</source>
+        <translation>剪切选中的形状</translation>
+    </message>
+    <message>
+        <source>Copy Shapes</source>
+        <translation>拷贝形状</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes</source>
+        <translation>拷贝选中的形状</translation>
+    </message>
+    <message>
+        <source>Paste Shapes</source>
+        <translation>粘贴形状</translation>
+    </message>
+    <message>
+        <source>Paste the copied shapes into the target path</source>
+        <translation>将拷贝的形状粘贴到目标路径</translation>
+    </message>
+    <message>
+        <source>Select a point inside a path, or any point of a closed path, with Direct Select</source>
+        <translation>请用直接选择工具选择路径内部的锚点，或闭合路径的任意锚点</translation>
+    </message>
+    <message>
+        <source>Select two end points of open paths with Direct Select</source>
+        <translation>请用直接选择工具选择开放路径的两个端点</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select</source>
+        <translation>请用直接选择工具选择两个端点，或同一路径上相邻的锚点</translation>
+    </message>
+    <message>
+        <source>Select a segment (both of its points) with Direct Select</source>
+        <translation>请用直接选择工具选择一条线段（它的两个锚点）</translation>
+    </message>
+    <message>
+        <source>Cut shapes</source>
+        <translation>剪切形状</translation>
+    </message>
+    <message>
+        <source>Cut %1 shape(s)</source>
+        <translation>已剪切 %1 个形状</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s)</source>
+        <translation>已拷贝 %1 个形状</translation>
+    </message>
+    <message>
+        <source>Paste shapes</source>
+        <translation>粘贴形状</translation>
+    </message>
+    <message>
+        <source>Pasted %1 shape(s)</source>
+        <translation>已粘贴 %1 个形状</translation>
+    </message>
+    <message>
+        <source>Shape color</source>
+        <translation>形状颜色</translation>
+    </message>
+    <message>
+        <source>Colored %1 shape(s)</source>
+        <translation>已为 %1 个形状着色</translation>
+    </message>
+    <message>
+        <source>Shape Color</source>
+        <translation>形状颜色</translation>
+    </message>
+    <message>
+        <source>Select shapes with Path Select or Direct Select first</source>
+        <translation>请先用路径选择或直接选择工具选择形状</translation>
+    </message>
+    <message>
+        <source>Copy shapes to new layer</source>
+        <translation>将形状拷贝到新图层</translation>
+    </message>
+    <message>
+        <source>Move shapes to new layer</source>
+        <translation>将形状移到新图层</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s) to a new layer</source>
+        <translation>已将 %1 个形状拷贝到新图层</translation>
+    </message>
+    <message>
+        <source>Moved %1 shape(s) to a new layer</source>
+        <translation>已将 %1 个形状移到新图层</translation>
     </message>
 </context>
 <context>
