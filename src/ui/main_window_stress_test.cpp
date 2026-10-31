@@ -2283,7 +2283,7 @@ void StressTestRunner::phase_io() {
 
   // 40: read it back into a second tab, then close that tab.
   step("40_psd_reload", "Reload the PSD (decode + first composite)", "io", [&] {
-    w.open_document_path(psd_path);
+    w.open_document_path(psd_path, MainWindow::OpenExisting::LoadCopy);
     pump();
   }, canvas_megapixels());
   if (w.document_tabs_ != nullptr && w.document_tabs_->count() > 1) {
@@ -2846,7 +2846,7 @@ void StressTestRunner::phase_vector_io() {
       report_.warnings.append(QStringLiteral("Full-scene PSD save failed: %1").arg(psd_path));
       return;
     }
-    w.open_document_path(psd_path);
+    w.open_document_path(psd_path, MainWindow::OpenExisting::LoadCopy);
     pump();
   }, current_document_megapixels());
   if (w.document_tabs_ != nullptr && w.document_tabs_->count() > 1) {

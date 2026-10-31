@@ -23222,7 +23222,6 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>Применено %1 (%2 отменяет это)</translation>
     </message>
     <message>
@@ -29204,6 +29203,14 @@ Locked: %1</source>
     <message>
         <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Штрихи обводки. Наборы со штрихами используют плоские концы, наборы с точками: круглые концы и углы</translation>
+    </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Изображения из %1 уже открыты</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 уже открыт</translation>
     </message>
 </context>
 <context>

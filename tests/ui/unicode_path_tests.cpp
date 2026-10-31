@@ -632,6 +632,32 @@ void ui_unicode_open_folder_reads_unicode_names() {
   CHECK(nfc(patchy::ui::MainWindowTestAccess::active_session_path(window)).contains(nfc(q(kUnicodeDirName))));
 }
 
+// GitHub issue 560: a Unicode-named file that is already open switches to its document
+// when opened again, so the path comparison must survive the Qt path boundary.
+void ui_unicode_open_twice_keeps_one_document() {
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  SettingsValueRestorer last_open_restorer(QStringLiteral("lastOpenDirectory"));
+  const auto dir = unicode_dir(QStringLiteral("open-twice"));
+  const auto path = dir + QLatin1Char('/') + q(kUnicodeCombinedStem) + QStringLiteral(".png");
+  QImage image(10, 6, QImage::Format_RGBA8888);
+  image.fill(QColor(10, 20, 30, 255));
+  CHECK(image.save(path));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto before = patchy::ui::MainWindowTestAccess::session_count(window);
+  patchy::ui::MainWindowTestAccess::open_document_path_as_user(window, path);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 1);
+  const auto* opened = &patchy::ui::MainWindowTestAccess::document(window);
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path_as_user(window, QDir::toNativeSeparators(path));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 2);
+  CHECK(&patchy::ui::MainWindowTestAccess::document(window) == opened);
+}
+
 // Files as Layers reads files by path (the Import command and doc.importFilesAsLayers
 // share the core), so Unicode names must come back as layer names, not mojibake.
 // A Unicode path copied as text (Explorer's Copy as path quotes it) opens on Edit > Paste
@@ -894,6 +920,7 @@ std::vector<patchy::test::TestCase> unicode_path_tests() {
       {"ui_unicode_legacy_plugin_probe_from_unicode_dir", ui_unicode_legacy_plugin_probe_from_unicode_dir},
       {"ui_unicode_divide_photos_folder_save", ui_unicode_divide_photos_folder_save},
       {"ui_unicode_open_folder_reads_unicode_names", ui_unicode_open_folder_reads_unicode_names},
+      {"ui_unicode_open_twice_keeps_one_document", ui_unicode_open_twice_keeps_one_document},
       {"ui_unicode_files_as_layers_reads_unicode_names", ui_unicode_files_as_layers_reads_unicode_names},
       {"ui_unicode_paste_text_path_opens_unicode_name", ui_unicode_paste_text_path_opens_unicode_name},
       {"ui_unicode_place_linked_smart_object_resolves", ui_unicode_place_linked_smart_object_resolves},

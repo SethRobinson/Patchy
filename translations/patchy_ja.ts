@@ -24530,7 +24530,6 @@ Clipped to the layer below</source>
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1 を適用しました (%2 で取り消せます)</translation>
     </message>
     <message>
@@ -29040,6 +29039,14 @@ Locked: %1</source>
     <message>
         <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>線の破線。破線のプリセットは先端をバットに、点のプリセットは先端と角を丸にします</translation>
+    </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>%1 の画像はすでに開いています</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 はすでに開いています</translation>
     </message>
 </context>
 <context>

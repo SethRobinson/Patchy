@@ -75,7 +75,11 @@ public:
 
   static CanvasWidget* canvas(MainWindow& window);
 
+  // Loads the file even when a document already shows it, as most tests reopen what they
+  // just saved; open_document_path_as_user switches to that document instead (issue 560).
   static void open_document_path(MainWindow& window, QString path);
+  static void open_document_path_as_user(MainWindow& window, QString path);
+  static void open_recent_document(MainWindow& window, QString path);
 
   static int open_folder_path(MainWindow& window, const QString& directory);
 

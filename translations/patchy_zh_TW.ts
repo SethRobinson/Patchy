@@ -24530,7 +24530,6 @@ Y：%2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>已套用 %1（按 %2 可還原）</translation>
     </message>
     <message>
@@ -29040,6 +29039,14 @@ Locked: %1</source>
     <message>
         <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>描邊虛線。虛線預設使用平端端點；點線預設使用圓形端點和圓形轉角</translation>
+    </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>%1 中的影像已開啟</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 已開啟</translation>
     </message>
 </context>
 <context>

@@ -24599,7 +24599,6 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>Se aplicó %1 (%2 lo deshace)</translation>
     </message>
     <message>
@@ -29122,6 +29121,14 @@ Bloqueada: %1</translation>
     <message>
         <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Guiones del trazo. Los ajustes de guiones usan terminaciones planas; los de puntos, terminaciones y esquinas redondas</translation>
+    </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Las imágenes de %1 ya están abiertas</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 ya está abierto</translation>
     </message>
 </context>
 <context>

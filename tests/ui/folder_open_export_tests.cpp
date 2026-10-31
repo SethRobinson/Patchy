@@ -245,10 +245,14 @@ void ui_open_folder_drop_and_cli_expand_directories() {
   CHECK(MainWindowTestAccess::session_count(window) == before + 3);
 
   // Drag and drop: a folder URL is accepted by the drag check and opens on the
-  // deferred drop, same as a multi-file drop.
+  // deferred drop, same as a multi-file drop. A second folder: the first one's
+  // images are already open, so dropping it again opens nothing (GitHub issue 560).
+  QTemporaryDir second;
+  CHECK(second.isValid());
+  make_page_folder(second);
   {
     QMimeData mime;
-    mime.setUrls({QUrl::fromLocalFile(temp.path())});
+    mime.setUrls({QUrl::fromLocalFile(second.path())});
     QDragEnterEvent enter(QPoint(50, 50), Qt::CopyAction | Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
     CHECK(MainWindowTestAccess::accept_open_file_drag(window, &enter));
     QDropEvent drop(QPointF(50, 50), Qt::CopyAction | Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
@@ -260,6 +264,17 @@ void ui_open_folder_drop_and_cli_expand_directories() {
   CHECK(MainWindowTestAccess::session_count(window) == before + 6);
   CHECK(MainWindowTestAccess::session_title(window, before + 3) == QStringLiteral("page-1.jpg"));
   CHECK(MainWindowTestAccess::session_title(window, before + 5) == QStringLiteral("page-10.png"));
+  {
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(temp.path())});
+    QDropEvent drop(QPointF(50, 50), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    CHECK(MainWindowTestAccess::open_dropped_files(window, &drop));
+    QApplication::processEvents();
+    CHECK(MainWindowTestAccess::session_count(window) == before + 6);
+    CHECK(QFileInfo(MainWindowTestAccess::active_session_path(window)) ==
+          QFileInfo(temp.filePath(QStringLiteral("page-1.jpg"))));
+    CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("already open")));
+  }
   // A folder with nothing to open is still refused at the drag stage only when it
   // is not a directory; an empty directory reports through the status bar on drop.
   {
@@ -273,6 +288,93 @@ void ui_open_folder_drop_and_cli_expand_directories() {
     CHECK(MainWindowTestAccess::session_count(window) == before + 6);
     CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("No supported images")));
   }
+}
+
+// GitHub issue 560: opening a file that a document already shows switches to that
+// document instead of loading a second copy, from every user entry point (the open
+// path File > Open, Open Recent and drops share, and a second launch's files).
+void ui_open_already_open_file_switches_to_its_tab() {
+  SettingsValueRestorer last_open_restorer(QStringLiteral("lastOpenDirectory"));
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto first_path = temp.filePath(QStringLiteral("first.png"));
+  const auto second_path = temp.filePath(QStringLiteral("second.png"));
+  const auto third_path = temp.filePath(QStringLiteral("third.png"));
+  write_solid_image(first_path, 12, 8, QColor(255, 0, 0));
+  write_solid_image(second_path, 8, 8, QColor(0, 255, 0));
+  write_solid_image(third_path, 16, 8, QColor(0, 0, 255));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto before = MainWindowTestAccess::session_count(window);
+  MainWindowTestAccess::open_document_path_as_user(window, first_path);
+  QApplication::processEvents();
+  auto* first_document = &MainWindowTestAccess::document(window);
+  MainWindowTestAccess::open_document_path_as_user(window, second_path);
+  QApplication::processEvents();
+  auto* second_document = &MainWindowTestAccess::document(window);
+  CHECK(MainWindowTestAccess::session_count(window) == before + 2);
+  CHECK(second_document != first_document);
+
+  // File > Open (each picked file), Open Recent and drops share this open path.
+  MainWindowTestAccess::open_document_path_as_user(window, first_path);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::session_count(window) == before + 2);
+  CHECK(&MainWindowTestAccess::document(window) == first_document);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("first.png is already open")));
+
+  MainWindowTestAccess::open_recent_document(window, second_path);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::session_count(window) == before + 2);
+  CHECK(&MainWindowTestAccess::document(window) == second_document);
+
+  // A path spelled differently still names the same file: a detour through another
+  // folder everywhere, and another letter case where the file system ignores case.
+  CHECK(QDir(temp.path()).mkdir(QStringLiteral("sub")));
+  MainWindowTestAccess::open_document_path_as_user(window, temp.path() + QStringLiteral("/sub/../first.png"));
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::session_count(window) == before + 2);
+  CHECK(&MainWindowTestAccess::document(window) == first_document);
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+  MainWindowTestAccess::open_document_path_as_user(window, second_path);
+  QApplication::processEvents();
+  MainWindowTestAccess::open_document_path_as_user(window, temp.filePath(QStringLiteral("FIRST.PNG")));
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::session_count(window) == before + 2);
+  CHECK(&MainWindowTestAccess::document(window) == first_document);
+#endif
+
+  // A second launch forwards its files: the open one comes forward, nothing reloads.
+  window.activate_for_second_instance({second_path});
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::session_count(window) == before + 2);
+  CHECK(&MainWindowTestAccess::document(window) == second_document);
+
+  // A drop of several files skips the open one and opens the rest; the last is active.
+  {
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(first_path), QUrl::fromLocalFile(third_path)});
+    QDropEvent drop(QPointF(50, 50), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    CHECK(MainWindowTestAccess::open_dropped_files(window, &drop));
+    QApplication::processEvents();
+  }
+  CHECK(MainWindowTestAccess::session_count(window) == before + 3);
+  CHECK(MainWindowTestAccess::active_session_path(window).endsWith(QStringLiteral("third.png")));
+
+  // Open Folder skips the open images too, and says so when nothing was left to open.
+  CHECK(MainWindowTestAccess::open_folder_path(window, temp.path()) == 0);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::session_count(window) == before + 3);
+  CHECK(&MainWindowTestAccess::document(window) == first_document);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("already open")));
+
+  // Scripts (app.open) and tests reopening a saved file still load a second copy.
+  MainWindowTestAccess::open_document_path(window, first_path);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::session_count(window) == before + 4);
+  CHECK(&MainWindowTestAccess::document(window) != first_document);
 }
 
 void ui_folder_actions_and_commands_registered() {
@@ -957,6 +1059,7 @@ std::vector<patchy::test::TestCase> folder_open_export_tests() {
       {"ui_open_folder_opens_images_in_natural_order", ui_open_folder_opens_images_in_natural_order},
       {"ui_open_folder_empty_reports_status", ui_open_folder_empty_reports_status},
       {"ui_open_folder_drop_and_cli_expand_directories", ui_open_folder_drop_and_cli_expand_directories},
+      {"ui_open_already_open_file_switches_to_its_tab", ui_open_already_open_file_switches_to_its_tab},
       {"ui_folder_actions_and_commands_registered", ui_folder_actions_and_commands_registered},
       {"ui_file_export_menu_actions_registered", ui_file_export_menu_actions_registered},
       {"ui_menubar_menus_share_the_text_column", ui_menubar_menus_share_the_text_column},

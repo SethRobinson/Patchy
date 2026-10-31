@@ -23096,7 +23096,6 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
-        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1을(를) 적용했습니다(%2 키로 실행 취소)</translation>
     </message>
     <message>
@@ -29040,6 +29039,14 @@ Locked: %1</source>
     <message>
         <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>선 점선 패턴. 대시 사전 설정은 맞대기 캡을, 점 사전 설정은 원형 캡과 원형 모서리를 사용합니다</translation>
+    </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>%1의 이미지가 이미 열려 있습니다</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1이(가) 이미 열려 있습니다</translation>
     </message>
 </context>
 <context>
