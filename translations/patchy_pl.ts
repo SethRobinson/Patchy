@@ -14309,8 +14309,8 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Warstwa ukryta. Kliknij, aby pokazać. %ALT%-kliknięcie pokazuje tylko tę warstwę.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>Na niektórych warstwach tekstowych malowano w GIMP po ustawieniu tekstu, więc otwarto je jako warstwy pikselowe. Tekst &gt; Przywróć tekst GIMP zamienia je z powrotem w edytowalny tekst, bez namalowanych zmian.</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>Na niektórych warstwach tekstowych malowano w GIMP po ustawieniu tekstu, więc otwarto je jako warstwy pikselowe.</translation>
     </message>
 </context>
 <context>
@@ -29082,16 +29082,72 @@ Zablokowano: %1</translation>
         <translation>Pokaż wszystkie w&amp;arstwy</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>Żadna zaznaczona warstwa nie ma tekstu GIMP do przywrócenia</translation>
+        <source>GIMP Text Layers</source>
+        <translation>Warstwy tekstowe GIMP</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>Przywróć tekst GIMP</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>Zachowaj je jako warstwy pikselowe, tak jak rysuje je GIMP, albo utwórz edytowalny tekst z tekstu zapisanego przez GIMP. Konwersja usuwa namalowane zmiany, tak jak GIMP podczas edycji tekstu. Kopie jako warstwy tekstowe trafiają nad każdą warstwę jako ukryte, więc plik wygląda tak, jak narysował go GIMP.</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>Przywrócono tekst GIMP</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>Zachowaj jako warstwy pikselowe</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>Konwertuj na warstwy tekstowe</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>Dodaj kopie jako warstwy tekstowe</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>Nie pytaj ponownie</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (tekst)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>Dodaj kopie tekstu GIMP</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>Konwertuj tekst GIMP</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>Warstwy tekstowe, na których malowano w GIMP, zachowały piksele; nad nimi dodano ukryte kopie z edytowalnym tekstem.</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>Warstwy tekstowe, na których malowano w GIMP, stały się edytowalnym tekstem; namalowane zmiany usunięto.</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>Zachowaj jako warstwy pikselowe</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>Konwertuj na warstwy tekstowe</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>Dodaj kopie jako warstwy tekstowe</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>Warstwy tekstowe GIMP, na których malowano po ustawieniu tekstu, otwierają się tak, jak narysował je GIMP. Patchy może zamiast tego utworzyć edytowalny tekst z tekstu zapisanego przez GIMP: konwersja zastępuje warstwę i usuwa namalowane zmiany, a kopie trafiają nad każdą warstwę jako ukryte.</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>Otwieranie zamalowanego tekstu GIMP:</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>Warstwy tekstowe w tym pliku GIMP, na których malowano po ustawieniu tekstu: %1</translation>
     </message>
 </context>
 <context>

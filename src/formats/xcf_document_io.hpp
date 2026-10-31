@@ -30,6 +30,10 @@ namespace patchy::xcf {
 // none). Throws std::runtime_error when a wrapper is damaged or expands past the limits.
 [[nodiscard]] std::vector<std::uint8_t> unwrap(std::span<const std::uint8_t> bytes);
 
+// The untranslated notice a read gives when text layers were painted on in GIMP; the open
+// path replaces it when it turns them into text (docs/xcf.md, "Text layers").
+[[nodiscard]] const char* painted_text_layers_notice() noexcept;
+
 class DocumentIo {
 public:
   // The layer tree (groups, pass-through, masks, offsets, opacity, visibility, locks,

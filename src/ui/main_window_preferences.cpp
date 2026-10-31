@@ -943,6 +943,23 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   const auto af_image_layers_index = af_image_layers_combo->findData(af_image_layers_policy);
   af_image_layers_combo->setCurrentIndex(af_image_layers_index >= 0 ? af_image_layers_index : 0);
   application_form->addRow(tr("Opening Affinity image layers:"), af_image_layers_combo);
+  // GIMP text layers painted on after their text was set (GitHub issue 551; also settable
+  // from the question that appears while this is "Ask every time").
+  auto* xcf_painted_text_combo = new QComboBox(application_group);
+  xcf_painted_text_combo->setObjectName(QStringLiteral("preferencesXcfPaintedTextCombo"));
+  xcf_painted_text_combo->addItem(tr("Ask every time"), QStringLiteral("ask"));
+  xcf_painted_text_combo->addItem(tr("Keep as pixel layers"), QStringLiteral("pixels"));
+  xcf_painted_text_combo->addItem(tr("Convert to text layers"), QStringLiteral("text"));
+  xcf_painted_text_combo->addItem(tr("Add text-layer copies"), QStringLiteral("copies"));
+  xcf_painted_text_combo->setToolTip(
+      tr("GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can "
+         "instead make editable text from the text GIMP stored: converting replaces the layer and drops the "
+         "paint, and copies go above each layer, hidden."));
+  const auto xcf_painted_text_policy =
+      settings.value(QStringLiteral("imports/xcfPaintedTextLayers"), QStringLiteral("ask")).toString();
+  const auto xcf_painted_text_index = xcf_painted_text_combo->findData(xcf_painted_text_policy);
+  xcf_painted_text_combo->setCurrentIndex(xcf_painted_text_index >= 0 ? xcf_painted_text_index : 0);
+  application_form->addRow(tr("Opening painted-on GIMP text:"), xcf_painted_text_combo);
   // How a layered document is written to PDF (also settable from the question that
   // appears while this is "Ask every time").
   auto* pdf_layers_combo = new QComboBox(application_group);
@@ -2368,6 +2385,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), missing_links_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
     settings.setValue(QStringLiteral("imports/afImageLayers"), af_image_layers_combo->currentData().toString());
+    settings.setValue(QStringLiteral("imports/xcfPaintedTextLayers"), xcf_painted_text_combo->currentData().toString());
     settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), pdf_layers_combo->currentData().toString());
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
     if (system_title_bar_check->isChecked() != entry_system_title_bar) {

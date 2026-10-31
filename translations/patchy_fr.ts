@@ -14266,8 +14266,8 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Calque masqué. Cliquez pour l&apos;afficher. %ALT%-clic n&apos;affiche que ce calque.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>Certains calques de texte ont été peints dans GIMP après la saisie du texte ; ils ont donc été ouverts comme calques de pixels. Texte &gt; Restaurer le texte GIMP les rend de nouveau modifiables, sans la peinture.</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>Certains calques de texte ont été peints dans GIMP après la saisie du texte ; ils ont donc été ouverts comme calques de pixels.</translation>
     </message>
 </context>
 <context>
@@ -29000,16 +29000,72 @@ Verrouillé : %1</translation>
         <translation>Afficher tous les &amp;calques</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>Aucun calque sélectionné ne contient de texte GIMP à restaurer</translation>
+        <source>GIMP Text Layers</source>
+        <translation>Calques de texte GIMP</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>Restaurer le texte GIMP</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>Conservez-les comme calques de pixels, tels que GIMP les dessine, ou créez du texte modifiable à partir du texte enregistré par GIMP. La conversion supprime la peinture, comme le fait GIMP quand vous modifiez son texte. Les copies en calques de texte sont placées au-dessus de chaque calque, masquées, pour que le fichier garde l&apos;aspect dessiné par GIMP.</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>Texte GIMP restauré</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>Conserver en calques de pixels</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>Convertir en calques de texte</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>Ajouter des copies en calques de texte</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>Ne plus demander</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (texte)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>Ajouter des copies du texte GIMP</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>Convertir le texte GIMP</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>Les calques de texte peints dans GIMP ont gardé leurs pixels ; des copies en texte modifiable ont été ajoutées au-dessus, masquées.</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>Les calques de texte peints dans GIMP sont devenus du texte modifiable ; la peinture a été supprimée.</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>Conserver en calques de pixels</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>Convertir en calques de texte</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>Ajouter des copies en calques de texte</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>Les calques de texte GIMP peints après la saisie du texte s&apos;ouvrent tels que GIMP les a dessinés. Patchy peut à la place créer du texte modifiable à partir du texte enregistré par GIMP : la conversion remplace le calque et supprime la peinture, et les copies sont placées au-dessus de chaque calque, masquées.</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>Ouverture du texte GIMP peint :</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>Calques de texte de ce fichier GIMP peints après la saisie du texte : %1</translation>
     </message>
 </context>
 <context>

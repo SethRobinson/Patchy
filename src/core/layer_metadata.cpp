@@ -518,4 +518,14 @@ std::optional<Rect> take_stored_xcf_text(Layer& layer) {
               static_cast<std::int32_t>(height)};
 }
 
+void clear_stored_xcf_text(Layer& layer) {
+  if (!layer_has_stored_xcf_text(layer)) {
+    return;
+  }
+  const std::string_view prefix(kLayerMetadataXcfStoredTextPrefix);
+  auto& metadata = layer.metadata_without_content_bump();
+  std::erase_if(metadata, [prefix](const auto& entry) { return entry.first.starts_with(prefix); });
+  metadata.erase(kLayerMetadataXcfStoredTextBox);
+}
+
 }  // namespace patchy

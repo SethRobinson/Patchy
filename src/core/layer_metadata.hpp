@@ -129,8 +129,8 @@ inline constexpr const char* kLayerMetadataXcfPendingOutline = "patchy.xcf.pendi
 // GIMP text layers painted on after their text was set open as pixels and keep the text GIMP
 // stored (docs/xcf.md, "Text layers"): every key the editable layer would have had (the
 // patchy.text.* keys and kLayerMetadataXcfPendingOutline), each under this prefix, and the
-// box key, GIMP's layer rect "x y width height" where the text box starts. Type > Restore
-// GIMP Text moves them back. In memory only: no file format writes them.
+// box key, GIMP's layer rect "x y width height" where the text box starts. The open-time
+// choice (imports/xcfPaintedTextLayers) moves them back. In memory only: no format writes them.
 inline constexpr const char* kLayerMetadataXcfStoredTextPrefix = "patchy.xcf.stored_text.";
 inline constexpr const char* kLayerMetadataXcfStoredTextBox = "patchy.xcf.stored_text_box";
 
@@ -218,6 +218,8 @@ void clear_layer_text_metadata(Layer& layer);
 // Moves the stored text keys back into place, dropping the stored copy, and returns GIMP's
 // layer rect; nullopt (nothing changed) without a readable stored text.
 [[nodiscard]] std::optional<Rect> take_stored_xcf_text(Layer& layer);
+// Drops the stored text without restoring it.
+void clear_stored_xcf_text(Layer& layer);
 
 [[nodiscard]] std::optional<LayerAffineTransform> parse_layer_affine_transform(std::string_view text);
 [[nodiscard]] std::string serialize_layer_affine_transform(const LayerAffineTransform& transform);

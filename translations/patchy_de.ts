@@ -14266,8 +14266,8 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Ebene ausgeblendet. Klicken zum Einblenden. %ALT%-Klick zeigt nur diese Ebene.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>Auf einige Textebenen wurde in GIMP nach dem Setzen des Textes gemalt; sie wurden deshalb als Pixelebenen geöffnet. Schrift &gt; GIMP-Text wiederherstellen macht sie wieder zu bearbeitbarem Text, ohne die Malerei.</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>Auf einige Textebenen wurde in GIMP nach dem Setzen des Textes gemalt; sie wurden deshalb als Pixelebenen geöffnet.</translation>
     </message>
 </context>
 <context>
@@ -29000,16 +29000,72 @@ Fixiert: %1</translation>
         <translation>A&amp;lle Ebenen einblenden</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>Keine ausgewählte Ebene enthält GIMP-Text zum Wiederherstellen</translation>
+        <source>GIMP Text Layers</source>
+        <translation>GIMP-Textebenen</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>GIMP-Text wiederherstellen</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>Behalten Sie sie als Pixelebenen, wie GIMP sie zeichnet, oder erstellen Sie bearbeitbaren Text aus dem Text, den GIMP gespeichert hat. Beim Umwandeln geht die Malerei verloren, wie in GIMP beim Bearbeiten des Textes. Textebenen-Kopien kommen ausgeblendet über jede Ebene, sodass die Datei weiterhin so aussieht, wie GIMP sie gezeichnet hat.</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>GIMP-Text wiederhergestellt</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>Als Pixelebenen behalten</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>In Textebenen umwandeln</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>Textebenen-Kopien hinzufügen</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>Nicht mehr fragen</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (Text)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>GIMP-Textkopien hinzufügen</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>GIMP-Text umwandeln</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>Textebenen, auf die in GIMP gemalt wurde, behielten ihre Pixel; bearbeitbare Textkopien wurden ausgeblendet darüber hinzugefügt.</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>Textebenen, auf die in GIMP gemalt wurde, wurden zu bearbeitbarem Text; die Malerei wurde verworfen.</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>Als Pixelebenen behalten</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>In Textebenen umwandeln</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>Textebenen-Kopien hinzufügen</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>GIMP-Textebenen, auf die nach dem Setzen des Textes gemalt wurde, öffnen sich so, wie GIMP sie gezeichnet hat. Patchy kann stattdessen bearbeitbaren Text aus dem von GIMP gespeicherten Text erstellen: Umwandeln ersetzt die Ebene und verwirft die Malerei, Kopien kommen ausgeblendet über jede Ebene.</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>Bemalten GIMP-Text öffnen:</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>Textebenen in dieser GIMP-Datei, auf die nach dem Setzen des Textes gemalt wurde: %1</translation>
     </message>
 </context>
 <context>

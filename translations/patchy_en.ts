@@ -14249,7 +14249,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -28919,15 +28919,71 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
+        <source>GIMP Text Layers</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
+        <source>Keep as Pixel Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

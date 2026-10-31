@@ -2194,6 +2194,33 @@ void ui_update_checks_can_be_switched_off() {
   CHECK(settings.value(QStringLiteral("updates/checkOnStartup"), false).toBool());
 }
 
+// GitHub issue 551: Preferences sets what opening a GIMP file does with text layers painted on
+// after their text was set (imports/xcfPaintedTextLayers), "Ask every time" first.
+void ui_preferences_xcf_painted_text_combo_saves_the_choice() {
+  SettingsValueRestorer policy(QStringLiteral("imports/xcfPaintedTextLayers"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/xcfPaintedTextLayers"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  run_preferences_dialog(window, /*accept=*/true, [](QDialog& dialog) {
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesXcfPaintedTextCombo"));
+    CHECK(combo != nullptr);
+    if (combo == nullptr) {
+      return;
+    }
+    CHECK(combo->count() == 4);
+    CHECK(combo->currentData().toString() == QStringLiteral("ask"));
+    QStringList values;
+    for (int index = 0; index < combo->count(); ++index) {
+      values << combo->itemData(index).toString();
+    }
+    CHECK((values == QStringList{QStringLiteral("ask"), QStringLiteral("pixels"), QStringLiteral("text"),
+                                 QStringLiteral("copies")}));
+    combo->setCurrentIndex(combo->findData(QStringLiteral("copies")));
+  });
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/xcfPaintedTextLayers")).toString() ==
+        QStringLiteral("copies"));
+}
+
 // GitHub issue 92: a wheel that passes over a Preferences dropdown or number field scrolls
 // the page and leaves the setting alone; only a control with keyboard focus takes the wheel.
 void ui_preferences_wheel_over_unfocused_control_scrolls_the_page() {
@@ -4270,6 +4297,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
       {"ui_update_checks_can_be_switched_off", ui_update_checks_can_be_switched_off},
       {"ui_preferences_wheel_over_unfocused_control_scrolls_the_page", ui_preferences_wheel_over_unfocused_control_scrolls_the_page},
+      {"ui_preferences_xcf_painted_text_combo_saves_the_choice", ui_preferences_xcf_painted_text_combo_saves_the_choice},
       {"ui_recent_filter_matches_file_names_and_extensions", ui_recent_filter_matches_file_names_and_extensions},
       {"ui_preferences_dialog_resizes_and_remembers_its_size", ui_preferences_dialog_resizes_and_remembers_its_size},
       {"ui_preferences_open_shows_busy_cursor_and_fills_start_page_after_showing",

@@ -14223,8 +14223,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>레이어가 숨겨졌습니다. 표시하려면 클릭하세요. %ALT%-클릭: 이 레이어만 표시.</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>일부 텍스트 레이어는 GIMP에서 텍스트를 입력한 뒤 그 위에 그림을 그렸기 때문에 픽셀 레이어로 열렸습니다. 문자 &gt; GIMP 텍스트 복원을 사용하면 그린 부분 없이 다시 편집 가능한 텍스트가 됩니다.</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>일부 텍스트 레이어는 GIMP에서 텍스트를 입력한 뒤 그 위에 그림을 그렸기 때문에 픽셀 레이어로 열렸습니다.</translation>
     </message>
 </context>
 <context>
@@ -28918,16 +28918,72 @@ Locked: %1</source>
         <translation>모든 레이어 표시(&amp;O)</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>선택한 레이어에 복원할 GIMP 텍스트가 없습니다</translation>
+        <source>GIMP Text Layers</source>
+        <translation>GIMP 텍스트 레이어</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>GIMP 텍스트 복원</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>GIMP가 그린 대로 픽셀 레이어로 유지하거나, GIMP가 저장한 텍스트로 편집 가능한 텍스트를 만듭니다. 변환하면 GIMP에서 텍스트를 편집할 때처럼 그린 부분이 사라집니다. 텍스트 레이어 사본은 각 레이어 위에 숨겨진 상태로 추가되므로 파일은 GIMP에서 그린 모습 그대로 보입니다.</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>GIMP 텍스트를 복원했습니다</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>픽셀 레이어로 유지</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>텍스트 레이어로 변환</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>텍스트 레이어 사본 추가</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>다시 묻지 않음</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (텍스트)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>GIMP 텍스트 사본 추가</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>GIMP 텍스트 변환</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>GIMP에서 그림을 그린 텍스트 레이어는 픽셀을 유지했고, 그 위에 편집 가능한 텍스트 사본을 숨긴 상태로 추가했습니다.</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>GIMP에서 그림을 그린 텍스트 레이어를 편집 가능한 텍스트로 바꾸었습니다. 그린 부분은 삭제되었습니다.</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>픽셀 레이어로 유지</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>텍스트 레이어로 변환</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>텍스트 레이어 사본 추가</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>텍스트를 입력한 뒤 그림을 그린 GIMP 텍스트 레이어는 GIMP가 그린 대로 열립니다. 대신 GIMP가 저장한 텍스트로 편집 가능한 텍스트를 만들 수도 있습니다. 변환하면 레이어가 바뀌고 그린 부분이 사라지며, 사본은 각 레이어 위에 숨겨진 상태로 추가됩니다.</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>그림을 그린 GIMP 텍스트 열기:</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>이 GIMP 파일에서 텍스트를 입력한 뒤 그림을 그린 텍스트 레이어: %1</translation>
     </message>
 </context>
 <context>

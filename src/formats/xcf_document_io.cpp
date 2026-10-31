@@ -1631,8 +1631,7 @@ enum class Notice : std::uint8_t {
     case Notice::TextModified:
       return PATCHY_TRANSLATE_NOOP(
           "QObject",
-          "Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type > "
-          "Restore GIMP Text makes them editable text again, without the paint.");
+          "Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.");
     case Notice::TextUnreadable:
       return PATCHY_TRANSLATE_NOOP(
           "QObject", "Some text layers could not be read as text, so they opened as pixel layers.");
@@ -1697,6 +1696,14 @@ enum class Notice : std::uint8_t {
   }
   return "";
 }
+
+}  // namespace
+
+const char* painted_text_layers_notice() noexcept {
+  return notice_text(Notice::TextModified);
+}
+
+namespace {
 
 // --- assembly -----------------------------------------------------------------------------
 
@@ -2700,7 +2707,7 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
 }
 
 // A text layer GIMP marks as painted on keeps GIMP's pixels and stores the text it would
-// have opened with under kLayerMetadataXcfStoredTextPrefix (Type > Restore GIMP Text).
+// have opened with under kLayerMetadataXcfStoredTextPrefix, for the open-time choice.
 void store_painted_text(const Build& build, const LayerRecord& record, const Parasite& text, Layer& layer) {
   try {
     const std::string_view source(reinterpret_cast<const char*>(text.data.data()), text.data.size());

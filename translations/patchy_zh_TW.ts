@@ -14223,8 +14223,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>圖層已隱藏。按一下可顯示。按住 %ALT% 按一下只顯示此圖層。</translation>
     </message>
     <message>
-        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers. Type &gt; Restore GIMP Text makes them editable text again, without the paint.</source>
-        <translation>部分文字圖層在 GIMP 中設定文字後又被繪製過，因此已作為像素圖層開啟。使用「文字 &gt; 還原 GIMP 文字」可將其重新變為可編輯文字，繪製的內容會被捨棄。</translation>
+        <source>Some text layers were painted on in GIMP after their text was set, so they opened as pixel layers.</source>
+        <translation>部分文字圖層在 GIMP 中設定文字後又被繪製過，因此已作為像素圖層開啟。</translation>
     </message>
 </context>
 <context>
@@ -28918,16 +28918,72 @@ Locked: %1</source>
         <translation>顯示所有圖層(&amp;O)</translation>
     </message>
     <message>
-        <source>No selected layer has GIMP text to restore</source>
-        <translation>所選圖層中沒有可還原的 GIMP 文字</translation>
+        <source>GIMP Text Layers</source>
+        <translation>GIMP 文字圖層</translation>
     </message>
     <message>
-        <source>Restore GIMP Text</source>
-        <translation>還原 GIMP 文字</translation>
+        <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
+        <translation>可以保留為像素圖層（與 GIMP 繪製的一致），也可以用 GIMP 儲存的文字建立可編輯文字。轉換會捨棄繪製的內容，與在 GIMP 中編輯文字時相同。文字圖層副本會以隱藏狀態加到各圖層上方，檔案看起來仍與 GIMP 繪製的一致。</translation>
     </message>
     <message>
-        <source>Restored GIMP text</source>
-        <translation>已還原 GIMP 文字</translation>
+        <source>Keep as Pixel Layers</source>
+        <translation>保留為像素圖層</translation>
+    </message>
+    <message>
+        <source>Convert to Text Layers</source>
+        <translation>轉換為文字圖層</translation>
+    </message>
+    <message>
+        <source>Add Text-Layer Copies</source>
+        <translation>新增文字圖層副本</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>不再詢問</translation>
+    </message>
+    <message>
+        <source>%1 (text)</source>
+        <translation>%1 (文字)</translation>
+    </message>
+    <message>
+        <source>Add GIMP Text Copies</source>
+        <translation>新增 GIMP 文字副本</translation>
+    </message>
+    <message>
+        <source>Convert GIMP Text</source>
+        <translation>轉換 GIMP 文字</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
+        <translation>在 GIMP 中被繪製過的文字圖層保留了像素；已在其上方加入隱藏的可編輯文字副本。</translation>
+    </message>
+    <message>
+        <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
+        <translation>在 GIMP 中被繪製過的文字圖層已變為可編輯文字；繪製的內容已捨棄。</translation>
+    </message>
+    <message>
+        <source>Keep as pixel layers</source>
+        <translation>保留為像素圖層</translation>
+    </message>
+    <message>
+        <source>Convert to text layers</source>
+        <translation>轉換為文字圖層</translation>
+    </message>
+    <message>
+        <source>Add text-layer copies</source>
+        <translation>新增文字圖層副本</translation>
+    </message>
+    <message>
+        <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
+        <translation>在設定文字後又被繪製過的 GIMP 文字圖層會按 GIMP 繪製的樣子開啟。Patchy 也可以改用 GIMP 儲存的文字建立可編輯文字：轉換會取代圖層並捨棄繪製的內容，副本則以隱藏狀態加到各圖層上方。</translation>
+    </message>
+    <message>
+        <source>Opening painted-on GIMP text:</source>
+        <translation>開啟被繪製過的 GIMP 文字：</translation>
+    </message>
+    <message>
+        <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
+        <translation>此 GIMP 檔案中設定文字後又被繪製過的文字圖層：%1</translation>
     </message>
 </context>
 <context>
