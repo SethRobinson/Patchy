@@ -16364,10 +16364,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>놓으면 끝점이 연결됩니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>점에 맞췄습니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>드래그해 점을 이동하고, 끝점을 다른 끝점에 놓으면 연결됩니다. Shift+클릭으로 선택에 추가합니다. 마우스 오른쪽 버튼으로 분할, 연결, 병합을 사용할 수 있습니다.</translation>
     </message>
@@ -16378,6 +16374,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>브러시 흐름: %1%(에어브러시 켜짐, Shift+숫자로 불투명도 설정)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>점을 병합했습니다</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>놓으면 점이 병합됩니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>점에 맞췄습니다. 끝점끼리 또는 인접한 점만 하나의 점이 됩니다. %ALT% 키를 누르고 있으면 점을 자유롭게 놓습니다.</translation>
     </message>
 </context>
 <context>

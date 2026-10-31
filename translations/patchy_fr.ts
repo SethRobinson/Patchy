@@ -16407,10 +16407,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Relâchez pour joindre les extrémités. Maintenez %ALT% pour placer le point librement.</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>Aligné sur un point. Maintenez %ALT% pour placer le point librement.</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>Faites glisser pour déplacer le point ; déposez une extrémité sur une autre pour les joindre. Maj+clic ajoute à la sélection. Clic droit pour Couper, Joindre et Fusionner.</translation>
     </message>
@@ -16421,6 +16417,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>Flux du pinceau : %1% (Aérographe activé ; Maj+chiffre règle l&apos;opacité)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>Points fusionnés</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>Relâchez pour fusionner les points. Maintenez %ALT% pour placer le point librement.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>Aligné sur un point. Seules les extrémités ou les points voisins deviennent un seul point. Maintenez %ALT% pour placer le point librement.</translation>
     </message>
 </context>
 <context>

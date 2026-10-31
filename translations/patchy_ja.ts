@@ -16364,10 +16364,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>離すと端点を連結します。%ALT% を押したままにすると自由に配置します。</translation>
     </message>
     <message>
-        <source>Snapped to a point. Hold %ALT% to place the point freely.</source>
-        <translation>ポイントにスナップしました。%ALT% を押したままにすると自由に配置します。</translation>
-    </message>
-    <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
         <translation>ドラッグでポイントを移動。端点を別の端点にドロップすると連結します。Shift+クリックで選択に追加。右クリックで分割、連結、統合。</translation>
     </message>
@@ -16378,6 +16374,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
         <translation>ブラシのフロー: %1% (エアブラシがオン。Shift+数字で不透明度を設定)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>ポイントを統合しました</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>離すとポイントを統合します。%ALT% を押したままにすると自由に配置します。</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>ポイントにスナップしました。1 つのポイントになるのは端点どうし、または隣り合うポイントだけです。%ALT% を押したままにすると自由に配置します。</translation>
     </message>
 </context>
 <context>

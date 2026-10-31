@@ -8,6 +8,7 @@
 #include "core/path_point_edits.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/modifier_names.hpp"
 
 #include <QAction>
 #include <QLatin1String>
@@ -153,30 +154,72 @@ bool CanvasWidget::run_path_point_command(PathPointCommand command, const PenHov
   return true;
 }
 
-bool CanvasWidget::path_weld_would_join(const VectorPath& path) const {
+CanvasWidget::PathWeld CanvasWidget::plan_path_weld(const VectorPath& path) const {
+  PathWeld weld;
   if (!path_weld_target_.has_value() || path_selected_anchors_.size() != 1) {
-    return false;
+    return weld;
   }
-  return join_path_end_points(path, *path_selected_anchors_.begin(), *path_weld_target_, true).has_value();
+  const auto dragged = *path_selected_anchors_.begin();
+  const auto target = *path_weld_target_;
+  // Two end points (of two open paths, or the two ends of one): they join into one point.
+  if (auto joined = join_path_end_points(path, dragged, target, true); joined.has_value()) {
+    weld.kind = PathWeld::Kind::Join;
+    weld.result = std::move(joined);
+    return weld;
+  }
+  // The next or previous point of the same path (cyclic on a closed one): the segment between
+  // them shrank to nothing, so they merge into one point, as Merge into One Point does for a
+  // segment (the snapped position, the outer handles). A path cannot branch, so any other pair
+  // only snaps; so do the two points of a two-point line and a triangle's corners, which would
+  // leave nothing to fill or stroke.
+  if (dragged.first != target.first || dragged.first < 0 ||
+      dragged.first >= static_cast<int>(path.subpaths.size())) {
+    return weld;
+  }
+  const auto& subpath = path.subpaths[static_cast<std::size_t>(dragged.first)];
+  const auto count = static_cast<int>(subpath.anchors.size());
+  const bool next = (dragged.second + 1) % count == target.second && (subpath.closed || dragged.second + 1 < count);
+  const bool previous = (target.second + 1) % count == dragged.second && (subpath.closed || target.second + 1 < count);
+  if ((!next && !previous) || count <= (subpath.closed ? 3 : 2)) {
+    return weld;
+  }
+  if (auto merged = merge_path_points(path, {dragged, target}); merged.has_value()) {
+    weld.kind = PathWeld::Kind::MergeNeighbours;
+    weld.result = std::move(merged);
+  }
+  return weld;
 }
 
 void CanvasWidget::weld_dragged_path_point() {
   const auto* path = path_edit_target_path();
-  if (path == nullptr || path_selected_anchors_.size() != 1 || !path_weld_target_.has_value() ||
-      path_edit_target_kind() == PathEditTargetKind::TextArea) {
+  if (path == nullptr || path_edit_target_kind() == PathEditTargetKind::TextArea) {
     return;
   }
-  auto joined = join_path_end_points(*path, *path_selected_anchors_.begin(), *path_weld_target_, true);
-  if (!joined.has_value()) {
-    return;  // snapped onto a point that is not an end point: the drag just lands there
+  auto weld = plan_path_weld(*path);
+  if (weld.kind == PathWeld::Kind::SnapOnly || !weld.result.has_value()) {
+    return;  // a snap only: the drag just lands there
   }
   // The drag armed the undo entry: the weld joins it, so one Undo takes both back.
-  apply_path_edit(std::move(joined->path), tr("Edit path"), joined->touched_groups);
-  path_selected_anchors_ = std::move(joined->selection);
+  apply_path_edit(std::move(weld.result->path), tr("Edit path"), weld.result->touched_groups);
+  path_selected_anchors_ = std::move(weld.result->selection);
   notify_path_selection_changed();
   if (status_callback_) {
-    status_callback_(tr("Joined the end points"));
+    status_callback_(weld.kind == PathWeld::Kind::Join ? tr("Joined the end points") : tr("Merged the points"));
   }
+}
+
+QString CanvasWidget::path_weld_hint(const VectorPath& path) const {
+  switch (plan_path_weld(path).kind) {
+    case PathWeld::Kind::Join:
+      return resolve_modifier_names(tr("Release to join the end points. Hold %ALT% to place the point freely."));
+    case PathWeld::Kind::MergeNeighbours:
+      return resolve_modifier_names(tr("Release to merge the points. Hold %ALT% to place the point freely."));
+    case PathWeld::Kind::SnapOnly:
+      break;
+  }
+  return resolve_modifier_names(
+      tr("Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place "
+         "the point freely."));
 }
 
 void CanvasWidget::add_path_point_command_entries(QMenu& menu, const PenHoverHit& hit) {
