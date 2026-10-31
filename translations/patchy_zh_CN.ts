@@ -16347,6 +16347,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Delete Segment</source>
         <translation>删除线段</translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>画笔流量：%1%(喷枪已开启；Shift+数字设置不透明度)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17554,8 +17558,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>脚本</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>设置工具或图层不透明度(1% 到 100%；输入两位数字可设为精确值)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>设置工具或图层不透明度(1 = 10%，0 = 100%；快速输入两位数字可设为精确值)</translation>
     </message>
 </context>
 <context>

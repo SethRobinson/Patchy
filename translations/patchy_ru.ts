@@ -16433,6 +16433,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Delete Segment</source>
         <translation>Удалить сегмент</translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Нажим кисти: %1% (аэрограф включен; Shift+цифра задает непрозрачность)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17642,8 +17646,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Скрипты</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>Установить непрозрачность инструмента или слоя (1–100 %; введите две цифры для точного значения)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>Установить непрозрачность инструмента или слоя (1 = 10 %, 0 = 100 %; быстро введите две цифры для точного значения)</translation>
     </message>
 </context>
 <context>

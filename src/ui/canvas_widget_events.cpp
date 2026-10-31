@@ -4616,7 +4616,9 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
       opacity_digit_timer_.elapsed() < kDigitPairWindowMs) {
     value = opacity_pending_digit_ * 10 + digit;
     if (value == 0) {
-      value = 100;  // "00" is Photoshop's spelling of 100%, not a clamped 1%
+      // "00": a layer's 0%, as in Photoshop. A tool has no 0% opacity, so there it is 100%,
+      // not a clamped 1%.
+      value = targets_layer ? 0 : 100;
     }
     opacity_pending_digit_ = -1;
     opacity_digit_timer_.invalidate();
@@ -4625,7 +4627,7 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
     opacity_pending_digit_ = digit;
     opacity_digit_timer_.start();
   }
-  value = std::clamp(value, 1, 100);
+  value = std::clamp(value, targets_layer ? 0 : 1, 100);
   if (targets_layer) {
     layer_opacity_digit_callback_(value);
     return true;
@@ -4633,7 +4635,10 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   if (targets_flow) {
     set_brush_flow(value);
     if (status_callback_) {
-      status_callback_(tr("Brush flow: %1%").arg(brush_flow_));
+      // Bare digits reach Flow only with Airbrush on, which is easy to miss (GitHub issue 562).
+      status_callback_(tool_ == CanvasTool::Brush && brush_build_up_ && !shift
+                           ? tr("Brush flow: %1% (Airbrush is on; Shift+number sets opacity)").arg(brush_flow_)
+                           : tr("Brush flow: %1%").arg(brush_flow_));
     }
   } else if (tool_ == CanvasTool::Gradient) {
     set_gradient_opacity(value);

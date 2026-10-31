@@ -16390,6 +16390,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Delete Segment</source>
         <translation>Eliminar segmento</translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Flujo del pincel: %1% (Aerógrafo activado; Mayús+número define la opacidad)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17598,8 +17602,8 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Scripts</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
-        <translation>Definir la opacidad de la herramienta o de la capa (1% a 100%; escribe dos dígitos para un valor exacto)</translation>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>Definir la opacidad de la herramienta o de la capa (1 = 10%, 0 = 100%; escribe dos dígitos rápido para un valor exacto)</translation>
     </message>
 </context>
 <context>

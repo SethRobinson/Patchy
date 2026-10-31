@@ -16373,6 +16373,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Delete Segment</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17581,7 +17585,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1% to 100%; type two digits for an exact value)</source>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
