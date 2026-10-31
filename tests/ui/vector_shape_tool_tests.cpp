@@ -3618,8 +3618,7 @@ void ui_options_bar_dash_combo_applies_presets() {
     for (int row = 0; row < custom_row; ++row) {
       const int text_width = metrics.horizontalAdvance(combo->itemText(row));
       if (text_width > field.width()) {
-        std::printf("  dash preset '%s' needs %d px, field %d px
-", qPrintable(combo->itemText(row)), text_width,
+        std::printf("  dash preset '%s' needs %d px, field %d px\n", qPrintable(combo->itemText(row)), text_width,
                     field.width());
       }
       CHECK(text_width <= field.width());
