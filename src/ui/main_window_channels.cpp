@@ -16,6 +16,7 @@
 #include "render/compositor.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
@@ -123,14 +124,23 @@ QPixmap framed_channel_thumbnail(const QImage& scaled) {
   return result;
 }
 
+// Saved channels are gray at the document's depth; a 16 or 32-bit one narrows for the preview.
 QPixmap grayscale_channel_thumbnail(const PixelBuffer& pixels) {
-  if (pixels.empty() || pixels.format() != PixelFormat::gray8()) {
+  if (!is_coverage_buffer(pixels)) {
     return {};
   }
   QImage image(pixels.width(), pixels.height(), QImage::Format_Grayscale8);
+  const auto eight_bit = pixels.format().bit_depth == BitDepth::UInt8;
   for (int y = 0; y < pixels.height(); ++y) {
-    const auto source = pixels.row(y);
-    std::copy(source.begin(), source.end(), image.scanLine(y));
+    auto* destination = image.scanLine(y);
+    if (eight_bit) {
+      const auto source = pixels.row(y);
+      std::copy(source.begin(), source.end(), destination);
+      continue;
+    }
+    for (int x = 0; x < pixels.width(); ++x) {
+      destination[x] = coverage8_at(pixels, x, y);
+    }
   }
   return framed_channel_thumbnail(image.scaled(QSize(42, 30), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
@@ -217,7 +227,7 @@ std::array<QPixmap, 8> derived_channel_thumbnail_pixmaps(const QImage& composite
 }
 
 QPixmap sampled_grayscale_channel_thumbnail(const PixelBuffer& pixels) {
-  if (pixels.empty() || pixels.format() != PixelFormat::gray8()) {
+  if (!is_coverage_buffer(pixels)) {
     return {};
   }
   const auto scaled_size =
@@ -230,13 +240,12 @@ QPixmap sampled_grayscale_channel_thumbnail(const PixelBuffer& pixels) {
         static_cast<int>((static_cast<std::int64_t>(y) * pixels.height()) /
                          std::max(1, scaled.height())),
         0, pixels.height() - 1);
-    const auto source = pixels.row(source_y);
     for (int x = 0; x < scaled.width(); ++x) {
       const auto source_x = std::clamp(
           static_cast<int>((static_cast<std::int64_t>(x) * pixels.width()) /
                            std::max(1, scaled.width())),
           0, pixels.width() - 1);
-      destination[x] = source[static_cast<std::size_t>(source_x)];
+      destination[x] = coverage8_at(pixels, source_x, source_y);
     }
   }
   QPixmap result(42, 30);

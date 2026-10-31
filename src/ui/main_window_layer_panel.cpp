@@ -37,6 +37,7 @@
 #include "core/pixel_depth.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/click_modifier_recorder.hpp"
@@ -668,7 +669,9 @@ void draw_thumbnail_disabled_cross(QPainter& painter, QSize tile) {
 QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int document_height,
                              const std::optional<Rect>& crop = std::nullopt, int tile_size = 28) {
   const auto& mask = *layer.mask();
-  const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
+  // A mask is gray at the document's depth: a 16 or 32-bit one reads through coverage8_at
+  // (GitHub issue 540, where a 16-bit PNG's alpha opened as a mask drew a white tile).
+  const auto has_pixels = is_coverage_buffer(mask.pixels);
   // `mask.bounds` is document space and the mask reads `default_color` outside
   // it, which is exactly what the fill plus the in-bounds guard below produce.
   const auto preview = thumbnail_preview_space(
@@ -689,7 +692,7 @@ QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int documen
         if (source_x < 0 || source_x >= mask.pixels.width()) {
           continue;
         }
-        const auto value = *mask.pixels.pixel(source_x, source_y);
+        const auto value = coverage8_at(mask.pixels, source_x, source_y);
         image.setPixelColor(x, y, QColor(value, value, value));
       }
     }
@@ -2304,7 +2307,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
               "controls are disabled.");
     const auto mask_pixmap = [&layer, document_size, &thumbnail_crop](const SmartFilterMask& mask) {
       constexpr int kSize = 22;
-      const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
+      const auto has_pixels = is_coverage_buffer(mask.pixels);
       const auto preview = thumbnail_preview_space(
           document_size.width(), document_size.height(), mask.bounds,
           has_pixels ? QSize(mask.pixels.width(), mask.pixels.height())
@@ -2324,7 +2327,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
             if (source_x < 0 || source_x >= mask.pixels.width()) {
               continue;
             }
-            const auto value = *mask.pixels.pixel(source_x, source_y);
+            const auto value = coverage8_at(mask.pixels, source_x, source_y);
             image.setPixelColor(x, y, QColor(value, value, value));
           }
         }
@@ -4262,8 +4265,15 @@ QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
   const auto& layer = *row.layer;
   const auto effective_lock_flags = row.ancestor_lock_flags | layer_lock_flags(layer);
   // One line for every lock (GitHub issue 483): "Locked: All", or the partial locks joined.
+  // The Background names itself instead of the transparency, position and auto-nest locks it
+  // always carries, and adds only an Image lock (#483 follow-up): "Locked: Background, Image".
   QStringList locks;
-  if ((effective_lock_flags & kLayerLockAll) == kLayerLockAll) {
+  if (row.background_row) {
+    locks << tr("Background");
+    if ((effective_lock_flags & kLayerLockImagePixels) != kLayerLockNone) {
+      locks << tr("Image");
+    }
+  } else if ((effective_lock_flags & kLayerLockAll) == kLayerLockAll) {
     locks << tr("All");
   } else {
     if ((effective_lock_flags & kLayerLockTransparentPixels) != kLayerLockNone) {
@@ -4276,7 +4286,7 @@ QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
       locks << tr("Position");
     }
   }
-  if ((effective_lock_flags & kLayerLockArtboardAutonest) != kLayerLockNone) {
+  if (!row.background_row && (effective_lock_flags & kLayerLockArtboardAutonest) != kLayerLockNone) {
     locks << tr("Auto-nesting");
   }
   const auto lock_line =

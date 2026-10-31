@@ -114,4 +114,15 @@ QImage display_image_from_deep_qimage(const QImage& image, float exposure_stops)
   return display;
 }
 
+bool is_coverage_buffer(const PixelBuffer& pixels) noexcept {
+  return !pixels.empty() && pixels.format().channels == 1U;
+}
+
+std::uint8_t coverage8_at(const PixelBuffer& pixels, int x, int y) {
+  if (pixels.format().bit_depth == BitDepth::UInt8) {
+    return *pixels.pixel(x, y);
+  }
+  return static_cast<std::uint8_t>(std::clamp(std::lround(coverage_at(pixels, x, y) * 255.0F), 0L, 255L));
+}
+
 }  // namespace patchy::ui

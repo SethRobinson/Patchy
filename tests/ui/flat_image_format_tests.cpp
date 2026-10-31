@@ -53,6 +53,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
+#include <QListWidget>
 #include <QTemporaryDir>
 #include <QMessageBox>
 #include <QPainter>
@@ -4045,6 +4046,100 @@ void ui_jpeg_compressed_tiff_opens_through_the_jpeg_decoder() {
   CHECK(document.width() == source.width() && document.height() == source.height());
 }
 
+// GitHub issue 540: a 16-bit PNG's alpha opened as a layer mask is a 16-bit mask, and its
+// Layers panel thumbnail drew solid white. The mask thumbnail reads masks at every depth: an
+// alpha ramp opened from an 8-bit and a 16-bit PNG, and the 16-bit one converted to 32 bits,
+// give the same dark-to-light tile.
+void ui_flat_alpha_mask_thumbnail_reads_deep_masks() {
+  ensure_artifact_dir();
+  patchy::set_deep_editing_override(true);
+  const auto restore_deep = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  const ScopedFlatAlphaAsLayerMask mask_import(true);
+  constexpr int kWidth = 64;
+  constexpr int kHeight = 32;
+  // Opaque at the right, fully transparent at the left; color stripes under it.
+  const auto ramp_color = [](int x, int y) {
+    return QColor(y < kHeight / 2 ? 220 : 40, 60 + x * 2, 200 - x * 2,
+                  static_cast<int>(std::lround(x * 255.0 / (kWidth - 1))));
+  };
+  QImage eight_bit(kWidth, kHeight, QImage::Format_RGBA8888);
+  QImage sixteen_bit(kWidth, kHeight, QImage::Format_RGBA64);
+  for (int y = 0; y < kHeight; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      eight_bit.setPixelColor(x, y, ramp_color(x, y));
+      auto deep = ramp_color(x, y).rgba64();
+      deep.setAlpha(static_cast<quint16>(std::lround(x * 65535.0 / (kWidth - 1))));
+      sixteen_bit.setPixelColor(x, y, QColor::fromRgba64(deep));
+    }
+  }
+  const QString eight_path = QStringLiteral("test-artifacts/issue540_alpha_ramp_8bit.png");
+  const QString sixteen_path = QStringLiteral("test-artifacts/issue540_alpha_ramp_16bit.png");
+  QFile::remove(eight_path);
+  QFile::remove(sixteen_path);
+  CHECK(eight_bit.save(eight_path, "PNG"));
+  CHECK(sixteen_bit.save(sixteen_path, "PNG"));
+
+  const auto mask_thumbnail = [](patchy::ui::MainWindow& window, const char* artifact) {
+    auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layers != nullptr);
+    if (layers == nullptr || layers->count() == 0) {
+      return QImage();
+    }
+    if (auto* panel = layers->parentWidget(); panel != nullptr) {
+      save_widget_artifact(artifact, *panel);
+    }
+    auto* row = layers->itemWidget(layers->item(0));
+    auto* label = row != nullptr ? row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) : nullptr;
+    CHECK(label != nullptr);
+    return label != nullptr ? label->pixmap(Qt::ReturnByValue).toImage() : QImage();
+  };
+  const auto mask_depth = [](patchy::ui::MainWindow& window) {
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(document.layers().size() == 1);
+    const auto& mask = document.layers().front().mask();
+    CHECK(mask.has_value() && mask->pixels.format().channels == 1);
+    return mask.has_value() ? mask->pixels.format().bit_depth : patchy::BitDepth::UInt8;
+  };
+
+  patchy::ui::MainWindow eight_window;
+  show_window(eight_window);
+  patchy::ui::MainWindowTestAccess::open_document_path(eight_window, eight_path);
+  QApplication::processEvents();
+  CHECK(mask_depth(eight_window) == patchy::BitDepth::UInt8);
+  const auto reference = mask_thumbnail(eight_window, "issue540_mask_thumbnail_8bit");
+  CHECK(!reference.isNull());
+  // The 8-bit tile itself: black at the transparent left edge, white at the opaque right.
+  const int mid_row = reference.height() / 2;
+  CHECK(qGray(reference.pixel(1, mid_row)) < 24);
+  CHECK(qGray(reference.pixel(reference.width() - 2, mid_row)) > 230);
+
+  const auto matches_reference = [&reference](const QImage& tile) {
+    CHECK(tile.size() == reference.size());
+    if (tile.size() != reference.size()) {
+      return;
+    }
+    int worst = 0;
+    for (int y = 0; y < tile.height(); ++y) {
+      for (int x = 0; x < tile.width(); ++x) {
+        worst = std::max(worst, std::abs(qGray(tile.pixel(x, y)) - qGray(reference.pixel(x, y))));
+      }
+    }
+    CHECK(worst <= 1);
+  };
+
+  patchy::ui::MainWindow deep_window;
+  show_window(deep_window);
+  patchy::ui::MainWindowTestAccess::open_document_path(deep_window, sixteen_path);
+  QApplication::processEvents();
+  CHECK(mask_depth(deep_window) == patchy::BitDepth::UInt16);
+  matches_reference(mask_thumbnail(deep_window, "issue540_mask_thumbnail_16bit"));
+
+  require_action(deep_window, "imageMode32BitAction")->trigger();
+  QApplication::processEvents();
+  CHECK(mask_depth(deep_window) == patchy::BitDepth::Float32);
+  matches_reference(mask_thumbnail(deep_window, "issue540_mask_thumbnail_32bit"));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> flat_image_format_tests() {
@@ -4065,6 +4160,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_flat_alpha_opens_as_plain_layer_transparency", ui_flat_alpha_opens_as_plain_layer_transparency},
       {"ui_flat_alpha_layer_mask_preference_keeps_the_mask", ui_flat_alpha_layer_mask_preference_keeps_the_mask},
       {"ui_flat_alpha_mask_keeps_webp_hidden_color", ui_flat_alpha_mask_keeps_webp_hidden_color},
+      {"ui_flat_alpha_mask_thumbnail_reads_deep_masks", ui_flat_alpha_mask_thumbnail_reads_deep_masks},
       {"ui_preferences_flat_alpha_as_layer_mask_checkbox", ui_preferences_flat_alpha_as_layer_mask_checkbox},
       {"ui_flat_alpha_open_captures", ui_flat_alpha_open_captures},
       {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},
