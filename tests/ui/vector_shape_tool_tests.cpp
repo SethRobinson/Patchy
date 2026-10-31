@@ -1,5 +1,6 @@
 #include <QJsonObject>
 #include <QFormLayout>
+#include <QScopeGuard>
 #include <QGroupBox>
 #include <QLayout>
 #include <QScrollBar>
@@ -3461,6 +3462,17 @@ void ui_shape_appearance_gradient_rows_indent() {
 // outer rows unmoved, and the block hidden for the other paint kinds.
 void ui_shape_appearance_pattern_rows_indent() {
   VectorSettingsGuard settings_guard;
+  // Seed the default patterns into the test library (the app does on first
+  // run) so the pickers in the reply screenshot show a real pattern; the
+  // scratch library and the version setting go back afterwards.
+  SettingsValueRestorer pattern_version_restorer(QStringLiteral("patterns/defaultPatternsVersion"));
+  clear_pattern_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 0);
+    settings.sync();
+  }
+  const auto clear_seeded_patterns = qScopeGuard([] { clear_pattern_test_state(); });
   auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);
   bool checked = false;
@@ -3484,6 +3496,16 @@ void ui_shape_appearance_pattern_rows_indent() {
     fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
     width->setValue(8.0);
     stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
+    // Visible patterns in both pickers, so the swatch and name show.
+    for (const auto& [combo_name, pattern_name] :
+         {std::pair{"shapeFillPatternCombo", "Bricks"}, std::pair{"shapeStrokePatternCombo", "Polka Dots"}}) {
+      auto* combo = dialog->findChild<QComboBox*>(QLatin1String(combo_name));
+      CHECK(combo != nullptr);
+      if (combo == nullptr) continue;
+      const int row = combo->findText(QLatin1String(pattern_name));
+      CHECK(row >= 0);
+      if (row >= 0) combo->setCurrentIndex(row);
+    }
     QApplication::processEvents();
     QApplication::processEvents();
     CHECK(fill_block->isVisibleTo(dialog) && stroke_block->isVisibleTo(dialog));
