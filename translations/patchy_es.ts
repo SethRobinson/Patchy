@@ -12598,10 +12598,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Algunos efectos de capa de GIMP no tienen equivalente en Patchy y no se aplicaron; esas capas muestran sus píxeles sin el efecto.</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>Las capas vectoriales de GIMP se abrieron como capas de píxeles.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Las capas de enlace de GIMP se abrieron como capas de píxeles; ya no siguen a sus archivos enlazados.</translation>
     </message>
@@ -14209,6 +14205,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Layers Panel</source>
         <translation>Panel Capas</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>Algunas capas vectoriales de GIMP tienen un relleno o trazo que una capa de forma no puede contener (un motivo, o píxeles pintados después), así que se abrieron como capas de píxeles. Sus trazados están en el panel Trazados.</translation>
     </message>
 </context>
 <context>

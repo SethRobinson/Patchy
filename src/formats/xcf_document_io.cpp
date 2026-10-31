@@ -4,6 +4,8 @@
 #include "core/environment.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/vector_raster.hpp"
+#include "core/vector_shape.hpp"
 #include "core/worker_budget.hpp"
 #include "formats/format_file_io.hpp"
 #include "formats/metadata/gimp_image_metadata.hpp"
@@ -478,6 +480,25 @@ struct EffectRecord {
   std::uint64_t mask{0};    // a channel record: where the effect applies
 };
 
+// PROP_VECTOR_LAYER (XCF 24, GIMP 3.2): the fill and stroke GIMP draws along the path
+// with the same tattoo. Colors are sRGB-encoded RGBA, absent when GIMP wrote a format
+// gegl_color_to_srgb does not read (or a NULL color).
+struct VectorLayerRecord {
+  bool modified{false};  // painted on after GIMP drew it: the pixels are no longer the path's
+  std::uint32_t tattoo{0};
+  bool filled{false};
+  bool stroked{false};
+  std::uint32_t fill_style{0};  // 0 solid color, 1 pattern
+  std::optional<std::array<double, 4>> fill_color;
+  std::uint32_t stroke_style{0};
+  std::optional<std::array<double, 4>> stroke_color;
+  float width{1.0F};
+  std::uint32_t cap{0};   // 0 butt, 1 round, 2 square
+  std::uint32_t join{0};  // 0 miter, 1 round, 2 bevel
+  float miter_limit{10.0F};
+  std::vector<float> dashes;  // in stroke widths
+};
+
 struct LayerRecord {
   std::uint64_t offset{0};
   std::uint32_t width{0};
@@ -503,6 +524,7 @@ struct LayerRecord {
   std::uint32_t color_tag{0};
   std::uint32_t text_flags{0};
   bool vector_layer{false};
+  std::optional<VectorLayerRecord> vector;
   bool link_layer{false};
   std::optional<std::uint64_t> floating_target;
   std::vector<std::uint32_t> item_path;
@@ -525,6 +547,7 @@ struct PathStroke {
 
 struct PathRecord {
   std::string name;
+  std::uint32_t tattoo{0};
   std::vector<PathStroke> strokes;
 };
 
@@ -649,6 +672,66 @@ struct PathRecord {
   return effect;
 }
 
+// A GeglColor: string babl format, u32 size, sample bytes, u32 profile size, profile. A NULL
+// color is the empty format alone.
+[[nodiscard]] std::optional<std::array<double, 4>> read_gegl_color(Cursor& cursor) {
+  const auto format = cursor.string();
+  if (format.empty()) {
+    return std::nullopt;
+  }
+  const auto size = cursor.u32();
+  const auto bytes = cursor.bytes(size);
+  cursor.skip(cursor.u32());
+  auto rgba = detail::gegl_color_to_srgb(format, bytes);
+  if (!rgba.has_value()) {
+    trace("a vector layer color in an unknown format: " + format);
+  }
+  return rgba;
+}
+
+// PROP_VECTOR_LAYER, laid out as the published XCF description gives it (docs/xcf.md,
+// "Vector layers"). nullopt when the payload does not parse.
+[[nodiscard]] std::optional<VectorLayerRecord> read_vector_layer(const Reader& reader, const Property& property) {
+  try {
+    Cursor cursor(reader, property.offset, property.offset + property.length);
+    VectorLayerRecord vector;
+    vector.modified = cursor.u32() != 0;
+    vector.tattoo = cursor.u32();
+    vector.filled = cursor.u32() != 0;
+    vector.stroked = cursor.u32() != 0;
+    // A RESOURCE (pattern): string name, string collection, u32 internal; NULL is an empty name.
+    const auto skip_resource = [&cursor]() {
+      if (!cursor.string().empty()) {
+        (void)cursor.string();
+        (void)cursor.u32();
+      }
+    };
+    vector.fill_style = cursor.u32();
+    (void)cursor.u32();  // antialias
+    vector.fill_color = read_gegl_color(cursor);
+    skip_resource();
+    vector.stroke_style = cursor.u32();
+    (void)cursor.u32();  // antialias
+    vector.stroke_color = read_gegl_color(cursor);
+    skip_resource();
+    vector.width = cursor.f32();
+    vector.cap = cursor.u32();
+    vector.join = cursor.u32();
+    vector.miter_limit = cursor.f32();
+    const auto dash_count = cursor.u32();
+    if (dash_count > 1000) {
+      throw ImportError("a vector layer lists too many dashes");
+    }
+    for (std::uint32_t i = 0; i < dash_count; ++i) {
+      vector.dashes.push_back(cursor.f32());
+    }
+    return vector;
+  } catch (const ImportError& error) {
+    trace(std::string("vector layer: ") + error.what());
+    return std::nullopt;
+  }
+}
+
 [[nodiscard]] LayerRecord read_layer(const Reader& reader, std::uint64_t offset) {
   LayerRecord layer;
   layer.offset = offset;
@@ -732,6 +815,7 @@ struct PathRecord {
         break;
       case kPropVectorLayer:
         layer.vector_layer = true;
+        layer.vector = read_vector_layer(reader, property);
         break;
       case kPropLinkLayer:
         layer.link_layer = true;
@@ -876,7 +960,11 @@ void read_prop_paths(const Reader& reader, const Property& property, std::vector
   Cursor cursor(reader, offset, reader.size());
   path.name = cursor.string();
   (void)cursor.u32();  // payload length
-  (void)read_properties(reader, cursor);
+  for (const auto& property : read_properties(reader, cursor)) {
+    if (property.type == kPropTattoo) {
+      path.tattoo = payload_u32(reader, property, 0);
+    }
+  }
   if (cursor.u32() != 1) {
     throw ImportError("a path has an unknown version");
   }
@@ -1563,7 +1651,10 @@ enum class Notice : std::uint8_t {
           "Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels "
           "without the effect.");
     case Notice::VectorLayers:
-      return PATCHY_TRANSLATE_NOOP("QObject", "GIMP vector layers opened as pixel layers.");
+      return PATCHY_TRANSLATE_NOOP(
+          "QObject",
+          "Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on "
+          "later), so they opened as pixel layers. Their paths are in the Paths panel.");
     case Notice::LinkLayers:
       return PATCHY_TRANSLATE_NOOP(
           "QObject", "GIMP link layers opened as pixel layers; they no longer follow their linked files.");
@@ -1625,6 +1716,8 @@ struct Build {
   std::unordered_map<LayerId, int> composite;
   // Visible layers in GIMP's Erase or Split mode: they become masks (convert_erase_layers).
   std::set<LayerId> erasers;
+  // The image's paths by tattoo, for vector layers.
+  std::unordered_map<std::uint32_t, const PathRecord*> paths_by_tattoo;
 };
 
 // The composite mode a layer renders with: PROP_COMPOSITE_MODE's absolute value (a negative
@@ -2542,6 +2635,69 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
   }
 }
 
+[[nodiscard]] std::optional<PathSubpath> subpath_from_stroke(const PathStroke& stroke);
+
+// A GIMP 3.2 vector layer as a Patchy shape layer (docs/xcf.md, "Vector layers"): the path
+// with its tattoo, GIMP's solid fill and its solid centered stroke. nullopt for what a shape
+// cannot hold (pattern paint, a translucent fill, pixels painted on later, a layer effect,
+// a missing path); the layer then keeps GIMP's pixels.
+[[nodiscard]] std::optional<VectorShapeContent> vector_layer_shape(const Build& build, const LayerRecord& record) {
+  if (!record.vector.has_value() || !record.effects.empty() ||
+      find_parasite(record.parasites, "gimp-text-layer") != nullptr) {
+    return std::nullopt;
+  }
+  const auto& vector = *record.vector;
+  const auto path = build.paths_by_tattoo.find(vector.tattoo);
+  if (vector.modified || path == build.paths_by_tattoo.end()) {
+    return std::nullopt;
+  }
+  const bool stroked = vector.stroked && std::isfinite(vector.width) && vector.width > 0.0F;
+  if ((vector.filled && (vector.fill_style != 0 || !vector.fill_color.has_value() || (*vector.fill_color)[3] < 0.999)) ||
+      (stroked && (vector.stroke_style != 0 || !vector.stroke_color.has_value()))) {
+    return std::nullopt;
+  }
+  VectorShapeContent content;
+  // GIMP fills a path's strokes together by the even-odd rule: one shape group.
+  for (const auto& stroke : path->second->strokes) {
+    if (auto subpath = subpath_from_stroke(stroke)) {
+      subpath->shape_group = 0;
+      content.path.subpaths.push_back(std::move(*subpath));
+    }
+  }
+  if (content.path.subpaths.empty()) {
+    return std::nullopt;
+  }
+  const auto solid = [](const std::array<double, 4>& rgba) {
+    VectorFill fill;
+    fill.kind = VectorFillKind::Solid;
+    fill.color = color_from_unit(static_cast<float>(rgba[0]), static_cast<float>(rgba[1]), static_cast<float>(rgba[2]));
+    return fill;
+  };
+  content.fill = vector.filled ? solid(*vector.fill_color) : VectorFill{.kind = VectorFillKind::None};
+  if (stroked) {
+    auto& stroke = content.stroke;
+    stroke.enabled = true;
+    stroke.width = std::min(static_cast<double>(vector.width), 10000.0);
+    stroke.alignment = VectorStrokeAlignment::Center;
+    stroke.cap = vector.cap == 1 ? VectorStrokeCap::Round : vector.cap == 2 ? VectorStrokeCap::Square
+                                                                             : VectorStrokeCap::Butt;
+    stroke.join = vector.join == 1 ? VectorStrokeJoin::Round : vector.join == 2 ? VectorStrokeJoin::Bevel
+                                                                                : VectorStrokeJoin::Miter;
+    // GIMP allows limits below 1, which bevel every corner, as a limit of 1 does.
+    stroke.miter_limit = std::isfinite(vector.miter_limit) ? std::clamp<double>(vector.miter_limit, 1.0, 100.0) : 10.0;
+    stroke.content = solid(*vector.stroke_color);
+    stroke.opacity = std::clamp((*vector.stroke_color)[3], 0.0, 1.0);
+    stroke.resolution = build.ppi;
+    for (const auto dash : vector.dashes) {
+      stroke.dashes.push_back(std::isfinite(dash) ? std::max(0.0, static_cast<double>(dash)) : 0.0);
+    }
+    if (std::all_of(stroke.dashes.begin(), stroke.dashes.end(), [](double dash) { return dash <= 0.0; })) {
+      stroke.dashes.clear();
+    }
+  }
+  return content;
+}
+
 [[nodiscard]] Layer build_layer(Build& build, const LayerRecord& record) {
   const auto map = map_mode(record.have_mode ? record.mode : 0, record.group, record.blend_space);
   if (map.fit == ModeFit::Approximate) {
@@ -2647,7 +2803,16 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
     }
   }
   if (record.vector_layer) {
-    build.notices.insert(Notice::VectorLayers);
+    if (auto shape = vector_layer_shape(build, record)) {
+      // Patchy draws the shape itself; GIMP's raster of it is dropped.
+      layer.set_vector_shape(std::move(*shape));
+      layer.metadata()[kLayerMetadataVectorShape] = "1";
+      mark_layer_vector_block_dirty(layer);
+      update_vector_shape_raster(layer, Rect{0, 0, build.document.width(), build.document.height()},
+                                 &build.document.metadata().patterns);
+    } else {
+      build.notices.insert(Notice::VectorLayers);
+    }
   }
   if (record.link_layer) {
     build.notices.insert(Notice::LinkLayers);
@@ -3346,7 +3511,12 @@ private:
   document.guides() = std::move(guides);
 
   Build build{reader, PixelLayout{static_cast<BaseType>(base), true, precision}, depth, compression,
-              std::move(colormap), print.horizontal_ppi, document, {}, {}, 0, std::nullopt, {}, {}};
+              std::move(colormap), print.horizontal_ppi, document, {}, {}, 0, std::nullopt, {}, {}, {}};
+  for (const auto& path : paths) {
+    if (path.tattoo != 0) {
+      build.paths_by_tattoo.emplace(path.tattoo, &path);
+    }
+  }
   build.notices.insert(depth_notices.begin(), depth_notices.end());
   if (damaged_structure) {
     build.notices.insert(Notice::DamagedStructure);
@@ -3411,40 +3581,6 @@ private:
   }
 
   timer.mark("clip to backdrop");
-  // A bottom layer without alpha that covers the canvas is GIMP's background layer.
-  if (!document.layers().empty()) {
-    auto& bottom = document.layers().front();
-    const auto* bottom_record = [&]() -> const LayerRecord* {
-      for (const auto& record : records) {
-        if (by_offset.contains(record.offset) && by_offset[record.offset] == bottom.id()) {
-          return &record;
-        }
-      }
-      return nullptr;
-    }();
-    if (bottom_record != nullptr && bottom.kind() == LayerKind::Pixel && bottom_record->type % 2U == 0 &&
-        bottom.bounds() == Rect{0, 0, document.width(), document.height()} && bottom.opacity() >= 1.0F &&
-        bottom.visible() && !bottom.mask().has_value() && bottom.blend_mode() == BlendMode::Normal &&
-        bottom_record->effects.empty() && !layer_is_text(bottom)) {
-      const PixelFormat format = std::as_const(bottom).pixels().format();
-      const auto& source = std::as_const(bottom).pixels();
-      PixelFormat rgb = format;
-      rgb.channels = 3;
-      PixelBuffer opaque(source.width(), source.height(), rgb);
-      const auto sample = bytes_per_channel(format.bit_depth);
-      auto out = opaque.data();
-      const auto in = source.data();
-      const auto count = static_cast<std::size_t>(source.width()) * source.height();
-      for (std::size_t i = 0; i < count; ++i) {
-        std::memcpy(out.data() + i * 3 * sample, in.data() + i * 4 * sample, 3 * sample);
-      }
-      Layer background(bottom.id(), bottom.name(), std::move(opaque));
-      background.set_lock_flags(bottom.lock_flags() | kLayerLockPosition | kLayerLockTransparentPixels);
-      background.set_color_label(bottom.color_label());
-      bottom = std::move(background);
-    }
-  }
-
   // Channels and the selection.
   for (const auto& channel : channels) {
     if (channel.width != width || channel.height != height) {

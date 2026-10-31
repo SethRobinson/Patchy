@@ -12598,10 +12598,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Alguns efeitos de camada do GIMP não têm equivalente no Patchy e não foram aplicados; essas camadas mostram seus pixels sem o efeito.</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>As camadas vetoriais do GIMP foram abertas como camadas de pixels.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>As camadas vinculadas do GIMP foram abertas como camadas de pixels; elas não acompanham mais seus arquivos vinculados.</translation>
     </message>
@@ -14209,6 +14205,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Layers Panel</source>
         <translation>Painel Camadas</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>Algumas camadas vetoriais do GIMP têm um preenchimento ou traçado que uma camada de forma não comporta (um padrão, ou pixels pintados depois), então foram abertas como camadas de pixels. Os demarcadores delas estão no painel Demarcadores.</translation>
     </message>
 </context>
 <context>

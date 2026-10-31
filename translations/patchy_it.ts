@@ -12598,10 +12598,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Alcuni effetti di livello di GIMP non hanno un equivalente in Patchy e non sono stati applicati; quei livelli mostrano i loro pixel senza l&apos;effetto.</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>I livelli vettoriali di GIMP sono stati aperti come livelli di pixel.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>I livelli collegati di GIMP sono stati aperti come livelli di pixel; non seguono più i file collegati.</translation>
     </message>
@@ -14209,6 +14205,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Layers Panel</source>
         <translation>Pannello Livelli</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>Alcuni livelli vettoriali di GIMP hanno un riempimento o una traccia che un livello forma non può contenere (un pattern, o pixel dipinti in seguito), quindi sono stati aperti come livelli di pixel. I loro tracciati sono nel pannello Tracciati.</translation>
     </message>
 </context>
 <context>

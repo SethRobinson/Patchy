@@ -12632,10 +12632,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Niektóre efekty warstw GIMP nie mają odpowiednika w Patchy i nie zostały zastosowane; te warstwy pokazują swoje piksele bez efektu.</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>Warstwy wektorowe GIMP otwarto jako warstwy pikselowe.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Warstwy połączone GIMP otwarto jako warstwy pikselowe; nie śledzą już połączonych plików.</translation>
     </message>
@@ -14252,6 +14248,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Layers Panel</source>
         <translation>Panel Warstwy</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>Niektóre warstwy wektorowe GIMP mają wypełnienie lub obrys, którego warstwa kształtu nie może przechować (wzorek lub piksele domalowane później), więc otwarto je jako warstwy pikselowe. Ich ścieżki są w panelu Ścieżki.</translation>
     </message>
 </context>
 <context>

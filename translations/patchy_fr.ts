@@ -12598,10 +12598,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Certains effets de calque de GIMP n&apos;ont pas d&apos;équivalent dans Patchy et n&apos;ont pas été appliqués ; ces calques montrent leurs pixels sans l&apos;effet.</translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation>Les calques vectoriels de GIMP ont été ouverts comme calques de pixels.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Les calques liés de GIMP ont été ouverts comme calques de pixels ; ils ne suivent plus leurs fichiers liés.</translation>
     </message>
@@ -14209,6 +14205,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Layers Panel</source>
         <translation>Panneau Calques</translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation>Certains calques vectoriels de GIMP ont un remplissage ou un contour qu&apos;un calque de forme ne peut pas contenir (un motif, ou des pixels peints ensuite) ; ils ont donc été ouverts comme calques de pixels. Leurs tracés se trouvent dans le panneau Tracés.</translation>
     </message>
 </context>
 <context>

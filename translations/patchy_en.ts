@@ -12582,10 +12582,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>GIMP vector layers opened as pixel layers.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14191,6 +14187,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Layers Panel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
