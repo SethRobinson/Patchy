@@ -3775,6 +3775,14 @@
         <translation>Patchy는 자신이 이해하는 편집 가능한 데이터를 보존하고 Photoshop이나 다른 PSD 편집기와 다를 수 있는 영역에 플래그를 지정했습니다.</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>다시 표시하지 않음</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>이제부터 가져오기 경고 및 참고 사항은 상태 표시줄에 표시됩니다. 팝업은 환경설정 &gt; 애플리케이션에서 다시 켤 수 있습니다.</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>곡선 그래프</translation>
     </message>
@@ -23088,6 +23096,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1을(를) 적용했습니다(%2 키로 실행 취소)</translation>
     </message>
     <message>

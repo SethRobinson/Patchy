@@ -3706,6 +3706,14 @@
         <translation>Patchy ha conservato i dati modificabili che riconosce e ha segnalato le aree che potrebbero differire da Photoshop o da altri editor PSD.</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>Non mostrare più</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>D&apos;ora in poi avvisi e note di importazione appaiono nella barra di stato. Riattiva la finestra in Preferenze &gt; Applicazione.</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>Grafico curve</translation>
     </message>
@@ -24591,6 +24599,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1 applicato (%2 per annullare)</translation>
     </message>
     <message>

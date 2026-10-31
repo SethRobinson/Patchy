@@ -3699,6 +3699,14 @@
         <translation>Patchy 已保留其能够理解的可编辑数据，并标记了可能与 Photoshop 或其他 PSD 编辑器不同的部分。</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>不再显示</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>今后导入警告和注释将显示在状态栏中。可在 首选项 &gt; 应用程序 中重新开启弹出窗口。</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>曲线图</translation>
     </message>
@@ -24522,6 +24530,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>已应用 %1（按 %2 可还原）</translation>
     </message>
     <message>

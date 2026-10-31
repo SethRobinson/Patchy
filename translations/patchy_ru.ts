@@ -3789,6 +3789,14 @@
         <translation>Patchy сохранил редактируемые данные, которые он понимает, и пометил области, которые могут отличаться от Photoshop или других редакторов PSD.</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>Больше не показывать</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>Теперь предупреждения и примечания об импорте показываются в строке состояния. Всплывающее окно можно снова включить в разделе Настройки &gt; Приложение.</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>График кривых</translation>
     </message>
@@ -23214,6 +23222,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>Применено %1 (%2 отменяет это)</translation>
     </message>
     <message>

@@ -79,6 +79,20 @@ struct LayeredSaveColorMode {
 // known-block check, so a newly modeled kind is never reported as unknown data.
 [[nodiscard]] bool is_native_adjustment_block_key(std::string_view key) noexcept;
 
+// Per-layer tagged blocks the reader understands: the ones it parses into the layer model
+// (names, locks, color labels, blending options, knockout, effects, text, vector and fill
+// content, smart objects, artboards, native adjustments) and Photoshop's routine
+// bookkeeping it keeps byte for byte (layer id, name source, version, metadata, effects
+// reference point). The open report counts every other key as unknown data (GitHub issue
+// 559: every Photoshop layer listed about nine "unknown" blocks).
+[[nodiscard]] bool is_understood_layer_block_key(std::string_view key) noexcept;
+
+// The same for the document-level tagged blocks the reader keeps in
+// DocumentMetadata::unknown_psd_resources: text engine data, patterns, masks and merged
+// transparency, artboard settings, annotations (Photoshop writes Patt and FMsk into
+// every file; GitHub issue 559).
+[[nodiscard]] bool is_understood_global_block_key(std::string_view key) noexcept;
+
 class DocumentIo {
 public:
   [[nodiscard]] static bool can_read(std::span<const std::uint8_t> bytes) noexcept;

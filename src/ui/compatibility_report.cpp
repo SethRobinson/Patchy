@@ -4,8 +4,10 @@
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "psd/psd_document_io.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 
+#include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -32,18 +34,12 @@ QString psd_text_source_block(const Layer& layer) {
 }
 
 bool known_round_trip_layer_block(const UnknownPsdBlock& block) {
-  // Every native adjustment block the reader models (psd::is_native_adjustment_block_key,
-  // plus the Brightness/Contrast descriptor) is understood, not unknown data.
-  if (psd::is_native_adjustment_block_key(block.key) || block.key == "CgEd") {
-    return true;
+  // The reader's own list of understood keys (psd::is_understood_layer_block_key), so the
+  // report agrees with what the reader models or keeps as routine Photoshop data.
+  if (block.key == "iOpa") {
+    return block.payload.size() == 4U;
   }
-  return block.key == "luni" || block.key == "plFX" || block.key == "plAD" ||
-         block.key == "lfx2" || block.key == "lrFX" || block.key == "lsct" ||
-         block.key == "lsdk" || block.key == "SoLd" || block.key == "SoLE" || block.key == "PlLd" ||
-         block.key == "plLd" || block.key == "vmsk" || block.key == "vsms" || block.key == "vscg" ||
-         block.key == "vstk" || block.key == "vogk" || block.key == "SoCo" || block.key == "GdFl" ||
-         block.key == "PtFl" || block.key == "brst" ||
-         (block.key == "iOpa" && block.payload.size() == 4U);
+  return psd::is_understood_layer_block_key(block.key);
 }
 
 QString smart_object_layer_warning(const Layer& layer) {
@@ -224,9 +220,11 @@ QStringList compatibility_warnings_for_document(const Document& document) {
                             "saves an 8-bit file. Keep the original if you need the deeper data.")
                     .arg(QString::fromStdString(depth->second));
   }
-  if (!document.metadata().unknown_psd_resources.empty()) {
-    warnings << QObject::tr("The document preserves %1 unknown PSD image resource(s).")
-                     .arg(document.metadata().unknown_psd_resources.size());
+  if (const auto unknown_resources = std::count_if(
+          document.metadata().unknown_psd_resources.begin(), document.metadata().unknown_psd_resources.end(),
+          [](const UnknownPsdBlock& block) { return !psd::is_understood_global_block_key(block.key); });
+      unknown_resources > 0) {
+    warnings << QObject::tr("The document preserves %1 unknown PSD image resource(s).").arg(unknown_resources);
   }
   {
     std::size_t source_count = 0;
@@ -284,10 +282,22 @@ void show_compatibility_report(QWidget* parent, const Document& document, const 
   details->setMinimumSize(520, 220);
   content->addWidget(details, 1);
 
+  // Turns off the Preferences option that opens this report and the Import Notes popup
+  // (GitHub issue 559: the report gave no way to stop it).
+  auto* dont_show = new QCheckBox(QObject::tr("Don't show this again"), &dialog);
+  dont_show->setObjectName(QStringLiteral("compatibilityReportDontShowCheck"));
+  dont_show->setToolTip(QObject::tr("Import warnings and notes go to the status bar from now on. Turn the popup "
+                                    "back on in Preferences > Application."));
+  content->addWidget(dont_show);
+
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   content->addWidget(buttons);
   exec_dialog(dialog);
+  if (dont_show->isChecked()) {
+    // Persisted settings key shared with Preferences (never rename).
+    app_settings().setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), false);
+  }
 }
 
 }  // namespace patchy::ui

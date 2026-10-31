@@ -2871,6 +2871,14 @@ RGB: %2, %3, %4</translation>
         <translation>Patchy は認識できる編集可能データを保持し、Photoshop や他の PSD エディターと異なる可能性のある領域を示しました。</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>今後表示しない</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>今後、インポートの警告とノートはステータスバーに表示されます。ポップアップは 環境設定 &gt; アプリケーション で再びオンにできます。</translation>
+    </message>
+    <message>
         <source>Layer Style</source>
         <translation>レイヤースタイル</translation>
     </message>
@@ -24522,6 +24530,7 @@ Clipped to the layer below</source>
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>%1 を適用しました (%2 で取り消せます)</translation>
     </message>
     <message>

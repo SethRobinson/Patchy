@@ -3789,6 +3789,14 @@
         <translation>Patchy zachował edytowalne dane, które rozumie, i oznaczył obszary, które mogą różnić się od Photoshopa lub innych edytorów PSD.</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>Nie pokazuj ponownie</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>Od teraz ostrzeżenia i uwagi dotyczące importu pojawiają się na pasku stanu. Wyskakujące okienko można ponownie włączyć w Preferencje &gt; Aplikacja.</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>Wykres krzywych</translation>
     </message>
@@ -23214,6 +23222,7 @@ Y: %2
     </message>
     <message>
         <source>Applied %1 (%2 undoes it)</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the Undo shortcut (&quot;Ctrl+Z&quot;).</extracomment>
         <translation>Zastosowano %1 (%2 cofa)</translation>
     </message>
     <message>
