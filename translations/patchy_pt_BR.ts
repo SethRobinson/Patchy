@@ -14281,6 +14281,26 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Dash pattern:</source>
         <translation>Padrão de traços:</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>Traços longos</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>Traços curtos</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>Pontos espaçados</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>Traço e ponto</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>Traço e dois pontos</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

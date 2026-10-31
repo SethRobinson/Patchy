@@ -1245,6 +1245,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(layer_menu, &QMenu::aboutToShow, this, [this] { refresh_merge_visible_action_state(); });
   auto* merge_down_action = new QAction(tr("Merge &Down"), layer_menu);
   merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));
+  layer_merge_down_action_ = merge_down_action;
+  layer_merge_visible_to_new_action_ = merge_visible_action;
   auto* rename_layer_action = new QAction(tr("&Rename Layer..."), layer_menu);
   rename_layer_action->setObjectName(QStringLiteral("layerRenameAction"));
   // Layer color labels (GitHub issue 244), Photoshop's lclr indices in order.

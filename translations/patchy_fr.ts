@@ -14281,6 +14281,26 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Dash pattern:</source>
         <translation>Motif des tirets :</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>Tirets longs</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>Tirets courts</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>Points espacés</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>Tiret-point</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>Tiret-point-point</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

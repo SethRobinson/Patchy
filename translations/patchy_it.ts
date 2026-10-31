@@ -14281,6 +14281,26 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Dash pattern:</source>
         <translation>Schema dei tratti:</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>Tratti lunghi</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>Tratti corti</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>Punti radi</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>Tratto punto</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>Tratto punto punto</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

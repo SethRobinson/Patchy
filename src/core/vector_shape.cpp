@@ -73,14 +73,89 @@ void extend_bounds(VectorPathBounds& bounds, bool& any, double x, double y) noex
 }  // namespace
 
 std::vector<double> dotted_dash_pattern(VectorStrokeCap cap) {
-  if (cap == VectorStrokeCap::Butt) {
-    return {1.0, 1.0};
-  }
-  return {0.0, 2.0};
+  return stroke_dash_preset_pattern(StrokeDashPreset::Dotted, cap);
 }
 
 bool is_dotted_dash_pattern(const std::vector<double>& dashes, VectorStrokeCap cap) {
   return dashes == std::vector<double>{0.0, 2.0} || dashes == dotted_dash_pattern(cap);
+}
+
+namespace {
+
+constexpr std::array<StrokeDashPreset, 8> kStrokeDashPresets{
+    StrokeDashPreset::Solid,       StrokeDashPreset::Dashed,     StrokeDashPreset::Dotted,
+    StrokeDashPreset::LongDashes,  StrokeDashPreset::ShortDashes, StrokeDashPreset::SparseDots,
+    StrokeDashPreset::DashDot,     StrokeDashPreset::DashDotDot};
+
+// Butt-cap forms, in stroke widths.
+std::vector<double> butt_dash_preset(StrokeDashPreset preset) {
+  switch (preset) {
+    case StrokeDashPreset::Solid:
+      return {};
+    case StrokeDashPreset::Dashed:
+      return {2.0, 2.0};
+    case StrokeDashPreset::Dotted:
+      return {1.0, 1.0};
+    case StrokeDashPreset::LongDashes:
+      return {6.0, 2.0};
+    case StrokeDashPreset::ShortDashes:
+      return {1.5, 1.0};
+    case StrokeDashPreset::SparseDots:
+      return {1.0, 3.0};
+    case StrokeDashPreset::DashDot:
+      return {4.0, 2.0, 1.0, 2.0};
+    case StrokeDashPreset::DashDotDot:
+      return {4.0, 2.0, 1.0, 2.0, 1.0, 2.0};
+  }
+  return {};
+}
+
+// The shortest prefix the array repeats, when it repeats a whole number of
+// times with an even-length period.
+std::vector<double> shortest_dash_period(const std::vector<double>& dashes) {
+  const auto size = dashes.size();
+  for (std::size_t period = 2; period < size; period += 2) {
+    if (size % period != 0) continue;
+    bool repeats = true;
+    for (std::size_t i = period; i < size && repeats; ++i) repeats = dashes[i] == dashes[i - period];
+    if (repeats) return {dashes.begin(), dashes.begin() + static_cast<std::ptrdiff_t>(period)};
+  }
+  return dashes;
+}
+
+}  // namespace
+
+std::vector<double> stroke_dash_preset_pattern(StrokeDashPreset preset, VectorStrokeCap cap) {
+  auto dashes = butt_dash_preset(preset);
+  if (cap == VectorStrokeCap::Butt || !stroke_dash_preset_follows_cap(preset)) return dashes;
+  // A round or square cap adds half a width at each end of every dash.
+  for (std::size_t i = 0; i < dashes.size(); ++i) dashes[i] += i % 2 == 0 ? -1.0 : 1.0;
+  return dashes;
+}
+
+bool stroke_dash_preset_follows_cap(StrokeDashPreset preset) {
+  return preset != StrokeDashPreset::Solid && preset != StrokeDashPreset::Dashed;
+}
+
+bool stroke_dash_preset_is_dots(StrokeDashPreset preset) {
+  return preset == StrokeDashPreset::Dotted || preset == StrokeDashPreset::SparseDots;
+}
+
+std::optional<StrokeDashPreset> stroke_dash_preset_for(const std::vector<double>& dashes,
+                                                       VectorStrokeCap cap) {
+  if (dashes.empty()) return StrokeDashPreset::Solid;
+  const auto period = shortest_dash_period(dashes);
+  for (const auto preset : kStrokeDashPresets) {
+    if (preset == StrokeDashPreset::Solid) continue;
+    if (period == stroke_dash_preset_pattern(preset, cap)) return preset;
+  }
+  for (const auto preset : kStrokeDashPresets) {
+    if (stroke_dash_preset_is_dots(preset) &&
+        period == stroke_dash_preset_pattern(preset, VectorStrokeCap::Round)) {
+      return preset;
+    }
+  }
+  return std::nullopt;
 }
 
 bool VectorPath::empty() const noexcept {

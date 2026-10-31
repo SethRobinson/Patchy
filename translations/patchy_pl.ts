@@ -14324,6 +14324,26 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Dash pattern:</source>
         <translation>Wzór kresek:</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>Długie kreski</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>Krótkie kreski</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>Rzadkie kropki</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>Kreska kropka</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>Kreska kropka kropka</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

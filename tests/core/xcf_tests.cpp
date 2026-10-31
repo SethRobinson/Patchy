@@ -556,6 +556,34 @@ void xcf_vector_layers_match_gimp_renders() {
   }
 }
 
+// GitHub #548 follow-up: philipzae's file of GIMP 3.2's line dash presets opens
+// as shape layers with GIMP's arrays; Line and Dense dots show as Shape
+// Appearance presets, the rest as Custom.
+void xcf_gimp_dash_presets_map_to_shape_appearance_presets() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-548";
+  patchy::test::skip_unless_exists(dir / "line-dash-presets.xcf");
+  const auto document = patchy::xcf::DocumentIo::read_file(dir / "line-dash-presets.xcf");
+  using patchy::StrokeDashPreset;
+  const std::vector<std::pair<const char*, std::optional<StrokeDashPreset>>> expected{
+      {"Line", StrokeDashPreset::Solid},
+      {"Long dashes", std::nullopt},
+      {"Medium dashes (round)", std::nullopt},
+      {"Short dashes", std::nullopt},
+      {"Sparse dots (round)", std::nullopt},
+      {"Normal dots (square)", std::nullopt},
+      {"Dense dots", StrokeDashPreset::Dotted},
+      {"Stipples", std::nullopt},
+      {"Dash, dot (square)", std::nullopt},
+      {"Dash, dot, dot", std::nullopt},
+  };
+  for (const auto& [name, preset] : expected) {
+    const auto* layer = find_named(document.layers(), name);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    const auto& stroke = layer->vector_shape()->stroke;
+    CHECK(patchy::stroke_dash_preset_for(stroke.dashes, stroke.cap) == preset);
+  }
+}
+
 // GIMP 3.2's renders of its legacy grain modes over 8-bit samples (modes-legacy.xcf in
 // local-test-fixtures/xcf matched these kernels on every opaque pixel).
 void blend_math_gimp_grain_modes_match_gimp_renders() {
@@ -2821,5 +2849,6 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_issue_547_bottom_layer_has_no_locks_if_available", xcf_issue_547_bottom_layer_has_no_locks_if_available},
       {"xcf_vector_layers_open_as_shape_layers", xcf_vector_layers_open_as_shape_layers},
       {"xcf_vector_layers_match_gimp_renders", xcf_vector_layers_match_gimp_renders},
+      {"xcf_gimp_dash_presets_map_to_shape_appearance_presets", xcf_gimp_dash_presets_map_to_shape_appearance_presets},
   };
 }

@@ -14281,6 +14281,26 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Dash pattern:</source>
         <translation>Strichmuster:</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>Lange Striche</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>Kurze Striche</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>Weite Punkte</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>Strich-Punkt</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>Strich-Punkt-Punkt</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

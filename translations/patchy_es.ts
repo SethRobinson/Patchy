@@ -14281,6 +14281,26 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Dash pattern:</source>
         <translation>Patrón de guiones:</translation>
     </message>
+    <message>
+        <source>Long dashes</source>
+        <translation>Guiones largos</translation>
+    </message>
+    <message>
+        <source>Short dashes</source>
+        <translation>Guiones cortos</translation>
+    </message>
+    <message>
+        <source>Sparse dots</source>
+        <translation>Puntos espaciados</translation>
+    </message>
+    <message>
+        <source>Dash dot</source>
+        <translation>Raya y punto</translation>
+    </message>
+    <message>
+        <source>Dash dot dot</source>
+        <translation>Raya y dos puntos</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
