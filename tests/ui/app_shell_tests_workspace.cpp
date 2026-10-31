@@ -3415,7 +3415,7 @@ void ui_main_window_renders_color_controls() {
   CHECK(layer_menu != nullptr);
   const auto layer_menu_rows = layer_menu->actions();
   CHECK(std::count_if(layer_menu_rows.begin(), layer_menu_rows.end(),
-                      [](const QAction* action) { return !action->isSeparator(); }) <= 21);
+                      [](const QAction* action) { return !action->isSeparator(); }) <= 22);
   auto* layer_new_menu = window.findChild<QMenu*>(QStringLiteral("layerNewMenu"));
   CHECK(layer_new_menu != nullptr);
   CHECK(layer_new_menu->actions().contains(require_action(window, "layerNewAction")));

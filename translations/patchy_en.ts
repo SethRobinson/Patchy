@@ -6422,14 +6422,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14250,6 +14242,14 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -28912,6 +28912,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>&amp;Merge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

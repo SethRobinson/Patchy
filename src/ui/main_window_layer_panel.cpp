@@ -373,7 +373,10 @@ void set_layer_row_badges_dimmed(QWidget* row, bool dimmed) {
 }
 
 QString layer_visibility_tooltip(bool visible) {
-  return visible ? QObject::tr("Layer visible. Click to hide.") : QObject::tr("Layer hidden. Click to show.");
+  // Alt-click isolates the layer (GitHub issue 549; MainWindow::isolate_layer_visibility).
+  return resolve_modifier_names(
+      visible ? QObject::tr("Layer visible. Click to hide. %ALT%-click to show only this layer.")
+              : QObject::tr("Layer hidden. Click to show. %ALT%-click to show only this layer."));
 }
 
 void update_layer_visibility_button(QToolButton* button, bool visible) {
@@ -3734,9 +3737,10 @@ void MainWindow::select_all_layers() {
 }
 
 // Select > Layer Below / Layer Above (GitHub issue 541): Photoshop's Alt+[ and Alt+] walk the
-// panel's rows (a collapsed group is its one row) and stop at the ends. Without an active layer,
-// Layer Below takes the top row and Layer Above the bottom one. Extend (Alt+Shift) adds the row
-// past the selection's lowest or highest row and makes it active.
+// panel's rows (a collapsed group is its one row) and wrap around at the ends (philipzae's
+// follow-up). Without an active layer, Layer Below takes the top row and Layer Above the bottom
+// one. Extend (Alt+Shift) adds the row past the selection's lowest or highest row and makes it
+// active; it stops at the ends, since wrapping would add the far end of the stack.
 void MainWindow::step_layer_selection(int direction, bool extend) {
   if (!has_active_document() || layer_list_ == nullptr || direction == 0) {
     return;
@@ -3774,9 +3778,12 @@ void MainWindow::step_layer_selection(int direction, bool extend) {
     }
   }
   const int count = static_cast<int>(rows.size());
-  const int target = from < 0 ? (step > 0 ? 0 : count - 1) : from + step;
+  int target = from < 0 ? (step > 0 ? 0 : count - 1) : from + step;
   if (target < 0 || target >= count) {
-    return;
+    if (extend) {
+      return;
+    }
+    target = (target + count) % count;
   }
   const auto target_id = rows[static_cast<std::size_t>(target)];
   if (!extend || from < 0) {
@@ -4035,6 +4042,10 @@ void MainWindow::isolate_layer_visibility(LayerId id) {
 
 void MainWindow::set_all_layers_visible(bool visible) {
   if (!has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
     return;
   }
   bool changed = false;

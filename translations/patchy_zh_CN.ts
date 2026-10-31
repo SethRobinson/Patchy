@@ -6412,14 +6412,6 @@
         <translation>图层 %1</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>图层可见。单击可隐藏。</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>图层已隐藏。单击可显示。</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>已锁定透明像素</translation>
     </message>
@@ -14225,6 +14217,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>部分 GIMP 矢量图层的填充或描边无法由形状图层保存（图案，或之后在其上绘制的像素），因此已作为像素图层打开。它们的路径在“路径”面板中。</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>图层可见。单击可隐藏。%ALT%+单击仅显示此图层。</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>图层已隐藏。单击可显示。%ALT%+单击仅显示此图层。</translation>
     </message>
 </context>
 <context>
@@ -28912,6 +28912,10 @@ Locked: %1</source>
     <message>
         <source>&amp;Merge</source>
         <translation>合并(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>显示所有图层(&amp;O)</translation>
     </message>
 </context>
 <context>

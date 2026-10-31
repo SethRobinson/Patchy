@@ -6422,14 +6422,6 @@
         <translation>Calque %1</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>Calque visible. Cliquez pour le masquer.</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>Calque masqué. Cliquez pour l&apos;afficher.</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>Pixels transparents verrouillés</translation>
     </message>
@@ -14268,6 +14260,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>Certains calques vectoriels de GIMP ont un remplissage ou un contour qu&apos;un calque de forme ne peut pas contenir (un motif, ou des pixels peints ensuite) ; ils ont donc été ouverts comme calques de pixels. Leurs tracés se trouvent dans le panneau Tracés.</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>Calque visible. Cliquez pour le masquer. %ALT%-clic n&apos;affiche que ce calque.</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>Calque masqué. Cliquez pour l&apos;afficher. %ALT%-clic n&apos;affiche que ce calque.</translation>
     </message>
 </context>
 <context>
@@ -28994,6 +28994,10 @@ Verrouillé : %1</translation>
     <message>
         <source>&amp;Merge</source>
         <translation>Fusi&amp;onner</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>Afficher tous les &amp;calques</translation>
     </message>
 </context>
 <context>

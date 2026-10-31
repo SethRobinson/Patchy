@@ -3420,14 +3420,6 @@ RGB: %2, %3, %4</translation>
         <translation>%1 (%2)</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>レイヤーは表示中です。クリックで非表示にします。</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>レイヤーは非表示です。クリックで表示します。</translation>
-    </message>
-    <message>
         <source>Layer styles. Click to edit them.</source>
         <translation>レイヤースタイル。クリックで編集します。</translation>
     </message>
@@ -14225,6 +14217,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>一部の GIMP ベクトルレイヤーは、シェイプレイヤーで保持できない塗りや線（パターン、または後から描き込んだピクセル）を持つため、ピクセルレイヤーとして開きました。そのパスはパスパネルにあります。</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>レイヤーは表示中です。クリックで非表示にします。%ALT%クリックでこのレイヤーだけを表示します。</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>レイヤーは非表示です。クリックで表示します。%ALT%クリックでこのレイヤーだけを表示します。</translation>
     </message>
 </context>
 <context>
@@ -28912,6 +28912,10 @@ Locked: %1</source>
     <message>
         <source>&amp;Merge</source>
         <translation>結合(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>すべてのレイヤーを表示(&amp;O)</translation>
     </message>
 </context>
 <context>

@@ -1,5 +1,6 @@
-// Layer selection stepping (#541), the Lock Layers dialog (#544), Layer > Export (#545) and
-// Hide / Show Layers (#546): commands and default keys philipzae asked for.
+// Layer selection stepping (#541), the Lock Layers dialog (#544), Layer > Export (#545),
+// Hide / Show Layers (#546), Show All Layers (#550) and the eye's Alt-click hint (#549):
+// commands and default keys philipzae asked for.
 #include "core/layer_metadata.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/layer_lock_dialog.hpp"
@@ -90,8 +91,9 @@ QMenu* menu_holding(patchy::ui::MainWindow& window, QAction* action) {
   return nullptr;
 }
 
-// GitHub issue 541: Alt+[ / Alt+] step the selection one panel row down / up and stop at the
-// ends; Alt+Shift adds the next row past the selection. A collapsed group is one row.
+// GitHub issue 541: Alt+[ / Alt+] step the selection one panel row down / up and wrap around at
+// the ends (the follow-up); Alt+Shift adds the next row past the selection and stops at the
+// ends. A collapsed group is one row.
 void ui_layer_select_below_above_steps_rows() {
   patchy::ui::MainWindow window;
   const auto ids = add_stack(window, QStringLiteral("Step Layers"));
@@ -123,20 +125,27 @@ void ui_layer_select_below_above_steps_rows() {
   CHECK((row_ids(*list) == std::vector{ids.top, ids.folder, ids.inner, ids.middle, ids.background}));
   const auto active = [&window] { return std::as_const(Access::document(window)).active_layer_id(); };
   const auto depth = Access::active_session_undo_depth(window);
-  for (const auto expected : {ids.folder, ids.inner, ids.middle, ids.background, ids.background}) {
+  // Below from the Background wraps to the top row.
+  for (const auto expected : {ids.folder, ids.inner, ids.middle, ids.background, ids.top}) {
     below->trigger();
     QApplication::processEvents();
     CHECK(active() == expected);
     CHECK(Access::selected_layer_ids(window) == std::vector{expected});
   }
-  above->trigger();
-  QApplication::processEvents();
-  CHECK(active() == ids.middle);
+  // Above from the top row wraps to the Background, then climbs.
+  for (const auto expected : {ids.background, ids.middle}) {
+    above->trigger();
+    QApplication::processEvents();
+    CHECK(active() == expected);
+    CHECK(Access::selected_layer_ids(window) == std::vector{expected});
+  }
+  // Extend stops at the top row.
   Access::select_layers(window, {ids.top}, ids.top);
   QApplication::processEvents();
-  above->trigger();  // the top row stays
+  add_above->trigger();
   QApplication::processEvents();
   CHECK(active() == ids.top);
+  CHECK(Access::selected_layer_ids(window) == std::vector{ids.top});
   CHECK(Access::active_session_undo_depth(window) == depth);
 
   // Extend: from Inner, add the rows below one at a time.
@@ -231,6 +240,81 @@ void ui_layer_hide_show_layers_toggles_selection() {
   toggle->trigger();
   QApplication::processEvents();
   CHECK(!visible(ids.folder) && visible(ids.inner));
+}
+
+// GitHub issue 550: Layer > Show All Layers (Ctrl+Alt+,) shows every layer at every depth, like
+// the eye menu's Show All Layers: outside history, marking the document modified.
+void ui_layer_show_all_layers_shows_every_depth() {
+  patchy::ui::MainWindow window;
+  const auto ids = add_stack(window, QStringLiteral("Show All Layers"));
+  auto* show_all = require_hotkey_action(window, QStringLiteral("layer.show_all_layers"));
+  CHECK(show_all == require_action(window, "layerShowAllLayersAction"));
+  CHECK(show_all->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Comma));
+  CHECK(show_all->menuRole() == QAction::NoRole);
+  CHECK(show_all->text() == QStringLiteral("Sh&ow All Layers"));
+  const auto visible = [&window](patchy::LayerId id) {
+    const auto* layer = std::as_const(Access::document(window)).find_layer(id);
+    return layer != nullptr && layer->visible();
+  };
+  for (const auto id : {ids.middle, ids.folder, ids.inner, ids.top}) {
+    Access::document(window).find_layer(id)->set_visible(false);
+  }
+  Access::refresh_layer_ui(window);
+  QApplication::processEvents();
+  Access::mark_active_session_saved(window);
+  const auto depth = Access::active_session_undo_depth(window);
+  show_all->trigger();
+  QApplication::processEvents();
+  for (const auto id : {ids.background, ids.middle, ids.folder, ids.inner, ids.top}) {
+    CHECK(visible(id));
+  }
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Showed all layers"));
+  CHECK(Access::active_session_undo_depth(window) == depth);
+  CHECK(Access::active_session_is_modified(window));
+}
+
+// GitHub issue 549: the eye's tooltip names the Alt-click (Option-click) isolation.
+void ui_layer_eye_tooltip_names_alt_click() {
+  patchy::ui::MainWindow window;
+  const auto ids = add_stack(window, QStringLiteral("Eye Tooltip"));
+  auto* list = layer_list(window);
+  if (list == nullptr) {
+    return;
+  }
+  const auto eye_of = [&](const QString& name) -> QToolButton* {
+    auto* row = list->itemWidget(require_layer_item(*list, name));
+    return row != nullptr ? row->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck")) : nullptr;
+  };
+#ifdef Q_OS_MACOS
+  const QString alt = QStringLiteral("Option");
+#else
+  const QString alt = QStringLiteral("Alt");
+#endif
+  auto* eye = eye_of(QStringLiteral("Middle"));
+  CHECK(eye != nullptr);
+  if (eye != nullptr) {
+    CHECK(eye->toolTip() ==
+          QStringLiteral("Layer visible. Click to hide. %1-click to show only this layer.").arg(alt));
+    // Issue shot: the Layers list over the tip Qt shows for the eye.
+    ColorSchemeRestorer restore(patchy::ui::ColorSchemePreference::Dark);
+    QApplication::processEvents();
+    if (auto* shown_eye = eye_of(QStringLiteral("Middle")); shown_eye != nullptr) {
+      const auto tip = render_widget_tooltip(*shown_eye);
+      CHECK(!tip.isNull());
+      if (!tip.isNull()) {
+        save_stacked_artifact("issue549_eye_tooltip_dark", {list->grab().toImage(), tip});
+      }
+    }
+  }
+  Access::document(window).find_layer(ids.middle)->set_visible(false);
+  Access::refresh_layer_ui(window);
+  QApplication::processEvents();
+  eye = eye_of(QStringLiteral("Middle"));
+  CHECK(eye != nullptr);
+  if (eye != nullptr) {
+    CHECK(eye->toolTip() ==
+          QStringLiteral("Layer hidden. Click to show. %1-click to show only this layer.").arg(alt));
+  }
 }
 
 void ui_layer_lock_choices_follow_the_selection() {
@@ -353,8 +437,8 @@ void ui_layer_lock_layers_dialog_applies_and_undoes() {
   CHECK(flags_of(ids.top) == patchy::kLayerLockImagePixels);
 }
 
-// The new Layer menu rows (Hide Layers, Lock Layers..., the Export submenu last) within the
-// menu's 21-row bound, the export keys (#545), and the menu for review in both schemes.
+// The new Layer menu rows (Hide Layers, Show All Layers, Lock Layers..., the Export submenu last)
+// within the menu's 22-row bound (21 until Show All Layers, #550), the export keys (#545), and the menu for review in both schemes.
 void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   patchy::ui::MainWindow window;
   (void)add_stack(window, QStringLiteral("Layer Menu"));
@@ -366,7 +450,7 @@ void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   }
   const auto actions = layer_menu->actions();
   CHECK(std::count_if(actions.begin(), actions.end(), [](const QAction* action) { return !action->isSeparator(); }) <=
-        21);
+        22);
   CHECK(actions.back() == export_menu->menuAction());
   CHECK(export_menu->menuAction()->menuRole() == QAction::NoRole);
   auto* quick = require_hotkey_action(window, QStringLiteral("layer.quick_export_png"));
@@ -385,7 +469,8 @@ void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   const auto color = actions.indexOf(window.findChild<QMenu*>(QStringLiteral("layerColorMenu"))->menuAction());
   CHECK(color > 0);
   CHECK(actions.indexOf(require_action(window, "layerToggleVisibilityAction")) == color + 1);
-  CHECK(actions.indexOf(require_action(window, "layerLockLayersAction")) == color + 2);
+  CHECK(actions.indexOf(require_action(window, "layerShowAllLayersAction")) == color + 2);
+  CHECK(actions.indexOf(require_action(window, "layerLockLayersAction")) == color + 3);
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore(scheme);
     const bool dark = scheme == patchy::ui::ColorSchemePreference::Dark;
@@ -436,7 +521,7 @@ void ui_layer_menu_groups_fill_and_merge_submenus() {
   CHECK((layer_menu_rows(*layer_menu) ==
          QStringList{"layerNewMenu", "layerNewAdjustmentMenu", "layerNewFillMenu", "-", "layerDuplicateAction",
                      "layerDeleteAction", "layerRenameAction", "layerColorMenu", "layerToggleVisibilityAction",
-                     "layerLockLayersAction", "-", "layerMaskMenu", "layerClippingMaskAction", "layerVectorMaskMenu",
+                     "layerShowAllLayersAction", "layerLockLayersAction", "-", "layerMaskMenu", "layerClippingMaskAction", "layerVectorMaskMenu",
                      "layerEditAdjustmentAction", "layerBlendingOptionsAction", "layerSmartObjectsMenu",
                      "layerShapeMenu", "-", "layerFillMenu", "layerArrangeMenu", "layerRotateFlipMenu",
                      "layerMergeMenu", "-", "layerExportMenu"}));
@@ -523,6 +608,8 @@ std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
   return {
       {"ui_layer_select_below_above_steps_rows", ui_layer_select_below_above_steps_rows},
       {"ui_layer_hide_show_layers_toggles_selection", ui_layer_hide_show_layers_toggles_selection},
+      {"ui_layer_show_all_layers_shows_every_depth", ui_layer_show_all_layers_shows_every_depth},
+      {"ui_layer_eye_tooltip_names_alt_click", ui_layer_eye_tooltip_names_alt_click},
       {"ui_layer_lock_choices_follow_the_selection", ui_layer_lock_choices_follow_the_selection},
       {"ui_layer_lock_layers_dialog_applies_and_undoes", ui_layer_lock_layers_dialog_applies_and_undoes},
       {"ui_layer_menu_hosts_export_lock_and_hide_entries", ui_layer_menu_hosts_export_lock_and_hide_entries},

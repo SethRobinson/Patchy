@@ -6669,14 +6669,6 @@
         <translation>Cor do traçado</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>Camada visível. Clique para ocultar.</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>Camada oculta. Clique para mostrar.</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>Pixels transparentes bloqueados</translation>
     </message>
@@ -14268,6 +14260,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>Algumas camadas vetoriais do GIMP têm um preenchimento ou traçado que uma camada de forma não comporta (um padrão, ou pixels pintados depois), então foram abertas como camadas de pixels. Os demarcadores delas estão no painel Demarcadores.</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>Camada visível. Clique para ocultar. %ALT%-clique mostra só esta camada.</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>Camada oculta. Clique para mostrar. %ALT%-clique mostra só esta camada.</translation>
     </message>
 </context>
 <context>
@@ -28994,6 +28994,10 @@ Bloqueado: %1</translation>
     <message>
         <source>&amp;Merge</source>
         <translation>Me&amp;sclar</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>Mostrar todas as &amp;camadas</translation>
     </message>
 </context>
 <context>

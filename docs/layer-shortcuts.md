@@ -64,10 +64,12 @@ ShortcutOverride), since those keys type characters there. Pin:
 
 Select > Layer Below (`select.layer_below`, Alt+[) and Layer Above (`select.layer_above`, Alt+])
 move the selection one row down or up the Layers panel (`MainWindow::step_layer_selection`), so
-a collapsed group is one row and the name filter's hidden rows are skipped. They stop at the
-ends. With no active layer, Layer Below takes the top row and Layer Above the bottom one.
+a collapsed group is one row and the name filter's hidden rows are skipped. They wrap around:
+Layer Below on the bottom row takes the top one, Layer Above on the top row the bottom one
+(philipzae's #541 follow-up). With no active layer, Layer Below takes the top row and Layer Above the bottom one.
 Window-only `select.add_layer_below` / `select.add_layer_above` (Alt+Shift+[ and ]) add the row
-past the selection's lowest or highest row and make it active. Option on macOS; there the inline
+past the selection's lowest or highest row and make it active; they stop at the ends, since a
+wrap would add the far end of the stack. Option on macOS; there the inline
 text editor keeps Option+key as text (main_window.cpp ShortcutOverride). Pin:
 `ui_layer_select_below_above_steps_rows`.
 
@@ -79,6 +81,13 @@ them shows, else shows them all (`toggle_selected_layers_visibility`). Like the 
 outside history but marks the document modified. `refresh_layer_visibility_action_text` (from
 `refresh_layer_controls` and the Layer menu's aboutToShow) names it Hide Layers or Show Layers.
 Pin: `ui_layer_hide_show_layers_toggles_selection`.
+
+## Show All Layers (#550)
+
+`layerShowAllLayersAction` (`layer.show_all_layers`, Layer menu after Hide Layers; Ctrl+Alt+,,
+Cmd+Option+, on macOS) runs the eye menu's `set_all_layers_visible(true)`: every layer at every
+depth shows, outside history, marking the document modified. Pin:
+`ui_layer_show_all_layers_shows_every_depth`.
 
 ## Lock Layers dialog (#544)
 

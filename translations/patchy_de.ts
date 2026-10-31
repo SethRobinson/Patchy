@@ -6422,14 +6422,6 @@
         <translation>Ebene %1</translation>
     </message>
     <message>
-        <source>Layer visible. Click to hide.</source>
-        <translation>Ebene sichtbar. Klicken zum Ausblenden.</translation>
-    </message>
-    <message>
-        <source>Layer hidden. Click to show.</source>
-        <translation>Ebene ausgeblendet. Klicken zum Einblenden.</translation>
-    </message>
-    <message>
         <source>Transparent pixels locked</source>
         <translation>Transparente Pixel fixiert</translation>
     </message>
@@ -14268,6 +14260,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Some GIMP vector layers have a fill or stroke a shape layer cannot hold (a pattern, or pixels painted on later), so they opened as pixel layers. Their paths are in the Paths panel.</source>
         <translation>Einige GIMP-Vektorebenen haben eine Füllung oder Kontur, die eine Formebene nicht aufnehmen kann (ein Muster oder später darauf gemalte Pixel), und wurden deshalb als Pixelebenen geöffnet. Ihre Pfade sind im Pfade-Bedienfeld.</translation>
+    </message>
+    <message>
+        <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
+        <translation>Ebene sichtbar. Klicken zum Ausblenden. %ALT%-Klick zeigt nur diese Ebene.</translation>
+    </message>
+    <message>
+        <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
+        <translation>Ebene ausgeblendet. Klicken zum Einblenden. %ALT%-Klick zeigt nur diese Ebene.</translation>
     </message>
 </context>
 <context>
@@ -28994,6 +28994,10 @@ Fixiert: %1</translation>
     <message>
         <source>&amp;Merge</source>
         <translation>&amp;Zusammenfügen</translation>
+    </message>
+    <message>
+        <source>Sh&amp;ow All Layers</source>
+        <translation>A&amp;lle Ebenen einblenden</translation>
     </message>
 </context>
 <context>

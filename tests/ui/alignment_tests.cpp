@@ -561,7 +561,7 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
   CHECK(layer_menu != nullptr && arrange_menu != nullptr && align_menu != nullptr && distribute_menu != nullptr);
   const auto layer_menu_rows = layer_menu->actions();
   CHECK(std::count_if(layer_menu_rows.begin(), layer_menu_rows.end(),
-                      [](const QAction* action) { return !action->isSeparator(); }) <= 21);
+                      [](const QAction* action) { return !action->isSeparator(); }) <= 22);
   CHECK(arrange_menu->actions().contains(align_menu->menuAction()));
   CHECK(arrange_menu->actions().contains(distribute_menu->menuAction()));
   const char* const align_names[] = {"layerAlignLeftAction",   "layerAlignHCenterAction", "layerAlignRightAction",
