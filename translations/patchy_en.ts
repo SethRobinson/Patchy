@@ -31644,64 +31644,8 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>(Creates a new image)</source>
-        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires multiple layers selected)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires a grayscale or indexed image)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image commands)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Script-Fu, not supported)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires a new image)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires animation frames)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image operations)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s resources)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires a new layer)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires multiple images)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s painting tools)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s clipboard)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s gradients)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>(Unsupported)</source>
+        <extracomment>Menu suffix after a GIMP plug-in Patchy cannot run (&quot;Pagecurl... (Unsupported)&quot;); its tooltip says why.</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>

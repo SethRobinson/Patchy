@@ -1,5 +1,10 @@
 #include "ui_test_access.hpp"
 
+#include "ui/gimp_plugin_catalog.hpp"
+
+#include <memory>
+#include <utility>
+
 namespace patchy::ui {
 
 Document& MainWindowTestAccess::document(MainWindow& window) {
@@ -25,6 +30,26 @@ void MainWindowTestAccess::rebuild_gimp_plugins_menu(MainWindow& window) {
   window.rebuild_gimp_plugins_menu();
 #else
   (void)window;
+#endif
+}
+
+void MainWindowTestAccess::begin_gimp_plugin_scan(MainWindow& window) {
+#ifndef Q_OS_WASM
+  window.gimp_plugin_scan_in_flight_ = true;
+  ++window.gimp_plugin_scan_generation_;
+  window.rebuild_gimp_plugins_menu();
+#else
+  (void)window;
+#endif
+}
+
+void MainWindowTestAccess::finish_gimp_plugin_scan(MainWindow& window, GimpPluginScanResult result) {
+#ifndef Q_OS_WASM
+  window.finish_gimp_plugin_scan(window.gimp_plugin_scan_generation_,
+                                 std::make_shared<GimpPluginScanResult>(std::move(result)), false);
+#else
+  (void)window;
+  (void)result;
 #endif
 }
 

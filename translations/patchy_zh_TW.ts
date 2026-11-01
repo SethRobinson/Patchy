@@ -31642,64 +31642,8 @@ Locked: %1</source>
         <translation>它需要 GIMP 的漸層，Patchy 目前尚未提供這些內容。</translation>
     </message>
     <message>
-        <source>(Creates a new image)</source>
-        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
-        <translation>（建立新影像）</translation>
-    </message>
-    <message>
-        <source>(Requires multiple layers selected)</source>
-        <translation>（需要選取多個圖層）</translation>
-    </message>
-    <message>
-        <source>(Requires a grayscale or indexed image)</source>
-        <translation>（需要灰階或索引影像）</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image commands)</source>
-        <translation>（需要 GIMP 的影像命令）</translation>
-    </message>
-    <message>
-        <source>(Script-Fu, not supported)</source>
-        <translation>（Script-Fu，不支援）</translation>
-    </message>
-    <message>
-        <source>(Requires a new image)</source>
-        <translation>（需要新影像）</translation>
-    </message>
-    <message>
-        <source>(Requires animation frames)</source>
-        <translation>（需要動畫影格）</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image operations)</source>
-        <translation>（需要 GIMP 的影像操作）</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s resources)</source>
-        <translation>（需要 GIMP 的資源）</translation>
-    </message>
-    <message>
-        <source>(Requires a new layer)</source>
-        <translation>（需要新圖層）</translation>
-    </message>
-    <message>
-        <source>(Requires multiple images)</source>
-        <translation>（需要多個影像）</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s painting tools)</source>
-        <translation>（需要 GIMP 的繪畫工具）</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s clipboard)</source>
-        <translation>（需要 GIMP 的剪貼簿）</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s gradients)</source>
-        <translation>（需要 GIMP 的漸層）</translation>
-    </message>
-    <message>
         <source>(Unsupported)</source>
+        <extracomment>Menu suffix after a GIMP plug-in Patchy cannot run (&quot;Pagecurl... (Unsupported)&quot;); its tooltip says why.</extracomment>
         <translation>（不支援）</translation>
     </message>
     <message>

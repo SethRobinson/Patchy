@@ -46,6 +46,10 @@ public:
   static void set_gimp_plugin_dialog_answer(MainWindow& window, int answer);
   // Rebuilds Plugins > GIMP 3 Plug-ins (its old submenus are deleted later).
   static void rebuild_gimp_plugins_menu(MainWindow& window);
+  // A GIMP plug-in scan in flight (the menu says so), then its end with `result`, as the
+  // worker's queued call delivers it.
+  static void begin_gimp_plugin_scan(MainWindow& window);
+  static void finish_gimp_plugin_scan(MainWindow& window, GimpPluginScanResult result);
   static int gimp_preview_runs_started(const MainWindow& window);
   static bool gimp_plugin_active(const MainWindow& window);
   static int gimp_preview_runs_aborted(const MainWindow& window);

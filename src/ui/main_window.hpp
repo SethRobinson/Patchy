@@ -1411,6 +1411,8 @@ private:
   [[nodiscard]] bool gimp_plugin_scan_in_flight() const noexcept { return gimp_plugin_scan_in_flight_; }
   void finish_gimp_plugin_scan(int generation, std::shared_ptr<GimpPluginScanResult> result, bool announce);
   void rebuild_gimp_plugins_menu();
+  // Rebuilds now, or once no popup is open (or the GIMP submenu opens) when one is.
+  void rebuild_gimp_plugins_menu_when_closed();
   [[nodiscard]] const GimpPluginProcedure* find_gimp_plugin(const QString& identifier) const noexcept;
   // Menu entries, hotkeys and Search Commands run a plug-in from a queued call, never
   // inside the menu's own mouse handling (main_window_gimp_plugin_runs.cpp): the run's
@@ -1439,11 +1441,11 @@ private:
   GimpDialogOutcome run_gimp_plugin_settings_dialog(DocumentSession& session, LayerId layer_id,
                                                     const GimpPluginProcedure& entry, const GimpPluginArgumentSet& arguments,
                                                     QString* error);
-  // A reason code from the query (gimp_procedure.hpp) as text for the user: the full
-  // sentence (Preferences, tooltips, scripts) and the short menu suffix ("(Requires a new
-  // layer)"). The one wording source for every place that says why a plug-in cannot run.
+  // A reason code from the query (gimp_procedure.hpp) as text for the user (Preferences,
+  // tooltips, scripts): the one wording source for every place that says why a plug-in
+  // cannot run. In the menu a refused entry ends in the one suffix "(Unsupported)".
   [[nodiscard]] static QString gimp_plugin_reason_text(const QString& code);
-  [[nodiscard]] static QString gimp_plugin_reason_suffix(const QString& code);
+  [[nodiscard]] static QString gimp_plugin_unsupported_suffix();
   // Why a runnable plug-in cannot run on the current document right now (no image, a
   // group layer, locked pixels...): the menu suffix, empty when it can; `full` gets the
   // sentence. Rechecked whenever the menu opens.
@@ -3735,6 +3737,8 @@ private:
   int gimp_plugin_scan_generation_{0};
   bool gimp_plugin_scan_in_flight_{false};
   bool gimp_plugin_scan_pending_{false};
+  // A scan finished while a popup was open: the menu waits for a rebuild.
+  bool gimp_plugins_menu_stale_{false};
   // What plug-ins stored through gimp-pdb-set-data this session (their last values).
   std::map<std::string, std::vector<std::uint8_t>> gimp_plugin_stored_data_;
   // A plug-in run (its dialog) is up: a second one is refused (closing the window is

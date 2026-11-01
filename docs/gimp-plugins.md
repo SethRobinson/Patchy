@@ -52,21 +52,16 @@ Messages carry no length: a reader follows the grammar. Big-endian numbers; a st
 - The scan (`scan_gimp_plugins`, a worker at startup and on Rescan) lists plug-in files, reuses the cache (`<AppData>/gimp-plugins/query-cache.json`, keyed by path, size and file time, invalidated by a cache version, GIMP's version and Patchy's language) and queries the rest with up to four helpers in parallel. Each query records `PROC_INSTALL` and the `gimp-pdb-set-proc-*` / `gimp-pdb-add-proc-menu-path` calls; failed queries are cached too, so a broken plug-in is not restarted on every launch.
 - Classification (`classify_procedure`, reason codes in `gimp_procedure.hpp`, user text in `MainWindow::gimp_plugin_reason_text`): file load/export handlers, batch interpreters, temporary procedures and procedures without an `<Image>` menu path are hidden; the rest are runnable only when they take GIMP's image-procedure arguments (run mode, image, drawables), accept one drawable (the sensitivity mask), accept RGB, sit under Filters, Colors or Layer, and do not come from Script-Fu. Refusals keep their reason and show in Preferences > Plug-ins and `patchy.gimpPlugins.list()`.
 - Plugins > GIMP 3 Plug-ins (`gimpPluginsMenu`) holds one submenu per menu path (a leading "Filters" dropped, `[placement]` hints skipped), `gimpPluginAction` entries (data = `gimp.<procedure>`, the persisted id) and Rescan GIMP Plug-ins (`gimpPluginsRescanAction`, hotkey id `plugins.gimp_rescan`, which re-queries every plug-in). The entries are data-built (`kCommandSearchDataEntryProperty`). Notes while scanning, when GIMP is missing, when nothing is listed, for GIMP's Python plug-ins on macOS (`gimpPluginsPythonNote`) and for files that did not start (`gimpPluginsFailedNote`).
-- Every image command is listed, refused ones included (hidden kinds stay hidden). A refused entry is disabled for good: its text ends in a short suffix and its tooltip and status tip hold the full reason, both from one wording source, `MainWindow::gimp_plugin_reason_suffix` and `gimp_plugin_reason_text`, which Preferences and `patchy.gimpPlugins.list()` use too. Search Commands lists these disabled entries anyway (`kCommandSearchListsDisabledProperty`), the suffix in the name and the reason as description.
+- Every image command is listed, refused ones included (hidden kinds stay hidden). A refused entry is disabled for good and ends in one suffix, "(Unsupported)" (`MainWindow::gimp_plugin_unsupported_suffix`); its tooltip and status tip hold the reason from `gimp_plugin_reason_text`, the wording Preferences and `patchy.gimpPlugins.list()` use too. Rule: never a per-reason suffix. "(Requires multiple layers selected)" read as an instruction, and selecting two layers turned the runnable entries to "(Select a single layer)" while the refused one stayed off. Search Commands lists these disabled entries anyway (`kCommandSearchListsDisabledProperty`), the suffix in the name and the reason as description.
 
-  | Reason code | Suffix |
+  | Reason code | Examples |
   |---|---|
-  | `needs-new-layer` (Pagecurl, Gfig, Wavelet-decompose, Fog) | (Requires a new layer) |
-  | `needs-several-images` (Film) | (Requires multiple images) |
-  | `needs-several-layers` (Depth Merge) | (Requires multiple layers selected) |
-  | `needs-painting-tools` (Spyrogimp) | (Requires GIMP's painting tools) |
-  | `needs-clipboard` (Curve Bend) | (Requires GIMP's clipboard) |
-  | `needs-gradients` (Flame, Gradient Flare, Gradient Map) | (Requires GIMP's gradients) |
-  | `creates-image` (Decompose, Smooth Palette, Tile), `needs-no-layer` | (Requires a new image), (Creates a new image) |
-  | `image-operations` (Warp), `uses-gimp-resources` | (Requires GIMP's image operations), (Requires GIMP's resources) |
-  | `not-rgb`, `menu-outside-filters`, `animation`, `script-fu` | (Requires a grayscale or indexed image), (Requires GIMP's image commands), (Requires animation frames), (Script-Fu, not supported) |
-  | `not-image-procedure` (consoles, browsers, editors) | (Unsupported): nothing Patchy could add runs them |
+  | `needs-new-layer`, `needs-several-images`, `needs-several-layers` | Pagecurl, Gfig, Wavelet-decompose, Fog; Film; Depth Merge |
+  | `needs-painting-tools`, `needs-clipboard`, `needs-gradients` | Spyrogimp; Curve Bend; Flame, Gradient Flare, Gradient Map |
+  | `creates-image`, `needs-no-layer`, `image-operations`, `uses-gimp-resources` | Decompose, Smooth Palette, Tile; Warp |
+  | `not-rgb`, `menu-outside-filters`, `animation`, `script-fu`, `not-image-procedure` | Compose; Guillotine; the animation filters; Script-Fu scripts; consoles, browsers, editors |
 
+- A scan that ends while any popup is open does not rebuild the menu (a rebuild deletes submenus); the menu is marked stale and rebuilt when the popups close (`rebuild_gimp_plugins_menu_when_closed`, a 500 ms retry) or when `gimpPluginsMenu` opens, whichever is first. A single deferred try used to give up, leaving "Scanning GIMP plug-ins..." until a Rescan (`ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu`).
 - Runnable entries are rechecked against the document whenever the menu opens (`refresh_gimp_plugin_menu_state` on `aboutToShow`, `gimp_plugin_state_reason`): no image, Quick Mask, a channel view, several layers selected, a layer that is not a pixel, text or shape layer, locked pixels, a document that is not RGB, or a plug-in registered for RGBA only on a layer that cannot gain alpha. The entry is disabled with a suffix saying what to do ("(Needs a pixel layer)") and turns on once that is done.
 
 ## Running

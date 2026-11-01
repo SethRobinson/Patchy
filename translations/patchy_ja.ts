@@ -31642,64 +31642,8 @@ Locked: %1</source>
         <translation>GIMP のグラデーションを必要としますが、Patchy はまだそれを提供していません。</translation>
     </message>
     <message>
-        <source>(Creates a new image)</source>
-        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
-        <translation>(新しい画像を作成)</translation>
-    </message>
-    <message>
-        <source>(Requires multiple layers selected)</source>
-        <translation>(複数のレイヤーの選択が必要)</translation>
-    </message>
-    <message>
-        <source>(Requires a grayscale or indexed image)</source>
-        <translation>(グレースケールまたはインデックス画像が必要)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image commands)</source>
-        <translation>(GIMP の画像コマンドが必要)</translation>
-    </message>
-    <message>
-        <source>(Script-Fu, not supported)</source>
-        <translation>(Script-Fu、非対応)</translation>
-    </message>
-    <message>
-        <source>(Requires a new image)</source>
-        <translation>(新しい画像が必要)</translation>
-    </message>
-    <message>
-        <source>(Requires animation frames)</source>
-        <translation>(アニメーションフレームが必要)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image operations)</source>
-        <translation>(GIMP の画像操作が必要)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s resources)</source>
-        <translation>(GIMP のリソースが必要)</translation>
-    </message>
-    <message>
-        <source>(Requires a new layer)</source>
-        <translation>(新しいレイヤーが必要)</translation>
-    </message>
-    <message>
-        <source>(Requires multiple images)</source>
-        <translation>(複数の画像が必要)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s painting tools)</source>
-        <translation>(GIMP のペイントツールが必要)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s clipboard)</source>
-        <translation>(GIMP のクリップボードが必要)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s gradients)</source>
-        <translation>(GIMP のグラデーションが必要)</translation>
-    </message>
-    <message>
         <source>(Unsupported)</source>
+        <extracomment>Menu suffix after a GIMP plug-in Patchy cannot run (&quot;Pagecurl... (Unsupported)&quot;); its tooltip says why.</extracomment>
         <translation>(非対応)</translation>
     </message>
     <message>

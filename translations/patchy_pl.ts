@@ -31808,64 +31808,8 @@ Zablokowano: %1</translation>
         <translation>Wymaga gradientów GIMP-a, których Patchy jeszcze nie zapewnia.</translation>
     </message>
     <message>
-        <source>(Creates a new image)</source>
-        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
-        <translation>(Tworzy nowy obraz)</translation>
-    </message>
-    <message>
-        <source>(Requires multiple layers selected)</source>
-        <translation>(Wymaga zaznaczenia kilku warstw)</translation>
-    </message>
-    <message>
-        <source>(Requires a grayscale or indexed image)</source>
-        <translation>(Wymaga obrazu w skali szarości lub indeksowanego)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image commands)</source>
-        <translation>(Wymaga poleceń obrazu GIMP-a)</translation>
-    </message>
-    <message>
-        <source>(Script-Fu, not supported)</source>
-        <translation>(Script-Fu, nieobsługiwane)</translation>
-    </message>
-    <message>
-        <source>(Requires a new image)</source>
-        <translation>(Wymaga nowego obrazu)</translation>
-    </message>
-    <message>
-        <source>(Requires animation frames)</source>
-        <translation>(Wymaga klatek animacji)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image operations)</source>
-        <translation>(Wymaga operacji na obrazach GIMP-a)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s resources)</source>
-        <translation>(Wymaga zasobów GIMP-a)</translation>
-    </message>
-    <message>
-        <source>(Requires a new layer)</source>
-        <translation>(Wymaga nowej warstwy)</translation>
-    </message>
-    <message>
-        <source>(Requires multiple images)</source>
-        <translation>(Wymaga kilku obrazów)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s painting tools)</source>
-        <translation>(Wymaga narzędzi malarskich GIMP-a)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s clipboard)</source>
-        <translation>(Wymaga schowka GIMP-a)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s gradients)</source>
-        <translation>(Wymaga gradientów GIMP-a)</translation>
-    </message>
-    <message>
         <source>(Unsupported)</source>
+        <extracomment>Menu suffix after a GIMP plug-in Patchy cannot run (&quot;Pagecurl... (Unsupported)&quot;); its tooltip says why.</extracomment>
         <translation>(Nieobsługiwane)</translation>
     </message>
     <message>

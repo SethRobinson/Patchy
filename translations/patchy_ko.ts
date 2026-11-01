@@ -31642,64 +31642,8 @@ Locked: %1</source>
         <translation>GIMP의 그레이디언트가 필요하지만 Patchy는 아직 이를 제공하지 않습니다.</translation>
     </message>
     <message>
-        <source>(Creates a new image)</source>
-        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
-        <translation>(새 이미지를 만듦)</translation>
-    </message>
-    <message>
-        <source>(Requires multiple layers selected)</source>
-        <translation>(여러 레이어 선택 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires a grayscale or indexed image)</source>
-        <translation>(회색조 또는 인덱스 이미지 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image commands)</source>
-        <translation>(GIMP의 이미지 명령 필요)</translation>
-    </message>
-    <message>
-        <source>(Script-Fu, not supported)</source>
-        <translation>(Script-Fu, 지원되지 않음)</translation>
-    </message>
-    <message>
-        <source>(Requires a new image)</source>
-        <translation>(새 이미지 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires animation frames)</source>
-        <translation>(애니메이션 프레임 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image operations)</source>
-        <translation>(GIMP의 이미지 작업 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s resources)</source>
-        <translation>(GIMP의 리소스 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires a new layer)</source>
-        <translation>(새 레이어 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires multiple images)</source>
-        <translation>(여러 이미지 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s painting tools)</source>
-        <translation>(GIMP의 페인팅 도구 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s clipboard)</source>
-        <translation>(GIMP의 클립보드 필요)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s gradients)</source>
-        <translation>(GIMP의 그레이디언트 필요)</translation>
-    </message>
-    <message>
         <source>(Unsupported)</source>
+        <extracomment>Menu suffix after a GIMP plug-in Patchy cannot run (&quot;Pagecurl... (Unsupported)&quot;); its tooltip says why.</extracomment>
         <translation>(지원되지 않음)</translation>
     </message>
     <message>

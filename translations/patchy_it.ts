@@ -31725,64 +31725,8 @@ Bloccato: %1</translation>
         <translation>Richiede le sfumature di GIMP, che Patchy non fornisce ancora.</translation>
     </message>
     <message>
-        <source>(Creates a new image)</source>
-        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
-        <translation>(Crea una nuova immagine)</translation>
-    </message>
-    <message>
-        <source>(Requires multiple layers selected)</source>
-        <translation>(Richiede più livelli selezionati)</translation>
-    </message>
-    <message>
-        <source>(Requires a grayscale or indexed image)</source>
-        <translation>(Richiede un&apos;immagine in scala di grigio o indicizzata)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image commands)</source>
-        <translation>(Richiede i comandi immagine di GIMP)</translation>
-    </message>
-    <message>
-        <source>(Script-Fu, not supported)</source>
-        <translation>(Script-Fu, non supportato)</translation>
-    </message>
-    <message>
-        <source>(Requires a new image)</source>
-        <translation>(Richiede una nuova immagine)</translation>
-    </message>
-    <message>
-        <source>(Requires animation frames)</source>
-        <translation>(Richiede fotogrammi di animazione)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s image operations)</source>
-        <translation>(Richiede le operazioni sulle immagini di GIMP)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s resources)</source>
-        <translation>(Richiede le risorse di GIMP)</translation>
-    </message>
-    <message>
-        <source>(Requires a new layer)</source>
-        <translation>(Richiede un nuovo livello)</translation>
-    </message>
-    <message>
-        <source>(Requires multiple images)</source>
-        <translation>(Richiede più immagini)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s painting tools)</source>
-        <translation>(Richiede gli strumenti di pittura di GIMP)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s clipboard)</source>
-        <translation>(Richiede gli Appunti di GIMP)</translation>
-    </message>
-    <message>
-        <source>(Requires GIMP&apos;s gradients)</source>
-        <translation>(Richiede le sfumature di GIMP)</translation>
-    </message>
-    <message>
         <source>(Unsupported)</source>
+        <extracomment>Menu suffix after a GIMP plug-in Patchy cannot run (&quot;Pagecurl... (Unsupported)&quot;); its tooltip says why.</extracomment>
         <translation>(Non supportato)</translation>
     </message>
     <message>

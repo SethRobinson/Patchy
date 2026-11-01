@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <cstring>
 #include <map>
+#include <utility>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -120,15 +121,7 @@ void MainWindow::finish_gimp_plugin_scan(int generation, std::shared_ptr<GimpPlu
   }
   gimp_plugin_scan_in_flight_ = false;
   gimp_plugins_ = std::move(result);
-  if (QApplication::activePopupWidget() == nullptr) {
-    rebuild_gimp_plugins_menu();
-  } else {
-    QTimer::singleShot(1000, this, [this] {
-      if (QApplication::activePopupWidget() == nullptr) {
-        rebuild_gimp_plugins_menu();
-      }
-    });
-  }
+  rebuild_gimp_plugins_menu_when_closed();
   if (announce) {
     int available = 0;
     int unsupported = 0;
@@ -145,6 +138,24 @@ void MainWindow::finish_gimp_plugin_scan(int generation, std::shared_ptr<GimpPlu
     gimp_plugin_scan_pending_ = false;
     start_gimp_plugin_scan(false);
   }
+}
+
+void MainWindow::rebuild_gimp_plugins_menu_when_closed() {
+  // A rebuild deletes the submenus, so never while a popup (perhaps one of them) is open.
+  // Until the popups close the menu is stale: opening the GIMP submenu rebuilds it, and a
+  // retry catches the rest. One retry pending at a time.
+  if (QApplication::activePopupWidget() == nullptr) {
+    rebuild_gimp_plugins_menu();
+    return;
+  }
+  if (std::exchange(gimp_plugins_menu_stale_, true)) {
+    return;
+  }
+  QTimer::singleShot(500, this, [this] {
+    if (std::exchange(gimp_plugins_menu_stale_, false)) {
+      rebuild_gimp_plugins_menu_when_closed();
+    }
+  });
 }
 
 void MainWindow::ensure_gimp_plugins_scanned() {
@@ -219,52 +230,12 @@ QString MainWindow::gimp_plugin_reason_text(const QString& code) {
   return tr("Patchy cannot run it.");
 }
 
-QString MainWindow::gimp_plugin_reason_suffix(const QString& code) {
-  //: Menu suffixes after a GIMP plug-in's name ("Pagecurl... (Requires a new layer)"),
-  //: saying why it is unavailable. Keep them short.
-  if (code == QLatin1String("needs-no-layer")) {
-    return tr("(Creates a new image)");
-  }
-  if (code == QLatin1String("needs-several-layers")) {
-    return tr("(Requires multiple layers selected)");
-  }
-  if (code == QLatin1String("not-rgb")) {
-    return tr("(Requires a grayscale or indexed image)");
-  }
-  if (code == QLatin1String("menu-outside-filters")) {
-    return tr("(Requires GIMP's image commands)");
-  }
-  if (code == QLatin1String("script-fu")) {
-    return tr("(Script-Fu, not supported)");
-  }
-  if (code == QLatin1String("creates-image")) {
-    return tr("(Requires a new image)");
-  }
-  if (code == QLatin1String("animation")) {
-    return tr("(Requires animation frames)");
-  }
-  if (code == QLatin1String("image-operations")) {
-    return tr("(Requires GIMP's image operations)");
-  }
-  if (code == QLatin1String("uses-gimp-resources")) {
-    return tr("(Requires GIMP's resources)");
-  }
-  if (code == QLatin1String("needs-new-layer")) {
-    return tr("(Requires a new layer)");
-  }
-  if (code == QLatin1String("needs-several-images")) {
-    return tr("(Requires multiple images)");
-  }
-  if (code == QLatin1String("needs-painting-tools")) {
-    return tr("(Requires GIMP's painting tools)");
-  }
-  if (code == QLatin1String("needs-clipboard")) {
-    return tr("(Requires GIMP's clipboard)");
-  }
-  if (code == QLatin1String("needs-gradients")) {
-    return tr("(Requires GIMP's gradients)");
-  }
-  // Consoles, browsers, editors without an image: nothing Patchy could add runs them.
+QString MainWindow::gimp_plugin_unsupported_suffix() {
+  // One suffix for every refusal: a per-reason one ("Requires multiple layers selected")
+  // read as something the user could do, while nothing turns these entries on. The
+  // tooltip and status tip carry the reason (gimp_plugin_reason_text).
+  //: Menu suffix after a GIMP plug-in Patchy cannot run ("Pagecurl... (Unsupported)");
+  //: its tooltip says why.
   return tr("(Unsupported)");
 }
 
@@ -353,6 +324,7 @@ QString MainWindow::gimp_plugin_error_text(const QString& name, const GimpPlugin
 }
 
 void MainWindow::rebuild_gimp_plugins_menu() {
+  gimp_plugins_menu_stale_ = false;
   if (gimp_plugins_menu_ == nullptr) {
     return;
   }
@@ -464,7 +436,7 @@ void MainWindow::rebuild_gimp_plugins_menu() {
       } else {
         // Disabled for good, its reason in the text; Search Commands lists it and says why.
         const auto why = gimp_plugin_reason_text(entry->reason);
-        action->setText(label + QLatin1Char(' ') + gimp_plugin_reason_suffix(entry->reason));
+        action->setText(label + QLatin1Char(' ') + gimp_plugin_unsupported_suffix());
         action->setStatusTip(why);
         action->setToolTip(why);
         action->setEnabled(false);

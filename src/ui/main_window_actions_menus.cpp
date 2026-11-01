@@ -2516,8 +2516,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   gimp_plugins_menu_->setObjectName(QStringLiteral("gimpPluginsMenu"));
   gimp_plugins_menu_->menuAction()->setMenuRole(QAction::NoRole);
   // Reasons that depend on the document (no image, a group layer, locked pixels) are
-  // checked whenever the menu opens (docs/gimp-plugins.md, "Query and the menu").
-  connect(gimp_plugins_menu_, &QMenu::aboutToShow, this, [this] { refresh_gimp_plugin_menu_state(); });
+  // checked whenever the menu opens (docs/gimp-plugins.md, "Query and the menu"). A scan
+  // that finished while a popup was open lands here at the latest; the submenus being
+  // replaced are closed while this one opens.
+  connect(gimp_plugins_menu_, &QMenu::aboutToShow, this, [this] {
+    if (gimp_plugins_menu_stale_) {
+      rebuild_gimp_plugins_menu();
+    }
+    refresh_gimp_plugin_menu_state();
+  });
   auto* gimp_rescan_action = gimp_plugins_menu_->addAction(tr("Rescan GIMP Plug-ins"));
   gimp_rescan_action->setObjectName(QStringLiteral("gimpPluginsRescanAction"));
   gimp_rescan_action->setMenuRole(QAction::NoRole);

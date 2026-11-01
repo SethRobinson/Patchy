@@ -8,6 +8,7 @@
 #include "core/pixel_depth.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/command_search.hpp"
+#include "ui/gimp_plugin_catalog.hpp"
 #include "ui/gimp_plugin_run_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui_test_access.hpp"
@@ -674,7 +675,7 @@ void ui_gimp_plugin_settings_dialog_capture_if_requested() {
 }
 
 // Plugins > GIMP 3 Plug-ins lists every image command a plug-in registers: the ones
-// Patchy cannot run are disabled with a short reason in their text and the full one as
+// Patchy cannot run are disabled with "(Unsupported)" in their text and the reason as
 // tooltip and status tip, and Search Commands lists them too. Runnable ones say what the
 // document lacks (no image, a group layer) and turn on when the menu opens again with that
 // fixed. File formats and helpers stay hidden.
@@ -706,13 +707,14 @@ void ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available() {
   CHECK(pagecurl != nullptr);
   if (pagecurl != nullptr) {
     CHECK(!pagecurl->isEnabled());
-    CHECK(pagecurl->text().endsWith(QStringLiteral("(Requires a new layer)")));
+    CHECK(pagecurl->text().endsWith(QStringLiteral("... (Unsupported)")));
     CHECK(pagecurl->toolTip().contains(QStringLiteral("new layer")));
     CHECK(pagecurl->statusTip() == pagecurl->toolTip());
   }
   if (auto* film = action_for(QStringLiteral("gimp.plug-in-film")); film != nullptr) {
     CHECK(!film->isEnabled());
-    CHECK(film->text().endsWith(QStringLiteral("(Requires multiple images)")));
+    CHECK(film->text().endsWith(QStringLiteral(" (Unsupported)")));
+    CHECK(film->toolTip().contains(QStringLiteral("several open images")));
   }
   // File formats and helpers are not commands (File > Print is one, and is listed).
   for (auto* a : window.findChildren<QAction*>(QStringLiteral("gimpPluginAction"))) {
@@ -723,7 +725,7 @@ void ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available() {
   bool searched = false;
   for (const auto& entry : patchy::ui::collect_menu_commands(window.menuBar())) {
     if (entry.action == pagecurl) {
-      searched = entry.name.contains(QStringLiteral("(Requires a new layer)"));
+      searched = entry.name.contains(QStringLiteral("(Unsupported)"));
     }
   }
   CHECK(searched);
@@ -747,6 +749,69 @@ void ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available() {
   CHECK(!blinds->isEnabled());
   CHECK(blinds->text().endsWith(QStringLiteral("(Needs a pixel layer)")));
   CHECK(!blinds->toolTip().isEmpty());
+}
+
+// A scan that ends while a popup is open (the user waiting in the Plugins menu) must not
+// leave "Scanning GIMP plug-ins..." behind: the menu is rebuilt once the popups close, or
+// when the GIMP submenu opens. It used to retry once after a second and then give up, so
+// the note stayed until a Rescan.
+void ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("gimpPluginsMenu"));
+  CHECK(menu != nullptr);
+  if (menu == nullptr) return;
+  const auto has_note = [menu](const char* name) {
+    for (auto* a : menu->actions()) {
+      if (a->objectName() == QLatin1String(name)) return true;
+    }
+    return false;
+  };
+  const auto settle = [](int ms) {
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < ms) {
+      QApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+  };
+  const auto finish = [&window](const QString& problem) {
+    patchy::ui::GimpPluginScanResult result;
+    result.problem = problem;
+    patchy::ui::MainWindowTestAccess::finish_gimp_plugin_scan(window, std::move(result));
+  };
+  QMenu popup;
+  popup.addAction(QStringLiteral("Something"));
+
+  // The popups close a while after the scan ends: the retry rebuilds then.
+  patchy::ui::MainWindowTestAccess::begin_gimp_plugin_scan(window);
+  CHECK(has_note("gimpPluginsScanningNote"));
+  popup.popup(window.mapToGlobal(QPoint(100, 100)));
+  CHECK(QApplication::activePopupWidget() != nullptr);
+  finish(QStringLiteral("First scan done"));
+  CHECK(has_note("gimpPluginsScanningNote"));  // nothing is deleted under an open popup
+  settle(1300);
+  CHECK(has_note("gimpPluginsScanningNote"));
+  popup.hide();
+  CHECK(QApplication::activePopupWidget() == nullptr);
+  settle(700);
+  CHECK(!has_note("gimpPluginsScanningNote"));
+  CHECK(has_note("gimpPluginsProblemNote"));
+
+  // The GIMP submenu opens while a popup is still up: it rebuilds as it opens.
+  patchy::ui::MainWindowTestAccess::begin_gimp_plugin_scan(window);
+  popup.popup(window.mapToGlobal(QPoint(100, 100)));
+  finish(QStringLiteral("Second scan done"));
+  CHECK(has_note("gimpPluginsScanningNote"));
+  emit menu->aboutToShow();
+  CHECK(!has_note("gimpPluginsScanningNote"));
+  bool second = false;
+  for (auto* a : menu->actions()) {
+    second = second || a->text() == QLatin1String("Second scan done");
+  }
+  CHECK(second);
+  popup.hide();
+  settle(700);
+  CHECK(has_note("gimpPluginsProblemNote"));
 }
 
 void ui_gimp_plugins_menu_lists_test_plugin_if_available() {
@@ -778,6 +843,8 @@ std::vector<patchy::test::TestCase> gimp_plugin_tests() {
        ui_gimp_plugin_script_api_lists_and_runs_test_plugin_if_available},
       {"ui_gimp_plugin_runs_on_deep_layers_if_available", ui_gimp_plugin_runs_on_deep_layers_if_available},
       {"ui_gimp_plugins_menu_lists_test_plugin_if_available", ui_gimp_plugins_menu_lists_test_plugin_if_available},
+      {"ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu",
+       ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu},
       {"ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available",
        ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available},
       {"ui_gimp_plugin_settings_dialog_sweep_if_requested", ui_gimp_plugin_settings_dialog_sweep_if_requested},
