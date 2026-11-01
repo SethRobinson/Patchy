@@ -20,7 +20,7 @@ GIMP's Flatpak (Linux): the helper runs inside GIMP's own sandbox, like its plug
 
 macOS: GIMP's dylibs name each other through an `@rpath` only GIMP's own programs set, so Patchy starts the helper with `DYLD_LIBRARY_PATH` at GIMP's `lib` folder (`prepare_helper`). A hardened-runtime helper ignores that variable and refuses libraries signed by another team, so `make-dmg.sh` signs `patchy-gegl-host` alone with `packaging/macos/patchy-gegl-host.entitlements` (`disable-library-validation`, `allow-dyld-environment-variables`) and then seals the app again over it. Checked with an ad-hoc hardened signature: refused without the entitlements, loads with them.
 
-On Windows the helper puts GIMP's `bin` first on its DLL search path and `PATH` before loading, since GEGL loads its operation modules (`lib/gegl-0.4`) later and they find GIMP's other DLLs there. `GEGL_THREADS` is set to the core count unless already set.
+Windows on ARM: GIMP's installer puts a native ARM64 GIMP there, and the ARM64 helper loads it (checked with GIMP 3.2.6 on a Snapdragon X Elite, November 3, 2026: `ui_gegl_` passes). An x64 GIMP installed on ARM64 Windows cannot be loaded by the ARM64 helper (a process loads only its own architecture's DLLs); the menu then says GIMP's GEGL could not be loaded, while that GIMP's plug-ins, separate programs, still run. On Windows the helper puts GIMP's `bin` first on its DLL search path and `PATH` before loading, since GEGL loads its operation modules (`lib/gegl-0.4`) later and they find GIMP's other DLLs there. `GEGL_THREADS` is set to the core count unless already set.
 
 ## GPL-3 operations
 
