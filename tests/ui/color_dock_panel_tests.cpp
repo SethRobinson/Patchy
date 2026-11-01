@@ -95,6 +95,8 @@ void click(QWidget& widget, QPoint point, Qt::KeyboardModifiers modifiers = Qt::
   QApplication::processEvents();
 }
 
+bool shows_background_cursor(const QWidget& widget);
+
 void ui_color_panel_click_sets_foreground_and_alt_sets_background() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -155,12 +157,40 @@ void ui_color_panel_click_sets_foreground_and_alt_sets_background() {
   CHECK(canvas->primary_color().rgb() == turned.rgb());
   CHECK(canvas->secondary_color().rgb() == background_after_alt.rgb());
   CHECK(panel->hue() == strip_hue_at(plain_y, strip->height()));
-  // The new plain press is a foreground pick again, even right after an Alt drag.
+  save_widget_artifact("ui_color_panel_before_right_pick", *panel);
+  // Right-button picks share the Alt target, including a whole drag on either surface.
+  for (auto* surface : {static_cast<QWidget*>(field), static_cast<QWidget*>(strip)}) {
+    const auto foreground = canvas->primary_color();
+    const auto hue_before = panel->hue();
+    const QPoint start(surface->width() / 3, surface->height() / 3);
+    const QPoint end(surface->width() * 2 / 3, surface->height() * 2 / 3);
+    const auto expected_at = [&](QPoint point) {
+      return surface == field ? field_color_at(hue_before, point, surface->size())
+                              : QColor::fromHsv(strip_hue_at(point.y(), surface->height()), 255, 255);
+    };
+    send_mouse(*surface, QEvent::MouseButtonPress, start, Qt::RightButton, Qt::RightButton);
+    QApplication::processEvents();
+    CHECK(canvas->secondary_color().rgb() == expected_at(start).rgb());
+    CHECK(panel->picking());
+    CHECK(shows_background_cursor(*surface));
+    send_mouse(*surface, QEvent::MouseMove, end, Qt::NoButton, Qt::RightButton);
+    QApplication::processEvents();
+    CHECK(canvas->secondary_color().rgb() == expected_at(end).rgb());
+    CHECK(canvas->primary_color().rgb() == foreground.rgb());
+    CHECK(panel->background_chip()->color().rgb() == expected_at(end).rgb());
+    CHECK(panel->hue() == hue_before);
+    send_mouse(*surface, QEvent::MouseButtonRelease, end, Qt::RightButton, Qt::NoButton);
+    CHECK(!panel->picking());
+    CHECK(!shows_background_cursor(*surface));
+  }
+  save_widget_artifact("ui_color_panel_after_right_pick", *panel);
+  const auto background_after_right = canvas->secondary_color();
+  // The new plain press is a foreground pick again, even right after a background drag.
   const QPoint fourth(field->width() / 3, field->height() / 4);
   const auto fourth_expected = field_color_at(panel->hue(), fourth, field->size());
   click(*field, fourth);
   CHECK(canvas->primary_color().rgb() == fourth_expected.rgb());
-  CHECK(canvas->secondary_color().rgb() == background_after_alt.rgb());
+  CHECK(canvas->secondary_color().rgb() == background_after_right.rgb());
 
   if (auto* column = MainWindowTestAccess::panel_column(window); column != nullptr) {
     save_widget_artifact("ui_color_panel_in_column", *column);
@@ -562,6 +592,16 @@ void ui_color_picker_foreground_window_alt_pick_sets_background() {
   if (picker == nullptr || grid == nullptr || plane == nullptr) {
     return;
   }
+
+  // The shared Square field still ignores right-button input in a color window.
+  const auto foreground_before_right = canvas->primary_color();
+  const auto background_before_right = canvas->secondary_color();
+  const QPoint right_pick(plane->width() / 3, plane->height() / 3);
+  send_mouse(*plane, QEvent::MouseButtonPress, right_pick, Qt::RightButton, Qt::RightButton);
+  send_mouse(*plane, QEvent::MouseMove, right_pick + QPoint(5, 5), Qt::NoButton, Qt::RightButton);
+  send_mouse(*plane, QEvent::MouseButtonRelease, right_pick, Qt::RightButton, Qt::NoButton);
+  CHECK(canvas->primary_color().rgb() == foreground_before_right.rgb());
+  CHECK(canvas->secondary_color().rgb() == background_before_right.rgb());
 
   // Plain clicks on two swatches set the foreground, as before.
   click(*grid, picker_cell(0));

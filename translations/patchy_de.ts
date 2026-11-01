@@ -16731,10 +16731,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
-        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
-        <translation>Klicken oder ziehen, um die Vordergrundfarbe festzulegen. Mit %ALT%-Klick oder %ALT%-Ziehen die Hintergrundfarbe festlegen.</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Farbtonwürfel</translation>
     </message>
@@ -16843,6 +16839,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Black</source>
         <translation>Schwarz</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>Klicken oder ziehen, um die Vordergrundfarbe festzulegen. Mit Rechtsklick, Ziehen mit der rechten Maustaste, %ALT%-Klick oder %ALT%-Ziehen die Hintergrundfarbe festlegen.</translation>
     </message>
 </context>
 <context>

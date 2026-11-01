@@ -16687,10 +16687,6 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
-        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
-        <translation>クリックまたはドラッグで描画色を設定します。%ALT% クリックまたは %ALT% ドラッグで背景色を設定します。</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>色相キューブ</translation>
     </message>
@@ -16799,6 +16795,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Black</source>
         <translation>ブラック</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>クリックまたはドラッグで前景色を設定します。右クリック、右ボタンでのドラッグ、%ALT% を押しながらクリック、または %ALT% を押しながらドラッグで背景色を設定します。</translation>
     </message>
 </context>
 <context>

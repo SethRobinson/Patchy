@@ -16731,10 +16731,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
-        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
-        <translation>Haga clic o arrastre para definir el color frontal. Haga %ALT%+clic o %ALT%+arrastrar para definir el color de fondo.</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Cubo de tono</translation>
     </message>
@@ -16843,6 +16839,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Black</source>
         <translation>Negro</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>Haz clic o arrastra para establecer el color de primer plano. Haz clic derecho, arrastra con el botón derecho, haz %ALT%-clic o %ALT%-arrastra para establecer el color de fondo.</translation>
     </message>
 </context>
 <context>

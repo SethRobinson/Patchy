@@ -16714,10 +16714,6 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
-        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16825,6 +16821,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Black</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

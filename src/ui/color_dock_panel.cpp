@@ -215,8 +215,8 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   hue_strip_->setFocusPolicy(Qt::NoFocus);
   // Alt over either shows the background cursor; the picker window's field and strip,
   // which edit one color, do not get one.
-  field_cursor_ = new BackgroundPickCursor(field_);
-  hue_strip_cursor_ = new BackgroundPickCursor(hue_strip_);
+  field_cursor_ = new BackgroundPickCursor(field_, true);
+  hue_strip_cursor_ = new BackgroundPickCursor(hue_strip_, true);
   auto* cube_layout = new QHBoxLayout(cube);
   cube_layout->setContentsMargins(0, 0, 0, 0);
   cube_layout->setSpacing(8);
@@ -595,11 +595,15 @@ void ColorDockPanel::refresh_channel_views() {
   }
 }
 
-void ColorDockPanel::begin_field_pick(Qt::KeyboardModifiers modifiers) {
+bool ColorDockPanel::begin_field_pick(Qt::KeyboardModifiers modifiers, Qt::MouseButton button) {
+  if (button != Qt::LeftButton && button != Qt::RightButton) {
+    return false;
+  }
   // Decided once per press from the press event itself: releasing Alt mid-drag keeps
   // setting the background, as the Pick tool's Alt-click does.
   picking_ = true;
-  pick_background_ = (modifiers & Qt::AltModifier) != 0;
+  pick_background_ = button == Qt::RightButton || (modifiers & Qt::AltModifier) != 0;
+  return true;
 }
 
 void ColorDockPanel::end_field_pick() {
@@ -662,7 +666,7 @@ void ColorDockPanel::changeEvent(QEvent* event) {
 
 void ColorDockPanel::retranslate() {
   const auto hint = resolve_modifier_names(
-      tr("Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color."));
+      tr("Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color."));
   field_->setToolTip(hint);
   hue_strip_->setToolTip(hint);
   settings_button_->setToolTip(tr("Color panel settings"));
