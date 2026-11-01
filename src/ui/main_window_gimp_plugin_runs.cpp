@@ -565,12 +565,15 @@ MainWindow::GimpDialogOutcome MainWindow::run_gimp_plugin_own_dialog(DocumentSes
   callbacks.progress = [&box](double fraction, const QString& text) { box.set_progress(fraction, text); };
   callbacks.plugin_window = [&box](const QRect& rect) { box.set_plugin_window(rect); };
   callbacks.cancelled = [&box] { return box.stop_requested(); };
-  callbacks.tick = [this, &box, &elapsed] {
+  QWidget* const self = this;
+  callbacks.tick = [self, &box, &elapsed] {
     if (elapsed.elapsed() > kFilterProgressMinimumDurationMs) {
       box.reveal();
     }
 #ifdef Q_OS_WIN
-    keep_window_enabled(*this);
+    keep_window_enabled(*self);
+#else
+    (void)self;
 #endif
   };
 
