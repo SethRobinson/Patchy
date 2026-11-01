@@ -981,35 +981,49 @@ void ui_gegl_filters_list_and_apply_if_available() {
   CHECK(std::equal(undone.data().begin(), undone.data().end(), original.data().begin(), original.data().end()));
 
   // The menu command opens Patchy's filter dialog from GEGL's settings (saved to
-  // test-artifacts/gegl-cartoon-dialog.png for visual QA); Cancel leaves the layer alone.
-  bool saw_dialog = false;
-  int polls = 0;
-  QTimer poll;
-  poll.setInterval(250);
-  QObject::connect(&poll, &QTimer::timeout, &window, [&] {
-    ++polls;
-    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFilterDialog"));
-    if (dialog == nullptr) {
-      if (polls > 80) {  // 20 s: close whatever is modal so a failure ends the test
-        poll.stop();
-        if (auto* modal = qobject_cast<QDialog*>(QApplication::activeModalWidget())) modal->reject();
+  // test-artifacts/gegl-<id>-dialog.png for visual QA); Cancel leaves the layer alone.
+  // Vignette shows a color setting as a choice.
+  const auto open_dialog = [&](const QString& identifier, const QString& control) {
+    bool saw_dialog = false;
+    int polls = 0;
+    QTimer poll;
+    poll.setInterval(250);
+    QObject::connect(&poll, &QTimer::timeout, &window, [&] {
+      ++polls;
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyFilterDialog"));
+      if (dialog == nullptr) {
+        if (polls > 80) {  // 20 s: close whatever is modal so a failure ends the test
+          poll.stop();
+          if (auto* modal = qobject_cast<QDialog*>(QApplication::activeModalWidget())) modal->reject();
+        }
+        return;
       }
-      return;
+      if (polls < 10) {
+        return;  // let the previews land first
+      }
+      poll.stop();
+      saw_dialog = dialog->property("patchy.filterIdentifier").toString() == identifier &&
+                   dialog->findChild<QWidget*>(control) != nullptr;
+      save_widget_artifact(identifier.mid(5).prepend(QStringLiteral("gegl-")).toStdString() + "-dialog", *dialog);
+      dialog->reject();
+    });
+    poll.start();
+    patchy::ui::MainWindowTestAccess::apply_filter_with_dialog(window, identifier);
+    CHECK(saw_dialog);
+    const auto& cancelled = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*layer_id)->pixels();
+    CHECK(std::equal(cancelled.data().begin(), cancelled.data().end(), original.data().begin(), original.data().end()));
+  };
+  open_dialog(QStringLiteral("gegl.cartoon"), QStringLiteral("geglParam_mask-radiusSlider"));
+  open_dialog(QStringLiteral("gegl.vignette"), QStringLiteral("geglParam_colorCombo"));
+
+  // Search Commands finds them by name, GEGL's description as the line under it.
+  bool searched = false;
+  for (const auto& entry : patchy::ui::collect_menu_commands(window.menuBar())) {
+    if (entry.action != nullptr && entry.action->data().toString() == QLatin1String("gegl.cartoon")) {
+      searched = entry.name.contains(QStringLiteral("Cartoon"));
     }
-    if (polls < 10) {
-      return;  // let the previews land first
-    }
-    poll.stop();
-    saw_dialog = dialog->property("patchy.filterIdentifier").toString() == QLatin1String("gegl.cartoon") &&
-                 dialog->findChild<QWidget*>(QStringLiteral("geglParam_mask-radiusSlider")) != nullptr;
-    save_widget_artifact("gegl-cartoon-dialog", *dialog);
-    dialog->reject();
-  });
-  poll.start();
-  patchy::ui::MainWindowTestAccess::apply_filter_with_dialog(window, QStringLiteral("gegl.cartoon"));
-  CHECK(saw_dialog);
-  const auto& cancelled = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*layer_id)->pixels();
-  CHECK(std::equal(cancelled.data().begin(), cancelled.data().end(), original.data().begin(), original.data().end()));
+  }
+  CHECK(searched);
 }
 
 void ui_gimp_plugins_menu_lists_test_plugin_if_available() {

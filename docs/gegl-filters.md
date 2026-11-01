@@ -55,7 +55,7 @@ An operation without a shown setting applies at once, without a dialog. Titles, 
 
 ## Tests
 
-`ui_gegl_filters_list_and_apply_if_available` (tests/ui/gimp_plugin_tests.cpp; skips without GIMP's GEGL): the scan, Gaussian Blur's mapped settings, Cartoon offered through `--gpl3`, exclusions (Red Eye Removal, Crop, Over), runs straight through the registry at 8, 16 and 32 bits, Color Overlay in the foreground color, German labels, the menu entry, a run through `apply_filter` and its undo, and the Cartoon dialog (saved to `test-artifacts/gegl-cartoon-dialog.png`) cancelled with the layer unchanged.
+`ui_gegl_filters_list_and_apply_if_available` (tests/ui/gimp_plugin_tests.cpp; skips without GIMP's GEGL): the scan, Gaussian Blur's mapped settings, Cartoon offered through `--gpl3`, exclusions (Red Eye Removal, Crop, Over), runs straight through the registry at 8, 16 and 32 bits, Color Overlay in the foreground color, German labels, the menu entry, a run through `apply_filter` and its undo, script listing and `applyFilter`, the Cartoon and Vignette dialogs (saved to `test-artifacts/gegl-cartoon-dialog.png` and `gegl-vignette-dialog.png`; Vignette shows a color choice) cancelled with the layer unchanged, and Search Commands finding Cartoon.
 
 ## Not done
 
