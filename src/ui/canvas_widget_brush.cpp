@@ -2979,9 +2979,12 @@ void CanvasWidget::set_clone_overlay_opacity(int percent) {
   invalidate_clone_overlay();
 }
 
+// Hidden while Alt aims a new source (GitHub issue 573), except during the Alt+right-drag
+// resize, where it is the size preview (issue 516).
 bool CanvasWidget::clone_overlay_active() const {
   return clone_overlay_shown_ && retouch_source_tool_active() && clone_source_set_ && !painting_ &&
-         brush_hover_position_valid_ && !spacebar_panning_ && document_ != nullptr && !render_cache_.isNull() &&
+         (!clone_overlay_alt_held_ || brush_adjust_dragging_) && brush_hover_position_valid_ &&
+         !spacebar_panning_ && document_ != nullptr && !render_cache_.isNull() &&
          render_cache_.size() == QSize(document_->width(), document_->height());
 }
 
@@ -3000,6 +3003,15 @@ QRect CanvasWidget::clone_overlay_widget_rect() const {
       static_cast<int>(std::ceil(static_cast<double>(std::max(1, active_outline_brush_size())) * zoom_ / 2.0)) + 3;
   const auto center = clone_overlay_center_widget();
   return QRect(center.x() - radius, center.y() - radius, 2 * radius + 1, 2 * radius + 1);
+}
+
+void CanvasWidget::set_clone_overlay_alt_held(bool held) {
+  if (clone_overlay_alt_held_ == held) {
+    return;
+  }
+  invalidate_clone_overlay();
+  clone_overlay_alt_held_ = held;
+  invalidate_clone_overlay();
 }
 
 void CanvasWidget::invalidate_clone_overlay() {
