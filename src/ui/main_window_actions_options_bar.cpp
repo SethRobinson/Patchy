@@ -4331,6 +4331,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   path_merge_shapes_button_ = new QPushButton(toolbar);
   path_merge_shapes_button_->setObjectName(QStringLiteral("vectorMergeShapesButton"));
   path_merge_shapes_button_->setText(tr("Merge Shapes"));
+  path_merge_shapes_button_->setFocusPolicy(Qt::TabFocus);
   bind_widget_text(path_merge_shapes_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Merge Shapes"));
   path_merge_shapes_button_->setEnabled(false);
   connect(path_merge_shapes_button_, &QPushButton::clicked, this, [this] { merge_selected_path_components(); });

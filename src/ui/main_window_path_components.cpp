@@ -17,8 +17,8 @@
 #include <QColor>
 #include <QLatin1String>
 #include <QMenu>
+#include <QPushButton>
 #include <QStatusBar>
-#include <QToolButton>
 
 #include <algorithm>
 #include <optional>
