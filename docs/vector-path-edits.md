@@ -139,7 +139,7 @@ Tests: `ui_path_weld_on_drag_joins_end_points`, `ui_path_weld_on_drag_merges_nei
 Layer > Shape > Merge Shapes (`path.merge_shapes`, `pathMergeShapesAction`, after the four
 combine commands), the path menu under Path Select and Direct Select, the Layers panel's Combine
 Shapes submenu and a Merge Shapes button on the Path Select / Direct Select options bar
-(`vectorMergeShapesButton`, after Combine; the reporter's "Apply operation", as a one-click
+(`vectorMergeShapesButton`, a framed QPushButton after Combine so the bar keeps its 26 px row; the reporter's "Apply operation", as a one-click
 command rather than a mode so the live ops stay the default). It acts on the selected components,
 else every component of the target path; with no component picked and two or more combinable
 shape layers selected, they first combine into the bottom one (`combine_shape_layers`, Add).
