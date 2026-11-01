@@ -41,6 +41,14 @@ public:
   // Preferences > Watermarks' checks on open still running (docs/watermarks.md).
   static std::size_t watermark_checks_running(MainWindow& window);
   static int document_tab_count(MainWindow& window);
+  // The next plug-in dialog opened from the menu is answered like scripts' answerDialog
+  // (1 OK, 2 Cancel); preview runs Patchy's settings dialog started and ended early.
+  static void set_gimp_plugin_dialog_answer(MainWindow& window, int answer);
+  // Rebuilds Plugins > GIMP 3 Plug-ins (its old submenus are deleted later).
+  static void rebuild_gimp_plugins_menu(MainWindow& window);
+  static int gimp_preview_runs_started(const MainWindow& window);
+  static bool gimp_plugin_active(const MainWindow& window);
+  static int gimp_preview_runs_aborted(const MainWindow& window);
 
   // The one-time High Quality offer stays away offscreen; a test that drives it opts in.
   static void allow_high_quality_offer_offscreen(MainWindow& window);

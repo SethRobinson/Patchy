@@ -18763,6 +18763,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Cancel</source>
         <translation>취소</translation>
     </message>
+    <message>
+        <source>Use Patchy&apos;s settings dialog for this plug-in next time</source>
+        <translation>다음부터 이 플러그인에 Patchy의 설정 대화 상자 사용</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s dialog shows the result on the canvas while you change the settings</source>
+        <translation>Patchy의 대화 상자는 설정을 변경하는 동안 캔버스에 결과를 표시합니다</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginSettingsDialog</name>
+    <message>
+        <source>%1 (GIMP 3 Plug-in)</source>
+        <extracomment>%1 is the GIMP plug-in&apos;s name (&quot;Blinds&quot;).</extracomment>
+        <translation>%1(GIMP 3 플러그인)</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation>미리 보기</translation>
+    </message>
+    <message>
+        <source>Shows the result on the canvas while you change the settings</source>
+        <translation>설정을 변경하는 동안 캔버스에 결과를 표시합니다</translation>
+    </message>
+    <message>
+        <source>Use the Plug-in&apos;s Own Dialog</source>
+        <translation>플러그인 자체 대화 상자 사용</translation>
+    </message>
+    <message>
+        <source>Opens the plug-in&apos;s own window instead, and keeps using it for this plug-in</source>
+        <translation>대신 플러그인 자체 창을 열고 이 플러그인에는 계속 그 창을 사용합니다</translation>
+    </message>
+    <message>
+        <source>This layer</source>
+        <translation>이 레이어</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>없음</translation>
+    </message>
+    <message>
+        <source>This plug-in has no settings.</source>
+        <translation>이 플러그인에는 설정이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Updating preview...</source>
+        <translation>미리 보기 업데이트 중...</translation>
+    </message>
+    <message>
+        <source>Quick preview; refining...</source>
+        <extracomment>The canvas shows a quick, lower-resolution preview while the full one is made.</extracomment>
+        <translation>빠른 미리 보기, 정제 중...</translation>
+    </message>
+    <message>
+        <source>The preview failed.</source>
+        <translation>미리 보기에 실패했습니다.</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>적용 중...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
@@ -31575,6 +31636,10 @@ Locked: %1</source>
         <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
         <extracomment>%1 is the plug-in&apos;s name.</extracomment>
         <translation>%1에는 투명도를 가질 수 있는 레이어가 필요합니다. 레이어 패널에서 배경을 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택한 다음 다시 실행하세요. 레이어는 변경되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>A GIMP plug-in is already running</source>
+        <translation>GIMP 플러그인이 이미 실행 중입니다</translation>
     </message>
 </context>
 <context>

@@ -18763,6 +18763,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Cancel</source>
         <translation>キャンセル</translation>
     </message>
+    <message>
+        <source>Use Patchy&apos;s settings dialog for this plug-in next time</source>
+        <translation>次回からこのプラグインに Patchy の設定ダイアログを使用</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s dialog shows the result on the canvas while you change the settings</source>
+        <translation>Patchy のダイアログでは、設定の変更中に結果がキャンバスに表示されます</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginSettingsDialog</name>
+    <message>
+        <source>%1 (GIMP 3 Plug-in)</source>
+        <extracomment>%1 is the GIMP plug-in&apos;s name (&quot;Blinds&quot;).</extracomment>
+        <translation>%1（GIMP 3 プラグイン）</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation>プレビュー</translation>
+    </message>
+    <message>
+        <source>Shows the result on the canvas while you change the settings</source>
+        <translation>設定の変更中に結果をキャンバスに表示します</translation>
+    </message>
+    <message>
+        <source>Use the Plug-in&apos;s Own Dialog</source>
+        <translation>プラグイン独自のダイアログを使用</translation>
+    </message>
+    <message>
+        <source>Opens the plug-in&apos;s own window instead, and keeps using it for this plug-in</source>
+        <translation>代わりにプラグイン独自のウィンドウを開き、以後このプラグインではそれを使用します</translation>
+    </message>
+    <message>
+        <source>This layer</source>
+        <translation>このレイヤー</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>なし</translation>
+    </message>
+    <message>
+        <source>This plug-in has no settings.</source>
+        <translation>このプラグインには設定がありません。</translation>
+    </message>
+    <message>
+        <source>Updating preview...</source>
+        <translation>プレビューを更新中...</translation>
+    </message>
+    <message>
+        <source>Quick preview; refining...</source>
+        <extracomment>The canvas shows a quick, lower-resolution preview while the full one is made.</extracomment>
+        <translation>簡易プレビュー: 高品質プレビューを処理中...</translation>
+    </message>
+    <message>
+        <source>The preview failed.</source>
+        <translation>プレビューに失敗しました。</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>適用中...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
@@ -31575,6 +31636,10 @@ Locked: %1</source>
         <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
         <extracomment>%1 is the plug-in&apos;s name.</extracomment>
         <translation>%1 には透明部分を保持できるレイヤーが必要です。レイヤーパネルで背景を右クリックし、「背景からレイヤーへ」を選んでから、もう一度実行してください。レイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>A GIMP plug-in is already running</source>
+        <translation>GIMP プラグインはすでに実行中です</translation>
     </message>
 </context>
 <context>

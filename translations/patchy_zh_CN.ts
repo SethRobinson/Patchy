@@ -18763,6 +18763,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Cancel</source>
         <translation>取消</translation>
     </message>
+    <message>
+        <source>Use Patchy&apos;s settings dialog for this plug-in next time</source>
+        <translation>下次对此插件使用 Patchy 的设置对话框</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s dialog shows the result on the canvas while you change the settings</source>
+        <translation>Patchy 的对话框会在你更改设置时在画布上显示结果</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginSettingsDialog</name>
+    <message>
+        <source>%1 (GIMP 3 Plug-in)</source>
+        <extracomment>%1 is the GIMP plug-in&apos;s name (&quot;Blinds&quot;).</extracomment>
+        <translation>%1（GIMP 3 插件）</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation>预览</translation>
+    </message>
+    <message>
+        <source>Shows the result on the canvas while you change the settings</source>
+        <translation>在你更改设置时在画布上显示结果</translation>
+    </message>
+    <message>
+        <source>Use the Plug-in&apos;s Own Dialog</source>
+        <translation>使用插件自带的对话框</translation>
+    </message>
+    <message>
+        <source>Opens the plug-in&apos;s own window instead, and keeps using it for this plug-in</source>
+        <translation>改为打开插件自带的窗口，并对此插件继续使用它</translation>
+    </message>
+    <message>
+        <source>This layer</source>
+        <translation>此图层</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>无</translation>
+    </message>
+    <message>
+        <source>This plug-in has no settings.</source>
+        <translation>此插件没有设置。</translation>
+    </message>
+    <message>
+        <source>Updating preview...</source>
+        <translation>正在更新预览...</translation>
+    </message>
+    <message>
+        <source>Quick preview; refining...</source>
+        <extracomment>The canvas shows a quick, lower-resolution preview while the full one is made.</extracomment>
+        <translation>快速预览，正在精细化...</translation>
+    </message>
+    <message>
+        <source>The preview failed.</source>
+        <translation>预览失败。</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>正在应用...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
@@ -31575,6 +31636,10 @@ Locked: %1</source>
         <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
         <extracomment>%1 is the plug-in&apos;s name.</extracomment>
         <translation>%1 需要一个可以包含透明度的图层。请在图层面板中右键单击背景，选择“从背景生成图层”，然后再次运行。图层未被更改。</translation>
+    </message>
+    <message>
+        <source>A GIMP plug-in is already running</source>
+        <translation>已有 GIMP 插件正在运行</translation>
     </message>
 </context>
 <context>

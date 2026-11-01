@@ -18807,6 +18807,67 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
+    <message>
+        <source>Use Patchy&apos;s settings dialog for this plug-in next time</source>
+        <translation>Utiliser la boîte de dialogue de réglages de Patchy pour ce module externe la prochaine fois</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s dialog shows the result on the canvas while you change the settings</source>
+        <translation>La boîte de dialogue de Patchy affiche le résultat dans la zone de travail pendant que vous modifiez les réglages</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginSettingsDialog</name>
+    <message>
+        <source>%1 (GIMP 3 Plug-in)</source>
+        <extracomment>%1 is the GIMP plug-in&apos;s name (&quot;Blinds&quot;).</extracomment>
+        <translation>%1 (module externe GIMP 3)</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation>Aperçu</translation>
+    </message>
+    <message>
+        <source>Shows the result on the canvas while you change the settings</source>
+        <translation>Affiche le résultat dans la zone de travail pendant que vous modifiez les réglages</translation>
+    </message>
+    <message>
+        <source>Use the Plug-in&apos;s Own Dialog</source>
+        <translation>Utiliser la boîte de dialogue propre au module externe</translation>
+    </message>
+    <message>
+        <source>Opens the plug-in&apos;s own window instead, and keeps using it for this plug-in</source>
+        <translation>Ouvre plutôt la fenêtre propre au module externe et continue de l&apos;utiliser pour ce module externe</translation>
+    </message>
+    <message>
+        <source>This layer</source>
+        <translation>Ce calque</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>Aucun</translation>
+    </message>
+    <message>
+        <source>This plug-in has no settings.</source>
+        <translation>Ce module externe n&apos;a aucun réglage.</translation>
+    </message>
+    <message>
+        <source>Updating preview...</source>
+        <translation>Mise à jour de l’aperçu...</translation>
+    </message>
+    <message>
+        <source>Quick preview; refining...</source>
+        <extracomment>The canvas shows a quick, lower-resolution preview while the full one is made.</extracomment>
+        <translation>Aperçu rapide ; affinage...</translation>
+    </message>
+    <message>
+        <source>The preview failed.</source>
+        <translation>L&apos;aperçu a échoué.</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>Application...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
@@ -31658,6 +31719,10 @@ Verrouillé : %1</translation>
         <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
         <extracomment>%1 is the plug-in&apos;s name.</extracomment>
         <translation>%1 a besoin d&apos;un calque pouvant contenir de la transparence. Faites un clic droit sur l&apos;Arrière-plan dans le panneau Calques, choisissez Calque d&apos;après l&apos;arrière-plan, puis relancez-le. Le calque n&apos;a pas été modifié.</translation>
+    </message>
+    <message>
+        <source>A GIMP plug-in is already running</source>
+        <translation>Un module externe GIMP est déjà en cours d&apos;exécution</translation>
     </message>
 </context>
 <context>

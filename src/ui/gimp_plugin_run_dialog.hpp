@@ -5,12 +5,16 @@
 // plug-in's own dialog lives in another process and must keep the foreground: while
 // that dialog is up the box says to adjust the settings there (its preview updates as
 // they change) and click OK; while the plug-in works it shows its progress. Its button
-// ends the plug-in and leaves the layer as it was.
+// ends the plug-in and leaves the layer as it was. It is not modal: the canvas stays
+// open to zoom and scroll while the plug-in runs (edits are locked).
 
 #include <QDialog>
 #include <QRect>
 #include <QString>
 
+#include <functional>
+
+class QCheckBox;
 class QLabel;
 class QProgressBar;
 class QPushButton;
@@ -35,6 +39,9 @@ public:
   void set_progress(double fraction, const QString& text);
   // Shows the box unless the user already asked to stop.
   void reveal();
+  // For a plug-in Patchy's own settings dialog can hold: a check box choosing that dialog
+  // for the next run (`chosen` reports a change).
+  void set_patchy_dialog_option(bool shown, std::function<void(bool)> chosen);
 
   [[nodiscard]] bool stop_requested() const noexcept { return stop_requested_; }
   [[nodiscard]] State state() const noexcept { return state_; }
@@ -52,6 +59,7 @@ private:
   QLabel* hint_{nullptr};
   QProgressBar* bar_{nullptr};
   QPushButton* stop_button_{nullptr};
+  QCheckBox* patchy_dialog_check_{nullptr};
   State state_{State::Starting};
   QRect plugin_window_rect_;
   bool progress_seen_{false};

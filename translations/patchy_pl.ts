@@ -18851,6 +18851,67 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Cancel</source>
         <translation>Anuluj</translation>
     </message>
+    <message>
+        <source>Use Patchy&apos;s settings dialog for this plug-in next time</source>
+        <translation>Następnym razem używaj okna ustawień Patchy dla tej wtyczki</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s dialog shows the result on the canvas while you change the settings</source>
+        <translation>Okno Patchy pokazuje wynik na płótnie podczas zmiany ustawień</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginSettingsDialog</name>
+    <message>
+        <source>%1 (GIMP 3 Plug-in)</source>
+        <extracomment>%1 is the GIMP plug-in&apos;s name (&quot;Blinds&quot;).</extracomment>
+        <translation>%1 (wtyczka GIMP 3)</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation>Podgląd</translation>
+    </message>
+    <message>
+        <source>Shows the result on the canvas while you change the settings</source>
+        <translation>Pokazuje wynik na płótnie podczas zmiany ustawień</translation>
+    </message>
+    <message>
+        <source>Use the Plug-in&apos;s Own Dialog</source>
+        <translation>Użyj własnego okna wtyczki</translation>
+    </message>
+    <message>
+        <source>Opens the plug-in&apos;s own window instead, and keeps using it for this plug-in</source>
+        <translation>Zamiast tego otwiera własne okno wtyczki i nadal używa go dla tej wtyczki</translation>
+    </message>
+    <message>
+        <source>This layer</source>
+        <translation>Ta warstwa</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>Brak</translation>
+    </message>
+    <message>
+        <source>This plug-in has no settings.</source>
+        <translation>Ta wtyczka nie ma ustawień.</translation>
+    </message>
+    <message>
+        <source>Updating preview...</source>
+        <translation>Aktualizowanie podglądu...</translation>
+    </message>
+    <message>
+        <source>Quick preview; refining...</source>
+        <extracomment>The canvas shows a quick, lower-resolution preview while the full one is made.</extracomment>
+        <translation>Szybki podgląd; udoskonalanie...</translation>
+    </message>
+    <message>
+        <source>The preview failed.</source>
+        <translation>Podgląd nie powiódł się.</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>Stosowanie...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
@@ -31741,6 +31802,10 @@ Zablokowano: %1</translation>
         <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
         <extracomment>%1 is the plug-in&apos;s name.</extracomment>
         <translation>Wtyczka %1 wymaga warstwy, która może zawierać przezroczystość. Kliknij prawym przyciskiem myszy Tło w panelu Warstwy, wybierz Warstwa z tła, a następnie uruchom ją ponownie. Warstwa nie została zmieniona.</translation>
+    </message>
+    <message>
+        <source>A GIMP plug-in is already running</source>
+        <translation>Wtyczka GIMP jest już uruchomiona</translation>
     </message>
 </context>
 <context>

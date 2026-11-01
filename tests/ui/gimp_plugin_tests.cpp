@@ -6,6 +6,7 @@
 // layers, and undo. Tests that need GIMP skip without it.
 
 #include "core/pixel_depth.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/gimp_plugin_run_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui_test_access.hpp"
@@ -27,12 +28,18 @@
 #include <QAction>
 #include <QLabel>
 #include <QMenu>
+#include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSpinBox>
 #include <QScopeGuard>
 #include <QString>
+#include <QTest>
 
 #include <cstdio>
+#include <cstring>
+#include <functional>
+#include <memory>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -117,11 +124,19 @@ void use_test_plugin_folder(patchy::ui::MainWindow& window) {
   const auto folder = QDir::cleanPath(QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/gimp-plugins"));
   CHECK(run_script(window, QStringLiteral("patchy.gimpPlugins.folders = ['%1'];\n"
                                           "var install = patchy.gimpPlugins.install();\n"
-                                          "console.log('gimp found ' + install.found + ' ' + (install.version || '') + ' ' + install.problem);\n")
+                                          "console.log('gimp found ' + install.found + ' ' + (install.version || '') + ' ' + install.problem);\n"
+                                          "install.failedFiles.forEach(function (f) { console.log('gimp test plug-in failed: ' + f.error); });\n"
+                                          "var ids = patchy.gimpPlugins.list().map(function (p) { return p.id; });\n"
+                                          "console.log('gimp test plug-in ' + (ids.indexOf('gimp.patchy-test-invert-bands') >= 0));\n")
                                .arg(folder)));
   if (!backlog_contains(window, QStringLiteral("gimp found true"))) {
     qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
     patchy::test::skip("GIMP 3 is not installed");
+  }
+  if (!backlog_contains(window, QStringLiteral("gimp test plug-in true"))) {
+    // GIMP's own Python may not start here (macOS lets only GIMP start it).
+    qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
+    patchy::test::skip("the Python test plug-in cannot run with this GIMP install");
   }
 }
 
@@ -250,6 +265,81 @@ void ui_gimp_plugin_dialog_ok_and_cancel_if_available() {
   CHECK(backlog_contains(window, QStringLiteral("dialog cancel 223")));
   qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
 }
+
+// GitHub issue 567 follow-up: a plug-in started from its menu entry ran inside the
+// menu's mouse handling, so a menu deleted during the run (a rescan rebuilds them) left
+// Qt's popup code returning into a freed window. The run now starts after the click has
+// been handled; the menu is deleted mid-run here, on a 3-channel layer (a JPEG, no alpha)
+// through the plug-in's own dialog, answered OK. Before the fix this test crashed.
+void ui_gimp_plugin_menu_run_survives_menu_deletion_if_available() {
+  wchar_t station[64] = {};
+  DWORD needed = 0;
+  if (GetUserObjectInformationW(GetProcessWindowStation(), UOI_NAME, station, sizeof(station), &needed) == FALSE ||
+      _wcsicmp(station, L"WinSta0") != 0) {
+    patchy::test::skip("no interactive desktop for the plug-in's dialog");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  use_test_plugin_folder(window);
+  ensure_artifact_dir();
+  const auto jpeg = QDir::current().filePath(QStringLiteral("test-artifacts/gimp-menu-run.jpg"));
+  CHECK(run_script_verbose(window, QStringLiteral(
+      "var doc = app.newDocument(240, 160, {name: 'menu run'});\n"
+      "doc.activeLayer.fillRect(0, 0, 240, 160, '#204060');\n"
+      "doc.saveAs('%1'); doc.close();\n"
+      "app.open('%1');\n").arg(jpeg)));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) return;
+  CHECK(std::as_const(document).find_layer(*layer_id)->pixels().format().channels == 3);
+  QAction* invert = nullptr;
+  for (auto* action : window.findChildren<QAction*>(QStringLiteral("gimpPluginAction"))) {
+    if (action->data().toString() == QStringLiteral("gimp.patchy-test-invert-bands")) invert = action;
+  }
+  CHECK(invert != nullptr);
+  if (invert == nullptr) return;
+  QMenu* menu = nullptr;
+  for (auto* object : invert->associatedObjects()) {
+    if (auto* m = qobject_cast<QMenu*>(object)) menu = m;
+  }
+  CHECK(menu != nullptr);
+  if (menu == nullptr) return;
+  patchy::ui::set_stored_gimp_plugin_own_dialog(QStringLiteral("patchy-test-invert-bands"), true);
+  const auto reset = qScopeGuard([] {
+    patchy::ui::set_stored_gimp_plugin_own_dialog(QStringLiteral("patchy-test-invert-bands"), false);
+  });
+  patchy::ui::MainWindowTestAccess::set_gimp_plugin_dialog_answer(window, 1);
+  // As a person does it: Plugins > GIMP 3 Plug-ins opened, then its Patchy Test submenu.
+  // The parent menu closes last with the pointer outside it, which makes Qt replay the
+  // click and touch the submenu's window after the click has been handled.
+  auto* gimp_menu = window.findChild<QMenu*>(QStringLiteral("gimpPluginsMenu"));
+  CHECK(gimp_menu != nullptr);
+  if (gimp_menu == nullptr) return;
+  gimp_menu->popup(window.mapToGlobal(QPoint(100, 100)));
+  CHECK(QTest::qWaitForWindowExposed(gimp_menu));
+  gimp_menu->setActiveAction(menu->menuAction());
+  QTest::keyClick(gimp_menu, Qt::Key_Right);
+  CHECK(QTest::qWaitForWindowExposed(menu));
+  QPointer<QMenu> doomed(menu);
+  QTimer::singleShot(700, &window, [&window, doomed] {
+    // What a rescan finishing now does, with the deferred deletion carried out at once.
+    patchy::ui::MainWindowTestAccess::rebuild_gimp_plugins_menu(window);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK(doomed == nullptr);
+  });
+  QTest::mouseClick(menu, Qt::LeftButton, {}, menu->actionGeometry(invert).center());
+  // The click returned before the plug-in ran; the menu goes away while it runs (above).
+  const auto first_pixel = [&document, &layer_id] {
+    const auto* layer = std::as_const(document).find_layer(*layer_id);
+    return layer == nullptr ? -1 : static_cast<int>(layer->pixels().row(0)[0]);
+  };
+  CHECK(first_pixel() < 100);
+  CHECK(process_events_until([&] { return first_pixel() > 200; }, 60000));
+  QTest::qWait(300);
+  CHECK(window.findChild<QDialog*>(QStringLiteral("gimpPluginErrorMessageBox")) == nullptr);
+  qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
+}
 #endif
 
 // Preferences > Plug-ins lists the GIMP install, the added folder and what each procedure
@@ -311,6 +401,262 @@ void ui_gimp_plugins_preferences_page_lists_test_plugin_if_available() {
   qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
 }
 
+// Runs `body` inside the event loop of a dialog that is about to open (the dialog's own
+// loop must be running, so this never waits for it from outside).
+void when_dialog_visible(QObject* context, const QString& object_name, std::function<void(QDialog*)> body) {
+  auto poll = std::make_shared<std::function<void()>>();
+  *poll = [context, object_name, body = std::move(body), poll] {
+    auto* dialog = find_top_level_dialog(object_name);
+    if (dialog != nullptr && dialog->isVisible()) {
+      body(dialog);
+      *poll = nullptr;
+      return;
+    }
+    QTimer::singleShot(20, context, *poll);
+  };
+  QTimer::singleShot(0, context, *poll);
+}
+
+// Patchy's settings dialog for a plug-in whose settings are all among its arguments
+// (Invert Bands' band height): the canvas shows the result as soon as the dialog opens,
+// a change re-runs it (a run still going for the old value is ended), Cancel puts the
+// layer back, and OK reuses the finished preview as one undo step without another run.
+void ui_gimp_plugin_settings_dialog_previews_on_canvas_if_available() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  use_test_plugin_folder(window);
+  patchy::ui::set_stored_gimp_plugin_own_dialog(QStringLiteral("patchy-test-invert-bands"), false);
+  patchy::ui::set_stored_gimp_plugin_preview(QStringLiteral("patchy-test-invert-bands"), true);
+  patchy::ui::set_stored_gimp_plugin_values(QStringLiteral("patchy-test-invert-bands"), QString());
+  CHECK(run_script_verbose(window, QStringLiteral(
+      "var doc = app.newDocument(240, 160, {name: 'settings'});\n"
+      "doc.activeLayer.fillRect(0, 0, 240, 160, '#204060');\n")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) return;
+  const auto red_at = [&document, &layer_id](int y) {
+    const auto* layer = std::as_const(document).find_layer(*layer_id);
+    return layer == nullptr ? -1 : static_cast<int>(layer->pixels().row(y)[0]);
+  };
+  QAction* invert = nullptr;
+  for (auto* action : window.findChildren<QAction*>(QStringLiteral("gimpPluginAction"))) {
+    if (action->data().toString() == QStringLiteral("gimp.patchy-test-invert-bands")) invert = action;
+  }
+  CHECK(invert != nullptr);
+  if (invert == nullptr) return;
+
+  // Cancel: the preview (default band 8) shows, then the layer is back.
+  bool cancel_checked = false;
+  when_dialog_visible(&window, QStringLiteral("gimpPluginSettingsDialog"), [&](QDialog* dialog) {
+    CHECK(dialog->findChild<QSpinBox*>(QStringLiteral("gimpArgBandSpin")) != nullptr);
+    CHECK(process_events_until([&] { return red_at(0) == 223; }, 30000));
+    CHECK(red_at(8) == 32);
+    dialog->reject();
+    cancel_checked = true;
+  });
+  invert->trigger();
+  CHECK(process_events_until([&] { return cancel_checked; }, 60000));
+  CHECK(process_events_until([&] { return find_top_level_dialog(QStringLiteral("gimpPluginSettingsDialog")) == nullptr; }, 5000));
+  CHECK(red_at(0) == 32);
+
+  // A change re-runs the preview; a run for the old value is ended when the value moves on.
+  bool ok_checked = false;
+  int started_before_ok = 0;
+  when_dialog_visible(&window, QStringLiteral("gimpPluginSettingsDialog"), [&](QDialog* dialog) {
+    auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("gimpArgBandSpin"));
+    CHECK(spin != nullptr);
+    if (spin == nullptr) {
+      dialog->reject();
+      ok_checked = true;
+      return;
+    }
+    CHECK(process_events_until([&] { return red_at(0) == 223; }, 30000));
+    const int aborted = patchy::ui::MainWindowTestAccess::gimp_preview_runs_aborted(window);
+    const int started = patchy::ui::MainWindowTestAccess::gimp_preview_runs_started(window);
+    spin->setValue(16);
+    CHECK(process_events_until([&] {
+      return patchy::ui::MainWindowTestAccess::gimp_preview_runs_started(window) > started;
+    }, 10000));
+    spin->setValue(4);  // the band-16 run is still going: it is ended
+    CHECK(patchy::ui::MainWindowTestAccess::gimp_preview_runs_aborted(window) > aborted);
+    // Band 4: rows 4..7 keep their color, rows 8..11 are inverted.
+    CHECK(process_events_until([&] {
+      auto* status = dialog->findChild<QLabel*>(QStringLiteral("gimpPluginPreviewStatus"));
+      return red_at(0) == 223 && red_at(4) == 32 && red_at(8) == 223 && status != nullptr && status->text().isEmpty();
+    }, 30000));
+    started_before_ok = patchy::ui::MainWindowTestAccess::gimp_preview_runs_started(window);
+    auto* ok = dialog->findChild<QPushButton*>(QStringLiteral("gimpPluginOkButton"));
+    CHECK(ok != nullptr);
+    if (ok != nullptr) ok->click();
+    ok_checked = true;
+  });
+  invert->trigger();
+  CHECK(process_events_until([&] { return ok_checked; }, 90000));
+  CHECK(process_events_until([&] { return find_top_level_dialog(QStringLiteral("gimpPluginSettingsDialog")) == nullptr; }, 10000));
+  // OK used the finished preview: no further run.
+  CHECK(patchy::ui::MainWindowTestAccess::gimp_preview_runs_started(window) == started_before_ok);
+  CHECK(red_at(0) == 223 && red_at(4) == 32 && red_at(8) == 223);
+  CHECK(run_script_verbose(window, QStringLiteral(
+      "var doc = app.activeDocument; doc.undo();\n"
+      "var d = new Uint8Array(doc.activeLayer.getPixels().data); console.log('settings undo ' + d[0]);\n")));
+  CHECK(backlog_contains(window, QStringLiteral("settings undo 32")));
+  // The last values are remembered for the next time.
+  CHECK(patchy::ui::stored_gimp_plugin_values(QStringLiteral("patchy-test-invert-bands")).contains(QStringLiteral("\"band\":4")));
+  patchy::ui::set_stored_gimp_plugin_values(QStringLiteral("patchy-test-invert-bands"), QString());
+  qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
+}
+
+// Development sweep (PATCHY_GIMP_SWEEP=1, docs/gimp-plugins.md "Results"): every GIMP
+// procedure Patchy's settings dialog holds, from its menu entry on a layer without alpha
+// (an opened JPEG) and on one with alpha: the preview settles, OK applies. One SWEEP line
+// each on stderr. Skips unless asked for: it starts every installed plug-in.
+void ui_gimp_plugin_settings_dialog_sweep_if_requested() {
+  if (!qEnvironmentVariableIsSet("PATCHY_GIMP_SWEEP")) {
+    patchy::test::skip("set PATCHY_GIMP_SWEEP=1 to run every installed plug-in");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
+  CHECK(run_script(window, QStringLiteral(
+      "patchy.gimpPlugins.folders = [];\npatchy.gimpPlugins.rescan();\n"
+      "patchy.gimpPlugins.list().forEach(function (p) { if (p.supported && !p.hidden) console.log('sweepproc ' + p.id); });\n")));
+  QStringList ids;
+  for (const auto& line : window.script_engine_host().message_backlog()) {
+    const auto at = line.indexOf(QStringLiteral("sweepproc "));
+    if (at >= 0) ids << line.mid(at + 10).trimmed();
+  }
+  const auto only = qEnvironmentVariable("PATCHY_GIMP_SWEEP_ONLY");
+  ensure_artifact_dir();
+  const auto jpeg = QDir::current().filePath(QStringLiteral("test-artifacts/gimp-sweep.jpg"));
+  for (const auto& id : ids) {
+    if (!only.isEmpty() && !only.split(QLatin1Char(',')).contains(id.mid(5))) continue;
+    QAction* action = nullptr;
+    for (auto* a : window.findChildren<QAction*>(QStringLiteral("gimpPluginAction"))) {
+      if (a->data().toString() == id) action = a;
+    }
+    if (action == nullptr) continue;
+    for (const bool alpha : {false, true}) {
+      CHECK(run_script(window, QStringLiteral(
+          "while (app.documents.length > 0) app.documents[0].close();\n"
+          "var doc = app.newDocument(320, 240, {name: 'sweep'});\n"
+          "for (var y = 0; y < 240; y += 16) for (var x = 0; x < 320; x += 16)\n"
+          "  doc.activeLayer.fillRect(x, y, 16, 16, '#' + [(x * 255 / 320) | 0, (y * 255 / 240) | 0, (x ^ y) & 255]\n"
+          "    .map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join(''));\n"
+          "%1\n"
+          "app.activeDocument.selection.selectRect(40, 30, 200, 150);\n")
+                                  .arg(alpha ? QString() : QStringLiteral("doc.saveAs('%1'); doc.close(); app.open('%1');").arg(jpeg))));
+      auto& document = patchy::ui::MainWindowTestAccess::document(window);
+      const auto layer_id = document.active_layer_id();
+      if (!layer_id.has_value()) continue;
+      const auto before = std::as_const(document).find_layer(*layer_id)->pixels();
+      QString outcome = QStringLiteral("own-dialog");
+      QString detail;
+      QElapsedTimer timer;
+      timer.start();
+      bool patchy_dialog = false;
+      // Patchy's dialog: the preview settles, then OK. Plug-ins that open their own dialog
+      // get it answered with OK.
+      auto alive = std::make_shared<bool>(true);
+      auto poll = std::make_shared<std::function<void()>>();
+      *poll = [&, alive, poll] {
+        if (!*alive) {
+          *poll = nullptr;
+          return;
+        }
+        auto* dialog = find_top_level_dialog(QStringLiteral("gimpPluginSettingsDialog"));
+        if (dialog == nullptr || !dialog->isVisible()) {
+          QTimer::singleShot(20, &window, *poll);
+          return;
+        }
+        *poll = nullptr;
+        patchy_dialog = true;
+        auto* status = dialog->findChild<QLabel*>(QStringLiteral("gimpPluginPreviewStatus"));
+        auto* error = dialog->findChild<QLabel*>(QStringLiteral("gimpPluginPreviewError"));
+        (void)process_events_until([&] {
+          return (status != nullptr && status->text().isEmpty()) || (error != nullptr && error->isVisible());
+        }, 120000);
+        outcome = error != nullptr && error->isVisible() ? QStringLiteral("preview-failed") : QStringLiteral("previewed");
+        detail = error != nullptr ? error->text().left(160).replace(QLatin1Char('\n'), QLatin1Char(' ')) : QString();
+        if (auto* ok = dialog->findChild<QPushButton*>(QStringLiteral("gimpPluginOkButton")); ok != nullptr) ok->click();
+        (void)process_events_until([&] { return !dialog->isVisible(); }, 120000);
+        if (dialog->isVisible()) dialog->reject();
+      };
+      QTimer::singleShot(0, &window, *poll);
+      // An error box after OK (a modal message) is noted and closed.
+      QTimer watcher;
+      watcher.setInterval(100);
+      QObject::connect(&watcher, &QTimer::timeout, &window, [&] {
+        if (auto* box = find_top_level_dialog(QStringLiteral("gimpPluginErrorMessageBox")); box != nullptr && box->isVisible()) {
+          if (auto* label = box->findChild<QLabel*>(QStringLiteral("qt_msgbox_label")); label != nullptr) {
+            detail = label->text().left(160).replace(QLatin1Char('\n'), QLatin1Char(' '));
+          }
+          outcome = QStringLiteral("failed");
+          box->reject();
+        }
+      });
+      watcher.start();
+      patchy::ui::MainWindowTestAccess::set_gimp_plugin_dialog_answer(window, 1);
+      action->trigger();
+      (void)process_events_until([&] { return patchy_dialog || patchy::ui::MainWindowTestAccess::gimp_plugin_active(window); }, 5000);
+      (void)process_events_until([&] { return !patchy::ui::MainWindowTestAccess::gimp_plugin_active(window); }, 300000);
+      QTest::qWait(400);
+      watcher.stop();
+      *alive = false;
+      patchy::ui::MainWindowTestAccess::set_gimp_plugin_dialog_answer(window, 0);
+      if (!patchy_dialog && outcome == QLatin1String("own-dialog")) {
+        outcome = QStringLiteral("own-dialog-ok");
+      }
+      const auto* layer = std::as_const(document).find_layer(*layer_id);
+      const bool changed = layer != nullptr && layer->pixels().data().size() == before.data().size() &&
+                           std::memcmp(layer->pixels().data().data(), before.data().data(), before.data().size()) != 0;
+      const bool format_changed = layer != nullptr && layer->pixels().format().channels != before.format().channels;
+      std::fprintf(stderr, "SWEEP %s %s %s changed=%d %lld ms %s\n", qPrintable(id.mid(5)), alpha ? "alpha" : "no-alpha",
+                   qPrintable(outcome), (changed || format_changed) ? 1 : 0, static_cast<long long>(timer.elapsed()),
+                   qPrintable(detail));
+    }
+  }
+}
+
+// Development captures for the docs and the card (PATCHY_GIMP_CAPTURE=<folder>): the
+// CC0 sample photo with Patchy's settings dialog open for each procedure in
+// PATCHY_GIMP_CAPTURE_ONLY (default Blinds and Van Gogh), once the canvas shows the full
+// preview: <procedure>-window.png and <procedure>-dialog.png.
+void ui_gimp_plugin_settings_dialog_capture_if_requested() {
+  const auto folder = qEnvironmentVariable("PATCHY_GIMP_CAPTURE");
+  if (folder.isEmpty()) {
+    patchy::test::skip("set PATCHY_GIMP_CAPTURE=<folder> to capture the settings dialog");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1400, 900);
+  qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
+  CHECK(run_script(window, QStringLiteral("patchy.gimpPlugins.folders = [];\npatchy.gimpPlugins.rescan();\n")));
+  const auto photo = QDir::cleanPath(QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/readme/havana_vintage_car_cc0.jpg"));
+  const auto only = qEnvironmentVariable("PATCHY_GIMP_CAPTURE_ONLY", QStringLiteral("plug-in-blinds,plug-in-lic"));
+  for (const auto& procedure : only.split(QLatin1Char(','))) {
+    CHECK(run_script(window, QStringLiteral("while (app.documents.length > 0) app.documents[0].close();\napp.open('%1');\n")
+                                 .arg(photo)));
+    QAction* action = nullptr;
+    for (auto* a : window.findChildren<QAction*>(QStringLiteral("gimpPluginAction"))) {
+      if (a->data().toString() == QStringLiteral("gimp.") + procedure) action = a;
+    }
+    if (action == nullptr) continue;
+    bool done = false;
+    when_dialog_visible(&window, QStringLiteral("gimpPluginSettingsDialog"), [&](QDialog* dialog) {
+      auto* status = dialog->findChild<QLabel*>(QStringLiteral("gimpPluginPreviewStatus"));
+      (void)process_events_until([&] { return status != nullptr && status->text().isEmpty(); }, 120000);
+      QTest::qWait(500);
+      window.grab().save(QDir(folder).filePath(procedure + QStringLiteral("-window.png")));
+      dialog->grab().save(QDir(folder).filePath(procedure + QStringLiteral("-dialog.png")));
+      dialog->reject();
+      done = true;
+    });
+    action->trigger();
+    CHECK(process_events_until([&] { return done; }, 180000));
+  }
+}
+
 void ui_gimp_plugins_menu_lists_test_plugin_if_available() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -340,10 +686,16 @@ std::vector<patchy::test::TestCase> gimp_plugin_tests() {
        ui_gimp_plugin_script_api_lists_and_runs_test_plugin_if_available},
       {"ui_gimp_plugin_runs_on_deep_layers_if_available", ui_gimp_plugin_runs_on_deep_layers_if_available},
       {"ui_gimp_plugins_menu_lists_test_plugin_if_available", ui_gimp_plugins_menu_lists_test_plugin_if_available},
+      {"ui_gimp_plugin_settings_dialog_sweep_if_requested", ui_gimp_plugin_settings_dialog_sweep_if_requested},
+      {"ui_gimp_plugin_settings_dialog_capture_if_requested", ui_gimp_plugin_settings_dialog_capture_if_requested},
+      {"ui_gimp_plugin_settings_dialog_previews_on_canvas_if_available",
+       ui_gimp_plugin_settings_dialog_previews_on_canvas_if_available},
       {"ui_gimp_plugins_preferences_page_lists_test_plugin_if_available",
        ui_gimp_plugins_preferences_page_lists_test_plugin_if_available},
 #ifdef Q_OS_WIN
       {"ui_gimp_plugin_dialog_ok_and_cancel_if_available", ui_gimp_plugin_dialog_ok_and_cancel_if_available},
+      {"ui_gimp_plugin_menu_run_survives_menu_deletion_if_available",
+       ui_gimp_plugin_menu_run_survives_menu_deletion_if_available},
 #endif
   };
 }

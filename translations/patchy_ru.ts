@@ -18851,6 +18851,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Cancel</source>
         <translation>Отмена</translation>
     </message>
+    <message>
+        <source>Use Patchy&apos;s settings dialog for this plug-in next time</source>
+        <translation>В следующий раз использовать диалог параметров Patchy для этого плагина</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s dialog shows the result on the canvas while you change the settings</source>
+        <translation>Диалог Patchy показывает результат на холсте, пока вы меняете параметры</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginSettingsDialog</name>
+    <message>
+        <source>%1 (GIMP 3 Plug-in)</source>
+        <extracomment>%1 is the GIMP plug-in&apos;s name (&quot;Blinds&quot;).</extracomment>
+        <translation>%1 (плагин GIMP 3)</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation>Предпросмотр</translation>
+    </message>
+    <message>
+        <source>Shows the result on the canvas while you change the settings</source>
+        <translation>Показывает результат на холсте, пока вы меняете параметры</translation>
+    </message>
+    <message>
+        <source>Use the Plug-in&apos;s Own Dialog</source>
+        <translation>Использовать собственный диалог плагина</translation>
+    </message>
+    <message>
+        <source>Opens the plug-in&apos;s own window instead, and keeps using it for this plug-in</source>
+        <translation>Вместо этого открывает собственное окно плагина и продолжает использовать его для этого плагина</translation>
+    </message>
+    <message>
+        <source>This layer</source>
+        <translation>Этот слой</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>Нет</translation>
+    </message>
+    <message>
+        <source>This plug-in has no settings.</source>
+        <translation>У этого плагина нет параметров.</translation>
+    </message>
+    <message>
+        <source>Updating preview...</source>
+        <translation>Обновление предпросмотра...</translation>
+    </message>
+    <message>
+        <source>Quick preview; refining...</source>
+        <extracomment>The canvas shows a quick, lower-resolution preview while the full one is made.</extracomment>
+        <translation>Быстрый предпросмотр; уточнение...</translation>
+    </message>
+    <message>
+        <source>The preview failed.</source>
+        <translation>Не удалось построить предпросмотр.</translation>
+    </message>
+    <message>
+        <source>Applying...</source>
+        <translation>Применение...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
@@ -31741,6 +31802,10 @@ Locked: %1</source>
         <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
         <extracomment>%1 is the plug-in&apos;s name.</extracomment>
         <translation>Плагину %1 нужен слой, который может содержать прозрачность. Щелкните правой кнопкой мыши «Фон» на панели «Слои», выберите «Слой из фона» и запустите плагин снова. Слой не изменён.</translation>
+    </message>
+    <message>
+        <source>A GIMP plug-in is already running</source>
+        <translation>Плагин GIMP уже запущен</translation>
     </message>
 </context>
 <context>

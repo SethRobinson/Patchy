@@ -20,6 +20,24 @@ std::size_t MainWindowTestAccess::watermark_checks_running(MainWindow& window) {
 
 int MainWindowTestAccess::document_tab_count(MainWindow& window) { return window.document_tabs_->count(); }
 
+void MainWindowTestAccess::rebuild_gimp_plugins_menu(MainWindow& window) {
+#ifndef Q_OS_WASM
+  window.rebuild_gimp_plugins_menu();
+#else
+  (void)window;
+#endif
+}
+
+void MainWindowTestAccess::set_gimp_plugin_dialog_answer(MainWindow& window, int answer) {
+  window.gimp_plugin_test_answer_ = answer;
+}
+
+int MainWindowTestAccess::gimp_preview_runs_started(const MainWindow& window) { return window.gimp_preview_runs_started_; }
+
+int MainWindowTestAccess::gimp_preview_runs_aborted(const MainWindow& window) { return window.gimp_preview_runs_aborted_; }
+
+bool MainWindowTestAccess::gimp_plugin_active(const MainWindow& window) { return window.gimp_plugin_active_; }
+
 void MainWindowTestAccess::allow_high_quality_offer_offscreen(MainWindow& window) {
   window.high_quality_offer_in_offscreen_tests_ = true;
 }

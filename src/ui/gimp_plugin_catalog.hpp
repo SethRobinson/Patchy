@@ -78,6 +78,10 @@ struct GimpPluginScanOptions {
 // Patchy's own GIMP settings folder, handed to plug-ins as GIMP3_DIRECTORY so they never
 // write into the user's GIMP settings.
 [[nodiscard]] QString gimp_plugin_profile_dir();
+// A menu label as a name in sentences ("Blinds..." -> "Blinds").
+[[nodiscard]] QString gimp_plugin_display_name(const QString& label);
+// Patchy's language for the plug-ins' own text ("en" when none is set).
+[[nodiscard]] QString gimp_plugin_language();
 // Why GIMP's Flatpak cannot be used from this Patchy (its own Flatpak without the
 // permission to start host programs), translated; empty when it can.
 [[nodiscard]] QString gimp_plugin_flatpak_problem(const gimp::GimpInstall& install);

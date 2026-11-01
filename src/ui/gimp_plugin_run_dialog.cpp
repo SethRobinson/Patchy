@@ -4,6 +4,7 @@
 
 #include "ui/dialog_utils.hpp"
 
+#include <QCheckBox>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -21,7 +22,6 @@ GimpPluginRunDialog::GimpPluginRunDialog(const QString& plugin_name, QWidget* pa
     : QDialog(parent), plugin_name_(plugin_name) {
   setObjectName(QStringLiteral("gimpPluginRunDialog"));
   setWindowTitle(tr("GIMP 3 Plug-in"));
-  setWindowModality(Qt::WindowModal);
   setWindowFlag(Qt::WindowDoesNotAcceptFocus);
   setAttribute(Qt::WA_ShowWithoutActivating);
   setMinimumWidth(420);
@@ -42,6 +42,13 @@ GimpPluginRunDialog::GimpPluginRunDialog(const QString& plugin_name, QWidget* pa
   bar_->setRange(0, 0);
   bar_->setTextVisible(false);
   layout->addWidget(bar_);
+
+  patchy_dialog_check_ = new QCheckBox(tr("Use Patchy's settings dialog for this plug-in next time"), this);
+  patchy_dialog_check_->setObjectName(QStringLiteral("gimpPluginUsePatchyDialogCheck"));
+  patchy_dialog_check_->setToolTip(tr("Patchy's dialog shows the result on the canvas while you change the settings"));
+  patchy_dialog_check_->setFocusPolicy(Qt::NoFocus);
+  patchy_dialog_check_->setVisible(false);
+  layout->addWidget(patchy_dialog_check_);
 
   auto* buttons = new QHBoxLayout();
   buttons->addStretch(1);
@@ -91,6 +98,15 @@ void GimpPluginRunDialog::reveal() {
   if (!isVisible() && !stop_requested_) {
     show();
   }
+}
+
+void GimpPluginRunDialog::set_patchy_dialog_option(bool shown, std::function<void(bool)> chosen) {
+  patchy_dialog_check_->setVisible(shown);
+  QObject::disconnect(patchy_dialog_check_, &QCheckBox::toggled, this, nullptr);
+  if (chosen) {
+    connect(patchy_dialog_check_, &QCheckBox::toggled, this, [chosen = std::move(chosen)](bool on) { chosen(on); });
+  }
+  adjustSize();
 }
 
 void GimpPluginRunDialog::done(int result) {

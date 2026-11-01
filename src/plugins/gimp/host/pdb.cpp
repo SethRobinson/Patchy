@@ -82,47 +82,5 @@ Color pdb_color_rgba(const double rgba[4], const std::vector<std::uint8_t>& prof
   return c;
 }
 
-bool color_to_srgb(const Color& color, double rgba[4]) {
-  const auto encoding = color.encoding.value_or("");
-  const auto space = encoding.find(' ');
-  if (space == std::string::npos) return false;
-  const auto model = encoding.substr(0, space);
-  const auto type = encoding.substr(space + 1);
-  const bool perceptual = model == "R'G'B'" || model == "R'G'B'A";
-  const bool linear = model == "RGB" || model == "RGBA";
-  if (!perceptual && !linear) return false;
-  const int channels = (model.back() == 'A') ? 4 : 3;
-  std::size_t width = 0;
-  if (type == "u8") width = 1;
-  else if (type == "u16") width = 2;
-  else if (type == "float") width = 4;
-  else if (type == "double") width = 8;
-  else return false;
-  if (color.bytes.size() < width * static_cast<std::size_t>(channels)) return false;
-  rgba[3] = 1.0;
-  for (int c = 0; c < channels; ++c) {
-    const auto* p = color.bytes.data() + width * static_cast<std::size_t>(c);
-    double v = 0;
-    if (width == 1) {
-      v = *p / 255.0;
-    } else if (width == 2) {
-      std::uint16_t u;
-      std::memcpy(&u, p, 2);
-      v = u / 65535.0;
-    } else if (width == 4) {
-      float f;
-      std::memcpy(&f, p, 4);
-      v = f;
-    } else {
-      std::memcpy(&v, p, 8);
-    }
-    if (linear && c < 3) {
-      v = std::clamp(v, 0.0, 1.0);
-      v = v <= 0.0031308 ? v * 12.92 : 1.055 * std::pow(v, 1.0 / 2.4) - 0.055;
-    }
-    rgba[c] = std::clamp(v, 0.0, 1.0);
-  }
-  return true;
-}
 
 }  // namespace patchy::gimp::host

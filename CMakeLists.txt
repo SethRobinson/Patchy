@@ -1859,16 +1859,23 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     endif()
     if(NOT EMSCRIPTEN)
       # GIMP 3 plug-ins (docs/gimp-plugins.md): the scan, the runner talking to
-      # patchy-gimp-host, the run box and MainWindow's menu and commands.
+      # patchy-gimp-host, the run box, Patchy's settings dialog with its canvas preview,
+      # and MainWindow's menu and commands.
       target_sources(patchy_ui PRIVATE
+        src/ui/gimp_plugin_arguments.cpp
+        src/ui/gimp_plugin_arguments.hpp
         src/ui/gimp_plugin_catalog.cpp
         src/ui/gimp_plugin_catalog.hpp
+        src/ui/gimp_plugin_layer_input.hpp
         src/ui/gimp_plugin_run_dialog.cpp
         src/ui/gimp_plugin_run_dialog.hpp
         src/ui/gimp_plugin_runner.cpp
         src/ui/gimp_plugin_runner.hpp
+        src/ui/gimp_plugin_settings_dialog.cpp
+        src/ui/gimp_plugin_settings_dialog.hpp
         src/ui/gimp_plugin_window.cpp
         src/ui/gimp_plugin_window.hpp
+        src/ui/main_window_gimp_plugin_runs.cpp
         src/ui/main_window_gimp_plugins.cpp
       )
       target_link_libraries(patchy_ui PRIVATE patchy_gimp)

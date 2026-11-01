@@ -199,6 +199,9 @@ struct GimpPluginProcedure;
 struct GimpPluginScanResult;
 struct GimpPluginScanOptions;
 struct GimpPluginRunResult;
+struct GimpPluginRunInput;
+struct GimpLayerInput;
+struct GimpPluginArgumentSet;
 class ScriptEditorDialog;
 class StyleLibrary;
 class StatusDocumentInfoLabel;
@@ -1409,10 +1412,33 @@ private:
   void finish_gimp_plugin_scan(int generation, std::shared_ptr<GimpPluginScanResult> result, bool announce);
   void rebuild_gimp_plugins_menu();
   [[nodiscard]] const GimpPluginProcedure* find_gimp_plugin(const QString& identifier) const noexcept;
+  // Menu entries, hotkeys and Search Commands run a plug-in from a queued call, never
+  // inside the menu's own mouse handling (main_window_gimp_plugin_runs.cpp): the run's
+  // dialogs keep the event loop going, and a menu deleted meanwhile must not be
+  // returned into.
   void run_gimp_plugin(const QString& identifier, int run_mode = 0);
   GimpPluginApplyStatus apply_gimp_plugin(DocumentSession& session, LayerId layer_id, const GimpPluginProcedure& entry,
                                           const GimpPluginApplyOptions& options, const std::function<void()>& before_write,
                                           QString* error);
+  bool prepare_gimp_layer_input(DocumentSession& session, LayerId layer_id, GimpLayerInput& input, QString* error);
+  [[nodiscard]] bool gimp_run_input(DocumentSession& session, const GimpPluginProcedure& entry, const GimpLayerInput& layer,
+                                    const GimpPluginApplyOptions& options, GimpPluginRunInput& run, QString* error);
+  // Puts the layer back as it was, takes over what the run stored and the colors it
+  // picked, and writes an Ok result as one undo step (before_write pushes it).
+  GimpPluginApplyStatus finish_gimp_run(DocumentSession& session, const QString& display_name, const GimpLayerInput& layer,
+                                        const GimpPluginRunResult& result, const std::function<void()>& before_write,
+                                        QString* error);
+  // Shows a result on the canvas for a preview: `rect` (layer pixels) of the layer from
+  // `pixels` (packed rows, `width` wide, in the plug-in's format), scaled by 1 / scale.
+  void show_gimp_preview_pixels(DocumentSession& session, const GimpLayerInput& layer, const std::uint8_t* pixels,
+                                int width, int height, QRect rect, double scale, bool restore_first);
+  void restore_gimp_layer(DocumentSession& session, const GimpLayerInput& layer);
+  enum class GimpDialogOutcome { Applied, NoChange, Cancelled, Failed, UseOwnDialog };
+  GimpDialogOutcome run_gimp_plugin_own_dialog(DocumentSession& session, LayerId layer_id, const GimpPluginProcedure& entry,
+                                               int run_mode, bool offer_patchy_dialog, QString* error);
+  GimpDialogOutcome run_gimp_plugin_settings_dialog(DocumentSession& session, LayerId layer_id,
+                                                    const GimpPluginProcedure& entry, const GimpPluginArgumentSet& arguments,
+                                                    QString* error);
   // A reason code from the query (gimp_procedure.hpp) as text for the user.
   [[nodiscard]] static QString gimp_plugin_reason_text(const QString& code);
   [[nodiscard]] static QString gimp_plugin_error_text(const QString& name, const GimpPluginRunResult& result);
@@ -3703,6 +3729,14 @@ private:
   bool gimp_plugin_scan_pending_{false};
   // What plug-ins stored through gimp-pdb-set-data this session (their last values).
   std::map<std::string, std::vector<std::uint8_t>> gimp_plugin_stored_data_;
+  // A plug-in run (its dialog) is up: a second one is refused (closing the window is
+  // refused by the edit lock meanwhile).
+  bool gimp_plugin_active_{false};
+  // Tests: preview runs started and ended early, and an answer for the next plug-in
+  // dialog (1 OK, 2 Cancel) like scripts' answerDialog.
+  int gimp_preview_runs_started_{0};
+  int gimp_preview_runs_aborted_{0};
+  int gimp_plugin_test_answer_{0};
   int legacy_plugin_scan_generation_{0};
   bool legacy_plugin_scan_in_flight_{false};
   bool legacy_plugin_scan_pending_{false};

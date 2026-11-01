@@ -41,6 +41,9 @@ QString legacy_plugin_screen_size_key() { return QStringLiteral("plugins/screenS
 QString gimp_plugins_enabled_key() { return QStringLiteral("gimpPlugins/enabled"); }
 QString gimp_plugin_folders_key() { return QStringLiteral("gimpPlugins/userFolders"); }
 QString gimp_install_folder_key() { return QStringLiteral("gimpPlugins/installFolder"); }
+QString gimp_procedure_key(const char* group, const QString& procedure) {
+  return QStringLiteral("gimpPlugins/%1/%2").arg(QLatin1String(group), procedure);
+}
 QString update_check_interval_key() { return QStringLiteral("updates/checkIntervalDays"); }
 QString update_last_check_key() { return QStringLiteral("updates/lastCheckSecsSinceEpoch"); }
 QString update_skipped_version_key() { return QStringLiteral("updates/skippedVersion"); }
@@ -422,6 +425,37 @@ void set_stored_gimp_plugin_folders(const QStringList& folders) {
 }
 
 QString stored_gimp_install_folder() { return app_settings().value(gimp_install_folder_key()).toString(); }
+
+bool stored_gimp_plugin_own_dialog(const QString& procedure) {
+  return app_settings().value(gimp_procedure_key("ownDialog", procedure), false).toBool();
+}
+
+void set_stored_gimp_plugin_own_dialog(const QString& procedure, bool own_dialog) {
+  auto settings = app_settings();
+  if (own_dialog) {
+    settings.setValue(gimp_procedure_key("ownDialog", procedure), true);
+  } else {
+    settings.remove(gimp_procedure_key("ownDialog", procedure));
+  }
+}
+
+bool stored_gimp_plugin_preview(const QString& procedure) {
+  return app_settings().value(gimp_procedure_key("preview", procedure), true).toBool();
+}
+
+void set_stored_gimp_plugin_preview(const QString& procedure, bool preview) {
+  auto settings = app_settings();
+  settings.setValue(gimp_procedure_key("preview", procedure), preview);
+}
+
+QString stored_gimp_plugin_values(const QString& procedure) {
+  return app_settings().value(gimp_procedure_key("lastValues", procedure)).toString();
+}
+
+void set_stored_gimp_plugin_values(const QString& procedure, const QString& json) {
+  auto settings = app_settings();
+  settings.setValue(gimp_procedure_key("lastValues", procedure), json);
+}
 
 void set_stored_gimp_install_folder(const QString& folder) {
   auto settings = app_settings();

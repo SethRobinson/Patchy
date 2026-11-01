@@ -3,20 +3,26 @@
 // Runs one GIMP 3 plug-in procedure on one layer through patchy-gimp-host
 // (docs/gimp-plugins.md, "Running"). The layer's pixels go through a temporary file
 // both processes map; the request and the helper's reports travel over the helper's
-// stdin and stdout. The caller's event loop keeps pumping, so Patchy repaints the live
-// preview and the run box stays responsive; a plug-in crash ends only the plug-in.
+// stdin and stdout. GimpPluginRun is event-driven: it never runs an event loop of its
+// own, so it can be started from any slot and several can run at once (the settings
+// dialog's preview passes). A plug-in crash ends only the plug-in.
 
 #include "plugins/gimp/gimp_host_link.hpp"
 
 #include <QByteArray>
+#include <QObject>
 #include <QRect>
 #include <QString>
 #include <QStringList>
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <utility>
 #include <vector>
+
+class QProcess;
+class QTimer;
 
 namespace patchy::ui {
 
@@ -92,7 +98,46 @@ struct GimpPluginRunResult {
   double background[4]{1, 1, 1, 1};
 };
 
+// One run of the helper. start() returns at once; `finished` is called exactly once
+// from the event loop (never from inside start()) unless abort() came first. The input's
+// pixel buffers are copied at start, so they need not outlive the call.
+class GimpPluginRun : public QObject {
+public:
+  explicit GimpPluginRun(QObject* parent = nullptr);
+  ~GimpPluginRun() override;
+  GimpPluginRun(const GimpPluginRun&) = delete;
+  GimpPluginRun& operator=(const GimpPluginRun&) = delete;
+
+  void start(const GimpPluginRunInput& input, GimpPluginRunCallbacks callbacks,
+             std::function<void(GimpPluginRunResult)> finished);
+  // Asks the plug-in to stop (its own cancel path); the helper is killed if it has not
+  // answered within five seconds. `finished` reports Cancelled.
+  void cancel();
+  // Ends the run now without reporting: the helper's link closes (it ends the plug-in
+  // tree) and the helper itself is killed shortly after. The object deletes itself
+  // once its helper is gone.
+  void abort();
+  [[nodiscard]] bool running() const noexcept { return state_ == State::Running; }
+
+private:
+  enum class State { Idle, Running, Done };
+  struct Shared;
+  void read_frames();
+  void on_tick();
+  void finish(GimpPluginRunResult result);
+  void helper_ended();
+
+  State state_{State::Idle};
+  bool aborted_{false};
+  std::unique_ptr<Shared> shared_;
+  QProcess* helper_{nullptr};
+  QTimer* timer_{nullptr};
+  GimpPluginRunCallbacks callbacks_;
+  std::function<void(GimpPluginRunResult)> finished_;
+};
+
 // Blocks (pumping the event loop) until the helper reports a result or ends. Never throws.
+// Scripts use it; interactive runs from the menu use GimpPluginRun directly.
 [[nodiscard]] GimpPluginRunResult run_gimp_plugin_out_of_process(const GimpPluginRunInput& input,
                                                                  const GimpPluginRunCallbacks& callbacks);
 

@@ -80,6 +80,10 @@ inline constexpr std::string_view kReasonResources = "uses-gimp-resources";
 // for argument kinds Patchy cannot fill in (curves, other untyped defaults).
 [[nodiscard]] std::optional<Param> default_argument(const ParamDef& def, std::string* error);
 
+// A color from GIMP as non-linear sRGB in 0..1 (R'G'B'(A) and linear RGB(A) encodings in
+// u8, u16, float or double; the profile is taken as sRGB). False for other encodings.
+bool color_to_srgb(const Color& color, double rgba[4]);
+
 std::string base64_encode(const std::vector<std::uint8_t>& data);
 bool base64_decode(std::string_view text, std::vector<std::uint8_t>& out);
 

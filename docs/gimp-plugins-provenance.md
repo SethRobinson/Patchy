@@ -47,3 +47,7 @@ None of these were opened, searched or excerpted at any point, by a person or a 
 - Flatpak behavior observed with throwaway shell commands in both sandboxes (`ls -l /proc/self/fd` under `flatpak run` and `flatpak-spawn --host --forward-fd`): descriptors 3 and 4 arrive unchanged; the options `--cwd`, `--env`, `--filesystem`, `--die-with-parent` from `flatpak run --help`.
 - Third-party plug-ins used only as installed programs, never read: Fourier 0.4.5 and Resynthesizer 3.0.1 (Flathub extensions for GIMP 3). Results come from running them through Patchy.
 - No protocol traffic was logged on these platforms; the Windows grammar decoded every run.
+
+### 2026-11-01: Patchy's settings dialog
+
+- Built only from what each procedure registers at query time (argument kinds, names, nicks, blurbs, ranges, defaults, choice nicks and labels; already logged above). No new source. The canvas preview runs the plug-in non-interactively with those arguments, as scripts do.

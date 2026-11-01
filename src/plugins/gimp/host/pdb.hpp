@@ -10,6 +10,7 @@
 // pdb_image.cpp, pdb_item.cpp, pdb_drawable.cpp, pdb_selection.cpp, pdb_context.cpp,
 // pdb_progress.cpp, pdb_misc.cpp.
 
+#include "plugins/gimp/gimp_procedure.hpp"
 #include "plugins/gimp/gimp_protocol.hpp"
 
 #include <cstdint>
@@ -92,9 +93,7 @@ inline Param pdb_string(std::string v) { return string_param("gchararray", std::
 // (plug-ins crash on a color without a profile, observed with GIMP 3.2.6).
 Color pdb_color_rgba(const double rgba[4], const std::vector<std::uint8_t>& profile);
 
-// A plug-in's color as non-linear sRGB in 0..1 (R'G'B'(A) and linear RGB(A) encodings
-// in u8, u16, float or double; the profile is taken as sRGB). False for other encodings.
-bool color_to_srgb(const Color& color, double rgba[4]);
+// A plug-in's color as non-linear sRGB: gimp::color_to_srgb (gimp_procedure.hpp).
 
 // The context colors a run's plug-in set, for the result (pdb_context.cpp).
 bool context_foreground_changed(double rgba[4]);

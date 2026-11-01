@@ -5,6 +5,7 @@
 #include "plugins/gimp/gimp_flatpak.hpp"
 #include "plugins/gimp/gimp_procedure.hpp"
 #include "support/path_utils.hpp"
+#include "ui/localization.hpp"
 #include "ui/qt_paths.hpp"
 
 #include <QCoreApplication>
@@ -205,6 +206,19 @@ QString gimp_plugin_helper_path() {
 #else
   return dir.filePath(QStringLiteral("patchy-gimp-host"));
 #endif
+}
+
+QString gimp_plugin_display_name(const QString& label) {
+  auto name = label.trimmed();
+  while (name.endsWith(QLatin1Char('.')) || name.endsWith(QChar(0x2026))) {
+    name.chop(1);
+  }
+  return name.trimmed();
+}
+
+QString gimp_plugin_language() {
+  const auto code = LocalizationManager::instance().current_language();
+  return code.isEmpty() ? QStringLiteral("en") : code;
 }
 
 QString gimp_plugin_profile_dir() {
