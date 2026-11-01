@@ -210,7 +210,14 @@ QString MainWindow::gimp_plugin_reason_text(const QString& code) {
 QString MainWindow::gimp_plugin_error_text(const QString& name, const GimpPluginRunResult& result) {
   const auto& code = result.code;
   QString text;
-  if (code == QLatin1String("unsupported-procedure")) {
+  if (code == QLatin1String("unsupported-procedure") &&
+      (result.detail == QLatin1String("gimp-layer-add-alpha") ||
+       result.unsupported_calls.contains(QStringLiteral("gimp-layer-add-alpha")))) {
+    //: %1 is the plug-in's name.
+    text = tr("%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and "
+              "choose Layer from Background, then run it again. The layer was not changed.")
+               .arg(name);
+  } else if (code == QLatin1String("unsupported-procedure")) {
     //: %1 is the plug-in's name, %2 the GIMP procedure it called (for example gimp-layer-new).
     text = tr("%1 needs a GIMP feature Patchy does not support yet (%2). The layer was not changed.")
                .arg(name, result.detail.isEmpty() ? result.unsupported_calls.value(0) : result.detail);
@@ -491,11 +498,36 @@ MainWindow::GimpPluginApplyStatus MainWindow::apply_gimp_plugin(DocumentSession&
   const auto width = source.width();
   const auto height = source.height();
   const auto bounds = layer->bounds();
-  const std::size_t row_bytes = static_cast<std::size_t>(width) * bytes_per_pixel(format);
+  // A layer without alpha that may hold transparency is handed over with an opaque alpha
+  // channel, as GIMP plug-ins expect to add one (Pagecurl); the result keeps alpha only
+  // when it uses it. A layer whose transparency is locked (the Background) stays RGB.
+  const bool expand_alpha = format.channels == 3 && !layer_id_locks_transparent_pixels(layer_id);
+  const std::size_t channel_bytes = bytes_per_channel(format.bit_depth);
+  const std::size_t layer_pixel_bytes = bytes_per_pixel(format);
+  const std::size_t pixel_bytes = expand_alpha ? channel_bytes * 4 : layer_pixel_bytes;
+  const std::size_t row_bytes = static_cast<std::size_t>(width) * pixel_bytes;
+  std::vector<std::uint8_t> opaque(channel_bytes);
+  if (format.bit_depth == BitDepth::UInt8) {
+    opaque[0] = 0xFF;
+  } else if (format.bit_depth == BitDepth::UInt16) {
+    opaque[0] = opaque[1] = 0xFF;
+  } else {
+    const float one = 1.0f;
+    std::memcpy(opaque.data(), &one, sizeof one);
+  }
   std::vector<std::uint8_t> input(row_bytes * static_cast<std::size_t>(height));
   for (std::int32_t y = 0; y < height; ++y) {
     const auto row = source.row(y);
-    std::memcpy(input.data() + static_cast<std::size_t>(y) * row_bytes, row.data(), row_bytes);
+    auto* out = input.data() + static_cast<std::size_t>(y) * row_bytes;
+    if (!expand_alpha) {
+      std::memcpy(out, row.data(), row_bytes);
+      continue;
+    }
+    for (std::int32_t x = 0; x < width; ++x) {
+      std::memcpy(out + static_cast<std::size_t>(x) * pixel_bytes, row.data() + static_cast<std::size_t>(x) * layer_pixel_bytes,
+                  layer_pixel_bytes);
+      std::memcpy(out + static_cast<std::size_t>(x) * pixel_bytes + layer_pixel_bytes, opaque.data(), channel_bytes);
+    }
   }
 
   // The selection, in layer pixels: its coverage limits where results land.
@@ -540,7 +572,7 @@ MainWindow::GimpPluginApplyStatus MainWindow::apply_gimp_plugin(DocumentSession&
   run.width = width;
   run.height = height;
   run.bit_depth = static_cast<std::uint32_t>(format.bit_depth);
-  run.channels = format.channels;
+  run.channels = expand_alpha ? 4u : format.channels;
   run.protect_alpha = format.channels == 4 && layer_id_locks_transparent_pixels(layer_id);
   run.layer_name = QString::fromStdString(layer->name());
   run.image_name = session.title;
@@ -593,11 +625,17 @@ MainWindow::GimpPluginApplyStatus MainWindow::apply_gimp_plugin(DocumentSession&
     }
     auto& dst = target->pixels();
     (void)dst.data();  // detach shared storage once before the row writes
-    const auto pixel_bytes = bytes_per_pixel(format);
     for (int y = area.top(); y <= area.bottom(); ++y) {
-      std::memcpy(dst.row(y).data() + static_cast<std::size_t>(area.left()) * pixel_bytes,
-                  pixels + static_cast<std::size_t>(y) * row_bytes + static_cast<std::size_t>(area.left()) * pixel_bytes,
-                  static_cast<std::size_t>(area.width()) * pixel_bytes);
+      auto* out = dst.row(y).data() + static_cast<std::size_t>(area.left()) * layer_pixel_bytes;
+      const auto* in = pixels + static_cast<std::size_t>(y) * row_bytes + static_cast<std::size_t>(area.left()) * pixel_bytes;
+      if (!expand_alpha) {
+        std::memcpy(out, in, static_cast<std::size_t>(area.width()) * pixel_bytes);
+        continue;
+      }
+      for (int x = 0; x < area.width(); ++x) {  // the preview shows the colors; alpha lands on OK
+        std::memcpy(out + static_cast<std::size_t>(x) * layer_pixel_bytes, in + static_cast<std::size_t>(x) * pixel_bytes,
+                    layer_pixel_bytes);
+      }
     }
     preview_shown = true;
     if (session.canvas != nullptr) {
@@ -656,10 +694,34 @@ MainWindow::GimpPluginApplyStatus MainWindow::apply_gimp_plugin(DocumentSession&
   if (layer == nullptr) {
     return fail(tr("The layer no longer exists."));
   }
-  auto& pixels = layer->pixels();
-  (void)pixels.data();
-  for (std::int32_t y = 0; y < height; ++y) {
-    std::memcpy(pixels.row(y).data(), result.output.data() + static_cast<std::size_t>(y) * row_bytes, row_bytes);
+  bool uses_alpha = false;
+  if (expand_alpha) {
+    for (std::size_t i = layer_pixel_bytes; i < result.output.size() && !uses_alpha; i += pixel_bytes) {
+      uses_alpha = std::memcmp(result.output.data() + i, opaque.data(), channel_bytes) != 0;
+    }
+  }
+  if (uses_alpha) {
+    // The plug-in made pixels transparent: the layer gains an alpha channel.
+    PixelBuffer with_alpha(width, height, PixelFormat{format.color_mode, format.bit_depth, 4});
+    for (std::int32_t y = 0; y < height; ++y) {
+      std::memcpy(with_alpha.row(y).data(), result.output.data() + static_cast<std::size_t>(y) * row_bytes, row_bytes);
+    }
+    layer->set_pixels(std::move(with_alpha));
+  } else {
+    auto& pixels = layer->pixels();
+    (void)pixels.data();
+    for (std::int32_t y = 0; y < height; ++y) {
+      const auto* in = result.output.data() + static_cast<std::size_t>(y) * row_bytes;
+      auto* out = pixels.row(y).data();
+      if (!expand_alpha) {
+        std::memcpy(out, in, row_bytes);
+        continue;
+      }
+      for (std::int32_t x = 0; x < width; ++x) {
+        std::memcpy(out + static_cast<std::size_t>(x) * layer_pixel_bytes, in + static_cast<std::size_t>(x) * pixel_bytes,
+                    layer_pixel_bytes);
+      }
+    }
   }
   if (session.canvas != nullptr) {
     session.canvas->document_changed(layer_rect);

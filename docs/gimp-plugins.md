@@ -59,6 +59,20 @@ One file per group in `src/plugins/gimp/host/`: registration (query time), image
 
 `patchy.gimpPlugins`: `list()` (`{id, procedure, name, menu, supported, hidden, reason, reasonCode, file, blurb, imageTypes, params}`), `rescan({force})`, `install()` (`{found, folder, version, series, source, flatpak, pluginFolders, problem}`), `folders`, `enabled`, `installFolder` (persisted; setting rescans). `layer.applyGimpPlugin(id, {dialog, lastValues, args, timeoutMs, trace, wireLog, captureDialog, answerDialog})`: non-interactive by default with a 120 s limit; `dialog: true` is interactive (no time limit unless the dialog is answered). Windows: once the dialog has been up 1.5 s (`gimp_plugin_window.cpp`: the plug-in process's largest window) `captureDialog` saves it with `PrintWindow` and `answerDialog` posts Enter (OK) or Escape (Cancel) to that window, again every 3 s up to three times; unattended runs answer OK by themselves; `args` sets arguments by registered name, checked against their type and range (choices by nick, colors as `"#rrggbb"` or `[r, g, b, a]`). See [scripting.md](scripting.md).
 
+## Results
+
+GIMP 3.2.6 (Windows installer, 132 plug-in folders), November 1, 2026, with `scripts/dev/gimp/query_sweep.py` and `scripts/dev/gimp/sweep.js` (non-interactive, then interactive with every dialog captured and answered). Every plug-in registered without a crash. "Same as GIMP" means byte-identical output to GIMP's own batch run on the same image and selection (`plug-in-jigsaw` is random in GIMP too; `plug-in-hot` differs in GIMP between runs).
+
+| Result | Procedures |
+|---|---|
+| Works, same as GIMP | Blinds, Checkerboard (legacy), Despeckle, Destripe, Fractal Explorer, Lighting Effects, Map Object, Palette Map, Retinex, Small Tiles, Sparkle |
+| Works (interactive, as in GIMP) | CML Explorer, GIMPressionist, IFS Fractal, Qbist, Sample Colorize, Van Gogh (LIC), Jigsaw, Hot; Sphere Designer's dialog and preview work, but the automated run could not press its OK |
+| Runs, no layer change by design | Border Average (sets Patchy's foreground color), Export Histogram (writes a file), Image Map (an editor for HTML maps), Grid (legacy) and NL Filter with their default values |
+| Refused before running | Animation filters (4), Curve Bend, Decompose, Depth Merge, Film, Flame, Gfig, Gradient Flare, Gradient Map, Pagecurl, Smooth Palette, Spyrogimp, Tile, Warp, Wavelet-decompose, Fog: each needs new layers or images, several layers, GIMP's clipboard or painting tools, or GIMP's gradients; Colormap Remap, Compose, Recompose (indexed or grayscale); Align Layers, Guillotine, Zealous Crop, Metadata Editor and Viewer, Print, Screenshot, scanner import (image or file commands); the consoles, browsers and Unit Editor (no image); Script-Fu scripts |
+| Not applicable (hidden) | About 70 file load and export plug-ins, batch interpreters and helpers without a menu entry |
+
+Not tested yet: Linux and macOS runs (no GIMP 3 on the build hosts; both build and pass the core tests), GIMP's Flatpak (detected and refused), third-party plug-ins.
+
 ## Development tools
 
 `scripts/dev/gimp/wire_tap.cpp` (a relay that stands in for a plug-in under real GIMP and logs both directions), `wire_dump.py` (prints a log as messages), `query_sweep.py` (queries every plug-in of an install through the helper). `PATCHY_GIMP_TRACE=1` logs every message and PDB call through Patchy's stderr; `PATCHY_GIMP_WIRE_LOG=<file>` (or `wireLog`) writes the tap's log format from the helper.

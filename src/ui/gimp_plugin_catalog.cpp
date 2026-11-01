@@ -30,7 +30,7 @@ namespace {
 
 // Bump when the helper's classification or the JSON it writes changes: every cached
 // query is redone once.
-constexpr int kCacheVersion = 3;
+constexpr int kCacheVersion = 4;
 
 QString tr_scan(const char* text) { return QCoreApplication::translate("GimpPlugins", text); }
 
@@ -219,6 +219,15 @@ std::optional<gimp::link::LaunchSpec> gimp_plugin_launch_spec(const gimp::GimpIn
   launch.environment.push_back("PYTHONIOENCODING=utf-8");
   // A Python of the user's own must not leak into GIMP's bundled one.
   launch.unset = {"PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "GI_TYPELIB_PATH", "GTK_THEME", "GTK_PATH"};
+#ifndef Q_OS_WIN
+  // An AppImage points the loader and Qt at its own libraries; GIMP's plug-ins need the
+  // system's.
+  for (const char* name : {"LD_LIBRARY_PATH", "LD_PRELOAD", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
+                           "GDK_PIXBUF_MODULE_FILE", "GDK_PIXBUF_MODULEDIR", "GIO_MODULE_DIR", "DYLD_LIBRARY_PATH",
+                           "DYLD_FRAMEWORK_PATH"}) {
+    launch.unset.emplace_back(name);
+  }
+#endif
   return launch;
 }
 

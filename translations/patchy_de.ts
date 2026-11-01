@@ -31587,6 +31587,11 @@ Fixiert: %1</translation>
         <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
         <translation>Es erzeugt sein Ergebnis mit GIMPs eigenen Bildoperationen (neue Ebenen oder Bilder, die Zwischenablage, Malwerkzeuge), die Patchy nicht bereitstellt.</translation>
     </message>
+    <message>
+        <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 benötigt eine Ebene, die Transparenz enthalten kann. Klicken Sie im Bedienfeld Ebenen mit der rechten Maustaste auf den Hintergrund, wählen Sie Ebene aus Hintergrund und führen Sie es dann erneut aus. Die Ebene wurde nicht geändert.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

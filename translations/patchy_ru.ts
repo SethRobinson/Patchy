@@ -31670,6 +31670,11 @@ Locked: %1</source>
         <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
         <translation>Он строит результат с помощью собственных операций GIMP с изображениями (новые слои или изображения, буфер обмена, инструменты рисования), которых нет в Patchy.</translation>
     </message>
+    <message>
+        <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name.</extracomment>
+        <translation>Плагину %1 нужен слой, который может содержать прозрачность. Щелкните правой кнопкой мыши «Фон» на панели «Слои», выберите «Слой из фона» и запустите плагин снова. Слой не изменён.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

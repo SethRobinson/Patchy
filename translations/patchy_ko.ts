@@ -31504,6 +31504,11 @@ Locked: %1</source>
         <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
         <translation>GIMP 고유의 이미지 작업(새 레이어 또는 이미지, 클립보드, 페인팅 도구)으로 결과를 만드는데, Patchy는 이를 제공하지 않습니다.</translation>
     </message>
+    <message>
+        <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1에는 투명도를 가질 수 있는 레이어가 필요합니다. 레이어 패널에서 배경을 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택한 다음 다시 실행하세요. 레이어는 변경되지 않았습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

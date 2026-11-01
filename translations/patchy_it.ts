@@ -31587,6 +31587,11 @@ Bloccato: %1</translation>
         <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
         <translation>Costruisce il risultato con le operazioni sulle immagini proprie di GIMP (nuovi livelli o immagini, gli Appunti, strumenti di pittura), che Patchy non fornisce.</translation>
     </message>
+    <message>
+        <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 richiede un livello che possa contenere trasparenza. Fai clic con il pulsante destro sullo Sfondo nel pannello Livelli, scegli Livello da sfondo ed eseguilo di nuovo. Il livello non è stato modificato.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

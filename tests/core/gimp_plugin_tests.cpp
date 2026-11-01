@@ -332,7 +332,8 @@ void gimp_install_reads_installed_files_under_unicode_paths() {
   write_text(lib / "environ" / "pygimp.env", "# comment\r\nPATH=${gimp_installation_dir}\\bin\r\nPYTHONDONTWRITEBYTECODE=1\r\n");
   write_text(bin / "pythonw.exe", "");
   write_text(bin / "gimp-3.2.exe", "");
-  write_text(lib / "plug-ins" / "native" / "native.exe", "");
+  write_text(lib / "plug-ins" / "native" / "native.exe", "");  // Windows
+  write_text(lib / "plug-ins" / "native" / "native", "");      // Linux and macOS
   write_text(lib / "plug-ins" / "py-filter" / "py-filter.py", "#!/usr/bin/env python3\n");
   write_text(lib / "plug-ins" / "py-filter" / "helper.py", "");
   write_text(lib / "plug-ins" / "mismatch" / "other.exe", "");

@@ -71,6 +71,13 @@ void register_item_procedures(PdbTable& t) {
   t.add("gimp-layer-get-lock-alpha", [](Session& s, const Args& a) {
     return is_layer(s, a.i(0)) ? pdb_ok({pdb_bool(s.request() != nullptr && s.request()->protect_alpha)}) : pdb_error();
   });
+  // Adding alpha to a layer that has it changes nothing; a layer without it (Patchy's
+  // Background, which locks transparency) cannot gain one during a run.
+  t.add("gimp-layer-add-alpha", [](Session& s, const Args& a) {
+    if (is_layer(s, a.i(0)) && s.model()->has_alpha()) return pdb_ok();
+    s.note_refused("gimp-layer-add-alpha");
+    return pdb_error();
+  });
   t.add("gimp-layer-is-floating-sel", [](Session& s, const Args& a) {
     return is_layer(s, a.i(0)) ? pdb_ok({pdb_bool(false)}) : pdb_error();
   });

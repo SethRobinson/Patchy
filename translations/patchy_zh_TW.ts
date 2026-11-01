@@ -31504,6 +31504,11 @@ Locked: %1</source>
         <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
         <translation>它使用 GIMP 本身的影像操作（新增圖層或影像、剪貼簿、繪畫工具）產生結果，而 Patchy 不提供這些操作。</translation>
     </message>
+    <message>
+        <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 需要可以包含透明度的圖層。請在圖層面板中的背景上按一下滑鼠右鍵，選擇「從背景建立圖層」，然後再次執行。圖層未變更。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

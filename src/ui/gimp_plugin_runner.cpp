@@ -253,7 +253,7 @@ GimpPluginRunResult run_gimp_plugin_out_of_process(const GimpPluginRunInput& inp
           (void)capture_gimp_plugin_window(window, input.capture_dialog_path);
         }
         if (input.answer_dialog != 0) {
-          (void)answer_gimp_plugin_window(window, input.answer_dialog == 1);
+          (void)answer_gimp_plugin_window(window, input.answer_dialog == 1, answers_sent);
           ++answers_sent;
           last_answer.start();
         } else {

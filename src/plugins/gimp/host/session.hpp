@@ -78,6 +78,8 @@ public:
   void progress(double fraction, const std::string& text);
   [[nodiscard]] const std::string& progress_text() const noexcept { return progress_text_; }
   void flush_display();
+  // A procedure Patchy has but cannot carry out for this run: reported like a missing one.
+  void note_refused(const std::string& procedure);
   [[nodiscard]] bool is_script_fu() const noexcept { return script_fu_; }
   void set_script_fu() noexcept { script_fu_ = true; }
 
@@ -117,9 +119,10 @@ private:
   std::condition_variable queue_cv_;
   std::deque<Event> queue_;
   std::thread reader_;
+#ifdef _WIN32
   std::chrono::steady_clock::time_point last_window_check_{};
-  bool window_reported_{false};
   std::uint64_t last_window_key_{0};
+#endif
 };
 
 // The plug-in output collected for error reports (shared with the process callback).

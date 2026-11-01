@@ -85,6 +85,7 @@ std::string env_value(const char* name) {
 #endif
 }
 
+#ifdef _WIN32
 // "3.2.6.0" -> "3.2.6"; series "3.2".
 void set_version(GimpInstall& install, std::string version) {
   int dots = 0;
@@ -104,6 +105,8 @@ void set_version(GimpInstall& install, std::string version) {
   const auto second = first == std::string::npos ? std::string::npos : cleaned.find('.', first + 1);
   install.series = second == std::string::npos ? cleaned : cleaned.substr(0, second);
 }
+
+#endif
 
 // The series from a program named gimp-3.N[.exe] in `bin`, when the version is unknown.
 std::string series_from_programs(const fs::path& bin) {
@@ -560,21 +563,21 @@ std::vector<GimpInstall> detect_gimp_installs() {
     }
   }
 #elif defined(__APPLE__)
-  for (const fs::path app : {fs::path("/Applications/GIMP.app"), from_utf8(env_value("HOME")) / "Applications" / "GIMP.app"}) {
+  for (const auto& app : {fs::path("/Applications/GIMP.app"), from_utf8(env_value("HOME")) / "Applications" / "GIMP.app"}) {
     if (auto install = install_at_prefix(app / "Contents" / "Resources", "path")) {
       install->bin_dir = app / "Contents" / "MacOS";
       found.push_back(std::move(*install));
     }
   }
 #else
-  for (const fs::path prefix : {fs::path("/usr"), fs::path("/usr/local"), fs::path("/opt/gimp")}) {
+  for (const auto& prefix : {fs::path("/usr"), fs::path("/usr/local"), fs::path("/opt/gimp")}) {
     if (auto install = install_at_prefix(prefix, "path")) {
       found.push_back(std::move(*install));
     }
   }
   // GIMP's Flatpak: the files of its current build, user install first.
   const auto home = from_utf8(env_value("HOME"));
-  for (const fs::path root : {home / ".local/share/flatpak", fs::path("/var/lib/flatpak")}) {
+  for (const auto& root : {home / ".local/share/flatpak", fs::path("/var/lib/flatpak")}) {
     const auto files = root / "app" / "org.gimp.GIMP" / "current" / "active" / "files";
     if (auto install = install_at_prefix(files, "flatpak")) {
       install->flatpak = true;

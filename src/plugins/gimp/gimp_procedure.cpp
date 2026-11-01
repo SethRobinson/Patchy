@@ -38,9 +38,11 @@ constexpr KnownRefusal kKnownRefusals[] = {
     {"plug-in-decompose", kReasonCreatesImage},
     {"plug-in-depth-merge", kReasonSeveralLayers},        // merges two source layers
     {"plug-in-film", kReasonCreatesImage},
+    {"plug-in-flame", kReasonResources},                  // the context gradient
     {"plug-in-gfig", kReasonImageOperations},             // draws on a new layer with GIMP's tools
     {"plug-in-gflare", kReasonResources},                 // gradients
     {"plug-in-gradmap", kReasonResources},                // the context gradient
+    {"plug-in-pagecurl", kReasonImageOperations},         // puts the curl on a new layer
     {"plug-in-smooth-palette", kReasonCreatesImage},
     {"plug-in-spyrogimp", kReasonImageOperations},        // paints with GIMP's tools
     {"plug-in-tile", kReasonCreatesImage},                // a new image, or resizes this one

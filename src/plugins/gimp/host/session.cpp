@@ -218,6 +218,13 @@ void Session::progress(double fraction, const std::string& text) {
   }
 }
 
+void Session::note_refused(const std::string& procedure) {
+  if (std::find(unsupported_.begin(), unsupported_.end(), procedure) == unsupported_.end()) {
+    unsupported_.push_back(procedure);
+    send_to_patchy(link::encode_text(link::Frame::Unsupported, procedure));
+  }
+}
+
 void Session::flush_display() {
   if (model_ == nullptr) {
     return;

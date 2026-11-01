@@ -2225,7 +2225,7 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
       # accumulated in Resources/scripts this way).
       set(PATCHY_BUNDLE_RESOURCES_STAMP
           "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_bundle_resources.stamp")
-      set(PATCHY_BUNDLE_RESOURCE_DEPS patchy patchy-mcp "${PATCHY_AGENT_KIT_STAMP}" ${PATCHY_QM_FILES})
+      set(PATCHY_BUNDLE_RESOURCE_DEPS patchy patchy-mcp patchy-gimp-host "${PATCHY_AGENT_KIT_STAMP}" ${PATCHY_QM_FILES})
       list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS ${PATCHY_QT_BASE_QM_FILES})
       if(DEFINED PATCHY_FONTS_STAMP)
         list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS "${PATCHY_FONTS_STAMP}")
@@ -2291,6 +2291,8 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/scripts"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:patchy-mcp>"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/MacOS/patchy-mcp"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:patchy-gimp-host>"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/MacOS/patchy-gimp-host"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/ai"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/ai"
         ${PATCHY_BUNDLE_AI_COMMANDS}
@@ -2317,6 +2319,8 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
       )
     endif()
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+      # The GIMP 3 plug-in helper beside the app binary (docs/gimp-plugins.md).
+      install(TARGETS patchy-gimp-host RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
       install(DIRECTORY "${PATCHY_AGENT_KIT_DIR}/"
               DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/ai")
       install(FILES "${PATCHY_BUNDLED_SCRIPTS_DIR}/patchy.d.ts"

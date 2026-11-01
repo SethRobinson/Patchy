@@ -3,6 +3,7 @@
 //
 //   patchy --headless --run-script scripts/dev/gimp/sweep.js --script-output sweep.txt
 //          [--script-arg only=plug-in-blinds,plug-in-sparkle] [--script-arg depth=16]
+//          [--script-arg dialogs=<folder>]   (Windows: interactive, each dialog saved and answered OK)
 //
 // One JSON line per procedure: {procedure, result, ms, changed, error}. `result` is
 // "applied" (pixels changed inside the selection only), "leaked" (pixels outside the
@@ -10,6 +11,7 @@
 
 var only = patchy.args.only ? String(patchy.args.only).split(",") : null;
 var depth = patchy.args.depth ? Number(patchy.args.depth) : 8;
+var dialogs = patchy.args.dialogs ? String(patchy.args.dialogs) : "";
 var list = patchy.gimpPlugins.list();
 var install = patchy.gimpPlugins.install();
 console.log(JSON.stringify({gimp: install.version, folder: install.folder, procedures: list.length}));
@@ -41,7 +43,11 @@ for (var i = 0; i < list.length; ++i) {
   var started = Date.now();
   var entry = {procedure: p.procedure, menu: p.menu, name: p.name};
   try {
-    layer.applyGimpPlugin(p.id, {timeoutMs: 60000});
+    var options = {timeoutMs: 60000};
+    if (dialogs) {
+      options = {dialog: true, captureDialog: dialogs + "/" + p.procedure + ".png", answerDialog: "ok", timeoutMs: 90000};
+    }
+    layer.applyGimpPlugin(p.id, options);
     var after = new Uint8Array(layer.getPixels().data);
     var inside = 0, outside = 0;
     for (var k = 0; k < Math.min(before.length, after.length); k += 4) {

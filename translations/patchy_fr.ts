@@ -31587,6 +31587,11 @@ Verrouillé : %1</translation>
         <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
         <translation>Il produit son résultat avec les opérations d&apos;image propres à GIMP (nouveaux calques ou nouvelles images, presse-papiers, outils de peinture), que Patchy ne fournit pas.</translation>
     </message>
+    <message>
+        <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 a besoin d&apos;un calque pouvant contenir de la transparence. Faites un clic droit sur l&apos;Arrière-plan dans le panneau Calques, choisissez Calque d&apos;après l&apos;arrière-plan, puis relancez-le. Le calque n&apos;a pas été modifié.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

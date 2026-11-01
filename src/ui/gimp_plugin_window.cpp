@@ -80,10 +80,34 @@ bool capture_gimp_plugin_window(std::uintptr_t window, const QString& png_path) 
   return ok && image.convertToFormat(QImage::Format_RGB32).save(png_path, "PNG");
 }
 
-bool answer_gimp_plugin_window(std::uintptr_t window, bool accept) {
+bool answer_gimp_plugin_window(std::uintptr_t window, bool accept, int attempt) {
   const auto hwnd = reinterpret_cast<HWND>(window);
   if (hwnd == nullptr) {
     return false;
+  }
+  if (attempt > 0 && !accept) {
+    return PostMessageW(hwnd, WM_CLOSE, 0, 0) != 0;
+  }
+  if (attempt > 1) {
+    RECT window_rect{};
+    GetWindowRect(hwnd, &window_rect);
+    POINT point{window_rect.right - 160, window_rect.bottom - 27};
+    ScreenToClient(hwnd, &point);
+    const LPARAM at = MAKELPARAM(point.x, point.y);
+    return PostMessageW(hwnd, WM_MOUSEMOVE, 0, at) != 0 && PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, at) != 0 &&
+           PostMessageW(hwnd, WM_LBUTTONUP, 0, at) != 0;
+  }
+  if (attempt > 0) {
+    const UINT scan = MapVirtualKeyW('O', MAPVK_VK_TO_VSC);
+    const LPARAM context = 1LL << 29;  // Alt held
+    const LPARAM down = 1 | (static_cast<LPARAM>(scan) << 16) | context;
+    const LPARAM up = down | (1LL << 30) | (1LL << 31);
+    const UINT alt_scan = MapVirtualKeyW(VK_MENU, MAPVK_VK_TO_VSC);
+    const LPARAM alt_down = 1 | (static_cast<LPARAM>(alt_scan) << 16) | context;
+    const LPARAM alt_up = 1 | (static_cast<LPARAM>(alt_scan) << 16) | (1LL << 30) | (1LL << 31);
+    return PostMessageW(hwnd, WM_SYSKEYDOWN, VK_MENU, alt_down) != 0 &&
+           PostMessageW(hwnd, WM_SYSKEYDOWN, 'O', down) != 0 && PostMessageW(hwnd, WM_SYSKEYUP, 'O', up) != 0 &&
+           PostMessageW(hwnd, WM_KEYUP, VK_MENU, alt_up) != 0;
   }
   const WPARAM key = accept ? VK_RETURN : VK_ESCAPE;
   const UINT scan = MapVirtualKeyW(static_cast<UINT>(key), MAPVK_VK_TO_VSC);
@@ -96,7 +120,7 @@ bool answer_gimp_plugin_window(std::uintptr_t window, bool accept) {
 
 std::uintptr_t gimp_plugin_window_for_process(std::uint64_t) { return 0; }
 bool capture_gimp_plugin_window(std::uintptr_t, const QString&) { return false; }
-bool answer_gimp_plugin_window(std::uintptr_t, bool) { return false; }
+bool answer_gimp_plugin_window(std::uintptr_t, bool, int) { return false; }
 
 #endif
 

@@ -8,12 +8,16 @@
 #include "core/pixel_depth.hpp"
 #include "ui/gimp_plugin_run_dialog.hpp"
 #include "ui/main_window.hpp"
+#include "ui_test_access.hpp"
 #include "ui/script_engine.hpp"
 #include "test_harness.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 
 #include <QApplication>
+#include <QDialog>
+#include <QListWidget>
+#include <QTimer>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -24,6 +28,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QScopeGuard>
 #include <QString>
 
@@ -247,6 +252,65 @@ void ui_gimp_plugin_dialog_ok_and_cancel_if_available() {
 }
 #endif
 
+// Preferences > Plug-ins lists the GIMP install, the added folder and what each procedure
+// can do, with the reason for the ones that cannot run.
+void ui_gimp_plugins_preferences_page_lists_test_plugin_if_available() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  use_test_plugin_folder(window);
+  bool saw_page = false;
+  QTimer::singleShot(0, [&] {
+    QDialog* preferences = nullptr;
+    process_events_until([&] {
+      preferences = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+      return preferences != nullptr && preferences->isVisible();
+    });
+    CHECK(preferences != nullptr);
+    if (preferences == nullptr) {
+      return;
+    }
+    if (auto* pages = preferences->findChild<QListWidget*>(QStringLiteral("preferencesPageList")); pages != nullptr) {
+      for (int row = 0; row < pages->count(); ++row) {
+        if (pages->item(row)->text() == QStringLiteral("Plug-ins")) {
+          pages->setCurrentRow(row);
+        }
+      }
+      QApplication::processEvents();
+    }
+    auto* found = preferences->findChild<QListWidget*>(QStringLiteral("preferencesGimpPluginsFoundList"));
+    auto* install = preferences->findChild<QLabel*>(QStringLiteral("preferencesGimpInstallLabel"));
+    auto* folders = preferences->findChild<QListWidget*>(QStringLiteral("preferencesGimpPluginFoldersList"));
+    CHECK(found != nullptr && install != nullptr && folders != nullptr);
+    if (found != nullptr && install != nullptr && folders != nullptr) {
+      saw_page = true;
+      CHECK(install->text().startsWith(QStringLiteral("GIMP 3.")));
+      CHECK(folders->count() == 1);
+      bool lists_invert = false;
+      for (int row = 0; row < found->count(); ++row) {
+        lists_invert = lists_invert || found->item(row)->text().contains(QStringLiteral("Invert Bands"));
+      }
+      CHECK(lists_invert);
+      if (auto* group = preferences->findChild<QWidget*>(QStringLiteral("preferencesGimpPluginsGroup")); group != nullptr) {
+        if (auto* scroll = qobject_cast<QScrollArea*>(group->parentWidget() != nullptr
+                                                          ? group->parentWidget()->parentWidget()->parentWidget()
+                                                          : nullptr);
+            scroll != nullptr) {
+          scroll->ensureWidgetVisible(group);
+        }
+        QApplication::processEvents();
+        (void)capture_widget_artifact("ui_gimp_plugins_preferences_group", *group);
+      }
+      // The list alone shows no local folder.
+      (void)capture_widget_artifact("ui_gimp_plugins_preferences_list", *found);
+    }
+    preferences->reject();
+  });
+  patchy::ui::MainWindowTestAccess::show_preferences(window);
+  QApplication::processEvents();
+  CHECK(saw_page);
+  qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
+}
+
 void ui_gimp_plugins_menu_lists_test_plugin_if_available() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -276,6 +340,8 @@ std::vector<patchy::test::TestCase> gimp_plugin_tests() {
        ui_gimp_plugin_script_api_lists_and_runs_test_plugin_if_available},
       {"ui_gimp_plugin_runs_on_deep_layers_if_available", ui_gimp_plugin_runs_on_deep_layers_if_available},
       {"ui_gimp_plugins_menu_lists_test_plugin_if_available", ui_gimp_plugins_menu_lists_test_plugin_if_available},
+      {"ui_gimp_plugins_preferences_page_lists_test_plugin_if_available",
+       ui_gimp_plugins_preferences_page_lists_test_plugin_if_available},
 #ifdef Q_OS_WIN
       {"ui_gimp_plugin_dialog_ok_and_cancel_if_available", ui_gimp_plugin_dialog_ok_and_cancel_if_available},
 #endif

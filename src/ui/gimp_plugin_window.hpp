@@ -16,7 +16,11 @@ namespace patchy::ui {
 [[nodiscard]] std::uintptr_t gimp_plugin_window_for_process(std::uint64_t pid);
 // Saves the window as it is drawn (PrintWindow) to a PNG.
 bool capture_gimp_plugin_window(std::uintptr_t window, const QString& png_path);
-// Sends Enter (accept) or Escape (cancel) to the window.
-bool answer_gimp_plugin_window(std::uintptr_t window, bool accept);
+// Answers the window: the first attempt sends Enter (accept) or Escape (cancel); the
+// second Alt+O, the OK button's mnemonic in GIMP's dialogs (a focused notebook tab or list
+// does not pass Enter on to the default button); the third clicks where GIMP's dialogs put
+// OK (left of Cancel in the bottom-right corner). Cancel's later attempts ask the window
+// to close.
+bool answer_gimp_plugin_window(std::uintptr_t window, bool accept, int attempt = 0);
 
 }  // namespace patchy::ui

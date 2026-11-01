@@ -31670,6 +31670,11 @@ Zablokowano: %1</translation>
         <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
         <translation>Tworzy wynik za pomocą własnych operacji na obrazach GIMP-a (nowe warstwy lub obrazy, schowek, narzędzia malarskie), których Patchy nie zapewnia.</translation>
     </message>
+    <message>
+        <source>%1 needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background, then run it again. The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name.</extracomment>
+        <translation>Wtyczka %1 wymaga warstwy, która może zawierać przezroczystość. Kliknij prawym przyciskiem myszy Tło w panelu Warstwy, wybierz Warstwa z tła, a następnie uruchom ją ponownie. Warstwa nie została zmieniona.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
