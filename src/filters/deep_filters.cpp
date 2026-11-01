@@ -103,17 +103,6 @@ void write_accumulated(float* dst, const DeepAccum& accum) {
   return static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height);
 }
 
-// One channel of the image as a plane; channel 3 is alpha, colors are premultiplied
-// (by alpha / 255) when `premultiply` is set.
-[[nodiscard]] std::vector<float> channel_plane(const DeepImage& image, std::size_t channel, bool premultiply) {
-  std::vector<float> plane(pixel_count(image));
-  for (std::size_t i = 0; i < plane.size(); ++i) {
-    const auto* px = image.rgba.data() + i * 4U;
-    plane[i] = premultiply && channel < 3U ? px[channel] * px[3] / 255.0F : px[channel];
-  }
-  return plane;
-}
-
 }  // namespace
 
 DeepFilterSupport deep_filter_support(std::string_view filter_id, BitDepth depth) {
@@ -258,39 +247,51 @@ void deep_gaussian_blur(DeepImage& image, double radius, const FilterProgress* p
     return;
   }
   // The Gaussian Blur primitive's model: alpha and alpha-premultiplied color blur
-  // separately, then color divides back out.
-  auto alpha = channel_plane(image, 3U, false);
-  filter_plane_with_photoshop_kernel(alpha, image.width, image.height, radius, PhotoshopLineKernel::Gaussian);
-  report_deep_filter_progress(progress, 1, 4, FilterProgressStage::Blurring);
-  for (std::size_t c = 0; c < 3U; ++c) {
-    auto plane = channel_plane(image, c, true);
-    filter_plane_with_photoshop_kernel(plane, image.width, image.height, radius, PhotoshopLineKernel::Gaussian);
-    for (std::size_t i = 0; i < plane.size(); ++i) {
-      const auto a = alpha[i];
-      image.rgba[i * 4U + c] = a > 0.000001F ? plane[i] * 255.0F / a : 0.0F;
+  // separately (interleaved in one plane), then color divides back out.
+  report_deep_filter_progress(progress, 0, 2, FilterProgressStage::Blurring);
+  std::vector<float> planes(image.rgba.size());
+  for (std::size_t i = 0; i < planes.size(); i += 4U) {
+    const auto* px = image.rgba.data() + i;
+    for (std::size_t c = 0; c < 3U; ++c) {
+      planes[i + c] = px[c] * px[3] / 255.0F;
     }
-    report_deep_filter_progress(progress, static_cast<std::int32_t>(c) + 2, 4, FilterProgressStage::Blurring);
+    planes[i + 3U] = px[3];
   }
-  for (std::size_t i = 0; i < alpha.size(); ++i) {
-    image.rgba[i * 4U + 3U] = std::clamp(alpha[i], 0.0F, 255.0F);
+  filter_plane_with_photoshop_kernel(planes, image.width, image.height, radius, PhotoshopLineKernel::Gaussian, 4U);
+  report_deep_filter_progress(progress, 1, 2, FilterProgressStage::Blurring);
+  for (std::size_t i = 0; i < planes.size(); i += 4U) {
+    const auto a = planes[i + 3U];
+    for (std::size_t c = 0; c < 3U; ++c) {
+      image.rgba[i + c] = a > 0.000001F ? planes[i + c] * 255.0F / a : 0.0F;
+    }
+    image.rgba[i + 3U] = std::clamp(a, 0.0F, 255.0F);
   }
+  report_deep_filter_progress(progress, 2, 2, FilterProgressStage::Blurring);
 }
 
 namespace {
 
-// High Pass and Unsharp Mask blur straight color (alpha is kept as it is).
+// High Pass and Unsharp Mask blur straight color (alpha is kept as it is), the
+// three channels interleaved in one plane.
 template <typename Combine>
 void blur_straight_color(DeepImage& image, double radius, PhotoshopLineKernel kernel,
                          const FilterProgress* progress, FilterProgressStage stage, Combine&& combine) {
-  for (std::size_t c = 0; c < 3U; ++c) {
-    auto plane = channel_plane(image, c, false);
-    filter_plane_with_photoshop_kernel(plane, image.width, image.height, radius, kernel);
-    for (std::size_t i = 0; i < plane.size(); ++i) {
-      auto& value = image.rgba[i * 4U + c];
-      value = combine(value, plane[i]);
+  report_deep_filter_progress(progress, 0, 1, stage);
+  const auto pixels = pixel_count(image);
+  std::vector<float> plane(pixels * 3U);
+  for (std::size_t i = 0; i < pixels; ++i) {
+    for (std::size_t c = 0; c < 3U; ++c) {
+      plane[i * 3U + c] = image.rgba[i * 4U + c];
     }
-    report_deep_filter_progress(progress, static_cast<std::int32_t>(c) + 1, 3, stage);
   }
+  filter_plane_with_photoshop_kernel(plane, image.width, image.height, radius, kernel, 3U);
+  for (std::size_t i = 0; i < pixels; ++i) {
+    for (std::size_t c = 0; c < 3U; ++c) {
+      auto& value = image.rgba[i * 4U + c];
+      value = combine(value, plane[i * 3U + c]);
+    }
+  }
+  report_deep_filter_progress(progress, 1, 1, stage);
 }
 
 }  // namespace
