@@ -102,10 +102,23 @@ QString number_text(double value) { return QString::number(value, 'g', 17); }
 // `flatpak run` passes the environment into GIMP's sandbox.
 void prepare_helper(QProcess& helper, const GeglHelperCommand& command, const QString& language = {}) {
   auto environment = QProcessEnvironment::systemEnvironment();
+  const auto library_folder = QFileInfo(command.library).absolutePath();
 #ifdef Q_OS_MACOS
-  environment.insert(QStringLiteral("DYLD_LIBRARY_PATH"), QFileInfo(command.library).absolutePath());
-#else
-  (void)command;
+  environment.insert(QStringLiteral("DYLD_LIBRARY_PATH"), library_folder);
+#endif
+#ifndef Q_OS_WIN
+  // Patchy's own GEGL off Windows: its libraries and modules where the bundle keeps them
+  // (GEGL_PATH and BABL_PATH are GEGL's and babl's documented module paths). Windows GEGL
+  // finds them relative to its DLL.
+  if (command.bundled) {
+#ifndef Q_OS_MACOS
+    const auto previous = environment.value(QStringLiteral("LD_LIBRARY_PATH"));
+    environment.insert(QStringLiteral("LD_LIBRARY_PATH"),
+                       previous.isEmpty() ? library_folder : library_folder + QLatin1Char(':') + previous);
+#endif
+    environment.insert(QStringLiteral("GEGL_PATH"), QDir(library_folder).filePath(QStringLiteral("gegl-0.4")));
+    environment.insert(QStringLiteral("BABL_PATH"), QDir(library_folder).filePath(QStringLiteral("babl-0.1")));
+  }
 #endif
   if (!language.isEmpty()) {
     environment.insert(QStringLiteral("LANGUAGE"), language);
@@ -405,6 +418,7 @@ GeglHelperCommand bundled_gegl_command(const QString& library) {
   command.library_file = library;
   command.program = gegl_helper_path();
   command.arguments = {QStringLiteral("--gegl"), library};
+  command.bundled = true;
   return command;
 }
 

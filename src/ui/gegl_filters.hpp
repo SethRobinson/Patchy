@@ -30,6 +30,7 @@ struct GeglHelperCommand {
   QString library;        // the libgegl the helper loads (a sandbox path inside GIMP's Flatpak)
   QString library_file;   // the same file as this process sees it (the scan cache's key)
   bool flatpak{false};
+  bool bundled{false};    // Patchy's own GEGL: its modules sit beside the library
 };
 
 struct GeglFilterScanResult {
