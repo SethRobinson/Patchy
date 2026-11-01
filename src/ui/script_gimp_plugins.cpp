@@ -404,6 +404,19 @@ QJSValue ScriptEngineHost::gimp_plugin_install() {
     }
   }
   value.setProperty(QStringLiteral("pluginFolders"), folders);
+  auto failed = engine()->newArray();
+  quint32 f = 0;
+  if (scan != nullptr) {
+    for (const auto& file : scan->files) {
+      if (!file.ok) {
+        auto entry = engine()->newObject();
+        entry.setProperty(QStringLiteral("file"), QDir::fromNativeSeparators(file.path));
+        entry.setProperty(QStringLiteral("error"), file.error);
+        failed.setProperty(f++, entry);
+      }
+    }
+  }
+  value.setProperty(QStringLiteral("failedFiles"), failed);
   return value;
 }
 

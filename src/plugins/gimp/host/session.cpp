@@ -339,8 +339,10 @@ QueryOutcome Session::run_query(std::chrono::milliseconds timeout) {
   QueryOutcome outcome;
   // A Script-Fu plug-in started through GIMP's Script-Fu interpreter is a Script-Fu
   // script like the ones the Script-Fu extension registers.
-  if (launch_ != nullptr && launch_->program.find("script-fu-interpreter") != std::string::npos) {
-    script_fu_ = true;
+  if (launch_ != nullptr) {
+    const auto names_script_fu = [](const std::string& s) { return s.find("script-fu-interpreter") != std::string::npos; };
+    script_fu_ = names_script_fu(launch_->program) ||
+                 std::any_of(launch_->leading_args.begin(), launch_->leading_args.end(), names_script_fu);
   }
   start_reader();
   const auto deadline = std::chrono::steady_clock::now() + timeout;

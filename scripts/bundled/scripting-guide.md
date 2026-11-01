@@ -658,7 +658,7 @@ Desktop builds run the plug-ins of your own GIMP 3 install (Patchy finds it; GIM
 | --- | --- |
 | `patchy.gimpPlugins.list()` | Every procedure the plug-ins registered: `{id, procedure, name, menu, supported, hidden, reason, reasonCode, file, blurb, imageTypes, params}`. `params` names the arguments `applyGimpPlugin` accepts. |
 | `patchy.gimpPlugins.rescan({force})` | Rescans (new or changed plug-ins only, all with `force: true`) and returns `list()`. |
-| `patchy.gimpPlugins.install()` | `{found, folder, version, series, source, flatpak, pluginFolders, problem}`. |
+| `patchy.gimpPlugins.install()` | `{found, folder, version, series, source, flatpak, pluginFolders, failedFiles, problem}`; `failedFiles` lists `{file, error}` for plug-ins that did not start. |
 | `patchy.gimpPlugins.folders`, `.enabled`, `.installFolder` | Preferences > Plug-ins settings (persisted); setting one rescans. |
 | `layer.applyGimpPlugin(id, {dialog, lastValues, args, timeoutMs, trace, wireLog, captureDialog, answerDialog})` | Runs the procedure on an 8, 16 or 32-bit RGB layer inside the selection, as part of the script's undo entry. Non-interactive with the registered defaults and a 120 s limit unless `dialog: true` (the plug-in's own dialog). `args` sets arguments by name, e.g. `{"num-segments": 5, orientation: "vertical"}`. On Windows `captureDialog: "shot.png"` saves an image of the dialog and `answerDialog: "ok"` or `"cancel"` answers it; unattended runs answer OK by themselves. Throws with the reason on failure. |
 

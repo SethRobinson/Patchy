@@ -120,6 +120,12 @@ The committed manifest is never rewritten by packaging.
 - `--share=network` exists only for the update check. A `-DPATCHY_STORE_BUILD=ON` build
   has no update check and no preference for it (`update_checks_available()` in
   `src/ui/update_checker.cpp`); `PATCHY_NO_UPDATE_CHECK=1` does the same at run time.
+- `--talk-name=org.freedesktop.Flatpak` and the read-only `org.gimp.GIMP` folders run
+  GIMP 3 plug-ins in GIMP's own Flatpak through `flatpak-spawn --host`
+  ([docs/gimp-plugins.md](../../docs/gimp-plugins.md#gimps-flatpak)). The talk name lets
+  Patchy start any program on the host; removing it (`flatpak override --user
+  --no-talk-name=org.freedesktop.Flatpak com.rtsoft.patchy`) turns GIMP plug-ins off with a
+  message and changes nothing else.
 - `--socket=pulseaudio` carries theme and script sounds (PipeWire serves the same
   socket). Without it every sound is silent. The KDE runtime ships `paplay`, `pacat` and
   `pw-cat`, not `aplay`; sounds play through `paplay` (`sound_effects.cpp`).

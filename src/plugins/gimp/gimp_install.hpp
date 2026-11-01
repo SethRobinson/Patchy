@@ -25,6 +25,8 @@ struct GimpInstall {
   std::string series;                     // "3.2"
   std::string source;                     // how it was found ("registry", "path", "flatpak", "folder")
   bool flatpak{false};                    // GIMP's Flatpak (plug-ins run in its sandbox)
+  std::filesystem::path flatpak_root;     // its installation (~/.local/share/flatpak or /var/lib/flatpak)
+  std::string flatpak_app{"org.gimp.GIMP"};
   std::vector<std::filesystem::path> plugin_folders;  // system, user, then gimprc's plug-in-path
 };
 
@@ -56,6 +58,10 @@ struct Interpreters {
 // GIMP 3 plug-ins: each in its own subfolder, named after it (<name>/<name>[.ext]).
 [[nodiscard]] std::vector<std::filesystem::path> find_plugin_files(const std::filesystem::path& plugins_folder,
                                                                    const Interpreters& interpreters);
+
+// The interpreter a plug-in file names: by its extension (interpreters/*.interp) or its
+// first line ("#!/usr/bin/env python3" -> "python3"); empty for a native program.
+[[nodiscard]] std::string plugin_interpreter(const std::filesystem::path& plugin_file, const Interpreters& interpreters);
 
 // How to start one plug-in file: a native program, or an interpreter and the script.
 struct PluginCommand {

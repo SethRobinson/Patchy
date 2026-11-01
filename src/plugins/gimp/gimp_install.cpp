@@ -85,7 +85,6 @@ std::string env_value(const char* name) {
 #endif
 }
 
-#ifdef _WIN32
 // "3.2.6.0" -> "3.2.6"; series "3.2".
 void set_version(GimpInstall& install, std::string version) {
   int dots = 0;
@@ -106,6 +105,68 @@ void set_version(GimpInstall& install, std::string version) {
   install.series = second == std::string::npos ? cleaned : cleaned.substr(0, second);
 }
 
+[[maybe_unused]] std::string read_text(const fs::path& file, std::size_t limit = 1 << 20) {
+  std::ifstream in(file, std::ios::binary);
+  std::string text(limit, '\0');
+  in.read(text.data(), static_cast<std::streamsize>(limit));
+  text.resize(static_cast<std::size_t>(in.gcount()));
+  return text;
+}
+
+// The text between the first `open` and the next `close` after `marker` ("" when absent).
+[[maybe_unused]] std::string text_after(const std::string& text, const std::string& marker, char open, char close) {
+  const auto at = text.find(marker);
+  if (at == std::string::npos) {
+    return {};
+  }
+  const auto start = text.find(open, at + marker.size());
+  const auto end = start == std::string::npos ? std::string::npos : text.find(close, start + 1);
+  return end == std::string::npos ? std::string() : trim(text.substr(start + 1, end - start - 1));
+}
+
+#ifdef __APPLE__
+// GIMP.app/Contents/Info.plist: CFBundleShortVersionString.
+void version_from_info_plist(GimpInstall& install, const fs::path& contents) {
+  const auto text = read_text(contents / "Info.plist");
+  const auto version = text_after(text, "<key>CFBundleShortVersionString</key>", '>', '<');
+  if (!version.empty() && version[0] == '3') {
+    set_version(install, version);
+  }
+}
+#endif
+
+#if !defined(_WIN32) && !defined(__APPLE__)
+// A Flatpak's metainfo lists releases newest first: <release version="3.2.6" ...>.
+void version_from_metainfo(GimpInstall& install) {
+  const auto text = read_text(install.prefix / "share" / "metainfo" / (install.flatpak_app + ".metainfo.xml"));
+  const auto version = text_after(text, "<release ", '"', '"');
+  if (!version.empty() && version[0] == '3') {
+    set_version(install, version);
+  }
+}
+
+// GIMP's Flatpak plug-in extensions (org.gimp.GIMP.Plugin.<Name>, branch 3): their
+// plug-ins folders, which the sandbox merges into /app/extensions/plug-ins.
+std::vector<fs::path> flatpak_extension_plugin_folders(const GimpInstall& install) {
+  std::vector<fs::path> out;
+  std::error_code ec;
+  const std::string id_prefix = install.flatpak_app + ".Plugin.";
+  for (fs::directory_iterator it(install.flatpak_root / "runtime", ec), end; !ec && it != end; it.increment(ec)) {
+    const auto id = path_to_utf8(it->path().filename());
+    if (id.rfind(id_prefix, 0) != 0 || id.ends_with(".Locale") || id.ends_with(".Debug")) {
+      continue;
+    }
+    std::error_code arch_ec;
+    for (fs::directory_iterator arch(it->path(), arch_ec), arch_end; !arch_ec && arch != arch_end; arch.increment(arch_ec)) {
+      const auto folder = arch->path() / "3" / "active" / "files" / "plug-ins";
+      if (is_dir(folder)) {
+        out.push_back(folder);
+      }
+    }
+  }
+  std::sort(out.begin(), out.end());
+  return out;
+}
 #endif
 
 // The series from a program named gimp-3.N[.exe] in `bin`, when the version is unknown.
@@ -182,6 +243,21 @@ std::optional<GimpInstall> install_at_prefix(const fs::path& prefix, std::string
   }
   return install;
 }
+
+#ifdef __APPLE__
+// GIMP.app: the tree lives in Contents (lib, share, etc), the programs and the bundled
+// python3 in Contents/MacOS; older builds kept the tree in Contents/Resources.
+std::optional<GimpInstall> install_at_app(const fs::path& app, std::string source) {
+  for (const auto& prefix : {app / "Contents", app / "Contents" / "Resources"}) {
+    if (auto install = install_at_prefix(prefix, source)) {
+      install->bin_dir = app / "Contents" / "MacOS";
+      version_from_info_plist(*install, app / "Contents");
+      return install;
+    }
+  }
+  return std::nullopt;
+}
+#endif
 
 #ifdef _WIN32
 std::wstring registry_string(HKEY root, const std::wstring& key, const wchar_t* value, REGSAM view) {
@@ -441,24 +517,46 @@ std::vector<fs::path> find_plugin_files(const fs::path& plugins_folder, const In
       (void)interpreter;
       candidates.push_back(folder / (path_to_utf8(name) + "." + extension));
     }
+    bool found = false;
     for (const auto& candidate : candidates) {
       if (is_file(candidate)) {
         out.push_back(candidate);
+        found = true;
         break;
       }
     }
+#ifndef _WIN32
+    // An executable script named after its folder with an extension no .interp file
+    // maps (GIMP's Flatpak registers none: its .py files start through their #! line).
+    if (!found) {
+      std::vector<fs::path> scripts;
+      for (fs::directory_iterator it(folder, ec), end; !ec && it != end; it.increment(ec)) {
+        const auto& path = it->path();
+        std::error_code status_ec;
+        const auto status = fs::status(path, status_ec);
+        if (!status_ec && fs::is_regular_file(status) && path.stem() == name && path.has_extension() &&
+            (status.permissions() & fs::perms::owner_exec) != fs::perms::none) {
+          scripts.push_back(path);
+        }
+      }
+      ec.clear();
+      std::sort(scripts.begin(), scripts.end());
+      if (!scripts.empty()) {
+        out.push_back(scripts.front());
+      }
+    }
+#else
+    (void)found;
+#endif
   }
   return out;
 }
 
-std::optional<PluginCommand> resolve_plugin_command(const fs::path& plugin_file, const Interpreters& interpreters,
-                                                    const std::vector<fs::path>& search_path, std::string* error) {
+std::string plugin_interpreter(const fs::path& plugin_file, const Interpreters& interpreters) {
   const auto extension = lower(path_to_utf8(plugin_file.extension()));
-  PluginCommand command;
 #ifdef _WIN32
   if (extension == ".exe") {
-    command.program = plugin_file;
-    return command;
+    return {};
   }
 #endif
   std::string interpreter;
@@ -486,6 +584,19 @@ std::optional<PluginCommand> resolve_plugin_command(const fs::path& plugin_file,
       }
     }
   }
+  return interpreter;
+}
+
+std::optional<PluginCommand> resolve_plugin_command(const fs::path& plugin_file, const Interpreters& interpreters,
+                                                    const std::vector<fs::path>& search_path, std::string* error) {
+  PluginCommand command;
+#ifdef _WIN32
+  if (lower(path_to_utf8(plugin_file.extension())) == ".exe") {
+    command.program = plugin_file;
+    return command;
+  }
+#endif
+  const auto interpreter = plugin_interpreter(plugin_file, interpreters);
   if (interpreter.empty()) {
 #ifdef _WIN32
     if (error != nullptr) {
@@ -533,7 +644,15 @@ std::optional<GimpInstall> gimp_install_from_folder(const fs::path& folder) {
   std::vector<fs::path> candidates{folder, folder.parent_path(), folder.parent_path().parent_path(),
                                    folder.parent_path().parent_path().parent_path()};
 #ifdef __APPLE__
-  candidates.insert(candidates.begin(), folder / "Contents" / "Resources");
+  // GIMP.app itself, or a folder inside it.
+  for (const auto& candidate : candidates) {
+    if (lower(path_to_utf8(candidate.extension())) == ".app") {
+      if (auto install = install_at_app(candidate, "folder")) {
+        finish_install(*install);
+        return install;
+      }
+    }
+  }
 #endif
   for (const auto& prefix : candidates) {
     if (prefix.empty()) {
@@ -564,8 +683,7 @@ std::vector<GimpInstall> detect_gimp_installs() {
   }
 #elif defined(__APPLE__)
   for (const auto& app : {fs::path("/Applications/GIMP.app"), from_utf8(env_value("HOME")) / "Applications" / "GIMP.app"}) {
-    if (auto install = install_at_prefix(app / "Contents" / "Resources", "path")) {
-      install->bin_dir = app / "Contents" / "MacOS";
+    if (auto install = install_at_app(app, "path")) {
       found.push_back(std::move(*install));
     }
   }
@@ -581,7 +699,9 @@ std::vector<GimpInstall> detect_gimp_installs() {
     const auto files = root / "app" / "org.gimp.GIMP" / "current" / "active" / "files";
     if (auto install = install_at_prefix(files, "flatpak")) {
       install->flatpak = true;
+      install->flatpak_root = root;
       install->user_dir = home / ".var/app/org.gimp.GIMP/config/GIMP";
+      version_from_metainfo(*install);
       found.push_back(std::move(*install));
     }
   }
@@ -603,6 +723,13 @@ std::vector<GimpInstall> detect_gimp_installs() {
       install.user_dir /= from_utf8(install.series);
     }
     finish_install(install);
+#if !defined(_WIN32) && !defined(__APPLE__)
+    if (install.flatpak) {
+      for (auto& folder : flatpak_extension_plugin_folders(install)) {
+        install.plugin_folders.push_back(std::move(folder));
+      }
+    }
+#endif
     unique.push_back(std::move(install));
   }
   return unique;

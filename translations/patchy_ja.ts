@@ -135,6 +135,53 @@
     </message>
 </context>
 <context>
+    <name>GimpPlugins</name>
+    <message>
+        <source>The GIMP plug-in helper could not be started.</source>
+        <translation>GIMP プラグイン補助プログラムを起動できませんでした。</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper did not finish.</source>
+        <translation>GIMP プラグイン補助プログラムの処理が完了しませんでした。</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper stopped without an answer.</source>
+        <translation>GIMP プラグイン補助プログラムが応答せずに停止しました。</translation>
+    </message>
+    <message>
+        <source>the flatpak command was not found</source>
+        <translation>flatpak コマンドが見つかりませんでした</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Flatpak was found, but this copy of Patchy may not start programs outside its own sandbox. Give it that permission with: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</source>
+        <translation>GIMP の Flatpak が見つかりましたが、この Patchy は自身のサンドボックスの外にあるプログラムを起動できません。次のコマンドで権限を付与してください: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start %1 (a launch constraint in GIMP&apos;s code signature)</source>
+        <translation>macOS では %1 を起動できるのは GIMP 自身だけです (GIMP のコード署名にある起動制約)</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are turned off in Preferences.</source>
+        <translation>GIMP 3 プラグインは環境設定でオフになっています。</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 installation was found. Install GIMP 3, or choose its folder in Preferences.</source>
+        <translation>GIMP 3 のインストールが見つかりません。GIMP 3 をインストールするか、環境設定でそのフォルダーを選択してください。</translation>
+    </message>
+    <message>
+        <source>The chosen folder does not contain GIMP 3.</source>
+        <translation>選択したフォルダーに GIMP 3 が含まれていません。</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GIMP plug-in helper is missing from its program folder.</source>
+        <translation>Patchy の GIMP プラグイン補助プログラムがプログラムフォルダーにありません。</translation>
+    </message>
+    <message>
+        <source>No answer from the helper.</source>
+        <translation>補助プログラムから応答がありません。</translation>
+    </message>
+</context>
+<context>
     <name>InvisibleWatermarkDialog</name>
     <message>
         <source>Standard</source>

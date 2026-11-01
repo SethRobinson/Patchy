@@ -135,6 +135,53 @@
     </message>
 </context>
 <context>
+    <name>GimpPlugins</name>
+    <message>
+        <source>The GIMP plug-in helper could not be started.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper did not finish.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper stopped without an answer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>the flatpak command was not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Flatpak was found, but this copy of Patchy may not start programs outside its own sandbox. Give it that permission with: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start %1 (a launch constraint in GIMP&apos;s code signature)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are turned off in Preferences.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No GIMP 3 installation was found. Install GIMP 3, or choose its folder in Preferences.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The chosen folder does not contain GIMP 3.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GIMP plug-in helper is missing from its program folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No answer from the helper.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>InvisibleWatermarkDialog</name>
     <message>
         <source>Standard</source>

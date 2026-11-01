@@ -1,9 +1,10 @@
 // GIMP 3 plug-in support (docs/gimp-plugins.md): the wire codec against messages
 // observed between GIMP 3.2.6 and its plug-ins, round trips of every message and
 // parameter type, broken-stream refusals, the query classification, the files GIMP
-// installs (interpreters, environ, gimprc, plug-in folders) under Unicode paths, and
-// the Patchy-to-helper link. Nothing here needs GIMP installed.
+// installs (interpreters, environ, gimprc, plug-in folders) under Unicode paths, the
+// commands that start GIMP's Flatpak plug-ins in its sandbox, and the Patchy-to-helper link. Nothing here needs GIMP installed.
 
+#include "plugins/gimp/gimp_flatpak.hpp"
 #include "plugins/gimp/gimp_host_link.hpp"
 #include "plugins/gimp/gimp_install.hpp"
 #include "plugins/gimp/gimp_procedure.hpp"
@@ -396,6 +397,98 @@ void gimp_install_reads_installed_files_under_unicode_paths() {
   patchy::test::remove_test_scratch_tree(root);
 }
 
+// GIMP's Flatpak: host paths of the app and of a plug-in extension map into the sandbox,
+// scripts start through the sandbox's interpreter, and the flatpak (or flatpak-spawn)
+// command line carries the sandbox command, environment and shared folder.
+void gimp_flatpak_launch_runs_plugins_in_gimps_sandbox() {
+  const auto root = patchy::test::unicode_artifact_dir(u8"gimp-flatpak");
+  GimpInstall install;
+  install.flatpak = true;
+  install.flatpak_root = root / "flatpak";
+  install.prefix = install.flatpak_root / "app" / "org.gimp.GIMP" / "current" / "active" / "files";
+  install.lib_dir = install.prefix / "lib" / "gimp" / "3.0";
+  install.data_dir = install.prefix / "share" / "gimp" / "3.0";
+  install.user_dir = root / "home" / ".var" / "app" / "org.gimp.GIMP" / "config" / "GIMP" / "3.2";
+  const auto generic = [](const std::filesystem::path& p) { return p.generic_string(); };
+
+  CHECK(generic(flatpak_sandbox_path(install, install.lib_dir / "plug-ins" / "blinds" / "blinds")) ==
+        "/app/lib/gimp/3.0/plug-ins/blinds/blinds");
+  CHECK(generic(flatpak_sandbox_path(install, install.data_dir)) == "/app/share/gimp/3.0");
+  const auto extension = install.flatpak_root / "runtime" / "org.gimp.GIMP.Plugin.Fourier" / "x86_64" / "3" / "active" /
+                         "files" / "plug-ins" / "fourier" / "fourier";
+  CHECK(generic(flatpak_sandbox_path(install, extension)) == "/app/extensions/Fourier/plug-ins/fourier/fourier");
+  const auto user_plugin = install.user_dir / "plug-ins" / "mine" / "mine.py";
+  CHECK(flatpak_sandbox_path(install, user_plugin) == user_plugin);  // the home folder is shared
+
+  const auto script = install.lib_dir / "plug-ins" / "py-filter" / "py-filter.py";
+  write_text(script, "#!/usr/bin/env python3\n");
+  const auto scm = install.lib_dir / "plug-ins" / "sf" / "sf.scm";
+  write_text(scm, "#!/usr/bin/env gimp-script-fu-interpreter-3.0\n");
+  const Interpreters none;
+#ifndef _WIN32
+  // The Flatpak's .interp files map no extension: executable scripts are found by name.
+  std::filesystem::permissions(script, std::filesystem::perms::owner_exec, std::filesystem::perm_options::add);
+  write_text(install.lib_dir / "plug-ins" / "not-run" / "not-run.py", "#!/usr/bin/env python3\n");
+  const auto found = find_plugin_files(install.lib_dir / "plug-ins", none);
+  CHECK(found.size() == 1 && found.front() == script);
+#endif
+  std::string why;
+  const auto python = flatpak_plugin_command(install, script, none, &why);
+  CHECK(python.has_value());
+  if (python.has_value()) {
+    CHECK(python->program == "python3" && python->interpreter == "python3");
+    CHECK(python->leading_args.size() == 1 && python->leading_args[0] == "/app/lib/gimp/3.0/plug-ins/py-filter/py-filter.py");
+  }
+  const auto native = flatpak_plugin_command(install, install.lib_dir / "plug-ins" / "blinds" / "blinds", none, &why);
+  CHECK(native.has_value() && generic(native->program) == "/app/lib/gimp/3.0/plug-ins/blinds/blinds" &&
+        native->leading_args.empty());
+
+  FlatpakLaunchOptions options;
+  options.program = "/usr/bin/flatpak";
+  options.environment = {"GIMP3_DIRECTORY=/home/u/profile", "LANG=de"};
+  options.shared_folders = {"/home/u/profile"};
+  const auto sf = flatpak_plugin_command(install, scm, none, &why);
+  CHECK(sf.has_value());
+  if (sf.has_value()) {
+    const auto launch = flatpak_launch(install, *sf, options);
+    CHECK(launch.program == "/usr/bin/flatpak");
+    const std::vector<std::string> expected{"run",
+                                            "--user",
+                                            "--die-with-parent",
+                                            "--cwd=/app/lib/gimp/3.0/plug-ins/sf",
+                                            "--filesystem=/home/u/profile",
+                                            "--env=GIMP3_DIRECTORY=/home/u/profile",
+                                            "--env=LANG=de",
+                                            "--command=gimp-script-fu-interpreter-3.0",
+                                            "org.gimp.GIMP",
+                                            "/app/lib/gimp/3.0/plug-ins/sf/sf.scm"};
+    CHECK(launch.leading_args == expected);
+
+    options.from_flatpak = true;
+    options.program = "/usr/bin/flatpak-spawn";
+    const auto spawned = flatpak_launch(install, *sf, options);
+    CHECK(spawned.program == "/usr/bin/flatpak-spawn");
+    CHECK(spawned.leading_args.size() == expected.size() + 5);
+    if (spawned.leading_args.size() == expected.size() + 5) {
+      const std::vector<std::string> head(spawned.leading_args.begin(), spawned.leading_args.begin() + 5);
+      CHECK((head == std::vector<std::string>{"--host", "--watch-bus", "--forward-fd=3", "--forward-fd=4", "flatpak"}));
+      CHECK(std::vector<std::string>(spawned.leading_args.begin() + 5, spawned.leading_args.end()) == expected);
+    }
+  }
+  install.flatpak_root = "/var/lib/flatpak";
+  if (native.has_value()) {
+    const auto system_launch = flatpak_launch(install, *native, FlatpakLaunchOptions{});
+    CHECK(system_launch.leading_args.size() > 1 && system_launch.leading_args[1] == "--system");
+  }
+
+  CHECK(flatpak_info_allows_host_commands("[Application]\nname=com.rtsoft.patchy\n\n[Session Bus Policy]\n"
+                                          "org.freedesktop.Flatpak=talk\n"));
+  CHECK(!flatpak_info_allows_host_commands("[Application]\nname=com.rtsoft.patchy\n[Session Bus Policy]\n"
+                                           "org.freedesktop.Notifications=talk\n"));
+  CHECK(!flatpak_info_allows_host_commands("[System Bus Policy]\norg.freedesktop.Flatpak=talk\n"));
+  patchy::test::remove_test_scratch_tree(root);
+}
+
 void gimp_default_arguments_follow_registrations() {
   auto integer = def(ParamDefKind::Int, "n", "gint");
   integer.int_default = 1LL << 40;  // clamped to the wire's 32 bits
@@ -466,6 +559,7 @@ std::vector<patchy::test::TestCase> gimp_plugin_tests() {
       {"gimp_procedure_classification_explains_refusals", gimp_procedure_classification_explains_refusals},
       {"gimp_procedure_menu_paths_and_image_types", gimp_procedure_menu_paths_and_image_types},
       {"gimp_install_reads_installed_files_under_unicode_paths", gimp_install_reads_installed_files_under_unicode_paths},
+      {"gimp_flatpak_launch_runs_plugins_in_gimps_sandbox", gimp_flatpak_launch_runs_plugins_in_gimps_sandbox},
       {"gimp_default_arguments_follow_registrations", gimp_default_arguments_follow_registrations},
       {"gimp_host_link_round_trips_requests", gimp_host_link_round_trips_requests},
   };

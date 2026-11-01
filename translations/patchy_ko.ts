@@ -135,6 +135,53 @@
     </message>
 </context>
 <context>
+    <name>GimpPlugins</name>
+    <message>
+        <source>The GIMP plug-in helper could not be started.</source>
+        <translation>GIMP 플러그인 도우미를 시작할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper did not finish.</source>
+        <translation>GIMP 플러그인 도우미가 작업을 마치지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper stopped without an answer.</source>
+        <translation>GIMP 플러그인 도우미가 응답 없이 중지되었습니다.</translation>
+    </message>
+    <message>
+        <source>the flatpak command was not found</source>
+        <translation>flatpak 명령을 찾을 수 없음</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Flatpak was found, but this copy of Patchy may not start programs outside its own sandbox. Give it that permission with: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</source>
+        <translation>GIMP의 Flatpak을 찾았지만 이 Patchy는 자체 샌드박스 밖의 프로그램을 시작할 수 없습니다. 다음 명령으로 권한을 부여하세요: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start %1 (a launch constraint in GIMP&apos;s code signature)</source>
+        <translation>macOS에서는 GIMP 자체만 %1을(를) 시작할 수 있음(GIMP 코드 서명의 실행 제약)</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are turned off in Preferences.</source>
+        <translation>GIMP 3 플러그인이 환경설정에서 꺼져 있습니다.</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 installation was found. Install GIMP 3, or choose its folder in Preferences.</source>
+        <translation>GIMP 3 설치를 찾을 수 없습니다. GIMP 3을 설치하거나 환경설정에서 해당 폴더를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>The chosen folder does not contain GIMP 3.</source>
+        <translation>선택한 폴더에 GIMP 3이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GIMP plug-in helper is missing from its program folder.</source>
+        <translation>Patchy의 GIMP 플러그인 도우미가 프로그램 폴더에 없습니다.</translation>
+    </message>
+    <message>
+        <source>No answer from the helper.</source>
+        <translation>도우미의 응답이 없습니다.</translation>
+    </message>
+</context>
+<context>
     <name>InvisibleWatermarkDialog</name>
     <message>
         <source>Standard</source>

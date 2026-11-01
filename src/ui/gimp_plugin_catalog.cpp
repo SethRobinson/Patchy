@@ -2,6 +2,7 @@
 
 #include "ui/gimp_plugin_catalog.hpp"
 
+#include "plugins/gimp/gimp_flatpak.hpp"
 #include "plugins/gimp/gimp_procedure.hpp"
 #include "support/path_utils.hpp"
 #include "ui/qt_paths.hpp"
@@ -21,6 +22,7 @@
 
 #include <algorithm>
 #include <map>
+#include <mutex>
 #include <set>
 #include <thread>
 
@@ -30,9 +32,7 @@ namespace {
 
 // Bump when the helper's classification or the JSON it writes changes: every cached
 // query is redone once.
-constexpr int kCacheVersion = 4;
-
-QString tr_scan(const char* text) { return QCoreApplication::translate("GimpPlugins", text); }
+constexpr int kCacheVersion = 5;
 
 std::string utf8(const QString& s) { return s.toStdString(); }
 
@@ -100,6 +100,47 @@ void add_procedures(const QJsonObject& plugin, const QString& plugin_file, std::
   }
 }
 
+#ifdef Q_OS_MACOS
+// GIMP.app's own python3 carries a parent launch constraint in its code signature (only
+// org.gimp.gimp may start it; observed with GIMP 3.2.6): macOS kills it when anything
+// else does. codesign reports the constraint; the answer is kept per program.
+bool requires_gimp_as_parent(const QString& program) {
+  static std::mutex mutex;
+  static std::map<QString, bool> known;
+  const std::lock_guard lock(mutex);
+  const auto key = program + QLatin1Char('|') + QString::number(QFileInfo(program).lastModified().toMSecsSinceEpoch());
+  if (const auto it = known.find(key); it != known.end()) {
+    return it->second;
+  }
+  QProcess codesign;
+  codesign.setProcessChannelMode(QProcess::MergedChannels);
+  codesign.start(QStringLiteral("/usr/bin/codesign"), {QStringLiteral("-d"), QStringLiteral("-vvvv"), program});
+  bool constrained = false;
+  if (codesign.waitForFinished(10000)) {
+    constrained = codesign.readAll().contains("Has Parent Launch Constraints");
+  } else {
+    codesign.kill();
+    codesign.waitForFinished(1000);
+  }
+  known[key] = constrained;
+  return constrained;
+}
+#endif
+
+// Plug-ins get the desktop's session bus back when an offscreen Patchy turned its own
+// off (src/app/main.cpp): GIMP's libraries and flatpak-spawn use it.
+void restore_session_bus(gimp::link::LaunchSpec& launch) {
+  if (!qEnvironmentVariableIsSet("PATCHY_DESKTOP_DBUS_ADDRESS")) {
+    return;
+  }
+  const auto address = qEnvironmentVariable("PATCHY_DESKTOP_DBUS_ADDRESS");
+  if (address.isEmpty()) {
+    launch.unset.emplace_back("DBUS_SESSION_BUS_ADDRESS");
+  } else {
+    launch.environment.push_back("DBUS_SESSION_BUS_ADDRESS=" + utf8(address));
+  }
+}
+
 // Runs one helper over a list of plug-ins; returns the helper's JSON "plugins" array
 // (one object per launch, in order), or an empty array with `error` set.
 QJsonArray query_with_helper(const QString& helper, const std::vector<gimp::link::LaunchSpec>& launches, QString* error) {
@@ -108,7 +149,7 @@ QJsonArray query_with_helper(const QString& helper, const std::vector<gimp::link
   process.setProcessChannelMode(QProcess::SeparateChannels);
   process.start();
   if (!process.waitForStarted(10000)) {
-    *error = tr_scan("The GIMP plug-in helper could not be started.");
+    *error = QCoreApplication::translate("GimpPlugins", "The GIMP plug-in helper could not be started.");
     return {};
   }
   gimp::link::QueryRequest request;
@@ -128,7 +169,7 @@ QJsonArray query_with_helper(const QString& helper, const std::vector<gimp::link
       if (timer.elapsed() > limit) {
         process.kill();
         process.waitForFinished(3000);
-        *error = tr_scan("The GIMP plug-in helper did not finish.");
+        *error = QCoreApplication::translate("GimpPlugins", "The GIMP plug-in helper did not finish.");
         return {};
       }
       continue;
@@ -151,7 +192,7 @@ QJsonArray query_with_helper(const QString& helper, const std::vector<gimp::link
   }
   process.kill();
   process.waitForFinished(3000);
-  *error = tr_scan("The GIMP plug-in helper stopped without an answer.");
+  *error = QCoreApplication::translate("GimpPlugins", "The GIMP plug-in helper stopped without an answer.");
   return {};
 }
 
@@ -182,8 +223,72 @@ std::optional<gimp::GimpInstall> select_gimp_install(const GimpPluginScanOptions
   return found.front();
 }
 
+namespace {
+
+// GIMP's Flatpak: the plug-in starts in GIMP's sandbox (gimp_flatpak.hpp).
+std::optional<gimp::link::LaunchSpec> flatpak_plugin_launch_spec(const gimp::GimpInstall& install, const QString& plugin_file,
+                                                                 const QString& language, QString* error) {
+  const auto interpreters = gimp::load_interpreters({install.lib_dir / "interpreters", install.user_dir / "interpreters"});
+  std::string why;
+  const auto command = gimp::flatpak_plugin_command(install, to_filesystem_path(plugin_file), interpreters, &why);
+  if (!command.has_value()) {
+    if (error != nullptr) {
+      *error = QString::fromStdString(why);
+    }
+    return std::nullopt;
+  }
+  gimp::FlatpakLaunchOptions options;
+  options.from_flatpak = gimp::running_in_flatpak();
+  options.program = utf8(options.from_flatpak ? QStringLiteral("/usr/bin/flatpak-spawn")
+                                              : QStandardPaths::findExecutable(QStringLiteral("flatpak")));
+  if (options.program.empty()) {
+    if (error != nullptr) {
+      *error = QCoreApplication::translate("GimpPlugins", "the flatpak command was not found");
+    }
+    return std::nullopt;
+  }
+  const auto profile = gimp_plugin_profile_dir();
+  QDir().mkpath(profile);
+  options.shared_folders.push_back(to_filesystem_path(profile));
+  // The environ files name sandbox paths through ${gimp_installation_dir} (/app).
+  for (const auto& [name, value] : gimp::load_environ({install.lib_dir / "environ", install.user_dir / "environ"}, "/app")) {
+    options.environment.push_back(name + "=" + value);
+  }
+  options.environment.push_back("GIMP3_DIRECTORY=" + utf8(profile));
+  if (!language.isEmpty()) {
+    options.environment.push_back("LANGUAGE=" + utf8(language));
+    options.environment.push_back("LANG=" + utf8(language));
+  }
+  options.environment.push_back("PYTHONIOENCODING=utf-8");
+  auto launch = gimp::flatpak_launch(install, *command, options);
+  launch.data_dir = path_to_utf8(gimp::flatpak_sandbox_path(install, install.data_dir));
+  launch.profile_dir = utf8(profile);
+  // The helper's own environment reaches the flatpak command, never the sandbox's
+  // programs (flatpak sets those up itself).
+  launch.unset = {"LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONHOME", "PYTHONPATH"};
+  restore_session_bus(launch);
+  return launch;
+}
+
+}  // namespace
+
+QString gimp_plugin_flatpak_problem(const gimp::GimpInstall& install) {
+  if (!install.flatpak || !gimp::running_in_flatpak()) {
+    return {};
+  }
+  QFile info(QStringLiteral("/.flatpak-info"));
+  if (info.open(QIODevice::ReadOnly) && gimp::flatpak_info_allows_host_commands(info.readAll().toStdString())) {
+    return {};
+  }
+  return QCoreApplication::translate("GimpPlugins", "GIMP's Flatpak was found, but this copy of Patchy may not start programs outside its own sandbox. "
+                 "Give it that permission with: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy");
+}
+
 std::optional<gimp::link::LaunchSpec> gimp_plugin_launch_spec(const gimp::GimpInstall& install, const QString& plugin_file,
                                                              const QString& language, QString* error) {
+  if (install.flatpak) {
+    return flatpak_plugin_launch_spec(install, plugin_file, language, error);
+  }
   const auto interpreters = gimp::load_interpreters({install.lib_dir / "interpreters", install.user_dir / "interpreters"});
   const auto environment = gimp::load_environ({install.lib_dir / "environ", install.user_dir / "environ"}, install.prefix);
   auto search = gimp::environ_search_path(environment);
@@ -196,6 +301,15 @@ std::optional<gimp::link::LaunchSpec> gimp_plugin_launch_spec(const gimp::GimpIn
     }
     return std::nullopt;
   }
+#ifdef Q_OS_MACOS
+  if (!command->interpreter.empty() && requires_gimp_as_parent(to_qstring(command->program))) {
+    if (error != nullptr) {
+      *error = QCoreApplication::translate("GimpPlugins", "macOS lets only GIMP itself start %1 (a launch constraint in GIMP's code signature)")
+                   .arg(to_qstring(command->program.filename()));
+    }
+    return std::nullopt;
+  }
+#endif
   gimp::link::LaunchSpec launch;
   launch.program = path_to_utf8(command->program);
   launch.leading_args = command->leading_args;
@@ -228,35 +342,34 @@ std::optional<gimp::link::LaunchSpec> gimp_plugin_launch_spec(const gimp::GimpIn
     launch.unset.emplace_back(name);
   }
 #endif
+  restore_session_bus(launch);
   return launch;
 }
 
 GimpPluginScanResult scan_gimp_plugins(const GimpPluginScanOptions& options) {
   GimpPluginScanResult result;
   if (!options.enabled) {
-    result.problem = tr_scan("GIMP 3 plug-ins are turned off in Preferences.");
+    result.problem = QCoreApplication::translate("GimpPlugins", "GIMP 3 plug-ins are turned off in Preferences.");
     return result;
   }
   result.install = select_gimp_install(options);
   if (!result.install.has_value()) {
     result.problem = options.install_folder.isEmpty()
-                         ? tr_scan("No GIMP 3 installation was found. Install GIMP 3, or choose its folder in Preferences.")
-                         : tr_scan("The chosen folder does not contain GIMP 3.");
+                         ? QCoreApplication::translate("GimpPlugins", "No GIMP 3 installation was found. Install GIMP 3, or choose its folder in Preferences.")
+                         : QCoreApplication::translate("GimpPlugins", "The chosen folder does not contain GIMP 3.");
     return result;
   }
   const auto& install = *result.install;
   const auto helper = gimp_plugin_helper_path();
   if (!QFileInfo::exists(helper)) {
     result.helper_missing = true;
-    result.problem = tr_scan("Patchy's GIMP plug-in helper is missing from its program folder.");
+    result.problem = QCoreApplication::translate("GimpPlugins", "Patchy's GIMP plug-in helper is missing from its program folder.");
     return result;
   }
-#ifndef Q_OS_WIN
-  if (install.flatpak) {
-    result.problem = tr_scan("GIMP's Flatpak was found, but running its plug-ins from Patchy is not supported yet.");
+  if (const auto problem = gimp_plugin_flatpak_problem(install); !problem.isEmpty()) {
+    result.problem = problem;
     return result;
   }
-#endif
 
   // Folders, most specific first: a plug-in in an extra or user folder replaces a
   // system one of the same name.
@@ -354,7 +467,7 @@ GimpPluginScanResult scan_gimp_plugins(const GimpPluginScanOptions& options) {
         const auto& file = to_query[i];
         const auto index = static_cast<qsizetype>(i - s.begin);
         if (index >= s.answer.size()) {
-          result.files.push_back({file, false, s.error.isEmpty() ? tr_scan("No answer from the helper.") : s.error, 0, false});
+          result.files.push_back({file, false, s.error.isEmpty() ? QCoreApplication::translate("GimpPlugins", "No answer from the helper.") : s.error, 0, false});
           continue;
         }
         const auto object = s.answer.at(index).toObject();

@@ -135,6 +135,53 @@
     </message>
 </context>
 <context>
+    <name>GimpPlugins</name>
+    <message>
+        <source>The GIMP plug-in helper could not be started.</source>
+        <translation>L&apos;utilitaire des modules externes GIMP n&apos;a pas pu être lancé.</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper did not finish.</source>
+        <translation>L&apos;utilitaire des modules externes GIMP ne s&apos;est pas terminé.</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper stopped without an answer.</source>
+        <translation>L&apos;utilitaire des modules externes GIMP s&apos;est arrêté sans répondre.</translation>
+    </message>
+    <message>
+        <source>the flatpak command was not found</source>
+        <translation>la commande flatpak est introuvable</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Flatpak was found, but this copy of Patchy may not start programs outside its own sandbox. Give it that permission with: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</source>
+        <translation>Le Flatpak de GIMP a été trouvé, mais cette copie de Patchy n&apos;a pas le droit de lancer des programmes hors de son propre bac à sable. Accordez-lui cette autorisation avec : flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start %1 (a launch constraint in GIMP&apos;s code signature)</source>
+        <translation>macOS ne permet qu&apos;à GIMP lui-même de lancer %1 (une contrainte de lancement dans la signature de code de GIMP)</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are turned off in Preferences.</source>
+        <translation>Les modules externes GIMP 3 sont désactivés dans les Préférences.</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 installation was found. Install GIMP 3, or choose its folder in Preferences.</source>
+        <translation>Aucune installation de GIMP 3 n&apos;a été trouvée. Installez GIMP 3 ou choisissez son dossier dans les Préférences.</translation>
+    </message>
+    <message>
+        <source>The chosen folder does not contain GIMP 3.</source>
+        <translation>Le dossier choisi ne contient pas GIMP 3.</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GIMP plug-in helper is missing from its program folder.</source>
+        <translation>L&apos;utilitaire des modules externes GIMP de Patchy est absent de son dossier de programme.</translation>
+    </message>
+    <message>
+        <source>No answer from the helper.</source>
+        <translation>Aucune réponse de l&apos;utilitaire.</translation>
+    </message>
+</context>
+<context>
     <name>InvisibleWatermarkDialog</name>
     <message>
         <source>Standard</source>

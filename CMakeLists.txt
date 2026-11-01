@@ -467,6 +467,8 @@ patchy_configure_target(patchy_plugins)
 # patchy-gimp-host, which starts the user's installed plug-ins as separate programs
 # and serves them the layer. Nothing of GIMP is built, linked or loaded.
 add_library(patchy_gimp
+  src/plugins/gimp/gimp_flatpak.cpp
+  src/plugins/gimp/gimp_flatpak.hpp
   src/plugins/gimp/gimp_host_link.hpp
   src/plugins/gimp/gimp_install.cpp
   src/plugins/gimp/gimp_install.hpp

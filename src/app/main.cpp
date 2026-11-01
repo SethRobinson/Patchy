@@ -482,7 +482,12 @@ int main(int argc, char* argv[]) {
   // synchronous appearance query can block startup on an absent desktop portal,
   // before MCP can observe client EOF. Offscreen runs need no desktop session
   // services; an unsupported D-Bus transport fails immediately without autolaunch.
+  // The desktop's address is kept for the GIMP plug-ins Patchy starts (flatpak-spawn
+  // needs the session bus; gimp_plugin_catalog.cpp).
   if (qgetenv("QT_QPA_PLATFORM").split(':').first() == "offscreen") {
+    if (!qEnvironmentVariableIsSet("PATCHY_DESKTOP_DBUS_ADDRESS")) {
+      qputenv("PATCHY_DESKTOP_DBUS_ADDRESS", qgetenv("DBUS_SESSION_BUS_ADDRESS"));
+    }
     qputenv("DBUS_SESSION_BUS_ADDRESS", "disabled:");
   }
 #endif

@@ -78,7 +78,10 @@ struct GimpPluginScanOptions {
 // Patchy's own GIMP settings folder, handed to plug-ins as GIMP3_DIRECTORY so they never
 // write into the user's GIMP settings.
 [[nodiscard]] QString gimp_plugin_profile_dir();
-// How to start one plug-in file of an install.
+// Why GIMP's Flatpak cannot be used from this Patchy (its own Flatpak without the
+// permission to start host programs), translated; empty when it can.
+[[nodiscard]] QString gimp_plugin_flatpak_problem(const gimp::GimpInstall& install);
+// How to start one plug-in file of an install (GIMP's Flatpak: inside its sandbox).
 [[nodiscard]] std::optional<gimp::link::LaunchSpec> gimp_plugin_launch_spec(const gimp::GimpInstall& install,
                                                                             const QString& plugin_file,
                                                                             const QString& language, QString* error);

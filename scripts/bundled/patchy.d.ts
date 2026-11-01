@@ -1836,6 +1836,8 @@ interface PatchyGimpPlugins {
     source?: string;
     flatpak?: boolean;
     pluginFolders: string[];
+    /** Plug-in files that could not be started or registered nothing, with the reason. */
+    failedFiles: {file: string; error: string}[];
     problem: string;
   };
   /**

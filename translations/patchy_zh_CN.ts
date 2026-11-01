@@ -135,6 +135,53 @@
     </message>
 </context>
 <context>
+    <name>GimpPlugins</name>
+    <message>
+        <source>The GIMP plug-in helper could not be started.</source>
+        <translation>无法启动 GIMP 插件辅助程序。</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper did not finish.</source>
+        <translation>GIMP 插件辅助程序未能完成。</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper stopped without an answer.</source>
+        <translation>GIMP 插件辅助程序已停止，未返回应答。</translation>
+    </message>
+    <message>
+        <source>the flatpak command was not found</source>
+        <translation>未找到 flatpak 命令</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Flatpak was found, but this copy of Patchy may not start programs outside its own sandbox. Give it that permission with: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</source>
+        <translation>已找到 GIMP 的 Flatpak，但此 Patchy 副本不能启动其沙盒之外的程序。请使用以下命令授予该权限：flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start %1 (a launch constraint in GIMP&apos;s code signature)</source>
+        <translation>macOS 只允许 GIMP 本身启动 %1（GIMP 代码签名中的启动约束）</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are turned off in Preferences.</source>
+        <translation>GIMP 3 插件已在首选项中关闭。</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 installation was found. Install GIMP 3, or choose its folder in Preferences.</source>
+        <translation>未找到 GIMP 3 安装。请安装 GIMP 3，或在首选项中选择其文件夹。</translation>
+    </message>
+    <message>
+        <source>The chosen folder does not contain GIMP 3.</source>
+        <translation>所选文件夹中没有 GIMP 3。</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GIMP plug-in helper is missing from its program folder.</source>
+        <translation>Patchy 的程序文件夹中缺少 GIMP 插件辅助程序。</translation>
+    </message>
+    <message>
+        <source>No answer from the helper.</source>
+        <translation>辅助程序没有应答。</translation>
+    </message>
+</context>
+<context>
     <name>InvisibleWatermarkDialog</name>
     <message>
         <source>Standard</source>

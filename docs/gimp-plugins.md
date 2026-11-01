@@ -8,6 +8,7 @@ Patchy runs the user's installed GIMP 3 plug-ins on one pixel layer: the plug-in
 |---|---|---|
 | Protocol | `src/plugins/gimp/gimp_protocol.hpp`, `gimp_wire_codec.{hpp,cpp}` | Patchy's own declarations and codec of GIMP's pipe messages (protocol 0x0117, GIMP 3.2.x) |
 | Install and files | `src/plugins/gimp/gimp_install.{hpp,cpp}` | Finding GIMP 3, its plug-in folders, `interpreters/*.interp`, `environ/*.env`, `gimprc` |
+| Flatpak | `src/plugins/gimp/gimp_flatpak.{hpp,cpp}` | Sandbox paths and the `flatpak run` / `flatpak-spawn --host` command line for GIMP's Flatpak |
 | Query model | `src/plugins/gimp/gimp_procedure.{hpp,cpp}` | What a plug-in registers, the classification with reason codes, default arguments |
 | Link | `src/plugins/gimp/gimp_host_link.hpp` | Patchy's own frames between Patchy and the helper |
 | Helper | `src/plugins/gimp/host/` (`patchy-gimp-host`) | Starts plug-ins, the message loop (`session.cpp`), the one-layer tile server (`image_model.cpp`), the PDB table (`pdb_*.cpp`, one file per group) |
@@ -18,10 +19,22 @@ All of `src/plugins/gimp/` is Qt-free and shared by Patchy, the helper and the c
 ## Finding GIMP
 
 - Windows: the GIMP installer's uninstall key `Software\Microsoft\Windows\CurrentVersion\Uninstall\GIMP-3*_is1` under HKCU, then HKLM (64 and 32-bit views): `InstallLocation` and `DisplayVersion`. Then `%LOCALAPPDATA%\Programs\GIMP 3` and `%ProgramFiles%\GIMP 3`. Plug-ins in `<install>\lib\gimp\3.0\plug-ins`; the user's own in `%APPDATA%\GIMP\<3.N>\plug-ins` (the series from the version, or from a `gimp-3.N.exe` in `bin`); extra folders from that folder's `gimprc` `(plug-in-path "...")` with `${gimp_dir}` and `${gimp_plug_in_dir}` expanded.
-- Linux: `/usr`, `/usr/local`, `/opt/gimp` with `lib/gimp/3.0`, `lib64/gimp/3.0` or a multiarch `lib/<triplet>/gimp/3.0`; user folder `$XDG_CONFIG_HOME/GIMP/3.N`. GIMP's Flatpak (`~/.local/share/flatpak` or `/var/lib/flatpak`, `app/org.gimp.GIMP/current/active/files`) is detected and reported as not supported yet (it needs `flatpak-spawn --host` into GIMP's sandbox).
-- macOS: `/Applications/GIMP.app` and `~/Applications/GIMP.app` (`Contents/Resources`), user folder `~/Library/Application Support/GIMP/3.N`.
+- Linux: `/usr`, `/usr/local`, `/opt/gimp` with `lib/gimp/3.0`, `lib64/gimp/3.0` or a multiarch `lib/<triplet>/gimp/3.0`; user folder `$XDG_CONFIG_HOME/GIMP/3.N`. Then GIMP's Flatpak, see [GIMP's Flatpak](#gimps-flatpak).
+- macOS: `/Applications/GIMP.app` and `~/Applications/GIMP.app`. The tree is in `Contents` (`lib`, `share`; the Homebrew cask and gimp.org's DMG, GIMP 3.2.6), older builds `Contents/Resources`; programs and the bundled `python3` in `Contents/MacOS`; the version from `Info.plist` `CFBundleShortVersionString`. User folder `~/Library/Application Support/GIMP/3.N`.
 - Preferences > Plug-ins can name the install folder by hand (`gimpPlugins/installFolder`), add plug-in folders (`gimpPlugins/userFolders`) and turn the feature off (`gimpPlugins/enabled`, default on). Folders are searched most specific first (added, user, gimprc, system); a plug-in folder name seen earlier wins.
-- A GIMP 3 plug-in lives in its own subfolder named after it: `<name>/<name>.exe` (Windows), `<name>/<name>` (Linux, macOS) or `<name>/<name>.<ext>` for an extension an `.interp` file maps (`.py`, `.scm`).
+- A GIMP 3 plug-in lives in its own subfolder named after it: `<name>/<name>.exe` (Windows), `<name>/<name>` (Linux, macOS) or `<name>/<name>.<ext>` for an extension an `.interp` file maps (`.py`, `.scm`); off Windows also any executable `<name>/<name>.<ext>` (GIMP's Flatpak maps no extension; its scripts start through their `#!` line).
+
+## GIMP's Flatpak
+
+- Found in `~/.local/share/flatpak` (first) and `/var/lib/flatpak`: `app/org.gimp.GIMP/current/active/files` is the prefix, the version comes from `share/metainfo/org.gimp.GIMP.metainfo.xml` (first `<release version=...>`), user folder `~/.var/app/org.gimp.GIMP/config/GIMP/3.N`. Plug-in extensions (`runtime/org.gimp.GIMP.Plugin.<Name>/<arch>/3/active/files/plug-ins`, from Flathub) add their folders.
+- A plug-in runs inside GIMP's own sandbox: `flatpak run --user|--system --die-with-parent --cwd=<folder> --filesystem=<Patchy's profile> --env=... --command=<program> org.gimp.GIMP [script] -gimp ...`. Paths map into the sandbox (`files/` is `/app`, an extension's `files/` is `/app/extensions/<Name>`; the home folder is shared, so user and added folders keep their paths). Scripts start through the sandbox's own interpreter by name (`python3`, `gimp-script-fu-interpreter-3.0`). Descriptors 3 and 4 survive `flatpak run` and bwrap unchanged (checked with Flatpak 1.14.6), so the pipes need no bridge. The `environ` files expand with `/app`; `GSETTINGS_SCHEMA_DIR` is left to the sandbox. Ending the process group ends the sandbox (`--die-with-parent`).
+- From Patchy's own Flatpak the same command runs on the host: `flatpak-spawn --host --watch-bus --forward-fd=3 --forward-fd=4 flatpak run ...` (the host side ends when the helper's bus connection does). The manifest grants `--talk-name=org.freedesktop.Flatpak` and read-only access to GIMP's Flatpak, the runtimes folder (extensions) and GIMP's settings folder. That permission lets Patchy start any host program; without it (an override removed it) the scan stops with a message naming the `flatpak override` command. The plug-in's dialog opens on the desktop session's display.
+- An offscreen Patchy turns its own D-Bus off (`src/app/main.cpp`); plug-ins get the desktop's address back (`PATCHY_DESKTOP_DBUS_ADDRESS`), which `flatpak-spawn` needs.
+- Not covered: a distro GIMP 3 seen from Patchy's Flatpak (the host's `/usr` is not visible there).
+
+## macOS
+
+GIMP.app's `python3` (3.2.6) carries a parent launch constraint in its code signature: only `org.gimp.gimp` of GIMP's team may start it, and macOS kills it (`SIGKILL`, "Launch Constraint Violation") when Patchy's helper does. Patchy asks `codesign -d -vvvv` once per interpreter (`Has Parent Launch Constraints`) and reports such plug-in files as not startable instead of running them, so GIMP's Python plug-ins are unavailable on macOS. Native plug-ins and `gimp-script-fu-interpreter-3.0` carry no constraint. The helper links only the system libraries; `make-dmg.sh` signs it with the bundle (`codesign --deep`, hardened runtime).
 
 ## Starting a plug-in
 
@@ -57,7 +70,7 @@ One file per group in `src/plugins/gimp/host/`: registration (query time), image
 
 ## Scripting
 
-`patchy.gimpPlugins`: `list()` (`{id, procedure, name, menu, supported, hidden, reason, reasonCode, file, blurb, imageTypes, params}`), `rescan({force})`, `install()` (`{found, folder, version, series, source, flatpak, pluginFolders, problem}`), `folders`, `enabled`, `installFolder` (persisted; setting rescans). `layer.applyGimpPlugin(id, {dialog, lastValues, args, timeoutMs, trace, wireLog, captureDialog, answerDialog})`: non-interactive by default with a 120 s limit; `dialog: true` is interactive (no time limit unless the dialog is answered). Windows: once the dialog has been up 1.5 s (`gimp_plugin_window.cpp`: the plug-in process's largest window) `captureDialog` saves it with `PrintWindow` and `answerDialog` posts Enter (OK) or Escape (Cancel) to that window, again every 3 s up to three times; unattended runs answer OK by themselves; `args` sets arguments by registered name, checked against their type and range (choices by nick, colors as `"#rrggbb"` or `[r, g, b, a]`). See [scripting.md](scripting.md).
+`patchy.gimpPlugins`: `list()` (`{id, procedure, name, menu, supported, hidden, reason, reasonCode, file, blurb, imageTypes, params}`), `rescan({force})`, `install()` (`{found, folder, version, series, source, flatpak, pluginFolders, failedFiles, problem}`), `folders`, `enabled`, `installFolder` (persisted; setting rescans). `layer.applyGimpPlugin(id, {dialog, lastValues, args, timeoutMs, trace, wireLog, captureDialog, answerDialog})`: non-interactive by default with a 120 s limit; `dialog: true` is interactive (no time limit unless the dialog is answered). Windows: once the dialog has been up 1.5 s (`gimp_plugin_window.cpp`: the plug-in process's largest window) `captureDialog` saves it with `PrintWindow` and `answerDialog` posts Enter (OK) or Escape (Cancel) to that window, again every 3 s up to three times; unattended runs answer OK by themselves; `args` sets arguments by registered name, checked against their type and range (choices by nick, colors as `"#rrggbb"` or `[r, g, b, a]`). See [scripting.md](scripting.md).
 
 ## Results
 
@@ -71,13 +84,22 @@ GIMP 3.2.6 (Windows installer, 132 plug-in folders), November 1, 2026, with `scr
 | Refused before running | Animation filters (4), Curve Bend, Decompose, Depth Merge, Film, Flame, Gfig, Gradient Flare, Gradient Map, Pagecurl, Smooth Palette, Spyrogimp, Tile, Warp, Wavelet-decompose, Fog: each needs new layers or images, several layers, GIMP's clipboard or painting tools, or GIMP's gradients; Colormap Remap, Compose, Recompose (indexed or grayscale); Align Layers, Guillotine, Zealous Crop, Metadata Editor and Viewer, Print, Screenshot, scanner import (image or file commands); the consoles, browsers and Unit Editor (no image); Script-Fu scripts |
 | Not applicable (hidden) | About 70 file load and export plug-ins, batch interpreters and helpers without a menu entry |
 
-Not tested yet: Linux and macOS runs (no GIMP 3 on the build hosts; both build and pass the core tests), GIMP's Flatpak (detected and refused), third-party plug-ins.
+Other platforms, the same non-interactive sweep (pattern layer, rectangular selection), November 1, 2026:
+
+| Platform | GIMP | Result |
+|---|---|---|
+| macOS 27 (Apple silicon) | 3.2.6, Homebrew cask (GIMP.app, 128 plug-in folders) | The same 11 non-interactive results as Windows; the same refusals. The 12 Python plug-ins cannot start (launch constraint, see [macOS](#macos)). Sample Colorize without a sample layer crashes the plug-in non-interactively (exit with a segmentation fault; Patchy reports it). Dialogs not run: they need the logged-in desktop. |
+| Ubuntu 24.04, Patchy native | 3.2.6, Flathub Flatpak | The same results as Windows, through `flatpak run`. Interactive in a private X display: Blinds, Lighting Effects, GIMPressionist and FFT Forward open their dialogs with Patchy's layer in the preview and apply on OK; CML Explorer ignores Return (as on Windows); the run's time limit ended it and its sandbox. |
+| Ubuntu 24.04, inside Patchy's Flatpak | same | The same, through `flatpak-spawn --host`; without the permission, the scan stops with its message. |
+| Linux extensions (Flathub, branch 3) | Fourier 0.4.5, Resynthesizer 3.0.1 | FFT Forward and Inverse apply. Resynthesizer's menu commands (Heal Selection, Uncrop, Map Style and others) are Script-Fu scripts and are refused; its engine registers no menu entry. |
+
+Not tested: a distro GIMP 3 on Linux (Ubuntu 24.04 ships 2.10), third-party plug-ins on Windows and macOS.
 
 ## Development tools
 
-`scripts/dev/gimp/wire_tap.cpp` (a relay that stands in for a plug-in under real GIMP and logs both directions), `wire_dump.py` (prints a log as messages), `query_sweep.py` (queries every plug-in of an install through the helper). `PATCHY_GIMP_TRACE=1` logs every message and PDB call through Patchy's stderr; `PATCHY_GIMP_WIRE_LOG=<file>` (or `wireLog`) writes the tap's log format from the helper.
+`scripts/dev/gimp/wire_tap.cpp` (a relay that stands in for a plug-in under real GIMP and logs both directions), `wire_dump.py` (prints a log as messages), `query_sweep.py` (queries every plug-in of an install through the helper), `interactive-x11.sh` (Linux: interactive runs in a private Xvfb display, each dialog saved and answered with Return through xdotool; GIMP's Flatpak needs `flatpak override --user --nosocket=wayland --socket=x11 org.gimp.GIMP` for the run, since its sandbox otherwise reaches the desktop's Wayland socket, and `--reset` afterwards). `PATCHY_GIMP_TRACE=1` logs every message and PDB call through Patchy's stderr; `PATCHY_GIMP_WIRE_LOG=<file>` (or `wireLog`) writes the tap's log format from the helper.
 
 ## Tests
 
-- Core (`tests/core/gimp_plugin_tests.cpp`, filter `gimp_`): GIMP 3.2.6 messages decoded and re-encoded byte for byte, round trips of every message and parameter kind, broken-stream refusals, classification reasons, menu paths, the installed files under Unicode paths, default arguments, the link frames.
+- Core (`tests/core/gimp_plugin_tests.cpp`, filter `gimp_`): GIMP 3.2.6 messages decoded and re-encoded byte for byte, round trips of every message and parameter kind, broken-stream refusals, classification reasons, menu paths, the installed files under Unicode paths, the Flatpak command lines and sandbox paths, default arguments, the link frames.
 - Test plug-in: `test-fixtures/gimp-plugins/patchy-test/patchy-test.py` (MIT, Patchy's own; also checked in real GIMP): Invert Bands (tiles in and out, selection bounds, progress, a dialog with a drawable preview), Paint Context (image, context and message calls), Needs a New Layer (a procedure Patchy refuses).

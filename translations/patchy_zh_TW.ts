@@ -135,6 +135,53 @@
     </message>
 </context>
 <context>
+    <name>GimpPlugins</name>
+    <message>
+        <source>The GIMP plug-in helper could not be started.</source>
+        <translation>無法啟動 GIMP 外掛程式輔助程式。</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper did not finish.</source>
+        <translation>GIMP 外掛程式輔助程式未能完成。</translation>
+    </message>
+    <message>
+        <source>The GIMP plug-in helper stopped without an answer.</source>
+        <translation>GIMP 外掛程式輔助程式已停止，未傳回回應。</translation>
+    </message>
+    <message>
+        <source>the flatpak command was not found</source>
+        <translation>找不到 flatpak 指令</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Flatpak was found, but this copy of Patchy may not start programs outside its own sandbox. Give it that permission with: flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</source>
+        <translation>已找到 GIMP 的 Flatpak，但此 Patchy 副本無法啟動其沙箱以外的程式。請使用下列指令授予該權限：flatpak override --user --talk-name=org.freedesktop.Flatpak com.rtsoft.patchy</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start %1 (a launch constraint in GIMP&apos;s code signature)</source>
+        <translation>macOS 只允許 GIMP 本身啟動 %1（GIMP 程式碼簽章中的啟動限制）</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are turned off in Preferences.</source>
+        <translation>GIMP 3 外掛程式已在偏好設定中關閉。</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 installation was found. Install GIMP 3, or choose its folder in Preferences.</source>
+        <translation>找不到已安裝的 GIMP 3。請安裝 GIMP 3，或在偏好設定中選擇其資料夾。</translation>
+    </message>
+    <message>
+        <source>The chosen folder does not contain GIMP 3.</source>
+        <translation>所選資料夾中沒有 GIMP 3。</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GIMP plug-in helper is missing from its program folder.</source>
+        <translation>Patchy 的程式資料夾中缺少 GIMP 外掛程式輔助程式。</translation>
+    </message>
+    <message>
+        <source>No answer from the helper.</source>
+        <translation>輔助程式沒有回應。</translation>
+    </message>
+</context>
+<context>
     <name>InvisibleWatermarkDialog</name>
     <message>
         <source>Standard</source>
