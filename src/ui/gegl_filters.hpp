@@ -40,9 +40,10 @@ inline constexpr char kGeglFilterIdPrefix[] = "gegl.";
 [[nodiscard]] QString find_gegl_library(const gimp::GimpInstall& install);
 // Whether an operation from the helper's list is offered; `why` gets the reason it is not.
 [[nodiscard]] bool gegl_operation_offered(const QJsonObject& operation, QString* why = nullptr);
-// Lists the operations of `library` through the helper and builds the registry.
-// Blocking; run it on a worker.
-[[nodiscard]] GeglFilterScanResult scan_gegl_filters(const QString& library);
+// Lists the operations of `library` through the helper and builds the registry, with
+// GEGL's labels in `language` (a Patchy language code; empty: English). Blocking; run it
+// on a worker.
+[[nodiscard]] GeglFilterScanResult scan_gegl_filters(const QString& library, const QString& language = {});
 // "Edge-detect" -> "Edge Detect": a GEGL category as a menu label.
 [[nodiscard]] QString gegl_category_label(const QString& category);
 

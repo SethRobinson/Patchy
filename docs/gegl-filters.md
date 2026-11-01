@@ -14,7 +14,9 @@ Only the helper loads GEGL. Its declarations of GEGL, babl and GLib functions an
 
 ## Finding GEGL
 
-From the GIMP 3 install the GIMP plug-in settings select (`select_gimp_install`, Preferences > Plug-ins): `bin/libgegl-0.4-0.dll` (Windows), `lib/libgegl-0.4.0.dylib` in GIMP.app's tree (macOS, untested), `lib`, `lib64` or the multiarch folder's `libgegl-0.4.so.0` (Linux, untested). GIMP's Flatpak keeps its libraries in its sandbox: not supported yet, the menu says so. Turning GIMP plug-ins off in Preferences turns these off too.
+From the GIMP 3 install the GIMP plug-in settings select (`select_gimp_install`, Preferences > Plug-ins): `bin/libgegl-0.4-0.dll` (Windows), `lib/libgegl-0.4.0.dylib` in GIMP.app's `Contents` (macOS), `lib`, `lib64` or the multiarch folder's `libgegl-0.4.so.0` (Linux, untested). GIMP's Flatpak keeps its libraries in its sandbox: not supported yet, the menu says so. Turning GIMP plug-ins off in Preferences turns these off too.
+
+macOS: GIMP's dylibs name each other through an `@rpath` only GIMP's own programs set, so Patchy starts the helper with `DYLD_LIBRARY_PATH` at GIMP's `lib` folder (`prepare_helper`). A hardened-runtime helper ignores that variable and refuses libraries signed by another team, so `make-dmg.sh` signs `patchy-gegl-host` alone with `packaging/macos/patchy-gegl-host.entitlements` (`disable-library-validation`, `allow-dyld-environment-variables`) and then seals the app again over it. Checked with an ad-hoc hardened signature: refused without the entitlements, loads with them.
 
 On Windows the helper puts GIMP's `bin` first on its DLL search path and `PATH` before loading, since GEGL loads its operation modules (`lib/gegl-0.4`) later and they find GIMP's other DLLs there. `GEGL_THREADS` is set to the core count unless already set.
 
@@ -36,18 +38,19 @@ The helper reports each property from GEGL's own description of it (`gegl_operat
 - int, uint and seed: Integer; a seed gets the Randomize button.
 - bool: Boolean. enum: Option, the choice nick as the value and GEGL's label as the text.
 - `unit` pixel-distance or pixel-coordinate: pixels that scale with the in-dialog preview (`FilterSpatialScale::Pixels`); degree: degrees.
-- color, string and anything else: not shown; GEGL's default applies. 18 offered operations have a color setting (Drop Shadow, Vignette, Color to Alpha, Supernova and others).
+- color: an Option of Default (GEGL's own color, nothing sent), Foreground Color, Background Color, Black and White (`kColorChoices`, Patchy's existing data texts); the colors are the invocation's, captured when the filter starts. 18 offered operations have one (Drop Shadow, Vignette, Color to Alpha, Color Overlay, Supernova and others).
+- string and anything else: not shown; GEGL's default applies.
 
-An operation without a shown setting applies at once, without a dialog. Labels are GEGL's English text; Patchy's language does not reach them yet.
+An operation without a shown setting applies at once, without a dialog. Titles, setting labels, help and choice labels are GEGL's own, translated from GEGL's catalog (`gegl-0.4.mo`, shipped with GIMP): Patchy starts the scan with `LANGUAGE` set to its language and the helper asks libintl's `dgettext` (GLib's `g_dgettext` declines when the program has no catalog of its own). A language change lists the operations again. Category names stay GEGL's English.
 
 ## A run
 
-`run_operation` sends `op`, `size`, `format`, one `set` line per shown setting and `end`, then the pixels tightly packed, and reads the same bytes back. Formats: `R'G'B'[A] u8`, `R'G'B'[A] u16` and `RGB[A] float` for Patchy's linear 32-bit; other color modes are refused. 16-bit layers currently arrive at 8-bit precision (`deep_filter_support` lists no `gegl.` id) and 32-bit documents are refused. Every run starts the helper (about 0.3 s on Windows before the filter itself) on the worker that asked; the workers have no event loop, so the write and the wait go through `waitForBytesWritten` and `waitForFinished` in 100 ms steps, checking Cancel each time (Cancel kills the helper). `PATCHY_GEGL_TRACE=1` logs each run's steps on stderr.
+`run_operation` sends `op`, `size`, `format`, one `set` line per shown setting and `end`, then the pixels tightly packed, and reads the same bytes back. Formats: `R'G'B'[A] u8`, `R'G'B'[A] u16` and `RGB[A] float` for Patchy's linear 32-bit; other color modes are refused. Every depth runs natively: `deep_filter_support` reports `gegl.` ids as Native. Every run starts the helper (about 0.3 s on Windows before the filter itself) on the worker that asked; the workers have no event loop, so the write and the wait go through `waitForBytesWritten` and `waitForFinished` in 100 ms steps, checking Cancel each time (Cancel kills the helper). `PATCHY_GEGL_TRACE=1` logs each run's steps on stderr.
 
 ## Tests
 
-`ui_gegl_filters_list_and_apply_if_available` (tests/ui/gimp_plugin_tests.cpp; skips without GIMP's GEGL): the scan, Gaussian Blur's mapped settings, Cartoon offered through `--gpl3`, exclusions (Red Eye Removal, Crop, Over), a run straight through the registry, the menu entry, a run through `apply_filter` and its undo, and the Cartoon dialog (saved to `test-artifacts/gegl-cartoon-dialog.png`) cancelled with the layer unchanged.
+`ui_gegl_filters_list_and_apply_if_available` (tests/ui/gimp_plugin_tests.cpp; skips without GIMP's GEGL): the scan, Gaussian Blur's mapped settings, Cartoon offered through `--gpl3`, exclusions (Red Eye Removal, Crop, Over), runs straight through the registry at 8, 16 and 32 bits, Color Overlay in the foreground color, German labels, the menu entry, a run through `apply_filter` and its undo, and the Cartoon dialog (saved to `test-artifacts/gegl-cartoon-dialog.png`) cancelled with the layer unchanged.
 
 ## Not done
 
-Color settings, translated labels, native 16 and 32-bit runs, a persistent helper for faster previews, GIMP's Flatpak, macOS library validation (the hardened helper may refuse GIMP's dylibs), a per-operation patent review before release, operations with an aux input (displace, bump map).
+Any color beyond the five choices, translated category names, a persistent helper for faster previews, GIMP's Flatpak, a per-operation patent review before release, operations with an aux input (displace, bump map).

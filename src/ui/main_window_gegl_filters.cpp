@@ -43,13 +43,14 @@ QString gegl_library_for(const GimpPluginScanOptions& options, QString* problem)
   return library;
 }
 
-std::shared_ptr<GeglFilterScanResult> scan_for(const QString& library, const QString& problem) {
+std::shared_ptr<GeglFilterScanResult> scan_for(const QString& library, const QString& problem,
+                                               const QString& language) {
   if (library.isEmpty()) {
     auto result = std::make_shared<GeglFilterScanResult>();
     result->problem = problem;
     return result;
   }
-  return std::make_shared<GeglFilterScanResult>(scan_gegl_filters(library));
+  return std::make_shared<GeglFilterScanResult>(scan_gegl_filters(library, language));
 }
 
 }  // namespace
@@ -66,8 +67,9 @@ void MainWindow::start_gegl_filter_scan() {
   rebuild_gegl_filters_menu_when_closed();  // the "Scanning..." note
   auto* app = QApplication::instance();
   QPointer<MainWindow> window(this);
-  run_tracked_background_worker([app, window, generation, library, problem] {
-    auto result = scan_for(library, problem);
+  const auto language = gimp_plugin_language();  // GEGL's labels follow Patchy's language
+  run_tracked_background_worker([app, window, generation, library, problem, language] {
+    auto result = scan_for(library, problem, language);
     if (app == nullptr) {
       return;
     }
@@ -88,7 +90,7 @@ void MainWindow::ensure_gegl_filters_scanned() {
   }
   QString problem;
   const auto library = gegl_library_for(gimp_plugin_scan_options(), &problem);
-  finish_gegl_filter_scan(++gegl_filter_scan_generation_, scan_for(library, problem));
+  finish_gegl_filter_scan(++gegl_filter_scan_generation_, scan_for(library, problem, gimp_plugin_language()));
 }
 
 void MainWindow::finish_gegl_filter_scan(int generation, std::shared_ptr<GeglFilterScanResult> result) {

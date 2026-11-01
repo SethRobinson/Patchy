@@ -467,7 +467,8 @@ void MainWindow::retranslate_ui() {
 #ifndef Q_OS_WASM
   rebuild_gimp_plugins_menu();
   if (gegl_filters_ != nullptr || gegl_filter_scan_in_flight_) {
-    rebuild_gegl_filters_menu();  // the notes; offscreen windows have none until a scan
+    // GEGL's own labels come from the scan in the language it ran in: list them again.
+    start_gegl_filter_scan();
   }
 #endif
   refresh_layer_list();

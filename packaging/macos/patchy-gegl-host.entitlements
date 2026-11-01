@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- patchy-gegl-host loads GEGL from the user's GIMP.app, signed by GIMP's team (docs/gegl-filters.md). -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<!-- GIMP's libraries find each other through an @rpath only GIMP's own programs set;
+	     Patchy points the helper at GIMP's lib folder with DYLD_LIBRARY_PATH. -->
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+</dict>
+</plist>

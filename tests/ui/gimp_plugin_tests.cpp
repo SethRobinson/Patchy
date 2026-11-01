@@ -8,6 +8,9 @@
 #include "core/pixel_depth.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/command_search.hpp"
+#include "filters/filter_engine.hpp"
+#include "plugins/gimp/gimp_install.hpp"
+#include "ui/gegl_filters.hpp"
 #include "ui/gimp_plugin_catalog.hpp"
 #include "ui/gimp_plugin_run_dialog.hpp"
 #include "ui/main_window.hpp"
@@ -39,6 +42,8 @@
 #include <QString>
 #include <QTest>
 
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -869,6 +874,54 @@ void ui_gegl_filters_list_and_apply_if_available() {
   registry->apply(invocation, pixels);
   CHECK(!(std::as_const(pixels).data()[7 * 4] == std::as_const(before).data()[7 * 4] &&
           std::as_const(pixels).data()[7 * 4 + 2] == std::as_const(before).data()[7 * 4 + 2]));
+
+  // 16-bit and 32-bit (linear) layers run at their own depth.
+  for (const auto depth : {patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    CHECK(patchy::deep_filter_support("gegl.gaussian-blur", depth) == patchy::DeepFilterSupport::Native);
+    patchy::PixelBuffer deep(16, 8, patchy::PixelFormat{patchy::ColorMode::RGB, depth, 4});
+    auto rows = deep.data();
+    const auto pixel_bytes = patchy::bytes_per_pixel(deep.format());
+    for (int y = 0; y < 8; ++y) {
+      for (int x = 0; x < 16; ++x) {
+        auto* px = rows.data() + static_cast<std::size_t>(y) * deep.stride_bytes() + static_cast<std::size_t>(x) * pixel_bytes;
+        if (depth == patchy::BitDepth::UInt16) {
+          const std::uint16_t v[4] = {static_cast<std::uint16_t>(x < 8 ? 65535 : 0), 0, 0, 65535};
+          std::memcpy(px, v, sizeof(v));
+        } else {
+          const float v[4] = {x < 8 ? 1.0F : 0.0F, 0.0F, 0.0F, 1.0F};
+          std::memcpy(px, v, sizeof(v));
+        }
+      }
+    }
+    const auto deep_before = deep;
+    registry->apply(invocation, deep);
+    const auto after = std::as_const(deep).data();
+    const auto earlier = std::as_const(deep_before).data();
+    CHECK(!std::equal(after.begin(), after.end(), earlier.begin(), earlier.end()));
+  }
+
+  // A color setting is a choice: Color Overlay in the foreground color paints it.
+  if (const auto* overlay = registry->find("gegl.color-overlay"); overlay != nullptr) {
+    const auto* value = parameter(*overlay, "value");
+    CHECK(value != nullptr && value->kind == patchy::FilterParameterKind::Option);
+    auto paint = registry->default_invocation("gegl.color-overlay", patchy::RgbColor{0, 200, 0});
+    paint.parameters["value"] = std::string("foreground");
+    patchy::PixelBuffer gray(4, 4, patchy::PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::UInt8, 4});
+    std::fill(gray.data().begin(), gray.data().end(), std::uint8_t{128});
+    registry->apply(paint, gray);
+    const auto px = std::as_const(gray).data();
+    CHECK(px[1] > 180 && px[0] < 40 && px[2] < 40);
+  } else {
+    CHECK(false);  // GIMP 3.2's GEGL has Color Overlay
+  }
+
+  // GEGL's labels follow the language Patchy asks for, from GEGL's own catalog.
+  if (const auto installs = patchy::gimp::detect_gimp_installs(); !installs.empty()) {
+    const auto library = patchy::ui::find_gegl_library(installs.front());
+    const auto german = patchy::ui::scan_gegl_filters(library, QStringLiteral("de"));
+    const auto* german_blur = german.registry != nullptr ? german.registry->find("gegl.gaussian-blur") : nullptr;
+    CHECK(german_blur != nullptr && german_blur->display_name != blur->display_name);
+  }
 
   // Plugins > GEGL Filters lists it.
   bool listed = false;

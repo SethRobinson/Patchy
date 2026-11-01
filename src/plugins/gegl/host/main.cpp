@@ -175,6 +175,9 @@ struct Api {
   float (*g_value_get_float)(const Value*) = nullptr;
   double (*g_value_get_double)(const Value*) = nullptr;
   const char* (*g_value_get_string)(const Value*) = nullptr;
+  // libintl's (or the C library's) dgettext; optional. GLib's g_dgettext would decline:
+  // it translates a library only when the program has a catalog of its own.
+  const char* (*dgettext)(const char*, const char*) = nullptr;
 };
 
 Api api;
@@ -238,7 +241,7 @@ void load_gegl(const std::string& library) {
     fail(3, "Could not load " + library + " (error " + std::to_string(GetLastError()) + ")");
   }
   modules.push_back(gegl);
-  for (const auto* name : {L"libgobject-2.0-0.dll", L"libglib-2.0-0.dll", L"libbabl-0.1-0.dll"}) {
+  for (const auto* name : {L"libgobject-2.0-0.dll", L"libglib-2.0-0.dll", L"libbabl-0.1-0.dll", L"libintl-8.dll"}) {
     if (auto* module = GetModuleHandleW(name); module != nullptr) {
       modules.push_back(module);
     }
@@ -301,6 +304,19 @@ void bind_api() {
   bind(api.g_value_get_float, "g_value_get_float");
   bind(api.g_value_get_double, "g_value_get_double");
   bind(api.g_value_get_string, "g_value_get_string");
+  for (const auto* name : {"libintl_dgettext", "dgettext"}) {
+    if (auto* symbol = find_symbol(name); symbol != nullptr && api.dgettext == nullptr) {
+      std::memcpy(&api.dgettext, &symbol, sizeof(api.dgettext));
+    }
+  }
+}
+
+// GEGL's text in the LANGUAGE Patchy set, from GEGL's own catalog.
+const char* translated(const char* text) {
+  if (text == nullptr || *text == '\0' || api.dgettext == nullptr) {
+    return text;
+  }
+  return api.dgettext("gegl-0.4", text);
 }
 
 void start_gegl(bool allow_gpl3) {
@@ -359,8 +375,8 @@ bool type_named(ParamSpec* spec, const char* name) {
 
 // One property as JSON: {name, label, help, kind, default, min, max, uiMin, uiMax, unit, ...}.
 std::string describe_property(ParamSpec* spec) {
-  std::string out = "{\"name\":" + json_string(spec->name) + ",\"label\":" + json_string(spec->nick) +
-                    ",\"help\":" + json_string(spec->blurb);
+  std::string out = "{\"name\":" + json_string(spec->name) + ",\"label\":" + json_string(translated(spec->nick)) +
+                    ",\"help\":" + json_string(translated(spec->blurb));
   const auto add_key = [&](const char* key, const char* json_key) {
     if (const char* value = api.gegl_param_spec_get_property_key(spec, key); value != nullptr && *value != '\0') {
       out += std::string(",\"") + json_key + "\":" + json_string(value);
@@ -410,7 +426,7 @@ std::string describe_property(ParamSpec* spec) {
     for (unsigned i = 0; enum_class != nullptr && i < enum_class->n_values; ++i) {
       const auto& v = enum_class->values[i];
       out += std::string(i == 0 ? "" : ",") + "{\"value\":" + std::to_string(v.value) + ",\"nick\":" +
-             json_string(v.value_nick) + ",\"label\":" + json_string(v.value_name) + "}";
+             json_string(v.value_nick) + ",\"label\":" + json_string(translated(v.value_name)) + "}";
     }
     out += "]";
   } else if (fundamental == kTypeString) {
@@ -441,10 +457,10 @@ int list_operations() {
       continue;
     }
     out += std::string(first ? "" : ",") + "{\"name\":" + json_string(name) +
-           ",\"title\":" + json_string(api.gegl_operation_get_key(name, "title")) +
+           ",\"title\":" + json_string(translated(api.gegl_operation_get_key(name, "title"))) +
            ",\"categories\":" + json_string(api.gegl_operation_get_key(name, "categories")) +
            ",\"license\":" + json_string(api.gegl_operation_get_key(name, "license")) +
-           ",\"description\":" + json_string(api.gegl_operation_get_key(name, "description")) +
+           ",\"description\":" + json_string(translated(api.gegl_operation_get_key(name, "description"))) +
            ",\"input\":" + (api.gegl_node_has_pad(node, "input") != 0 ? "true" : "false") +
            ",\"aux\":" + (api.gegl_node_has_pad(node, "aux") != 0 ? "true" : "false") +
            ",\"output\":" + (api.gegl_node_has_pad(node, "output") != 0 ? "true" : "false") + ",\"properties\":[";

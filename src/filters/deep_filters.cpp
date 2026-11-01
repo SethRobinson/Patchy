@@ -106,7 +106,9 @@ void write_accumulated(float* dst, const DeepAccum& accum) {
 }  // namespace
 
 DeepFilterSupport deep_filter_support(std::string_view filter_id, BitDepth depth) {
-  if (depth == BitDepth::UInt8 || listed(kLinearSafeFilters, filter_id)) {
+  // GEGL filters (docs/gegl-filters.md) hand GEGL the layer in its own format, 16-bit
+  // encoded or 32-bit linear, and GEGL works at that depth.
+  if (depth == BitDepth::UInt8 || listed(kLinearSafeFilters, filter_id) || filter_id.starts_with("gegl.")) {
     return DeepFilterSupport::Native;
   }
   if (depth == BitDepth::Float32) {

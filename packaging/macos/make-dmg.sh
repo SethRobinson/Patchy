@@ -115,6 +115,11 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   unset PATCHY_KEYCHAIN_PASSWORD
   echo "== codesign (hardened runtime) =="
   codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
+  # The GEGL helper loads GIMP's libraries (docs/gegl-filters.md): it alone gets the
+  # entitlements for that, then the app is sealed again over the re-signed helper.
+  codesign --force --options runtime --timestamp --entitlements packaging/macos/patchy-gegl-host.entitlements \
+    -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app/Contents/MacOS/patchy-gegl-host"
+  codesign --force --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
   codesign --verify --deep --strict "$STAGE/Patchy.app"
 elif [ "${PATCHY_REQUIRE_SIGNING:-0}" = "1" ]; then
   echo "ERROR: PATCHY_REQUIRE_SIGNING=1 but PATCHY_MAC_SIGN_IDENTITY is not set." >&2

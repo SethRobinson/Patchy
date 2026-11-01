@@ -3,6 +3,7 @@
 
 #include "ui/gegl_filters.hpp"
 
+#include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
 #include "ui/qt_paths.hpp"
 
@@ -13,6 +14,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
+#include <QProcessEnvironment>
 
 #include <algorithm>
 #include <cmath>
@@ -77,6 +79,50 @@ QString babl_format_for(const PixelFormat& format) {
 
 QString number_text(double value) { return QString::number(value, 'g', 17); }
 
+// The helper's environment. macOS: GIMP's libraries name each other through an @rpath
+// only GIMP's own programs set, so the loader is pointed at GIMP's lib folder (the signed
+// helper carries the entitlement for it, packaging/macos/patchy-gegl-host.entitlements).
+// LANGUAGE: GEGL translates its own labels through gettext (the helper asks its catalog).
+void prepare_helper(QProcess& helper, const QString& library, const QString& language = {}) {
+  auto environment = QProcessEnvironment::systemEnvironment();
+#ifdef Q_OS_MACOS
+  environment.insert(QStringLiteral("DYLD_LIBRARY_PATH"), QFileInfo(library).absolutePath());
+#else
+  (void)library;
+#endif
+  if (!language.isEmpty()) {
+    environment.insert(QStringLiteral("LANGUAGE"), language);
+  }
+  helper.setProcessEnvironment(environment);
+}
+
+// A GEGL color setting is a choice: GEGL's own default, Patchy's foreground or background
+// color, black or white. The labels are Patchy's existing data texts.
+struct ColorChoice {
+  const char* value;
+  const char* label;
+};
+constexpr ColorChoice kColorChoices[] = {
+    {"default", QT_TRANSLATE_NOOP("QObject", "Default")},
+    {"foreground", QT_TRANSLATE_NOOP("QObject", "Foreground Color")},
+    {"background", QT_TRANSLATE_NOOP("QObject", "Background Color")},
+    {"black", QT_TRANSLATE_NOOP("QObject", "Black")},
+    {"white", QT_TRANSLATE_NOOP("QObject", "White")},
+};
+
+// The helper's "c" value for a color choice; empty for GEGL's default (nothing is sent).
+QByteArray color_setting(const std::string& choice, const FilterInvocation& invocation) {
+  const auto rgb = [](const RgbColor& c) {
+    return QByteArray::number(c.red / 255.0) + ' ' + QByteArray::number(c.green / 255.0) + ' ' +
+           QByteArray::number(c.blue / 255.0) + " 1";
+  };
+  if (choice == "foreground") return rgb(invocation.foreground);
+  if (choice == "background") return rgb(invocation.background);
+  if (choice == "black") return "0 0 0 1";
+  if (choice == "white") return "1 1 1 1";
+  return {};
+}
+
 // PATCHY_GEGL_TRACE=1: each run's steps on stderr.
 void trace(const char* step, const GeglOperationSpec& spec, qsizetype bytes) {
   static const bool enabled = qEnvironmentVariableIntValue("PATCHY_GEGL_TRACE") != 0;
@@ -107,7 +153,13 @@ void run_operation(const QString& library, const GeglOperationSpec& spec, const 
     }
     QByteArray value;
     const auto& v = found->second;
-    if (setting.kind == 'e') {
+    if (setting.kind == 'c') {
+      const auto* choice = std::get_if<std::string>(&v);
+      value = choice != nullptr ? color_setting(*choice, invocation) : QByteArray();
+      if (value.isEmpty()) {
+        continue;
+      }
+    } else if (setting.kind == 'e') {
       const auto* nick = std::get_if<std::string>(&v);
       const auto it = nick != nullptr ? setting.enum_values.find(*nick) : setting.enum_values.end();
       if (it == setting.enum_values.end()) {
@@ -144,6 +196,7 @@ void run_operation(const QString& library, const GeglOperationSpec& spec, const 
   };
   trace("start", spec, request.size());
   QProcess helper;
+  prepare_helper(helper, library);
   helper.setProgram(gegl_helper_path());
   helper.setArguments({QStringLiteral("--gegl"), library, QStringLiteral("--gpl3"), QStringLiteral("--run")});
   helper.start();
@@ -258,6 +311,15 @@ std::optional<FilterParameterDefinition> parameter_for(const QJsonObject& p, Geg
     d.default_value = p.value(QStringLiteral("default")).toBool();
     return d;
   }
+  if (kind == QLatin1String("color")) {
+    setting.kind = 'c';
+    d.kind = FilterParameterKind::Option;
+    for (const auto& choice : kColorChoices) {
+      d.options.push_back({choice.value, choice.label});
+    }
+    d.default_value = std::string("default");
+    return d;
+  }
   if (kind == QLatin1String("enum")) {
     setting.kind = 'e';
     d.kind = FilterParameterKind::Option;
@@ -364,7 +426,7 @@ bool gegl_operation_offered(const QJsonObject& operation, QString* why) {
   return true;
 }
 
-GeglFilterScanResult scan_gegl_filters(const QString& library) {
+GeglFilterScanResult scan_gegl_filters(const QString& library, const QString& language) {
   GeglFilterScanResult result;
   result.library = library;
   const auto helper_path = gegl_helper_path();
@@ -374,6 +436,7 @@ GeglFilterScanResult scan_gegl_filters(const QString& library) {
     return result;
   }
   QProcess helper;
+  prepare_helper(helper, library, language);
   helper.start(helper_path, {QStringLiteral("--gegl"), library, QStringLiteral("--gpl3"), QStringLiteral("--list")});
   helper.closeWriteChannel();
   if (!helper.waitForFinished(60000) || helper.exitCode() != 0) {
