@@ -31,6 +31,10 @@ Read before touching a feature below or one near it. Licensing, file formats, tr
 - **No external programs, no network, no other G'MIC code.** The engine is built with `gmic_noexec` and `cimg_no_system_calls` and without curl. Community filters and online updates are never loaded (mixed licensing, mutable after review).
 - **Licensing.** Only the CeCILL-C sources are used. Nothing comes from G'MIC-Qt (GPL 3), and FFTW (GPL) is never linked; the engine's FFT is pocketfft (BSD-3-Clause).
 
+## GEGL filters
+
+- **Patchy's own GEGL is built without Median Blur, Focus Blur and Red Eye Removal** (`PATCHY_GEGL_DROPPED`, removed from GEGL's build lists, not merely hidden), and Vibrance stays out of the menu while Apple US 8638338 claim 25 is unread (review of 2026-11-02, [gegl-filters.md](gegl-filters.md#legal-review)). A new GEGL version or operation needs the same review before it ships; licensing is in [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper).
+
 ## Brush behavior
 
 - **Flow and Airbrush remain flat-stamp operations.** They may repeat the current 2D stamp at fixed spatial/time cadences and cap accumulated paint at Opacity. Do not add particles, a 3D spray cone, stylus-pose projection, velocity-dependent deposition, bristle or fluid simulation, wet/dirty paint, or bidirectional transfer without re-reading US 8854342 and the US 9600907/10489937 family.

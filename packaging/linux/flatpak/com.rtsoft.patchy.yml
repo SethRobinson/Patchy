@@ -51,9 +51,10 @@ modules:
         sha256: e16a27a8ed330bbc698df7330b0cf56e722f354e3bcc92118682c74ef3c3e3da
   # Patchy's own GEGL (docs/gegl-filters.md, "Bundled GEGL"): babl and GEGL from gimp.org's
   # tarballs with every optional dependency off; the runtime supplies GLib and json-glib.
-  # Keep the versions and checksums in sync with scripts/dev/gegl/. The cleanups leave the
-  # operation modules the Windows bundle ships: never the GPL-3 module, file loaders and
-  # savers, transforms, seamless clone or vector fill (docs/legal-licensing.md).
+  # Keep the versions and checksums in sync with scripts/dev/gegl/ (sources.lock). The
+  # cleanups leave the operation modules the Windows bundle ships, GPL-3 module included:
+  # never file loaders and savers, transforms, seamless clone or vector fill
+  # (docs/legal-licensing.md).
   - name: babl
     buildsystem: meson
     config-opts:
@@ -85,16 +86,22 @@ modules:
       - type: archive
         url: https://download.gimp.org/pub/gegl/0.4/gegl-0.4.72.tar.xz
         sha256: ccbb8cdd1db56ecd4ece5dbabae0118ab2c46b5b3439c94f3cec467798ce956d
+      # The operations Patchy's GEGL is built without, as on every platform.
+      - type: file
+        path: ../../../scripts/dev/gegl/common.sh
+      - type: shell
+        commands:
+          - . ./common.sh && patchy_gegl_drop_operations .
     post-install:
       - install -Dm644 "$FLATPAK_BUILDER_BUILDDIR/COPYING.LESSER" /app/share/licenses/com.rtsoft.patchy/gegl-COPYING.LESSER.txt
       - install -Dm644 "$FLATPAK_BUILDER_BUILDDIR/COPYING" /app/share/licenses/com.rtsoft.patchy/gegl-COPYING.txt
+      - sh -c '. "$FLATPAK_BUILDER_BUILDDIR/common.sh" && { echo "Patchy GEGL 0.4.72, babl 0.1.128 (gimp.org tarballs); GLib and json-glib are the runtime'"'"'s."; patchy_gegl_sources_note; }' > /app/share/licenses/com.rtsoft.patchy/gegl-SOURCES.txt
     cleanup:
       - /bin
       - /include
       - /lib/pkgconfig
       - /lib/libgegl-npd-*
       - /lib/libgegl-sc-*
-      - /lib/gegl-0.4/gegl-common-gpl3*
       - /lib/gegl-0.4/*-load.so
       - /lib/gegl-0.4/*-save.so
       - /lib/gegl-0.4/*transformops*

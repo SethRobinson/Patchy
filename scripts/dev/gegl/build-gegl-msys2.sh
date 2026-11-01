@@ -4,20 +4,23 @@
 #
 #   <repo>/.deps/gegl/<gegl version>/<win-x64|win-arm64>/{bin,lib/gegl-0.4,lib/babl-0.1,share/locale,licenses}
 #
-#   MSYSTEM=CLANG64 bash -l scripts/dev/gegl/build-gegl-msys2.sh <repo> [--gpl3]
+#   MSYSTEM=CLANG64 bash -l scripts/dev/gegl/build-gegl-msys2.sh <repo>
 #
 # babl and GEGL come from gimp.org's release tarballs, checked against the pinned SHA-256
-# below; every optional GEGL dependency is off (no PDF, raw, SVG, text, video, TIFF...).
-# The rest comes from MSYS2's packages (GLib, json-glib and their libraries, libjpeg-turbo,
-# libpng, zlib). Only the operation modules Patchy offers are staged: never the file
-# loaders and savers, transforms, seamless clone or vector fill, and the GPL-3 module only
-# with --gpl3 (docs/legal-licensing.md). Needs: pacman packages toolchain meson ninja
-# pkgconf glib2 json-glib gettext-tools python libjpeg-turbo libpng zlib.
+# below, with the operations common.sh names removed; every optional GEGL dependency is off
+# (no PDF, raw, SVG, text, video, TIFF...). The rest comes from MSYS2's packages (GLib,
+# json-glib and their libraries, libjpeg-turbo, libpng, zlib); the source package of each
+# one staged must be in sources.lock (the script prints the missing lines and stops). Only
+# the operation modules Patchy offers are staged (GPL-3 module included): never the file
+# loaders and savers, transforms, seamless clone or vector fill (docs/legal-licensing.md).
+# Needs: pacman packages toolchain meson ninja pkgconf glib2 json-glib gettext-tools
+# python libjpeg-turbo libpng zlib.
 set -euo pipefail
 
-REPO=${1:?usage: build-gegl-msys2.sh <repo> [--gpl3]}
-GPL3=${2:-}
+REPO=${1:?usage: build-gegl-msys2.sh <repo>}
 [ -f "$REPO/CMakeLists.txt" ] || { echo "not a Patchy checkout: $REPO" >&2; exit 2; }
+PATCHY_GEGL_SCRIPTS=$(cd "$(dirname "$0")" && pwd)
+. "$PATCHY_GEGL_SCRIPTS/common.sh"
 
 GEGL_VERSION=0.4.72
 GEGL_SHA256=ccbb8cdd1db56ecd4ece5dbabae0118ab2c46b5b3439c94f3cec467798ce956d
@@ -44,6 +47,7 @@ fetch() {  # url sha256
 }
 fetch "https://download.gimp.org/pub/babl/0.1/babl-$BABL_VERSION.tar.xz" "$BABL_SHA256"
 fetch "https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz" "$GEGL_SHA256"
+patchy_gegl_drop_operations "gegl-$GEGL_VERSION"
 
 # A developer self-check of the export lists (check-def-files) calls a Windows tool that
 # fails under MSYS2: build everything else (-k 0) and install without rebuilding.
@@ -62,9 +66,7 @@ STAGE="$WORK/stage"
 mkdir -p "$STAGE/bin" "$STAGE/lib/gegl-0.4" "$STAGE/lib/babl-0.1" "$STAGE/licenses"
 cp "$PREFIX/bin/libgegl-0.4-0.dll" "$PREFIX/bin/libbabl-0.1-0.dll" "$STAGE/bin/"
 SYSBIN="/${MSYSTEM,,}/bin"
-modules=(gegl-common gegl-common-cxx gegl-generated)
-[ "$GPL3" = --gpl3 ] && modules+=(gegl-common-gpl3)
-for module in "${modules[@]}"; do
+for module in gegl-common gegl-common-cxx gegl-generated gegl-common-gpl3; do
   for variant in "" -x86_64-v2 -x86_64-v3; do
     [ -f "$PREFIX/lib/gegl-0.4/$module$variant.dll" ] && cp "$PREFIX/lib/gegl-0.4/$module$variant.dll" "$STAGE/lib/gegl-0.4/"
   done
@@ -97,24 +99,44 @@ while true; do
 done
 strip --strip-unneeded "$STAGE"/bin/*.dll "$STAGE"/lib/*/*.dll
 
-# Licenses, and what to ask for the sources (docs/gegl-filters.md, "Bundled GEGL").
+# The MSYS2 packages staged, each with its source package, which must be in sources.lock:
+# MSYS2 names it after the package base (gettext-runtime comes from gettext).
+packages=$(for name in "$STAGE"/bin/*.dll; do
+  [ -f "$SYSBIN/$(basename "$name")" ] && pacman -Qqo "$SYSBIN/$(basename "$name")"
+done | sort -u)
+missing=0
+sources=()
+for package in $packages; do
+  short=${package#"$PACKAGE_PREFIX"-}
+  base=$short
+  [ "$short" = gettext-runtime ] && base=gettext
+  version=$(pacman -Q "$package" | cut -d' ' -f2)
+  source="mingw-w64-$base-$version.src.tar.zst"
+  sources+=("$package $version: $source")
+  if ! patchy_gegl_locked "$source"; then
+    cache="$REPO/.deps/gegl/sources"
+    mkdir -p "$cache"
+    curl -sSfL -o "$cache/$source" "https://repo.msys2.org/mingw/sources/$source"
+    echo "add to scripts/dev/gegl/sources.lock: $source $(sha256sum "$cache/$source" | cut -d' ' -f1) https://repo.msys2.org/mingw/sources/$source" >&2
+    missing=1
+  fi
+  for file in "/${MSYSTEM,,}/share/licenses/$short"/*; do
+    [ -f "$file" ] && cp "$file" "$STAGE/licenses/$short-$(basename "$file").txt"
+  done
+done
+[ $missing = 0 ] || { echo "the source packages above are not in sources.lock: nothing staged" >&2; exit 3; }
+
+# Licenses and the sources (docs/gegl-filters.md, "Sources").
 cp "gegl-$GEGL_VERSION/COPYING.LESSER" "$STAGE/licenses/gegl-COPYING.LESSER.txt"
 cp "gegl-$GEGL_VERSION/COPYING" "$STAGE/licenses/gegl-COPYING.txt"
 cp "babl-$BABL_VERSION/COPYING" "$STAGE/licenses/babl-COPYING.txt"
-for package in glib2 json-glib libffi pcre2 libiconv gettext-runtime libjpeg-turbo libpng zlib; do
-  for file in "/${MSYSTEM,,}/share/licenses/$package"/*; do
-    [ -f "$file" ] && cp "$file" "$STAGE/licenses/$package-$(basename "$file").txt"
-  done
-done
 {
   echo "Patchy's GEGL bundle ($PLATFORM), built $(date -u +%Y-%m-%d) by scripts/dev/gegl/build-gegl-msys2.sh"
   echo "GEGL $GEGL_VERSION https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz sha256 $GEGL_SHA256"
   echo "babl $BABL_VERSION https://download.gimp.org/pub/babl/0.1/babl-$BABL_VERSION.tar.xz sha256 $BABL_SHA256"
-  echo "GPL-3 operations: $([ "$GPL3" = --gpl3 ] && echo included || echo not included)"
-  echo "MSYS2 packages (sources: https://github.com/msys2/MINGW-packages and the upstream projects):"
-  for package in glib2 json-glib libffi pcre2 libiconv gettext-runtime libjpeg-turbo libpng zlib; do
-    pacman -Q "$PACKAGE_PREFIX-$package"
-  done
+  echo "MSYS2 packages ($PACKAGE_PREFIX), with their source packages from https://repo.msys2.org/mingw/sources/:"
+  printf '  %s\n' "${sources[@]}"
+  patchy_gegl_sources_note
 } >"$STAGE/licenses/SOURCES.txt"
 
 # Refill the folder in place (a shell or explorer may hold it open).

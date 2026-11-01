@@ -95,6 +95,8 @@ if (pluginsFolder) {
     "patchy-gegl-host.exe",
     "gegl/bin/libgegl-0.4-0.dll",
     "gegl/licenses/SOURCES.txt",
+    "gegl/licenses/gegl-COPYING.txt",
+    "gegl/licenses/gegl-COPYING.LESSER.txt",
     "LICENSE",
     "NOTICE-THIRD-PARTY.md",
     "licenses/gmic/gmic-COPYING.txt",
@@ -124,6 +126,10 @@ var geglTarget = source.addLayer("gegl");
 geglTarget.fillRect(0, 0, 8, 8, "#ff0000");
 geglTarget.fillRect(8, 0, 8, 8, "#0000ff");
 geglTarget.applyFilter("gegl.gaussian-blur", {"std-dev-x": 3, "std-dev-y": 3});
+// The GPL-3 module ships (docs/legal-licensing.md) and a removed operation does not.
+check(gegl.some(function (f) { return f.id === "gegl.cartoon"; }), "GEGL's GPL-3 filters are missing");
+check(!gegl.some(function (f) { return f.id === "gegl.median-blur"; }), "an excluded GEGL filter is offered");
+geglTarget.applyFilter("gegl.cartoon", {});
 console.log("gegl ok: " + gegl.length + " filters");
 
 // --- legacy plug-in hosts: one 32-bit and one 64-bit filter must run -------------------

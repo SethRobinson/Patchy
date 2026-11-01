@@ -1131,14 +1131,23 @@ user's own GIMP 3 installation provides the plug-ins at run time.
 
 ## Patchy's own GEGL (the gegl folder)
 
-Windows packages carry GEGL 0.4.72 and babl 0.1.128 (GNU LGPL version 3 or later,
-<https://gegl.org>, <https://gegl.org/babl>), GLib 2.90 and json-glib 1.10 (GNU LGPL version
-2.1 or later), libiconv and the gettext runtime's libintl (GNU LGPL version 2.1 or later),
-libffi (MIT), PCRE2 (BSD) and zlib (zlib license), unmodified, as separate libraries in the
-`gegl` folder that `patchy-gegl-host` loads. Their license texts, and the exact versions with
-where to get their complete source, are in `gegl/licenses` (`SOURCES.txt`). No GPL code is
-included. Patchy's helper only calls these libraries; you may replace them with your own builds
-of the same versions.
+Patchy's packages carry GEGL 0.4.72 and babl 0.1.128 (<https://gegl.org>,
+<https://gegl.org/babl>; GNU LGPL version 3 or later, except GEGL's `gegl-common-gpl3`
+operation module, which is under the GNU GPL version 3 or later), as separate libraries that
+`patchy-gegl-host` loads. On Windows and macOS they come with GLib and json-glib (GNU LGPL
+version 2.1 or later), libintl from the gettext runtime and, on Windows, libiconv (GNU LGPL
+version 2.1 or later), libffi (MIT), PCRE2 (BSD) and zlib (zlib license); the Linux Flatpak
+uses its runtime's GLib and json-glib. GEGL is built from its release tarball without a few
+operations, removed from its build lists by `scripts/dev/gegl/common.sh`; nothing else is
+modified. The license texts and the exact versions are in the package's GEGL `licenses`
+folder (`SOURCES.txt`; in the Flatpak, `/app/share/licenses/com.rtsoft.patchy`). The complete
+corresponding source of all of them, with the scripts that built them, is
+`PatchyGeglSources.zip`, published with every Patchy release at
+<https://github.com/SethRobinson/Patchy/releases> and at
+<https://rtsoft.com/files/PatchyGeglSources.zip>. Patchy's helper only calls these libraries
+and you may replace them with your own builds. The helper's source is part of Patchy's own
+source (MIT, a license compatible with the GPL), in the release's tag of
+<https://github.com/SethRobinson/Patchy>.
 
 ## GEGL, babl and GLib interface declarations (patchy-gegl-host)
 
@@ -1151,6 +1160,6 @@ GIMP 3.2.6. GEGL and babl are Copyright (C) the GEGL and babl authors, GLib is
 Copyright (C) the GLib authors; all three are licensed under the GNU Lesser
 General Public License (GEGL and babl version 3 or later, GLib version 2.1 or
 later). LGPL-3 section 3 permits this use of a header's numerical parameters
-and data structure layouts. No GEGL, babl or GLib code or library is included
-in or distributed with Patchy; the helper loads the user's own installed copies
-at run time.
+and data structure layouts. No GEGL, babl or GLib code is compiled into the helper or any
+other Patchy program; the helper loads the libraries above, or a user's own GIMP 3
+installation's, at run time.

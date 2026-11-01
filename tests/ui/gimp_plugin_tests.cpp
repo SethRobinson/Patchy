@@ -48,7 +48,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <functional>
+#include <iostream>
 #include <memory>
 #include <optional>
 
@@ -865,12 +867,16 @@ void ui_gegl_filters_list_and_apply_if_available() {
   }
   const auto* abyss = parameter(*blur, "abyss-policy");
   CHECK(abyss != nullptr && abyss->kind == patchy::FilterParameterKind::Option && !abyss->options.empty());
-  // Patchy's own GEGL ships no GPL-3 operation; GIMP's GEGL offers them through --gpl3.
-  CHECK((registry->find("gegl.cartoon") != nullptr) == bundled.isEmpty());
-  // Left out by the legal review (docs/gegl-filters.md, "Legal review").
-  for (const auto* id : {"gegl.median-blur", "gegl.focus-blur", "gegl.slic", "gegl.waterpixels",
-                         "gegl.shadows-highlights", "gegl.seamless-clone"}) {
+  // The GPL-3 operations, from Patchy's own GEGL and GIMP's alike (the helper's --gpl3).
+  CHECK(registry->find("gegl.cartoon") != nullptr);
+  // Left out by the legal review (docs/gegl-filters.md, "Legal review"), and as not useful.
+  for (const auto* id : {"gegl.median-blur", "gegl.focus-blur", "gegl.vibrance", "gegl.seamless-clone",
+                         "gegl.absolute", "gegl.unpremultiply", "gegl.tile", "gegl.rectangle", "gegl.dropshadow"}) {
     CHECK(registry->find(id) == nullptr);
+  }
+  // Cleared by the review: expired Shadow/Highlight patents, no superpixel patent found.
+  for (const auto* id : {"gegl.shadows-highlights", "gegl.slic", "gegl.waterpixels"}) {
+    CHECK(registry->find(id) != nullptr);
   }
   CHECK(registry->find("gegl.red-eye-removal") == nullptr);
   CHECK(registry->find("gegl.crop") == nullptr);       // geometry, not a filter
@@ -1099,6 +1105,66 @@ void ui_gimp_plugins_menu_lists_test_plugin_if_available() {
   qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
 }
 
+// Every filter Patchy's own GEGL offers runs at its defaults on a small gradient and gives
+// back a buffer of the same size (docs/gegl-filters.md, "Tests"). Skips without the bundle.
+void ui_gegl_bundled_filters_all_run() {
+  if (patchy::ui::bundled_gegl_library().isEmpty()) {
+    patchy::test::skip("this build has no GEGL of its own");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::ensure_gegl_filters_scanned(window);
+  const auto registry =
+      patchy::ui::MainWindowTestAccess::gegl_filter_registry(window, QStringLiteral("gegl.gaussian-blur"));
+  CHECK(registry != nullptr);
+  if (registry == nullptr) {
+    return;
+  }
+  const auto& filters = registry->filters();
+  CHECK(filters.size() >= 100U);  // 116 from GEGL 0.4.72 with the GPL-3 module
+  const patchy::PixelFormat format{patchy::ColorMode::RGB, patchy::BitDepth::UInt8, 4};
+  patchy::PixelBuffer gradient(48, 32, format);
+  {
+    auto bytes = gradient.data();
+    for (int y = 0; y < 32; ++y) {
+      for (int x = 0; x < 48; ++x) {
+        auto* px = bytes.data() + static_cast<std::size_t>(y) * gradient.stride_bytes() + static_cast<std::size_t>(x) * 4U;
+        px[0] = static_cast<std::uint8_t>(x * 5);
+        px[1] = static_cast<std::uint8_t>(y * 7);
+        px[2] = static_cast<std::uint8_t>((x + y) * 3);
+        px[3] = 255;
+      }
+    }
+  }
+  QStringList failed;
+  QStringList unchanged;
+  for (const auto& filter : filters) {
+    auto pixels = gradient;
+    try {
+      registry->apply(registry->default_invocation(filter.identifier), pixels);
+    } catch (const std::exception& error) {
+      failed << QStringLiteral("%1 (%2)").arg(QString::fromStdString(filter.identifier), QString::fromUtf8(error.what()));
+      continue;
+    }
+    if (pixels.width() != gradient.width() || pixels.height() != gradient.height()) {
+      failed << QString::fromStdString(filter.identifier) + QStringLiteral(" (size changed)");
+      continue;
+    }
+    const auto after = std::as_const(pixels).data();
+    const auto before = std::as_const(gradient).data();
+    if (std::equal(after.begin(), after.end(), before.begin(), before.end())) {
+      unchanged << QString::fromStdString(filter.identifier);
+    }
+  }
+  if (!failed.isEmpty()) {
+    std::cerr << "GEGL filters that failed: " << failed.join(QStringLiteral(", ")).toStdString() << '\n';
+  }
+  // Informational: a filter can leave this gradient alone at its defaults (a clip within range).
+  std::cerr << "GEGL filters run: " << filters.size() << ", unchanged at defaults: "
+            << unchanged.join(QStringLiteral(", ")).toStdString() << '\n';
+  CHECK(failed.isEmpty());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> gimp_plugin_tests() {
@@ -1109,6 +1175,7 @@ std::vector<patchy::test::TestCase> gimp_plugin_tests() {
       {"ui_gimp_plugin_runs_on_deep_layers_if_available", ui_gimp_plugin_runs_on_deep_layers_if_available},
       {"ui_gimp_plugins_menu_lists_test_plugin_if_available", ui_gimp_plugins_menu_lists_test_plugin_if_available},
       {"ui_gegl_filters_list_and_apply_if_available", ui_gegl_filters_list_and_apply_if_available},
+      {"ui_gegl_bundled_filters_all_run", ui_gegl_bundled_filters_all_run},
       {"ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu",
        ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu},
       {"ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available",

@@ -12,12 +12,16 @@
 # macOS's), json-glib, babl and GEGL. Homebrew supplies only build-time pieces: meson, ninja,
 # pkgconf, and jpeg-turbo and libpng, which GEGL's configure requires for the file loaders
 # Patchy does not stage; the staged files are checked to name no Homebrew path. The modules
-# staged are the ones the Windows script stages, never the GPL-3 module.
+# staged are the ones the Windows script stages, GPL-3 module included, and GEGL is built
+# without the operations common.sh names. Every source archive used, GLib's PCRE2
+# subproject included, must be in sources.lock.
 set -euo pipefail
 
 REPO=${1:?usage: build-gegl-macos.sh <repo>}
 REPO=$(cd "$REPO" && pwd)
 [ -f "$REPO/CMakeLists.txt" ] || { echo "not a Patchy checkout: $REPO" >&2; exit 2; }
+PATCHY_GEGL_SCRIPTS=$(cd "$(dirname "$0")" && pwd)
+. "$PATCHY_GEGL_SCRIPTS/common.sh"
 export PATH="/opt/homebrew/bin:$PATH"
 export MACOSX_DEPLOYMENT_TARGET=12.0
 
@@ -30,7 +34,7 @@ GLIB_SHA256=8a9ea10943c36fc117e253f80c91e477b673525ae45762942858aef57631bb90
 JSON_GLIB_VERSION=1.10.8
 JSON_GLIB_SHA256=55c5c141a564245b8f8fbe7698663c87a45a7333c2a2c56f06f811ab73b212dd
 # GNU signs gettext with PGP and publishes no checksum: this is the SHA-256 of the copy first
-# fetched on November 3, 2026 (docs/gimp-plugins-provenance.md).
+# fetched on November 2, 2026 (docs/gimp-plugins-provenance.md).
 GETTEXT_VERSION=0.26
 GETTEXT_SHA256=d1fb86e260cfe7da6031f94d2e44c0da55903dbae0a2fa0fae78c91ae1b56f00
 
@@ -47,6 +51,7 @@ fetch() {  # url sha256
   file=$(basename "$1")
   curl -sSfL -o "$file" "$1"
   echo "$2  $file" | shasum -a 256 -c - >/dev/null
+  patchy_gegl_locked "$file" "$2" || { echo "$file is not in sources.lock" >&2; exit 3; }
   tar xf "$file"
 }
 fetch "https://ftp.gnu.org/gnu/gettext/gettext-$GETTEXT_VERSION.tar.xz" "$GETTEXT_SHA256"
@@ -54,6 +59,7 @@ fetch "https://download.gnome.org/sources/glib/${GLIB_VERSION%.*}/glib-$GLIB_VER
 fetch "https://download.gnome.org/sources/json-glib/${JSON_GLIB_VERSION%.*}/json-glib-$JSON_GLIB_VERSION.tar.xz" "$JSON_GLIB_SHA256"
 fetch "https://download.gimp.org/pub/babl/0.1/babl-$BABL_VERSION.tar.xz" "$BABL_SHA256"
 fetch "https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz" "$GEGL_SHA256"
+patchy_gegl_drop_operations "gegl-$GEGL_VERSION"
 
 (cd "gettext-$GETTEXT_VERSION/gettext-runtime" &&
   ./configure --prefix="$PREFIX" --disable-static --disable-java --disable-csharp --disable-libasprintf \
@@ -68,14 +74,25 @@ meson_build() {  # source dir, extra options...
 }
 meson_build "glib-$GLIB_VERSION" -Dtests=false -Dintrospection=disabled -Dman-pages=disabled \
   -Ddocumentation=false -Dselinux=disabled -Dlibmount=disabled -Dsysprof=disabled --force-fallback-for=pcre2
+# What meson downloaded for GLib's subprojects (PCRE2 and its build files) ships too.
+missing=0
+for archive in "glib-$GLIB_VERSION"/subprojects/packagecache/*; do
+  [ -f "$archive" ] || continue
+  sum=$(shasum -a 256 "$archive" | cut -d' ' -f1)
+  if ! patchy_gegl_locked "$(basename "$archive")" "$sum"; then
+    echo "add to scripts/dev/gegl/sources.lock: $(basename "$archive") $sum <its URL in glib-$GLIB_VERSION/subprojects>" >&2
+    missing=1
+  fi
+done
+[ $missing = 0 ] || exit 3
 meson_build "json-glib-$JSON_GLIB_VERSION" -Dintrospection=disabled -Dtests=false -Dgtk_doc=disabled -Dman=false
 meson_build "babl-$BABL_VERSION" -Dauto_features=disabled -Dwith-docs=false -Denable-gir=false -Denable-vapi=false
 meson_build "gegl-$GEGL_VERSION" -Dauto_features=disabled -Ddocs=false -Dworkshop=false -Dintrospection=false
 
 STAGE="$WORK/stage"
 mkdir -p "$STAGE/lib/gegl-0.4" "$STAGE/lib/babl-0.1" "$STAGE/licenses"
-cp "$PREFIX"/lib/gegl-0.4/{gegl-common,gegl-common-cxx,gegl-generated,gegl-core}.dylib "$STAGE/lib/gegl-0.4/" 2>/dev/null ||
-  cp "$PREFIX"/lib/gegl-0.4/{gegl-common,gegl-common-cxx,gegl-generated,gegl-core}.so "$STAGE/lib/gegl-0.4/"
+cp "$PREFIX"/lib/gegl-0.4/{gegl-common,gegl-common-cxx,gegl-generated,gegl-common-gpl3,gegl-core}.dylib "$STAGE/lib/gegl-0.4/" 2>/dev/null ||
+  cp "$PREFIX"/lib/gegl-0.4/{gegl-common,gegl-common-cxx,gegl-generated,gegl-common-gpl3,gegl-core}.so "$STAGE/lib/gegl-0.4/"
 cp "$PREFIX"/lib/babl-0.1/* "$STAGE/lib/babl-0.1/"
 rm -f "$STAGE"/lib/babl-0.1/cairo.*
 # The libraries the staged ones load from the prefix, followed until nothing new appears;
@@ -132,7 +149,10 @@ pcre2_license=$(find "build-glib-$GLIB_VERSION" "glib-$GLIB_VERSION/subprojects"
   echo "GLib $GLIB_VERSION https://download.gnome.org/sources/glib/ sha256 $GLIB_SHA256 (PCRE2 from its meson subproject)"
   echo "json-glib $JSON_GLIB_VERSION https://download.gnome.org/sources/json-glib/ sha256 $JSON_GLIB_SHA256"
   echo "gettext $GETTEXT_VERSION https://ftp.gnu.org/gnu/gettext/ sha256 $GETTEXT_SHA256"
-  echo "GPL-3 operations: not included."
+  for archive in "glib-$GLIB_VERSION"/subprojects/packagecache/*; do
+    [ -f "$archive" ] && echo "GLib subproject $(basename "$archive") sha256 $(shasum -a 256 "$archive" | cut -d' ' -f1)"
+  done
+  patchy_gegl_sources_note
 } >"$STAGE/licenses/SOURCES.txt"
 
 mkdir -p "$OUT"

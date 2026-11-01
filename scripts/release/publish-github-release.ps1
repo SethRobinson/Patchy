@@ -23,6 +23,8 @@ Assets, taken from -AssetDir (default build\package):
   PatchyWindowsArm64Installer.exe, PatchyWindowsArm64NoInstaller.zip (stable names)
   Patchy-<version>.dmg -> PatchyMacOS.dmg, Patchy-<version>.flatpak -> PatchyLinux.flatpak,
   Patchy-<version>-x86_64.AppImage(.zsync) -> PatchyLinux.AppImage(.zsync)
+  PatchyGeglSources.zip (build-release.bat; the source of the GEGL the packages carry,
+  which its licenses require beside the downloads: docs/gegl-filters.md, "Sources")
   (the mac and Linux builders write versioned files; the stable-name copies that
   upload-mac/linux-to-rtsoft.bat leave in build\package are whatever shipped LAST, so
   they are never used here. When -AssetDir already holds the stable names and no
@@ -42,7 +44,8 @@ param(
   [string]$Target,
   [string]$AssetDir,
   [string]$Repo = 'SethRobinson/Patchy',
-  [switch]$SkipAppImage
+  [switch]$SkipAppImage,
+  [switch]$SkipGeglSources
 )
 # 'Continue', not 'Stop': native stderr chatter (git, gh) would otherwise become a
 # terminating NativeCommandError under Windows PowerShell 5.1. Every native call
@@ -142,6 +145,10 @@ $assets = [ordered]@{
   'PatchyMacOS.dmg'              = Resolve-Asset 'PatchyMacOS.dmg' "Patchy-$Version.dmg"
   'PatchyLinux.flatpak'          = Resolve-Asset 'PatchyLinux.flatpak' "Patchy-$Version.flatpak"
 }
+# -SkipGeglSources is only for backfilling a release from before Patchy shipped its own GEGL.
+if (-not $SkipGeglSources) {
+  $assets['PatchyGeglSources.zip'] = Resolve-Asset 'PatchyGeglSources.zip' $null
+}
 # The AppImage and its zsync file (docs/appimage.md). The zsync file names the AppImage
 # by its published name, so the two always ship together. -SkipAppImage is only for
 # backfilling a release from before the AppImage existed.
@@ -229,6 +236,10 @@ $appImageRow = ''
 if (-not $SkipAppImage) {
   $appImageRow = "`n| Linux AppImage (Ubuntu 22.04 or newer) | [PatchyLinux.AppImage]($base/PatchyLinux.AppImage) |"
 }
+$geglSourcesSentence = ''
+if (-not $SkipGeglSources) {
+  $geglSourcesSentence = " The source of the GEGL libraries the packages carry (GNU LGPL and GPL) is [PatchyGeglSources.zip]($base/PatchyGeglSources.zip)."
+}
 $notesText += @"
 ## Downloads
 
@@ -241,7 +252,7 @@ $notesText += @"
 | macOS 12+ (Apple Silicon) | [PatchyMacOS.dmg]($base/PatchyMacOS.dmg) |
 | Linux Flatpak bundle | [PatchyLinux.flatpak]($base/PatchyLinux.flatpak) |$appImageRow
 
-Windows builds are code signed; the macOS app is signed and notarized. Checksums are in [SHA256SUMS.txt]($base/SHA256SUMS.txt). The same files are mirrored at rtsoft.com, and the browser version runs at [patchyimageeditor.com](https://www.patchyimageeditor.com).
+Windows builds are code signed; the macOS app is signed and notarized. Checksums are in [SHA256SUMS.txt]($base/SHA256SUMS.txt).$geglSourcesSentence The same files are mirrored at rtsoft.com, and the browser version runs at [patchyimageeditor.com](https://www.patchyimageeditor.com).
 "@
 if (-not $SkipAppImage) {
   # Install lines for the AppImage; the README's AppImage section has the per-distro FUSE

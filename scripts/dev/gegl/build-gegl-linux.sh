@@ -9,12 +9,15 @@
 # It re-runs itself in `flatpak run org.kde.Sdk//<the manifest's runtime-version>`. babl and
 # GEGL come from gimp.org's release tarballs, checked against the pinned SHA-256; GLib and
 # json-glib are the runtime's own and are not staged. The modules staged are the ones the
-# Windows script stages (build-gegl-msys2.sh), never the GPL-3 module.
+# Windows script stages (build-gegl-msys2.sh), GPL-3 module included, and GEGL is built
+# without the operations common.sh names.
 set -eu
 
 REPO=${1:?usage: build-gegl-linux.sh <repo>}
 REPO=$(cd "$REPO" && pwd)
 [ -f "$REPO/CMakeLists.txt" ] || { echo "not a Patchy checkout: $REPO" >&2; exit 2; }
+PATCHY_GEGL_SCRIPTS=$(cd "$(dirname "$0")" && pwd)
+. "$PATCHY_GEGL_SCRIPTS/common.sh"
 
 GEGL_VERSION=0.4.72
 GEGL_SHA256=ccbb8cdd1db56ecd4ece5dbabae0118ab2c46b5b3439c94f3cec467798ce956d
@@ -40,10 +43,12 @@ fetch() {  # url sha256
   file=$(basename "$1")
   curl -sSfL -o "$file" "$1"
   echo "$2  $file" | sha256sum -c - >/dev/null
+  patchy_gegl_locked "$file" "$2" || { echo "$file is not in sources.lock" >&2; exit 3; }
   tar xf "$file"
 }
 fetch "https://download.gimp.org/pub/babl/0.1/babl-$BABL_VERSION.tar.xz" "$BABL_SHA256"
 fetch "https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz" "$GEGL_SHA256"
+patchy_gegl_drop_operations "gegl-$GEGL_VERSION"
 
 build() {  # source dir, extra options...
   src=$1
@@ -57,7 +62,7 @@ PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig" build "gegl-$GEGL_VERSION" -Ddocs=false 
 STAGE="$WORK/stage"
 mkdir -p "$STAGE/lib/gegl-0.4" "$STAGE/lib/babl-0.1" "$STAGE/licenses"
 cp -L "$PREFIX/lib/libgegl-0.4.so.0" "$PREFIX/lib/libbabl-0.1.so.0" "$STAGE/lib/"
-for module in gegl-common gegl-common-cxx gegl-generated gegl-core; do
+for module in gegl-common gegl-common-cxx gegl-generated gegl-common-gpl3 gegl-core; do
   for file in "$PREFIX/lib/gegl-0.4/$module".so "$PREFIX/lib/gegl-0.4/$module"-x86_64-v*.so; do
     [ -f "$file" ] && cp "$file" "$STAGE/lib/gegl-0.4/"
   done
@@ -80,7 +85,8 @@ cp "babl-$BABL_VERSION/COPYING" "$STAGE/licenses/babl-COPYING.txt"
   echo "Patchy's GEGL bundle ($PLATFORM), built $(date -u +%Y-%m-%d) by scripts/dev/gegl/build-gegl-linux.sh in $(sed -n 's/^runtime=//p' /.flatpak-info)"
   echo "GEGL $GEGL_VERSION https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz sha256 $GEGL_SHA256"
   echo "babl $BABL_VERSION https://download.gimp.org/pub/babl/0.1/babl-$BABL_VERSION.tar.xz sha256 $BABL_SHA256"
-  echo "GPL-3 operations: not included. GLib and json-glib: the runtime's own."
+  echo "GLib and json-glib: the runtime's own (not in this folder)."
+  patchy_gegl_sources_note
 } >"$STAGE/licenses/SOURCES.txt"
 
 mkdir -p "$OUT"

@@ -1,6 +1,6 @@
 // patchy-gegl-host (docs/gegl-filters.md): the one Patchy process that loads GEGL. It loads
-// the user's own GEGL, babl and GLib from their GIMP 3 install at run time (nothing is
-// linked or shipped; the legal rule is "GEGL operations through a helper" in
+// Patchy's own GEGL, babl and GLib, or the user's from their GIMP 3 install, at run time
+// (nothing is linked; the legal rule is "GEGL operations through a helper" in
 // docs/legal-licensing.md) and does one job per run:
 //
 //   patchy-gegl-host --gegl <libgegl> [--gpl3] --list   every operation and its settings, as JSON

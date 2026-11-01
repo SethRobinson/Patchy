@@ -51,11 +51,21 @@ const std::set<QString> kExcludedCategories = {
 // description against a recorded boundary stays out.
 bool excluded_by_name(const QString& name) {
   static const QStringList kExcluded = {
-      QStringLiteral("gegl:median-blur"),         // Surface Blur rule: histogram form unverifiable
-      QStringLiteral("gegl:focus-blur"),          // Blur Gallery record: a per-pixel blur radius mask
-      QStringLiteral("gegl:slic"),                // superpixels: not reviewed
-      QStringLiteral("gegl:waterpixels"),         // superpixels: not reviewed
-      QStringLiteral("gegl:shadows-highlights"),  // Shadow/Highlight adjustment family: not reviewed
+      QStringLiteral("gegl:median-blur"),  // Surface Blur rule: histogram form unverifiable
+      QStringLiteral("gegl:focus-blur"),   // Blur Gallery record: a per-pixel blur radius mask
+      // Apple US 8638338 claim 25 is unresolved against a vibrance boost (docs/gegl-filters.md,
+      // "Legal review"); Patchy has its own Vibrance adjustment.
+      QStringLiteral("gegl:vibrance"),
+      // Not useful on a layer: no change to pixels in 0..1 (Absolute), damage to
+      // straight-alpha pixels (Unpremultiply), nothing beyond the layer's own bounds (Tile),
+      // a fixed-size solid rectangle (Rectangle; the shape tools do that), a drop shadow whose
+      // offset and grow need operations Patchy's GEGL leaves out (Median Blur, Translate;
+      // the Drop Shadow layer style does it better).
+      QStringLiteral("gegl:dropshadow"),
+      QStringLiteral("gegl:absolute"),
+      QStringLiteral("gegl:unpremultiply"),
+      QStringLiteral("gegl:tile"),
+      QStringLiteral("gegl:rectangle"),
   };
   return kExcluded.contains(name) || name.contains(QLatin1String("inpaint")) ||
          name.contains(QLatin1String("seamless-clone")) || name.contains(QLatin1String("red-eye")) ||

@@ -1,0 +1,26 @@
+# Every source archive behind Patchy's own GEGL (docs/gegl-filters.md, "Sources"):
+# <file> <sha256> <url>, one per line. The build scripts in this folder refuse a bundle
+# whose sources are missing here, and scripts/release/make-gegl-sources.ps1 packs exactly
+# these files into PatchyGeglSources.zip for each release.
+
+# babl and GEGL (every platform and the Flatpak).
+gegl-0.4.72.tar.xz ccbb8cdd1db56ecd4ece5dbabae0118ab2c46b5b3439c94f3cec467798ce956d https://download.gimp.org/pub/gegl/0.4/gegl-0.4.72.tar.xz
+babl-0.1.128.tar.xz e676507b421d414d49db8627415dc1eadbd787536baa7d6fe94a1f1971cbe73e https://download.gimp.org/pub/babl/0.1/babl-0.1.128.tar.xz
+
+# macOS: built from these by build-gegl-macos.sh.
+glib-2.84.4.tar.xz 8a9ea10943c36fc117e253f80c91e477b673525ae45762942858aef57631bb90 https://download.gnome.org/sources/glib/2.84/glib-2.84.4.tar.xz
+json-glib-1.10.8.tar.xz 55c5c141a564245b8f8fbe7698663c87a45a7333c2a2c56f06f811ab73b212dd https://download.gnome.org/sources/json-glib/1.10/json-glib-1.10.8.tar.xz
+gettext-0.26.tar.xz d1fb86e260cfe7da6031f94d2e44c0da55903dbae0a2fa0fae78c91ae1b56f00 https://ftp.gnu.org/gnu/gettext/gettext-0.26.tar.xz
+# GLib 2.84.4's PCRE2 subproject (subprojects/pcre2.wrap): the release and meson's build files.
+pcre2-10.44.tar.bz2 d34f02e113cf7193a1ebf2770d3ac527088d485d4e047ed10e5d217c6ef5de96 https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.44/pcre2-10.44.tar.bz2
+pcre2_10.44-2_patch.zip 4336d422ee9043847e5e10dbbbd01940d4c9e5027f31ccdc33a7898a1ca94009 https://wrapdb.mesonbuild.com/v2/pcre2_10.44-2/get_patch
+
+# Windows: MSYS2's source packages (PKGBUILD, patches and the upstream tarball) for the
+# libraries build-gegl-msys2.sh copies from MSYS2. One line per version shipped.
+mingw-w64-glib2-2.90.1-1.src.tar.zst ac3bc00e4079e6b51dd0a1fb9ccc420fff033b4e9095e4487dbf6cf01312cee6 https://repo.msys2.org/mingw/sources/mingw-w64-glib2-2.90.1-1.src.tar.zst
+mingw-w64-json-glib-1.10.8-2.src.tar.zst 8a067b173556a743bbfc08a38f50a5ab4de3306742e66734cdd50088dd10641b https://repo.msys2.org/mingw/sources/mingw-w64-json-glib-1.10.8-2.src.tar.zst
+mingw-w64-libffi-3.8.0-1.src.tar.zst 641ea78ce0333839eab5262656f03fdcfd8496d7388bd7b27e4f0638aeed9adf https://repo.msys2.org/mingw/sources/mingw-w64-libffi-3.8.0-1.src.tar.zst
+mingw-w64-pcre2-10.49-1.src.tar.zst b02f0d5070b7d7f6db5c8ba9b009f28c1a07b9b52aaf7964dc0c8b098e4088d1 https://repo.msys2.org/mingw/sources/mingw-w64-pcre2-10.49-1.src.tar.zst
+mingw-w64-libiconv-1.19-1.src.tar.zst 74428280c17094da5b702c29b2e1a0abae59556ea5dfdd65705cc8ccc1e000fb https://repo.msys2.org/mingw/sources/mingw-w64-libiconv-1.19-1.src.tar.zst
+mingw-w64-gettext-1.0-1.src.tar.zst cca0d0c8f60353faccc5ad40405240014e4a7ccc8b1c6ca9f4626aef3097d26e https://repo.msys2.org/mingw/sources/mingw-w64-gettext-1.0-1.src.tar.zst
+mingw-w64-zlib-1.3.2-3.src.tar.zst 4b7839ab2826d3e3d27fe46150d2180a1f561f4d03c9e82aeb4b056180561f00 https://repo.msys2.org/mingw/sources/mingw-w64-zlib-1.3.2-3.src.tar.zst

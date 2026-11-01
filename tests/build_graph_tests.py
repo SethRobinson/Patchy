@@ -182,7 +182,8 @@ class PackagingManifestTests(unittest.TestCase):
         manifest = root / "packaging/linux/flatpak/com.rtsoft.patchy.yml"
         manifest.parent.mkdir(parents=True)
         (root / "CMakeLists.txt").write_text("project(Fixture NONE)\n", encoding="utf-8")
-        original = "      - -DCMAKE_BUILD_TYPE=Release\n        path: ../../..\n"
+        original = ("      - -DCMAKE_BUILD_TYPE=Release\n        path: ../../..\n"
+                    "        path: ../../../scripts/dev/gegl/common.sh\n")
         manifest.write_text(original, encoding="utf-8")
         spec = importlib.util.spec_from_file_location(
             "prepare_flatpak_manifest", ROOT / "scripts/release/prepare-flatpak-manifest.py")
@@ -192,8 +193,9 @@ class PackagingManifestTests(unittest.TestCase):
         module.prepare(root, output, "first")
         first = output.read_text(encoding="utf-8")
         self.assertIn("PATCHY_BUILD_STAMP_REFRESH_TOKEN=first", first)
-        path_line = next(line for line in first.splitlines() if "path:" in line)
-        self.assertEqual(json.loads(path_line.split("path:", 1)[1]), root.resolve().as_posix())
+        path_lines = [line for line in first.splitlines() if "path:" in line]
+        self.assertEqual([json.loads(line.split("path:", 1)[1]) for line in path_lines],
+                         [root.resolve().as_posix(), root.resolve().as_posix() + "/scripts/dev/gegl/common.sh"])
         module.prepare(root, output, "second")
         self.assertIn("PATCHY_BUILD_STAMP_REFRESH_TOKEN=second", output.read_text(encoding="utf-8"))
         self.assertEqual(original, manifest.read_text(encoding="utf-8"))

@@ -1,12 +1,13 @@
 @echo off
 rem Uploads the Windows release artifacts (stable names, built by build-release.bat): the
-rem x64 installer and zip, then the Windows ARM64 pair.
+rem x64 installer and zip, then the Windows ARM64 pair, then the source of the GEGL every
+rem package carries (PatchyGeglSources.zip; docs/gegl-filters.md, "Sources").
 rem Missing files abort loudly: build-release.bat deletes its outputs up front, so a
 rem failed build leaves nothing here and this refuses rather than uploading stale bits.
 rem cd to the repo root (this script lives in scripts\release) so the relative paths
 rem below resolve from any cwd.
 cd /d "%~dp0..\.."
-for %%F in (PatchyWindowsInstaller.exe PatchyWindowsNoInstaller.zip PatchyWindowsArm64Installer.exe PatchyWindowsArm64NoInstaller.zip) do (
+for %%F in (PatchyWindowsInstaller.exe PatchyWindowsNoInstaller.zip PatchyWindowsArm64Installer.exe PatchyWindowsArm64NoInstaller.zip PatchyGeglSources.zip) do (
   if not exist build\package\%%F (
     echo %%F is missing from build\package - run scripts\release\build-release.bat first.
     if /i not "%~1"=="nopause" pause
@@ -17,7 +18,7 @@ rem upload-one-file.bat fails loudly on a bad transfer and verifies the bytes th
 rem landed; see its header for why a plain scp is not enough. Each installer goes
 rem before its zip: if an upload dies, the site is left advertising a matched pair
 rem only when both succeeded, and the failure message says so.
-for %%F in (PatchyWindowsInstaller.exe PatchyWindowsNoInstaller.zip PatchyWindowsArm64Installer.exe PatchyWindowsArm64NoInstaller.zip) do (
+for %%F in (PatchyWindowsInstaller.exe PatchyWindowsNoInstaller.zip PatchyWindowsArm64Installer.exe PatchyWindowsArm64NoInstaller.zip PatchyGeglSources.zip) do (
   call "%~dp0upload-one-file.bat" build\package\%%F files
   if errorlevel 1 goto fail
 )
@@ -25,6 +26,7 @@ echo Windows upload OK: https://rtsoft.com/files/PatchyWindowsInstaller.exe
 echo                    https://rtsoft.com/files/PatchyWindowsNoInstaller.zip
 echo                    https://rtsoft.com/files/PatchyWindowsArm64Installer.exe
 echo                    https://rtsoft.com/files/PatchyWindowsArm64NoInstaller.zip
+echo                    https://rtsoft.com/files/PatchyGeglSources.zip
 if /i not "%~1"=="nopause" pause
 exit /b 0
 

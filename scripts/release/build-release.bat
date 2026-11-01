@@ -17,9 +17,13 @@ rem -Target windows-arm64 on the ARM64 host.
 set "PATCHY_ARCH=%~1"
 if not defined PATCHY_ARCH set "PATCHY_ARCH=all"
 if /i "%PATCHY_ARCH%"=="all" (
+  if exist "%REPO%\build\package\PatchyGeglSources.zip" del /f /q "%REPO%\build\package\PatchyGeglSources.zip"
   call "%~f0" x64
   if not "!ERRORLEVEL!"=="0" goto fail
   call "%~f0" arm64
+  if not "!ERRORLEVEL!"=="0" goto fail
+  rem The source of the GEGL every package carries, published beside them (docs/gegl-filters.md, "Sources").
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\release\make-gegl-sources.ps1"
   if not "!ERRORLEVEL!"=="0" goto fail
   popd
   exit /b 0

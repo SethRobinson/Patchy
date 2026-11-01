@@ -60,11 +60,17 @@ None of these were opened, searched or excerpted at any point, by a person or a 
 - Run-time self-description: `gegl --list-all` and `gegl --info <op>` of GIMP's own `gegl.exe`, then the helper's own `--list` (operation keys and property specs).
 - No GEGL or babl `.c` file or operation source was opened.
 
-### 2026-11-03: protocol version history
+### 2026-11-02: protocol version history
 
-- `GIMP_PROTOCOL_VERSION` read (the one constant only) from `libgimpbase/gimpprotocol.h` at tags `GIMP_2_10_0` (0x0016), `GIMP_2_10_38` (0x001A), `GIMP_2_99_2` and `GIMP_2_99_10` (0x010E), `GIMP_2_99_18` (0x0111), `GIMP_3_0_0_RC1` (0x0114), `GIMP_3_0_0` through `GIMP_3_0_6` and `GIMP_3_1_2`, `GIMP_3_1_4`, `GIMP_3_2_0_RC1` (0x0115), `GIMP_3_2_0_RC3` through `GIMP_3_2_6` (0x0117), and from master's `libgimpbase/gimpprotocol-private.h` (0x0119, November 3, 2026; the header was renamed private on September 18, 2026), plus the GitLab commit titles touching those files. Nothing else from them was read; recorded in [gimp-plugins.md](gimp-plugins.md#protocol).
+- `GIMP_PROTOCOL_VERSION` read (the one constant only) from `libgimpbase/gimpprotocol.h` at tags `GIMP_2_10_0` (0x0016), `GIMP_2_10_38` (0x001A), `GIMP_2_99_2` and `GIMP_2_99_10` (0x010E), `GIMP_2_99_18` (0x0111), `GIMP_3_0_0_RC1` (0x0114), `GIMP_3_0_0` through `GIMP_3_0_6` and `GIMP_3_1_2`, `GIMP_3_1_4`, `GIMP_3_2_0_RC1` (0x0115), `GIMP_3_2_0_RC3` through `GIMP_3_2_6` (0x0117), and from master's `libgimpbase/gimpprotocol-private.h` (0x0119, November 2, 2026; the header was renamed private on September 18, 2026), plus the GitLab commit titles touching those files. Nothing else from them was read; recorded in [gimp-plugins.md](gimp-plugins.md#protocol).
 
-### 2026-11-03: Patchy's own GEGL
+### 2026-11-02: Patchy's own GEGL
 
 - Built unmodified from gimp.org's `gegl-0.4.72.tar.xz` and `babl-0.1.128.tar.xz` (SHA-256 checked against gimp.org's `SHA256SUMS`) with Meson. Read: the option names in each tarball's `meson_options.txt` (build switches only), the license files it ships, and the build's own output. No `.c` file or operation source was opened; the legal review in [gegl-filters.md](gegl-filters.md#legal-review) works from each operation's own description.
-- macOS also builds GLib 2.84.4 and json-glib 1.10.8 (download.gnome.org, SHA-256 checked against GNOME's `.sha256sum` files) and gettext 0.26's runtime (ftp.gnu.org; GNU publishes a PGP signature, not a checksum, so the pinned SHA-256 is that of the copy first fetched on November 3, 2026), unmodified, configured by their documented options only.
+- macOS also builds GLib 2.84.4 and json-glib 1.10.8 (download.gnome.org, SHA-256 checked against GNOME's `.sha256sum` files) and gettext 0.26's runtime (ftp.gnu.org; GNU publishes a PGP signature, not a checksum, so the pinned SHA-256 is that of the copy first fetched on November 2, 2026), unmodified, configured by their documented options only.
+
+### 2026-11-02: GPL-3 module, removed operations, source archive
+
+- GEGL's operation build lists (`operations/common/meson.build`, `operations/common-cxx/meson.build`, `operations/common-gpl3+/meson.build`) are touched only by `scripts/dev/gegl/common.sh`, which counts and deletes the one line naming each removed operation's source file (`'median-blur.c'` and the others in `PATCHY_GEGL_DROPPED`) without printing the files; the operation sources themselves were never opened. Which operation lives in which module came from loading each module alone through the helper (`--list`).
+- That GEGL's Drop Shadow builds Median Blur and Translate internally came from the helper's run-time warnings ("Failed to set operation type"), running every offered operation once.
+- GLib 2.84.4's `subprojects/pcre2.wrap` (GLib, LGPL; not covered by the never-read rule) was read for the PCRE2 archive and wrap patch URLs and hashes; MSYS2's `repo.msys2.org/mingw/sources/` listing for source package names and retention.
