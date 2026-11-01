@@ -50,6 +50,14 @@ public:
   // worker's queued call delivers it.
   static void begin_gimp_plugin_scan(MainWindow& window);
   static void finish_gimp_plugin_scan(MainWindow& window, GimpPluginScanResult result);
+  // GEGL filters (docs/gegl-filters.md): the scan on this thread, the registry a "gegl." id
+  // runs from (null without GIMP's GEGL), and apply_filter's Last Filter path (no dialog).
+  static void ensure_gegl_filters_scanned(MainWindow& window);
+  static std::shared_ptr<const FilterRegistry> gegl_filter_registry(MainWindow& window, const QString& identifier);
+  static void apply_filter_without_dialog(MainWindow& window, const QString& identifier,
+                                          const FilterInvocation& invocation);
+  // The menu command: the filter's settings dialog, modal.
+  static void apply_filter_with_dialog(MainWindow& window, const QString& identifier);
   static int gimp_preview_runs_started(const MainWindow& window);
   static bool gimp_plugin_active(const MainWindow& window);
   static int gimp_preview_runs_aborted(const MainWindow& window);

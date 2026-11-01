@@ -1128,3 +1128,18 @@ the GNU Lesser General Public License version 3 or later
 of a header's numerical parameters and data structure layouts. No GIMP code,
 library, plug-in or data file is included in or distributed with Patchy; the
 user's own GIMP 3 installation provides the plug-ins at run time.
+
+## GEGL, babl and GLib interface declarations (patchy-gegl-host)
+
+Patchy's GEGL helper (`src/plugins/gegl/host/`) declares for itself the function
+signatures, structure layouts (`GParamSpec`, `GParamSpecInt`, `GParamSpecDouble`,
+`GeglParamSpecInt`, `GeglParamSpecDouble`, `GEnumClass`, `GEnumValue`, `GValue`,
+`GeglRectangle`) and type and enumeration constants it needs from the installed
+public headers of GEGL 0.4, babl 0.1 and GLib/GObject 2.0, as installed with
+GIMP 3.2.6. GEGL and babl are Copyright (C) the GEGL and babl authors, GLib is
+Copyright (C) the GLib authors; all three are licensed under the GNU Lesser
+General Public License (GEGL and babl version 3 or later, GLib version 2.1 or
+later). LGPL-3 section 3 permits this use of a header's numerical parameters
+and data structure layouts. No GEGL, babl or GLib code or library is included
+in or distributed with Patchy; the helper loads the user's own installed copies
+at run time.

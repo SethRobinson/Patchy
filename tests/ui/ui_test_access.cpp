@@ -53,6 +53,28 @@ void MainWindowTestAccess::finish_gimp_plugin_scan(MainWindow& window, GimpPlugi
 #endif
 }
 
+void MainWindowTestAccess::ensure_gegl_filters_scanned(MainWindow& window) {
+#ifndef Q_OS_WASM
+  window.ensure_gegl_filters_scanned();
+#else
+  (void)window;
+#endif
+}
+
+std::shared_ptr<const FilterRegistry> MainWindowTestAccess::gegl_filter_registry(MainWindow& window,
+                                                                                 const QString& identifier) {
+  return window.gegl_filter_registry_for(identifier);
+}
+
+void MainWindowTestAccess::apply_filter_without_dialog(MainWindow& window, const QString& identifier,
+                                                       const FilterInvocation& invocation) {
+  window.apply_filter(identifier, &invocation);
+}
+
+void MainWindowTestAccess::apply_filter_with_dialog(MainWindow& window, const QString& identifier) {
+  window.apply_filter(identifier);
+}
+
 void MainWindowTestAccess::set_gimp_plugin_dialog_answer(MainWindow& window, int answer) {
   window.gimp_plugin_test_answer_ = answer;
 }

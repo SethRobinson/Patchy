@@ -135,6 +135,31 @@
     </message>
 </context>
 <context>
+    <name>GeglFilters</name>
+    <message>
+        <source>GEGL filters run on RGB layers only.</source>
+        <translation>GEGL 滤镜只能在 RGB 图层上运行。</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper could not be started.</source>
+        <translation>无法启动 Patchy 的 GEGL 辅助程序。</translation>
+    </message>
+    <message>
+        <source>The GEGL filter %1 failed. %2</source>
+        <extracomment>%1 is GEGL&apos;s operation name, %2 what the helper reported.</extracomment>
+        <translation>GEGL 滤镜 %1 失败。%2</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper is missing from its program folder.</source>
+        <translation>Patchy 的程序文件夹中缺少 GEGL 辅助程序。</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s GEGL could not be loaded. %1</source>
+        <extracomment>%1 is what the helper reported.</extracomment>
+        <translation>无法加载 GIMP 的 GEGL。%1</translation>
+    </message>
+</context>
+<context>
     <name>GimpPlugins</name>
     <message>
         <source>The GIMP plug-in helper could not be started.</source>
@@ -31711,6 +31736,34 @@ Locked: %1</source>
         <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
         <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
         <translation>未能启动的插件：%1（请参阅 首选项 &gt; 插件）</translation>
+    </message>
+    <message>
+        <source>GEGL Filters</source>
+        <translation>GEGL 滤镜</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which was not found.</source>
+        <translation>GEGL 滤镜来自 GIMP 3，但未找到 GIMP 3。</translation>
+    </message>
+    <message>
+        <source>GEGL filters are not available from GIMP&apos;s Flatpak yet.</source>
+        <translation>暂时无法使用 GIMP Flatpak 中的 GEGL 滤镜。</translation>
+    </message>
+    <message>
+        <source>This GIMP 3 install has no GEGL library Patchy can use.</source>
+        <translation>此 GIMP 3 安装中没有 Patchy 可以使用的 GEGL 库。</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which is turned off in Preferences &gt; Plug-ins.</source>
+        <translation>GEGL 滤镜来自 GIMP 3，但它已在 首选项 &gt; 插件 中关闭。</translation>
+    </message>
+    <message>
+        <source>Scanning GEGL filters...</source>
+        <translation>正在扫描 GEGL 滤镜...</translation>
+    </message>
+    <message>
+        <source>No GEGL filters found</source>
+        <translation>未找到 GEGL 滤镜</translation>
     </message>
 </context>
 <context>

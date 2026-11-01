@@ -197,6 +197,7 @@ struct GradientLibraryEntry;
 class ScriptEngineHost;
 struct GimpPluginProcedure;
 struct GimpPluginScanResult;
+struct GeglFilterScanResult;
 struct GimpPluginScanOptions;
 struct GimpPluginRunResult;
 struct GimpPluginRunInput;
@@ -1405,6 +1406,17 @@ private:
   };
   [[nodiscard]] GimpPluginScanOptions gimp_plugin_scan_options() const;
   void start_gimp_plugin_scan(bool announce, bool force_requery = false);
+  // GEGL filters from the user's GIMP 3 (main_window_gegl_filters.cpp,
+  // docs/gegl-filters.md): a scan through patchy-gegl-host fills Plugins > GEGL Filters,
+  // and apply_filter runs "gegl.*" ids from their own registry.
+  void start_gegl_filter_scan();
+  // The same scan on the calling thread (tests, offscreen runs).
+  void ensure_gegl_filters_scanned();
+  void finish_gegl_filter_scan(int generation, std::shared_ptr<GeglFilterScanResult> result);
+  void rebuild_gegl_filters_menu();
+  void rebuild_gegl_filters_menu_when_closed();
+  // The GEGL registry for a "gegl." id; null for any other id or before a scan.
+  [[nodiscard]] std::shared_ptr<const FilterRegistry> gegl_filter_registry_for(const QString& identifier) const;
   // The same scan on the calling thread (scripts, tests).
   void rescan_gimp_plugins(bool force_requery = false);
   void ensure_gimp_plugins_scanned();
@@ -3733,6 +3745,11 @@ private:
   PluginHost plugin_host_;
   std::vector<LegacyPluginEntry> legacy_plugins_;
   QMenu* gimp_plugins_menu_{nullptr};
+  QMenu* gegl_filters_menu_{nullptr};
+  std::shared_ptr<GeglFilterScanResult> gegl_filters_;
+  int gegl_filter_scan_generation_{0};
+  bool gegl_filter_scan_in_flight_{false};
+  bool gegl_filters_menu_stale_{false};
   std::shared_ptr<GimpPluginScanResult> gimp_plugins_;
   int gimp_plugin_scan_generation_{0};
   bool gimp_plugin_scan_in_flight_{false};

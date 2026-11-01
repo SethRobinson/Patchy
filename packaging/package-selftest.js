@@ -92,6 +92,7 @@ if (pluginsFolder) {
     "patchy-8bf-host32.exe",
     "patchy-8bf-host64.exe",
     "patchy-gimp-host.exe",
+    "patchy-gegl-host.exe",
     "LICENSE",
     "NOTICE-THIRD-PARTY.md",
     "licenses/gmic/gmic-COPYING.txt",

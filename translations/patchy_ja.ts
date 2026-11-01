@@ -135,6 +135,31 @@
     </message>
 </context>
 <context>
+    <name>GeglFilters</name>
+    <message>
+        <source>GEGL filters run on RGB layers only.</source>
+        <translation>GEGL フィルターは RGB レイヤーでのみ実行できます。</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper could not be started.</source>
+        <translation>Patchy の GEGL 補助プログラムを起動できませんでした。</translation>
+    </message>
+    <message>
+        <source>The GEGL filter %1 failed. %2</source>
+        <extracomment>%1 is GEGL&apos;s operation name, %2 what the helper reported.</extracomment>
+        <translation>GEGL フィルター %1 が失敗しました。%2</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper is missing from its program folder.</source>
+        <translation>Patchy の GEGL 補助プログラムがプログラムフォルダーにありません。</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s GEGL could not be loaded. %1</source>
+        <extracomment>%1 is what the helper reported.</extracomment>
+        <translation>GIMP の GEGL を読み込めませんでした。%1</translation>
+    </message>
+</context>
+<context>
     <name>GimpPlugins</name>
     <message>
         <source>The GIMP plug-in helper could not be started.</source>
@@ -31711,6 +31736,34 @@ Locked: %1</source>
         <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
         <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
         <translation>起動しなかったプラグイン: %1 (環境設定 &gt; プラグイン を参照)</translation>
+    </message>
+    <message>
+        <source>GEGL Filters</source>
+        <translation>GEGL フィルター</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which was not found.</source>
+        <translation>GEGL フィルターは GIMP 3 から提供されますが、GIMP 3 が見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>GEGL filters are not available from GIMP&apos;s Flatpak yet.</source>
+        <translation>GIMP の Flatpak からの GEGL フィルターはまだ利用できません。</translation>
+    </message>
+    <message>
+        <source>This GIMP 3 install has no GEGL library Patchy can use.</source>
+        <translation>この GIMP 3 のインストールには、Patchy が使用できる GEGL ライブラリがありません。</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which is turned off in Preferences &gt; Plug-ins.</source>
+        <translation>GEGL フィルターは GIMP 3 から提供されますが、環境設定 &gt; プラグイン でオフになっています。</translation>
+    </message>
+    <message>
+        <source>Scanning GEGL filters...</source>
+        <translation>GEGL フィルターを検索中...</translation>
+    </message>
+    <message>
+        <source>No GEGL filters found</source>
+        <translation>GEGL フィルターが見つかりません</translation>
     </message>
 </context>
 <context>

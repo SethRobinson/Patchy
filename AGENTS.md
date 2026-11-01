@@ -159,7 +159,7 @@ Read these before acting in the named area:
 - **Document tab context menu and Rename File:** [document-tabs.md](docs/document-tabs.md). A rename never replaces a file and never marks the document saved.
 - **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, seamless-tiling import, and Files as Layers:** [import.md](docs/import.md); clipboard import and paste: [clipboard.md](docs/clipboard.md).
 - **Plug-ins and legacy 8BF support (Windows)** *(legal: clean-room ABI)*: [plugins.md](docs/plugins.md).
-- **GIMP 3 plug-ins** *(legal)*: [gimp-plugins.md](docs/gimp-plugins.md). Sources only from the allowed list in [legal-licensing.md](docs/legal-licensing.md#gimp-3-plug-in-hosting), logged in [gimp-plugins-provenance.md](docs/gimp-plugins-provenance.md); never GIMP's or a plug-in's source.
+- **GIMP 3 plug-ins and GEGL filters** *(legal)*: [gimp-plugins.md](docs/gimp-plugins.md), [gegl-filters.md](docs/gegl-filters.md). Sources only from the allowed lists in [legal-licensing.md](docs/legal-licensing.md), logged in [gimp-plugins-provenance.md](docs/gimp-plugins-provenance.md); never GIMP's, GEGL's or a plug-in's source.
 - **G'MIC Filter Library:** [gmic.md](docs/gmic.md).
 - **JavaScript scripting and bundled scripts:** [scripting.md](docs/scripting.md). The MCP connector and patchy-control skill: [ai-control.md](docs/ai-control.md). Automation feedback, brush and vector automation, batch appearance edits: [automation-feedback.md](docs/automation-feedback.md), [brush-automation.md](docs/brush-automation.md), [vector-automation.md](docs/vector-automation.md), [batch-appearance.md](docs/batch-appearance.md).
 - **Automatic document recovery and atomic file writes:** [document-recovery.md](docs/document-recovery.md).

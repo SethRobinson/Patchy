@@ -2529,8 +2529,21 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   gimp_rescan_action->setObjectName(QStringLiteral("gimpPluginsRescanAction"));
   gimp_rescan_action->setMenuRole(QAction::NoRole);
   register_hotkey(gimp_rescan_action, "plugins.gimp_rescan");
-  connect(gimp_rescan_action, &QAction::triggered, this, [this] { start_gimp_plugin_scan(true, /*force_requery=*/true); });
+  connect(gimp_rescan_action, &QAction::triggered, this, [this] {
+    start_gimp_plugin_scan(true, /*force_requery=*/true);
+    start_gegl_filter_scan();  // the same GIMP install
+  });
   bind_action_text(gimp_rescan_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rescan GIMP Plug-ins"));
+  // GEGL filters from the same GIMP 3 install (docs/gegl-filters.md), by GEGL category.
+  gegl_filters_menu_ = plugins_menu->addMenu(tr("GEGL Filters"));
+  gegl_filters_menu_->setObjectName(QStringLiteral("geglFiltersMenu"));
+  gegl_filters_menu_->menuAction()->setMenuRole(QAction::NoRole);
+  gegl_filters_menu_->setToolTipsVisible(true);
+  connect(gegl_filters_menu_, &QMenu::aboutToShow, this, [this] {
+    if (gegl_filters_menu_stale_) {
+      rebuild_gegl_filters_menu();
+    }
+  });
 #endif
 
   auto* zoom_in = view_menu->addAction(tr("Zoom &In"));

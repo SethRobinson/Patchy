@@ -135,6 +135,31 @@
     </message>
 </context>
 <context>
+    <name>GeglFilters</name>
+    <message>
+        <source>GEGL filters run on RGB layers only.</source>
+        <translation>GEGL 濾鏡只能在 RGB 圖層上執行。</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper could not be started.</source>
+        <translation>無法啟動 Patchy 的 GEGL 輔助程式。</translation>
+    </message>
+    <message>
+        <source>The GEGL filter %1 failed. %2</source>
+        <extracomment>%1 is GEGL&apos;s operation name, %2 what the helper reported.</extracomment>
+        <translation>GEGL 濾鏡 %1 失敗。%2</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper is missing from its program folder.</source>
+        <translation>Patchy 的程式資料夾中缺少 GEGL 輔助程式。</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s GEGL could not be loaded. %1</source>
+        <extracomment>%1 is what the helper reported.</extracomment>
+        <translation>無法載入 GIMP 的 GEGL。%1</translation>
+    </message>
+</context>
+<context>
     <name>GimpPlugins</name>
     <message>
         <source>The GIMP plug-in helper could not be started.</source>
@@ -31711,6 +31736,34 @@ Locked: %1</source>
         <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
         <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
         <translation>未能啟動的外掛程式：%1（請參閱 偏好設定 &gt; 外掛程式）</translation>
+    </message>
+    <message>
+        <source>GEGL Filters</source>
+        <translation>GEGL 濾鏡</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which was not found.</source>
+        <translation>GEGL 濾鏡來自 GIMP 3，但找不到 GIMP 3。</translation>
+    </message>
+    <message>
+        <source>GEGL filters are not available from GIMP&apos;s Flatpak yet.</source>
+        <translation>暫時無法使用 GIMP Flatpak 中的 GEGL 濾鏡。</translation>
+    </message>
+    <message>
+        <source>This GIMP 3 install has no GEGL library Patchy can use.</source>
+        <translation>此 GIMP 3 安裝中沒有 Patchy 可以使用的 GEGL 程式庫。</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which is turned off in Preferences &gt; Plug-ins.</source>
+        <translation>GEGL 濾鏡來自 GIMP 3，但它已在 偏好設定 &gt; 外掛程式 中關閉。</translation>
+    </message>
+    <message>
+        <source>Scanning GEGL filters...</source>
+        <translation>正在掃描 GEGL 濾鏡...</translation>
+    </message>
+    <message>
+        <source>No GEGL filters found</source>
+        <translation>找不到 GEGL 濾鏡</translation>
     </message>
 </context>
 <context>

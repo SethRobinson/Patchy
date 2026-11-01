@@ -2477,6 +2477,10 @@ bool MainWindow::prompt_rasterize_procedural_layer(LayerId layer_id,
 }
 
 void MainWindow::apply_filter(const QString& identifier, const FilterInvocation* repeat) {
+  // GEGL filters (docs/gegl-filters.md) run from their own registry, held for the whole
+  // run: a rescan may replace it meanwhile.
+  const auto gegl_registry = gegl_filter_registry_for(identifier);
+  const FilterRegistry& registry = gegl_registry != nullptr ? *gegl_registry : filters_;
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
     show_status_error(
         tr("Filters are unavailable in Quick Mask mode"));
@@ -2512,7 +2516,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
     show_status_error(tr("Layer pixels are locked."));
     return;
   }
-  if (const auto* gate_filter = filters_.find(identifier.toStdString());
+  if (const auto* gate_filter = registry.find(identifier.toStdString());
       gate_filter != nullptr) {
     // Text/shape layers must rasterize or become a smart object first. Convert
     // is offered only when the follow-on path can succeed: the filter has a
@@ -2550,7 +2554,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
     // native-integrity rules in docs/smart-objects.md); Filter-menu effects
     // offer the gallery's all-or-nothing rasterization prompt instead of a
     // dead-end status message.
-    const auto* unsupported_filter = filters_.find(identifier.toStdString());
+    const auto* unsupported_filter = registry.find(identifier.toStdString());
     if (unsupported_filter == nullptr ||
         is_adjustment_only_filter(*unsupported_filter)) {
       show_status_error(
@@ -2573,7 +2577,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
   }
   try {
     const auto identifier_text = identifier.toStdString();
-    const auto* filter = filters_.find(identifier_text);
+    const auto* filter = registry.find(identifier_text);
     if (filter == nullptr) {
       throw std::invalid_argument("Unknown filter identifier");
     }
@@ -2611,7 +2615,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
       return RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
                       static_cast<std::uint8_t>(color.blue())};
     };
-    auto initial_invocation = filters_.default_invocation(identifier_text, to_rgb(foreground_color),
+    auto initial_invocation = registry.default_invocation(identifier_text, to_rgb(foreground_color),
                                                           to_rgb(background_color));
     // Flame's Follow Path runs along the Paths panel's path, flattened into the
     // pixels of the buffer the filter renders (docs/stylize-render-filters.md).
@@ -2657,10 +2661,11 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
       applied_settings->foreground = initial_invocation.foreground;
       applied_settings->background = initial_invocation.background;
       applied_settings->guide_paths = guide_paths;
-    } else if (filter_applies_without_settings_dialog(identifier_text)) {
+    } else if (filter_applies_without_settings_dialog(identifier_text) ||
+               (gegl_registry != nullptr && filter->catalog.parameters.empty())) {
       applied_settings = std::move(initial_invocation);
     } else {
-      auto preview_registry = std::make_shared<FilterRegistry>(filters_);
+      auto preview_registry = std::make_shared<FilterRegistry>(registry);
       auto preview_state = std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
       preview_state->start =
           [this, preview_state, active, original_pixels, last_preview_bounds, selection, bounds,
@@ -2751,7 +2756,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
         }
       });
       const FilterDialogPreviewSource dialog_preview_source{
-          source_pixels.get(), source_bounds, selection, &filters_};
+          source_pixels.get(), source_bounds, selection, &registry};
       auto settings =
           request_filter_settings(this, dialog_spec, preview_changed,
                                   std::move(initial_invocation),
@@ -2805,7 +2810,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
             }
           },
           [&](FilterProgress& filter_progress) {
-            final_pixels = build_filter_preview_pixels(*source_pixels, selection, source_bounds, filters_,
+            final_pixels = build_filter_preview_pixels(*source_pixels, selection, source_bounds, registry,
                                                        FilterPreviewSettings{true, *applied_settings},
                                                        &filter_progress, &final_bounds);
             if (embedded_source) {

@@ -135,6 +135,31 @@
     </message>
 </context>
 <context>
+    <name>GeglFilters</name>
+    <message>
+        <source>GEGL filters run on RGB layers only.</source>
+        <translation>Os filtros GEGL funcionam apenas em camadas RGB.</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper could not be started.</source>
+        <translation>Não foi possível iniciar o auxiliar de GEGL do Patchy.</translation>
+    </message>
+    <message>
+        <source>The GEGL filter %1 failed. %2</source>
+        <extracomment>%1 is GEGL&apos;s operation name, %2 what the helper reported.</extracomment>
+        <translation>O filtro GEGL %1 falhou. %2</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper is missing from its program folder.</source>
+        <translation>O auxiliar de GEGL do Patchy está faltando na pasta do programa.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s GEGL could not be loaded. %1</source>
+        <extracomment>%1 is what the helper reported.</extracomment>
+        <translation>Não foi possível carregar o GEGL do GIMP. %1</translation>
+    </message>
+</context>
+<context>
     <name>GimpPlugins</name>
     <message>
         <source>The GIMP plug-in helper could not be started.</source>
@@ -31794,6 +31819,34 @@ Bloqueado: %1</translation>
         <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
         <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
         <translation>Plug-ins que não foram iniciados: %1 (consulte Preferências &gt; Plug-ins)</translation>
+    </message>
+    <message>
+        <source>GEGL Filters</source>
+        <translation>Filtros GEGL</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which was not found.</source>
+        <translation>Os filtros GEGL vêm do GIMP 3, que não foi encontrado.</translation>
+    </message>
+    <message>
+        <source>GEGL filters are not available from GIMP&apos;s Flatpak yet.</source>
+        <translation>Os filtros GEGL ainda não estão disponíveis pelo Flatpak do GIMP.</translation>
+    </message>
+    <message>
+        <source>This GIMP 3 install has no GEGL library Patchy can use.</source>
+        <translation>Esta instalação do GIMP 3 não tem uma biblioteca GEGL que o Patchy possa usar.</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which is turned off in Preferences &gt; Plug-ins.</source>
+        <translation>Os filtros GEGL vêm do GIMP 3, que está desativado em Preferências &gt; Plug-ins.</translation>
+    </message>
+    <message>
+        <source>Scanning GEGL filters...</source>
+        <translation>Verificando filtros GEGL...</translation>
+    </message>
+    <message>
+        <source>No GEGL filters found</source>
+        <translation>Nenhum filtro GEGL encontrado</translation>
     </message>
 </context>
 <context>

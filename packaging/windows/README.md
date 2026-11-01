@@ -34,6 +34,7 @@ The package is intentionally limited to the files needed by end users:
 - `patchy.exe`
 - `patchy-8bf-host32.exe` and `patchy-8bf-host64.exe`, the out-of-process hosts for legacy Photoshop .8bf filter plug-ins (docs/plugins.md), signed like the app
 - `patchy-gimp-host.exe`, the helper that runs the user's GIMP 3 plug-ins (docs/gimp-plugins.md), signed like the app
+- `patchy-gegl-host.exe`, the helper that runs GEGL filters from the user's GIMP 3 (docs/gegl-filters.md), signed like the app
 - `plugins\README.txt` (from `packaging/plugins/README.txt`): the folder users drop .8bf plug-ins into, shipped so its location is obvious
 - `Patchy.ico` and `PatchyInstallManifest.txt`
 - Qt DLLs for Core, GUI, Widgets, PrintSupport, Network, SVG, and the Qt ImageFormats plugins

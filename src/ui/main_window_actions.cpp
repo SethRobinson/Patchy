@@ -279,6 +279,9 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
   if (gimp_plugins_menu_ != nullptr) {
     bind_action_text(gimp_plugins_menu_->menuAction(), QT_TR_NOOP("GIMP 3 Plug-ins"));
   }
+  if (gegl_filters_menu_ != nullptr) {
+    bind_action_text(gegl_filters_menu_->menuAction(), QT_TR_NOOP("GEGL Filters"));
+  }
   const std::vector<std::pair<QObject*, const char*>> translated_widgets = {
       {primary_color_button_, QT_TR_NOOP("FG")},
       {secondary_color_button_, QT_TR_NOOP("BG")},
@@ -463,6 +466,9 @@ void MainWindow::retranslate_ui() {
   rebuild_legacy_plugins_menu();  // translated status tips and the empty-menu note
 #ifndef Q_OS_WASM
   rebuild_gimp_plugins_menu();
+  if (gegl_filters_ != nullptr || gegl_filter_scan_in_flight_) {
+    rebuild_gegl_filters_menu();  // the notes; offscreen windows have none until a scan
+  }
 #endif
   refresh_layer_list();
   refresh_layer_controls();

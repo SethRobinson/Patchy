@@ -4491,9 +4491,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // (ensure_gimp_plugins_scanned), so no test window starts dozens of plug-ins.
   if (QGuiApplication::platformName() != QLatin1String("offscreen")) {
     gimp_plugin_scan_in_flight_ = true;
+    gegl_filter_scan_in_flight_ = true;
     QTimer::singleShot(0, this, [this] {
       gimp_plugin_scan_in_flight_ = false;
+      gegl_filter_scan_in_flight_ = false;
       start_gimp_plugin_scan(false);
+      start_gegl_filter_scan();
     });
   }
 #endif

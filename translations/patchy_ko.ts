@@ -135,6 +135,31 @@
     </message>
 </context>
 <context>
+    <name>GeglFilters</name>
+    <message>
+        <source>GEGL filters run on RGB layers only.</source>
+        <translation>GEGL 필터는 RGB 레이어에서만 실행됩니다.</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper could not be started.</source>
+        <translation>Patchy의 GEGL 도우미를 시작할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The GEGL filter %1 failed. %2</source>
+        <extracomment>%1 is GEGL&apos;s operation name, %2 what the helper reported.</extracomment>
+        <translation>GEGL 필터 %1이(가) 실패했습니다. %2</translation>
+    </message>
+    <message>
+        <source>Patchy&apos;s GEGL helper is missing from its program folder.</source>
+        <translation>Patchy의 GEGL 도우미가 프로그램 폴더에 없습니다.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s GEGL could not be loaded. %1</source>
+        <extracomment>%1 is what the helper reported.</extracomment>
+        <translation>GIMP의 GEGL을 불러올 수 없습니다. %1</translation>
+    </message>
+</context>
+<context>
     <name>GimpPlugins</name>
     <message>
         <source>The GIMP plug-in helper could not be started.</source>
@@ -31711,6 +31736,34 @@ Locked: %1</source>
         <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
         <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
         <translation>시작되지 않은 플러그인: %1(환경설정 &gt; 플러그인 참조)</translation>
+    </message>
+    <message>
+        <source>GEGL Filters</source>
+        <translation>GEGL 필터</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which was not found.</source>
+        <translation>GEGL 필터는 GIMP 3에서 제공되지만 GIMP 3을 찾을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>GEGL filters are not available from GIMP&apos;s Flatpak yet.</source>
+        <translation>GIMP의 Flatpak에서는 아직 GEGL 필터를 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>This GIMP 3 install has no GEGL library Patchy can use.</source>
+        <translation>이 GIMP 3 설치에는 Patchy가 사용할 수 있는 GEGL 라이브러리가 없습니다.</translation>
+    </message>
+    <message>
+        <source>GEGL filters come from GIMP 3, which is turned off in Preferences &gt; Plug-ins.</source>
+        <translation>GEGL 필터는 GIMP 3에서 제공되지만 환경설정 &gt; 플러그인에서 꺼져 있습니다.</translation>
+    </message>
+    <message>
+        <source>Scanning GEGL filters...</source>
+        <translation>GEGL 필터를 검색하는 중...</translation>
+    </message>
+    <message>
+        <source>No GEGL filters found</source>
+        <translation>GEGL 필터를 찾을 수 없음</translation>
     </message>
 </context>
 <context>

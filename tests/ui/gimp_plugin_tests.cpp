@@ -814,6 +814,118 @@ void ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu() {
   CHECK(has_note("gimpPluginsProblemNote"));
 }
 
+// GEGL filters from the user's GIMP 3 (docs/gegl-filters.md): the scan through
+// patchy-gegl-host maps GEGL's settings (ranges, pixel units, choices), offers the GPL-3
+// operations (the helper's --gpl3), leaves out what is not a one-layer image filter, fills
+// Plugins > GEGL Filters, and a run lands on the layer through apply_filter as one undo
+// step. Skips without GIMP's GEGL.
+void ui_gegl_filters_list_and_apply_if_available() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::ensure_gegl_filters_scanned(window);
+  const auto registry =
+      patchy::ui::MainWindowTestAccess::gegl_filter_registry(window, QStringLiteral("gegl.gaussian-blur"));
+  if (registry == nullptr || registry->find("gegl.gaussian-blur") == nullptr) {
+    patchy::test::skip("GIMP 3 with its GEGL is not installed");
+  }
+  const auto* blur = registry->find("gegl.gaussian-blur");
+  const auto parameter = [](const patchy::FilterDefinition& filter, std::string_view key)
+      -> const patchy::FilterParameterDefinition* {
+    for (const auto& p : filter.catalog.parameters) {
+      if (p.key == key) return &p;
+    }
+    return nullptr;
+  };
+  const auto* std_dev = parameter(*blur, "std-dev-x");
+  CHECK(std_dev != nullptr);
+  if (std_dev != nullptr) {
+    CHECK(std_dev->kind == patchy::FilterParameterKind::Double);
+    CHECK(std_dev->spatial_scale == patchy::FilterSpatialScale::Pixels);
+    CHECK(std_dev->practical_maximum.has_value() && *std_dev->practical_maximum > 1.0);
+    CHECK(std::get<double>(std_dev->default_value) == 1.5);
+  }
+  const auto* abyss = parameter(*blur, "abyss-policy");
+  CHECK(abyss != nullptr && abyss->kind == patchy::FilterParameterKind::Option && !abyss->options.empty());
+  CHECK(registry->find("gegl.cartoon") != nullptr);  // GPL-3, offered through --gpl3
+  CHECK(registry->find("gegl.red-eye-removal") == nullptr);
+  CHECK(registry->find("gegl.crop") == nullptr);       // geometry, not a filter
+  CHECK(registry->find("gegl.over") == nullptr);       // two inputs
+
+  // Straight through the registry: a run changes a two-color buffer at its edge.
+  patchy::PixelBuffer pixels(16, 8, patchy::PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::UInt8, 4});
+  auto bytes = pixels.data();
+  for (int y = 0; y < 8; ++y) {
+    for (int x = 0; x < 16; ++x) {
+      auto* px = bytes.data() + static_cast<std::size_t>(y) * pixels.stride_bytes() + static_cast<std::size_t>(x) * 4U;
+      px[0] = x < 8 ? 255 : 0;
+      px[1] = 0;
+      px[2] = x < 8 ? 0 : 255;
+      px[3] = 255;
+    }
+  }
+  const auto before = pixels;
+  auto invocation = registry->default_invocation("gegl.gaussian-blur");
+  invocation.parameters["std-dev-x"] = 3.0;
+  registry->apply(invocation, pixels);
+  CHECK(!(std::as_const(pixels).data()[7 * 4] == std::as_const(before).data()[7 * 4] &&
+          std::as_const(pixels).data()[7 * 4 + 2] == std::as_const(before).data()[7 * 4 + 2]));
+
+  // Plugins > GEGL Filters lists it.
+  bool listed = false;
+  for (auto* action : window.findChildren<QAction*>(QStringLiteral("geglFilterAction"))) {
+    listed = listed || action->data().toString() == QStringLiteral("gegl.gaussian-blur");
+  }
+  CHECK(listed);
+
+  // Through apply_filter onto a layer, one undo step.
+  CHECK(run_script_verbose(window, QStringLiteral("var doc = app.newDocument(64, 48, {name: 'gegl'});\n"
+                                                  "doc.activeLayer.fillRect(0, 0, 32, 48, '#ff0000');\n"
+                                                  "doc.activeLayer.fillRect(32, 0, 32, 48, '#0000ff');\n")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) return;
+  const auto original = std::as_const(document).find_layer(*layer_id)->pixels();
+  patchy::ui::MainWindowTestAccess::apply_filter_without_dialog(window, QStringLiteral("gegl.gaussian-blur"), invocation);
+  const auto& filtered = std::as_const(document).find_layer(*layer_id)->pixels();
+  CHECK(!(filtered.width() == original.width() &&
+          std::equal(filtered.data().begin(), filtered.data().end(), original.data().begin(), original.data().end())));
+  CHECK(run_script_verbose(window, QStringLiteral("app.activeDocument.undo();\n")));
+  const auto& undone = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*layer_id)->pixels();
+  CHECK(std::equal(undone.data().begin(), undone.data().end(), original.data().begin(), original.data().end()));
+
+  // The menu command opens Patchy's filter dialog from GEGL's settings (saved to
+  // test-artifacts/gegl-cartoon-dialog.png for visual QA); Cancel leaves the layer alone.
+  bool saw_dialog = false;
+  int polls = 0;
+  QTimer poll;
+  poll.setInterval(250);
+  QObject::connect(&poll, &QTimer::timeout, &window, [&] {
+    ++polls;
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFilterDialog"));
+    if (dialog == nullptr) {
+      if (polls > 80) {  // 20 s: close whatever is modal so a failure ends the test
+        poll.stop();
+        if (auto* modal = qobject_cast<QDialog*>(QApplication::activeModalWidget())) modal->reject();
+      }
+      return;
+    }
+    if (polls < 10) {
+      return;  // let the previews land first
+    }
+    poll.stop();
+    saw_dialog = dialog->property("patchy.filterIdentifier").toString() == QLatin1String("gegl.cartoon") &&
+                 dialog->findChild<QWidget*>(QStringLiteral("geglParam_mask-radiusSlider")) != nullptr;
+    save_widget_artifact("gegl-cartoon-dialog", *dialog);
+    dialog->reject();
+  });
+  poll.start();
+  patchy::ui::MainWindowTestAccess::apply_filter_with_dialog(window, QStringLiteral("gegl.cartoon"));
+  CHECK(saw_dialog);
+  const auto& cancelled = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*layer_id)->pixels();
+  CHECK(std::equal(cancelled.data().begin(), cancelled.data().end(), original.data().begin(), original.data().end()));
+}
+
 void ui_gimp_plugins_menu_lists_test_plugin_if_available() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -843,6 +955,7 @@ std::vector<patchy::test::TestCase> gimp_plugin_tests() {
        ui_gimp_plugin_script_api_lists_and_runs_test_plugin_if_available},
       {"ui_gimp_plugin_runs_on_deep_layers_if_available", ui_gimp_plugin_runs_on_deep_layers_if_available},
       {"ui_gimp_plugins_menu_lists_test_plugin_if_available", ui_gimp_plugins_menu_lists_test_plugin_if_available},
+      {"ui_gegl_filters_list_and_apply_if_available", ui_gegl_filters_list_and_apply_if_available},
       {"ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu",
        ui_gimp_plugins_menu_scan_finishing_under_a_popup_updates_the_menu},
       {"ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available",
