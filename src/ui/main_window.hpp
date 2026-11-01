@@ -3064,7 +3064,7 @@ private:
   std::array<QAction*, 4> path_point_actions_{};
   QAction* path_shapes_color_action_{nullptr};
   QAction* path_merge_shapes_action_{nullptr};
-  QToolButton* path_merge_shapes_button_{nullptr};  // the options bar's Merge Shapes
+  QPushButton* path_merge_shapes_button_{nullptr};  // the options bar's Merge Shapes
   QAction* path_shapes_to_new_layer_action_{nullptr};
   QAction* path_shapes_copy_to_new_layer_action_{nullptr};
   QAction* path_shapes_cut_action_{nullptr};

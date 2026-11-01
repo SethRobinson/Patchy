@@ -4326,13 +4326,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_vector_mode_option_widgets_.push_back(vector_combine_combo);
   // Path Select / Direct Select: apply the combine to the geometry (GitHub #555; the reporter's
   // "Apply operation"). A button, not a mode: the live combine stays the default and one click bakes it.
-  path_merge_shapes_button_ = new QToolButton(toolbar);
+  // A framed push button like the bar's other text buttons: a text QToolButton takes the generic
+  // 26 px content minimum and made the Path Select bar 34 px tall (issue 91 height test).
+  path_merge_shapes_button_ = new QPushButton(toolbar);
   path_merge_shapes_button_->setObjectName(QStringLiteral("vectorMergeShapesButton"));
   path_merge_shapes_button_->setText(tr("Merge Shapes"));
-  path_merge_shapes_button_->setToolButtonStyle(Qt::ToolButtonTextOnly);
   bind_widget_text(path_merge_shapes_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Merge Shapes"));
   path_merge_shapes_button_->setEnabled(false);
-  connect(path_merge_shapes_button_, &QToolButton::clicked, this, [this] { merge_selected_path_components(); });
+  connect(path_merge_shapes_button_, &QPushButton::clicked, this, [this] { merge_selected_path_components(); });
   add_option_widget(path_merge_shapes_button_, {CanvasTool::PathSelect, CanvasTool::DirectSelect});
   connect(vector_combine_combo, &QComboBox::currentIndexChanged, this, [this](int index) {
     current_vector_combine_index_ = index;

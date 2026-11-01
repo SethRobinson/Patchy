@@ -564,7 +564,7 @@ void ui_path_merge_shapes_bakes_the_combine() {
   set_target_path(*canvas, path);
   require_action(window, "toolPathSelectAction")->trigger();
   QApplication::processEvents();
-  auto* button = window.findChild<QToolButton*>(QStringLiteral("vectorMergeShapesButton"));
+  auto* button = window.findChild<QPushButton*>(QStringLiteral("vectorMergeShapesButton"));
   CHECK(button != nullptr && button->isVisible() && button->isEnabled());
   const std::vector<QPoint> probes{{110, 110}, {150, 150}, {250, 250}, {290, 290}, {200, 200}, {120, 280}, {280, 110}};
   std::vector<int> before;
