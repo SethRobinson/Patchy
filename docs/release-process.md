@@ -108,6 +108,8 @@ signed like x64, staged in `build\package\staging-arm64`, and checked by
 `verify-windows-package.ps1 -Arch arm64`, which on an x64 PC skips the two steps that run its
 executables (the headless smoke check and `patchy-mcp --check` are skipped too). A failure
 in the ARM64 half fails the builder after the x64 packages are already built and verified.
+A failed signature (the token's smart card error 0x8010001F) is retried twice, 15 s apart, but
+only once a file has signed in that run, so a wrong PIN is never resent.
 `verify-windows-arm64` (`verify-remote.ps1 -Target windows-arm64`) runs both full suites from
 a native `windows-arm64-opt-dev` build on the `windows-arm64` host (an LTCG link may not fit
 its 16 GB), then copies the two packages there and runs `verify-windows-package.ps1 -Arch

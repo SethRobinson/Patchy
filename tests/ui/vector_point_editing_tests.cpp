@@ -387,7 +387,8 @@ void ui_pen_hover_over_path_shows_edit_hints() {
   hover(*canvas, QPoint(100, 100));
   CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Drag to move the point")));
   hover(*canvas, QPoint(200, 100));
-  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Drag to move the segment")));
+  // A click on a segment adds a point there (GitHub issue 555).
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Click to add a point, drag to reshape")));
   require_action(window, "toolPathSelectAction")->trigger();
   QApplication::processEvents();
   hover(*canvas, QPoint(500, 400));

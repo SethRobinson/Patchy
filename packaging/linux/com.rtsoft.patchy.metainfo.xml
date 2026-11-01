@@ -147,6 +147,20 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.24" date="2026-11-01">
+      <description>
+        <ul>
+          <li>Search Commands in the Help menu finds and runs any menu command</li>
+          <li>Merge Shapes, point welding and new path point commands</li>
+          <li>Stroke presets, dash presets with caps and an Appearance gear on the shape options bar</li>
+          <li>A reorganized Layer menu with Lock Layers, Hide and Show Layers and an Export submenu</li>
+          <li>Alt+[ and Alt+] step through the layers; comma and period step through presets</li>
+          <li>Linear values and Intensity for 32-bit colors and gradient stops</li>
+          <li>Editable custom stroke dashes and strokes beside open paths</li>
+          <li>GIMP 3.2 vector layers open as shape layers</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.23" date="2026-10-30">
       <description>
         <ul>

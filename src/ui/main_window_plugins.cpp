@@ -376,6 +376,7 @@ void MainWindow::rebuild_legacy_plugins_menu() {
     note->setObjectName(legacy_plugin_scan_in_flight_ ? QStringLiteral("legacyPluginsScanningNote")
                                                       : QStringLiteral("legacyPluginsEmptyNote"));
     note->setProperty(kLegacyPluginMenuEntryProperty, true);
+    note->setProperty(kCommandSearchDataEntryProperty, true);  // a scan state, not a command
     note->setEnabled(false);
     update_legacy_plugin_repeat_actions();  // the last plug-in may be gone with its folder
     return;

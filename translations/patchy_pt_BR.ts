@@ -14346,7 +14346,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
-        <translation>Salvar Alinhamento, Extremidades, Cantos, Traços e Deslocamento dos traços como predefinição</translation>
+        <translation>Salvar Alinhar, Extremidades, Cantos, Traços e Deslocamento dos traços como predefinição</translation>
     </message>
     <message>
         <source>Delete the chosen preset</source>
@@ -14421,15 +14421,15 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Low</source>
-        <translation>Baixa</translation>
+        <translation>Baixo</translation>
     </message>
     <message>
         <source>High</source>
-        <translation>Alta</translation>
+        <translation>Alto</translation>
     </message>
     <message>
         <source>Very High</source>
-        <translation>Muito alta</translation>
+        <translation>Muito alto</translation>
     </message>
     <message>
         <source>JPEG Very High</source>
@@ -16976,7 +16976,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Take back the last change</source>
-        <translation>Desfazer a última alteração</translation>
+        <translation>Reverter a última alteração</translation>
     </message>
     <message>
         <source>Redo the change you took back</source>
@@ -17024,7 +17024,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Bend the layer with a grid</source>
-        <translation>Deformar a camada com uma grade</translation>
+        <translation>Curvar a camada com uma grade</translation>
     </message>
     <message>
         <source>Erase an object and fill the gap</source>
@@ -17152,7 +17152,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Bake the mask into the pixels</source>
-        <translation>Aplicar a máscara aos pixels</translation>
+        <translation>Incorporar a máscara aos pixels</translation>
     </message>
     <message>
         <source>Drop shadow, stroke, glow and other effects</source>
@@ -17220,7 +17220,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Select a band along the edge</source>
-        <translation>Selecionar uma faixa ao longo da borda</translation>
+        <translation>Selecionar uma faixa ao longo do contorno</translation>
     </message>
     <message>
         <source>Add neighboring similar colors</source>
@@ -17236,7 +17236,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Magnify the view</source>
-        <translation>Ampliar a visualização</translation>
+        <translation>Aproximar a visualização</translation>
     </message>
     <message>
         <source>Show more of the image</source>
@@ -17348,7 +17348,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Smear paint</source>
-        <translation>Borrar a tinta</translation>
+        <translation>Espalhar a tinta</translation>
     </message>
     <message>
         <source>Lighten areas</source>
@@ -17532,7 +17532,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Slant the layer or selection</source>
-        <translation>Inclinar a camada ou a seleção</translation>
+        <translation>Enviesar a camada ou a seleção</translation>
     </message>
     <message>
         <source>Drag each corner freely</source>
@@ -17712,7 +17712,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Add a layer filled with a gradient</source>
-        <translation>Adicionar uma camada preenchida com um gradiente</translation>
+        <translation>Adicionar uma camada preenchida com um degradê</translation>
     </message>
     <message>
         <source>Add a layer filled with a pattern</source>
@@ -18424,7 +18424,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Arrange document windows side by side</source>
-        <translation>Organizar as janelas de documentos lado a lado</translation>
+        <translation>Organizar as janelas de documentos em mosaico</translation>
     </message>
     <message>
         <source>Stack document windows diagonally</source>
@@ -18524,7 +18524,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Connect an AI assistant to Patchy</source>
-        <translation>Conectar um assistente de AI ao Patchy</translation>
+        <translation>Conectar um assistente de IA ao Patchy</translation>
     </message>
     <message>
         <source>Add a launcher to your desktop menu</source>
@@ -18596,7 +18596,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Exchange foreground and background colors</source>
-        <translation>Trocar as cores de primeiro plano e de fundo</translation>
+        <translation>Permutar as cores de primeiro plano e de fundo</translation>
     </message>
     <message>
         <source>Make the brush smaller</source>
@@ -18637,34 +18637,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>Procurar plug-ins do GIMP 3 novos ou alterados e recarregar o que eles registram</translation>
-    </message>
-    <message>
-        <source>No .8bf filters were found in the plug-in folders</source>
-        <translation>Nenhum filtro .8bf foi encontrado nas pastas de plug-ins</translation>
-    </message>
-    <message>
-        <source>The plug-in folders are still being read</source>
-        <translation>As pastas de plug-ins ainda estão sendo lidas</translation>
-    </message>
-    <message>
-        <source>No GIMP 3 plug-ins that work on a layer were found</source>
-        <translation>Nenhum plug-in do GIMP 3 que funcione em uma camada foi encontrado</translation>
-    </message>
-    <message>
-        <source>GIMP 3 plug-ins are still being looked for</source>
-        <translation>Os plug-ins do GIMP 3 ainda estão sendo procurados</translation>
-    </message>
-    <message>
-        <source>Why GIMP 3 plug-ins are not available</source>
-        <translation>Por que os plug-ins do GIMP 3 não estão disponíveis</translation>
-    </message>
-    <message>
-        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
-        <translation>Por que os plug-ins Python do GIMP não podem ser iniciados no macOS</translation>
-    </message>
-    <message>
-        <source>GIMP plug-ins that did not start, listed in Preferences</source>
-        <translation>Plug-ins do GIMP que não foram iniciados, listados em Preferências</translation>
     </message>
 </context>
 <context>

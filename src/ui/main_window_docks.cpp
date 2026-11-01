@@ -2017,14 +2017,14 @@ void MainWindow::create_docks() {
   // Merge Visible runs the Layer menu's action and follows its enabled state
   // (refresh_merge_visible_action_state), so the button is off whenever the command is (GitHub
   // issue 539).
-  const auto follow_action = [this](QPushButton* button, QAction* action) {
+  const auto follow_action = [](QPushButton* button, QAction* action) {
     if (action == nullptr) {
       button->setEnabled(false);
       return;
     }
     button->setEnabled(action->isEnabled());
-    connect(action, &QAction::changed, button, [button, action] { button->setEnabled(action->isEnabled()); });
-    connect(button, &QPushButton::clicked, action, [action] {
+    QObject::connect(action, &QAction::changed, button, [button, action] { button->setEnabled(action->isEnabled()); });
+    QObject::connect(button, &QPushButton::clicked, action, [action] {
       if (action->isEnabled()) {
         action->trigger();
       }

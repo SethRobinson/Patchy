@@ -14275,7 +14275,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>x width</source>
-        <translation>x 宽度</translation>
+        <translation>× 描边宽度</translation>
     </message>
     <message>
         <source>Dash pattern:</source>
@@ -14303,7 +14303,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
-        <translation>将对齐、端点、角点、虚线和虚线偏移存储为预设</translation>
+        <translation>将对齐、端点、拐角、虚线和虚线偏移存储为预设</translation>
     </message>
     <message>
         <source>Delete the chosen preset</source>
@@ -14359,7 +14359,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
-        <translation>还没有保存的描边预设。请在“形状外观”中设置描边，然后点击“虚线”旁边的“保存...”。</translation>
+        <translation>还没有保存的描边预设。请在“形状外观”中设置描边，然后单击“虚线”旁边的“存储...”。</translation>
     </message>
     <message>
         <source>Unchanged</source>
@@ -14385,11 +14385,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Very High</source>
-        <translation>很高</translation>
+        <translation>非常高</translation>
     </message>
     <message>
         <source>JPEG Very High</source>
-        <translation>JPEG 很高</translation>
+        <translation>JPEG 非常高</translation>
     </message>
     <message>
         <source>JPEG Medium</source>
@@ -16514,7 +16514,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
-        <translation>拖动可移动锚点；把端点放到另一个端点上即可连接。Shift+单击添加到选区。右键单击可断开、连接和合并。</translation>
+        <translation>拖动可移动锚点；把端点放到另一个端点上即可连接。Shift+单击可加入选择。右键单击可断开、连接和合并。</translation>
     </message>
     <message>
         <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
@@ -16976,7 +16976,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Turn the layer or selection</source>
-        <translation>旋转图层或选区</translation>
+        <translation>转动图层或选区</translation>
     </message>
     <message>
         <source>Bend the layer with a grid</source>
@@ -17108,7 +17108,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Bake the mask into the pixels</source>
-        <translation>将蒙版应用到像素</translation>
+        <translation>将蒙版并入像素</translation>
     </message>
     <message>
         <source>Drop shadow, stroke, glow and other effects</source>
@@ -17116,7 +17116,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Clip to the layer below</source>
-        <translation>剪切到下方图层</translation>
+        <translation>剪贴到下方图层</translation>
     </message>
     <message>
         <source>Show or hide layers</source>
@@ -17176,7 +17176,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Select a band along the edge</source>
-        <translation>沿边缘选择一条带</translation>
+        <translation>沿边缘选择带状区域</translation>
     </message>
     <message>
         <source>Add neighboring similar colors</source>
@@ -17488,7 +17488,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Slant the layer or selection</source>
-        <translation>斜切图层或选区</translation>
+        <translation>倾斜图层或选区</translation>
     </message>
     <message>
         <source>Drag each corner freely</source>
@@ -17628,7 +17628,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Editable black and white cutoff</source>
-        <translation>可编辑的黑白阈值</translation>
+        <translation>可编辑的黑白分界</translation>
     </message>
     <message>
         <source>Editable brightening or darkening</source>
@@ -17732,7 +17732,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Turn the mask off for now</source>
-        <translation>暂时停用蒙版</translation>
+        <translation>暂时关闭蒙版</translation>
     </message>
     <message>
         <source>Swap what the mask shows and hides</source>
@@ -17760,7 +17760,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Turn the vector mask off for now</source>
-        <translation>暂时停用矢量蒙版</translation>
+        <translation>暂时关闭矢量蒙版</translation>
     </message>
     <message>
         <source>Turn the vector mask into a pixel mask</source>
@@ -17772,7 +17772,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Wrap the layers so edits stay editable</source>
-        <translation>包装图层，使编辑保持可编辑</translation>
+        <translation>封装图层，使编辑可随时修改</translation>
     </message>
     <message>
         <source>Open the contents in their own tab</source>
@@ -18072,7 +18072,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Moody black and white</source>
-        <translation>情绪化的黑白</translation>
+        <translation>富有氛围感的黑白</translation>
     </message>
     <message>
         <source>Film look with lifted blacks</source>
@@ -18100,7 +18100,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Streak as if moving</source>
-        <translation>像运动一样拖出条纹</translation>
+        <translation>产生运动拖影</translation>
     </message>
     <message>
         <source>Spin or zoom blur around a center</source>
@@ -18252,7 +18252,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Add a bright camera flare</source>
-        <translation>添加明亮的镜头光晕</translation>
+        <translation>添加明亮的相机眩光</translation>
     </message>
     <message>
         <source>Run the last plug-in again</source>
@@ -18594,34 +18594,6 @@ Each item&apos;s own View setting still applies.</source>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>查找新增或已更改的 GIMP 3 插件，并重新加载它们注册的内容</translation>
     </message>
-    <message>
-        <source>No .8bf filters were found in the plug-in folders</source>
-        <translation>在插件文件夹中未找到 .8bf 滤镜</translation>
-    </message>
-    <message>
-        <source>The plug-in folders are still being read</source>
-        <translation>仍在读取插件文件夹</translation>
-    </message>
-    <message>
-        <source>No GIMP 3 plug-ins that work on a layer were found</source>
-        <translation>未找到可用于图层的 GIMP 3 插件</translation>
-    </message>
-    <message>
-        <source>GIMP 3 plug-ins are still being looked for</source>
-        <translation>仍在查找 GIMP 3 插件</translation>
-    </message>
-    <message>
-        <source>Why GIMP 3 plug-ins are not available</source>
-        <translation>GIMP 3 插件不可用的原因</translation>
-    </message>
-    <message>
-        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
-        <translation>GIMP 的 Python 插件无法在 macOS 上启动的原因</translation>
-    </message>
-    <message>
-        <source>GIMP plug-ins that did not start, listed in Preferences</source>
-        <translation>未能启动的 GIMP 插件，列在首选项中</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -18704,7 +18676,7 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Variable</source>
         <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
-        <translation>可变</translation>
+        <translation>可变字体</translation>
     </message>
     <message>
         <source>Recent</source>
@@ -31398,7 +31370,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>A text area keeps one outline</source>
-        <translation>文本区域保持一个轮廓</translation>
+        <translation>文本区域只能有一个轮廓</translation>
     </message>
     <message>
         <source>The path has no shapes</source>

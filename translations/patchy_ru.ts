@@ -300,7 +300,7 @@
     </message>
     <message>
         <source>Position</source>
-        <translation>Позиция</translation>
+        <translation>Положение</translation>
     </message>
     <message>
         <source>Keep the layer from being moved or transformed</source>
@@ -8422,7 +8422,7 @@ RGB: %2, %3, %4</translation>
     </message>
     <message>
         <source>Shape Appearance</source>
-        <translation>Внешний вид формы</translation>
+        <translation>Внешний вид фигуры</translation>
     </message>
     <message>
         <source>Fill Opacity:</source>
@@ -14345,7 +14345,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Layer visible. Click to hide. %ALT%-click to show only this layer.</source>
-        <translation>Виден слой. Нажмите, чтобы скрыть. Щелчок с %ALT% показывает только этот слой.</translation>
+        <translation>Слой виден. Нажмите, чтобы скрыть. Щелчок с %ALT% показывает только этот слой.</translation>
     </message>
     <message>
         <source>Layer hidden. Click to show. %ALT%-click to show only this layer.</source>
@@ -14389,11 +14389,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
-        <translation>Сохранить выравнивание, концы, углы, штрихи и смещение штрихов как настройку</translation>
+        <translation>Сохранить выравнивание, концы, углы, штрихи и смещение штрихов как набор</translation>
     </message>
     <message>
         <source>Delete the chosen preset</source>
-        <translation>Удалить выбранную настройку</translation>
+        <translation>Удалить выбранный набор</translation>
     </message>
     <message>
         <source>Moves the dash pattern along the path, in stroke widths</source>
@@ -14405,11 +14405,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Save Stroke Preset</source>
-        <translation>Сохранить настройку обводки</translation>
+        <translation>Сохранить набор обводки</translation>
     </message>
     <message>
         <source>Stroke preset %1</source>
-        <translation>Настройка обводки %1</translation>
+        <translation>Набор обводки %1</translation>
     </message>
     <message>
         <source>Stroke Presets</source>
@@ -14493,7 +14493,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
-        <translation>Сохранённый формат с его настройками. Если настройки не совпадают ни с одним набором, показано Заказной.</translation>
+        <translation>Сохранённый формат с его настройками. Если настройки не совпадают ни с одним набором, показывается «Заказной».</translation>
     </message>
     <message>
         <source>Save the format and its settings as a preset</source>
@@ -16586,11 +16586,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
-        <translation>Выберите точку прямым выделением (внутри разомкнутого контура или любую точку замкнутого) или щёлкните точку правой кнопкой</translation>
+        <translation>Выберите точку инструментом «Выделение узла» (внутри разомкнутого контура или любую точку замкнутого) или щёлкните точку правой кнопкой</translation>
     </message>
     <message>
         <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
-        <translation>Выберите прямым выделением две конечные точки или соседние точки одного контура или щёлкните сегмент правой кнопкой</translation>
+        <translation>Выберите инструментом «Выделение узла» две конечные точки или соседние точки одного контура или щёлкните сегмент правой кнопкой</translation>
     </message>
     <message>
         <source>Joined the end points</source>
@@ -16606,7 +16606,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
-        <translation>Выберите прямым выделением две конечные точки, чтобы соединить их, или точку разомкнутого контура, чтобы замкнуть его</translation>
+        <translation>Выберите инструментом «Выделение узла» две конечные точки, чтобы соединить их, или точку разомкнутого контура, чтобы замкнуть его</translation>
     </message>
     <message>
         <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
@@ -16626,7 +16626,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
-        <translation>Щёлкните сегмент с Shift прямым выделением, чтобы выбрать его, или щёлкните его правой кнопкой</translation>
+        <translation>Выберите сегмент инструментом «Выделение узла», щёлкнув его с Shift, или щёлкните его правой кнопкой</translation>
     </message>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
@@ -16976,7 +16976,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Combine the layers into one sheet</source>
-        <translation>Объединить слои в один лист</translation>
+        <translation>Собрать слои в один лист</translation>
     </message>
     <message>
         <source>Insert an image as a Smart Object</source>
@@ -17020,11 +17020,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Take back the last change</source>
-        <translation>Отменить последнее изменение</translation>
+        <translation>Откатить последнее изменение</translation>
     </message>
     <message>
         <source>Redo the change you took back</source>
-        <translation>Повторить отменённое изменение</translation>
+        <translation>Вернуть отменённое изменение</translation>
     </message>
     <message>
         <source>Move the selection to the clipboard</source>
@@ -17048,11 +17048,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Fill with a color or pattern</source>
-        <translation>Заливка цветом или узором</translation>
+        <translation>Залить цветом или узором</translation>
     </message>
     <message>
         <source>Draw an outline along the selection</source>
-        <translation>Обвести контур вдоль выделения</translation>
+        <translation>Обвести выделение линией</translation>
     </message>
     <message>
         <source>Scale, rotate or move freely</source>
@@ -17088,11 +17088,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Manage gradient presets</source>
-        <translation>Управление наборами градиентов</translation>
+        <translation>Управлять наборами градиентов</translation>
     </message>
     <message>
         <source>Manage pattern presets</source>
-        <translation>Управление наборами узоров</translation>
+        <translation>Управлять наборами узоров</translation>
     </message>
     <message>
         <source>Resize or scale the image</source>
@@ -17164,7 +17164,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Remove the layer</source>
-        <translation>Удалить слой</translation>
+        <translation>Убрать слой из документа</translation>
     </message>
     <message>
         <source>Change the layer name</source>
@@ -17188,7 +17188,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Combine all visible layers</source>
-        <translation>Объединить все видимые слои</translation>
+        <translation>Слить все видимые слои в один</translation>
     </message>
     <message>
         <source>Add a layer mask</source>
@@ -17284,7 +17284,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Show more of the image</source>
-        <translation>Показать большую часть изображения</translation>
+        <translation>Показать больше изображения на экране</translation>
     </message>
     <message>
         <source>Show the whole image</source>
@@ -17488,7 +17488,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Switch points between corner and smooth</source>
-        <translation>Переключать точки между угловой и гладкой</translation>
+        <translation>Превращать угловые точки в гладкие и обратно</translation>
     </message>
     <message>
         <source>Crop or straighten the image</source>
@@ -17504,7 +17504,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Search commands and tools</source>
-        <translation>Поиск команд и инструментов</translation>
+        <translation>Найти команды и инструменты</translation>
     </message>
     <message>
         <source>Empty the list of recent files</source>
@@ -17596,7 +17596,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Manage brush tips and import ABR</source>
-        <translation>Управлять отпечатками кисти и импортировать ABR</translation>
+        <translation>Управлять отпечатками кистей и импортировать ABR</translation>
     </message>
     <message>
         <source>Manage saved brushes</source>
@@ -17612,7 +17612,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Preview and save for print colors</source>
-        <translation>Просмотр и сохранение для печатных цветов</translation>
+        <translation>Просмотреть и сохранить в цветах печати</translation>
     </message>
     <message>
         <source>Use 8 bits per channel</source>
@@ -17812,7 +17812,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Show only the mask in gray</source>
-        <translation>Показать только маску в сером</translation>
+        <translation>Показать только маску в оттенках серого</translation>
     </message>
     <message>
         <source>Move the mask together with the layer</source>
@@ -17828,7 +17828,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Remove the layer mask</source>
-        <translation>Удалить слой-маску</translation>
+        <translation>Убрать маску слоя</translation>
     </message>
     <message>
         <source>Add a vector mask that shows everything</source>
@@ -17892,7 +17892,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Rasterize the Smart Object into pixels</source>
-        <translation>Растрировать смарт-объект в пиксели</translation>
+        <translation>Превратить смарт-объект в обычные пиксели</translation>
     </message>
     <message>
         <source>Merge the shapes into one outline</source>
@@ -18020,7 +18020,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Scatter pixels by opacity</source>
-        <translation>Рассеять пиксели по непрозрачности</translation>
+        <translation>Рассеять пиксели в зависимости от непрозрачности</translation>
     </message>
     <message>
         <source>Keep the darker colors</source>
@@ -18056,7 +18056,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Raise contrast by the colors below</source>
-        <translation>Повысить контраст по нижним цветам</translation>
+        <translation>Усилить контраст в зависимости от нижних цветов</translation>
     </message>
     <message>
         <source>Gently lighten or darken</source>
@@ -18068,11 +18068,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Burn or dodge by contrast</source>
-        <translation>Затемнить или осветлить через контраст</translation>
+        <translation>Затемнить или осветлить за счёт контраста</translation>
     </message>
     <message>
         <source>Burn or dodge by brightness</source>
-        <translation>Затемнить или осветлить через яркость</translation>
+        <translation>Затемнить или осветлить за счёт яркости</translation>
     </message>
     <message>
         <source>Replace colors by lightness</source>
@@ -18160,15 +18160,15 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Moody black and white</source>
-        <translation>Атмосферное чёрно-белое</translation>
+        <translation>Атмосферное чёрно-белое изображение</translation>
     </message>
     <message>
         <source>Film look with lifted blacks</source>
-        <translation>Плёночный вид с приподнятым чёрным</translation>
+        <translation>Эффект плёнки с приподнятым чёрным</translation>
     </message>
     <message>
         <source>Faded old photo look</source>
-        <translation>Вид выцветшего старого фото</translation>
+        <translation>Эффект выцветшего старого фото</translation>
     </message>
     <message>
         <source>Brown old photo tint</source>
@@ -18228,7 +18228,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Sharpen with amount and radius</source>
-        <translation>Повысить резкость с эффектом и радиусом</translation>
+        <translation>Повысить резкость с настройкой эффекта и радиуса</translation>
     </message>
     <message>
         <source>Keep only the fine detail</source>
@@ -18280,7 +18280,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Shiny wrapped-in-plastic look</source>
-        <translation>Блестящий вид, как в плёнке</translation>
+        <translation>Блестящий эффект пластиковой плёнки</translation>
     </message>
     <message>
         <source>Scatter pixels softly</source>
@@ -18340,7 +18340,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Add a bright camera flare</source>
-        <translation>Добавить яркий блик камеры</translation>
+        <translation>Добавить яркую засветку объектива</translation>
     </message>
     <message>
         <source>Run the last plug-in again</source>
@@ -18376,7 +18376,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Preview the print colors</source>
-        <translation>Предпросмотр цветов печати</translation>
+        <translation>Просмотреть, как цвета будут выглядеть в печати</translation>
     </message>
     <message>
         <source>Mark colors that cannot print</source>
@@ -18404,23 +18404,23 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Snap to guide lines</source>
-        <translation>Привязка к направляющим</translation>
+        <translation>Привязывать к направляющим</translation>
     </message>
     <message>
         <source>Snap to the grid</source>
-        <translation>Привязка к сетке</translation>
+        <translation>Привязывать к сетке</translation>
     </message>
     <message>
         <source>Snap to the canvas edges and center</source>
-        <translation>Привязка к краям и центру холста</translation>
+        <translation>Привязывать к краям и центру холста</translation>
     </message>
     <message>
         <source>Snap to other layers</source>
-        <translation>Привязка к другим слоям</translation>
+        <translation>Привязывать к другим слоям</translation>
     </message>
     <message>
         <source>Snap to the selection edges</source>
-        <translation>Привязка к краям выделения</translation>
+        <translation>Привязывать к краям выделения</translation>
     </message>
     <message>
         <source>Add column and row guides</source>
@@ -18448,7 +18448,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Switch to the next screen mode</source>
-        <translation>Переключить на следующий режим экрана</translation>
+        <translation>Переключиться на следующий режим экрана</translation>
     </message>
     <message>
         <source>Move the document into its own window</source>
@@ -18472,7 +18472,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Stack document windows diagonally</source>
-        <translation>Сложить окна документов по диагонали</translation>
+        <translation>Расположить окна документов уступами по диагонали</translation>
     </message>
     <message>
         <source>Resize the window to 1280 by 720</source>
@@ -18568,7 +18568,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Connect an AI assistant to Patchy</source>
-        <translation>Подключить AI-ассистента к Patchy</translation>
+        <translation>Подключить ИИ-ассистента к Patchy</translation>
     </message>
     <message>
         <source>Add a launcher to your desktop menu</source>
@@ -18636,7 +18636,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Reset to black and white</source>
-        <translation>Сбросить на чёрный и белый</translation>
+        <translation>Сбросить цвета на чёрный и белый</translation>
     </message>
     <message>
         <source>Exchange foreground and background colors</source>
@@ -18676,39 +18676,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Manage built-in and saved stroke presets</source>
-        <translation>Управление встроенными и сохранёнными наборами обводки</translation>
+        <translation>Управлять встроенными и сохранёнными наборами обводки</translation>
     </message>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>Найти новые или изменённые плагины GIMP 3 и заново загрузить то, что они регистрируют</translation>
-    </message>
-    <message>
-        <source>No .8bf filters were found in the plug-in folders</source>
-        <translation>В папках плагинов не найдено фильтров .8bf</translation>
-    </message>
-    <message>
-        <source>The plug-in folders are still being read</source>
-        <translation>Папки плагинов ещё считываются</translation>
-    </message>
-    <message>
-        <source>No GIMP 3 plug-ins that work on a layer were found</source>
-        <translation>Не найдено плагинов GIMP 3, работающих со слоем</translation>
-    </message>
-    <message>
-        <source>GIMP 3 plug-ins are still being looked for</source>
-        <translation>Поиск плагинов GIMP 3 ещё идёт</translation>
-    </message>
-    <message>
-        <source>Why GIMP 3 plug-ins are not available</source>
-        <translation>Почему плагины GIMP 3 недоступны</translation>
-    </message>
-    <message>
-        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
-        <translation>Почему Python-плагины GIMP не могут запускаться в macOS</translation>
-    </message>
-    <message>
-        <source>GIMP plug-ins that did not start, listed in Preferences</source>
-        <translation>Плагины GIMP, которые не запустились, перечислены в настройках</translation>
     </message>
 </context>
 <context>
@@ -26654,7 +26626,7 @@ Y: %2
     </message>
     <message>
         <source>Shape appearance</source>
-        <translation>Внешний вид формы</translation>
+        <translation>Внешний вид фигуры</translation>
     </message>
     <message>
         <source>Created fill layer %1.</source>
@@ -31276,11 +31248,11 @@ Locked: %1</source>
     </message>
     <message>
         <source>Add Layer Below to Selection</source>
-        <translation>Добавить слой ниже к выделению</translation>
+        <translation>Добавить слой ниже к выбранным</translation>
     </message>
     <message>
         <source>Add Layer Above to Selection</source>
-        <translation>Добавить слой выше к выделению</translation>
+        <translation>Добавить слой выше к выбранным</translation>
     </message>
     <message>
         <source>&amp;Hide Layers</source>
@@ -31384,7 +31356,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>Opening painted-on GIMP text:</source>
-        <translation>Открытие текста GIMP с рисованием:</translation>
+        <translation>Открытие текста GIMP, поверх которого рисовали:</translation>
     </message>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
@@ -31416,7 +31388,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>Select shapes on a shape layer with Path Select or Direct Select</source>
-        <translation>Выберите фигуры на слое-фигуре инструментом «Выделение контура» или «Прямое выделение»</translation>
+        <translation>Выберите фигуры на слое-фигуре инструментом «Выделение контура» или «Выделение узла»</translation>
     </message>
     <message>
         <source>Break Path at Point</source>
@@ -31448,7 +31420,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>Color Selected Shapes...</source>
-        <translation>Цвет выбранных фигур...</translation>
+        <translation>Окрасить выбранные фигуры...</translation>
     </message>
     <message>
         <source>Give the selected shapes a fill color of their own</source>
@@ -31528,7 +31500,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>Select shapes with Path Select or Direct Select first</source>
-        <translation>Сначала выберите фигуры инструментом «Выделение контура» или «Прямое выделение»</translation>
+        <translation>Сначала выберите фигуры инструментом «Выделение контура» или «Выделение узла»</translation>
     </message>
     <message>
         <source>Copy shapes to new layer</source>

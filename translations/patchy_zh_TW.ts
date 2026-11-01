@@ -14275,7 +14275,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>x width</source>
-        <translation>x 寬度</translation>
+        <translation>× 筆畫寬度</translation>
     </message>
     <message>
         <source>Dash pattern:</source>
@@ -14385,11 +14385,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Very High</source>
-        <translation>很高</translation>
+        <translation>非常高</translation>
     </message>
     <message>
         <source>JPEG Very High</source>
-        <translation>JPEG 很高</translation>
+        <translation>JPEG 非常高</translation>
     </message>
     <message>
         <source>JPEG Medium</source>
@@ -16514,7 +16514,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
-        <translation>拖曳可移動錨點；把端點放到另一個端點上即可連接。Shift+按一下會加入選取範圍。按右鍵可分割、連接和合併。</translation>
+        <translation>拖曳可移動錨點；把端點放到另一個端點上即可連接。Shift+按一下可加入選取。按右鍵可分割、連接和合併。</translation>
     </message>
     <message>
         <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
@@ -16534,7 +16534,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
-        <translation>已貼齊錨點。只有端點或相鄰的錨點才能合併為一個錨點。按住 %ALT% 可自由放置錨點。</translation>
+        <translation>已靠齊錨點。只有端點或相鄰的錨點才能合併為一個錨點。按住 %ALT% 可自由放置錨點。</translation>
     </message>
     <message>
         <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
@@ -16976,11 +16976,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Turn the layer or selection</source>
-        <translation>旋轉圖層或選取範圍</translation>
+        <translation>轉動圖層或選取範圍</translation>
     </message>
     <message>
         <source>Bend the layer with a grid</source>
-        <translation>用網格彎曲圖層</translation>
+        <translation>用網格讓圖層變形</translation>
     </message>
     <message>
         <source>Erase an object and fill the gap</source>
@@ -17024,7 +17024,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Set the black point, white point and midtones</source>
-        <translation>設定黑場、白場和中間調</translation>
+        <translation>設定黑點、白點和中間調</translation>
     </message>
     <message>
         <source>Adjust the tones with a curve</source>
@@ -17108,7 +17108,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Bake the mask into the pixels</source>
-        <translation>將遮色片套用到像素</translation>
+        <translation>將遮色片併入像素</translation>
     </message>
     <message>
         <source>Drop shadow, stroke, glow and other effects</source>
@@ -17212,7 +17212,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Show or hide the grid</source>
-        <translation>顯示或隱藏格點</translation>
+        <translation>顯示或隱藏格線</translation>
     </message>
     <message>
         <source>Show or hide the guides</source>
@@ -17224,7 +17224,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Show the pixel grid when zoomed in</source>
-        <translation>放大時顯示像素格點</translation>
+        <translation>放大時顯示像素格線</translation>
     </message>
     <message>
         <source>Add a guide line</source>
@@ -17488,7 +17488,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Slant the layer or selection</source>
-        <translation>傾斜圖層或選取範圍</translation>
+        <translation>斜切圖層或選取範圍</translation>
     </message>
     <message>
         <source>Drag each corner freely</source>
@@ -17628,11 +17628,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Editable black and white cutoff</source>
-        <translation>可編輯的黑白臨界值</translation>
+        <translation>可編輯的黑白分界</translation>
     </message>
     <message>
         <source>Editable brightening or darkening</source>
-        <translation>可編輯的提亮或壓暗</translation>
+        <translation>可編輯的調亮或調暗</translation>
     </message>
     <message>
         <source>Editable boost for muted colors</source>
@@ -17732,7 +17732,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Turn the mask off for now</source>
-        <translation>暫時停用遮色片</translation>
+        <translation>暫時關閉遮色片</translation>
     </message>
     <message>
         <source>Swap what the mask shows and hides</source>
@@ -17760,7 +17760,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Turn the vector mask off for now</source>
-        <translation>暫時停用向量圖遮色片</translation>
+        <translation>暫時關閉向量圖遮色片</translation>
     </message>
     <message>
         <source>Turn the vector mask into a pixel mask</source>
@@ -17772,7 +17772,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Wrap the layers so edits stay editable</source>
-        <translation>包裝圖層，使編輯保持可編輯</translation>
+        <translation>封裝圖層，讓編輯隨時可再修改</translation>
     </message>
     <message>
         <source>Open the contents in their own tab</source>
@@ -18056,7 +18056,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Select the object inside the selection</source>
-        <translation>選取選取範圍內的物件</translation>
+        <translation>在選取範圍內選取物件</translation>
     </message>
     <message>
         <source>Repeat the last filter</source>
@@ -18072,7 +18072,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Moody black and white</source>
-        <translation>情緒化的黑白</translation>
+        <translation>富有氛圍感的黑白</translation>
     </message>
     <message>
         <source>Film look with lifted blacks</source>
@@ -18100,7 +18100,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Streak as if moving</source>
-        <translation>像運動一樣拖出條紋</translation>
+        <translation>產生移動拖影</translation>
     </message>
     <message>
         <source>Spin or zoom blur around a center</source>
@@ -18252,7 +18252,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Add a bright camera flare</source>
-        <translation>加入明亮的鏡頭光暈</translation>
+        <translation>加入明亮的相機眩光</translation>
     </message>
     <message>
         <source>Run the last plug-in again</source>
@@ -18296,7 +18296,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Show or hide guides, grid and edges</source>
-        <translation>顯示或隱藏參考線、格點和邊緣</translation>
+        <translation>顯示或隱藏參考線、格線和邊緣</translation>
     </message>
     <message>
         <source>Show or hide the marching ants</source>
@@ -18320,7 +18320,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Snap to the grid</source>
-        <translation>靠齊格點</translation>
+        <translation>靠齊格線</translation>
     </message>
     <message>
         <source>Snap to the canvas edges and center</source>
@@ -18594,34 +18594,6 @@ Each item&apos;s own View setting still applies.</source>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>尋找新增或已變更的 GIMP 3 外掛程式，並重新載入它們註冊的內容</translation>
     </message>
-    <message>
-        <source>No .8bf filters were found in the plug-in folders</source>
-        <translation>在外掛程式資料夾中找不到 .8bf 濾鏡</translation>
-    </message>
-    <message>
-        <source>The plug-in folders are still being read</source>
-        <translation>仍在讀取外掛程式資料夾</translation>
-    </message>
-    <message>
-        <source>No GIMP 3 plug-ins that work on a layer were found</source>
-        <translation>找不到可用於圖層的 GIMP 3 外掛程式</translation>
-    </message>
-    <message>
-        <source>GIMP 3 plug-ins are still being looked for</source>
-        <translation>仍在尋找 GIMP 3 外掛程式</translation>
-    </message>
-    <message>
-        <source>Why GIMP 3 plug-ins are not available</source>
-        <translation>GIMP 3 外掛程式無法使用的原因</translation>
-    </message>
-    <message>
-        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
-        <translation>GIMP 的 Python 外掛程式無法在 macOS 上啟動的原因</translation>
-    </message>
-    <message>
-        <source>GIMP plug-ins that did not start, listed in Preferences</source>
-        <translation>未能啟動的 GIMP 外掛程式，列於偏好設定中</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -18704,7 +18676,7 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Variable</source>
         <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
-        <translation>可變</translation>
+        <translation>可變字體</translation>
     </message>
     <message>
         <source>Recent</source>
@@ -18712,19 +18684,19 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>All Fonts</source>
-        <translation>所有字型</translation>
+        <translation>所有字體</translation>
     </message>
     <message>
         <source>Reading font styles... %1%</source>
-        <translation>正在讀取字型樣式... %1%</translation>
+        <translation>正在讀取字體樣式... %1%</translation>
     </message>
     <message>
         <source>Show only fonts of this style</source>
-        <translation>僅顯示此樣式的字型</translation>
+        <translation>僅顯示此樣式的字體</translation>
     </message>
     <message>
         <source>Show only fonts that support this language</source>
-        <translation>僅顯示支援此語言的字型</translation>
+        <translation>僅顯示支援此語言的字體</translation>
     </message>
     <message>
         <source>All Languages</source>
@@ -31110,11 +31082,11 @@ Locked: %1</source>
     </message>
     <message>
         <source>Add Layer Below to Selection</source>
-        <translation>將下方圖層加入選取範圍</translation>
+        <translation>將下方圖層加入選取</translation>
     </message>
     <message>
         <source>Add Layer Above to Selection</source>
-        <translation>將上方圖層加入選取範圍</translation>
+        <translation>將上方圖層加入選取</translation>
     </message>
     <message>
         <source>&amp;Hide Layers</source>
@@ -31398,7 +31370,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>A text area keeps one outline</source>
-        <translation>文字區域保持一個輪廓</translation>
+        <translation>文字區域只能有一個輪廓</translation>
     </message>
     <message>
         <source>The path has no shapes</source>

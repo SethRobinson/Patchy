@@ -4781,12 +4781,6 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
         QStringLiteral("file.import_scanner"), QStringLiteral("file.import_photocopy"),
         QStringLiteral("file.import_divide_photos"),
 #endif
-        // Plug-in menu notes shown only in one state (scanning, nothing found, a problem,
-        // plug-ins that did not start).
-        QStringLiteral("legacyPluginsEmptyNote"), QStringLiteral("legacyPluginsScanningNote"),
-        QStringLiteral("gimpPluginsEmptyNote"), QStringLiteral("gimpPluginsScanningNote"),
-        QStringLiteral("gimpPluginsProblemNote"), QStringLiteral("gimpPluginsPythonNote"),
-        QStringLiteral("gimpPluginsFailedNote"),
     };
     for (const auto& id : patchy::ui::command_search_described_ids()) {
       if (!listed_ids.contains(id) && !other_platforms.contains(id)) {

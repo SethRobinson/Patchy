@@ -371,13 +371,6 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"plugins.rescan", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Look for new or removed plug-ins")},
     {"plugins.gimp_rescan", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Look for new or changed GIMP 3 plug-ins and reload what they register")},
     {"pluginsLegacyWindowsOnlyNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "8BF plug-ins need Windows")},
-    {"legacyPluginsEmptyNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "No .8bf filters were found in the plug-in folders")},
-    {"legacyPluginsScanningNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "The plug-in folders are still being read")},
-    {"gimpPluginsEmptyNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "No GIMP 3 plug-ins that work on a layer were found")},
-    {"gimpPluginsScanningNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "GIMP 3 plug-ins are still being looked for")},
-    {"gimpPluginsProblemNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Why GIMP 3 plug-ins are not available")},
-    {"gimpPluginsPythonNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Why GIMP's Python plug-ins cannot start on macOS")},
-    {"gimpPluginsFailedNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "GIMP plug-ins that did not start, listed in Preferences")},
     // View
     {"view.zoom_in", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Magnify the view")},
     {"view.zoom_out", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show more of the image")},

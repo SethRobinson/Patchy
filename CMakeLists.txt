@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 
 project(
   Patchy
-  VERSION 1.23
+  VERSION 1.24
   DESCRIPTION "A native, PSD-oriented image editor foundation"
   LANGUAGES CXX
 )
@@ -1468,6 +1468,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/wayland_pointer_cursor.cpp
       src/ui/blocked_window_cursor.hpp
       src/ui/blocked_window_cursor.cpp
+      src/ui/spin_box_edit_field_fix.hpp
+      src/ui/spin_box_edit_field_fix.cpp
       src/ui/main_window_history.cpp
       src/ui/main_window_layer_ops.cpp
       src/ui/main_window_ai_selection.cpp

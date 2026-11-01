@@ -11,6 +11,7 @@
 
 #include "ui/recent_file_list.hpp"
 #include "ui/blocked_window_cursor.hpp"
+#include "ui/spin_box_edit_field_fix.hpp"
 #include "ui/wayland_pointer_cursor.hpp"
 #include "ui/wayland_popup_anchor.hpp"
 #include "ui/canvas_widget.hpp"
@@ -64,6 +65,9 @@
 #include <QLabel>
 #include <QPixmap>
 #include <QLineEdit>
+#include <QHBoxLayout>
+#include <QLibraryInfo>
+#include <QVersionNumber>
 #include <QList>
 #include <QAction>
 #include <QJsonArray>
@@ -4384,6 +4388,61 @@ void ui_custom_theme_cleared_by_switching_to_a_builtin_scheme() {
   CHECK(patchy::ui::active_color_scheme() == patchy::ui::ColorScheme::Light);
 }
 
+// Qt 6.11.3 (the Flatpak's KDE runtime) gave a style sheet spin box without buttons a 1 px
+// text field at x = 0, so every Patchy field showed nothing on Linux. The suite installs the
+// application's fix (tests/ui/main.cpp), so these boxes lay out as Qt 6.8 lays them out: inside
+// their margins, borders and padding.
+void ui_spin_box_edit_field_fix_keeps_styled_fields_readable() {
+  QWidget window;
+  struct Case {
+    const char* sheet;
+    int left;
+    int right;
+  };
+  const Case cases[] = {
+      {"QSpinBox { border: 1px solid gray; }", 1, 1},
+      {"QSpinBox { background: #333; border: 1px solid #111; padding-left: 4px; }", 5, 1},
+      {"QSpinBox { border: 2px solid gray; padding: 0 3px 0 6px; }", 8, 5},
+      {"QSpinBox { margin: 0 2px; border: 1px solid gray; }", 3, 3},
+  };
+  std::vector<std::pair<const Case*, QSpinBox*>> spins;
+  auto* layout = new QHBoxLayout(&window);
+  for (const auto& entry : cases) {
+    auto* spin = new QSpinBox(&window);
+    spin->setStyleSheet(QString::fromLatin1(entry.sheet));
+    spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    spin->setRange(0, 100);
+    spin->setFixedWidth(60);
+    layout->addWidget(spin);
+    spins.emplace_back(&entry, spin);
+  }
+  window.show();
+  QCoreApplication::processEvents();
+  for (const auto& [entry, spin] : spins) {
+    const auto* editor = spin->findChild<QLineEdit*>();
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      continue;
+    }
+    if (editor->x() != entry->left || spin->width() - editor->geometry().right() - 1 != entry->right) {
+      std::cerr << "  " << entry->sheet << ": editor x " << editor->x() << " width " << editor->width()
+                << " in " << spin->width() << " (Qt " << qVersion() << ")\n";
+    }
+    CHECK(editor->x() == entry->left);
+    CHECK(spin->width() - editor->geometry().right() - 1 == entry->right);
+    // A box after a resize keeps its field too.
+    spin->setFixedWidth(80);
+    QCoreApplication::processEvents();
+    CHECK(editor->width() == 80 - entry->left - entry->right);
+  }
+  // The correction only answers the broken layout; Qt 6.8's own field needs none.
+  if (QLibraryInfo::version() < QVersionNumber(6, 11)) {
+    for (const auto& [entry, spin] : spins) {
+      CHECK(patchy::ui::corrected_spin_box_edit_field(*spin).isEmpty());
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> app_shell_tests_part2() {
@@ -4394,6 +4453,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
        ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts},
       {"ui_blocked_window_cursor_shows_the_arrow_until_unblocked",
        ui_blocked_window_cursor_shows_the_arrow_until_unblocked},
+      {"ui_spin_box_edit_field_fix_keeps_styled_fields_readable", ui_spin_box_edit_field_fix_keeps_styled_fields_readable},
       {"ui_blocked_window_cursor_covers_preferences_over_the_canvas",
        ui_blocked_window_cursor_covers_preferences_over_the_canvas},
       {"ui_blocked_window_cursor_survives_reactivation_and_tool_switches",

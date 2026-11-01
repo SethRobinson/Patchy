@@ -29,6 +29,8 @@ if /i not "%PATCHY_ARCH%"=="x64" if /i not "%PATCHY_ARCH%"=="arm64" (
   goto fail
 )
 if /i "%PATCHY_ARCH%"=="arm64" (set "PATCHY_ARCH=arm64") else set "PATCHY_ARCH=x64"
+rem :SignFile retries a failed signature only after one has passed in this run.
+set "SIGNED_ONE_FILE="
 
 set "CMAKE_EXE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"
@@ -367,9 +369,25 @@ if not exist "%SIGNTOOL_EXE%" (
   exit /b 1
 )
 
+rem The key is on a hardware token, which now and then fails one signature with a smart card
+rem error (SignerSign 0x8010001F) that the same call then passes. Retry that file instead of
+rem failing a run whose packages are otherwise done, but only once a file has signed in this
+rem run: sign.bat sends the token's PIN on every call, and retrying a wrong one could lock it.
+set "SIGN_ATTEMPT=0"
+:SignFileAttempt
+set /a SIGN_ATTEMPT+=1
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 2"
 call "%RT_PROJECTS%\Signing\sign.bat" "%SIGN_TARGET%" "%SIGN_DISPLAY_NAME%" "%SIGN_DOMAIN%"
-if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
+set "SIGN_CODE=!ERRORLEVEL!"
+if not "!SIGN_CODE!"=="0" (
+  if defined SIGNED_ONE_FILE if !SIGN_ATTEMPT! LSS 3 (
+    echo Signing "%SIGN_TARGET%" failed ^(attempt !SIGN_ATTEMPT! of 3^); retrying in 15 seconds.
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 15"
+    goto SignFileAttempt
+  )
+  exit /b !SIGN_CODE!
+)
+set "SIGNED_ONE_FILE=1"
 
 "%SIGNTOOL_EXE%" verify /pa /v "%SIGN_TARGET%"
 exit /b %ERRORLEVEL%

@@ -19,6 +19,7 @@
 #include "ui/text_font_service.hpp"
 #include "ui/app_style.hpp"
 #include "ui/blocked_window_cursor.hpp"
+#include "ui/spin_box_edit_field_fix.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/theme_sounds.hpp"
 #include "ui/user_fonts.hpp"
@@ -520,6 +521,8 @@ int main(int argc, char* argv[]) {
   patchy::ui::install_blocked_window_cursor_fix();
   // Slider grooves snap to the click; tool flyouts open on a short hold (see the style above).
   app.setStyle(new patchy::ui::AppStyle);
+  // Qt 6.11.3 collapses the text field of a styled spin box without buttons to 1 px.
+  patchy::ui::install_spin_box_edit_field_fix();
   app.setApplicationName(QStringLiteral("Patchy"));
   app.setApplicationVersion(QStringLiteral(PATCHY_VERSION));
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.

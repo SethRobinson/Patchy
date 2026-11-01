@@ -14271,11 +14271,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
-        <translation>線幅を単位とした破線と間隔の長さをスペースで区切って入力します (例: 4 2、6 2 1 2)。長さ 0 は、丸型または四角形の線端で点を描きます。</translation>
+        <translation>線幅を単位とした破線と間隔の長さをスペースで区切って入力します (例: 4 2、6 2 1 2)。長さ 0 は、先端が丸または四角のときに点を描きます。</translation>
     </message>
     <message>
         <source>x width</source>
-        <translation>x 幅</translation>
+        <translation>× 線幅</translation>
     </message>
     <message>
         <source>Dash pattern:</source>
@@ -14303,7 +14303,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
-        <translation>整列、線端、角、破線、破線のオフセットをプリセットとして保存</translation>
+        <translation>位置、先端、角、破線、破線のオフセットをプリセットとして保存</translation>
     </message>
     <message>
         <source>Delete the chosen preset</source>
@@ -14437,7 +14437,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Include thumbnail</source>
-        <translation>サムネールを含める</translation>
+        <translation>サムネイルを含める</translation>
     </message>
     <message>
         <source>2 x 2</source>
@@ -14445,7 +14445,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
-        <translation>元の画像、結果、品質 50% と 25% の結果</translation>
+        <translation>元の画像、結果、品質を 50% と 25% に下げた結果</translation>
     </message>
     <message>
         <source>%1 at these settings has no quality to reduce.</source>
@@ -16964,7 +16964,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Draw an outline along the selection</source>
-        <translation>選択範囲に沿って境界線を描く</translation>
+        <translation>選択範囲の縁に沿って線を描く</translation>
     </message>
     <message>
         <source>Scale, rotate or move freely</source>
@@ -17076,11 +17076,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Remove the layer</source>
-        <translation>レイヤーを削除</translation>
+        <translation>レイヤーを取り除く</translation>
     </message>
     <message>
         <source>Change the layer name</source>
-        <translation>レイヤー名を変更</translation>
+        <translation>レイヤーに別の名前を付ける</translation>
     </message>
     <message>
         <source>Put the selected layers in a folder</source>
@@ -17096,7 +17096,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Combine with the layer below</source>
-        <translation>下のレイヤーと結合</translation>
+        <translation>下のレイヤーと 1 つにまとめる</translation>
     </message>
     <message>
         <source>Combine all visible layers</source>
@@ -17152,7 +17152,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Clear the selection</source>
-        <translation>選択を解除</translation>
+        <translation>選択範囲を外す</translation>
     </message>
     <message>
         <source>Bring back the last selection</source>
@@ -17376,7 +17376,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Zoom in and out</source>
-        <translation>拡大・縮小</translation>
+        <translation>表示を拡大または縮小</translation>
     </message>
     <message>
         <source>Draw paths and curves</source>
@@ -17404,7 +17404,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Crop or straighten the image</source>
-        <translation>画像を切り抜きまたは傾きを補正</translation>
+        <translation>画像を切り抜くか傾きを補正</translation>
     </message>
     <message>
         <source>Crop and fix the perspective</source>
@@ -17552,7 +17552,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Blend the red, green and blue channels</source>
-        <translation>レッド、グリーン、ブルーのチャンネルを混合</translation>
+        <translation>赤、緑、青のチャンネルを混合</translation>
     </message>
     <message>
         <source>Apply a color grading table</source>
@@ -17708,7 +17708,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Make every layer visible</source>
-        <translation>すべてのレイヤーを表示</translation>
+        <translation>すべてのレイヤーを表示状態にする</translation>
     </message>
     <message>
         <source>Hide the background with a mask automatically</source>
@@ -17740,7 +17740,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Remove the layer mask</source>
-        <translation>レイヤーマスクを削除</translation>
+        <translation>レイヤーマスクを取り除く</translation>
     </message>
     <message>
         <source>Add a vector mask that shows everything</source>
@@ -17756,7 +17756,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Remove the vector mask</source>
-        <translation>ベクトルマスクを削除</translation>
+        <translation>ベクトルマスクを取り除く</translation>
     </message>
     <message>
         <source>Turn the vector mask off for now</source>
@@ -18104,7 +18104,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Spin or zoom blur around a center</source>
-        <translation>中心の周りに回転またはズームのぼかし</translation>
+        <translation>中心を軸に回転またはズームしてぼかす</translation>
     </message>
     <message>
         <source>Smooth while keeping edges</source>
@@ -18252,11 +18252,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Add a bright camera flare</source>
-        <translation>明るいレンズの逆光を追加</translation>
+        <translation>カメラのレンズフレアのような明るい光を追加</translation>
     </message>
     <message>
         <source>Run the last plug-in again</source>
-        <translation>最後のプラグインを再実行</translation>
+        <translation>直前のプラグインをもう一度実行</translation>
     </message>
     <message>
         <source>Run the last plug-in with its dialog</source>
@@ -18324,7 +18324,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Snap to the canvas edges and center</source>
-        <translation>カンバスの端と中央にスナップ</translation>
+        <translation>キャンバスの端と中央にスナップ</translation>
     </message>
     <message>
         <source>Snap to other layers</source>
@@ -18340,7 +18340,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Remove the selected guides</source>
-        <translation>選択したガイドを削除</translation>
+        <translation>選択したガイドを取り除く</translation>
     </message>
     <message>
         <source>See the image repeated as a tile</source>
@@ -18492,59 +18492,59 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Switch between the move tools</source>
-        <translation>移動ツールを切り替え</translation>
+        <translation>移動ツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between the marquee tools</source>
-        <translation>長方形・楕円形選択ツールを切り替え</translation>
+        <translation>長方形・楕円形選択ツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between the lasso tools</source>
-        <translation>なげなわツールを切り替え</translation>
+        <translation>なげなわツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between the wand and quick select tools</source>
-        <translation>自動選択とクイック選択を切り替え</translation>
+        <translation>自動選択とクイック選択を交互に選択</translation>
     </message>
     <message>
         <source>Switch between the crop tools</source>
-        <translation>切り抜きツールを切り替え</translation>
+        <translation>切り抜きツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between the gradient and fill tools</source>
-        <translation>グラデーションツールと塗りつぶしツールを切り替え</translation>
+        <translation>グラデーションツールと塗りつぶしツールを交互に選択</translation>
     </message>
     <message>
         <source>Switch between the stamp tools</source>
-        <translation>スタンプツールを切り替え</translation>
+        <translation>スタンプツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between the healing tools</source>
-        <translation>修復ツールを切り替え</translation>
+        <translation>修復ツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between blur, sharpen and smudge</source>
-        <translation>ぼかし、シャープ、指先を切り替え</translation>
+        <translation>ぼかし、シャープ、指先を順に選択</translation>
     </message>
     <message>
         <source>Switch between dodge, burn and sponge</source>
-        <translation>覆い焼き、焼き込み、スポンジを切り替え</translation>
+        <translation>覆い焼き、焼き込み、スポンジを順に選択</translation>
     </message>
     <message>
         <source>Switch between the pen tools</source>
-        <translation>ペンツールを切り替え</translation>
+        <translation>ペンツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between the path selection tools</source>
-        <translation>パス選択ツールを切り替え</translation>
+        <translation>パス選択ツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between the shape tools</source>
-        <translation>シェイプツールを切り替え</translation>
+        <translation>シェイプツールを順に選択</translation>
     </message>
     <message>
         <source>Switch between the eyedropper and ruler</source>
-        <translation>スポイトとものさしを切り替え</translation>
+        <translation>スポイトとものさしを交互に選択</translation>
     </message>
     <message>
         <source>Reset to black and white</source>
@@ -18593,34 +18593,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>新しいまたは変更された GIMP 3 プラグインを探して登録内容を再読み込み</translation>
-    </message>
-    <message>
-        <source>No .8bf filters were found in the plug-in folders</source>
-        <translation>プラグインフォルダーに .8bf フィルターが見つかりません</translation>
-    </message>
-    <message>
-        <source>The plug-in folders are still being read</source>
-        <translation>プラグインフォルダーをまだ読み込み中です</translation>
-    </message>
-    <message>
-        <source>No GIMP 3 plug-ins that work on a layer were found</source>
-        <translation>レイヤーで動作する GIMP 3 プラグインが見つかりません</translation>
-    </message>
-    <message>
-        <source>GIMP 3 plug-ins are still being looked for</source>
-        <translation>GIMP 3 プラグインをまだ検索中です</translation>
-    </message>
-    <message>
-        <source>Why GIMP 3 plug-ins are not available</source>
-        <translation>GIMP 3 プラグインを使用できない理由</translation>
-    </message>
-    <message>
-        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
-        <translation>GIMP の Python プラグインが macOS で起動できない理由</translation>
-    </message>
-    <message>
-        <source>GIMP plug-ins that did not start, listed in Preferences</source>
-        <translation>起動しなかった GIMP プラグイン (環境設定に一覧表示)</translation>
     </message>
 </context>
 <context>
@@ -18976,7 +18948,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>32-bit document: the color is stored as linear light, where 1.0 is display white. Intensity brightens or darkens it in stops; the swatches show it from 3 stops darker to 3 stops brighter.</source>
-        <translation>32 bit ドキュメント: カラーはリニアな光として保存され、1.0 が画面の白です。強度は段数単位で明るくまたは暗くします。スウォッチは 3 段暗い色から 3 段明るい色までを表示します。</translation>
+        <translation>32 ビットドキュメント: カラーはリニアな光として保存され、1.0 が画面の白です。強度は段数単位で明るくまたは暗くします。スウォッチは 3 段暗い色から 3 段明るい色までを表示します。</translation>
     </message>
     <message>
         <source>Intensity:</source>
@@ -18988,7 +18960,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Scales the color&apos;s light: +1 stop doubles it, -1 halves it. Paint on 32-bit layers takes it; 8 and 16-bit documents use the base color.</source>
-        <translation>カラーの光量を変えます。+1 段で 2 倍、-1 段で半分になります。32 bit レイヤーへのペイントに適用され、8 bit と 16 bit のドキュメントでは基本カラーを使います。</translation>
+        <translation>カラーの光量を変えます。+1 段で 2 倍、-1 段で半分になります。32 ビットレイヤーへのペイントに適用され、8 ビットと 16 ビットのドキュメントでは基本カラーを使います。</translation>
     </message>
     <message>
         <source>The color 3 stops darker to 3 stops brighter. Click a swatch to move the Intensity there.</source>
@@ -31454,7 +31426,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>線の破線と保存済みの線のプリセット。破線のプリセットは線端なし、点のプリセットは丸型線端と丸い角を使います</translation>
+        <translation>線の破線と保存済みの線のプリセット。破線のプリセットはバット先端、点のプリセットは丸い先端と丸い角を使います</translation>
     </message>
     <message>
         <source>GIMP 3 Plug-ins</source>

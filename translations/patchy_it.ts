@@ -14314,7 +14314,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
-        <translation>Lunghezze di tratti e spazi in larghezze del tratto, separate da spazi, per esempio 4 2 o 6 2 1 2. Una lunghezza di 0 disegna un punto con estremità arrotondate o quadrate.</translation>
+        <translation>Lunghezze di tratti e spazi in larghezze della traccia, separate da spazi, per esempio 4 2 o 6 2 1 2. Una lunghezza di 0 disegna un punto con estremità arrotondate o quadrate.</translation>
     </message>
     <message>
         <source>x width</source>
@@ -14469,7 +14469,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Shows a rough image first while the file loads.</source>
-        <translation>Mostra prima un’immagine approssimativa durante il caricamento del file.</translation>
+        <translation>Mostra prima un&apos;immagine approssimativa durante il caricamento del file.</translation>
     </message>
     <message>
         <source>Optimize coding</source>
@@ -14477,7 +14477,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Makes the file smaller without changing the image.</source>
-        <translation>Rende il file più piccolo senza cambiare l’immagine.</translation>
+        <translation>Rende il file più piccolo senza cambiare l&apos;immagine.</translation>
     </message>
     <message>
         <source>Include thumbnail</source>
@@ -14489,7 +14489,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
-        <translation>L’originale, il risultato e il risultato al 50% e al 25% della qualità</translation>
+        <translation>L&apos;originale, il risultato e il risultato al 50% e al 25% della qualità</translation>
     </message>
     <message>
         <source>%1 at these settings has no quality to reduce.</source>
@@ -17000,7 +17000,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Paste at the same position</source>
-        <translation>Incolla nella stessa posizione</translation>
+        <translation>Incolla nel punto di origine</translation>
     </message>
     <message>
         <source>Fill with a color or pattern</source>
@@ -17084,7 +17084,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Turn the image gray</source>
-        <translation>Rendi l&apos;immagine in scala di grigi</translation>
+        <translation>Converti l&apos;immagine in scala di grigi</translation>
     </message>
     <message>
         <source>Make muted colors stronger</source>
@@ -17564,7 +17564,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Convert to full color</source>
-        <translation>Converti a colori pieni</translation>
+        <translation>Converti in colori pieni</translation>
     </message>
     <message>
         <source>Preview and save for print colors</source>
@@ -17612,7 +17612,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Turn the image black and white</source>
-        <translation>Rendi l&apos;immagine in bianco e nero</translation>
+        <translation>Trasforma l&apos;immagine in bianco e nero</translation>
     </message>
     <message>
         <source>Map the tones to a gradient</source>
@@ -17816,7 +17816,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Wrap the layers so edits stay editable</source>
-        <translation>Racchiudi i livelli perché le modifiche restino modificabili</translation>
+        <translation>Racchiudi i livelli perché le modifiche restino reversibili</translation>
     </message>
     <message>
         <source>Open the contents in their own tab</source>
@@ -18156,7 +18156,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Camera-like depth of field</source>
-        <translation>Profondità di campo come in fotocamera</translation>
+        <translation>Profondità di campo come con una fotocamera</translation>
     </message>
     <message>
         <source>Sharp spot with blur around it</source>
@@ -18184,7 +18184,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Sharpen with amount and radius</source>
-        <translation>Aumenta la nitidez con fattore e raggio</translation>
+        <translation>Aumenta la nitidezza con fattore e raggio</translation>
     </message>
     <message>
         <source>Keep only the fine detail</source>
@@ -18196,7 +18196,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Sharpen only the edges</source>
-        <translation>Aumenta la nitidez solo dei bordi</translation>
+        <translation>Aumenta la nitidezza solo dei bordi</translation>
     </message>
     <message>
         <source>Swirl around the center</source>
@@ -18480,7 +18480,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Show the undo history panel</source>
-        <translation>Mostra il pannello Cronologia degli annullamenti</translation>
+        <translation>Mostra il pannello della cronologia degli annullamenti</translation>
     </message>
     <message>
         <source>Show the Info panel</source>
@@ -18492,7 +18492,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Show the Palette panel</source>
-        <translation>Mostra il pannello Tavolozza</translation>
+        <translation>Mostra il pannello Palette</translation>
     </message>
     <message>
         <source>Show the Paths panel</source>
@@ -18524,7 +18524,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Connect an AI assistant to Patchy</source>
-        <translation>Collega un assistente AI a Patchy</translation>
+        <translation>Collega un assistente IA a Patchy</translation>
     </message>
     <message>
         <source>Add a launcher to your desktop menu</source>
@@ -18568,7 +18568,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Switch between blur, sharpen and smudge</source>
-        <translation>Alterna tra sfoca, nitidezza e sfumino</translation>
+        <translation>Alterna tra sfoca, contrasta e sfumino</translation>
     </message>
     <message>
         <source>Switch between dodge, burn and sponge</source>
@@ -18596,7 +18596,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Exchange foreground and background colors</source>
-        <translation>Scambia i colori di primo piano e di sfondo</translation>
+        <translation>Permuta i colori di primo piano e di sfondo</translation>
     </message>
     <message>
         <source>Make the brush smaller</source>
@@ -18637,34 +18637,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>Cerca plug-in di GIMP 3 nuovi o modificati e ricarica ciò che registrano</translation>
-    </message>
-    <message>
-        <source>No .8bf filters were found in the plug-in folders</source>
-        <translation>Nessun filtro .8bf trovato nelle cartelle dei plug-in</translation>
-    </message>
-    <message>
-        <source>The plug-in folders are still being read</source>
-        <translation>Le cartelle dei plug-in sono ancora in fase di lettura</translation>
-    </message>
-    <message>
-        <source>No GIMP 3 plug-ins that work on a layer were found</source>
-        <translation>Non è stato trovato nessun plug-in di GIMP 3 che funzioni su un livello</translation>
-    </message>
-    <message>
-        <source>GIMP 3 plug-ins are still being looked for</source>
-        <translation>Ricerca dei plug-in di GIMP 3 ancora in corso</translation>
-    </message>
-    <message>
-        <source>Why GIMP 3 plug-ins are not available</source>
-        <translation>Perché i plug-in di GIMP 3 non sono disponibili</translation>
-    </message>
-    <message>
-        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
-        <translation>Perché i plug-in Python di GIMP non possono avviarsi su macOS</translation>
-    </message>
-    <message>
-        <source>GIMP plug-ins that did not start, listed in Preferences</source>
-        <translation>Plug-in di GIMP che non si sono avviati, elencati nelle Preferenze</translation>
     </message>
 </context>
 <context>
@@ -18731,7 +18703,7 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     </message>
     <message>
         <source>Script</source>
-        <translation>Corsivo</translation>
+        <translation>Calligrafico</translation>
     </message>
     <message>
         <source>Decorative</source>
@@ -31497,7 +31469,7 @@ Bloccato: %1</translation>
     </message>
     <message>
         <source>The shapes left no area; the layer was removed</source>
-        <translation>Delle forme non resta alcuna area; il livello è stato rimosso</translation>
+        <translation>Le forme non lasciano alcuna area; il livello è stato rimosso</translation>
     </message>
     <message>
         <source>Merged %1 shape(s) into one outline</source>

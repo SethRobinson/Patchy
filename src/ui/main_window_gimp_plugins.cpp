@@ -389,6 +389,7 @@ void MainWindow::rebuild_gimp_plugins_menu() {
     note->setObjectName(QString::fromLatin1(object_name));
     note->setEnabled(false);
     note->setProperty(kGimpPluginMenuEntryProperty, true);
+    note->setProperty(kCommandSearchDataEntryProperty, true);  // a scan state, not a command
     gimp_plugins_menu_->insertAction(before, note);
     return note;
   };

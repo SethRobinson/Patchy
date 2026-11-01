@@ -14314,7 +14314,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
-        <translation>Strich- und Lückenlängen in Konturbreiten, durch Leerzeichen getrennt, zum Beispiel 4 2 oder 6 2 1 2. Eine Länge von 0 zeichnet mit runden oder eckigen Enden einen Punkt.</translation>
+        <translation>Strich- und Lückenlängen in Konturbreiten, durch Leerzeichen getrennt, zum Beispiel 4 2 oder 6 2 1 2. Eine Länge von 0 zeichnet mit runden oder rechteckigen Abschlüssen einen Punkt.</translation>
     </message>
     <message>
         <source>x width</source>
@@ -14334,7 +14334,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Sparse dots</source>
-        <translation>Weite Punkte</translation>
+        <translation>Lockere Punkte</translation>
     </message>
     <message>
         <source>Dash dot</source>
@@ -14346,7 +14346,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
-        <translation>Ausrichtung, Enden, Ecken, Striche und Strichversatz als Vorgabe speichern</translation>
+        <translation>Ausrichten, Abschluss, Ecken, Striche und Strichversatz als Vorgabe speichern</translation>
     </message>
     <message>
         <source>Delete the chosen preset</source>
@@ -17016,11 +17016,11 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Resize the layer or selection</source>
-        <translation>Ebene oder Auswahl skalieren</translation>
+        <translation>Die Größe der Ebene oder Auswahl ändern</translation>
     </message>
     <message>
         <source>Turn the layer or selection</source>
-        <translation>Ebene oder Auswahl drehen</translation>
+        <translation>Die Ebene oder Auswahl rotieren</translation>
     </message>
     <message>
         <source>Bend the layer with a grid</source>
@@ -17188,7 +17188,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Erase the layer or selection</source>
-        <translation>Die Ebene oder Auswahl löschen</translation>
+        <translation>Den Inhalt der Ebene oder Auswahl entfernen</translation>
     </message>
     <message>
         <source>Select the whole image</source>
@@ -17212,11 +17212,11 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Make the selection larger</source>
-        <translation>Die Auswahl vergrößern</translation>
+        <translation>Die Auswahl größer machen</translation>
     </message>
     <message>
         <source>Make the selection smaller</source>
-        <translation>Die Auswahl verkleinern</translation>
+        <translation>Die Auswahl kleiner machen</translation>
     </message>
     <message>
         <source>Select a band along the edge</source>
@@ -17264,7 +17264,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Line up with guides and edges while dragging</source>
-        <translation>Beim Ziehen an Hilfslinien und Kanten ausrichten</translation>
+        <translation>Beim Ziehen an Hilfslinien und Kanten einrasten</translation>
     </message>
     <message>
         <source>Show the pixel grid when zoomed in</source>
@@ -17364,7 +17364,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Soften areas</source>
-        <translation>Bereiche weichzeichnen</translation>
+        <translation>Bereiche weicher machen</translation>
     </message>
     <message>
         <source>Sharpen areas</source>
@@ -17444,7 +17444,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Switch points between corner and smooth</source>
-        <translation>Punkte zwischen Ecke und glatt umschalten</translation>
+        <translation>Punkte zwischen eckig und glatt umschalten</translation>
     </message>
     <message>
         <source>Crop or straighten the image</source>
@@ -17532,7 +17532,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Slant the layer or selection</source>
-        <translation>Die Ebene oder Auswahl neigen</translation>
+        <translation>Die Ebene oder Auswahl schräg stellen</translation>
     </message>
     <message>
         <source>Drag each corner freely</source>
@@ -17752,7 +17752,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Make every layer visible</source>
-        <translation>Alle Ebenen einblenden</translation>
+        <translation>Jede Ebene sichtbar machen</translation>
     </message>
     <message>
         <source>Hide the background with a mask automatically</source>
@@ -17776,7 +17776,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Turn the mask off for now</source>
-        <translation>Die Maske vorübergehend deaktivieren</translation>
+        <translation>Die Maske vorübergehend ausschalten</translation>
     </message>
     <message>
         <source>Swap what the mask shows and hides</source>
@@ -17804,7 +17804,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Turn the vector mask off for now</source>
-        <translation>Die Vektormaske vorübergehend deaktivieren</translation>
+        <translation>Die Vektormaske vorübergehend ausschalten</translation>
     </message>
     <message>
         <source>Turn the vector mask into a pixel mask</source>
@@ -17900,27 +17900,27 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Space the left edges evenly</source>
-        <translation>Linke Kanten gleichmäßig verteilen</translation>
+        <translation>Die linken Kanten in gleichen Abständen anordnen</translation>
     </message>
     <message>
         <source>Space the centers evenly across</source>
-        <translation>Mittelpunkte horizontal gleichmäßig verteilen</translation>
+        <translation>Die Mittelpunkte horizontal in gleichen Abständen anordnen</translation>
     </message>
     <message>
         <source>Space the right edges evenly</source>
-        <translation>Rechte Kanten gleichmäßig verteilen</translation>
+        <translation>Die rechten Kanten in gleichen Abständen anordnen</translation>
     </message>
     <message>
         <source>Space the top edges evenly</source>
-        <translation>Obere Kanten gleichmäßig verteilen</translation>
+        <translation>Die oberen Kanten in gleichen Abständen anordnen</translation>
     </message>
     <message>
         <source>Space the centers evenly down</source>
-        <translation>Mittelpunkte vertikal gleichmäßig verteilen</translation>
+        <translation>Die Mittelpunkte vertikal in gleichen Abständen anordnen</translation>
     </message>
     <message>
         <source>Space the bottom edges evenly</source>
-        <translation>Untere Kanten gleichmäßig verteilen</translation>
+        <translation>Die unteren Kanten in gleichen Abständen anordnen</translation>
     </message>
     <message>
         <source>Equal gaps between layers across</source>
@@ -17932,11 +17932,11 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Mirror the layer left to right</source>
-        <translation>Die Ebene horizontal spiegeln</translation>
+        <translation>Die Ebene von links nach rechts umklappen</translation>
     </message>
     <message>
         <source>Mirror the layer top to bottom</source>
-        <translation>Die Ebene vertikal spiegeln</translation>
+        <translation>Die Ebene von oben nach unten umklappen</translation>
     </message>
     <message>
         <source>Save the layer as a PNG at once</source>
@@ -18168,11 +18168,11 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Soften slightly</source>
-        <translation>Leicht weichzeichnen</translation>
+        <translation>Leicht unscharf machen</translation>
     </message>
     <message>
         <source>Soften a bit more</source>
-        <translation>Etwas stärker weichzeichnen</translation>
+        <translation>Etwas stärker unscharf machen</translation>
     </message>
     <message>
         <source>Fill with the average color</source>
@@ -18248,7 +18248,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Raised relief look</source>
-        <translation>Erhabene Reliefwirkung</translation>
+        <translation>Wirkung einer erhabenen Prägung</translation>
     </message>
     <message>
         <source>Push out 3D blocks</source>
@@ -18480,7 +18480,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Show the undo history panel</source>
-        <translation>Das Bedienfeld Verlauf zum Rückgängigmachen anzeigen</translation>
+        <translation>Das Bedienfeld mit dem Rückgängig-Protokoll anzeigen</translation>
     </message>
     <message>
         <source>Show the Info panel</source>
@@ -18524,7 +18524,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Connect an AI assistant to Patchy</source>
-        <translation>Einen AI-Assistenten mit Patchy verbinden</translation>
+        <translation>Einen KI-Assistenten mit Patchy verbinden</translation>
     </message>
     <message>
         <source>Add a launcher to your desktop menu</source>
@@ -18596,7 +18596,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Exchange foreground and background colors</source>
-        <translation>Vorder- und Hintergrundfarbe vertauschen</translation>
+        <translation>Vorder- und Hintergrundfarbe tauschen</translation>
     </message>
     <message>
         <source>Make the brush smaller</source>
@@ -18637,34 +18637,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>Nach neuen oder geänderten GIMP-3-Plug-ins suchen und neu laden, was sie registrieren</translation>
-    </message>
-    <message>
-        <source>No .8bf filters were found in the plug-in folders</source>
-        <translation>Keine .8bf-Filter in den Plug-in-Ordnern gefunden</translation>
-    </message>
-    <message>
-        <source>The plug-in folders are still being read</source>
-        <translation>Die Plug-in-Ordner werden noch gelesen</translation>
-    </message>
-    <message>
-        <source>No GIMP 3 plug-ins that work on a layer were found</source>
-        <translation>Keine GIMP-3-Plug-ins gefunden, die auf einer Ebene arbeiten</translation>
-    </message>
-    <message>
-        <source>GIMP 3 plug-ins are still being looked for</source>
-        <translation>GIMP-3-Plug-ins werden noch gesucht</translation>
-    </message>
-    <message>
-        <source>Why GIMP 3 plug-ins are not available</source>
-        <translation>Warum GIMP-3-Plug-ins nicht verfügbar sind</translation>
-    </message>
-    <message>
-        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
-        <translation>Warum Python-Plug-ins von GIMP unter macOS nicht starten können</translation>
-    </message>
-    <message>
-        <source>GIMP plug-ins that did not start, listed in Preferences</source>
-        <translation>GIMP-Plug-ins, die nicht gestartet sind, aufgeführt in den Voreinstellungen</translation>
     </message>
 </context>
 <context>
@@ -18719,7 +18691,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Serif</source>
-        <translation>Serif</translation>
+        <translation>Mit Serifen</translation>
     </message>
     <message>
         <source>Sans Serif</source>
@@ -18727,7 +18699,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Slab Serif</source>
-        <translation>Slab Serif</translation>
+        <translation>Serifenbetont</translation>
     </message>
     <message>
         <source>Script</source>
@@ -19033,7 +19005,7 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Scales the color&apos;s light: +1 stop doubles it, -1 halves it. Paint on 32-bit layers takes it; 8 and 16-bit documents use the base color.</source>
-        <translation>Skaliert das Licht der Farbe: +1 Stufe verdoppelt es, -1 halbiert es. Malen auf 32-Bit-Ebenen übernimmt sie; 8- und 16-Bit-Dokumente verwenden die Grundfarbe.</translation>
+        <translation>Skaliert das Licht der Farbe: +1 Stufe verdoppelt es, -1 halbiert es. Beim Malen auf 32-Bit-Ebenen gilt diese Intensität; 8- und 16-Bit-Dokumente verwenden die Grundfarbe.</translation>
     </message>
     <message>
         <source>The color 3 stops darker to 3 stops brighter. Click a swatch to move the Intensity there.</source>
@@ -31537,7 +31509,7 @@ Fixiert: %1</translation>
     </message>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>Striche und gespeicherte Konturvorgaben. Strichvorgaben verwenden flache Enden, Punktvorgaben runde Enden und Ecken</translation>
+        <translation>Striche und gespeicherte Konturvorgaben. Strichvorgaben verwenden abgeflachte Abschlüsse, Punktvorgaben runde Abschlüsse und Ecken</translation>
     </message>
     <message>
         <source>GIMP 3 Plug-ins</source>
