@@ -109,9 +109,7 @@
 - Customize Tool Palette: hide tools, color, Quick Mask and screen mode buttons; Layers Panel tab (Customize Layers Panel... in its gear menu): hide, reorder, presets, size, optional move, merge and a rasterize menu; two columns, wheel scroll, icon size, no tool groups; groups open on hold, click or hover
 - Layer menu: Bring to Front/Send to Back (Shift+Ctrl+]/[), Lock Layers... (Ctrl+/), Hide/Show Layers (Ctrl+,), Show All (Ctrl+Alt+,), Export > Quick Export as PNG (Ctrl+Shift+'), Export As (Ctrl+Shift+Alt+')
 - Localized in twelve languages: English, German, Spanish, French, Italian, Brazilian Portuguese, Russian, Polish, Japanese, Korean, Chinese (Simplified and Traditional), following the system or Preferences, which also set the interface scale and a separate text size (80% to 125%)
-- UI themes: Dark, Light, eight bundled themes (Darkest, Medium Gray, Solarized Dark, Nord, Dracula, Gruvbox Dark, High Contrast, Dink Smallwood), or `.patchytheme` files or packages (folders or .zip) with SVG, PNG, BMP icons, a tiled backdrop, event sounds and effects (fireworks, confetti, sprites), and sandboxed scripts for a theme menu, cursors and a splash. Preferences > Colors and Themes previews each theme, its startup sound, version, author and description, warns if it needs a newer Patchy, keeps script trust per theme, imports and exports. Start from [themes/example-package](../themes/example-package/theme.json)
-
-- Theme-aware resize handles stay visible in Light.
+- UI themes: Dark, Light, eight bundled themes (Darkest, Medium Gray, Solarized Dark, Nord, Dracula, Gruvbox Dark, High Contrast, Dink Smallwood), or your own: a `.patchytheme` color file or a theme package (folder or .zip) adding SVG, PNG, BMP icons, a tiled backdrop, event sounds and effects (fireworks, confetti, sprites), and sandboxed scripts for a theme menu, cursors and a splash. Preferences > Colors and Themes previews each theme, its startup sound, version, author and description, warns if it needs a newer Patchy, keeps script trust per theme, imports and exports. Start from [themes/example-package](../themes/example-package/theme.json)
 
 ## Current Status
 
