@@ -555,7 +555,12 @@ void ui_layer_menu_groups_fill_and_merge_submenus() {
   };
   check_entries(*fill_menu, {{"layerFillForegroundAction", QKeySequence(Qt::ALT | Qt::Key_Backspace)},
                              {"layerFillBackgroundAction", QKeySequence(Qt::CTRL | Qt::Key_Backspace)},
+#ifdef Q_OS_MACOS
+                             // The Mac delete key sends Backspace; forward delete is the second key.
+                             {"layerClearAction", QKeySequence(Qt::Key_Backspace)}});
+#else
                              {"layerClearAction", QKeySequence(Qt::Key_Delete)}});
+#endif
   check_entries(*merge_menu, {{"layerMergeDownAction", QKeySequence(Qt::CTRL | Qt::Key_E)},
                               {"layerMergeVisibleLayersAction", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E)},
                               {"layerMergeVisibleAction", QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_E)}});

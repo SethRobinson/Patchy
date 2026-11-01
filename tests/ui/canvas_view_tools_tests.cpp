@@ -3396,15 +3396,21 @@ void ui_open_shows_small_images_at_actual_size_and_fits_large_ones() {
   ensure_artifact_dir();
   const auto folder = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "issue247_open");
   std::filesystem::create_directories(folder);
-  const auto write_png = [&folder](const char* name, int width, int height) {
+  // The folder step opens its own copies: a file that is already open only switches to its
+  // tab (GitHub issue 560).
+  const auto folder_copies = folder / "folder";
+  std::filesystem::create_directories(folder_copies);
+  const auto write_png = [](const std::filesystem::path& directory, const char* name, int width, int height) {
     QImage image(width, height, QImage::Format_RGB32);
     image.fill(QColor(200, 120, 40));
-    const auto path = QString::fromStdWString((folder / name).wstring());
+    const auto path = QString::fromStdWString((directory / name).wstring());
     CHECK(image.save(path));
     return path;
   };
-  const auto small_path = write_png("small.png", 120, 80);
-  const auto large_path = write_png("large.png", 5000, 3000);
+  const auto small_path = write_png(folder, "small.png", 120, 80);
+  const auto large_path = write_png(folder, "large.png", 5000, 3000);
+  write_png(folder_copies, "small.png", 120, 80);
+  write_png(folder_copies, "large.png", 5000, 3000);
 
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3452,7 +3458,7 @@ void ui_open_shows_small_images_at_actual_size_and_fits_large_ones() {
   // Opening a folder activates one document and adds the rest in the background; those
   // take the same view the first time they are shown.
   const auto opened = patchy::ui::MainWindowTestAccess::open_folder_path(
-      window, QString::fromStdWString(folder.wstring()));
+      window, QString::fromStdWString(folder_copies.wstring()));
   CHECK(opened == 2);
   const auto count = patchy::ui::MainWindowTestAccess::session_count(window);
   for (std::size_t index = count - 2U; index < count; ++index) {
