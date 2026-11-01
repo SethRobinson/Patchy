@@ -14,6 +14,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QColor>
+#include <QComboBox>
 #include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
@@ -566,6 +567,9 @@ void ui_path_merge_shapes_bakes_the_combine() {
   QApplication::processEvents();
   auto* button = window.findChild<QPushButton*>(QStringLiteral("vectorMergeShapesButton"));
   CHECK(button != nullptr && button->isVisible() && button->isEnabled());
+  // A framed push button, as tall as the bar's fields (the issue 91 height test).
+  CHECK(button->height() == window.findChild<QComboBox*>(QStringLiteral("vectorCombineCombo"))->height());
+  save_widget_artifact("ui_i555_merge_button_bar", *button->parentWidget());
   const std::vector<QPoint> probes{{110, 110}, {150, 150}, {250, 250}, {290, 290}, {200, 200}, {120, 280}, {280, 110}};
   std::vector<int> before;
   for (const auto& probe : probes) {
