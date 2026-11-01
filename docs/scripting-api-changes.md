@@ -14,6 +14,12 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-11-02 (additive): `patchy.gimpPlugins.geglFilters()` lists the GEGL filters of the user's GIMP 3
+(`{id, name, category, description, parameters}`, each parameter `{name, label, type, default,
+minimum, maximum, choices}`), and `layer.applyFilter` runs them by id ([gegl-filters.md](gegl-filters.md)).
+Permanent identifiers: the method, its keys, the type tokens `integer`, `number`, `boolean`, `choice`,
+the color choices `default`, `foreground`, `background`, `black`, `white`, and filter ids
+`gegl.<operation>`. Pinned by `ui_gegl_filters_list_and_apply_if_available`.
 2026-11-01 (additive): `patchy.gimpPlugins` (`list()`, `rescan({force})`, `install()`, `folders`,
 `enabled`, `installFolder`) and `layer.applyGimpPlugin(id, {dialog, lastValues, args, timeoutMs,
 trace, wireLog, captureDialog, answerDialog})`: the user's GIMP 3 plug-ins ([gimp-plugins.md](gimp-plugins.md#scripting)).

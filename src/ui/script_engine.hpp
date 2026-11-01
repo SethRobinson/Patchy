@@ -510,6 +510,7 @@ public:
                                   const QJSValue& options);
   // Every procedure the last scan saw, as script objects.
   [[nodiscard]] QJSValue gimp_plugin_list();
+  [[nodiscard]] QJSValue gegl_filter_list();
   // The GIMP install the scan uses, as a script object.
   [[nodiscard]] QJSValue gimp_plugin_install();
   // Rescans synchronously; `force` queries every plug-in again.

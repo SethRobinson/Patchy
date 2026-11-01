@@ -483,7 +483,9 @@ interface PatchyLayer {
   fillRect(x: number, y: number, width: number, height: number, color: string): void;
   /**
    * Applies a filter to this layer's pixels by registry id, e.g.
-   * applyFilter("patchy.filters.gaussian_blur", {radius: 8}). With a selection only
+   * applyFilter("patchy.filters.gaussian_blur", {radius: 8}), or a GEGL filter of the user's
+   * GIMP 3 by its "gegl." id from patchy.gimpPlugins.geglFilters(), e.g.
+   * applyFilter("gegl.cartoon", {"mask-radius": 10}). With a selection only
    * the selected pixels change, a soft edge blended by its coverage (the Filter menu's
    * rule). Unknown ids or parameters throw.
    */
@@ -1861,6 +1863,27 @@ interface PatchyGimpPlugins {
   }[];
   /** Rescans (only new or changed plug-ins are queried; `force` queries all) and returns list(). */
   rescan(options?: { force?: boolean }): ReturnType<PatchyGimpPlugins["list"]>;
+  /**
+   * The GEGL filters of the same GIMP 3 install (Plugins > GEGL Filters), labels in Patchy's
+   * language. Run one with layer.applyFilter(id, params), params keyed by `name`. A
+   * "choice" takes one of `choices`; a color setting is a choice of "default" (GEGL's own),
+   * "foreground", "background", "black" or "white". Empty without GIMP 3's GEGL.
+   */
+  geglFilters(): {
+    id: string;
+    name: string;
+    category: string;
+    description: string;
+    parameters: {
+      name: string;
+      label: string;
+      type: "integer" | "number" | "boolean" | "choice";
+      default: number | boolean | string;
+      minimum?: number;
+      maximum?: number;
+      choices?: string[];
+    }[];
+  }[];
 }
 
 type PatchyGmicValue = number | boolean | string | number[];

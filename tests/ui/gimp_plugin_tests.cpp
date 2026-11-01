@@ -932,6 +932,30 @@ void ui_gegl_filters_list_and_apply_if_available() {
     CHECK(german_blur != nullptr && german_blur->display_name != blur->display_name);
   }
 
+  // Scripts list them and run one by id.
+  CHECK(run_script_verbose(window, QStringLiteral(
+      "var filters = patchy.gimpPlugins.geglFilters();\n"
+      "var blur = filters.filter(function (f) { return f.id === 'gegl.gaussian-blur'; })[0];\n"
+      "var sd = blur.parameters.filter(function (p) { return p.name === 'std-dev-x'; })[0];\n"
+      "console.log('gegl list ' + (filters.length > 50) + ' ' + sd.type + ' ' + sd['default']);\n"
+      "var doc = app.newDocument(32, 16, {name: 'gegl script'});\n"
+      "doc.activeLayer.fillRect(0, 0, 16, 16, '#ff0000');\n"
+      "doc.activeLayer.fillRect(16, 0, 16, 16, '#0000ff');\n"
+      "doc.activeLayer.applyFilter('gegl.gaussian-blur', {'std-dev-x': 4, 'std-dev-y': 4});\n")));
+  CHECK(backlog_contains(window, QStringLiteral("gegl list true number 1.5")));
+  {
+    // The blur mixed red and blue where they meet.
+    auto& scripted = patchy::ui::MainWindowTestAccess::document(window);
+    const auto* layer = std::as_const(scripted).find_layer(*scripted.active_layer_id());
+    CHECK(layer != nullptr);
+    if (layer != nullptr) {
+      const auto scripted_bytes = layer->pixels().data();
+      const auto* mid = scripted_bytes.data() + 8 * layer->pixels().stride_bytes() +
+                        16 * patchy::bytes_per_pixel(layer->pixels().format());
+      CHECK(mid[0] > 30 && mid[2] > 30);
+    }
+  }
+
   // Plugins > GEGL Filters lists it.
   bool listed = false;
   for (auto* action : window.findChildren<QAction*>(QStringLiteral("geglFilterAction"))) {

@@ -540,6 +540,9 @@ public:
   Q_INVOKABLE QJSValue list();
   // Rescans ({force: true} queries every plug-in again); returns list().
   Q_INVOKABLE QJSValue rescan(const QJSValue& options = QJSValue());
+  // The GEGL filters of the same GIMP install (docs/gegl-filters.md): {id, name, category,
+  // description, parameters}; layer.applyFilter runs one by id.
+  Q_INVOKABLE QJSValue geglFilters();
 
 private:
   ScriptEngineHost& host_;

@@ -49,6 +49,10 @@ An operation without a shown setting applies at once, without a dialog. Titles, 
 
 `run_operation` sends `op`, `size`, `format`, one `set` line per shown setting and `end`, then the pixels tightly packed, and reads the same bytes back. Formats: `R'G'B'[A] u8`, `R'G'B'[A] u16` and `RGB[A] float` for Patchy's linear 32-bit; other color modes are refused. Every depth runs natively: `deep_filter_support` reports `gegl.` ids as Native. Every run starts the helper (about 0.3 s on Windows before the filter itself) on the worker that asked; the workers have no event loop, so the write and the wait go through `waitForBytesWritten` and `waitForFinished` in 100 ms steps, checking Cancel each time (Cancel kills the helper). `PATCHY_GEGL_TRACE=1` logs each run's steps on stderr.
 
+## Scripting
+
+`patchy.gimpPlugins.geglFilters()` (`ScriptEngineHost::gegl_filter_list`, scans on first use) lists `{id, name, category, description, parameters}`, each parameter `{name, label, type, default, minimum, maximum, choices}` with the permanent type tokens `integer`, `number`, `boolean`, `choice`. `layer.applyFilter` takes a `gegl.` id and routes it to the GEGL registry (`apply_filter_to_layer`); parameters are keyed by GEGL's property name, a color by its choice value. Record: [scripting-api-changes.md](scripting-api-changes.md).
+
 ## Tests
 
 `ui_gegl_filters_list_and_apply_if_available` (tests/ui/gimp_plugin_tests.cpp; skips without GIMP's GEGL): the scan, Gaussian Blur's mapped settings, Cartoon offered through `--gpl3`, exclusions (Red Eye Removal, Crop, Over), runs straight through the registry at 8, 16 and 32 bits, Color Overlay in the foreground color, German labels, the menu entry, a run through `apply_filter` and its undo, and the Cartoon dialog (saved to `test-artifacts/gegl-cartoon-dialog.png`) cancelled with the layer unchanged.

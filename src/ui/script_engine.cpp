@@ -2878,7 +2878,15 @@ bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId la
     throw_js_error(tr("The document is no longer open."));
     return false;
   }
-  const auto& registry = window_.filters_;
+  // GEGL filters (docs/gegl-filters.md) come from their own registry, scanned on first use.
+  std::shared_ptr<const FilterRegistry> gegl_registry;
+#ifndef Q_OS_WASM
+  if (filter_id.startsWith(QLatin1String("gegl."))) {
+    window_.ensure_gegl_filters_scanned();
+    gegl_registry = window_.gegl_filter_registry_for(filter_id);
+  }
+#endif
+  const auto& registry = gegl_registry != nullptr ? *gegl_registry : window_.filters_;
   const auto* definition = registry.find(filter_id.toStdString());
   if (definition == nullptr) {
     throw_js_error(tr("Unknown filter id: %1").arg(filter_id));

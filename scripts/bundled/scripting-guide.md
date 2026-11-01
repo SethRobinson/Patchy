@@ -660,11 +660,14 @@ Desktop builds run the plug-ins of your own GIMP 3 install (Patchy finds it; GIM
 | `patchy.gimpPlugins.rescan({force})` | Rescans (new or changed plug-ins only, all with `force: true`) and returns `list()`. |
 | `patchy.gimpPlugins.install()` | `{found, folder, version, series, source, flatpak, pluginFolders, failedFiles, problem}`; `failedFiles` lists `{file, error}` for plug-ins that did not start. |
 | `patchy.gimpPlugins.folders`, `.enabled`, `.installFolder` | Preferences > Plug-ins settings (persisted); setting one rescans. |
+| `patchy.gimpPlugins.geglFilters()` | The GEGL filters of the same GIMP install (Plugins > GEGL Filters): `{id, name, category, description, parameters}`, each parameter `{name, label, type, default, minimum, maximum, choices}` with type `integer`, `number`, `boolean` or `choice`. Run one with `layer.applyFilter(id, {name: value})`; a color setting is a choice of `default`, `foreground`, `background`, `black` or `white`. |
 | `layer.applyGimpPlugin(id, {dialog, lastValues, args, timeoutMs, trace, wireLog, captureDialog, answerDialog})` | Runs the procedure on an 8, 16 or 32-bit RGB layer inside the selection, as part of the script's undo entry. Non-interactive with the registered defaults and a 120 s limit unless `dialog: true` (the plug-in's own dialog). `args` sets arguments by name, e.g. `{"num-segments": 5, orientation: "vertical"}`. On Windows `captureDialog: "shot.png"` saves an image of the dialog and `answerDialog: "ok"` or `"cancel"` answers it; unattended runs answer OK by themselves. Throws with the reason on failure. |
 
 ```js
 const blinds = patchy.gimpPlugins.list().find(p => p.procedure === "plug-in-blinds");
 if (blinds && blinds.supported) app.activeDocument.activeLayer.applyGimpPlugin(blinds.id, {args: {"num-segments": 5}});
+if (patchy.gimpPlugins.geglFilters().some(f => f.id === "gegl.cartoon"))
+  app.activeDocument.activeLayer.applyFilter("gegl.cartoon", {"mask-radius": 10});
 ```
 
 ### G'MIC filters (patchy.gmic)
