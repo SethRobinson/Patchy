@@ -99,15 +99,16 @@ bool wait_for_style_reading(QWidget& popup, QLabel& status, int timeout_ms) {
 void ui_font_picker_recent_section_orders_skips_and_persists() {
   register_test_fonts(TestFontRole::Verdana);
   reset_picker_settings();
-  const auto verdana = QStringLiteral("Verdana");
-  const auto arial = QStringLiteral("Arial");  // the suite's UI font, always registered
-  if (!QFontDatabase::families().contains(verdana) || !QFontDatabase::families().contains(arial)) {
-    patchy::test::skip("Verdana or Arial unavailable on this machine");
-  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* picker = type_tool_picker(window);
   CHECK(picker != nullptr);
+  if (picker->count() < 2) {
+    patchy::test::skip("fewer than two font families on this machine");
+  }
+  // Any two installed families (the Linux runner has neither Verdana nor Arial).
+  const auto verdana = picker->itemText(1);
+  const auto arial = picker->itemText(0);
 
   // No recent picks yet: no section, no headers.
   {
@@ -254,7 +255,9 @@ void ui_font_picker_style_and_language_filters_persist() {
       CHECK(sans_rows.contains(family));
     }
   }
-  CHECK(family_rows(*list, true) == (QStringList{QStringLiteral("Arial")}));
+  // A recent family no longer installed (Arial on the Linux runner) never shows.
+  CHECK(family_rows(*list, true) ==
+        (all_rows.contains(QStringLiteral("Arial")) ? QStringList{QStringLiteral("Arial")} : QStringList{}));
   if (all_rows.contains(QStringLiteral("Times New Roman"))) {
     CHECK(!sans_rows.contains(QStringLiteral("Times New Roman")));
   }
