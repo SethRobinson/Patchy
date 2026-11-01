@@ -189,9 +189,6 @@ made are in [building.md](building.md) ("Compile-time profile").
   data. Use mutable ownership carefully to remove the copies.
 - `estimate_text_size_from_alpha` uses a revision-bumping pixel accessor on a local
   layer before insertion.
-- `VisibleSizeGrip` (dialog_utils.cpp) paints a hardcoded light gray, chosen for the
-  Dark scheme; it is not scheme-aware, so its strokes can lose contrast on Light's
-  pale popups. Route the color through a theme role.
 - `Rgb8PerPixelTarget` (the BMP RGB writer) is `Rgb8PixelBufferTarget` without the
   `composite_blended_row` row kernel and the strip origin (render/composite_targets.hpp;
   method bodies otherwise identical, October 2026). Merging them routes BMP RGB export

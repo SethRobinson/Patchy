@@ -35,6 +35,7 @@ const ThemePalette& dark_palette() {
       // Base surfaces, text, and window frame.
       .window_bg = rgb(0x262626),
       .window_border = rgb(0x1f1f1f),
+      .resize_grip_ink = rgb(0x9a9a9a),
       .text_primary = rgb(0xe6e6e6),
       .script_accent = rgb(0x6fb1e8),
       .script_card_border = rgb(0x626872),
@@ -774,6 +775,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
   static const auto roles = std::to_array<ThemePaletteRole>({
       PATCHY_THEME_ROLE(window_bg),
       PATCHY_THEME_ROLE(window_border),
+      PATCHY_THEME_ROLE(resize_grip_ink),
       PATCHY_THEME_ROLE(text_primary),
       PATCHY_THEME_ROLE(script_accent),
       PATCHY_THEME_ROLE(script_card_border),

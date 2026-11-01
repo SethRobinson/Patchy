@@ -2678,7 +2678,7 @@ VisibleSizeGrip::VisibleSizeGrip(QWidget* parent) : QSizeGrip(parent) {
 void VisibleSizeGrip::paintEvent(QPaintEvent* /*event*/) {
   QPainter painter(this);
   painter.setRenderHint(QPainter::Antialiasing);
-  painter.setPen(QPen(QColor(0x9A, 0x9A, 0x9A), 1.6));
+  painter.setPen(QPen(theme().resize_grip_ink, 1.6));
   for (int line = 0; line < 3; ++line) {
     const auto offset = 3.0 + line * 4.0;
     painter.drawLine(QPointF(width() - 2.0, height() - 2.0 - offset),
