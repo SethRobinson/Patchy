@@ -158,6 +158,78 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>GIMP의 GEGL을 불러올 수 없습니다. %1</translation>
     </message>
+    <message>
+        <source>Artistic</source>
+        <translation>예술 효과</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>흐림</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>색상</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>왜곡</translation>
+    </message>
+    <message>
+        <source>Dither</source>
+        <translation>디더링</translation>
+    </message>
+    <message>
+        <source>Edge Detect</source>
+        <translation>가장자리 감지</translation>
+    </message>
+    <message>
+        <source>Enhance</source>
+        <translation>향상</translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation>주파수</translation>
+    </message>
+    <message>
+        <source>Generic</source>
+        <translation>일반</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>회색조</translation>
+    </message>
+    <message>
+        <source>Illusions</source>
+        <translation>착시</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>빛</translation>
+    </message>
+    <message>
+        <source>Map</source>
+        <translation>맵</translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation>노이즈</translation>
+    </message>
+    <message>
+        <source>Render</source>
+        <translation>렌더링</translation>
+    </message>
+    <message>
+        <source>Segmentation</source>
+        <translation>분할</translation>
+    </message>
+    <message>
+        <source>Tile</source>
+        <translation>타일</translation>
+    </message>
+    <message>
+        <source>Tone Mapping</source>
+        <translation>톤 매핑</translation>
+    </message>
 </context>
 <context>
     <name>GimpPlugins</name>
@@ -31769,6 +31841,11 @@ Locked: %1</source>
         <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
         <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
         <translation>GIMP 3.2 플러그인용입니다. 이 버전은 GIMP %1이므로 플러그인이 시작되지 않을 수 있습니다</translation>
+    </message>
+    <message>
+        <source>Not Supported by Patchy</source>
+        <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
+        <translation>Patchy에서 지원하지 않음</translation>
     </message>
 </context>
 <context>

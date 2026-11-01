@@ -56,7 +56,8 @@ inline constexpr char kGeglFilterIdPrefix[] = "gegl.";
 // GEGL's labels in `language` (a Patchy language code; empty: English). Blocking; run it
 // on a worker.
 [[nodiscard]] GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const QString& language = {});
-// "Edge-detect" -> "Edge Detect": a GEGL category as a menu label.
+// A GEGL category as a menu label: Patchy's translated name for the known ones, else
+// GEGL's word capitalized ("edge-detect" -> "Edge Detect").
 [[nodiscard]] QString gegl_category_label(const QString& category);
 
 }  // namespace patchy::ui

@@ -158,6 +158,78 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>Не удалось загрузить GEGL из GIMP. %1</translation>
     </message>
+    <message>
+        <source>Artistic</source>
+        <translation>Художественный</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>Размытие</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>Цветность</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Искажение</translation>
+    </message>
+    <message>
+        <source>Dither</source>
+        <translation>Дизеринг</translation>
+    </message>
+    <message>
+        <source>Edge Detect</source>
+        <translation>Обнаружение края</translation>
+    </message>
+    <message>
+        <source>Enhance</source>
+        <translation>Улучшение</translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation>Частота</translation>
+    </message>
+    <message>
+        <source>Generic</source>
+        <translation>Общие</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>Оттенки серого</translation>
+    </message>
+    <message>
+        <source>Illusions</source>
+        <translation>Иллюзии</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>Свет</translation>
+    </message>
+    <message>
+        <source>Map</source>
+        <translation>Карта</translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation>Шум</translation>
+    </message>
+    <message>
+        <source>Render</source>
+        <translation>Рендеринг</translation>
+    </message>
+    <message>
+        <source>Segmentation</source>
+        <translation>Сегментация</translation>
+    </message>
+    <message>
+        <source>Tile</source>
+        <translation>Мозаика</translation>
+    </message>
+    <message>
+        <source>Tone Mapping</source>
+        <translation>Тональная компрессия</translation>
+    </message>
 </context>
 <context>
     <name>GimpPlugins</name>
@@ -31935,6 +32007,11 @@ Locked: %1</source>
         <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
         <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
         <translation>Рассчитано на плагины GIMP 3.2; это GIMP %1, и его плагины могут не запуститься</translation>
+    </message>
+    <message>
+        <source>Not Supported by Patchy</source>
+        <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
+        <translation>Не поддерживаются Patchy</translation>
     </message>
 </context>
 <context>

@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <utility>
@@ -432,6 +433,30 @@ GeglHelperCommand gegl_helper_command(const gimp::GimpInstall& install, const QS
 }
 
 QString gegl_category_label(const QString& category) {
+  // GEGL's categories are not in its catalog: Patchy names the ones GIMP 3.2's GEGL offers.
+  static const std::map<QString, const char*> kNames = {
+      {QStringLiteral("artistic"), QT_TRANSLATE_NOOP("GeglFilters", "Artistic")},
+      {QStringLiteral("blur"), QT_TRANSLATE_NOOP("GeglFilters", "Blur")},
+      {QStringLiteral("color"), QT_TRANSLATE_NOOP("GeglFilters", "Color")},
+      {QStringLiteral("distort"), QT_TRANSLATE_NOOP("GeglFilters", "Distort")},
+      {QStringLiteral("dither"), QT_TRANSLATE_NOOP("GeglFilters", "Dither")},
+      {QStringLiteral("edge-detect"), QT_TRANSLATE_NOOP("GeglFilters", "Edge Detect")},
+      {QStringLiteral("enhance"), QT_TRANSLATE_NOOP("GeglFilters", "Enhance")},
+      {QStringLiteral("frequency"), QT_TRANSLATE_NOOP("GeglFilters", "Frequency")},
+      {QStringLiteral("generic"), QT_TRANSLATE_NOOP("GeglFilters", "Generic")},
+      {QStringLiteral("grayscale"), QT_TRANSLATE_NOOP("GeglFilters", "Grayscale")},
+      {QStringLiteral("illusions"), QT_TRANSLATE_NOOP("GeglFilters", "Illusions")},
+      {QStringLiteral("light"), QT_TRANSLATE_NOOP("GeglFilters", "Light")},
+      {QStringLiteral("map"), QT_TRANSLATE_NOOP("GeglFilters", "Map")},
+      {QStringLiteral("noise"), QT_TRANSLATE_NOOP("GeglFilters", "Noise")},
+      {QStringLiteral("render"), QT_TRANSLATE_NOOP("GeglFilters", "Render")},
+      {QStringLiteral("segmentation"), QT_TRANSLATE_NOOP("GeglFilters", "Segmentation")},
+      {QStringLiteral("tile"), QT_TRANSLATE_NOOP("GeglFilters", "Tile")},
+      {QStringLiteral("tonemapping"), QT_TRANSLATE_NOOP("GeglFilters", "Tone Mapping")},
+  };
+  if (const auto it = kNames.find(category); it != kNames.end()) {
+    return QCoreApplication::translate("GeglFilters", it->second);
+  }
   auto words = category.split(QLatin1Char('-'), Qt::SkipEmptyParts);
   for (auto& word : words) {
     word[0] = word[0].toUpper();

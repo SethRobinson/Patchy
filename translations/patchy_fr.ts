@@ -158,6 +158,78 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>GEGL de GIMP n&apos;a pas pu être chargé. %1</translation>
     </message>
+    <message>
+        <source>Artistic</source>
+        <translation>Artistiques</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>Atténuation</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>Couleur</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Déformation</translation>
+    </message>
+    <message>
+        <source>Dither</source>
+        <translation>Tramage</translation>
+    </message>
+    <message>
+        <source>Edge Detect</source>
+        <translation>Détection des contours</translation>
+    </message>
+    <message>
+        <source>Enhance</source>
+        <translation>Amélioration</translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation>Fréquence</translation>
+    </message>
+    <message>
+        <source>Generic</source>
+        <translation>Générique</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>Niveaux de gris</translation>
+    </message>
+    <message>
+        <source>Illusions</source>
+        <translation>Illusions</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>Lumière</translation>
+    </message>
+    <message>
+        <source>Map</source>
+        <translation>Carte</translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation>Bruit</translation>
+    </message>
+    <message>
+        <source>Render</source>
+        <translation>Rendu</translation>
+    </message>
+    <message>
+        <source>Segmentation</source>
+        <translation>Segmentation</translation>
+    </message>
+    <message>
+        <source>Tile</source>
+        <translation>Pavage</translation>
+    </message>
+    <message>
+        <source>Tone Mapping</source>
+        <translation>Mappage des tons</translation>
+    </message>
 </context>
 <context>
     <name>GimpPlugins</name>
@@ -31852,6 +31924,11 @@ Verrouillé : %1</translation>
         <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
         <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
         <translation>Conçu pour les modules externes de GIMP 3.2 ; ceci est GIMP %1, dont les modules externes risquent de ne pas démarrer</translation>
+    </message>
+    <message>
+        <source>Not Supported by Patchy</source>
+        <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
+        <translation>Non pris en charge par Patchy</translation>
     </message>
 </context>
 <context>

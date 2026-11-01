@@ -713,6 +713,14 @@ void ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available() {
   if (pagecurl != nullptr) {
     CHECK(!pagecurl->isEnabled());
     CHECK(pagecurl->text().endsWith(QStringLiteral("... (Unsupported)")));
+    // Refused entries share one submenu; the category menus hold what runs.
+    bool in_unsupported_menu = false;
+    for (auto* object : pagecurl->associatedObjects()) {
+      if (auto* m = qobject_cast<QMenu*>(object)) {
+        in_unsupported_menu = in_unsupported_menu || m->objectName() == QLatin1String("gimpPluginsUnsupportedMenu");
+      }
+    }
+    CHECK(in_unsupported_menu);
     CHECK(pagecurl->toolTip().contains(QStringLiteral("new layer")));
     CHECK(pagecurl->statusTip() == pagecurl->toolTip());
   }

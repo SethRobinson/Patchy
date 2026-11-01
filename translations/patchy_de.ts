@@ -158,6 +158,78 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>GEGL von GIMP konnte nicht geladen werden. %1</translation>
     </message>
+    <message>
+        <source>Artistic</source>
+        <translation>Kunstfilter</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>Weichzeichnungsfilter</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>Farbe</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Verzerrungsfilter</translation>
+    </message>
+    <message>
+        <source>Dither</source>
+        <translation>Dither</translation>
+    </message>
+    <message>
+        <source>Edge Detect</source>
+        <translation>Konturen finden</translation>
+    </message>
+    <message>
+        <source>Enhance</source>
+        <translation>Verbessern</translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation>Frequenz</translation>
+    </message>
+    <message>
+        <source>Generic</source>
+        <translation>Allgemein</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>Graustufen</translation>
+    </message>
+    <message>
+        <source>Illusions</source>
+        <translation>Illusionen</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>Licht</translation>
+    </message>
+    <message>
+        <source>Map</source>
+        <translation>Abbilden</translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation>Störungsfilter</translation>
+    </message>
+    <message>
+        <source>Render</source>
+        <translation>Renderfilter</translation>
+    </message>
+    <message>
+        <source>Segmentation</source>
+        <translation>Segmentierung</translation>
+    </message>
+    <message>
+        <source>Tile</source>
+        <translation>Kacheln</translation>
+    </message>
+    <message>
+        <source>Tone Mapping</source>
+        <translation>Dynamikkompression</translation>
+    </message>
 </context>
 <context>
     <name>GimpPlugins</name>
@@ -31852,6 +31924,11 @@ Fixiert: %1</translation>
         <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
         <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
         <translation>Für die Plug-ins von GIMP 3.2 gemacht; dies ist GIMP %1, dessen Plug-ins möglicherweise nicht starten</translation>
+    </message>
+    <message>
+        <source>Not Supported by Patchy</source>
+        <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
+        <translation>Von Patchy nicht unterstützt</translation>
     </message>
 </context>
 <context>

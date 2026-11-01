@@ -158,6 +158,78 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>Não foi possível carregar o GEGL do GIMP. %1</translation>
     </message>
+    <message>
+        <source>Artistic</source>
+        <translation>Artístico</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>Desfoque</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>Cor</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Distorcer</translation>
+    </message>
+    <message>
+        <source>Dither</source>
+        <translation>Pontilhar</translation>
+    </message>
+    <message>
+        <source>Edge Detect</source>
+        <translation>Detecção de borda</translation>
+    </message>
+    <message>
+        <source>Enhance</source>
+        <translation>Realçar</translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation>Frequência</translation>
+    </message>
+    <message>
+        <source>Generic</source>
+        <translation>Genérico</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>Tons de cinza</translation>
+    </message>
+    <message>
+        <source>Illusions</source>
+        <translation>Ilusões</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>Luz</translation>
+    </message>
+    <message>
+        <source>Map</source>
+        <translation>Mapa</translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation>Ruído</translation>
+    </message>
+    <message>
+        <source>Render</source>
+        <translation>Renderizar</translation>
+    </message>
+    <message>
+        <source>Segmentation</source>
+        <translation>Segmentação</translation>
+    </message>
+    <message>
+        <source>Tile</source>
+        <translation>Ladrilho</translation>
+    </message>
+    <message>
+        <source>Tone Mapping</source>
+        <translation>Mapeamento de tons</translation>
+    </message>
 </context>
 <context>
     <name>GimpPlugins</name>
@@ -31852,6 +31924,11 @@ Bloqueado: %1</translation>
         <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
         <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
         <translation>Feito para os plug-ins do GIMP 3.2; este é o GIMP %1, cujos plug-ins podem não iniciar</translation>
+    </message>
+    <message>
+        <source>Not Supported by Patchy</source>
+        <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
+        <translation>Sem suporte no Patchy</translation>
     </message>
 </context>
 <context>

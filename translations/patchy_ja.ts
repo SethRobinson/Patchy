@@ -158,6 +158,78 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>GIMP の GEGL を読み込めませんでした。%1</translation>
     </message>
+    <message>
+        <source>Artistic</source>
+        <translation>アーティスティック</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>ぼかし</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>色</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>変形</translation>
+    </message>
+    <message>
+        <source>Dither</source>
+        <translation>ディザ</translation>
+    </message>
+    <message>
+        <source>Edge Detect</source>
+        <translation>エッジ検出</translation>
+    </message>
+    <message>
+        <source>Enhance</source>
+        <translation>強調</translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation>周波数</translation>
+    </message>
+    <message>
+        <source>Generic</source>
+        <translation>汎用</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>グレースケール</translation>
+    </message>
+    <message>
+        <source>Illusions</source>
+        <translation>錯視</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>光</translation>
+    </message>
+    <message>
+        <source>Map</source>
+        <translation>マップ</translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation>ノイズ</translation>
+    </message>
+    <message>
+        <source>Render</source>
+        <translation>描画</translation>
+    </message>
+    <message>
+        <source>Segmentation</source>
+        <translation>セグメンテーション</translation>
+    </message>
+    <message>
+        <source>Tile</source>
+        <translation>タイル</translation>
+    </message>
+    <message>
+        <source>Tone Mapping</source>
+        <translation>トーンマッピング</translation>
+    </message>
 </context>
 <context>
     <name>GimpPlugins</name>
@@ -31769,6 +31841,11 @@ Locked: %1</source>
         <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
         <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
         <translation>GIMP 3.2 のプラグイン向けです。これは GIMP %1 のため、プラグインが起動しない場合があります</translation>
+    </message>
+    <message>
+        <source>Not Supported by Patchy</source>
+        <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
+        <translation>Patchy 非対応</translation>
     </message>
 </context>
 <context>

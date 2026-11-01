@@ -158,6 +158,78 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>無法載入 GIMP 的 GEGL。%1</translation>
     </message>
+    <message>
+        <source>Artistic</source>
+        <translation>藝術風</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>模糊</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>顏色</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>扭曲</translation>
+    </message>
+    <message>
+        <source>Dither</source>
+        <translation>遞色</translation>
+    </message>
+    <message>
+        <source>Edge Detect</source>
+        <translation>邊緣偵測</translation>
+    </message>
+    <message>
+        <source>Enhance</source>
+        <translation>增強</translation>
+    </message>
+    <message>
+        <source>Frequency</source>
+        <translation>頻率</translation>
+    </message>
+    <message>
+        <source>Generic</source>
+        <translation>通用</translation>
+    </message>
+    <message>
+        <source>Grayscale</source>
+        <translation>灰階</translation>
+    </message>
+    <message>
+        <source>Illusions</source>
+        <translation>錯覺</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>光線</translation>
+    </message>
+    <message>
+        <source>Map</source>
+        <translation>對應</translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation>雜訊</translation>
+    </message>
+    <message>
+        <source>Render</source>
+        <translation>演算上色</translation>
+    </message>
+    <message>
+        <source>Segmentation</source>
+        <translation>分割</translation>
+    </message>
+    <message>
+        <source>Tile</source>
+        <translation>拼貼</translation>
+    </message>
+    <message>
+        <source>Tone Mapping</source>
+        <translation>色調對應</translation>
+    </message>
 </context>
 <context>
     <name>GimpPlugins</name>
@@ -31769,6 +31841,11 @@ Locked: %1</source>
         <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
         <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
         <translation>為 GIMP 3.2 的外掛程式設計；這是 GIMP %1，其外掛程式可能無法啟動</translation>
+    </message>
+    <message>
+        <source>Not Supported by Patchy</source>
+        <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
+        <translation>Patchy 不支援</translation>
     </message>
 </context>
 <context>

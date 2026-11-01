@@ -412,9 +412,12 @@ void MainWindow::rebuild_gimp_plugins_menu() {
       menus.emplace(key, menu);
       return menu;
     };
+    // Entries Patchy cannot run share one submenu at the bottom, so the category menus
+    // hold only what runs (docs/gimp-plugins.md).
+    std::vector<QAction*> refused;
     for (const auto* entry : listed) {
-      auto* target = menu_for(entry->menu);
       const bool runs = entry->use == QLatin1String("layer");
+      auto* target = runs ? menu_for(entry->menu) : nullptr;
       const auto label = escape_qaction_ampersands(entry->label);
       auto* action = new QAction(label, target != nullptr ? static_cast<QObject*>(target) : gimp_plugins_menu_);
       action->setData(entry->identifier);
@@ -442,6 +445,8 @@ void MainWindow::rebuild_gimp_plugins_menu() {
         action->setEnabled(false);
         action->setProperty(kGimpPluginRefusedProperty, true);
         action->setProperty(kCommandSearchListsDisabledProperty, true);
+        refused.push_back(action);
+        continue;
       }
       if (target != nullptr) {
         target->addAction(action);
@@ -451,6 +456,22 @@ void MainWindow::rebuild_gimp_plugins_menu() {
       if (runs) {
         refresh_action_tooltip(action);
         register_document_action(action);
+      }
+    }
+    if (!refused.empty()) {
+      std::sort(refused.begin(), refused.end(), [](const QAction* a, const QAction* b) {
+        return a->text().compare(b->text(), Qt::CaseInsensitive) < 0;
+      });
+      //: Submenu of Plugins > GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.
+      auto* menu = new QMenu(tr("Not Supported by Patchy"), gimp_plugins_menu_);
+      menu->setObjectName(QStringLiteral("gimpPluginsUnsupportedMenu"));
+      menu->setToolTipsVisible(true);
+      menu->menuAction()->setMenuRole(QAction::NoRole);
+      menu->menuAction()->setProperty(kGimpPluginMenuEntryProperty, true);
+      gimp_plugins_menu_->insertMenu(before, menu);
+      for (auto* action : refused) {
+        action->setParent(menu);
+        menu->addAction(action);
       }
     }
   }
