@@ -13067,14 +13067,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Ustawienia JPEG</translation>
     </message>
     <message>
-        <source>Progressive (shows a rough image first while loading)</source>
-        <translation>Progresywny (podczas wczytywania najpierw pokazuje przybliżony obraz)</translation>
-    </message>
-    <message>
-        <source>Optimize coding (smaller file, same image)</source>
-        <translation>Optymalizuj kodowanie (mniejszy plik, ten sam obraz)</translation>
-    </message>
-    <message>
         <source>Fills transparent areas (JPEG has no transparency)</source>
         <translation>Wypełnia przezroczyste obszary (JPEG nie obsługuje przezroczystości)</translation>
     </message>
@@ -13117,10 +13109,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>File Info metadata to include. None writes the smallest file.</source>
         <translation>Metadane Informacji o pliku do dołączenia. Brak daje najmniejszy plik.</translation>
-    </message>
-    <message>
-        <source>Include thumbnail (about 5 to 10 KB)</source>
-        <translation>Dołącz miniaturę (około 5 do 10 KB)</translation>
     </message>
     <message>
         <source>Convert to sRGB (from %1)</source>
@@ -14419,6 +14407,94 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Built-in</source>
         <translation>Wbudowane</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors</source>
+        <translation>
+            <numerusform>%n kolor</numerusform>
+            <numerusform>%n kolory</numerusform>
+            <numerusform>%n kolorów</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>Niska</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>Wysoka</translation>
+    </message>
+    <message>
+        <source>Very High</source>
+        <translation>Bardzo wysoka</translation>
+    </message>
+    <message>
+        <source>JPEG Very High</source>
+        <translation>JPEG bardzo wysoka</translation>
+    </message>
+    <message>
+        <source>JPEG Medium</source>
+        <translation>JPEG średnia</translation>
+    </message>
+    <message>
+        <source>WebP High</source>
+        <translation>WebP wysoka</translation>
+    </message>
+    <message>
+        <source>PNG 256 Colors</source>
+        <translation>PNG 256 kolorów</translation>
+    </message>
+    <message>
+        <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
+        <translation>Zapisany format z jego ustawieniami. Niestandardowe pojawia się, gdy ustawienia nie pasują do żadnego ustawienia wstępnego.</translation>
+    </message>
+    <message>
+        <source>Save the format and its settings as a preset</source>
+        <translation>Zapisz format i jego ustawienia jako ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset</source>
+        <translation>Usuń wybrane ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Quality presets</source>
+        <translation>Wstępne ustawienia jakości</translation>
+    </message>
+    <message>
+        <source>Progressive</source>
+        <translation>Progresywny</translation>
+    </message>
+    <message>
+        <source>Shows a rough image first while the file loads.</source>
+        <translation>Podczas wczytywania pliku najpierw pokazuje zgrubny obraz.</translation>
+    </message>
+    <message>
+        <source>Optimize coding</source>
+        <translation>Optymalizuj kodowanie</translation>
+    </message>
+    <message>
+        <source>Makes the file smaller without changing the image.</source>
+        <translation>Zmniejsza plik bez zmiany obrazu.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail</source>
+        <translation>Dołącz miniaturę</translation>
+    </message>
+    <message>
+        <source>2 x 2</source>
+        <translation>2 x 2</translation>
+    </message>
+    <message>
+        <source>The original, the result, and the result at 50% and 25% of the quality</source>
+        <translation>Oryginał, wynik i wynik przy 50% i 25% jakości</translation>
+    </message>
+    <message>
+        <source>%1 at these settings has no quality to reduce.</source>
+        <translation>%1 przy tych ustawieniach nie ma jakości do obniżenia.</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 <context>

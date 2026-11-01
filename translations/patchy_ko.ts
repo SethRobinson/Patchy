@@ -12997,14 +12997,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>JPEG 설정</translation>
     </message>
     <message>
-        <source>Progressive (shows a rough image first while loading)</source>
-        <translation>프로그레시브(로드하는 동안 대략적인 이미지를 먼저 표시)</translation>
-    </message>
-    <message>
-        <source>Optimize coding (smaller file, same image)</source>
-        <translation>코딩 최적화(같은 이미지, 더 작은 파일)</translation>
-    </message>
-    <message>
         <source>Fills transparent areas (JPEG has no transparency)</source>
         <translation>투명한 영역을 채웁니다(JPEG에는 투명도가 없음)</translation>
     </message>
@@ -13047,10 +13039,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>File Info metadata to include. None writes the smallest file.</source>
         <translation>포함할 파일 정보 메타데이터입니다. 없음은 가장 작은 파일을 씁니다.</translation>
-    </message>
-    <message>
-        <source>Include thumbnail (about 5 to 10 KB)</source>
-        <translation>미리 보기 이미지 포함(약 5~10KB)</translation>
     </message>
     <message>
         <source>Convert to sRGB (from %1)</source>
@@ -14333,6 +14321,92 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Built-in</source>
         <translation>기본 제공</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors</source>
+        <translation>
+            <numerusform>%n색</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>낮음</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>높음</translation>
+    </message>
+    <message>
+        <source>Very High</source>
+        <translation>매우 높음</translation>
+    </message>
+    <message>
+        <source>JPEG Very High</source>
+        <translation>JPEG 매우 높음</translation>
+    </message>
+    <message>
+        <source>JPEG Medium</source>
+        <translation>JPEG 중간</translation>
+    </message>
+    <message>
+        <source>WebP High</source>
+        <translation>WebP 높음</translation>
+    </message>
+    <message>
+        <source>PNG 256 Colors</source>
+        <translation>PNG 256색</translation>
+    </message>
+    <message>
+        <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
+        <translation>저장된 형식과 설정입니다. 설정이 어떤 사전 설정과도 일치하지 않으면 사용자 지정이 표시됩니다.</translation>
+    </message>
+    <message>
+        <source>Save the format and its settings as a preset</source>
+        <translation>형식과 설정을 사전 설정으로 저장</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset</source>
+        <translation>선택한 사전 설정 삭제</translation>
+    </message>
+    <message>
+        <source>Quality presets</source>
+        <translation>품질 사전 설정</translation>
+    </message>
+    <message>
+        <source>Progressive</source>
+        <translation>프로그레시브</translation>
+    </message>
+    <message>
+        <source>Shows a rough image first while the file loads.</source>
+        <translation>파일을 불러오는 동안 거친 이미지를 먼저 표시합니다.</translation>
+    </message>
+    <message>
+        <source>Optimize coding</source>
+        <translation>코딩 최적화</translation>
+    </message>
+    <message>
+        <source>Makes the file smaller without changing the image.</source>
+        <translation>이미지를 바꾸지 않고 파일을 더 작게 만듭니다.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail</source>
+        <translation>썸네일 포함</translation>
+    </message>
+    <message>
+        <source>2 x 2</source>
+        <translation>2 x 2</translation>
+    </message>
+    <message>
+        <source>The original, the result, and the result at 50% and 25% of the quality</source>
+        <translation>원본, 결과, 그리고 품질 50% 및 25%의 결과</translation>
+    </message>
+    <message>
+        <source>%1 at these settings has no quality to reduce.</source>
+        <translation>이 설정의 %1에는 낮출 품질이 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 <context>

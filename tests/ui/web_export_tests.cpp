@@ -25,6 +25,8 @@
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QGroupBox>
+#include <QGuiApplication>
 #include <QRadioButton>
 #include <QScrollArea>
 #include <QDialog>
@@ -34,20 +36,24 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPainter>
 #include <QPushButton>
+#include <QScreen>
 #include <QScrollBar>
 #include <QSpinBox>
 #include <QSpontaneKeyEvent>
 #include <QWheelEvent>
 #include <QTimer>
+#include <QToolButton>
 #include <QTreeWidget>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <memory>
 #include <set>
@@ -72,7 +78,7 @@ struct WebExportSettingsGuard {
                             "pngDither", "pngDitherAmount", "gifColors", "gifDither", "gifDitherAmount", "gifAnimate",
                             "gifFrameDelayMs", "avifQuality", "avifSpeed", "avifLossless", "jxlQuality",
                             "jxlEffort", "jxlLossless", "jxlAnimate", "jxlFrameDelayMs", "pngAnimate",
-                            "pngFrameDelayMs", "fillTransparent"}) {
+                            "pngFrameDelayMs", "fillTransparent", "dialogSize", "presets"}) {
       const auto full = QStringLiteral("exportForWeb/") + QLatin1String(key);
       restorers.push_back(std::make_unique<SettingsValueRestorer>(full));
       auto settings = patchy::ui::app_settings();
@@ -877,11 +883,15 @@ void ui_web_export_animation_plays_in_the_preview() {
       auto* animation_group = dialog->findChild<QWidget*>(QStringLiteral("webExportAnimationGroup"));
       auto* keep = dialog->findChild<QRadioButton*>(QStringLiteral("webExportKeepTransparencyRadio"));
       auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("webExportBackgroundColorSwatch"));
-      auto* hint = dialog->findChild<QLabel*>(QStringLiteral("webExportJpegBackgroundHint"));
+      auto* hint = dialog->findChild<QToolButton*>(QStringLiteral("webExportJpegBackgroundInfo"));
       CHECK(animation_group != nullptr && keep != nullptr && swatch != nullptr && hint != nullptr);
       if (animation_group != nullptr && keep != nullptr && swatch != nullptr && hint != nullptr) {
         CHECK(!animation_group->isVisible());
         CHECK(!keep->isVisible() && swatch->isVisible() && swatch->isEnabled() && hint->isVisible());
+        // The explanation is the info mark's tooltip, and the color is labeled "Fill with:".
+        CHECK(hint->toolTip() == QStringLiteral("Fills transparent areas (JPEG has no transparency)"));
+        auto* label = dialog->findChild<QLabel*>(QStringLiteral("webExportBackgroundLabel"));
+        CHECK(label != nullptr && label->isVisible() && label->text() == QStringLiteral("Fill with:"));
       }
     }
     // Closing stops the timer.
@@ -1346,6 +1356,448 @@ void ui_web_export_dialog_previews_and_saves() {
   CHECK(remembered.format == WebExportFormat::Jpeg && remembered.jpeg_quality == 40);
 }
 
+// The format list puts JPEG XL under JPEG (display order only: the enum and the persisted
+// tokens stay); the 2 x 2 tiles' settings are 50% and 25% of the quality (or a palette's
+// colors), clamped to the format's minimum; the quality presets; and a user preset's round
+// trip through exportForWeb/presets, applied to another document (GitHub issue 571).
+void ui_web_export_format_order_quality_steps_and_presets() {
+  WebExportSettingsGuard guard;
+  const auto& formats = patchy::ui::web_export_formats();
+  CHECK(formats.size() >= 5);
+  if (formats.size() >= 5) {
+    CHECK(formats[0] == WebExportFormat::Jpeg && formats[1] == WebExportFormat::Jxl &&
+          formats[2] == WebExportFormat::Webp);
+    CHECK(formats[formats.size() - 2] == WebExportFormat::Png && formats.back() == WebExportFormat::Gif);
+  }
+  CHECK(static_cast<int>(WebExportFormat::Jxl) == 5 && static_cast<int>(WebExportFormat::Webp) == 1);
+  CHECK(patchy::ui::web_export_format_from_key(QStringLiteral("jxl")) == WebExportFormat::Jxl);
+  CHECK(patchy::ui::web_export_format_from_key(QStringLiteral("webp")) == WebExportFormat::Webp);
+
+  WebExportSettings settings;
+  settings.jpeg_quality = 60;
+  const auto quality = [&](WebExportFormat format, int percent) {
+    const auto reduced = patchy::ui::web_export_reduced_settings(settings, format, percent);
+    CHECK(reduced.has_value());
+    if (!reduced.has_value()) {
+      return -1;
+    }
+    CHECK(reduced->format == format);
+    switch (format) {
+      case WebExportFormat::Jpeg:
+        return reduced->jpeg_quality;
+      case WebExportFormat::Webp:
+        return reduced->webp_quality;
+      case WebExportFormat::Avif:
+        return reduced->avif_quality;
+      case WebExportFormat::Jxl:
+        return reduced->jxl_quality;
+      case WebExportFormat::Gif:
+        return reduced->gif_colors;
+      case WebExportFormat::Png:
+        return reduced->png_colors;
+    }
+    return -1;
+  };
+  CHECK(quality(WebExportFormat::Jpeg, 50) == 30 && quality(WebExportFormat::Jpeg, 25) == 15);
+  settings.webp_quality = 75;
+  CHECK(quality(WebExportFormat::Webp, 50) == 38 && quality(WebExportFormat::Webp, 25) == 19);
+  settings.avif_quality = 2;
+  CHECK(quality(WebExportFormat::Avif, 25) == 1);
+  settings.jxl_quality = 2;
+  settings.jpeg_quality = 2;
+  // JPEG and JPEG XL stop at 1, palettes at 2 colors.
+  CHECK(quality(WebExportFormat::Jxl, 25) == 1 && quality(WebExportFormat::Jpeg, 25) == 1);
+  CHECK(quality(WebExportFormat::Gif, 50) == 128 && quality(WebExportFormat::Gif, 25) == 64);
+  settings.gif_colors = 4;
+  CHECK(quality(WebExportFormat::Gif, 25) == 2);
+  // Nothing to reduce: full-color PNG and the lossless choices.
+  CHECK(!patchy::ui::web_export_reduced_settings(settings, WebExportFormat::Png, 50).has_value());
+  settings.png_palette = true;
+  settings.png_colors = 100;
+  CHECK(quality(WebExportFormat::Png, 50) == 50 && quality(WebExportFormat::Png, 25) == 25);
+  settings.webp_lossless = true;
+  settings.avif_lossless = true;
+  settings.jxl_lossless = true;
+  for (const auto format : {WebExportFormat::Webp, WebExportFormat::Avif, WebExportFormat::Jxl}) {
+    CHECK(!patchy::ui::web_export_reduced_settings(settings, format, 50).has_value());
+    CHECK(patchy::ui::web_export_quality_label(settings, format).isEmpty());
+  }
+  CHECK(patchy::ui::web_export_quality_label(settings, WebExportFormat::Jpeg) == QStringLiteral("Quality 2"));
+  CHECK(patchy::ui::web_export_quality_label(settings, WebExportFormat::Gif) == QStringLiteral("4 colors"));
+
+  // Quality presets: Patchy's own names and values.
+  const auto presets = patchy::ui::web_export_quality_presets();
+  CHECK(presets.size() == 5);
+  if (presets.size() == 5) {
+    CHECK(QLatin1String(presets[0].name) == QLatin1String("Low") && presets[0].quality == 30);
+    CHECK(QLatin1String(presets[1].name) == QLatin1String("Medium") && presets[1].quality == 50);
+    CHECK(QLatin1String(presets[2].name) == QLatin1String("High") && presets[2].quality == 70);
+    CHECK(QLatin1String(presets[3].name) == QLatin1String("Very High") && presets[3].quality == 85);
+    CHECK(QLatin1String(presets[4].name) == QLatin1String("Maximum") && presets[4].quality == 100);
+  }
+
+  // The 2 x 2 compare mode is persisted as "quad".
+  WebExportSettings compare;
+  compare.compare = patchy::ui::WebExportCompare::Quad;
+  patchy::ui::save_web_export_settings(compare);
+  CHECK(patchy::ui::load_web_export_settings().compare == patchy::ui::WebExportCompare::Quad);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("exportForWeb/compare")).toString() == QStringLiteral("quad"));
+
+  // A user preset: WebP at 61 on a 200 x 100 document scaled to 50%, filled, All metadata.
+  CHECK(patchy::ui::load_web_export_user_presets().empty());
+  const QSize small(200, 100);
+  WebExportSettings saved;
+  saved.format = WebExportFormat::Webp;
+  saved.webp_quality = 61;
+  saved.fill_transparent = true;
+  saved.jpeg_background = QColor(16, 32, 48);
+  saved.metadata = patchy::metadata::MetadataPolicy::All;
+  saved.trim = true;
+  saved.width = 100;
+  saved.height = 50;
+  saved.jpeg_quality = 12;  // another format's option: not part of a WebP preset
+  const auto preset = patchy::ui::make_web_export_preset(QStringLiteral("  Small WebP "), saved, small);
+  CHECK(preset.name == QStringLiteral("Small WebP") && std::abs(preset.scale_percent - 50.0) < 1e-9);
+  CHECK(patchy::ui::web_export_preset_matches(preset, saved, small));
+  patchy::ui::save_web_export_user_presets({preset});
+  const auto loaded = patchy::ui::load_web_export_user_presets();
+  CHECK(loaded.size() == 1);
+  if (loaded.size() == 1) {
+    const auto& back = loaded.front();
+    CHECK(back.name == QStringLiteral("Small WebP") && !back.built_in);
+    CHECK(back.settings.format == WebExportFormat::Webp && back.settings.webp_quality == 61);
+    CHECK(back.settings.fill_transparent && back.settings.jpeg_background == QColor(16, 32, 48));
+    CHECK(back.settings.metadata == patchy::metadata::MetadataPolicy::All && back.settings.trim);
+    // On a 400 x 300 document: half size, the preset's part applied, other formats untouched.
+    WebExportSettings current;
+    current.jpeg_quality = 33;
+    current.compare = patchy::ui::WebExportCompare::SideBySide;
+    const QSize large(400, 300);
+    const auto applied = patchy::ui::apply_web_export_preset(back, current, large);
+    CHECK(applied.format == WebExportFormat::Webp && applied.webp_quality == 61);
+    CHECK(applied.width == 200 && applied.height == 150);
+    CHECK(applied.fill_transparent && applied.metadata == patchy::metadata::MetadataPolicy::All);
+    CHECK(applied.jpeg_quality == 33 && applied.compare == patchy::ui::WebExportCompare::SideBySide);
+    CHECK(patchy::ui::web_export_preset_matches(back, applied, large));
+    auto changed = applied;
+    changed.webp_quality = 62;
+    CHECK(!patchy::ui::web_export_preset_matches(back, changed, large));
+  }
+  // Built-in presets are not stored; deleting the last user preset clears the key.
+  auto all = patchy::ui::web_export_builtin_presets();
+  CHECK(!all.empty() && all.front().built_in);
+  all.push_back(preset);
+  patchy::ui::save_web_export_user_presets(all);
+  CHECK(patchy::ui::load_web_export_user_presets().size() == 1);
+  patchy::ui::save_web_export_user_presets({});
+  CHECK(patchy::ui::load_web_export_user_presets().empty());
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("exportForWeb/presets")));
+}
+
+// Runs `inspect` on the Export for Web dialog over `document`, then closes it.
+void with_web_export_dialog(const patchy::Document& document, const std::function<void(QDialog&)>& inspect) {
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    inspect(*dialog);
+    inspected = true;
+    if (dialog->isVisible()) {
+      dialog->reject();
+    }
+  });
+  (void)patchy::ui::request_web_export(nullptr, std::make_shared<const patchy::Document>(document));
+  CHECK(inspected);
+}
+
+// The dialog opens at its smallest size the first time, and keeps its size and compare mode
+// when it is cancelled (GitHub issue 571).
+void ui_web_export_dialog_keeps_size_and_compare_mode_through_cancel() {
+  WebExportSettingsGuard guard;
+  const auto document = textured_document(320, 200);
+  QSize closed_at;
+  with_web_export_dialog(document, [&](QDialog& dialog) {
+    const auto smallest = dialog.minimumSizeHint().expandedTo(dialog.minimumSize());
+    CHECK(dialog.width() <= smallest.width() && dialog.height() <= smallest.height());
+    auto* result_only = dialog.findChild<QPushButton*>(QStringLiteral("webExportCompareResult"));
+    CHECK(result_only != nullptr && !result_only->isChecked());
+    if (result_only != nullptr) {
+      result_only->click();
+    }
+    QApplication::processEvents();
+    closed_at = dialog.minimumSize() + QSize(37, 23);
+    dialog.resize(closed_at);
+    QApplication::processEvents();
+    closed_at = dialog.size();
+  });
+  auto stored = patchy::ui::app_settings();
+  CHECK(stored.value(QStringLiteral("exportForWeb/dialogSize")).toSize() == closed_at);
+  CHECK(stored.value(QStringLiteral("exportForWeb/compare")).toString() == QStringLiteral("result"));
+  CHECK(patchy::ui::load_web_export_settings().compare == patchy::ui::WebExportCompare::ResultOnly);
+  with_web_export_dialog(document, [&](QDialog& dialog) {
+    auto* result_only = dialog.findChild<QPushButton*>(QStringLiteral("webExportCompareResult"));
+    CHECK(result_only != nullptr && result_only->isChecked());
+    const auto* screen = QGuiApplication::primaryScreen();
+    auto expected = closed_at;
+    if (screen != nullptr) {
+      expected = expected.boundedTo(screen->availableGeometry().size());
+    }
+    expected = expected.expandedTo(dialog.minimumSize());
+    CHECK(dialog.size() == expected);
+  });
+}
+
+// The list order with JPEG XL under JPEG, the quality preset combo, the 2 x 2 compare mode at
+// 60, 30 and 15, and a preset saved, matched, applied and deleted in the dialog. Captures
+// web_export_presets, web_export_png_transparency and web_export_quad.
+void ui_web_export_quad_compare_and_presets_in_the_dialog() {
+  WebExportSettingsGuard guard;
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  const auto image = QImage(patchy::ui::to_qstring(photo)).scaledToWidth(900, Qt::SmoothTransformation);
+  CHECK(!image.isNull());
+  const auto document = patchy::ui::document_from_qimage(image.convertToFormat(QImage::Format_RGBA8888), "Photo");
+  with_web_export_dialog(document, [&](QDialog& dialog) {
+    dialog.resize(1280, 820);
+    QApplication::processEvents();
+    auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    auto* quality = dialog.findChild<QSpinBox*>(QStringLiteral("webExportJpegQualitySpin"));
+    auto* quality_presets = dialog.findChild<QComboBox*>(QStringLiteral("webExportJpegQualityPresetCombo"));
+    auto* presets = dialog.findChild<QComboBox*>(QStringLiteral("webExportPresetCombo"));
+    auto* save = dialog.findChild<QPushButton*>(QStringLiteral("webExportPresetSaveButton"));
+    auto* remove = dialog.findChild<QPushButton*>(QStringLiteral("webExportPresetDeleteButton"));
+    auto* quad = dialog.findChild<QPushButton*>(QStringLiteral("webExportCompareQuad"));
+    auto* split = dialog.findChild<QPushButton*>(QStringLiteral("webExportCompareSplit"));
+    auto* main_pane = dialog.findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    auto* original = dialog.findChild<QWidget*>(QStringLiteral("webExportOriginalPreview"));
+    auto* half = dialog.findChild<QWidget*>(QStringLiteral("webExportHalfQualityPreview"));
+    auto* quarter = dialog.findChild<QWidget*>(QStringLiteral("webExportQuarterQualityPreview"));
+    auto* zoom_fit = dialog.findChild<QPushButton*>(QStringLiteral("webExportZoomFit"));
+    auto* scroll = dialog.findChild<QScrollArea*>(QStringLiteral("webExportControlsScroll"));
+    CHECK(list != nullptr && quality != nullptr && quality_presets != nullptr && presets != nullptr &&
+          save != nullptr && remove != nullptr && quad != nullptr && split != nullptr && main_pane != nullptr &&
+          original != nullptr && half != nullptr && quarter != nullptr && zoom_fit != nullptr && scroll != nullptr);
+    if (list == nullptr || quality == nullptr || quality_presets == nullptr || presets == nullptr || save == nullptr ||
+        remove == nullptr || quad == nullptr || split == nullptr || main_pane == nullptr || original == nullptr ||
+        half == nullptr || quarter == nullptr || zoom_fit == nullptr || scroll == nullptr) {
+      return;
+    }
+    // JPEG XL is the second row and selects the JPEG XL settings.
+    CHECK(list->topLevelItem(1) != nullptr && list->topLevelItem(1)->text(0) == QStringLiteral("JPEG XL"));
+    CHECK(list->topLevelItem(1)->data(0, Qt::UserRole).toString() == QStringLiteral("jxl"));
+    CHECK(list->topLevelItem(2) != nullptr && list->topLevelItem(2)->text(0) == QStringLiteral("WebP"));
+    // The zoom controls are framed push buttons.
+    CHECK(!zoom_fit->isFlat());
+
+    // Quality presets: 80 is no preset (Custom); picking High sets 70; typing 85 shows Very High.
+    CHECK(quality->value() == 80 && quality_presets->currentIndex() == -1);
+    const auto high = quality_presets->findData(70);
+    CHECK(high >= 0 && quality_presets->itemText(high) == QStringLiteral("High"));
+    quality_presets->setCurrentIndex(high);
+    emit quality_presets->activated(high);
+    CHECK(quality->value() == 70);
+    quality->setValue(85);
+    CHECK(quality_presets->currentText() == QStringLiteral("Very High"));
+    quality->setValue(84);
+    CHECK(quality_presets->currentIndex() == -1);
+
+    // Presets: the built-in ones are listed; Delete is off for them.
+    CHECK(presets->count() == static_cast<int>(patchy::ui::web_export_builtin_presets().size()));
+    CHECK(presets->currentIndex() == -1 && !remove->isEnabled());
+    quality->setValue(85);
+    QApplication::processEvents();
+    CHECK(presets->currentText() == QStringLiteral("JPEG Very High") && !remove->isEnabled());
+    quality->setValue(60);
+    QApplication::processEvents();
+    CHECK(presets->currentIndex() == -1);
+    // Save asks for a name and selects the new preset.
+    QTimer::singleShot(0, [] {
+      auto* name_dialog = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("webExportPresetNameDialog")));
+      CHECK(name_dialog != nullptr);
+      if (name_dialog != nullptr) {
+        name_dialog->setTextValue(QStringLiteral("Photo 60"));
+        name_dialog->accept();
+      }
+    });
+    save->click();
+    QApplication::processEvents();
+    CHECK(presets->currentText() == QStringLiteral("Photo 60") && remove->isEnabled());
+    const auto stored = patchy::ui::load_web_export_user_presets();
+    CHECK(stored.size() == 1 && stored.front().settings.jpeg_quality == 60);
+    CHECK(wait_until([&] { return main_pane->property("webExportShowsCurrent").toBool(); }));
+    capture_widget_artifact("web_export_presets", dialog);
+    // A change shows Custom; picking the preset again restores it.
+    quality->setValue(61);
+    QApplication::processEvents();
+    CHECK(presets->currentIndex() == -1);
+    const auto mine = presets->findText(QStringLiteral("Photo 60"));
+    CHECK(mine >= 0);
+    presets->setCurrentIndex(mine);
+    emit presets->activated(mine);
+    QApplication::processEvents();
+    CHECK(quality->value() == 60 && presets->currentText() == QStringLiteral("Photo 60"));
+    // A built-in preset switches the format.
+    const auto webp = presets->findText(QStringLiteral("WebP High"));
+    CHECK(webp >= 0);
+    presets->setCurrentIndex(webp);
+    emit presets->activated(webp);
+    QApplication::processEvents();
+    auto* webp_quality = dialog.findChild<QSpinBox*>(QStringLiteral("webExportWebpQualitySpin"));
+    CHECK(list->currentItem() != nullptr && list->currentItem()->text(0) == QStringLiteral("WebP"));
+    CHECK(webp_quality != nullptr && webp_quality->value() == 70);
+
+    // PNG: one Transparency row, with the 50% note for a palette.
+    list->setCurrentItem(row_named(list, QStringLiteral("PNG")));
+    auto* png_type = dialog.findChild<QComboBox*>(QStringLiteral("webExportPngColorsCombo"));
+    CHECK(png_type != nullptr);
+    if (png_type != nullptr) {
+      png_type->setCurrentIndex(1);
+    }
+    QApplication::processEvents();
+    auto* keep = dialog.findChild<QRadioButton*>(QStringLiteral("webExportKeepTransparencyRadio"));
+    auto* fill = dialog.findChild<QRadioButton*>(QStringLiteral("webExportFillTransparencyRadio"));
+    auto* cut_note = dialog.findChild<QLabel*>(QStringLiteral("webExportTransparencyCutNote"));
+    auto* transparency = dialog.findChild<QWidget*>(QStringLiteral("webExportTransparencyGroup"));
+    CHECK(keep != nullptr && fill != nullptr && cut_note != nullptr && transparency != nullptr);
+    if (keep != nullptr && fill != nullptr && cut_note != nullptr && transparency != nullptr) {
+      CHECK(keep->isVisible() && fill->isVisible() && cut_note->isVisible());
+      const auto keep_at = keep->mapTo(&dialog, QPoint(0, keep->height() / 2));
+      const auto fill_at = fill->mapTo(&dialog, QPoint(0, fill->height() / 2));
+      CHECK(fill_at.x() > keep_at.x() + keep->width() && std::abs(fill_at.y() - keep_at.y()) <= 2);
+      scroll->ensureWidgetVisible(transparency);
+      CHECK(wait_until([&] { return main_pane->property("webExportShowsCurrent").toBool(); }));
+      capture_widget_artifact("web_export_png_transparency", dialog);
+    }
+
+    // 2 x 2 for JPEG at 60: the original, 60, 30 and 15.
+    list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
+    quality->setValue(60);
+    quad->click();
+    QApplication::processEvents();
+    CHECK(original->isVisible() && half->isVisible() && quarter->isVisible() && main_pane->isVisible());
+    CHECK(wait_until([&] {
+      return main_pane->property("webExportShowsCurrent").toBool() && half->property("webExportShowsCurrent").toBool() &&
+             quarter->property("webExportShowsCurrent").toBool();
+    }));
+    CHECK(half->property("webExportQualityLabel").toString() == QStringLiteral("Quality 30"));
+    CHECK(quarter->property("webExportQualityLabel").toString() == QStringLiteral("Quality 15"));
+    // The tiles sit in a 2 x 2 grid: the original top left, 30 under it.
+    const auto at = [&dialog](QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)); };
+    CHECK(at(original).y() == at(main_pane).y() && at(original).x() < at(main_pane).x());
+    CHECK(at(half).x() == at(original).x() && at(half).y() > at(original).y());
+    CHECK(at(quarter).x() == at(main_pane).x() && at(quarter).y() == at(half).y());
+    capture_widget_artifact("web_export_quad", dialog);
+    // Full-color PNG has nothing to reduce: the lower tiles say so.
+    list->setCurrentItem(row_named(list, QStringLiteral("PNG")));
+    if (png_type != nullptr) {
+      png_type->setCurrentIndex(0);
+    }
+    QApplication::processEvents();
+    CHECK(!half->property("webExportNote").toString().isEmpty());
+    // Back to Split: one pane.
+    split->click();
+    QApplication::processEvents();
+    CHECK(!original->isVisible() && !half->isVisible() && !quarter->isVisible());
+
+    // Delete removes the selected user preset.
+    list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
+    const auto again = presets->findText(QStringLiteral("Photo 60"));
+    presets->setCurrentIndex(again);
+    emit presets->activated(again);
+    QApplication::processEvents();
+    CHECK(remove->isEnabled());
+    remove->click();
+    QApplication::processEvents();
+    CHECK(presets->findText(QStringLiteral("Photo 60")) < 0);
+    CHECK(patchy::ui::load_web_export_user_presets().empty());
+  });
+}
+
+// No label, check box or radio button in the narrower settings column is cut off, for any
+// format, in any shipped language (GitHub issue 571).
+void ui_web_export_settings_column_fits_every_language() {
+  WebExportSettingsGuard guard;
+  LanguageRestorer language;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // Two or more layers, so the Animation group shows too.
+  const auto document = animation_fixture_document(window);
+  QStringList clipped;
+  for (const auto& info : patchy::ui::LocalizationManager::instance().languages()) {
+    CHECK(patchy::ui::LocalizationManager::instance().set_language(info.code, false));
+    QApplication::processEvents();
+    with_web_export_dialog(document, [&](QDialog& dialog) {
+      auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+      auto* scroll = dialog.findChild<QScrollArea*>(QStringLiteral("webExportControlsScroll"));
+      auto* png_type = dialog.findChild<QComboBox*>(QStringLiteral("webExportPngColorsCombo"));
+      CHECK(list != nullptr && scroll != nullptr && png_type != nullptr);
+      if (list == nullptr || scroll == nullptr || png_type == nullptr) {
+        return;
+      }
+      for (int row = 0; row < list->topLevelItemCount(); ++row) {
+        for (const int png_colors : {0, 1}) {
+          list->setCurrentItem(list->topLevelItem(row));
+          png_type->setCurrentIndex(png_colors);
+          // Let a group shown for the first time settle its layout.
+          for (int pass = 0; pass < 3; ++pass) {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+            QApplication::processEvents();
+          }
+          auto* column = scroll->widget();
+          auto* viewport = scroll->viewport();
+          if (column->width() > viewport->width()) {
+            // Name what sets the column's minimum width.
+            for (auto* widget : column->findChildren<QWidget*>()) {
+              if (widget->isVisibleTo(column) && widget->minimumSizeHint().width() > viewport->width() - 30 &&
+                  qobject_cast<QGroupBox*>(widget) == nullptr) {
+                clipped << QStringLiteral("%1 (%2): wide %3 %4 min %5")
+                               .arg(info.code, list->topLevelItem(row)->text(0),
+                                    QLatin1String(widget->metaObject()->className()), widget->objectName())
+                               .arg(widget->minimumSizeHint().width());
+              }
+            }
+          }
+          for (auto* widget : column->findChildren<QWidget*>()) {
+            if (!widget->isVisibleTo(column)) {
+              continue;
+            }
+            auto* label = qobject_cast<QLabel*>(widget);
+            const bool text_control = label != nullptr || qobject_cast<QCheckBox*>(widget) != nullptr ||
+                                      qobject_cast<QRadioButton*>(widget) != nullptr ||
+                                      (qobject_cast<QPushButton*>(widget) != nullptr &&
+                                       widget->minimumWidth() != widget->maximumWidth());
+            if (!text_control) {
+              continue;
+            }
+            const auto right = widget->mapTo(viewport, QPoint(widget->width(), 0)).x();
+            const bool squeezed = (label == nullptr || !label->wordWrap()) &&
+                                  widget->width() < widget->sizeHint().width();
+            if (right > viewport->width() + 1 || squeezed) {
+              const auto text = label != nullptr                                      ? label->text()
+                                : qobject_cast<QAbstractButton*>(widget) != nullptr ? qobject_cast<QAbstractButton*>(widget)->text()
+                                                                                      : QString();
+              clipped << QStringLiteral("%1 (%2, %3): %4 %5 '%6' width %7 hint %8 right %9 of %10")
+                             .arg(info.code, list->topLevelItem(row)->text(0), png_colors != 0 ? QStringLiteral("palette") : QStringLiteral("full"),
+                                  QLatin1String(widget->metaObject()->className()), widget->objectName(), text)
+                             .arg(widget->width())
+                             .arg(widget->sizeHint().width())
+                             .arg(right)
+                             .arg(viewport->width());
+            }
+          }
+        }
+      }
+    });
+  }
+  clipped.removeDuplicates();
+  for (const auto& line : clipped) {
+    std::fprintf(stderr, "  clipped in %s\n", qPrintable(line));
+  }
+  CHECK(clipped.isEmpty());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> web_export_tests() {
@@ -1367,5 +1819,10 @@ std::vector<patchy::test::TestCase> web_export_tests() {
        ui_web_export_wheel_over_unfocused_control_scrolls_the_settings},
       {"ui_web_export_metadata_choices_and_thumbnail_with_none", ui_web_export_metadata_choices_and_thumbnail_with_none},
       {"ui_web_export_dialog_previews_and_saves", ui_web_export_dialog_previews_and_saves},
+      {"ui_web_export_format_order_quality_steps_and_presets", ui_web_export_format_order_quality_steps_and_presets},
+      {"ui_web_export_dialog_keeps_size_and_compare_mode_through_cancel",
+       ui_web_export_dialog_keeps_size_and_compare_mode_through_cancel},
+      {"ui_web_export_quad_compare_and_presets_in_the_dialog", ui_web_export_quad_compare_and_presets_in_the_dialog},
+      {"ui_web_export_settings_column_fits_every_language", ui_web_export_settings_column_fits_every_language},
   };
 }

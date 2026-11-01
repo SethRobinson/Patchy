@@ -13015,14 +13015,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Progressive (shows a rough image first while loading)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Optimize coding (smaller file, same image)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Fills transparent areas (JPEG has no transparency)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13064,10 +13056,6 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>File Info metadata to include. None writes the smallest file.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Include thumbnail (about 5 to 10 KB)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14358,6 +14346,93 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Built-in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Very High</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JPEG Very High</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JPEG Medium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>WebP High</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PNG 256 Colors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the format and its settings as a preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the selected preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quality presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Progressive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shows a rough image first while the file loads.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Optimize coding</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Makes the file smaller without changing the image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include thumbnail</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>2 x 2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The original, the result, and the result at 50% and 25% of the quality</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 at these settings has no quality to reduce.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

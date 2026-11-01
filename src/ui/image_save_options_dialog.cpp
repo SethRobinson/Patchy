@@ -811,7 +811,7 @@ void set_animation_timing_loop_count(const AnimationTimingControls& controls, in
 
 TransparencyChoiceWidgets add_transparency_choice(QVBoxLayout* layout, QWidget* parent, QWidget& picker_parent,
                                                   const QString& object_prefix, QColor color, bool fill,
-                                                  bool forced_fill, std::function<void()> changed) {
+                                                  bool forced_fill, std::function<void()> changed, bool one_row) {
   TransparencyChoiceWidgets widgets;
   widgets.keep = new QRadioButton(QObject::tr("Keep transparent"), parent);
   widgets.keep->setObjectName(object_prefix + QStringLiteral("KeepTransparencyRadio"));
@@ -840,8 +840,20 @@ TransparencyChoiceWidgets add_transparency_choice(QVBoxLayout* layout, QWidget* 
   set_export_background_color(*widgets.swatch, color.isValid() ? color : QColor(Qt::white));
   widgets.fill->setChecked(fill || forced_fill);
   widgets.keep->setChecked(!(fill || forced_fill));
-  layout->addWidget(widgets.keep);
-  layout->addWidget(widgets.fill_row);
+  if (one_row) {
+    auto* row = new QWidget(parent);
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(0, 0, 0, 0);
+    row_layout->setSpacing(16);
+    widgets.keep->setParent(row);
+    widgets.fill_row->setParent(row);
+    row_layout->addWidget(widgets.keep);
+    row_layout->addWidget(widgets.fill_row, 1);
+    layout->addWidget(row);
+  } else {
+    layout->addWidget(widgets.keep);
+    layout->addWidget(widgets.fill_row);
+  }
   set_transparency_choice_forced_fill(widgets, forced_fill);
   auto* swatch = widgets.swatch;
   auto* fill_radio = widgets.fill;
