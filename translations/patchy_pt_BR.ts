@@ -14299,7 +14299,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
-        <translation>Salvar Alinhamento, Extremidades, Cantos, Traços e Deslocamento dos traços como predefinição</translation>
+        <translation>Salvar Alinhar, Extremidades, Cantos, Traços e Deslocamento dos traços como predefinição</translation>
     </message>
     <message>
         <source>Delete the chosen preset</source>
@@ -14374,15 +14374,15 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Low</source>
-        <translation>Baixa</translation>
+        <translation>Baixo</translation>
     </message>
     <message>
         <source>High</source>
-        <translation>Alta</translation>
+        <translation>Alto</translation>
     </message>
     <message>
         <source>Very High</source>
-        <translation>Muito alta</translation>
+        <translation>Muito alto</translation>
     </message>
     <message>
         <source>JPEG Very High</source>
@@ -16929,7 +16929,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Take back the last change</source>
-        <translation>Desfazer a última alteração</translation>
+        <translation>Reverter a última alteração</translation>
     </message>
     <message>
         <source>Redo the change you took back</source>
@@ -16977,7 +16977,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Bend the layer with a grid</source>
-        <translation>Deformar a camada com uma grade</translation>
+        <translation>Curvar a camada com uma grade</translation>
     </message>
     <message>
         <source>Erase an object and fill the gap</source>
@@ -17105,7 +17105,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Bake the mask into the pixels</source>
-        <translation>Aplicar a máscara aos pixels</translation>
+        <translation>Incorporar a máscara aos pixels</translation>
     </message>
     <message>
         <source>Drop shadow, stroke, glow and other effects</source>
@@ -17173,7 +17173,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Select a band along the edge</source>
-        <translation>Selecionar uma faixa ao longo da borda</translation>
+        <translation>Selecionar uma faixa ao longo do contorno</translation>
     </message>
     <message>
         <source>Add neighboring similar colors</source>
@@ -17189,7 +17189,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Magnify the view</source>
-        <translation>Ampliar a visualização</translation>
+        <translation>Aproximar a visualização</translation>
     </message>
     <message>
         <source>Show more of the image</source>
@@ -17301,7 +17301,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Smear paint</source>
-        <translation>Borrar a tinta</translation>
+        <translation>Espalhar a tinta</translation>
     </message>
     <message>
         <source>Lighten areas</source>
@@ -17485,7 +17485,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Slant the layer or selection</source>
-        <translation>Inclinar a camada ou a seleção</translation>
+        <translation>Enviesar a camada ou a seleção</translation>
     </message>
     <message>
         <source>Drag each corner freely</source>
@@ -17665,7 +17665,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Add a layer filled with a gradient</source>
-        <translation>Adicionar uma camada preenchida com um gradiente</translation>
+        <translation>Adicionar uma camada preenchida com um degradê</translation>
     </message>
     <message>
         <source>Add a layer filled with a pattern</source>
@@ -18377,7 +18377,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Arrange document windows side by side</source>
-        <translation>Organizar as janelas de documentos lado a lado</translation>
+        <translation>Organizar as janelas de documentos em mosaico</translation>
     </message>
     <message>
         <source>Stack document windows diagonally</source>
@@ -18477,7 +18477,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Connect an AI assistant to Patchy</source>
-        <translation>Conectar um assistente de AI ao Patchy</translation>
+        <translation>Conectar um assistente de IA ao Patchy</translation>
     </message>
     <message>
         <source>Add a launcher to your desktop menu</source>
@@ -18549,7 +18549,7 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Exchange foreground and background colors</source>
-        <translation>Trocar as cores de primeiro plano e de fundo</translation>
+        <translation>Permutar as cores de primeiro plano e de fundo</translation>
     </message>
     <message>
         <source>Make the brush smaller</source>

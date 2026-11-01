@@ -3711,7 +3711,7 @@
     </message>
     <message>
         <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
-        <translation>A partir de ahora, los avisos y notas de importación aparecen en la barra de estado. La ventana emergente se vuelve a activar en Preferencias &gt; Aplicación.</translation>
+        <translation>A partir de ahora, los avisos y notas de importación aparecen en la barra de estado. Puede volver a activar la ventana emergente en Preferencias &gt; Aplicación.</translation>
     </message>
     <message>
         <source>Curves graph</source>
@@ -14267,7 +14267,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
-        <translation>Longitudes de guiones y huecos en anchos de trazo, separadas por espacios, por ejemplo 4 2 o 6 2 1 2. Una longitud de 0 dibuja un punto con extremos redondos o cuadrados.</translation>
+        <translation>Longitudes de guiones y huecos en anchos de trazo, separadas por espacios, por ejemplo 4 2 o 6 2 1 2. Una longitud de 0 dibuja un punto con terminaciones redondas o cuadradas.</translation>
     </message>
     <message>
         <source>x width</source>
@@ -14299,7 +14299,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
-        <translation>Guardar Alinear, Extremos, Esquinas, Guiones y Desplazamiento de guiones como ajuste preestablecido</translation>
+        <translation>Guardar Alinear, Terminaciones, Esquinas, Guiones y Desplazamiento de guiones como ajuste preestablecido</translation>
     </message>
     <message>
         <source>Delete the chosen preset</source>
@@ -16539,7 +16539,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
-        <translation>Clic para añadir un punto, arrastre para remodelar, Mayús+clic para seleccionar el segmento</translation>
+        <translation>Haga clic para añadir un punto, arrastre para remodelar, Mayús+clic para seleccionar el segmento</translation>
     </message>
 </context>
 <context>
@@ -16929,7 +16929,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Take back the last change</source>
-        <translation>Deshacer el último cambio</translation>
+        <translation>Revertir el último cambio</translation>
     </message>
     <message>
         <source>Redo the change you took back</source>
@@ -16977,7 +16977,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Bend the layer with a grid</source>
-        <translation>Deformar la capa con una cuadrícula</translation>
+        <translation>Curvar la capa con una cuadrícula</translation>
     </message>
     <message>
         <source>Erase an object and fill the gap</source>
@@ -17093,11 +17093,11 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Combine with the layer below</source>
-        <translation>Combinar con la capa de debajo</translation>
+        <translation>Fusionar con la capa de debajo</translation>
     </message>
     <message>
         <source>Combine all visible layers</source>
-        <translation>Combinar todas las capas visibles</translation>
+        <translation>Fusionar todas las capas visibles</translation>
     </message>
     <message>
         <source>Add a layer mask</source>
@@ -17105,7 +17105,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Bake the mask into the pixels</source>
-        <translation>Aplicar la máscara a los píxeles</translation>
+        <translation>Incorporar la máscara a los píxeles</translation>
     </message>
     <message>
         <source>Drop shadow, stroke, glow and other effects</source>
@@ -17141,7 +17141,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Erase the layer or selection</source>
-        <translation>Borrar la capa o la selección</translation>
+        <translation>Vaciar la capa o la selección</translation>
     </message>
     <message>
         <source>Select the whole image</source>
@@ -17173,7 +17173,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Select a band along the edge</source>
-        <translation>Seleccionar una franja a lo largo del borde</translation>
+        <translation>Seleccionar una franja a lo largo del contorno</translation>
     </message>
     <message>
         <source>Add neighboring similar colors</source>
@@ -17321,7 +17321,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Sharpen areas</source>
-        <translation>Enfocar zonas</translation>
+        <translation>Dar nitidez a zonas</translation>
     </message>
     <message>
         <source>Erase pixels</source>
@@ -17485,7 +17485,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Slant the layer or selection</source>
-        <translation>Sesgar la capa o la selección</translation>
+        <translation>Inclinar la capa o la selección</translation>
     </message>
     <message>
         <source>Drag each corner freely</source>
@@ -17501,19 +17501,19 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Manage layer style presets</source>
-        <translation>Administrar los ajustes preestablecidos de estilos de capa</translation>
+        <translation>Gestionar los ajustes preestablecidos de estilos de capa</translation>
     </message>
     <message>
         <source>Manage brush tips and import ABR</source>
-        <translation>Administrar puntas de pincel e importar ABR</translation>
+        <translation>Gestionar puntas de pincel e importar ABR</translation>
     </message>
     <message>
         <source>Manage saved brushes</source>
-        <translation>Administrar pinceles guardados</translation>
+        <translation>Gestionar pinceles guardados</translation>
     </message>
     <message>
         <source>Manage custom shape presets</source>
-        <translation>Administrar los ajustes preestablecidos de formas personalizadas</translation>
+        <translation>Gestionar los ajustes preestablecidos de formas personalizadas</translation>
     </message>
     <message>
         <source>Convert to full color</source>
@@ -17913,7 +17913,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Combine the selected layers into a new one</source>
-        <translation>Combinar las capas seleccionadas en una nueva</translation>
+        <translation>Fusionar las capas seleccionadas en una nueva</translation>
     </message>
     <message>
         <source>Step to the next blend mode</source>
@@ -18157,7 +18157,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Ripple in waves</source>
-        <translation>Ondular en olas</translation>
+        <translation>Ondular formando ondas</translation>
     </message>
     <message>
         <source>Squeeze in or bulge out</source>
@@ -18201,7 +18201,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Raised relief look</source>
-        <translation>Aspecto de relieve en alto</translation>
+        <translation>Aspecto de altorrelieve</translation>
     </message>
     <message>
         <source>Push out 3D blocks</source>
@@ -18377,7 +18377,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Arrange document windows side by side</source>
-        <translation>Organizar las ventanas de documentos en paralelo</translation>
+        <translation>Organizar las ventanas de documentos una junto a otra</translation>
     </message>
     <message>
         <source>Stack document windows diagonally</source>
@@ -18469,7 +18469,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Find any command by name</source>
-        <translation>Buscar cualquier comando por su nombre</translation>
+        <translation>Encontrar cualquier comando por su nombre</translation>
     </message>
     <message>
         <source>Read how to write scripts</source>
@@ -18477,7 +18477,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Connect an AI assistant to Patchy</source>
-        <translation>Conectar un asistente de AI a Patchy</translation>
+        <translation>Conectar un asistente de IA a Patchy</translation>
     </message>
     <message>
         <source>Add a launcher to your desktop menu</source>
@@ -18549,7 +18549,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Exchange foreground and background colors</source>
-        <translation>Intercambiar los colores frontal y de fondo</translation>
+        <translation>Permutar los colores frontal y de fondo</translation>
     </message>
     <message>
         <source>Make the brush smaller</source>
@@ -18585,7 +18585,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Manage built-in and saved stroke presets</source>
-        <translation>Administrar ajustes preestablecidos de trazo integrados y guardados</translation>
+        <translation>Gestionar ajustes preestablecidos de trazo integrados y guardados</translation>
     </message>
 </context>
 <context>
@@ -18840,7 +18840,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>32-bit document: the color is stored as linear light, where 1.0 is display white. Intensity brightens or darkens it in stops; the swatches show it from 3 stops darker to 3 stops brighter.</source>
-        <translation>Documento de 32 bits: el color se guarda como luz lineal, donde 1,0 es el blanco de la pantalla. La intensidad lo aclara u oscurece en pasos; las muestras lo enseñan desde 3 pasos más oscuro hasta 3 pasos más claro.</translation>
+        <translation>Documento de 32 bits: el color se guarda como luz lineal, donde 1,0 es el blanco de la pantalla. La intensidad lo aclara u oscurece en pasos; las muestras lo presentan desde 3 pasos más oscuro hasta 3 pasos más claro.</translation>
     </message>
     <message>
         <source>Intensity:</source>
@@ -18983,7 +18983,7 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>Definir la opacidad de la herramienta o de la capa (1 = 10%, 0 = 100%; escribe dos dígitos rápido para un valor exacto)</translation>
+        <translation>Definir la opacidad de la herramienta o de la capa (1 = 10%, 0 = 100%; escriba dos dígitos rápido para un valor exacto)</translation>
     </message>
 </context>
 <context>
@@ -31352,11 +31352,11 @@ Bloqueada: %1</translation>
     </message>
     <message>
         <source>Manage Presets...</source>
-        <translation>Administrar ajustes preestablecidos...</translation>
+        <translation>Gestionar ajustes preestablecidos...</translation>
     </message>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>Guiones del trazo y ajustes preestablecidos de trazo guardados. Los guiones usan extremos planos; los puntos usan extremos y esquinas redondeados</translation>
+        <translation>Guiones del trazo y ajustes preestablecidos de trazo guardados. Los guiones usan terminaciones planas; los puntos usan terminaciones y esquinas redondeadas</translation>
     </message>
 </context>
 <context>

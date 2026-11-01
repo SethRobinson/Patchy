@@ -14351,7 +14351,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Paramètre intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé.</translation>
+        <translation>Contour prédéfini intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé.</translation>
     </message>
     <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
@@ -14430,7 +14430,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Makes the file smaller without changing the image.</source>
-        <translation>Réduit la taille du fichier sans changer l’image.</translation>
+        <translation>Réduit la taille du fichier sans changer l&apos;image.</translation>
     </message>
     <message>
         <source>Include thumbnail</source>
@@ -14442,11 +14442,11 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
-        <translation>L’original, le résultat et le résultat à 50 % et 25 % de la qualité</translation>
+        <translation>L&apos;original, le résultat et le résultat à 50 % et 25 % de la qualité</translation>
     </message>
     <message>
         <source>%1 at these settings has no quality to reduce.</source>
-        <translation>%1 n’a pas de qualité à réduire avec ces réglages.</translation>
+        <translation>%1 n&apos;a pas de qualité à réduire avec ces réglages.</translation>
     </message>
     <message>
         <source>%1, %2</source>
@@ -17149,7 +17149,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Clear the selection</source>
-        <translation>Supprimer la sélection</translation>
+        <translation>Ne plus rien sélectionner</translation>
     </message>
     <message>
         <source>Bring back the last selection</source>
@@ -17377,7 +17377,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Draw paths and curves</source>
-        <translation>Tracer des tracés et des courbes</translation>
+        <translation>Dessiner des tracés et des courbes</translation>
     </message>
     <message>
         <source>Select and move whole shapes</source>
@@ -17769,7 +17769,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Wrap the layers so edits stay editable</source>
-        <translation>Regrouper les calques pour que les modifications restent modifiables</translation>
+        <translation>Envelopper les calques pour que les modifications restent réversibles</translation>
     </message>
     <message>
         <source>Open the contents in their own tab</source>
@@ -18137,7 +18137,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Sharpen with amount and radius</source>
-        <translation>Accentuer la netteté avec gain et rayon</translation>
+        <translation>Accentuer la netteté avec quantité et rayon</translation>
     </message>
     <message>
         <source>Keep only the fine detail</source>
@@ -18209,7 +18209,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Outline edges on white</source>
-        <translation>Détourer les bords sur fond blanc</translation>
+        <translation>Tracer les contours sur fond blanc</translation>
     </message>
     <message>
         <source>Neon edges on black</source>
@@ -18477,7 +18477,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Connect an AI assistant to Patchy</source>
-        <translation>Connecter un assistant AI à Patchy</translation>
+        <translation>Connecter un assistant IA à Patchy</translation>
     </message>
     <message>
         <source>Add a launcher to your desktop menu</source>
@@ -18549,7 +18549,7 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Exchange foreground and background colors</source>
-        <translation>Permuter les couleurs de premier plan et d&apos;arrière-plan</translation>
+        <translation>Échanger les couleurs de premier plan et d&apos;arrière-plan</translation>
     </message>
     <message>
         <source>Make the brush smaller</source>
@@ -31316,7 +31316,7 @@ Verrouillé : %1</translation>
     </message>
     <message>
         <source>The shapes left no area; the layer was removed</source>
-        <translation>Il ne reste aucune surface des formes ; le calque a été supprimé</translation>
+        <translation>Les formes ne laissent aucune surface ; le calque a été supprimé</translation>
     </message>
     <message>
         <source>Merged %1 shape(s) into one outline</source>

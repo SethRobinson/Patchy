@@ -14224,11 +14224,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2. A length of 0 draws a dot with Round or Square caps.</source>
-        <translation>선 너비 단위의 대시와 간격 길이를 공백으로 구분해 입력합니다(예: 4 2 또는 6 2 1 2). 길이 0은 둥근 끝이나 사각 끝에서 점을 그립니다.</translation>
+        <translation>획 너비 단위의 점선과 간격 길이를 공백으로 구분해 입력합니다(예: 4 2 또는 6 2 1 2). 길이 0은 캡이 원형이나 사각형일 때 점을 그립니다.</translation>
     </message>
     <message>
         <source>x width</source>
-        <translation>x 너비</translation>
+        <translation>× 획 너비</translation>
     </message>
     <message>
         <source>Dash pattern:</source>
@@ -14256,7 +14256,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
-        <translation>정렬, 끝, 모서리, 점선, 점선 오프셋을 사전 설정으로 저장</translation>
+        <translation>정렬, 캡, 모서리, 점선 패턴, 점선 오프셋을 사전 설정으로 저장</translation>
     </message>
     <message>
         <source>Delete the chosen preset</source>
@@ -14264,7 +14264,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Moves the dash pattern along the path, in stroke widths</source>
-        <translation>점선 패턴을 패스를 따라 이동합니다(획 두께 단위)</translation>
+        <translation>점선 패턴을 패스를 따라 이동합니다(획 너비 단위)</translation>
     </message>
     <message>
         <source>Dash offset:</source>
@@ -14390,7 +14390,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Include thumbnail</source>
-        <translation>썸네일 포함</translation>
+        <translation>축소판 포함</translation>
     </message>
     <message>
         <source>2 x 2</source>
@@ -14398,7 +14398,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
-        <translation>원본, 결과, 그리고 품질 50% 및 25%의 결과</translation>
+        <translation>원본, 결과, 그리고 품질을 50%와 25%로 낮춘 결과</translation>
     </message>
     <message>
         <source>%1 at these settings has no quality to reduce.</source>
@@ -16845,7 +16845,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Insert an image as a Smart Object</source>
-        <translation>이미지를 고급 개체로 삽입</translation>
+        <translation>이미지를 스마트 개체로 삽입</translation>
     </message>
     <message>
         <source>Insert a linked image file</source>
@@ -16945,7 +16945,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Make a custom shape from a path</source>
-        <translation>패스로 사용자 정의 모양 만들기</translation>
+        <translation>패스로 사용자 지정 모양 만들기</translation>
     </message>
     <message>
         <source>Change the color profile</source>
@@ -17081,11 +17081,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Move the layer up the stack</source>
-        <translation>레이어를 위로 이동</translation>
+        <translation>레이어를 쌓임 순서에서 한 단계 위로</translation>
     </message>
     <message>
         <source>Move the layer down the stack</source>
-        <translation>레이어를 아래로 이동</translation>
+        <translation>레이어를 쌓임 순서에서 한 단계 아래로</translation>
     </message>
     <message>
         <source>Fill with the foreground color</source>
@@ -17309,7 +17309,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Draw a custom shape</source>
-        <translation>사용자 정의 모양 그리기</translation>
+        <translation>사용자 지정 모양 그리기</translation>
     </message>
     <message>
         <source>Pick a color from the image</source>
@@ -17461,7 +17461,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Manage brush tips and import ABR</source>
-        <translation>브러시 모양 관리 및 ABR 가져오기</translation>
+        <translation>브러시 팁 관리 및 ABR 가져오기</translation>
     </message>
     <message>
         <source>Manage saved brushes</source>
@@ -17505,7 +17505,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Blend the red, green and blue channels</source>
-        <translation>빨강, 녹색, 파랑 채널 혼합</translation>
+        <translation>빨간색, 녹색, 파란색 채널 혼합</translation>
     </message>
     <message>
         <source>Apply a color grading table</source>
@@ -17553,11 +17553,11 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Editable lighter, darker or punchier</source>
-        <translation>편집 가능한 밝게, 어둡게 또는 선명하게</translation>
+        <translation>밝게, 어둡게 또는 선명하게 하는 편집 가능한 조정</translation>
     </message>
     <message>
         <source>Editable black point, white point and midtones</source>
-        <translation>편집 가능한 검정 점, 흰색 점 및 중간 톤</translation>
+        <translation>편집 가능한 검은 점, 흰 점 및 중간 톤</translation>
     </message>
     <message>
         <source>Editable tone curve</source>
@@ -17585,7 +17585,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Editable brightening or darkening</source>
-        <translation>편집 가능한 밝게 또는 어둡게</translation>
+        <translation>밝게 또는 어둡게 하는 편집 가능한 조정</translation>
     </message>
     <message>
         <source>Editable boost for muted colors</source>
@@ -17597,7 +17597,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Editable warming or cooling filter</source>
-        <translation>편집 가능한 따뜻한 또는 차가운 필터</translation>
+        <translation>따뜻하거나 차갑게 하는 편집 가능한 필터</translation>
     </message>
     <message>
         <source>Editable mapping of tones to a gradient</source>
@@ -18029,7 +18029,7 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Film look with lifted blacks</source>
-        <translation>검정을 띄운 필름 느낌</translation>
+        <translation>암부를 들어 올린 필름 느낌</translation>
     </message>
     <message>
         <source>Faded old photo look</source>
@@ -30981,7 +30981,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>Keep them as pixel layers, as GIMP draws them, or make editable text from the text GIMP stored. Converting drops the paint, as GIMP does when you edit its text. Text-layer copies go above each layer, hidden, so the file still looks as GIMP drew it.</source>
-        <translation>GIMP가 그린 대로 픽셀 레이어로 유지하거나, GIMP가 저장한 텍스트로 편집 가능한 텍스트를 만듭니다. 변환하면 GIMP에서 텍스트를 편집할 때처럼 그린 부분이 사라집니다. 텍스트 레이어 사본은 각 레이어 위에 숨겨진 상태로 추가되므로 파일은 GIMP에서 그린 모습 그대로 보입니다.</translation>
+        <translation>GIMP가 그린 대로 픽셀 레이어로 유지하거나, GIMP가 저장한 텍스트로 편집 가능한 텍스트를 만듭니다. 변환하면 GIMP에서 텍스트를 편집할 때처럼 덧칠한 부분이 사라집니다. 텍스트 레이어 사본은 각 레이어 위에 숨겨진 상태로 추가되므로 파일은 GIMP에서 그린 모습 그대로 보입니다.</translation>
     </message>
     <message>
         <source>Keep as Pixel Layers</source>
@@ -31013,11 +31013,11 @@ Locked: %1</source>
     </message>
     <message>
         <source>Text layers painted on in GIMP kept their pixels; editable text copies of them were added above them, hidden.</source>
-        <translation>GIMP에서 그림을 그린 텍스트 레이어는 픽셀을 유지했고, 그 위에 편집 가능한 텍스트 사본을 숨긴 상태로 추가했습니다.</translation>
+        <translation>GIMP에서 덧칠한 텍스트 레이어는 픽셀을 유지했고, 그 위에 편집 가능한 텍스트 사본을 숨긴 상태로 추가했습니다.</translation>
     </message>
     <message>
         <source>Text layers painted on in GIMP became editable text; their paint was dropped.</source>
-        <translation>GIMP에서 그림을 그린 텍스트 레이어를 편집 가능한 텍스트로 바꾸었습니다. 그린 부분은 삭제되었습니다.</translation>
+        <translation>GIMP에서 덧칠한 텍스트 레이어를 편집 가능한 텍스트로 바꾸었습니다. 덧칠한 부분은 삭제되었습니다.</translation>
     </message>
     <message>
         <source>Keep as pixel layers</source>
@@ -31033,15 +31033,15 @@ Locked: %1</source>
     </message>
     <message>
         <source>GIMP text layers that were painted on after their text was set open as GIMP drew them. Patchy can instead make editable text from the text GIMP stored: converting replaces the layer and drops the paint, and copies go above each layer, hidden.</source>
-        <translation>텍스트를 입력한 뒤 그림을 그린 GIMP 텍스트 레이어는 GIMP가 그린 대로 열립니다. 대신 GIMP가 저장한 텍스트로 편집 가능한 텍스트를 만들 수도 있습니다. 변환하면 레이어가 바뀌고 그린 부분이 사라지며, 사본은 각 레이어 위에 숨겨진 상태로 추가됩니다.</translation>
+        <translation>텍스트를 입력한 뒤 덧칠한 GIMP 텍스트 레이어는 GIMP가 그린 대로 열립니다. 대신 GIMP가 저장한 텍스트로 편집 가능한 텍스트를 만들 수도 있습니다. 변환하면 레이어가 바뀌고 덧칠한 부분이 사라지며, 사본은 각 레이어 위에 숨겨진 상태로 추가됩니다.</translation>
     </message>
     <message>
         <source>Opening painted-on GIMP text:</source>
-        <translation>그림을 그린 GIMP 텍스트 열기:</translation>
+        <translation>덧칠한 GIMP 텍스트를 열 때:</translation>
     </message>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
-        <translation>이 GIMP 파일에서 텍스트를 입력한 뒤 그림을 그린 텍스트 레이어: %1</translation>
+        <translation>이 GIMP 파일에서 텍스트를 입력한 뒤 덧칠한 텍스트 레이어: %1</translation>
     </message>
     <message>
         <source>Search &amp;Commands...</source>
@@ -31273,7 +31273,7 @@ Locked: %1</source>
     </message>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>획 대시와 저장된 획 사전 설정. 대시 사전 설정은 평평한 끝을, 점 사전 설정은 둥근 끝과 모서리를 사용합니다</translation>
+        <translation>획 점선과 저장된 획 사전 설정. 점선 사전 설정은 맞대기 캡을, 점 사전 설정은 원형 캡과 원형 모서리를 사용합니다</translation>
     </message>
 </context>
 <context>

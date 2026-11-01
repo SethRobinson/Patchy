@@ -14458,7 +14458,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Quality presets</source>
-        <translation>Wstępne ustawienia jakości</translation>
+        <translation>Ustawienia wstępne jakości</translation>
     </message>
     <message>
         <source>Progressive</source>
@@ -16579,7 +16579,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
-        <translation>Kliknij segment z Shift Zaznaczaniem bezpośrednim, aby go wybrać, albo kliknij go prawym przyciskiem</translation>
+        <translation>Shift+kliknij segment Zaznaczaniem bezpośrednim, aby go wybrać, albo kliknij go prawym przyciskiem</translation>
     </message>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
@@ -17017,7 +17017,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Turn the layer or selection</source>
-        <translation>Obróć warstwę lub zaznaczenie</translation>
+        <translation>Przekręć warstwę lub zaznaczenie</translation>
     </message>
     <message>
         <source>Bend the layer with a grid</source>
@@ -17025,7 +17025,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Erase an object and fill the gap</source>
-        <translation>Usuń obiekt i wypełnij lukę</translation>
+        <translation>Wymaż obiekt i wypełnij lukę</translation>
     </message>
     <message>
         <source>Make a brush from the selection</source>
@@ -17041,11 +17041,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Manage gradient presets</source>
-        <translation>Zarządzaj ustawieniami gradientów</translation>
+        <translation>Zarządzaj ustawieniami wstępnymi gradientów</translation>
     </message>
     <message>
         <source>Manage pattern presets</source>
-        <translation>Zarządzaj ustawieniami wzorków</translation>
+        <translation>Zarządzaj ustawieniami wstępnymi wzorków</translation>
     </message>
     <message>
         <source>Resize or scale the image</source>
@@ -17117,11 +17117,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Remove the layer</source>
-        <translation>Usuń warstwę</translation>
+        <translation>Skasuj warstwę</translation>
     </message>
     <message>
         <source>Change the layer name</source>
-        <translation>Zmień nazwę warstwy</translation>
+        <translation>Nadaj warstwie inną nazwę</translation>
     </message>
     <message>
         <source>Put the selected layers in a folder</source>
@@ -17153,7 +17153,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Drop shadow, stroke, glow and other effects</source>
-        <translation>Cień, obrys, poświata i inne efekty</translation>
+        <translation>Cień, obrys, blask i inne efekty</translation>
     </message>
     <message>
         <source>Clip to the layer below</source>
@@ -17185,7 +17185,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Erase the layer or selection</source>
-        <translation>Wyczyść warstwę lub zaznaczenie</translation>
+        <translation>Wymaż zawartość warstwy lub zaznaczenia</translation>
     </message>
     <message>
         <source>Select the whole image</source>
@@ -17233,7 +17233,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Magnify the view</source>
-        <translation>Powiększ widok</translation>
+        <translation>Przybliż widok</translation>
     </message>
     <message>
         <source>Show more of the image</source>
@@ -17257,11 +17257,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Show or hide the guides</source>
-        <translation>Pokaż lub ukryj linie pomocnicze</translation>
+        <translation>Pokaż lub ukryj prowadnice</translation>
     </message>
     <message>
         <source>Line up with guides and edges while dragging</source>
-        <translation>Wyrównuj do linii pomocniczych i krawędzi podczas przeciągania</translation>
+        <translation>Wyrównuj do prowadnic i krawędzi podczas przeciągania</translation>
     </message>
     <message>
         <source>Show the pixel grid when zoomed in</source>
@@ -17269,11 +17269,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Add a guide line</source>
-        <translation>Dodaj linię pomocniczą</translation>
+        <translation>Dodaj prowadnicę</translation>
     </message>
     <message>
         <source>Remove all guides</source>
-        <translation>Usuń wszystkie linie pomocnicze</translation>
+        <translation>Skasuj wszystkie prowadnice</translation>
     </message>
     <message>
         <source>Move layers and selections</source>
@@ -17441,7 +17441,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Switch points between corner and smooth</source>
-        <translation>Przełączaj punkty między narożnym a gładkim</translation>
+        <translation>Przełączaj punkty między narożnymi a gładkimi</translation>
     </message>
     <message>
         <source>Crop or straighten the image</source>
@@ -17529,7 +17529,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Slant the layer or selection</source>
-        <translation>Pochyl warstwę lub zaznaczenie</translation>
+        <translation>Przekrzyw warstwę lub zaznaczenie</translation>
     </message>
     <message>
         <source>Drag each corner freely</source>
@@ -17545,7 +17545,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Manage layer style presets</source>
-        <translation>Zarządzaj ustawieniami predefiniowanymi stylów warstw</translation>
+        <translation>Zarządzaj ustawieniami wstępnymi stylów warstw</translation>
     </message>
     <message>
         <source>Manage brush tips and import ABR</source>
@@ -17557,7 +17557,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Manage custom shape presets</source>
-        <translation>Zarządzaj ustawieniami predefiniowanymi niestandardowych kształtów</translation>
+        <translation>Zarządzaj ustawieniami wstępnymi niestandardowych kształtów</translation>
     </message>
     <message>
         <source>Convert to full color</source>
@@ -17645,7 +17645,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Editable black point, white point and midtones</source>
-        <translation>Edytowalny punkt czerni, punkt bieli i półcienie</translation>
+        <translation>Edytowalny punkt czerni, punkt bieli i półtony</translation>
     </message>
     <message>
         <source>Editable tone curve</source>
@@ -17749,7 +17749,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Make every layer visible</source>
-        <translation>Pokaż wszystkie warstwy</translation>
+        <translation>Ustaw wszystkie warstwy jako widoczne</translation>
     </message>
     <message>
         <source>Hide the background with a mask automatically</source>
@@ -17773,7 +17773,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Turn the mask off for now</source>
-        <translation>Tymczasowo wyłącz maskę</translation>
+        <translation>Tymczasowo nie stosuj maski</translation>
     </message>
     <message>
         <source>Swap what the mask shows and hides</source>
@@ -17781,7 +17781,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Remove the layer mask</source>
-        <translation>Usuń maskę warstwy</translation>
+        <translation>Skasuj maskę warstwy</translation>
     </message>
     <message>
         <source>Add a vector mask that shows everything</source>
@@ -17797,11 +17797,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Remove the vector mask</source>
-        <translation>Usuń maskę wektorową</translation>
+        <translation>Skasuj maskę wektorową</translation>
     </message>
     <message>
         <source>Turn the vector mask off for now</source>
-        <translation>Tymczasowo wyłącz maskę wektorową</translation>
+        <translation>Tymczasowo nie stosuj maski wektorowej</translation>
     </message>
     <message>
         <source>Turn the vector mask into a pixel mask</source>
@@ -17857,7 +17857,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Keep only where the shapes overlap</source>
-        <translation>Zachowaj tylko część wspólną kształtów</translation>
+        <translation>Zachowaj tylko obszar, w którym kształty się nakładają</translation>
     </message>
     <message>
         <source>Keep everything except the overlap</source>
@@ -17901,7 +17901,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Space the centers evenly across</source>
-        <translation>Rozmieść środki równomiernie w poziomie</translation>
+        <translation>Ustaw środki w równych odstępach w poziomie</translation>
     </message>
     <message>
         <source>Space the right edges evenly</source>
@@ -17913,7 +17913,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Space the centers evenly down</source>
-        <translation>Rozmieść środki równomiernie w pionie</translation>
+        <translation>Ustaw środki w równych odstępach w pionie</translation>
     </message>
     <message>
         <source>Space the bottom edges evenly</source>
@@ -17929,11 +17929,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Mirror the layer left to right</source>
-        <translation>Odbij warstwę w poziomie</translation>
+        <translation>Utwórz lustrzane odbicie warstwy z lewej na prawą</translation>
     </message>
     <message>
         <source>Mirror the layer top to bottom</source>
-        <translation>Odbij warstwę w pionie</translation>
+        <translation>Utwórz lustrzane odbicie warstwy z góry na dół</translation>
     </message>
     <message>
         <source>Save the layer as a PNG at once</source>
@@ -18117,7 +18117,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Film look with lifted blacks</source>
-        <translation>Wygląd filmu z podniesioną czernią</translation>
+        <translation>Filmowy wygląd z uniesioną czernią</translation>
     </message>
     <message>
         <source>Faded old photo look</source>
@@ -18157,7 +18157,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Sharp spot with blur around it</source>
-        <translation>Ostry punkt z rozmyciem wokół</translation>
+        <translation>Ostry obszar z rozmyciem wokół</translation>
     </message>
     <message>
         <source>Miniature look with a sharp band</source>
@@ -18177,11 +18177,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Crisp up slightly</source>
-        <translation>Lekko wyostrz</translation>
+        <translation>Lekko zwiększ ostrość</translation>
     </message>
     <message>
         <source>Sharpen with amount and radius</source>
-        <translation>Wyostrz z ilością i promieniem</translation>
+        <translation>Wyostrz z ustawieniem wartości i promienia</translation>
     </message>
     <message>
         <source>Keep only the fine detail</source>
@@ -18189,7 +18189,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Crisp up a bit more</source>
-        <translation>Wyostrz nieco mocniej</translation>
+        <translation>Zwiększ ostrość nieco mocniej</translation>
     </message>
     <message>
         <source>Sharpen only the edges</source>
@@ -18201,7 +18201,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Ripple in waves</source>
-        <translation>Pofaluj falami</translation>
+        <translation>Pomarszcz obraz falami</translation>
     </message>
     <message>
         <source>Squeeze in or bulge out</source>
@@ -18245,7 +18245,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Raised relief look</source>
-        <translation>Wygląd wypukłej płaskorzeźby</translation>
+        <translation>Wygląd wypukłego reliefu</translation>
     </message>
     <message>
         <source>Push out 3D blocks</source>
@@ -18281,7 +18281,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Blend cloud noise by difference</source>
-        <translation>Mieszaj szum chmur przez różnicę</translation>
+        <translation>Mieszaj szum chmur w trybie różnicy</translation>
     </message>
     <message>
         <source>Fill with fiber strands</source>
@@ -18337,7 +18337,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Show or hide guides, grid and edges</source>
-        <translation>Pokaż lub ukryj linie pomocnicze, siatkę i krawędzie</translation>
+        <translation>Pokaż lub ukryj prowadnice, siatkę i krawędzie</translation>
     </message>
     <message>
         <source>Show or hide the marching ants</source>
@@ -18353,11 +18353,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Stop guides from moving</source>
-        <translation>Zablokuj przesuwanie linii pomocniczych</translation>
+        <translation>Uniemożliw przesuwanie prowadnic</translation>
     </message>
     <message>
         <source>Snap to guide lines</source>
-        <translation>Przyciągaj do linii pomocniczych</translation>
+        <translation>Przyciągaj do prowadnic</translation>
     </message>
     <message>
         <source>Snap to the grid</source>
@@ -18377,11 +18377,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Add column and row guides</source>
-        <translation>Dodaj linie pomocnicze kolumn i wierszy</translation>
+        <translation>Dodaj prowadnice kolumn i wierszy</translation>
     </message>
     <message>
         <source>Remove the selected guides</source>
-        <translation>Usuń zaznaczone linie pomocnicze</translation>
+        <translation>Skasuj zaznaczone prowadnice</translation>
     </message>
     <message>
         <source>See the image repeated as a tile</source>
@@ -18453,7 +18453,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Redraw the whole window</source>
-        <translation>Odśwież całe okno</translation>
+        <translation>Przerysuj całe okno</translation>
     </message>
     <message>
         <source>Hide and arrange tools</source>
@@ -18477,7 +18477,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Show the undo history panel</source>
-        <translation>Pokaż panel Historia cofania</translation>
+        <translation>Pokaż panel historii cofania</translation>
     </message>
     <message>
         <source>Show the Info panel</source>
@@ -18593,7 +18593,7 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Exchange foreground and background colors</source>
-        <translation>Zamień kolory pierwszego planu i tła</translation>
+        <translation>Wymień miejscami kolory pierwszego planu i tła</translation>
     </message>
     <message>
         <source>Make the brush smaller</source>
@@ -31235,7 +31235,7 @@ Zablokowano: %1</translation>
     </message>
     <message>
         <source>Select shapes on a shape layer with Path Select or Direct Select</source>
-        <translation>Wybierz kształty na warstwie kształtu narzędziem Zaznaczanie ścieżki lub Zaznaczanie bezpośrednie</translation>
+        <translation>Wybierz kształty na warstwie kształtu narzędziem Zaznaczanie ścieżek lub Zaznaczanie bezpośrednie</translation>
     </message>
     <message>
         <source>Break Path at Point</source>
@@ -31347,7 +31347,7 @@ Zablokowano: %1</translation>
     </message>
     <message>
         <source>Select shapes with Path Select or Direct Select first</source>
-        <translation>Najpierw wybierz kształty narzędziem Zaznaczanie ścieżki lub Zaznaczanie bezpośrednie</translation>
+        <translation>Najpierw wybierz kształty narzędziem Zaznaczanie ścieżek lub Zaznaczanie bezpośrednie</translation>
     </message>
     <message>
         <source>Copy shapes to new layer</source>
@@ -31403,7 +31403,7 @@ Zablokowano: %1</translation>
     </message>
     <message>
         <source>Merged %1 shape(s) into one outline</source>
-        <translation>Scalone kształty w jeden kontur: %1</translation>
+        <translation>Kształty scalone w jeden kontur: %1</translation>
     </message>
     <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
