@@ -18589,7 +18589,27 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     </message>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
-        <translation>Sucht nach neuen oder geänderten GIMP-3-Plug-ins und lädt erneut, was sie registrieren</translation>
+        <translation>Nach neuen oder geänderten GIMP-3-Plug-ins suchen und neu laden, was sie registrieren</translation>
+    </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>Keine .8bf-Filter in den Plug-in-Ordnern gefunden</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>Die Plug-in-Ordner werden noch gelesen</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>Keine GIMP-3-Plug-ins gefunden, die auf einer Ebene arbeiten</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>GIMP-3-Plug-ins werden noch gesucht</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>Warum GIMP-3-Plug-ins nicht verfügbar sind</translation>
     </message>
 </context>
 <context>

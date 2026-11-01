@@ -18574,6 +18574,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

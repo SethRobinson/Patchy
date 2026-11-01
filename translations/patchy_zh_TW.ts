@@ -18547,6 +18547,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>尋找新增或已變更的 GIMP 3 外掛程式，並重新載入它們註冊的內容</translation>
     </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>在外掛程式資料夾中找不到 .8bf 濾鏡</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>仍在讀取外掛程式資料夾</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>找不到可用於圖層的 GIMP 3 外掛程式</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>仍在尋找 GIMP 3 外掛程式</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>GIMP 3 外掛程式無法使用的原因</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

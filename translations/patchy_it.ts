@@ -18591,6 +18591,26 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
         <translation>Cerca plug-in di GIMP 3 nuovi o modificati e ricarica ciò che registrano</translation>
     </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>Nessun filtro .8bf trovato nelle cartelle dei plug-in</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>Le cartelle dei plug-in sono ancora in fase di lettura</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>Non è stato trovato nessun plug-in di GIMP 3 che funzioni su un livello</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>Ricerca dei plug-in di GIMP 3 ancora in corso</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>Perché i plug-in di GIMP 3 non sono disponibili</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

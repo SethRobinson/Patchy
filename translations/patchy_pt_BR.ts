@@ -18589,7 +18589,27 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     </message>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
-        <translation>Procura plug-ins do GIMP 3 novos ou alterados e recarrega o que eles registram</translation>
+        <translation>Procurar plug-ins do GIMP 3 novos ou alterados e recarregar o que eles registram</translation>
+    </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>Nenhum filtro .8bf foi encontrado nas pastas de plug-ins</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>As pastas de plug-ins ainda estão sendo lidas</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>Nenhum plug-in do GIMP 3 que funcione em uma camada foi encontrado</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>Os plug-ins do GIMP 3 ainda estão sendo procurados</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>Por que os plug-ins do GIMP 3 não estão disponíveis</translation>
     </message>
 </context>
 <context>

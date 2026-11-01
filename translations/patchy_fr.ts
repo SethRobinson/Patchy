@@ -18589,7 +18589,27 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     </message>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
-        <translation>Recherche les modules externes GIMP 3 nouveaux ou modifiés et recharge ce qu&apos;ils enregistrent</translation>
+        <translation>Rechercher les modules externes GIMP 3 nouveaux ou modifiés et recharger ce qu&apos;ils enregistrent</translation>
+    </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>Aucun filtre .8bf trouvé dans les dossiers de modules externes</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>Les dossiers de modules externes sont encore en cours de lecture</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>Aucun module externe GIMP 3 fonctionnant sur un calque n&apos;a été trouvé</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>Les modules externes GIMP 3 sont encore en cours de recherche</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>Pourquoi les modules externes GIMP 3 ne sont pas disponibles</translation>
     </message>
 </context>
 <context>

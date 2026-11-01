@@ -18589,7 +18589,27 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
-        <translation>Busca plugins de GIMP 3 nuevos o modificados y vuelve a cargar lo que registran</translation>
+        <translation>Buscar plugins de GIMP 3 nuevos o modificados y volver a cargar lo que registran</translation>
+    </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>No se encontraron filtros .8bf en las carpetas de plugins</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>Las carpetas de plugins aún se están leyendo</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>No se encontraron plugins de GIMP 3 que funcionen en una capa</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>Aún se están buscando plugins de GIMP 3</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>Por qué los plugins de GIMP 3 no están disponibles</translation>
     </message>
 </context>
 <context>

@@ -18545,7 +18545,27 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
-        <translation>新しいまたは変更された GIMP 3 プラグインを探し、登録内容を再読み込みします</translation>
+        <translation>新しいまたは変更された GIMP 3 プラグインを探して登録内容を再読み込み</translation>
+    </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>プラグインフォルダーに .8bf フィルターが見つかりません</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>プラグインフォルダーをまだ読み込み中です</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>レイヤーで動作する GIMP 3 プラグインが見つかりません</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>GIMP 3 プラグインをまだ検索中です</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>GIMP 3 プラグインを使用できない理由</translation>
     </message>
 </context>
 <context>

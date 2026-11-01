@@ -18633,7 +18633,27 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     </message>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
-        <translation>Wyszukuje nowe lub zmienione wtyczki GIMP 3 i ponownie wczytuje to, co rejestrują</translation>
+        <translation>Wyszukaj nowe lub zmienione wtyczki GIMP 3 i ponownie wczytaj to, co rejestrują</translation>
+    </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>Nie znaleziono filtrów .8bf w folderach wtyczek</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>Foldery wtyczek są jeszcze odczytywane</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>Nie znaleziono wtyczek GIMP 3 działających na warstwie</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>Wtyczki GIMP 3 są jeszcze wyszukiwane</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>Dlaczego wtyczki GIMP 3 są niedostępne</translation>
     </message>
 </context>
 <context>

@@ -33,3 +33,9 @@ None of these were opened, searched or excerpted at any point, by a person or a 
 ### 2026-11-01: Patchy's test plug-in
 
 - `test-fixtures/gimp-plugins/patchy-test/patchy-test.py`, MIT, written for this work from GIMP 3's public Python API (the `Gimp`, `GimpUi` and `Gegl` introspection modules as documented on developer.gimp.org). Checked in GIMP 3.2.6 first (batch run over a PNG with a selection), then used as Patchy's reference: the same input gives the same output.
+
+### 2026-11-01: behavior checked against GIMP's output
+
+- Method: the same PNG and selection run through GIMP 3.2.6 (`gimp-console-3.exe` Script-Fu batch calls of each procedure with its registered defaults) and through Patchy (`scripts/dev/gimp/sweep.js`), outputs compared pixel by pixel. No source was consulted; only the two programs' outputs.
+- Taken: object arguments nobody set travel as no object (-1), not as the run's own layer (Depth Merge, Lighting Effects and Sample Colorize matched GIMP only that way); arrays without a definition kind default to empty; plug-ins crash when a color in `CONFIG` carries no ICC profile (found by replaying the logged `CONFIG` message and changing one field at a time), so Patchy sends an sRGB profile it builds with Little CMS; which bundled procedures need new layers, images, GIMP's clipboard, painting tools or resources (the GIMP functions they call, named in Patchy's error, are interface facts).
+- Not taken: no GIMP data file (presets, gradients, brushes) is copied or shipped; plug-ins read their own data from the user's GIMP install at run time.

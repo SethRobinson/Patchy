@@ -18545,7 +18545,27 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
-        <translation>새로 추가되거나 변경된 GIMP 3 플러그인을 찾고 등록 정보를 다시 불러옵니다</translation>
+        <translation>새로 추가되거나 변경된 GIMP 3 플러그인을 찾고 등록 정보 다시 불러오기</translation>
+    </message>
+    <message>
+        <source>No .8bf filters were found in the plug-in folders</source>
+        <translation>플러그인 폴더에서 .8bf 필터를 찾을 수 없음</translation>
+    </message>
+    <message>
+        <source>The plug-in folders are still being read</source>
+        <translation>플러그인 폴더를 아직 읽는 중</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins that work on a layer were found</source>
+        <translation>레이어에서 작동하는 GIMP 3 플러그인을 찾을 수 없음</translation>
+    </message>
+    <message>
+        <source>GIMP 3 plug-ins are still being looked for</source>
+        <translation>GIMP 3 플러그인을 아직 찾는 중</translation>
+    </message>
+    <message>
+        <source>Why GIMP 3 plug-ins are not available</source>
+        <translation>GIMP 3 플러그인을 사용할 수 없는 이유</translation>
     </message>
 </context>
 <context>
