@@ -18516,6 +18516,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Search fonts...</source>
         <translation>搜尋字體...</translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation>所有樣式</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>襯線</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>無襯線</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>粗襯線</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>手寫體</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>裝飾</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>符號</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>等寬</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>可變</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>最近使用</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>所有字型</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>正在讀取字型樣式... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>僅顯示此樣式的字型</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>僅顯示支援此語言的字型</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>所有語言</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

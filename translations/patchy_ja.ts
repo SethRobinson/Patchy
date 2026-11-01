@@ -18516,6 +18516,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Search fonts...</source>
         <translation>フォントを検索...</translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation>すべてのスタイル</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>セリフ</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>サンセリフ</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>スラブセリフ</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>スクリプト</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>装飾</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>記号</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>等幅</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>バリアブル</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>最近使用したフォント</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>すべてのフォント</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>フォントのスタイルを読み込み中... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>このスタイルのフォントだけを表示</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>この言語に対応したフォントだけを表示</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>すべての言語</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

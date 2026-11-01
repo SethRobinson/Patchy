@@ -195,6 +195,7 @@ add_library(patchy_core
   src/core/palette.cpp
   src/core/palette_presets.cpp
   src/core/font_substitutes.cpp
+  src/core/font_style_class.cpp
   src/core/path_fit.cpp
   src/core/path_point_edits.cpp
   src/core/path_simplify.cpp
@@ -1325,6 +1326,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/zoomable_image_preview.cpp
       src/ui/font_picker.hpp
       src/ui/font_picker.cpp
+      src/ui/font_family_filters.hpp
+      src/ui/font_family_filters.cpp
       src/ui/blend_if_range_editor.hpp
       src/ui/blend_if_range_editor.cpp
       src/ui/gradient_stops_editor.hpp
@@ -2332,6 +2335,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/atomic_write_recovery_tests.cpp
     tests/core/font_zip_tests.cpp
     tests/core/font_substitutes_tests.cpp
+    tests/core/font_style_class_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
@@ -2495,6 +2499,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/brush_engine_stroke_tests_healing_patch.cpp
       tests/ui/brush_engine_stroke_tests_strokes.cpp
       tests/ui/text_editor_font_picker_tests.cpp
+      tests/ui/font_picker_filter_tests.cpp
       tests/ui/psd_text_import_tests.cpp
       tests/ui/text_transform_commit_tests.cpp
       tests/ui/text_transform_commit_tests_transform.cpp

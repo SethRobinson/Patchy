@@ -18559,6 +18559,67 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Search fonts...</source>
         <translation>Buscar fuentes...</translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation>Todos los estilos</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>Serifa</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>Sans serif</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>Serifa egipcia</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>Manuscrita</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>Decorativa</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>Símbolos</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>Monoespaciada</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>Variable</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>Recientes</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>Todas las fuentes</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>Leyendo estilos de fuente... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>Mostrar solo fuentes de este estilo</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>Mostrar solo fuentes compatibles con este idioma</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>Todos los idiomas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

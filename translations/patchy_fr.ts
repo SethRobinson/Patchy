@@ -18559,6 +18559,67 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Search fonts...</source>
         <translation>Rechercher des polices...</translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation>Tous les styles</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>Serif</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>Sans serif</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>Slab serif</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>Script</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>Décorative</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>Symboles</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>Chasse fixe</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>Variable</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>Récentes</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>Toutes les polices</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>Lecture des styles de police... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>Afficher uniquement les polices de ce style</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>Afficher uniquement les polices qui prennent en charge cette langue</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>Toutes les langues</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

@@ -2,28 +2,34 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/font_family_filters.hpp"
 #include "ui/theme_palette.hpp"
 
 #include <QAbstractItemView>
-#include <QListWidget>
+#include <QAbstractListModel>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QCollator>
 #include <QColor>
+#include <QComboBox>
 #include <QCursor>
 #include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QPainter>
 #include <QScreen>
-#include <QSortFilterProxyModel>
+#include <QSet>
 #include <QStyledItemDelegate>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <utility>
 
 namespace patchy::ui {
 
@@ -173,8 +179,32 @@ protected:
   }
 };
 
+[[nodiscard]] bool is_family_row(const QModelIndex& index) {
+  return index.isValid() &&
+         index.data(kFontPickerRowKindRole).toInt() == static_cast<int>(FontPickerRowKind::family);
+}
+
+// Moves the list's current row to the next family row in `direction` (+1 down, -1 up), skipping
+// the section headers. Reaching the first family scrolls the Recent header back into view.
+bool step_to_family_row(QAbstractItemView& list, int start_row, int direction) {
+  auto* model = list.model();
+  for (int row = start_row + direction; row >= 0 && row < model->rowCount(); row += direction) {
+    const auto index = model->index(row, 0);
+    if (is_family_row(index)) {
+      list.setCurrentIndex(index);
+      list.scrollTo(index);
+      if (direction < 0 && row <= 1) {
+        list.scrollToTop();
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 // Forwards list-navigation keys from the search edit to the list view (the list itself is
-// Qt::NoFocus so the user can type and arrow through results without moving focus).
+// Qt::NoFocus so the user can type and arrow through results without moving focus). Up and Down
+// step over the section headers; a page jump that lands on one moves on to the next family.
 class SearchKeyForwarder : public QObject {
 public:
   SearchKeyForwarder(QAbstractItemView* list, QObject* parent) : QObject(parent), list_(list) {}
@@ -183,13 +213,26 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
     if (event->type() == QEvent::KeyPress) {
       const auto* key = static_cast<const QKeyEvent*>(event);
+      const auto current = list_->currentIndex();
       switch (key->key()) {
         case Qt::Key_Up:
-        case Qt::Key_Down:
-        case Qt::Key_PageUp:
-        case Qt::Key_PageDown:
-          QApplication::sendEvent(list_, event);
+          step_to_family_row(*list_, current.isValid() ? current.row() : list_->model()->rowCount(), -1);
           return true;
+        case Qt::Key_Down:
+          step_to_family_row(*list_, current.isValid() ? current.row() : -1, 1);
+          return true;
+        case Qt::Key_PageUp:
+        case Qt::Key_PageDown: {
+          QApplication::sendEvent(list_, event);
+          const auto landed = list_->currentIndex();
+          if (landed.isValid() && !is_family_row(landed)) {
+            const int direction = key->key() == Qt::Key_PageUp ? -1 : 1;
+            if (!step_to_family_row(*list_, landed.row(), direction)) {
+              step_to_family_row(*list_, landed.row(), -direction);
+            }
+          }
+          return true;
+        }
         default:
           break;
       }
@@ -201,6 +244,57 @@ private:
   QAbstractItemView* list_;
 };
 
+struct FontListRow {
+  FontPickerRowKind kind{FontPickerRowKind::family};
+  QString text;  // the family, or the header's label
+  bool recent{false};
+};
+
+// The popup's rows, rebuilt whenever the search text or a filter changes.
+class FontListModel : public QAbstractListModel {
+public:
+  using QAbstractListModel::QAbstractListModel;
+
+  void set_rows(std::vector<FontListRow> rows) {
+    beginResetModel();
+    rows_ = std::move(rows);
+    endResetModel();
+  }
+
+  int rowCount(const QModelIndex& parent = QModelIndex()) const override {
+    return parent.isValid() ? 0 : static_cast<int>(rows_.size());
+  }
+
+  QVariant data(const QModelIndex& index, int role) const override {
+    if (!index.isValid() || index.row() >= static_cast<int>(rows_.size())) {
+      return {};
+    }
+    const auto& row = rows_[static_cast<std::size_t>(index.row())];
+    switch (role) {
+      case Qt::DisplayRole:
+        return row.text;
+      case kFontPickerRowKindRole:
+        return static_cast<int>(row.kind);
+      case kFontPickerRecentRowRole:
+        return row.recent;
+      default:
+        return {};
+    }
+  }
+
+  Qt::ItemFlags flags(const QModelIndex& index) const override {
+    if (!index.isValid() || index.row() >= static_cast<int>(rows_.size())) {
+      return Qt::NoItemFlags;
+    }
+    return rows_[static_cast<std::size_t>(index.row())].kind == FontPickerRowKind::family
+               ? Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemNeverHasChildren
+               : Qt::ItemNeverHasChildren;
+  }
+
+private:
+  std::vector<FontListRow> rows_;
+};
+
 class FontListDelegate : public QStyledItemDelegate {
 public:
   FontListDelegate(FontPickerCombo& combo, QObject* parent)
@@ -208,6 +302,10 @@ public:
 
   void paint(QPainter* painter, const QStyleOptionViewItem& option,
              const QModelIndex& index) const override {
+    if (!is_family_row(index)) {
+      paint_header(painter, option, index);
+      return;
+    }
     const auto family = index.data(Qt::DisplayRole).toString();
     // Copy: the cache reference is only stable until the next lookup, and QFont/QString
     // copies are shared-data cheap.
@@ -256,7 +354,225 @@ public:
   }
 
 private:
+  // A section header: a small dim label; "All Fonts" also draws the rule that separates it from
+  // the Recent rows above.
+  void paint_header(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
+    painter->save();
+    const auto rect = option.rect;
+    if (index.data(kFontPickerRowKindRole).toInt() == static_cast<int>(FontPickerRowKind::all_header)) {
+      painter->setPen(theme().field_inset_border);
+      painter->drawLine(rect.left() + 4, rect.top() + 2, rect.right() - 4, rect.top() + 2);
+    }
+    const QFont label_font = scaled_font(combo_.font(), 0.9);
+    painter->setFont(label_font);
+    painter->setPen(theme().text_secondary);
+    painter->drawText(rect.adjusted(8, 2, -8, 0), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                      QFontMetrics(label_font).elidedText(index.data(Qt::DisplayRole).toString(), Qt::ElideRight,
+                                                          rect.width() - 16));
+    painter->restore();
+  }
+
   FontPickerCombo& combo_;
+};
+
+[[nodiscard]] QString style_filter_label(FontStyleFilter filter) {
+  switch (filter) {
+    case FontStyleFilter::all:
+      return FontPickerCombo::tr("All Styles");
+    case FontStyleFilter::serif:
+      return FontPickerCombo::tr("Serif");
+    case FontStyleFilter::sans_serif:
+      return FontPickerCombo::tr("Sans Serif");
+    case FontStyleFilter::slab_serif:
+      return FontPickerCombo::tr("Slab Serif");
+    case FontStyleFilter::script:
+      return FontPickerCombo::tr("Script");
+    case FontStyleFilter::decorative:
+      return FontPickerCombo::tr("Decorative");
+    case FontStyleFilter::symbol:
+      return FontPickerCombo::tr("Symbol");
+    case FontStyleFilter::monospace:
+      return FontPickerCombo::tr("Monospace");
+    case FontStyleFilter::variable:
+      //: Variable fonts (one font file with adjustable weight or width axes).
+      return FontPickerCombo::tr("Variable");
+  }
+  return {};
+}
+
+// Owns the popup's row model and the Style/Language filtering. Families a table-reading Style
+// filter has not classified yet are read in short timer slices (FontStyleIndex caches them on
+// disk), so opening the popup never waits for every installed font to load.
+class FontListFilter : public QObject {
+public:
+  FontListFilter(FontPickerCombo& combo, QListView& list, QLineEdit& search, QComboBox& style,
+                 QComboBox& language, QLabel& status, QObject* parent)
+      : QObject(parent), list_(list), search_(search), style_(style), language_(language), status_(status) {
+    model_ = new FontListModel(this);
+    auto* source = combo.model();
+    families_.reserve(source->rowCount());
+    for (int row = 0; row < source->rowCount(); ++row) {
+      families_.append(source->index(row, 0).data(Qt::DisplayRole).toString());
+    }
+    const QSet<QString> installed(families_.cbegin(), families_.cend());
+    for (const auto& family : stored_recent_font_families()) {
+      if (installed.contains(family)) {
+        recent_.append(family);
+      }
+    }
+    slice_timer_.setInterval(0);
+    connect(&slice_timer_, &QTimer::timeout, this, [this] { classify_slice(); });
+  }
+
+  [[nodiscard]] FontListModel* model() const noexcept { return model_; }
+
+  // Rebuilds the rows, keeping the current family (and its section) when it survives.
+  void rebuild() {
+    const auto previous = list_.currentIndex();
+    const auto previous_family = is_family_row(previous) ? previous.data(Qt::DisplayRole).toString() : QString();
+    const bool previous_recent = previous.data(kFontPickerRecentRowRole).toBool();
+
+    const auto filter = font_style_filter_from_token(style_.currentData().toString());
+    const auto system = writing_system_from_token(language_.currentData().toString());
+    const auto text = search_.text().trimmed();
+    if (system.has_value() && system != language_families_system_) {
+      const auto families = QFontDatabase::families(*system);
+      language_families_ = QSet<QString>(families.cbegin(), families.cend());
+      language_families_system_ = system;
+    }
+    auto& index = FontStyleIndex::instance();
+    pending_.clear();
+    const auto accepts = [&](const QString& family) {
+      if (!text.isEmpty() && !family.contains(text, Qt::CaseInsensitive)) {
+        return false;
+      }
+      if (system.has_value() && !language_families_.contains(family)) {
+        return false;
+      }
+      if (!font_style_filter_reads_tables(filter)) {
+        return index.matches(filter, family, {});
+      }
+      const auto traits = index.cached(family);
+      if (!traits.has_value()) {
+        pending_.append(family);
+        return false;
+      }
+      return index.matches(filter, family, *traits);
+    };
+
+    std::vector<FontListRow> rows;
+    // While searching the Recent section hides: the matches are the list.
+    if (text.isEmpty()) {
+      std::vector<FontListRow> recent_rows;
+      for (const auto& family : recent_) {
+        if (accepts(family)) {
+          recent_rows.push_back({FontPickerRowKind::family, family, true});
+        }
+      }
+      if (!recent_rows.empty()) {
+        rows.push_back({FontPickerRowKind::recent_header, FontPickerCombo::tr("Recent"), true});
+        rows.insert(rows.end(), recent_rows.begin(), recent_rows.end());
+        rows.push_back({FontPickerRowKind::all_header, FontPickerCombo::tr("All Fonts"), false});
+      }
+    }
+    for (const auto& family : families_) {
+      if (accepts(family)) {
+        rows.push_back({FontPickerRowKind::family, family, false});
+      }
+    }
+    pending_.removeDuplicates();
+    model_->set_rows(std::move(rows));
+
+    if (!previous_family.isEmpty() && select_family(previous_family, previous_recent)) {
+      list_.scrollTo(list_.currentIndex());
+    } else {
+      step_to_family_row(list_, -1, 1);
+    }
+    update_classification();
+  }
+
+  // Selects `family`'s row, in the Recent section when `recent` and it is there.
+  bool select_family(const QString& family, bool recent) {
+    QModelIndex fallback;
+    for (int row = 0; row < model_->rowCount(); ++row) {
+      const auto index = model_->index(row, 0);
+      if (!is_family_row(index) || index.data(Qt::DisplayRole).toString() != family) {
+        continue;
+      }
+      if (index.data(kFontPickerRecentRowRole).toBool() == recent) {
+        list_.setCurrentIndex(index);
+        return true;
+      }
+      if (!fallback.isValid()) {
+        fallback = index;
+      }
+    }
+    if (fallback.isValid()) {
+      list_.setCurrentIndex(fallback);
+      return true;
+    }
+    return false;
+  }
+
+  [[nodiscard]] bool classifying() const noexcept { return slice_timer_.isActive(); }
+
+private:
+  void update_classification() {
+    pending_total_ = std::max(pending_total_, static_cast<int>(pending_.size()));
+    if (pending_.isEmpty()) {
+      slice_timer_.stop();
+      status_.hide();
+      pending_total_ = 0;
+      return;
+    }
+    show_progress();
+    if (!slice_timer_.isActive()) {
+      since_rebuild_.start();
+      slice_timer_.start();
+    }
+  }
+
+  void show_progress() {
+    const int total = std::max(1, pending_total_);
+    const int done = total - static_cast<int>(pending_.size());
+    status_.setText(FontPickerCombo::tr("Reading font styles... %1%").arg(done * 100 / total));
+    status_.show();
+  }
+
+  void classify_slice() {
+    QElapsedTimer slice;
+    slice.start();
+    auto& index = FontStyleIndex::instance();
+    while (!pending_.isEmpty() && slice.elapsed() < 12) {
+      index.classify(pending_.takeFirst());
+    }
+    if (pending_.isEmpty()) {
+      slice_timer_.stop();
+      index.save();
+      rebuild();
+      return;
+    }
+    show_progress();
+    if (since_rebuild_.elapsed() > 400) {  // let matches appear while the rest is read
+      since_rebuild_.restart();
+      rebuild();  // gathers what is still unread
+    }
+  }
+
+  QListView& list_;
+  QLineEdit& search_;
+  QComboBox& style_;
+  QComboBox& language_;
+  QLabel& status_;
+  FontListModel* model_{nullptr};
+  QStringList families_;
+  QStringList recent_;
+  QSet<QString> language_families_;
+  std::optional<QFontDatabase::WritingSystem> language_families_system_;
+  QStringList pending_;
+  int pending_total_{0};
+  QTimer slice_timer_;
+  QElapsedTimer since_rebuild_;
 };
 
 }  // namespace
@@ -404,6 +720,13 @@ FontPickerCombo::FontPickerCombo(QWidget* parent) : QFontComboBox(parent) {
     });
   }
   show_name_from_start();
+  // Every user pick (the popup's and a name typed into the closed control) feeds the popup's
+  // Recent section (GitHub issue 569).
+  connect(this, &QComboBox::activated, this, [this] {
+    if (const auto family = currentText(); findText(family, Qt::MatchExactly | Qt::MatchCaseSensitive) >= 0) {
+      record_recent_font_family(family);
+    }
+  });
 }
 
 void FontPickerCombo::show_name_from_start() {
@@ -501,19 +824,69 @@ void FontPickerCombo::showPopup() {
   layout->setContentsMargins(6, 6, 6, 6);
   layout->setSpacing(6);
 
+  // Search, then the Style and Language filters (GitHub issue 570). The combos never take focus,
+  // so typing and the arrow keys stay in the search box.
+  auto* filter_row = new QHBoxLayout();
+  filter_row->setContentsMargins(0, 0, 0, 0);
+  filter_row->setSpacing(4);
   auto* search = new QLineEdit(popup);
   search->setObjectName(QStringLiteral("textFontPickerSearchEdit"));
   search->setPlaceholderText(tr("Search fonts..."));
   search->setClearButtonEnabled(true);
-  layout->addWidget(search);
+  filter_row->addWidget(search, 1);
 
-  auto* proxy = new QSortFilterProxyModel(popup);
-  proxy->setSourceModel(model());
-  proxy->setFilterCaseSensitivity(Qt::CaseInsensitive);
+  auto* style_combo = new QComboBox(popup);
+  style_combo->setObjectName(QStringLiteral("textFontPickerStyleCombo"));
+  style_combo->setToolTip(tr("Show only fonts of this style"));
+  style_combo->setFocusPolicy(Qt::NoFocus);
+  style_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  for (const auto filter : font_style_filters()) {
+    style_combo->addItem(style_filter_label(filter), font_style_filter_token(filter));
+  }
+  const auto saved_style = font_style_filter_token(
+      font_style_filter_from_token(app_settings().value(QString::fromLatin1(kFontPickerStyleFilterKey)).toString()));
+  style_combo->setCurrentIndex(std::max(0, style_combo->findData(saved_style)));
+  filter_row->addWidget(style_combo);
+
+  auto* language_combo = new QComboBox(popup);
+  language_combo->setObjectName(QStringLiteral("textFontPickerLanguageCombo"));
+  language_combo->setToolTip(tr("Show only fonts that support this language"));
+  language_combo->setFocusPolicy(Qt::NoFocus);
+  language_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  language_combo->setMinimumContentsLength(9);
+  language_combo->addItem(tr("All Languages"), writing_system_token(QFontDatabase::Any));
+  {
+    std::vector<std::pair<QString, QString>> systems;  // name, token
+    for (const auto system : QFontDatabase::writingSystems()) {
+      if (system != QFontDatabase::Any) {
+        systems.emplace_back(QFontDatabase::writingSystemName(system), writing_system_token(system));
+      }
+    }
+    QCollator collator;
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    std::sort(systems.begin(), systems.end(),
+              [&collator](const auto& a, const auto& b) { return collator.compare(a.first, b.first) < 0; });
+    for (const auto& [name, token] : systems) {
+      language_combo->addItem(name, token);
+    }
+  }
+  const auto saved_language = app_settings().value(QString::fromLatin1(kFontPickerLanguageFilterKey)).toString();
+  language_combo->setCurrentIndex(std::max(0, language_combo->findData(saved_language)));
+  // The closed combo stays narrow; its list is as wide as the longest language name.
+  language_combo->view()->setMinimumWidth(language_combo->view()->sizeHintForColumn(0) + 24);
+  filter_row->addWidget(language_combo);
+  layout->addLayout(filter_row);
+
+  auto* status = new QLabel(popup);
+  status->setObjectName(QStringLiteral("textFontPickerStatusLabel"));
+  status->setFont(scaled_font(font(), 0.9));
+  status->hide();
+  layout->addWidget(status);
 
   auto* list = new QListView(popup);
   list->setObjectName(QStringLiteral("textFontPickerList"));
-  list->setModel(proxy);
+  auto* rows = new FontListFilter(*this, *list, *search, *style_combo, *language_combo, *status, popup);
+  list->setModel(rows->model());
   list->setItemDelegate(new FontListDelegate(*this, list));
   list->setUniformItemSizes(true);
   list->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -542,34 +915,41 @@ void FontPickerCombo::showPopup() {
   search->installEventFilter(new SearchKeyForwarder(list, search));
 
   connect(list, &QListView::entered, popup, [preview](const QModelIndex& index) {
-    if (index.isValid()) {
+    if (is_family_row(index)) {
       preview->set_family(index.data(Qt::DisplayRole).toString());
     }
   });
   connect(list->selectionModel(), &QItemSelectionModel::currentChanged, popup,
           [preview](const QModelIndex& current, const QModelIndex&) {
-            if (current.isValid()) {
+            if (is_family_row(current)) {
               preview->set_family(current.data(Qt::DisplayRole).toString());
             }
           });
-  connect(search, &QLineEdit::textChanged, popup, [list, proxy](const QString& text) {
-    proxy->setFilterFixedString(text);
-    if (!list->currentIndex().isValid() && proxy->rowCount() > 0) {
-      list->setCurrentIndex(proxy->index(0, 0));
-    }
-    if (list->currentIndex().isValid()) {
-      list->scrollTo(list->currentIndex());
-    }
+  connect(search, &QLineEdit::textChanged, popup, [rows] { rows->rebuild(); });
+  connect(style_combo, &QComboBox::currentIndexChanged, popup, [rows, style_combo, search] {
+    auto settings = app_settings();
+    settings.setValue(QString::fromLatin1(kFontPickerStyleFilterKey), style_combo->currentData().toString());
+    rows->rebuild();
+    search->setFocus();
+  });
+  connect(language_combo, &QComboBox::currentIndexChanged, popup, [rows, language_combo, search] {
+    auto settings = app_settings();
+    settings.setValue(QString::fromLatin1(kFontPickerLanguageFilterKey), language_combo->currentData().toString());
+    rows->rebuild();
+    search->setFocus();
   });
 
-  const auto commit = [this, popup, proxy](const QModelIndex& proxy_index) {
-    if (!proxy_index.isValid()) {
+  const auto commit = [this, popup](const QModelIndex& index) {
+    if (!is_family_row(index)) {
       return;
     }
-    const auto source_index = proxy->mapToSource(proxy_index);
-    const auto chosen = source_index.data(Qt::DisplayRole).toString();
+    const auto chosen = index.data(Qt::DisplayRole).toString();
+    const auto source_row = findText(chosen, Qt::MatchExactly | Qt::MatchCaseSensitive);
+    if (source_row < 0) {
+      return;
+    }
     popup->close();
-    setCurrentIndex(source_index.row());  // fires currentFontChanged through the stock combo path
+    setCurrentIndex(source_row);  // fires currentFontChanged through the stock combo path
     // ... unless the control was ALREADY parked on that row while its current font named a
     // different family. A missing font cannot be a row (it is not in the database), so a type
     // layer set in one leaves the closed control showing some other family with the missing name
@@ -582,16 +962,24 @@ void FontPickerCombo::showPopup() {
       setCurrentFont(font);
     }
     setFocus(Qt::OtherFocusReason);  // land focus on a text-option widget, not a dying popup
-    emit activated(currentIndex());  // a user pick, like the stock popup's
+    emit activated(currentIndex());  // a user pick, like the stock popup's (records it as recent)
   };
   connect(list, &QListView::clicked, popup, commit);
   connect(search, &QLineEdit::returnPressed, popup, [list, commit] { commit(list->currentIndex()); });
 
-  // Start on the current family, centered and previewed.
-  const auto current_proxy = proxy->mapFromSource(model()->index(currentIndex(), 0));
-  if (current_proxy.isValid()) {
-    list->setCurrentIndex(current_proxy);
-    list->scrollTo(current_proxy, QAbstractItemView::PositionAtCenter);
+  // Start on the current family, previewed: its Recent row with the list at the top when it has
+  // one (so the Recent section is in view), else its place in the full list, centered.
+  rows->rebuild();
+  list->clearSelection();
+  list->setCurrentIndex(QModelIndex());
+  if (rows->select_family(currentText(), true)) {
+    if (list->currentIndex().data(kFontPickerRecentRowRole).toBool()) {
+      list->scrollToTop();
+    } else {
+      list->scrollTo(list->currentIndex(), QAbstractItemView::PositionAtCenter);
+    }
+  } else {
+    step_to_family_row(*list, -1, 1);
   }
   preview->set_family(currentText());
 
@@ -601,7 +989,7 @@ void FontPickerCombo::showPopup() {
     if (saved.isValid()) {
       popup->resize(saved.expandedTo(popup->minimumSizeHint()));
     } else {
-      popup->resize(QSize(std::max(360, width()), 520).expandedTo(popup->minimumSizeHint()));
+      popup->resize(QSize(std::max(440, width()), 520).expandedTo(popup->minimumSizeHint()));
     }
   }
   auto position = mapToGlobal(QPoint(0, height()));

@@ -18516,6 +18516,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Search fonts...</source>
         <translation>글꼴 검색...</translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation>모든 스타일</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>세리프</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>산세리프</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>슬랩 세리프</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>스크립트</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>장식</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>기호</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>고정폭</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>가변</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>최근 사용</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>모든 글꼴</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>글꼴 스타일을 읽는 중... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>이 스타일의 글꼴만 표시</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>이 언어를 지원하는 글꼴만 표시</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>모든 언어</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
