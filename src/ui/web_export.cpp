@@ -49,6 +49,7 @@
 #include <QPainter>
 #include <QPointer>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScreen>
 #include <QRadioButton>
 #include <QScrollArea>
@@ -1659,6 +1660,117 @@ PaletteRows add_palette_rows(QFormLayout* form, QWidget* parent, const QString& 
   return rows;
 }
 
+// A label whose size hints also fit `widest` (measured with the polished font when asked), so
+// a longer text never moves the row or clips.
+class WideLabel final : public QLabel {
+public:
+  WideLabel(QString widest, QWidget* parent) : QLabel(parent), widest_(std::move(widest)) {}
+  [[nodiscard]] QSize sizeHint() const override { return widened(QLabel::sizeHint()); }
+  [[nodiscard]] QSize minimumSizeHint() const override { return widened(QLabel::minimumSizeHint()); }
+
+private:
+  [[nodiscard]] QSize widened(QSize hint) const {
+    const auto margins = contentsMargins();
+    hint.setWidth(
+        std::max(hint.width(), fontMetrics().horizontalAdvance(widest_) + margins.left() + margins.right() + 4));
+    return hint;
+  }
+  QString widest_;
+};
+
+// A push button sized for its text or `other` (Play and Pause), whichever is wider.
+class WidePushButton final : public QPushButton {
+public:
+  WidePushButton(const QString& text, QString other, QWidget* parent)
+      : QPushButton(text, parent), other_(std::move(other)) {}
+  [[nodiscard]] QSize sizeHint() const override { return widened(QPushButton::sizeHint()); }
+  [[nodiscard]] QSize minimumSizeHint() const override { return widened(QPushButton::minimumSizeHint()); }
+
+private:
+  [[nodiscard]] QSize widened(QSize hint) const {
+    const auto extra = fontMetrics().horizontalAdvance(other_) - fontMetrics().horizontalAdvance(text());
+    if (extra > 0) {
+      hint.rwidth() += extra;
+    }
+    return hint;
+  }
+  QString other_;
+};
+
+// Two groups on one row (the compare buttons left, the zoom controls right), or the second
+// under the first when the row is narrower than both at their minimum, so no button is ever
+// squeezed below its text (GitHub issue 571). Its minimum width is the wider group's; while
+// wrapped it is a row taller.
+class WrappingRow final : public QWidget {
+public:
+  WrappingRow(QWidget* first, QWidget* second, int spacing, QWidget* parent)
+      : QWidget(parent), first_(first), second_(second), spacing_(spacing) {
+    first_->setParent(this);
+    second_->setParent(this);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    setProperty("webExportWrapped", false);
+  }
+
+  [[nodiscard]] QSize sizeHint() const override {
+    const auto first = first_->sizeHint();
+    const auto second = second_->sizeHint();
+    return {first.width() + spacing_ + second.width(), height_for(wrapped_)};
+  }
+  [[nodiscard]] QSize minimumSizeHint() const override {
+    return {std::max(first_->minimumSizeHint().width(), second_->minimumSizeHint().width()), height_for(wrapped_)};
+  }
+
+protected:
+  bool event(QEvent* event) override {
+    // A child's size changed (a longer zoom label, a language change): measure again.
+    if (event->type() == QEvent::LayoutRequest) {
+      arrange();
+      updateGeometry();
+    }
+    return QWidget::event(event);
+  }
+  void resizeEvent(QResizeEvent* event) override {
+    QWidget::resizeEvent(event);
+    arrange();
+  }
+
+private:
+  [[nodiscard]] int height_for(bool wrapped) const {
+    const auto first = first_->minimumSizeHint().expandedTo(first_->sizeHint()).height();
+    const auto second = second_->minimumSizeHint().expandedTo(second_->sizeHint()).height();
+    return wrapped ? first + spacing_ + second : std::max(first, second);
+  }
+
+  void arrange() {
+    const auto first_min = first_->minimumSizeHint().width();
+    const auto second_min = second_->minimumSizeHint().width();
+    const bool wrap = first_min + spacing_ + second_min > width();
+    if (wrap != wrapped_) {
+      wrapped_ = wrap;
+      setProperty("webExportWrapped", wrap);
+      updateGeometry();
+    }
+    const auto first_height = first_->sizeHint().height();
+    const auto second_height = second_->sizeHint().height();
+    if (wrap) {
+      const auto second_width = std::clamp(second_->sizeHint().width(), second_min, std::max(second_min, width()));
+      first_->setGeometry(0, 0, width(), first_height);
+      second_->setGeometry(width() - second_width, first_height + spacing_, second_width, second_height);
+      return;
+    }
+    const auto row_height = std::max(first_height, second_height);
+    const auto second_width =
+        std::clamp(width() - spacing_ - first_min, second_min, std::max(second_min, second_->sizeHint().width()));
+    first_->setGeometry(0, (row_height - first_height) / 2, width() - spacing_ - second_width, first_height);
+    second_->setGeometry(width() - second_width, (row_height - second_height) / 2, second_width, second_height);
+  }
+
+  QWidget* first_;
+  QWidget* second_;
+  int spacing_;
+  bool wrapped_{false};
+};
+
 [[nodiscard]] QGroupBox* make_group(QWidget* parent, const QString& title, const char* object_name) {
   auto* group = new QGroupBox(title, parent);
   group->setObjectName(QLatin1String(object_name));
@@ -2210,13 +2322,18 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   const std::array<WebExportPane*, 4> panes{main_pane, original_pane, half_pane, quarter_pane};
   preview_column->addLayout(panes_grid, 1);
 
-  auto* view_row = new QHBoxLayout();
+  // The compare buttons and the zoom controls share a row, or wrap onto two when the dialog
+  // is too narrow for both (WrappingRow): every button keeps its whole text.
+  auto* compare_group = new QWidget(&dialog);
+  compare_group->setObjectName(QStringLiteral("webExportCompareButtons"));
+  auto* view_row = new QHBoxLayout(compare_group);
+  view_row->setContentsMargins(0, 0, 0, 0);
   view_row->setSpacing(4);
-  view_row->addWidget(new QLabel(QObject::tr("Compare:"), &dialog));
+  view_row->addWidget(new QLabel(QObject::tr("Compare:"), compare_group));
   auto* compare_buttons = new QButtonGroup(&dialog);
   compare_buttons->setExclusive(true);
   const auto make_compare_button = [&](const QString& text, const char* object_name, WebExportCompare mode) {
-    auto* button = new QPushButton(text, &dialog);
+    auto* button = new QPushButton(text, compare_group);
     button->setObjectName(QLatin1String(object_name));
     button->setCheckable(true);
     button->setFocusPolicy(Qt::NoFocus);
@@ -2230,7 +2347,13 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   (void)make_compare_button(QObject::tr("2 x 2"), "webExportCompareQuad", WebExportCompare::Quad)
       ->setToolTip(QObject::tr("The original, the result, and the result at 50% and 25% of the quality"));
   view_row->addStretch(1);
+  auto* zoom_group = new QWidget(&dialog);
+  zoom_group->setObjectName(QStringLiteral("webExportZoomControls"));
+  auto* zoom_row = new QHBoxLayout(zoom_group);
+  zoom_row->setContentsMargins(0, 0, 0, 0);
+  zoom_row->setSpacing(4);
   // Framed push buttons like the compare buttons (GitHub issue 571), so they read as buttons.
+  // No explicit minimum width: a push button never shrinks below its text.
   const auto make_zoom_button = [&dialog](const char* object_name, const QString& text, const QString& tooltip) {
     auto* button = new QPushButton(text, &dialog);
     button->setObjectName(QLatin1String(object_name));
@@ -2238,7 +2361,6 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     button->setAccessibleName(tooltip);
     button->setAutoDefault(false);
     button->setFocusPolicy(Qt::NoFocus);
-    button->setMinimumWidth(ui_text_length(28));
     return button;
   };
   auto* zoom_fit = make_zoom_button("webExportZoomFit", QObject::tr("Fit"), QObject::tr("Fit the image in the preview"));
@@ -2246,16 +2368,19 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                     QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
   auto* zoom_out = make_zoom_button("webExportZoomOut", QStringLiteral("-"), QObject::tr("Zoom out"));
   auto* zoom_in = make_zoom_button("webExportZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
-  auto* zoom_label = new QLabel(&dialog);
+  // As wide as the longest text it can show (the zoom stops at 1600%), so it neither jumps
+  // nor clips.
+  auto* zoom_label = new WideLabel(QObject::tr("Fit (%1%)").arg(1600), zoom_group);
   zoom_label->setObjectName(QStringLiteral("webExportZoomLabel"));
-  zoom_label->setMinimumWidth(ui_text_length(72));
   zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  view_row->addWidget(zoom_fit);
-  view_row->addWidget(zoom_100);
-  view_row->addWidget(zoom_out);
-  view_row->addWidget(zoom_in);
-  view_row->addWidget(zoom_label);
-  preview_column->addLayout(view_row);
+  for (auto* button : {zoom_fit, zoom_100, zoom_out, zoom_in}) {
+    button->setParent(zoom_group);
+    zoom_row->addWidget(button);
+  }
+  zoom_row->addWidget(zoom_label);
+  auto* view_controls = new WrappingRow(compare_group, zoom_group, 4, &dialog);
+  view_controls->setObjectName(QStringLiteral("webExportViewRow"));
+  preview_column->addWidget(view_controls);
 
   // Playback for an animated result (shown only then): Play/Pause, previous and next frame,
   // the frame counter with the frame's delay, and Loop.
@@ -2264,10 +2389,10 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* playback_layout = new QHBoxLayout(playback_row);
   playback_layout->setContentsMargins(0, 0, 0, 0);
   playback_layout->setSpacing(4);
-  auto* play_button = new QPushButton(QObject::tr("Pause"), playback_row);
+  // Wide enough for Play and Pause alike, so it keeps its width as it toggles.
+  auto* play_button = new WidePushButton(QObject::tr("Pause"), QObject::tr("Play"), playback_row);
   play_button->setObjectName(QStringLiteral("webExportPlayButton"));
   play_button->setFocusPolicy(Qt::NoFocus);
-  play_button->setMinimumWidth(ui_text_length(72));
   auto* previous_frame = make_zoom_button("webExportPreviousFrameButton", QStringLiteral("<"),
                                           QObject::tr("Previous frame"));
   auto* next_frame = make_zoom_button("webExportNextFrameButton", QStringLiteral(">"), QObject::tr("Next frame"));

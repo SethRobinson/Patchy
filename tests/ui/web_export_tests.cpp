@@ -1798,6 +1798,90 @@ void ui_web_export_settings_column_fits_every_language() {
   CHECK(clipped.isEmpty());
 }
 
+// At the dialog's minimum size every button and label under the preview (compare, zoom,
+// playback, footer) shows its whole text, in every shipped language, for a still and an
+// animated document: the zoom controls move under the compare buttons when the row is too
+// narrow (GitHub issue 571 follow-up). Captures web_export_minimum_size and
+// web_export_minimum_size_animated in English.
+void ui_web_export_preview_buttons_fit_at_minimum_size() {
+  WebExportSettingsGuard guard;
+  LanguageRestorer language;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto animated = animation_fixture_document(window);
+  const auto still = textured_document(320, 200);
+  const auto settle = [] {
+    for (int pass = 0; pass < 4; ++pass) {
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+      QApplication::processEvents();
+    }
+  };
+  QStringList clipped;
+  for (const auto& info : patchy::ui::LocalizationManager::instance().languages()) {
+    CHECK(patchy::ui::LocalizationManager::instance().set_language(info.code, false));
+    QApplication::processEvents();
+    for (const bool animate : {false, true}) {
+      with_web_export_dialog(animate ? animated : still, [&](QDialog& dialog) {
+        auto* scroll = dialog.findChild<QScrollArea*>(QStringLiteral("webExportControlsScroll"));
+        auto* playback = dialog.findChild<QWidget*>(QStringLiteral("webExportPlaybackControls"));
+        auto* row = dialog.findChild<QWidget*>(QStringLiteral("webExportViewRow"));
+        CHECK(scroll != nullptr && playback != nullptr && row != nullptr);
+        if (scroll == nullptr || playback == nullptr || row == nullptr) {
+          return;
+        }
+        if (animate) {
+          auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+          auto* gif_animate = dialog.findChild<QCheckBox*>(QStringLiteral("webExportGifAnimateCheck"));
+          CHECK(list != nullptr && gif_animate != nullptr);
+          if (list == nullptr || gif_animate == nullptr) {
+            return;
+          }
+          list->setCurrentItem(list->topLevelItem(list->topLevelItemCount() - 1));
+          gif_animate->setChecked(true);
+          CHECK(wait_until([&] { return playback->isVisible(); }));
+        }
+        for (int attempt = 0; attempt < 3; ++attempt) {
+          settle();
+          dialog.resize(dialog.minimumSize());
+        }
+        settle();
+        for (auto* widget : dialog.findChildren<QWidget*>()) {
+          if (!widget->isVisible() || scroll->isAncestorOf(widget)) {
+            continue;
+          }
+          auto* label = qobject_cast<QLabel*>(widget);
+          auto* button = qobject_cast<QAbstractButton*>(widget);
+          if ((label == nullptr || label->wordWrap() || label->text().isEmpty()) &&
+              (button == nullptr || button->text().isEmpty())) {
+            continue;
+          }
+          const auto right = widget->mapTo(&dialog, QPoint(widget->width(), 0)).x();
+          const bool squeezed = widget->minimumWidth() != widget->maximumWidth() &&
+                                widget->width() < widget->sizeHint().width();
+          if (squeezed || right > dialog.width()) {
+            clipped << QStringLiteral("%1 (%2): %3 %4 '%5' width %6 hint %7 right %8 of %9")
+                           .arg(info.code, animate ? QStringLiteral("animated") : QStringLiteral("still"),
+                                QLatin1String(widget->metaObject()->className()), widget->objectName(),
+                                label != nullptr ? label->text() : button->text())
+                           .arg(widget->width())
+                           .arg(widget->sizeHint().width())
+                           .arg(right)
+                           .arg(dialog.width());
+          }
+        }
+        if (info.code == QStringLiteral("en")) {
+          capture_widget_artifact(animate ? "web_export_minimum_size_animated" : "web_export_minimum_size", dialog);
+        }
+      });
+    }
+  }
+  clipped.removeDuplicates();
+  for (const auto& line : clipped) {
+    std::fprintf(stderr, "  clipped in %s\n", qPrintable(line));
+  }
+  CHECK(clipped.isEmpty());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> web_export_tests() {
@@ -1824,5 +1908,6 @@ std::vector<patchy::test::TestCase> web_export_tests() {
        ui_web_export_dialog_keeps_size_and_compare_mode_through_cancel},
       {"ui_web_export_quad_compare_and_presets_in_the_dialog", ui_web_export_quad_compare_and_presets_in_the_dialog},
       {"ui_web_export_settings_column_fits_every_language", ui_web_export_settings_column_fits_every_language},
+      {"ui_web_export_preview_buttons_fit_at_minimum_size", ui_web_export_preview_buttons_fit_at_minimum_size},
   };
 }

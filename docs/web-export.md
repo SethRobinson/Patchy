@@ -161,7 +161,13 @@ size; a format with nothing to reduce (full-color PNG, lossless) shows a note in
 The two extra jobs go to the second lane right after the selected format's job, only while 2 x 2
 is on, so AVIF and JPEG XL stay off the UI thread like every encode; a tile of an animated result
 shows frame 1. The zoom controls (Fit, 100%, -, +) and the frame steppers are framed push
-buttons. `ScaledImageCache` keeps up to 64 reductions per size by image,
+buttons with no explicit minimum width, so none is ever narrower than its text. The compare
+buttons and the zoom controls share a row (`WrappingRow`, `webExportViewRow`) that puts the zoom
+controls under the compare buttons when the dialog is too narrow for both, which keeps the
+dialog's minimum width small; the zoom label is sized for its longest text ("Fit (1600%)") and
+Play/Pause for the wider of its two texts. `ui_web_export_preview_buttons_fit_at_minimum_size`
+checks every button and label under the preview at the minimum size in every language, still
+and animated. `ScaledImageCache` keeps up to 64 reductions per size by image,
 so an animation's frames are reduced once each and then reused as it loops.
 
 ### Animation playback
@@ -247,7 +253,9 @@ Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defau
 `ui_web_export_dialog_keeps_size_and_compare_mode_through_cancel`,
 `ui_web_export_quad_compare_and_presets_in_the_dialog` (captures `web_export_presets`,
 `web_export_png_transparency` and `web_export_quad`),
-`ui_web_export_settings_column_fits_every_language`, `ui_web_export_animation_plays_in_the_preview`
+`ui_web_export_settings_column_fits_every_language`, `ui_web_export_preview_buttons_fit_at_minimum_size`
+(captures `web_export_minimum_size` and `web_export_minimum_size_animated`),
+`ui_web_export_animation_plays_in_the_preview`
 (captures `web_export_gif_animation`, `web_export_png_animation` and `web_export_transparency_fill` from `test-fixtures/psd/web-export-animation.psd`, the #198
 Animation Preview document made by Patchy), `ui_web_export_dialog_previews_and_saves` (captures
 `web_export_jpeg_split`, `web_export_png_palette`, `web_export_gif_side_by_side`,
