@@ -1116,3 +1116,15 @@ THE SOFTWARE.
 
 --------------------------------------------------------------------------------
 ```
+
+## GIMP plug-in protocol layouts (libgimpbase headers)
+
+Patchy's GIMP 3 plug-in host (`src/plugins/gimp/`) uses numerical parameters
+and data structure layouts (message numbers, parameter type numbers, field order
+and widths) from `gimpprotocol.h` and `gimpwire.h` of LIBGIMP's libgimpbase, GIMP
+3.2.6, Copyright (C) 1995-1997 Peter Mattis and Spencer Kimball, licensed under
+the GNU Lesser General Public License version 3 or later
+(<https://www.gnu.org/licenses/lgpl-3.0.html>). LGPL-3 section 3 permits this use
+of a header's numerical parameters and data structure layouts. No GIMP code,
+library, plug-in or data file is included in or distributed with Patchy; the
+user's own GIMP 3 installation provides the plug-ins at run time.

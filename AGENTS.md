@@ -15,7 +15,7 @@ This file and every `docs/*.md` stay at or below 30,000 bytes (`python scripts/c
 - Commit automatically only finished, verified work with its handoff done, never failing or half-finished states. Never push unless Seth explicitly asks in the current request. A push go-ahead covers only that commit. A release request covers build and test only: stop for an explicit go-ahead before any upload, push, publish, or update announcement.
 - Never post or comment on GitHub issues, PRs, or discussions unless asked in the current request; offer a draft reply. Read the whole thread first (`gh issue view N --json body,comments`; piped `--comments` drops the body): continue from any reply Seth already made.
 - Never add AI attribution, generated-with text, or an OpenAI/Codex/Claude co-author to commits or pull requests. Keep commit messages to a concise subject and at most one short supporting line. Cite issues as `(#NN)`, never after a closing keyword (any form of fix, close, resolve) in a commit or PR: a push to main closes the issue, but issues close only when the fix ships; label it `fixed in main`.
-- Automation confined to Patchy is authorized: scripted clicks, typing, and direct captures of its windows and hosted plug-in windows (including KPT) need no further permission. Desktop screenshots (even cropped afterward), global mouse/keyboard input (`SendInput`), Computer Use, and control of other apps require explicit authorization in the current request. Adobe Photoshop COM (`DoJavaScript`, Action Manager) is always authorized for capture, verification, and acceptance. Use task-owned instances for unattended work; protect unsaved documents and unrelated processes. See [docs/testing.md](docs/testing.md).
+- Automation confined to Patchy is authorized: scripted clicks, typing, and direct captures of its windows and hosted plug-in windows (8BF ones including KPT, and the GIMP 3 plug-ins Patchy starts) need no further permission. Desktop screenshots (even cropped afterward), global mouse/keyboard input (`SendInput`), Computer Use, and control of other apps require explicit authorization in the current request. Adobe Photoshop COM (`DoJavaScript`, Action Manager) is always authorized for capture, verification, and acceptance. Use task-owned instances for unattended work; protect unsaved documents and unrelated processes. See [docs/testing.md](docs/testing.md).
 - Build/test housekeeping needs no further confirmation: create, rename, replace, or delete generated build artifacts, temporary executable backups, test-owned socket files, logs, and scratch files inside this repository's build or test-output directories after verifying exact paths and ownership. Stopping processes launched for the current run is authorized. Not covered: user documents, fixtures, sources, unrelated files/processes, or a running user app/connector.
 - **Destructive deletes.** No recursive or wildcard delete (`rm -rf`, `rmdir /s`, `del /s`, `Remove-Item -Recurse`, `remove_all`, `removeRecursively`) anywhere may target a bare variable or rely on the current directory. Spell a literal part of the path at the delete (`${ROOT:?}/build/flatpak-publish`, `%REPO%\build\package\installer`, a `patchy-` mktemp prefix) after checking each variable is set and right (the repo root holds `CMakeLists.txt`). `QDir("")` is the cwd. Tests delete folders only through `remove_test_scratch_dir`/`remove_test_scratch_tree` (tests/test_scratch_remove.hpp). Agents `rm` only a checked full literal path. Stop processes by PID, not name.
 - Supported Windows, macOS, and Linux Debug and Release builds must have zero compiler, linker, and `lrelease` warnings. Keep warnings non-fatal. Fix Patchy-owned code explicitly. For vendored sources compiled into Patchy-owned targets, scope a suppression to one source and diagnostic. See [docs/platform.md](docs/platform.md).
@@ -110,61 +110,62 @@ Read these before acting in the named area:
 
 ## Feature index
 
-*(legal)* marks a feature with a boundary recorded in [docs/legal-constraints.md](docs/legal-constraints.md): read that entry before changing the feature.
+*(legal)* marks a feature with a boundary recorded in [legal-constraints.md](docs/legal-constraints.md): read that entry before changing the feature.
 
 - **Smart Objects and Smart Filters** *(legal)*: [smart-objects.md](docs/smart-objects.md), editing and linked/placed authoring in [smart-object-editing.md](docs/smart-object-editing.md), the native-filter calibration in [smart-filters-native.md](docs/smart-filters-native.md) (table-described filters: [smart-filters-pixelate-render.md](docs/smart-filters-pixelate-render.md), [smart-filters-distort-stylize.md](docs/smart-filters-distort-stylize.md); Image > Adjustments entries: [smart-filters-adjustments.md](docs/smart-filters-adjustments.md)).
-- **Liquify** *(legal)*: [docs/liquify.md](docs/liquify.md).
-- **Perspective Planes** *(legal)*: [docs/perspective-planes.md](docs/perspective-planes.md); an edit stays on the plane it starts on.
-- **Warp:** [docs/warp.md](docs/warp.md).
-- **Brush tips, dynamics, Flow/Airbrush, Pattern Stamp, and ABR** *(legal)*: [docs/brushes.md](docs/brushes.md).
-- **Mixer Brush pickup engine and stroke Smoothing** *(legal)*: [docs/mixer.md](docs/mixer.md).
-- **Healing Brush, Spot Healing, Patch tool, Remove Object (dialog, variations, tone match), retouch Sample, Clone source** *(legal)*: [docs/healing.md](docs/healing.md); Red Eye: [docs/red-eye.md](docs/red-eye.md).
-- **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md). CMYK: [docs/cmyk.md](docs/cmyk.md).
-- **RGB profiles (convert on open, Convert to Color Profile):** [docs/rgb-profiles.md](docs/rgb-profiles.md). RGB is always shown as sRGB; sRGB is detected by colorants and curves, never bytes.
-- **16/32-bit editing (on; `PATCHY_DEEP_EDITING=0` off):** [docs/high-bit-depth.md](docs/high-bit-depth.md).
+- **Liquify** *(legal)*: [liquify.md](docs/liquify.md).
+- **Perspective Planes** *(legal)*: [perspective-planes.md](docs/perspective-planes.md); an edit stays on the plane it starts on.
+- **Warp:** [warp.md](docs/warp.md).
+- **Brush tips, dynamics, Flow/Airbrush, Pattern Stamp, and ABR** *(legal)*: [brushes.md](docs/brushes.md).
+- **Mixer Brush pickup engine and stroke Smoothing** *(legal)*: [mixer.md](docs/mixer.md).
+- **Healing Brush, Spot Healing, Patch tool, Remove Object (dialog, variations, tone match), retouch Sample, Clone source** *(legal)*: [healing.md](docs/healing.md); Red Eye: [red-eye.md](docs/red-eye.md).
+- **Palette mode:** [palette-mode.md](docs/palette-mode.md). CMYK: [cmyk.md](docs/cmyk.md).
+- **RGB profiles (convert on open, Convert to Color Profile):** [rgb-profiles.md](docs/rgb-profiles.md). RGB is always shown as sRGB; sRGB is detected by colorants and curves, never bytes.
+- **16/32-bit editing (on; `PATCHY_DEEP_EDITING=0` off):** [high-bit-depth.md](docs/high-bit-depth.md).
 - **File formats, PSB, flat-image alpha, and the open-dialog filter-string contract:** [file-formats.md](docs/file-formats.md); HEIF in [heif.md](docs/heif.md), layered TIFF in [tiff.md](docs/tiff.md), raw in [camera-raw.md](docs/camera-raw.md), Affinity in [af-format.md](docs/af-format.md), Paint.NET in [pdn-format.md](docs/pdn-format.md), animation in [animation.md](docs/animation.md). File Info metadata: [file-info.md](docs/file-info.md); TrustMark watermarks: [watermarks.md](docs/watermarks.md).
-- **JPEG XR, JPEG XL, JPEG 2000, Radiance HDR, OpenEXR, AVIF:** [docs/jxr.md](docs/jxr.md), [docs/jxl.md](docs/jxl.md), [docs/hdr-formats.md](docs/hdr-formats.md), [docs/avif.md](docs/avif.md) *(legal: codec rules)*.
-- **Proton (.rttex), DDS (.dds) and OpenRaster (.ora):** [docs/rttex.md](docs/rttex.md), [docs/dds.md](docs/dds.md), [docs/ora.md](docs/ora.md) (clean-room).
-- **GIMP .xcf import** *(legal)*: [docs/xcf.md](docs/xcf.md). Clean-room; GIMP-only blend modes are Patchy modes a PSD save bakes.
-- **Krita (.kra) import** *(legal)*: [docs/kra.md](docs/kra.md). Clean-room from files Krita writes; never read Krita or libkra source.
-- **PDF import/export:** [docs/pdf.md](docs/pdf.md); timings in [docs/pdf-performance.md](docs/pdf-performance.md).
-- **Artboards (model, PSD `artb`/`artd`, tool, exports):** [docs/artboards.md](docs/artboards.md). Artboards stay top-level groups; nothing infers one from edit history.
-- **Document channels:** [docs/channels.md](docs/channels.md).
-- **Resolution and measurement units:** [docs/resolution-units.md](docs/resolution-units.md).
-- **Image Size resampling:** [docs/resampling.md](docs/resampling.md).
+- **JPEG XR, JPEG XL, JPEG 2000, Radiance HDR, OpenEXR, AVIF:** [jxr.md](docs/jxr.md), [jxl.md](docs/jxl.md), [hdr-formats.md](docs/hdr-formats.md), [avif.md](docs/avif.md) *(legal: codec rules)*.
+- **Proton (.rttex), DDS (.dds) and OpenRaster (.ora):** [rttex.md](docs/rttex.md), [dds.md](docs/dds.md), [ora.md](docs/ora.md) (clean-room).
+- **GIMP .xcf import** *(legal)*: [xcf.md](docs/xcf.md). Clean-room; GIMP-only blend modes are Patchy modes a PSD save bakes.
+- **Krita (.kra) import** *(legal)*: [kra.md](docs/kra.md). Clean-room from files Krita writes; never read Krita or libkra source.
+- **PDF import/export:** [pdf.md](docs/pdf.md); timings in [pdf-performance.md](docs/pdf-performance.md).
+- **Artboards (model, PSD `artb`/`artd`, tool, exports):** [artboards.md](docs/artboards.md). Artboards stay top-level groups; nothing infers one from edit history.
+- **Document channels:** [channels.md](docs/channels.md).
+- **Resolution and measurement units:** [resolution-units.md](docs/resolution-units.md).
+- **Image Size resampling:** [resampling.md](docs/resampling.md).
 - **PSD adjustment layers, clipping masks, layer styles, and Photoshop text:** [ps-compat.md](docs/ps-compat.md), [file-formats.md](docs/file-formats.md), [adjustments-calibration.md](docs/adjustments-calibration.md), and the Photoshop text model in [text-render-calibration.md](docs/text-render-calibration.md). Photoshop 5.x `tySh` type records (no EngineData; a fixed layout) are in [psd-legacy-text.md](docs/psd-legacy-text.md).
-- **Filter Gallery, recipes, Saved Looks, and visual filters** *(legal)*: [docs/filters.md](docs/filters.md), shipped Looks in [docs/builtin-looks.md](docs/builtin-looks.md), [docs/smart-objects.md](docs/smart-objects.md).
-- **Blend modes:** [docs/blend-modes.md](docs/blend-modes.md).
-- **Themes (.patchytheme files, packages, ThemeManager apply):** [docs/theme-files.md](docs/theme-files.md) over [docs/ui-conventions.md](docs/ui-conventions.md)'s Dark/Light; bundled: [docs/bundled-themes.md](docs/bundled-themes.md).
-- **Layer-style and pattern presets:** [docs/style-presets.md](docs/style-presets.md).
-- **Gradients and GRD:** [docs/gradients.md](docs/gradients.md).
-- **Text tool, Character panel and Paragraph panel:** [docs/text-tool.md](docs/text-tool.md), text inside shapes in [docs/area-text.md](docs/area-text.md), with the Photoshop layout/measurement calibration in [docs/text-render-calibration.md](docs/text-render-calibration.md).
-- **Photoshop's Txt2 text engine block:** [docs/txt2.md](docs/txt2.md), read before any Txt2, text-run or list-style work. Photoshop trusts Txt2 over the TySh: a new TySh key needs its Txt2 twin. Vertical type and paragraph direction are in both text docs.
-- **Bundled, wasm-aliased and user-added fonts:** [docs/fonts.md](docs/fonts.md).
-- **Selection tools** *(legal)*: [docs/selection-tools.md](docs/selection-tools.md). ML Select Subject and Object Selection: [docs/ai-selection.md](docs/ai-selection.md); one prompt per solve, no negative points or mask feedback. Select Subject/Background and Remove Background are held back (CMake `PATCHY_ENABLE_SELECT_SUBJECT`, default off) pending patent review of US 12051225.
-- **Free Transform Skew/Distort/Perspective, session steps (undo inside a pending transform) and the transform drag preview:** [docs/free-transform.md](docs/free-transform.md).
+- **Filter Gallery, recipes, Saved Looks, and visual filters** *(legal)*: [filters.md](docs/filters.md), shipped Looks in [builtin-looks.md](docs/builtin-looks.md), [smart-objects.md](docs/smart-objects.md).
+- **Blend modes:** [blend-modes.md](docs/blend-modes.md).
+- **Themes (.patchytheme files, packages, ThemeManager apply):** [theme-files.md](docs/theme-files.md) over [ui-conventions.md](docs/ui-conventions.md)'s Dark/Light; bundled: [bundled-themes.md](docs/bundled-themes.md).
+- **Layer-style and pattern presets:** [style-presets.md](docs/style-presets.md).
+- **Gradients and GRD:** [gradients.md](docs/gradients.md).
+- **Text tool, Character panel and Paragraph panel:** [text-tool.md](docs/text-tool.md), text inside shapes in [area-text.md](docs/area-text.md), with the Photoshop layout/measurement calibration in [text-render-calibration.md](docs/text-render-calibration.md).
+- **Photoshop's Txt2 text engine block:** [txt2.md](docs/txt2.md), read before any Txt2, text-run or list-style work. Photoshop trusts Txt2 over the TySh: a new TySh key needs its Txt2 twin. Vertical type and paragraph direction are in both text docs.
+- **Bundled, wasm-aliased and user-added fonts:** [fonts.md](docs/fonts.md).
+- **Selection tools** *(legal)*: [selection-tools.md](docs/selection-tools.md). ML Select Subject and Object Selection: [ai-selection.md](docs/ai-selection.md); one prompt per solve, no negative points or mask feedback. Select Subject/Background and Remove Background are held back (CMake `PATCHY_ENABLE_SELECT_SUBJECT`, default off) pending patent review of US 12051225.
+- **Free Transform Skew/Distort/Perspective, session steps (undo inside a pending transform) and the transform drag preview:** [free-transform.md](docs/free-transform.md).
 - **Shape tools, the Fill tool and Fill command, Free Transform modifiers, pixel-grid snapping (`core/pixel_grid.hpp`), Merge Down, and the Background lock:** [tools.md](docs/tools.md); vector merges and Flatten Image in [layer-merging.md](docs/layer-merging.md); the Crop tool in [crop-tool.md](docs/crop-tool.md); tool palette layout, flyouts and icons in [tool-palette.md](docs/tool-palette.md); which tool and options survive a restart in [tool-options.md](docs/tool-options.md).
-- **Background layer (stack position, no layer styles, padlock, Layer from Background, PSD records):** [docs/background-layer.md](docs/background-layer.md).
-- **New Document dialog, the panel column and tab groups, Options bar layout, Dynamic Vector Preview:** [docs/new-document.md](docs/new-document.md), [docs/right-docks.md](docs/right-docks.md), [docs/options-bar.md](docs/options-bar.md), [docs/vector-preview.md](docs/vector-preview.md).
-- **Pick tool (Eyedropper): options, sample outline and loupe; the Ruler and Straighten:** [docs/pick-tool.md](docs/pick-tool.md). The loupe reads only its lens square per move.
-- **Zoom tool, Scrubby Zoom, pen and wheel zoom, the status-bar zoom and info fields:** [docs/view-navigation.md](docs/view-navigation.md).
-- **Ruler guides (drawing, drags, New Guide, PSD resource 1032):** [docs/guides.md](docs/guides.md). Guides may sit on the pasteboard: never clamp a position to the canvas.
-- **Move-tool alignment guides and Layer > Arrange > Align / Distribute** *(legal)*: [docs/alignment.md](docs/alignment.md); options bar, Auto-Select, transform box hit zones, Move cursor: [docs/move-tool.md](docs/move-tool.md).
-- **Vector tools, shape layers, vector masks, and Paths** *(legal)*: [docs/vector-tools.md](docs/vector-tools.md) (PSD fixtures in [docs/vector-fixtures.md](docs/vector-fixtures.md)).
-- **Point-editing UI (anchor tools, hints, path context menu) and vector commands:** [docs/vector-commands.md](docs/vector-commands.md).
-- **SVG import/export:** [docs/svg.md](docs/svg.md).
-- **Trace Image to Shapes (raster to vector)** *(legal: "Vector tracing")*: [docs/image-trace.md](docs/image-trace.md).
-- **Export for Web:** [docs/web-export.md](docs/web-export.md).
-- **Float windows and document activation:** [docs/float-windows.md](docs/float-windows.md).
-- **Document tab context menu and Rename File:** [docs/document-tabs.md](docs/document-tabs.md). A rename never replaces a file and never marks the document saved.
-- **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, seamless-tiling import, and Files as Layers:** [docs/import.md](docs/import.md); clipboard import and paste: [docs/clipboard.md](docs/clipboard.md).
-- **Plug-ins and legacy 8BF support (Windows)** *(legal: clean-room ABI)*: [docs/plugins.md](docs/plugins.md).
-- **G'MIC Filter Library:** [docs/gmic.md](docs/gmic.md).
+- **Background layer (stack position, no layer styles, padlock, Layer from Background, PSD records):** [background-layer.md](docs/background-layer.md).
+- **New Document dialog, the panel column and tab groups, Options bar layout, Dynamic Vector Preview:** [new-document.md](docs/new-document.md), [right-docks.md](docs/right-docks.md), [options-bar.md](docs/options-bar.md), [vector-preview.md](docs/vector-preview.md).
+- **Pick tool (Eyedropper): options, sample outline and loupe; the Ruler and Straighten:** [pick-tool.md](docs/pick-tool.md). The loupe reads only its lens square per move.
+- **Zoom tool, Scrubby Zoom, pen and wheel zoom, the status-bar zoom and info fields:** [view-navigation.md](docs/view-navigation.md).
+- **Ruler guides (drawing, drags, New Guide, PSD resource 1032):** [guides.md](docs/guides.md). Guides may sit on the pasteboard: never clamp a position to the canvas.
+- **Move-tool alignment guides and Layer > Arrange > Align / Distribute** *(legal)*: [alignment.md](docs/alignment.md); options bar, Auto-Select, transform box hit zones, Move cursor: [move-tool.md](docs/move-tool.md).
+- **Vector tools, shape layers, vector masks, and Paths** *(legal)*: [vector-tools.md](docs/vector-tools.md) (PSD fixtures in [vector-fixtures.md](docs/vector-fixtures.md)).
+- **Point-editing UI (anchor tools, hints, path context menu) and vector commands:** [vector-commands.md](docs/vector-commands.md).
+- **SVG import/export:** [svg.md](docs/svg.md).
+- **Trace Image to Shapes (raster to vector)** *(legal: "Vector tracing")*: [image-trace.md](docs/image-trace.md).
+- **Export for Web:** [web-export.md](docs/web-export.md).
+- **Float windows and document activation:** [float-windows.md](docs/float-windows.md).
+- **Document tab context menu and Rename File:** [document-tabs.md](docs/document-tabs.md). A rename never replaces a file and never marks the document saved.
+- **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, seamless-tiling import, and Files as Layers:** [import.md](docs/import.md); clipboard import and paste: [clipboard.md](docs/clipboard.md).
+- **Plug-ins and legacy 8BF support (Windows)** *(legal: clean-room ABI)*: [plugins.md](docs/plugins.md).
+- **GIMP 3 plug-ins** *(legal)*: [gimp-plugins.md](docs/gimp-plugins.md). Sources only from the allowed list in [legal-licensing.md](docs/legal-licensing.md#gimp-3-plug-in-hosting), logged in [gimp-plugins-provenance.md](docs/gimp-plugins-provenance.md); never GIMP's or a plug-in's source.
+- **G'MIC Filter Library:** [gmic.md](docs/gmic.md).
 - **JavaScript scripting and bundled scripts:** [scripting.md](docs/scripting.md). The MCP connector and patchy-control skill: [ai-control.md](docs/ai-control.md). Automation feedback, brush and vector automation, batch appearance edits: [automation-feedback.md](docs/automation-feedback.md), [brush-automation.md](docs/brush-automation.md), [vector-automation.md](docs/vector-automation.md), [batch-appearance.md](docs/batch-appearance.md).
-- **Automatic document recovery and atomic file writes:** [docs/document-recovery.md](docs/document-recovery.md).
-- **Single-instance forwarding, CLI screenshots, and `--headless` runs:** `src/app/main.cpp`, [docs/testing.md](docs/testing.md), and the CLI section of [docs/scripting.md](docs/scripting.md).
+- **Automatic document recovery and atomic file writes:** [document-recovery.md](docs/document-recovery.md).
+- **Single-instance forwarding, CLI screenshots, and `--headless` runs:** `src/app/main.cpp`, [testing.md](docs/testing.md), and the CLI section of [scripting.md](docs/scripting.md).
 - **Logo and icon art:** `packaging/branding/`.
 - **Performance and the stress harness:** [performance.md](docs/performance.md) and [stress-test.md](docs/stress-test.md); the Move drag-preview machinery is in [interactive-previews.md](docs/interactive-previews.md). Cold-startup phases, `patchy_perf_tests startup` and its baselines: [startup-performance.md](docs/startup-performance.md); phase names are baseline keys, never rename one.
-- **Testy PSD benchmark:** [docs/testy.md](docs/testy.md).
+- **Testy PSD benchmark:** [testy.md](docs/testy.md).
 - **Flatpak packaging and update repository:** [packaging/linux/README.md](packaging/linux/README.md).
-- **Linux AppImage:** [docs/appimage.md](docs/appimage.md).
+- **Linux AppImage:** [appimage.md](docs/appimage.md).
