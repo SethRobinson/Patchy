@@ -376,6 +376,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"gimpPluginsEmptyNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "No GIMP 3 plug-ins that work on a layer were found")},
     {"gimpPluginsScanningNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "GIMP 3 plug-ins are still being looked for")},
     {"gimpPluginsProblemNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Why GIMP 3 plug-ins are not available")},
+    {"gimpPluginsPythonNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Why GIMP's Python plug-ins cannot start on macOS")},
+    {"gimpPluginsFailedNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "GIMP plug-ins that did not start, listed in Preferences")},
     // View
     {"view.zoom_in", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Magnify the view")},
     {"view.zoom_out", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show more of the image")},
@@ -815,7 +817,8 @@ std::vector<MenuCommandEntry> collect_menu_entries(const QMenuBar* menu_bar, boo
   QSet<const QAction*> seen;
   for_each_menu_bar_command(menu_bar, !unavailable_too, [&](QAction* action, const QString& top,
                                                             const QStringList& submenus) {
-    if ((!unavailable_too && !action->isEnabled()) || seen.contains(action)) {
+    if ((!unavailable_too && !action->isEnabled() && !action->property(kCommandSearchListsDisabledProperty).toBool()) ||
+        seen.contains(action)) {
       return;
     }
     const auto name = strip_menu_ellipsis(clean_action_text(action));

@@ -47,6 +47,8 @@ struct GimpPluginFileReport {
   QString error;  // English, from the helper
   int procedures{0};
   bool from_cache{false};
+  // macOS: the plug-in's interpreter may be started by GIMP alone (GIMP.app's python3).
+  bool launch_constrained{false};
 };
 
 struct GimpPluginScanResult {
@@ -88,7 +90,8 @@ struct GimpPluginScanOptions {
 // How to start one plug-in file of an install (GIMP's Flatpak: inside its sandbox).
 [[nodiscard]] std::optional<gimp::link::LaunchSpec> gimp_plugin_launch_spec(const gimp::GimpInstall& install,
                                                                             const QString& plugin_file,
-                                                                            const QString& language, QString* error);
+                                                                            const QString& language, QString* error,
+                                                                            bool* launch_constrained = nullptr);
 
 // The install the options select (the chosen folder, else the first detected).
 [[nodiscard]] std::optional<gimp::GimpInstall> select_gimp_install(const GimpPluginScanOptions& options);

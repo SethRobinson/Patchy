@@ -47,6 +47,9 @@ name, so a search by synonym finds it ("resize" finds Image Size).
   the Window menu's open documents, scripts, legacy 8BF and GIMP 3 plug-ins. Their builders set
   `kCommandSearchDataEntryProperty`; `command_search_exempt` reads it. A new data-built menu
   sets it too. Theme commands and panel commands are not listed, so they need none.
+- The search lists enabled commands only, except actions with
+  `kCommandSearchListsDisabledProperty`: GIMP 3 plug-ins Patchy cannot run, whose name carries a
+  short reason and whose status tip (the description) says why ([gimp-plugins.md](gimp-plugins.md#query-and-the-menu)).
 - The rule: a new command gets its description in the same change, like its translation.
   `ui_command_search_every_command_has_a_description` collects every command the search can
   list on this platform (`collect_search_commands` with `unavailable_too`: hidden and disabled

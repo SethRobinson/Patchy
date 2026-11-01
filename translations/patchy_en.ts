@@ -18641,6 +18641,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Why GIMP 3 plug-ins are not available</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins that did not start, listed in Preferences</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31641,6 +31649,153 @@ Locked: %1</source>
     </message>
     <message>
         <source>A GIMP plug-in is already running</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It combines several open images into a new one, which Patchy does not give GIMP plug-ins.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It draws with GIMP&apos;s painting tools, which Patchy does not provide.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It works through GIMP&apos;s clipboard, which Patchy does not provide.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s gradients, which Patchy does not provide yet.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Creates a new image)</source>
+        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires multiple layers selected)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires a grayscale or indexed image)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image commands)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Script-Fu, not supported)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires a new image)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires animation frames)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image operations)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s resources)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires a new layer)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires multiple images)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s painting tools)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s clipboard)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s gradients)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Unsupported)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Needs an open image)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open an image to run this plug-in.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Not in Quick Mask mode)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Not while viewing a channel)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Select a single layer)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Needs a pixel layer)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a pixel layer to run this plug-in.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Layer pixels are locked)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unlock the layer&apos;s pixels to run this plug-in.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Needs an RGB image)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(Needs a layer with transparency)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Python plug-ins (Python plug-ins can&apos;t start on macOS)</source>
+        <extracomment>A disabled menu entry: GIMP&apos;s Python plug-ins cannot run from Patchy on macOS.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start GIMP&apos;s Python, so these plug-ins cannot run from Patchy: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
+        <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>

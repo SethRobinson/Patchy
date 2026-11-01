@@ -22,6 +22,9 @@ class HotkeyRegistry;
 // scripts, legacy plug-ins. They carry no written Search Commands description
 // (command_search_exempt, docs/command-search.md "Descriptions").
 inline constexpr const char* kCommandSearchDataEntryProperty = "patchy.commandSearchDataEntry";
+// Set (true) on a disabled menu action the search lists anyway: its text and status tip
+// say why it is unavailable (GIMP 3 plug-ins Patchy cannot run, docs/gimp-plugins.md).
+inline constexpr const char* kCommandSearchListsDisabledProperty = "patchy.commandSearchListsDisabled";
 
 // Help > Search Commands (GitHub issue 554; docs/command-search.md).
 

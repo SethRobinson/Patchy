@@ -18658,6 +18658,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Why GIMP 3 plug-ins are not available</source>
         <translation>Perché i plug-in di GIMP 3 non sono disponibili</translation>
     </message>
+    <message>
+        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
+        <translation>Perché i plug-in Python di GIMP non possono avviarsi su macOS</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins that did not start, listed in Preferences</source>
+        <translation>Plug-in di GIMP che non si sono avviati, elencati nelle Preferenze</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31723,6 +31731,153 @@ Bloccato: %1</translation>
     <message>
         <source>A GIMP plug-in is already running</source>
         <translation>Un plug-in di GIMP è già in esecuzione</translation>
+    </message>
+    <message>
+        <source>It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.</source>
+        <translation>Mette il risultato su un nuovo livello, cosa che Patchy non consente ancora ai plug-in di GIMP.</translation>
+    </message>
+    <message>
+        <source>It combines several open images into a new one, which Patchy does not give GIMP plug-ins.</source>
+        <translation>Combina più immagini aperte in una nuova, cosa che Patchy non consente ai plug-in di GIMP.</translation>
+    </message>
+    <message>
+        <source>It draws with GIMP&apos;s painting tools, which Patchy does not provide.</source>
+        <translation>Disegna con gli strumenti di pittura di GIMP, che Patchy non fornisce.</translation>
+    </message>
+    <message>
+        <source>It works through GIMP&apos;s clipboard, which Patchy does not provide.</source>
+        <translation>Funziona tramite gli Appunti di GIMP, che Patchy non fornisce.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s gradients, which Patchy does not provide yet.</source>
+        <translation>Richiede le sfumature di GIMP, che Patchy non fornisce ancora.</translation>
+    </message>
+    <message>
+        <source>(Creates a new image)</source>
+        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
+        <translation>(Crea una nuova immagine)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple layers selected)</source>
+        <translation>(Richiede più livelli selezionati)</translation>
+    </message>
+    <message>
+        <source>(Requires a grayscale or indexed image)</source>
+        <translation>(Richiede un&apos;immagine in scala di grigio o indicizzata)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image commands)</source>
+        <translation>(Richiede i comandi immagine di GIMP)</translation>
+    </message>
+    <message>
+        <source>(Script-Fu, not supported)</source>
+        <translation>(Script-Fu, non supportato)</translation>
+    </message>
+    <message>
+        <source>(Requires a new image)</source>
+        <translation>(Richiede una nuova immagine)</translation>
+    </message>
+    <message>
+        <source>(Requires animation frames)</source>
+        <translation>(Richiede fotogrammi di animazione)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image operations)</source>
+        <translation>(Richiede le operazioni sulle immagini di GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s resources)</source>
+        <translation>(Richiede le risorse di GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires a new layer)</source>
+        <translation>(Richiede un nuovo livello)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple images)</source>
+        <translation>(Richiede più immagini)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s painting tools)</source>
+        <translation>(Richiede gli strumenti di pittura di GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s clipboard)</source>
+        <translation>(Richiede gli Appunti di GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s gradients)</source>
+        <translation>(Richiede le sfumature di GIMP)</translation>
+    </message>
+    <message>
+        <source>(Unsupported)</source>
+        <translation>(Non supportato)</translation>
+    </message>
+    <message>
+        <source>(Needs an open image)</source>
+        <translation>(Richiede un&apos;immagine aperta)</translation>
+    </message>
+    <message>
+        <source>Open an image to run this plug-in.</source>
+        <translation>Apri un&apos;immagine per eseguire questo plug-in.</translation>
+    </message>
+    <message>
+        <source>(Not in Quick Mask mode)</source>
+        <translation>(Non in modalità Maschera veloce)</translation>
+    </message>
+    <message>
+        <source>(Not while viewing a channel)</source>
+        <translation>(Non durante la visualizzazione di un canale)</translation>
+    </message>
+    <message>
+        <source>(Select a single layer)</source>
+        <translation>(Seleziona un singolo livello)</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer.</source>
+        <translation>I plug-in lavorano su un livello alla volta. Seleziona un singolo livello.</translation>
+    </message>
+    <message>
+        <source>(Needs a pixel layer)</source>
+        <translation>(Richiede un livello pixel)</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer to run this plug-in.</source>
+        <translation>Seleziona un livello pixel per eseguire questo plug-in.</translation>
+    </message>
+    <message>
+        <source>(Layer pixels are locked)</source>
+        <translation>(Pixel del livello bloccati)</translation>
+    </message>
+    <message>
+        <source>Unlock the layer&apos;s pixels to run this plug-in.</source>
+        <translation>Sblocca i pixel del livello per eseguire questo plug-in.</translation>
+    </message>
+    <message>
+        <source>(Needs an RGB image)</source>
+        <translation>(Richiede un&apos;immagine RGB)</translation>
+    </message>
+    <message>
+        <source>(Needs a layer with transparency)</source>
+        <translation>(Richiede un livello con trasparenza)</translation>
+    </message>
+    <message>
+        <source>This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background.</source>
+        <translation>Questo plug-in richiede un livello che possa contenere trasparenza. Fai clic con il pulsante destro sullo Sfondo nel pannello Livelli e scegli Livello da sfondo.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Python plug-ins (Python plug-ins can&apos;t start on macOS)</source>
+        <extracomment>A disabled menu entry: GIMP&apos;s Python plug-ins cannot run from Patchy on macOS.</extracomment>
+        <translation>Plug-in Python di GIMP (i plug-in Python non possono avviarsi su macOS)</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start GIMP&apos;s Python, so these plug-ins cannot run from Patchy: %1</source>
+        <translation>macOS consente solo a GIMP stesso di avviare il Python di GIMP, quindi questi plug-in non possono essere eseguiti da Patchy: %1</translation>
+    </message>
+    <message>
+        <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
+        <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
+        <translation>Plug-in che non si sono avviati: %1 (vedi Preferenze &gt; Plug-in)</translation>
     </message>
 </context>
 <context>

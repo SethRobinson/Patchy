@@ -292,7 +292,10 @@ void gimp_procedure_classification_explains_refusals() {
 
   auto film = filter;
   film.install.name = std::string("plug-in-film");
-  CHECK(classify_procedure(film, false).reason == kReasonCreatesImage);
+  CHECK(classify_procedure(film, false).reason == kReasonSeveralImages);
+  auto pagecurl = filter;
+  pagecurl.install.name = std::string("plug-in-pagecurl");
+  CHECK(classify_procedure(pagecurl, false).reason == kReasonNewLayer);
 
   auto colors = filter;
   colors.menu_paths = {"<Image>/Colors/Map"};

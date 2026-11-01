@@ -18702,6 +18702,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Why GIMP 3 plug-ins are not available</source>
         <translation>Dlaczego wtyczki GIMP 3 są niedostępne</translation>
     </message>
+    <message>
+        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
+        <translation>Dlaczego wtyczki Python GIMP-a nie mogą się uruchomić w systemie macOS</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins that did not start, listed in Preferences</source>
+        <translation>Wtyczki GIMP, które się nie uruchomiły, wymienione w Preferencjach</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31806,6 +31814,153 @@ Zablokowano: %1</translation>
     <message>
         <source>A GIMP plug-in is already running</source>
         <translation>Wtyczka GIMP jest już uruchomiona</translation>
+    </message>
+    <message>
+        <source>It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.</source>
+        <translation>Umieszcza wynik na nowej warstwie, czego Patchy jeszcze nie zapewnia wtyczkom GIMP.</translation>
+    </message>
+    <message>
+        <source>It combines several open images into a new one, which Patchy does not give GIMP plug-ins.</source>
+        <translation>Łączy kilka otwartych obrazów w nowy, czego Patchy nie zapewnia wtyczkom GIMP.</translation>
+    </message>
+    <message>
+        <source>It draws with GIMP&apos;s painting tools, which Patchy does not provide.</source>
+        <translation>Rysuje narzędziami malarskimi GIMP-a, których Patchy nie zapewnia.</translation>
+    </message>
+    <message>
+        <source>It works through GIMP&apos;s clipboard, which Patchy does not provide.</source>
+        <translation>Działa przez schowek GIMP-a, którego Patchy nie zapewnia.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s gradients, which Patchy does not provide yet.</source>
+        <translation>Wymaga gradientów GIMP-a, których Patchy jeszcze nie zapewnia.</translation>
+    </message>
+    <message>
+        <source>(Creates a new image)</source>
+        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
+        <translation>(Tworzy nowy obraz)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple layers selected)</source>
+        <translation>(Wymaga zaznaczenia kilku warstw)</translation>
+    </message>
+    <message>
+        <source>(Requires a grayscale or indexed image)</source>
+        <translation>(Wymaga obrazu w skali szarości lub indeksowanego)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image commands)</source>
+        <translation>(Wymaga poleceń obrazu GIMP-a)</translation>
+    </message>
+    <message>
+        <source>(Script-Fu, not supported)</source>
+        <translation>(Script-Fu, nieobsługiwane)</translation>
+    </message>
+    <message>
+        <source>(Requires a new image)</source>
+        <translation>(Wymaga nowego obrazu)</translation>
+    </message>
+    <message>
+        <source>(Requires animation frames)</source>
+        <translation>(Wymaga klatek animacji)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image operations)</source>
+        <translation>(Wymaga operacji na obrazach GIMP-a)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s resources)</source>
+        <translation>(Wymaga zasobów GIMP-a)</translation>
+    </message>
+    <message>
+        <source>(Requires a new layer)</source>
+        <translation>(Wymaga nowej warstwy)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple images)</source>
+        <translation>(Wymaga kilku obrazów)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s painting tools)</source>
+        <translation>(Wymaga narzędzi malarskich GIMP-a)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s clipboard)</source>
+        <translation>(Wymaga schowka GIMP-a)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s gradients)</source>
+        <translation>(Wymaga gradientów GIMP-a)</translation>
+    </message>
+    <message>
+        <source>(Unsupported)</source>
+        <translation>(Nieobsługiwane)</translation>
+    </message>
+    <message>
+        <source>(Needs an open image)</source>
+        <translation>(Wymaga otwartego obrazu)</translation>
+    </message>
+    <message>
+        <source>Open an image to run this plug-in.</source>
+        <translation>Otwórz obraz, aby uruchomić tę wtyczkę.</translation>
+    </message>
+    <message>
+        <source>(Not in Quick Mask mode)</source>
+        <translation>(Nie w trybie szybkiej maski)</translation>
+    </message>
+    <message>
+        <source>(Not while viewing a channel)</source>
+        <translation>(Nie podczas wyświetlania kanału)</translation>
+    </message>
+    <message>
+        <source>(Select a single layer)</source>
+        <translation>(Wybierz jedną warstwę)</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer.</source>
+        <translation>Wtyczki działają na jednej warstwie naraz. Wybierz pojedynczą warstwę.</translation>
+    </message>
+    <message>
+        <source>(Needs a pixel layer)</source>
+        <translation>(Wymaga warstwy pikseli)</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer to run this plug-in.</source>
+        <translation>Wybierz warstwę pikseli, aby uruchomić tę wtyczkę.</translation>
+    </message>
+    <message>
+        <source>(Layer pixels are locked)</source>
+        <translation>(Piksele warstwy są zablokowane)</translation>
+    </message>
+    <message>
+        <source>Unlock the layer&apos;s pixels to run this plug-in.</source>
+        <translation>Odblokuj piksele warstwy, aby uruchomić tę wtyczkę.</translation>
+    </message>
+    <message>
+        <source>(Needs an RGB image)</source>
+        <translation>(Wymaga obrazu RGB)</translation>
+    </message>
+    <message>
+        <source>(Needs a layer with transparency)</source>
+        <translation>(Wymaga warstwy z przezroczystością)</translation>
+    </message>
+    <message>
+        <source>This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background.</source>
+        <translation>Ta wtyczka wymaga warstwy, która może zawierać przezroczystość. Kliknij prawym przyciskiem myszy Tło w panelu Warstwy i wybierz Warstwa z tła.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Python plug-ins (Python plug-ins can&apos;t start on macOS)</source>
+        <extracomment>A disabled menu entry: GIMP&apos;s Python plug-ins cannot run from Patchy on macOS.</extracomment>
+        <translation>Wtyczki Python GIMP-a (wtyczki Python nie mogą się uruchomić w systemie macOS)</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start GIMP&apos;s Python, so these plug-ins cannot run from Patchy: %1</source>
+        <translation>macOS pozwala uruchamiać Python z GIMP-a tylko samemu GIMP, więc tych wtyczek nie można uruchomić z Patchy: %1</translation>
+    </message>
+    <message>
+        <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
+        <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
+        <translation>Wtyczki, które się nie uruchomiły: %1 (zobacz Preferencje &gt; Wtyczki)</translation>
     </message>
 </context>
 <context>

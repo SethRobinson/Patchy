@@ -59,6 +59,11 @@ inline constexpr std::string_view kReasonAnimation = "animation";
 inline constexpr std::string_view kReasonCreatesImage = "creates-image";
 inline constexpr std::string_view kReasonImageOperations = "image-operations";
 inline constexpr std::string_view kReasonResources = "uses-gimp-resources";
+inline constexpr std::string_view kReasonNewLayer = "needs-new-layer";
+inline constexpr std::string_view kReasonSeveralImages = "needs-several-images";
+inline constexpr std::string_view kReasonPaintingTools = "needs-painting-tools";
+inline constexpr std::string_view kReasonClipboard = "needs-clipboard";
+inline constexpr std::string_view kReasonGradients = "needs-gradients";
 
 [[nodiscard]] ProcedureClass classify_procedure(const ProcedureInfo& procedure, bool from_script_fu);
 

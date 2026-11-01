@@ -7,6 +7,7 @@
 
 #include "core/pixel_depth.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/command_search.hpp"
 #include "ui/gimp_plugin_run_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui_test_access.hpp"
@@ -28,6 +29,7 @@
 #include <QAction>
 #include <QLabel>
 #include <QMenu>
+#include <QMenuBar>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
@@ -655,6 +657,96 @@ void ui_gimp_plugin_settings_dialog_capture_if_requested() {
     action->trigger();
     CHECK(process_events_until([&] { return done; }, 180000));
   }
+  // The menus with a refused entry: Distorts (Pagecurl) and Render (Spyrogimp, Flame).
+  for (const auto& id : {QStringLiteral("gimp.plug-in-pagecurl"), QStringLiteral("gimp.plug-in-flame")}) {
+    for (auto* a : window.findChildren<QAction*>(QStringLiteral("gimpPluginAction"))) {
+      if (a->data().toString() != id || a->associatedObjects().isEmpty()) continue;
+      if (auto* menu = qobject_cast<QMenu*>(a->associatedObjects().front()); menu != nullptr) {
+        emit window.findChild<QMenu*>(QStringLiteral("gimpPluginsMenu"))->aboutToShow();
+        menu->popup(window.mapToGlobal(QPoint(300, 120)));
+        CHECK(QTest::qWaitForWindowExposed(menu));
+        QTest::qWait(300);
+        menu->grab().save(QDir(folder).filePath(QStringLiteral("menu-") + id.mid(5) + QStringLiteral(".png")));
+        menu->hide();
+      }
+    }
+  }
+}
+
+// Plugins > GIMP 3 Plug-ins lists every image command a plug-in registers: the ones
+// Patchy cannot run are disabled with a short reason in their text and the full one as
+// tooltip and status tip, and Search Commands lists them too. Runnable ones say what the
+// document lacks (no image, a group layer) and turn on when the menu opens again with that
+// fixed. File formats and helpers stay hidden.
+void ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  qunsetenv("PATCHY_GIMP_SCAN_ONLY_ADDED");
+  CHECK(run_script(window, QStringLiteral(
+      "patchy.gimpPlugins.folders = [];\npatchy.gimpPlugins.rescan();\n"
+      "var ids = patchy.gimpPlugins.list().map(function (p) { return p.id; });\n"
+      "console.log('gimp bundled ' + patchy.gimpPlugins.install().found + ' ' + (ids.indexOf('gimp.plug-in-pagecurl') >= 0) + ' ' +\n"
+      "            (ids.indexOf('gimp.plug-in-blinds') >= 0));\n")));
+  if (!backlog_contains(window, QStringLiteral("gimp bundled true true true"))) {
+    patchy::test::skip("GIMP 3 with its bundled plug-ins is not installed");
+  }
+  // The entry in the menu now (a rebuild's old entries may still await deletion).
+  const auto action_for = [&window](const QString& id) -> QAction* {
+    for (auto* a : window.findChildren<QAction*>(QStringLiteral("gimpPluginAction"))) {
+      if (a->data().toString() == id && !a->associatedObjects().isEmpty()) return a;
+    }
+    return nullptr;
+  };
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("gimpPluginsMenu"));
+  CHECK(menu != nullptr);
+  if (menu == nullptr) return;
+  CHECK(menu->toolTipsVisible());
+
+  auto* pagecurl = action_for(QStringLiteral("gimp.plug-in-pagecurl"));
+  CHECK(pagecurl != nullptr);
+  if (pagecurl != nullptr) {
+    CHECK(!pagecurl->isEnabled());
+    CHECK(pagecurl->text().endsWith(QStringLiteral("(Requires a new layer)")));
+    CHECK(pagecurl->toolTip().contains(QStringLiteral("new layer")));
+    CHECK(pagecurl->statusTip() == pagecurl->toolTip());
+  }
+  if (auto* film = action_for(QStringLiteral("gimp.plug-in-film")); film != nullptr) {
+    CHECK(!film->isEnabled());
+    CHECK(film->text().endsWith(QStringLiteral("(Requires multiple images)")));
+  }
+  // File formats and helpers are not commands (File > Print is one, and is listed).
+  for (auto* a : window.findChildren<QAction*>(QStringLiteral("gimpPluginAction"))) {
+    const auto id = a->data().toString();
+    CHECK(!id.startsWith(QStringLiteral("gimp.file-png")) && !id.startsWith(QStringLiteral("gimp.file-jpeg")));
+  }
+  // Search Commands finds the disabled entry, its text saying why.
+  bool searched = false;
+  for (const auto& entry : patchy::ui::collect_menu_commands(window.menuBar())) {
+    if (entry.action == pagecurl) {
+      searched = entry.name.contains(QStringLiteral("(Requires a new layer)"));
+    }
+  }
+  CHECK(searched);
+
+  // State: without an image Blinds says so; with one it runs; a group layer is not a
+  // pixel layer.
+  auto* blinds = action_for(QStringLiteral("gimp.plug-in-blinds"));
+  CHECK(blinds != nullptr);
+  if (blinds == nullptr) return;
+  CHECK(run_script(window, QStringLiteral("while (app.documents.length > 0) app.documents[0].close();\n")));
+  emit menu->aboutToShow();
+  CHECK(!blinds->isEnabled());
+  CHECK(blinds->text().endsWith(QStringLiteral("(Needs an open image)")));
+  CHECK(run_script_verbose(window, QStringLiteral("var doc = app.newDocument(64, 48, {name: 'menu state'});\n"
+                                                  "doc.activeLayer.fillRect(0, 0, 64, 48, '#336699');\n")));
+  emit menu->aboutToShow();
+  CHECK(blinds->isEnabled());
+  CHECK(blinds->text() == QStringLiteral("Blinds..."));
+  CHECK(run_script_verbose(window, QStringLiteral("app.activeDocument.addGroup('Group');\n")));
+  emit menu->aboutToShow();
+  CHECK(!blinds->isEnabled());
+  CHECK(blinds->text().endsWith(QStringLiteral("(Needs a pixel layer)")));
+  CHECK(!blinds->toolTip().isEmpty());
 }
 
 void ui_gimp_plugins_menu_lists_test_plugin_if_available() {
@@ -686,6 +778,8 @@ std::vector<patchy::test::TestCase> gimp_plugin_tests() {
        ui_gimp_plugin_script_api_lists_and_runs_test_plugin_if_available},
       {"ui_gimp_plugin_runs_on_deep_layers_if_available", ui_gimp_plugin_runs_on_deep_layers_if_available},
       {"ui_gimp_plugins_menu_lists_test_plugin_if_available", ui_gimp_plugins_menu_lists_test_plugin_if_available},
+      {"ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available",
+       ui_gimp_plugins_menu_lists_refused_entries_with_reasons_if_available},
       {"ui_gimp_plugin_settings_dialog_sweep_if_requested", ui_gimp_plugin_settings_dialog_sweep_if_requested},
       {"ui_gimp_plugin_settings_dialog_capture_if_requested", ui_gimp_plugin_settings_dialog_capture_if_requested},
       {"ui_gimp_plugin_settings_dialog_previews_on_canvas_if_available",

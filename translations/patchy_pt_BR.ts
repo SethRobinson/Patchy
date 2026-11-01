@@ -18658,6 +18658,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Why GIMP 3 plug-ins are not available</source>
         <translation>Por que os plug-ins do GIMP 3 não estão disponíveis</translation>
     </message>
+    <message>
+        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
+        <translation>Por que os plug-ins Python do GIMP não podem ser iniciados no macOS</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins that did not start, listed in Preferences</source>
+        <translation>Plug-ins do GIMP que não foram iniciados, listados em Preferências</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31723,6 +31731,153 @@ Bloqueado: %1</translation>
     <message>
         <source>A GIMP plug-in is already running</source>
         <translation>Um plug-in do GIMP já está em execução</translation>
+    </message>
+    <message>
+        <source>It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.</source>
+        <translation>Ele coloca o resultado em uma nova camada, o que o Patchy ainda não oferece aos plug-ins do GIMP.</translation>
+    </message>
+    <message>
+        <source>It combines several open images into a new one, which Patchy does not give GIMP plug-ins.</source>
+        <translation>Ele combina várias imagens abertas em uma nova, o que o Patchy não oferece aos plug-ins do GIMP.</translation>
+    </message>
+    <message>
+        <source>It draws with GIMP&apos;s painting tools, which Patchy does not provide.</source>
+        <translation>Ele desenha com as ferramentas de pintura do GIMP, que o Patchy não oferece.</translation>
+    </message>
+    <message>
+        <source>It works through GIMP&apos;s clipboard, which Patchy does not provide.</source>
+        <translation>Ele funciona pela área de transferência do GIMP, que o Patchy não oferece.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s gradients, which Patchy does not provide yet.</source>
+        <translation>Ele precisa dos gradientes do GIMP, que o Patchy ainda não oferece.</translation>
+    </message>
+    <message>
+        <source>(Creates a new image)</source>
+        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
+        <translation>(Cria uma nova imagem)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple layers selected)</source>
+        <translation>(Requer várias camadas selecionadas)</translation>
+    </message>
+    <message>
+        <source>(Requires a grayscale or indexed image)</source>
+        <translation>(Requer uma imagem em tons de cinza ou indexada)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image commands)</source>
+        <translation>(Requer os comandos de imagem do GIMP)</translation>
+    </message>
+    <message>
+        <source>(Script-Fu, not supported)</source>
+        <translation>(Script-Fu, não suportado)</translation>
+    </message>
+    <message>
+        <source>(Requires a new image)</source>
+        <translation>(Requer uma nova imagem)</translation>
+    </message>
+    <message>
+        <source>(Requires animation frames)</source>
+        <translation>(Requer quadros de animação)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image operations)</source>
+        <translation>(Requer as operações de imagem do GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s resources)</source>
+        <translation>(Requer os recursos do GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires a new layer)</source>
+        <translation>(Requer uma nova camada)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple images)</source>
+        <translation>(Requer várias imagens)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s painting tools)</source>
+        <translation>(Requer as ferramentas de pintura do GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s clipboard)</source>
+        <translation>(Requer a área de transferência do GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s gradients)</source>
+        <translation>(Requer os gradientes do GIMP)</translation>
+    </message>
+    <message>
+        <source>(Unsupported)</source>
+        <translation>(Não suportado)</translation>
+    </message>
+    <message>
+        <source>(Needs an open image)</source>
+        <translation>(Precisa de uma imagem aberta)</translation>
+    </message>
+    <message>
+        <source>Open an image to run this plug-in.</source>
+        <translation>Abra uma imagem para executar este plug-in.</translation>
+    </message>
+    <message>
+        <source>(Not in Quick Mask mode)</source>
+        <translation>(Não no modo Máscara Rápida)</translation>
+    </message>
+    <message>
+        <source>(Not while viewing a channel)</source>
+        <translation>(Não ao visualizar um canal)</translation>
+    </message>
+    <message>
+        <source>(Select a single layer)</source>
+        <translation>(Selecione uma única camada)</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer.</source>
+        <translation>Os plug-ins funcionam em uma camada por vez. Selecione uma única camada.</translation>
+    </message>
+    <message>
+        <source>(Needs a pixel layer)</source>
+        <translation>(Precisa de uma camada de pixels)</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer to run this plug-in.</source>
+        <translation>Selecione uma camada de pixels para executar este plug-in.</translation>
+    </message>
+    <message>
+        <source>(Layer pixels are locked)</source>
+        <translation>(Pixels da camada bloqueados)</translation>
+    </message>
+    <message>
+        <source>Unlock the layer&apos;s pixels to run this plug-in.</source>
+        <translation>Desbloqueie os pixels da camada para executar este plug-in.</translation>
+    </message>
+    <message>
+        <source>(Needs an RGB image)</source>
+        <translation>(Precisa de uma imagem RGB)</translation>
+    </message>
+    <message>
+        <source>(Needs a layer with transparency)</source>
+        <translation>(Precisa de uma camada com transparência)</translation>
+    </message>
+    <message>
+        <source>This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background.</source>
+        <translation>Este plug-in precisa de uma camada que aceite transparência. Clique com o botão direito no Plano de fundo no painel Camadas e escolha Camada do plano de fundo.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Python plug-ins (Python plug-ins can&apos;t start on macOS)</source>
+        <extracomment>A disabled menu entry: GIMP&apos;s Python plug-ins cannot run from Patchy on macOS.</extracomment>
+        <translation>Plug-ins Python do GIMP (plug-ins Python não podem ser iniciados no macOS)</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start GIMP&apos;s Python, so these plug-ins cannot run from Patchy: %1</source>
+        <translation>O macOS só permite que o próprio GIMP inicie o Python do GIMP, então esses plug-ins não podem ser executados pelo Patchy: %1</translation>
+    </message>
+    <message>
+        <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
+        <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
+        <translation>Plug-ins que não foram iniciados: %1 (consulte Preferências &gt; Plug-ins)</translation>
     </message>
 </context>
 <context>

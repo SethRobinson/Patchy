@@ -33,7 +33,7 @@ namespace {
 
 // Bump when the helper's classification or the JSON it writes changes: every cached
 // query is redone once.
-constexpr int kCacheVersion = 5;
+constexpr int kCacheVersion = 6;
 
 std::string utf8(const QString& s) { return s.toStdString(); }
 
@@ -299,7 +299,11 @@ QString gimp_plugin_flatpak_problem(const gimp::GimpInstall& install) {
 }
 
 std::optional<gimp::link::LaunchSpec> gimp_plugin_launch_spec(const gimp::GimpInstall& install, const QString& plugin_file,
-                                                             const QString& language, QString* error) {
+                                                             const QString& language, QString* error,
+                                                             bool* launch_constrained) {
+  if (launch_constrained != nullptr) {
+    *launch_constrained = false;
+  }
   if (install.flatpak) {
     return flatpak_plugin_launch_spec(install, plugin_file, language, error);
   }
@@ -317,6 +321,9 @@ std::optional<gimp::link::LaunchSpec> gimp_plugin_launch_spec(const gimp::GimpIn
   }
 #ifdef Q_OS_MACOS
   if (!command->interpreter.empty() && requires_gimp_as_parent(to_qstring(command->program))) {
+    if (launch_constrained != nullptr) {
+      *launch_constrained = true;
+    }
     if (error != nullptr) {
       *error = QCoreApplication::translate("GimpPlugins", "macOS lets only GIMP itself start %1 (a launch constraint in GIMP's code signature)")
                    .arg(to_qstring(command->program.filename()));
@@ -442,9 +449,10 @@ GimpPluginScanResult scan_gimp_plugins(const GimpPluginScanOptions& options) {
       continue;
     }
     QString error;
-    auto launch = gimp_plugin_launch_spec(install, file, options.language, &error);
+    bool constrained = false;
+    auto launch = gimp_plugin_launch_spec(install, file, options.language, &error, &constrained);
     if (!launch.has_value()) {
-      result.files.push_back({file, false, error, 0, false});
+      result.files.push_back({file, false, error, 0, false, constrained});
       continue;
     }
     to_query.push_back(file);

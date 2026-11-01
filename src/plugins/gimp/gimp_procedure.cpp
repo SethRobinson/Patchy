@@ -36,21 +36,21 @@ struct KnownRefusal {
   std::string_view reason;
 };
 constexpr KnownRefusal kKnownRefusals[] = {
-    {"plug-in-curve-bend", kReasonImageOperations},       // copies and pastes through GIMP's clipboard
+    {"plug-in-curve-bend", kReasonClipboard},             // copies and pastes through GIMP's clipboard
     {"plug-in-decompose", kReasonCreatesImage},
     {"plug-in-depth-merge", kReasonSeveralLayers},        // merges two source layers
-    {"plug-in-film", kReasonCreatesImage},
-    {"plug-in-flame", kReasonResources},                  // the context gradient
-    {"plug-in-gfig", kReasonImageOperations},             // draws on a new layer with GIMP's tools
-    {"plug-in-gflare", kReasonResources},                 // gradients
-    {"plug-in-gradmap", kReasonResources},                // the context gradient
-    {"plug-in-pagecurl", kReasonImageOperations},         // puts the curl on a new layer
+    {"plug-in-film", kReasonSeveralImages},               // a film strip of several images
+    {"plug-in-flame", kReasonGradients},                  // the context gradient
+    {"plug-in-gfig", kReasonNewLayer},                    // draws on a new layer with GIMP's tools
+    {"plug-in-gflare", kReasonGradients},
+    {"plug-in-gradmap", kReasonGradients},                // the context gradient
+    {"plug-in-pagecurl", kReasonNewLayer},                // puts the curl on a new layer
     {"plug-in-smooth-palette", kReasonCreatesImage},
-    {"plug-in-spyrogimp", kReasonImageOperations},        // paints with GIMP's tools
+    {"plug-in-spyrogimp", kReasonPaintingTools},          // paints with GIMP's tools
     {"plug-in-tile", kReasonCreatesImage},                // a new image, or resizes this one
     {"plug-in-warp", kReasonImageOperations},             // works through temporary images
-    {"plug-in-wavelet-decompose", kReasonImageOperations},  // adds layers
-    {"python-fu-foggify", kReasonImageOperations},        // adds a layer
+    {"plug-in-wavelet-decompose", kReasonNewLayer},       // adds layers
+    {"python-fu-foggify", kReasonNewLayer},               // adds a layer
 };
 
 }  // namespace

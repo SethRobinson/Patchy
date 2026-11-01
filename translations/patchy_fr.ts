@@ -18658,6 +18658,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Why GIMP 3 plug-ins are not available</source>
         <translation>Pourquoi les modules externes GIMP 3 ne sont pas disponibles</translation>
     </message>
+    <message>
+        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
+        <translation>Pourquoi les modules externes Python de GIMP ne peuvent pas démarrer sous macOS</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins that did not start, listed in Preferences</source>
+        <translation>Modules externes GIMP qui n&apos;ont pas démarré, répertoriés dans les Préférences</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31723,6 +31731,153 @@ Verrouillé : %1</translation>
     <message>
         <source>A GIMP plug-in is already running</source>
         <translation>Un module externe GIMP est déjà en cours d&apos;exécution</translation>
+    </message>
+    <message>
+        <source>It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.</source>
+        <translation>Il place son résultat sur un nouveau calque, ce que Patchy ne fournit pas encore aux modules externes GIMP.</translation>
+    </message>
+    <message>
+        <source>It combines several open images into a new one, which Patchy does not give GIMP plug-ins.</source>
+        <translation>Il combine plusieurs images ouvertes en une nouvelle, ce que Patchy ne fournit pas aux modules externes GIMP.</translation>
+    </message>
+    <message>
+        <source>It draws with GIMP&apos;s painting tools, which Patchy does not provide.</source>
+        <translation>Il dessine avec les outils de peinture de GIMP, que Patchy ne fournit pas.</translation>
+    </message>
+    <message>
+        <source>It works through GIMP&apos;s clipboard, which Patchy does not provide.</source>
+        <translation>Il passe par le presse-papiers de GIMP, que Patchy ne fournit pas.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s gradients, which Patchy does not provide yet.</source>
+        <translation>Il a besoin des dégradés de GIMP, que Patchy ne fournit pas encore.</translation>
+    </message>
+    <message>
+        <source>(Creates a new image)</source>
+        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
+        <translation>(Crée une nouvelle image)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple layers selected)</source>
+        <translation>(Nécessite plusieurs calques sélectionnés)</translation>
+    </message>
+    <message>
+        <source>(Requires a grayscale or indexed image)</source>
+        <translation>(Nécessite une image en niveaux de gris ou indexée)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image commands)</source>
+        <translation>(Nécessite les commandes d&apos;image de GIMP)</translation>
+    </message>
+    <message>
+        <source>(Script-Fu, not supported)</source>
+        <translation>(Script-Fu, non pris en charge)</translation>
+    </message>
+    <message>
+        <source>(Requires a new image)</source>
+        <translation>(Nécessite une nouvelle image)</translation>
+    </message>
+    <message>
+        <source>(Requires animation frames)</source>
+        <translation>(Nécessite des images d&apos;animation)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image operations)</source>
+        <translation>(Nécessite les opérations d&apos;image de GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s resources)</source>
+        <translation>(Nécessite les ressources de GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires a new layer)</source>
+        <translation>(Nécessite un nouveau calque)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple images)</source>
+        <translation>(Nécessite plusieurs images)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s painting tools)</source>
+        <translation>(Nécessite les outils de peinture de GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s clipboard)</source>
+        <translation>(Nécessite le presse-papiers de GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s gradients)</source>
+        <translation>(Nécessite les dégradés de GIMP)</translation>
+    </message>
+    <message>
+        <source>(Unsupported)</source>
+        <translation>(Non pris en charge)</translation>
+    </message>
+    <message>
+        <source>(Needs an open image)</source>
+        <translation>(Nécessite une image ouverte)</translation>
+    </message>
+    <message>
+        <source>Open an image to run this plug-in.</source>
+        <translation>Ouvrez une image pour exécuter ce module externe.</translation>
+    </message>
+    <message>
+        <source>(Not in Quick Mask mode)</source>
+        <translation>(Pas en mode Masque)</translation>
+    </message>
+    <message>
+        <source>(Not while viewing a channel)</source>
+        <translation>(Pas pendant l&apos;affichage d&apos;une couche)</translation>
+    </message>
+    <message>
+        <source>(Select a single layer)</source>
+        <translation>(Sélectionnez un seul calque)</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer.</source>
+        <translation>Les modules externes traitent un seul calque à la fois. Sélectionnez un seul calque.</translation>
+    </message>
+    <message>
+        <source>(Needs a pixel layer)</source>
+        <translation>(Nécessite un calque de pixels)</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer to run this plug-in.</source>
+        <translation>Sélectionnez un calque de pixels pour exécuter ce module externe.</translation>
+    </message>
+    <message>
+        <source>(Layer pixels are locked)</source>
+        <translation>(Pixels du calque verrouillés)</translation>
+    </message>
+    <message>
+        <source>Unlock the layer&apos;s pixels to run this plug-in.</source>
+        <translation>Déverrouillez les pixels du calque pour exécuter ce module externe.</translation>
+    </message>
+    <message>
+        <source>(Needs an RGB image)</source>
+        <translation>(Nécessite une image RVB)</translation>
+    </message>
+    <message>
+        <source>(Needs a layer with transparency)</source>
+        <translation>(Nécessite un calque avec transparence)</translation>
+    </message>
+    <message>
+        <source>This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background.</source>
+        <translation>Ce module externe a besoin d&apos;un calque pouvant contenir de la transparence. Faites un clic droit sur l&apos;Arrière-plan dans le panneau Calques et choisissez Calque d&apos;après l&apos;arrière-plan.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Python plug-ins (Python plug-ins can&apos;t start on macOS)</source>
+        <extracomment>A disabled menu entry: GIMP&apos;s Python plug-ins cannot run from Patchy on macOS.</extracomment>
+        <translation>Modules externes Python de GIMP (les modules externes Python ne peuvent pas démarrer sous macOS)</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start GIMP&apos;s Python, so these plug-ins cannot run from Patchy: %1</source>
+        <translation>macOS ne permet qu&apos;à GIMP lui-même de lancer le Python de GIMP, ces modules externes ne peuvent donc pas s&apos;exécuter depuis Patchy : %1</translation>
+    </message>
+    <message>
+        <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
+        <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
+        <translation>Modules externes qui n&apos;ont pas démarré : %1 (voir Préférences &gt; Modules externes)</translation>
     </message>
 </context>
 <context>

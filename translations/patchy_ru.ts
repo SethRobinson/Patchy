@@ -18702,6 +18702,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Why GIMP 3 plug-ins are not available</source>
         <translation>Почему плагины GIMP 3 недоступны</translation>
     </message>
+    <message>
+        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
+        <translation>Почему Python-плагины GIMP не могут запускаться в macOS</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins that did not start, listed in Preferences</source>
+        <translation>Плагины GIMP, которые не запустились, перечислены в настройках</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31806,6 +31814,153 @@ Locked: %1</source>
     <message>
         <source>A GIMP plug-in is already running</source>
         <translation>Плагин GIMP уже запущен</translation>
+    </message>
+    <message>
+        <source>It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.</source>
+        <translation>Он помещает результат на новый слой, а Patchy пока не предоставляет это плагинам GIMP.</translation>
+    </message>
+    <message>
+        <source>It combines several open images into a new one, which Patchy does not give GIMP plug-ins.</source>
+        <translation>Он объединяет несколько открытых изображений в новое, а Patchy не предоставляет это плагинам GIMP.</translation>
+    </message>
+    <message>
+        <source>It draws with GIMP&apos;s painting tools, which Patchy does not provide.</source>
+        <translation>Он рисует инструментами рисования GIMP, которых нет в Patchy.</translation>
+    </message>
+    <message>
+        <source>It works through GIMP&apos;s clipboard, which Patchy does not provide.</source>
+        <translation>Он работает через буфер обмена GIMP, которого нет в Patchy.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s gradients, which Patchy does not provide yet.</source>
+        <translation>Ему нужны градиенты GIMP, которых в Patchy пока нет.</translation>
+    </message>
+    <message>
+        <source>(Creates a new image)</source>
+        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
+        <translation>(Создаёт новое изображение)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple layers selected)</source>
+        <translation>(Требуется выбрать несколько слоёв)</translation>
+    </message>
+    <message>
+        <source>(Requires a grayscale or indexed image)</source>
+        <translation>(Требуется изображение в оттенках серого или индексированное)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image commands)</source>
+        <translation>(Требуются команды изображения GIMP)</translation>
+    </message>
+    <message>
+        <source>(Script-Fu, not supported)</source>
+        <translation>(Script-Fu, не поддерживается)</translation>
+    </message>
+    <message>
+        <source>(Requires a new image)</source>
+        <translation>(Требуется новое изображение)</translation>
+    </message>
+    <message>
+        <source>(Requires animation frames)</source>
+        <translation>(Требуются кадры анимации)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image operations)</source>
+        <translation>(Требуются операции GIMP с изображениями)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s resources)</source>
+        <translation>(Требуются ресурсы GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires a new layer)</source>
+        <translation>(Требуется новый слой)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple images)</source>
+        <translation>(Требуется несколько изображений)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s painting tools)</source>
+        <translation>(Требуются инструменты рисования GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s clipboard)</source>
+        <translation>(Требуется буфер обмена GIMP)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s gradients)</source>
+        <translation>(Требуются градиенты GIMP)</translation>
+    </message>
+    <message>
+        <source>(Unsupported)</source>
+        <translation>(Не поддерживается)</translation>
+    </message>
+    <message>
+        <source>(Needs an open image)</source>
+        <translation>(Нужно открытое изображение)</translation>
+    </message>
+    <message>
+        <source>Open an image to run this plug-in.</source>
+        <translation>Откройте изображение, чтобы запустить этот плагин.</translation>
+    </message>
+    <message>
+        <source>(Not in Quick Mask mode)</source>
+        <translation>(Не в режиме быстрой маски)</translation>
+    </message>
+    <message>
+        <source>(Not while viewing a channel)</source>
+        <translation>(Не при просмотре канала)</translation>
+    </message>
+    <message>
+        <source>(Select a single layer)</source>
+        <translation>(Выберите один слой)</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer.</source>
+        <translation>Плагины работают с одним слоем за раз. Выберите один слой.</translation>
+    </message>
+    <message>
+        <source>(Needs a pixel layer)</source>
+        <translation>(Нужен слой пикселей)</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer to run this plug-in.</source>
+        <translation>Выберите слой пикселей, чтобы запустить этот плагин.</translation>
+    </message>
+    <message>
+        <source>(Layer pixels are locked)</source>
+        <translation>(Пиксели слоя заблокированы)</translation>
+    </message>
+    <message>
+        <source>Unlock the layer&apos;s pixels to run this plug-in.</source>
+        <translation>Разблокируйте пиксели слоя, чтобы запустить этот плагин.</translation>
+    </message>
+    <message>
+        <source>(Needs an RGB image)</source>
+        <translation>(Нужно изображение RGB)</translation>
+    </message>
+    <message>
+        <source>(Needs a layer with transparency)</source>
+        <translation>(Нужен слой с прозрачностью)</translation>
+    </message>
+    <message>
+        <source>This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background.</source>
+        <translation>Этому плагину нужен слой, который может содержать прозрачность. Щелкните правой кнопкой мыши «Фон» на панели «Слои» и выберите «Слой из фона».</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Python plug-ins (Python plug-ins can&apos;t start on macOS)</source>
+        <extracomment>A disabled menu entry: GIMP&apos;s Python plug-ins cannot run from Patchy on macOS.</extracomment>
+        <translation>Python-плагины GIMP (Python-плагины не могут запускаться в macOS)</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start GIMP&apos;s Python, so these plug-ins cannot run from Patchy: %1</source>
+        <translation>macOS разрешает запускать Python из GIMP только самому GIMP, поэтому эти плагины не могут работать из Patchy: %1</translation>
+    </message>
+    <message>
+        <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
+        <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
+        <translation>Плагины, которые не запустились: %1 (см. Настройки &gt; Плагины)</translation>
     </message>
 </context>
 <context>

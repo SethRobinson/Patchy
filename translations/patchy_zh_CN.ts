@@ -18614,6 +18614,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Why GIMP 3 plug-ins are not available</source>
         <translation>GIMP 3 插件不可用的原因</translation>
     </message>
+    <message>
+        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
+        <translation>GIMP 的 Python 插件无法在 macOS 上启动的原因</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins that did not start, listed in Preferences</source>
+        <translation>未能启动的 GIMP 插件，列在首选项中</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31640,6 +31648,153 @@ Locked: %1</source>
     <message>
         <source>A GIMP plug-in is already running</source>
         <translation>已有 GIMP 插件正在运行</translation>
+    </message>
+    <message>
+        <source>It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.</source>
+        <translation>它将结果放在新图层上，而 Patchy 目前尚未向 GIMP 插件提供新图层。</translation>
+    </message>
+    <message>
+        <source>It combines several open images into a new one, which Patchy does not give GIMP plug-ins.</source>
+        <translation>它将多个打开的图像合并为一个新图像，而 Patchy 不向 GIMP 插件提供此功能。</translation>
+    </message>
+    <message>
+        <source>It draws with GIMP&apos;s painting tools, which Patchy does not provide.</source>
+        <translation>它使用 GIMP 的绘画工具进行绘制，而 Patchy 不提供这些工具。</translation>
+    </message>
+    <message>
+        <source>It works through GIMP&apos;s clipboard, which Patchy does not provide.</source>
+        <translation>它通过 GIMP 的剪贴板工作，而 Patchy 不提供该剪贴板。</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s gradients, which Patchy does not provide yet.</source>
+        <translation>它需要 GIMP 的渐变，Patchy 目前尚不提供这些内容。</translation>
+    </message>
+    <message>
+        <source>(Creates a new image)</source>
+        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
+        <translation>（创建新图像）</translation>
+    </message>
+    <message>
+        <source>(Requires multiple layers selected)</source>
+        <translation>（需要选择多个图层）</translation>
+    </message>
+    <message>
+        <source>(Requires a grayscale or indexed image)</source>
+        <translation>（需要灰度或索引图像）</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image commands)</source>
+        <translation>（需要 GIMP 的图像命令）</translation>
+    </message>
+    <message>
+        <source>(Script-Fu, not supported)</source>
+        <translation>（Script-Fu，不支持）</translation>
+    </message>
+    <message>
+        <source>(Requires a new image)</source>
+        <translation>（需要新图像）</translation>
+    </message>
+    <message>
+        <source>(Requires animation frames)</source>
+        <translation>（需要动画帧）</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image operations)</source>
+        <translation>（需要 GIMP 的图像操作）</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s resources)</source>
+        <translation>（需要 GIMP 的资源）</translation>
+    </message>
+    <message>
+        <source>(Requires a new layer)</source>
+        <translation>（需要新图层）</translation>
+    </message>
+    <message>
+        <source>(Requires multiple images)</source>
+        <translation>（需要多个图像）</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s painting tools)</source>
+        <translation>（需要 GIMP 的绘画工具）</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s clipboard)</source>
+        <translation>（需要 GIMP 的剪贴板）</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s gradients)</source>
+        <translation>（需要 GIMP 的渐变）</translation>
+    </message>
+    <message>
+        <source>(Unsupported)</source>
+        <translation>（不支持）</translation>
+    </message>
+    <message>
+        <source>(Needs an open image)</source>
+        <translation>（需要打开的图像）</translation>
+    </message>
+    <message>
+        <source>Open an image to run this plug-in.</source>
+        <translation>请打开一个图像以运行此插件。</translation>
+    </message>
+    <message>
+        <source>(Not in Quick Mask mode)</source>
+        <translation>（快速蒙版模式下不可用）</translation>
+    </message>
+    <message>
+        <source>(Not while viewing a channel)</source>
+        <translation>（查看通道时不可用）</translation>
+    </message>
+    <message>
+        <source>(Select a single layer)</source>
+        <translation>（请选择单个图层）</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer.</source>
+        <translation>插件一次只能处理一个图层。请选择单个图层。</translation>
+    </message>
+    <message>
+        <source>(Needs a pixel layer)</source>
+        <translation>（需要像素图层）</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer to run this plug-in.</source>
+        <translation>请选择一个像素图层以运行此插件。</translation>
+    </message>
+    <message>
+        <source>(Layer pixels are locked)</source>
+        <translation>（图层像素已锁定）</translation>
+    </message>
+    <message>
+        <source>Unlock the layer&apos;s pixels to run this plug-in.</source>
+        <translation>请解锁图层像素以运行此插件。</translation>
+    </message>
+    <message>
+        <source>(Needs an RGB image)</source>
+        <translation>（需要 RGB 图像）</translation>
+    </message>
+    <message>
+        <source>(Needs a layer with transparency)</source>
+        <translation>（需要带透明度的图层）</translation>
+    </message>
+    <message>
+        <source>This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background.</source>
+        <translation>此插件需要一个可以包含透明度的图层。请在图层面板中右键单击背景，然后选择“从背景生成图层”。</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Python plug-ins (Python plug-ins can&apos;t start on macOS)</source>
+        <extracomment>A disabled menu entry: GIMP&apos;s Python plug-ins cannot run from Patchy on macOS.</extracomment>
+        <translation>GIMP 的 Python 插件（Python 插件无法在 macOS 上启动）</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start GIMP&apos;s Python, so these plug-ins cannot run from Patchy: %1</source>
+        <translation>macOS 只允许 GIMP 本身启动 GIMP 的 Python，因此这些插件无法从 Patchy 运行：%1</translation>
+    </message>
+    <message>
+        <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
+        <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
+        <translation>未能启动的插件：%1（请参阅 首选项 &gt; 插件）</translation>
     </message>
 </context>
 <context>

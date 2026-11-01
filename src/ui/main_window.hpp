@@ -1439,8 +1439,16 @@ private:
   GimpDialogOutcome run_gimp_plugin_settings_dialog(DocumentSession& session, LayerId layer_id,
                                                     const GimpPluginProcedure& entry, const GimpPluginArgumentSet& arguments,
                                                     QString* error);
-  // A reason code from the query (gimp_procedure.hpp) as text for the user.
+  // A reason code from the query (gimp_procedure.hpp) as text for the user: the full
+  // sentence (Preferences, tooltips, scripts) and the short menu suffix ("(Requires a new
+  // layer)"). The one wording source for every place that says why a plug-in cannot run.
   [[nodiscard]] static QString gimp_plugin_reason_text(const QString& code);
+  [[nodiscard]] static QString gimp_plugin_reason_suffix(const QString& code);
+  // Why a runnable plug-in cannot run on the current document right now (no image, a
+  // group layer, locked pixels...): the menu suffix, empty when it can; `full` gets the
+  // sentence. Rechecked whenever the menu opens.
+  [[nodiscard]] QString gimp_plugin_state_reason(const GimpPluginProcedure& entry, QString* full) const;
+  void refresh_gimp_plugin_menu_state();
   [[nodiscard]] static QString gimp_plugin_error_text(const QString& name, const GimpPluginRunResult& result);
   void cut_selection();
   void copy_selection();

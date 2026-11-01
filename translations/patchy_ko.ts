@@ -18614,6 +18614,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Why GIMP 3 plug-ins are not available</source>
         <translation>GIMP 3 플러그인을 사용할 수 없는 이유</translation>
     </message>
+    <message>
+        <source>Why GIMP&apos;s Python plug-ins cannot start on macOS</source>
+        <translation>GIMP의 Python 플러그인이 macOS에서 시작될 수 없는 이유</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins that did not start, listed in Preferences</source>
+        <translation>시작되지 않은 GIMP 플러그인(환경설정에 나열됨)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31640,6 +31648,153 @@ Locked: %1</source>
     <message>
         <source>A GIMP plug-in is already running</source>
         <translation>GIMP 플러그인이 이미 실행 중입니다</translation>
+    </message>
+    <message>
+        <source>It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.</source>
+        <translation>결과를 새 레이어에 넣는데, Patchy는 아직 GIMP 플러그인에 새 레이어를 제공하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It combines several open images into a new one, which Patchy does not give GIMP plug-ins.</source>
+        <translation>열린 여러 이미지를 새 이미지로 결합하는데, Patchy는 GIMP 플러그인에 이를 제공하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It draws with GIMP&apos;s painting tools, which Patchy does not provide.</source>
+        <translation>GIMP의 페인팅 도구로 그리는데, Patchy는 이를 제공하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It works through GIMP&apos;s clipboard, which Patchy does not provide.</source>
+        <translation>GIMP의 클립보드를 통해 작동하는데, Patchy는 이를 제공하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s gradients, which Patchy does not provide yet.</source>
+        <translation>GIMP의 그레이디언트가 필요하지만 Patchy는 아직 이를 제공하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>(Creates a new image)</source>
+        <extracomment>Menu suffixes after a GIMP plug-in&apos;s name (&quot;Pagecurl... (Requires a new layer)&quot;), saying why it is unavailable. Keep them short.</extracomment>
+        <translation>(새 이미지를 만듦)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple layers selected)</source>
+        <translation>(여러 레이어 선택 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires a grayscale or indexed image)</source>
+        <translation>(회색조 또는 인덱스 이미지 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image commands)</source>
+        <translation>(GIMP의 이미지 명령 필요)</translation>
+    </message>
+    <message>
+        <source>(Script-Fu, not supported)</source>
+        <translation>(Script-Fu, 지원되지 않음)</translation>
+    </message>
+    <message>
+        <source>(Requires a new image)</source>
+        <translation>(새 이미지 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires animation frames)</source>
+        <translation>(애니메이션 프레임 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s image operations)</source>
+        <translation>(GIMP의 이미지 작업 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s resources)</source>
+        <translation>(GIMP의 리소스 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires a new layer)</source>
+        <translation>(새 레이어 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires multiple images)</source>
+        <translation>(여러 이미지 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s painting tools)</source>
+        <translation>(GIMP의 페인팅 도구 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s clipboard)</source>
+        <translation>(GIMP의 클립보드 필요)</translation>
+    </message>
+    <message>
+        <source>(Requires GIMP&apos;s gradients)</source>
+        <translation>(GIMP의 그레이디언트 필요)</translation>
+    </message>
+    <message>
+        <source>(Unsupported)</source>
+        <translation>(지원되지 않음)</translation>
+    </message>
+    <message>
+        <source>(Needs an open image)</source>
+        <translation>(열린 이미지 필요)</translation>
+    </message>
+    <message>
+        <source>Open an image to run this plug-in.</source>
+        <translation>이 플러그인을 실행하려면 이미지를 여세요.</translation>
+    </message>
+    <message>
+        <source>(Not in Quick Mask mode)</source>
+        <translation>(빠른 마스크 모드에서는 불가)</translation>
+    </message>
+    <message>
+        <source>(Not while viewing a channel)</source>
+        <translation>(채널을 보는 동안에는 불가)</translation>
+    </message>
+    <message>
+        <source>(Select a single layer)</source>
+        <translation>(단일 레이어 선택)</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer.</source>
+        <translation>플러그인은 한 번에 하나의 레이어에서 작동합니다. 단일 레이어를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>(Needs a pixel layer)</source>
+        <translation>(픽셀 레이어 필요)</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer to run this plug-in.</source>
+        <translation>이 플러그인을 실행하려면 픽셀 레이어를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>(Layer pixels are locked)</source>
+        <translation>(레이어 픽셀이 잠겨 있음)</translation>
+    </message>
+    <message>
+        <source>Unlock the layer&apos;s pixels to run this plug-in.</source>
+        <translation>이 플러그인을 실행하려면 레이어의 픽셀 잠금을 해제하세요.</translation>
+    </message>
+    <message>
+        <source>(Needs an RGB image)</source>
+        <translation>(RGB 이미지 필요)</translation>
+    </message>
+    <message>
+        <source>(Needs a layer with transparency)</source>
+        <translation>(투명도가 있는 레이어 필요)</translation>
+    </message>
+    <message>
+        <source>This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel and choose Layer from Background.</source>
+        <translation>이 플러그인에는 투명도를 가질 수 있는 레이어가 필요합니다. 레이어 패널에서 배경을 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>GIMP&apos;s Python plug-ins (Python plug-ins can&apos;t start on macOS)</source>
+        <extracomment>A disabled menu entry: GIMP&apos;s Python plug-ins cannot run from Patchy on macOS.</extracomment>
+        <translation>GIMP의 Python 플러그인(Python 플러그인은 macOS에서 시작할 수 없음)</translation>
+    </message>
+    <message>
+        <source>macOS lets only GIMP itself start GIMP&apos;s Python, so these plug-ins cannot run from Patchy: %1</source>
+        <translation>macOS에서는 GIMP 자체만 GIMP의 Python을 시작할 수 있으므로 이 플러그인들은 Patchy에서 실행할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Plug-ins that did not start: %1 (see Preferences &gt; Plug-ins)</source>
+        <extracomment>A disabled menu entry; %1 is how many GIMP plug-in files did not start.</extracomment>
+        <translation>시작되지 않은 플러그인: %1(환경설정 &gt; 플러그인 참조)</translation>
     </message>
 </context>
 <context>

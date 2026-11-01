@@ -24,6 +24,8 @@
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QFileInfo>
+#include <QRegularExpression>
 #include <QGuiApplication>
 #include <QMenu>
 #include <QMessageBox>
@@ -51,6 +53,10 @@ namespace patchy::ui {
 namespace {
 
 constexpr char kGimpPluginMenuEntryProperty[] = "patchy.gimpPluginMenuEntry";
+// The entry's own label, without a reason suffix.
+constexpr char kGimpPluginLabelProperty[] = "patchy.gimpPluginLabel";
+// A procedure Patchy cannot run: disabled for good, its reason in the text.
+constexpr char kGimpPluginRefusedProperty[] = "patchy.gimpPluginRefused";
 
 QString sentence_name(const QString& label) { return gimp_plugin_display_name(label); }
 
@@ -192,10 +198,120 @@ QString MainWindow::gimp_plugin_reason_text(const QString& code) {
   if (code == QLatin1String("uses-gimp-resources")) {
     return tr("It needs GIMP's brushes, patterns, gradients, fonts or palettes, which Patchy does not provide yet.");
   }
+  if (code == QLatin1String("needs-new-layer")) {
+    return tr("It puts its result on a new layer, which Patchy does not give GIMP plug-ins yet.");
+  }
+  if (code == QLatin1String("needs-several-images")) {
+    return tr("It combines several open images into a new one, which Patchy does not give GIMP plug-ins.");
+  }
+  if (code == QLatin1String("needs-painting-tools")) {
+    return tr("It draws with GIMP's painting tools, which Patchy does not provide.");
+  }
+  if (code == QLatin1String("needs-clipboard")) {
+    return tr("It works through GIMP's clipboard, which Patchy does not provide.");
+  }
+  if (code == QLatin1String("needs-gradients")) {
+    return tr("It needs GIMP's gradients, which Patchy does not provide yet.");
+  }
   if (code == QLatin1String("file-handler") || code == QLatin1String("no-menu") || code == QLatin1String("temporary")) {
     return tr("It is a file format or a helper for other plug-ins.");
   }
   return tr("Patchy cannot run it.");
+}
+
+QString MainWindow::gimp_plugin_reason_suffix(const QString& code) {
+  //: Menu suffixes after a GIMP plug-in's name ("Pagecurl... (Requires a new layer)"),
+  //: saying why it is unavailable. Keep them short.
+  if (code == QLatin1String("needs-no-layer")) {
+    return tr("(Creates a new image)");
+  }
+  if (code == QLatin1String("needs-several-layers")) {
+    return tr("(Requires multiple layers selected)");
+  }
+  if (code == QLatin1String("not-rgb")) {
+    return tr("(Requires a grayscale or indexed image)");
+  }
+  if (code == QLatin1String("menu-outside-filters")) {
+    return tr("(Requires GIMP's image commands)");
+  }
+  if (code == QLatin1String("script-fu")) {
+    return tr("(Script-Fu, not supported)");
+  }
+  if (code == QLatin1String("creates-image")) {
+    return tr("(Requires a new image)");
+  }
+  if (code == QLatin1String("animation")) {
+    return tr("(Requires animation frames)");
+  }
+  if (code == QLatin1String("image-operations")) {
+    return tr("(Requires GIMP's image operations)");
+  }
+  if (code == QLatin1String("uses-gimp-resources")) {
+    return tr("(Requires GIMP's resources)");
+  }
+  if (code == QLatin1String("needs-new-layer")) {
+    return tr("(Requires a new layer)");
+  }
+  if (code == QLatin1String("needs-several-images")) {
+    return tr("(Requires multiple images)");
+  }
+  if (code == QLatin1String("needs-painting-tools")) {
+    return tr("(Requires GIMP's painting tools)");
+  }
+  if (code == QLatin1String("needs-clipboard")) {
+    return tr("(Requires GIMP's clipboard)");
+  }
+  if (code == QLatin1String("needs-gradients")) {
+    return tr("(Requires GIMP's gradients)");
+  }
+  // Consoles, browsers, editors without an image: nothing Patchy could add runs them.
+  return tr("(Unsupported)");
+}
+
+QString MainWindow::gimp_plugin_state_reason(const GimpPluginProcedure& entry, QString* full) const {
+  const auto say = [full](const QString& suffix, const QString& sentence) {
+    if (full != nullptr) *full = sentence;
+    return suffix;
+  };
+  const auto* session = const_cast<MainWindow*>(this)->active_session();
+  if (session == nullptr) {
+    return say(tr("(Needs an open image)"), tr("Open an image to run this plug-in."));
+  }
+  if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+    return say(tr("(Not in Quick Mask mode)"), tr("Filters are unavailable in Quick Mask mode"));
+  }
+  if (canvas_ != nullptr &&
+      (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
+       CanvasWidget::is_component_preview(canvas_->layer_edit_target()))) {
+    return say(tr("(Not while viewing a channel)"), tr("Filters are unavailable while viewing a document channel"));
+  }
+  if (selected_or_active_layer_ids().size() > 1) {
+    return say(tr("(Select a single layer)"), tr("Plug-ins work on one layer at a time. Select a single layer."));
+  }
+  const auto active = std::as_const(session->document).active_layer_id();
+  const auto* layer = active.has_value() ? std::as_const(session->document).find_layer(*active) : nullptr;
+  if (layer == nullptr ||
+      (layer->kind() != LayerKind::Pixel && layer->kind() != LayerKind::Text && !layer_pixels_are_procedural(*layer))) {
+    return say(tr("(Needs a pixel layer)"), tr("Select a pixel layer to run this plug-in."));
+  }
+  if (layer_id_locks_image_pixels(*active)) {
+    return say(tr("(Layer pixels are locked)"), tr("Unlock the layer's pixels to run this plug-in."));
+  }
+  if (layer->kind() == LayerKind::Pixel && layer->pixels().format().color_mode != ColorMode::RGB) {
+    return say(tr("(Needs an RGB image)"), tr("GIMP plug-ins run on RGB layers. Convert the document to RGB first."));
+  }
+  // A plug-in registered for "RGBA" only needs alpha; a layer whose transparency is
+  // locked (the Background) cannot gain it.
+  const auto types = entry.image_types.toUpper().split(QRegularExpression(QStringLiteral("[,\\s]+")), Qt::SkipEmptyParts);
+  const bool alpha_only = types.contains(QStringLiteral("RGBA")) && !types.contains(QStringLiteral("RGB")) &&
+                          !types.contains(QStringLiteral("RGB*")) && !types.contains(QStringLiteral("*"));
+  if (alpha_only && layer->kind() == LayerKind::Pixel && layer->pixels().format().channels == 3 &&
+      layer_id_locks_transparent_pixels(*active)) {
+    return say(tr("(Needs a layer with transparency)"),
+               tr("This plug-in needs a layer that can hold transparency. Right-click the Background in the Layers panel "
+                  "and choose Layer from Background."));
+  }
+  return {};
 }
 
 QString MainWindow::gimp_plugin_error_text(const QString& name, const GimpPluginRunResult& result) {
@@ -265,6 +381,7 @@ void MainWindow::rebuild_gimp_plugins_menu() {
       action->deleteLater();
     }
   }
+  gimp_plugins_menu_->setToolTipsVisible(true);
   // Dynamic entries go above the static commands (Rescan) at the bottom.
   QAction* before = gimp_plugins_menu_->actions().value(0);
   const auto add_note = [&](const QString& text, const char* object_name) {
@@ -273,16 +390,19 @@ void MainWindow::rebuild_gimp_plugins_menu() {
     note->setEnabled(false);
     note->setProperty(kGimpPluginMenuEntryProperty, true);
     gimp_plugins_menu_->insertAction(before, note);
+    return note;
   };
-  std::vector<const GimpPluginProcedure*> runnable;
+  // Every image command a plug-in registered: the runnable ones, and the ones Patchy
+  // cannot run, disabled with their reason. File formats and helpers stay hidden.
+  std::vector<const GimpPluginProcedure*> listed;
   if (gimp_plugins_ != nullptr) {
     for (const auto& p : gimp_plugins_->procedures) {
-      if (p.use == QLatin1String("layer")) {
-        runnable.push_back(&p);
+      if (p.use == QLatin1String("layer") || p.use == QLatin1String("unsupported")) {
+        listed.push_back(&p);
       }
     }
   }
-  if (runnable.empty()) {
+  if (listed.empty()) {
     if (gimp_plugin_scan_in_flight_) {
       add_note(tr("Scanning GIMP plug-ins..."), "gimpPluginsScanningNote");
     } else if (gimp_plugins_ != nullptr && !gimp_plugins_->problem.isEmpty()) {
@@ -291,7 +411,7 @@ void MainWindow::rebuild_gimp_plugins_menu() {
       add_note(tr("No GIMP 3 plug-ins found"), "gimpPluginsEmptyNote");
     }
   } else {
-    std::sort(runnable.begin(), runnable.end(), [](const auto* a, const auto* b) {
+    std::sort(listed.begin(), listed.end(), [](const auto* a, const auto* b) {
       const auto menu = a->menu.join(QLatin1Char('/')).compare(b->menu.join(QLatin1Char('/')), Qt::CaseInsensitive);
       return menu != 0 ? menu < 0 : a->label.compare(b->label, Qt::CaseInsensitive) < 0;
     });
@@ -314,35 +434,82 @@ void MainWindow::rebuild_gimp_plugins_menu() {
         menu = parent->addMenu(escape_qaction_ampersands(path.last()));
       }
       menu->setObjectName(QStringLiteral("gimpPluginCategoryMenu"));
+      menu->setToolTipsVisible(true);
       menu->menuAction()->setMenuRole(QAction::NoRole);  // submenus never merge on macOS (docs/platform.md)
       menus.emplace(key, menu);
       return menu;
     };
-    for (const auto* entry : runnable) {
+    for (const auto* entry : listed) {
       auto* target = menu_for(entry->menu);
-      auto* action = new QAction(escape_qaction_ampersands(entry->label), target != nullptr ? static_cast<QObject*>(target)
-                                                                                            : gimp_plugins_menu_);
+      const bool runs = entry->use == QLatin1String("layer");
+      const auto label = escape_qaction_ampersands(entry->label);
+      auto* action = new QAction(label, target != nullptr ? static_cast<QObject*>(target) : gimp_plugins_menu_);
       action->setData(entry->identifier);
       action->setObjectName(QStringLiteral("gimpPluginAction"));
       action->setProperty(kGimpPluginMenuEntryProperty, true);
       action->setProperty(kCommandSearchDataEntryProperty, true);
-      action->setProperty("patchy.channelViewBlocked", true);
-      action->setStatusTip(entry->blurb.isEmpty()
-                               ? tr("Run the %1 GIMP plug-in on the active layer").arg(sentence_name(entry->label))
-                               : entry->blurb);
+      action->setProperty(kGimpPluginLabelProperty, label);
       action->setMenuRole(QAction::NoRole);
-      const auto identifier = entry->identifier;
-      // Queued: the run must not start inside the menu's mouse handling (main_window.hpp).
-      connect(action, &QAction::triggered, this, [this, identifier] {
-        QTimer::singleShot(0, this, [this, identifier] { run_gimp_plugin(identifier); });
-      });
+      if (runs) {
+        action->setProperty("patchy.channelViewBlocked", true);
+        action->setStatusTip(entry->blurb.isEmpty()
+                                 ? tr("Run the %1 GIMP plug-in on the active layer").arg(sentence_name(entry->label))
+                                 : entry->blurb);
+        const auto identifier = entry->identifier;
+        // Queued: the run must not start inside the menu's mouse handling (main_window.hpp).
+        connect(action, &QAction::triggered, this, [this, identifier] {
+          QTimer::singleShot(0, this, [this, identifier] { run_gimp_plugin(identifier); });
+        });
+      } else {
+        // Disabled for good, its reason in the text; Search Commands lists it and says why.
+        const auto why = gimp_plugin_reason_text(entry->reason);
+        action->setText(label + QLatin1Char(' ') + gimp_plugin_reason_suffix(entry->reason));
+        action->setStatusTip(why);
+        action->setToolTip(why);
+        action->setEnabled(false);
+        action->setProperty(kGimpPluginRefusedProperty, true);
+        action->setProperty(kCommandSearchListsDisabledProperty, true);
+      }
       if (target != nullptr) {
         target->addAction(action);
       } else {
         gimp_plugins_menu_->insertAction(before, action);
       }
-      refresh_action_tooltip(action);
-      register_document_action(action);
+      if (runs) {
+        refresh_action_tooltip(action);
+        register_document_action(action);
+      }
+    }
+  }
+  // Plug-in files that never registered: GIMP's Python on macOS, and anything else that
+  // did not start (each listed in Preferences > Plug-ins with its error).
+  if (gimp_plugins_ != nullptr) {
+    QStringList constrained;
+    int failed = 0;
+    for (const auto& file : gimp_plugins_->files) {
+      if (file.ok) {
+        continue;
+      }
+      if (file.launch_constrained) {
+        constrained << QFileInfo(file.path).completeBaseName();
+      } else {
+        ++failed;
+      }
+    }
+    if (!constrained.isEmpty()) {
+      constrained.sort(Qt::CaseInsensitive);
+      //: A disabled menu entry: GIMP's Python plug-ins cannot run from Patchy on macOS.
+      auto* note = add_note(tr("GIMP's Python plug-ins (Python plug-ins can't start on macOS)"), "gimpPluginsPythonNote");
+      const auto why = tr("macOS lets only GIMP itself start GIMP's Python, so these plug-ins cannot run from Patchy: %1")
+                           .arg(constrained.join(QStringLiteral(", ")));
+      note->setStatusTip(why);
+      note->setToolTip(why);
+    }
+    if (failed > 0) {
+      //: A disabled menu entry; %1 is how many GIMP plug-in files did not start.
+      auto* note = add_note(tr("Plug-ins that did not start: %1 (see Preferences > Plug-ins)").arg(failed),
+                            "gimpPluginsFailedNote");
+      note->setToolTip(note->text());
     }
   }
   if (before != nullptr) {
@@ -352,6 +519,45 @@ void MainWindow::rebuild_gimp_plugins_menu() {
     gimp_plugins_menu_->insertAction(before, separator);
   }
   update_document_action_state();
+}
+
+void MainWindow::refresh_gimp_plugin_menu_state() {
+  if (gimp_plugins_menu_ == nullptr) {
+    return;
+  }
+  const bool locked = preview_dialog_edit_locked();
+  std::vector<QMenu*> stack{gimp_plugins_menu_};
+  while (!stack.empty()) {
+    auto* menu = stack.back();
+    stack.pop_back();
+    for (auto* action : menu->actions()) {
+      if (action->menu() != nullptr) {
+        stack.push_back(action->menu());
+        continue;
+      }
+      if (action->objectName() != QLatin1String("gimpPluginAction") ||
+          action->property(kGimpPluginRefusedProperty).toBool()) {
+        continue;
+      }
+      const auto* entry = find_gimp_plugin(action->data().toString());
+      if (entry == nullptr) {
+        continue;
+      }
+      const auto label = action->property(kGimpPluginLabelProperty).toString();
+      QString full;
+      const auto suffix = gimp_plugin_state_reason(*entry, &full);
+      if (suffix.isEmpty()) {
+        action->setText(label);
+        action->setEnabled(!locked);
+        action->setToolTip(entry->blurb);
+      } else {
+        // Says what to do; the entry turns on once that is done and the menu opens again.
+        action->setText(label + QLatin1Char(' ') + suffix);
+        action->setEnabled(false);
+        action->setToolTip(full);
+      }
+    }
+  }
 }
 
 }  // namespace patchy::ui
