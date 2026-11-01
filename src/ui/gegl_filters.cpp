@@ -5,16 +5,19 @@
 
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
+#include "plugins/gimp/gimp_flatpak.hpp"
 #include "ui/qt_paths.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QStandardPaths>
 
 #include <algorithm>
 #include <cmath>
@@ -83,12 +86,13 @@ QString number_text(double value) { return QString::number(value, 'g', 17); }
 // only GIMP's own programs set, so the loader is pointed at GIMP's lib folder (the signed
 // helper carries the entitlement for it, packaging/macos/patchy-gegl-host.entitlements).
 // LANGUAGE: GEGL translates its own labels through gettext (the helper asks its catalog).
-void prepare_helper(QProcess& helper, const QString& library, const QString& language = {}) {
+// `flatpak run` passes the environment into GIMP's sandbox.
+void prepare_helper(QProcess& helper, const GeglHelperCommand& command, const QString& language = {}) {
   auto environment = QProcessEnvironment::systemEnvironment();
 #ifdef Q_OS_MACOS
-  environment.insert(QStringLiteral("DYLD_LIBRARY_PATH"), QFileInfo(library).absolutePath());
+  environment.insert(QStringLiteral("DYLD_LIBRARY_PATH"), QFileInfo(command.library).absolutePath());
 #else
-  (void)library;
+  (void)command;
 #endif
   if (!language.isEmpty()) {
     environment.insert(QStringLiteral("LANGUAGE"), language);
@@ -132,7 +136,7 @@ void trace(const char* step, const GeglOperationSpec& spec, qsizetype bytes) {
   }
 }
 
-void run_operation(const QString& library, const GeglOperationSpec& spec, const FilterInvocation& invocation,
+void run_operation(const GeglHelperCommand& command, const GeglOperationSpec& spec, const FilterInvocation& invocation,
                    PixelBuffer& pixels, const FilterProgress* progress) {
   const auto format = babl_format_for(pixels.format());
   if (format.isEmpty()) {
@@ -196,9 +200,9 @@ void run_operation(const QString& library, const GeglOperationSpec& spec, const 
   };
   trace("start", spec, request.size());
   QProcess helper;
-  prepare_helper(helper, library);
-  helper.setProgram(gegl_helper_path());
-  helper.setArguments({QStringLiteral("--gegl"), library, QStringLiteral("--gpl3"), QStringLiteral("--run")});
+  prepare_helper(helper, command);
+  helper.setProgram(command.program);
+  helper.setArguments(command.arguments + QStringList{QStringLiteral("--gpl3"), QStringLiteral("--run")});
   helper.start();
   if (!helper.waitForStarted(10000)) {
     throw std::runtime_error(
@@ -361,7 +365,12 @@ QString gegl_helper_path() {
 
 QString find_gegl_library(const gimp::GimpInstall& install) {
   if (install.flatpak) {
-    return {};
+    // Inside GIMP's sandbox its files folder is /app. From Patchy's own Flatpak the
+    // helper would have to reach GIMP's sandbox through the host: not done.
+    if (gimp::running_in_flatpak() || !QFileInfo::exists(to_qstring(install.prefix / "lib" / "libgegl-0.4.so.0"))) {
+      return {};
+    }
+    return QStringLiteral("/app/lib/libgegl-0.4.so.0");
   }
   QStringList candidates;
 #if defined(Q_OS_WIN)
@@ -381,6 +390,45 @@ QString find_gegl_library(const gimp::GimpInstall& install) {
     }
   }
   return {};
+}
+
+GeglHelperCommand gegl_helper_command(const gimp::GimpInstall& install, const QString& library) {
+  GeglHelperCommand command;
+  command.library = library;
+  auto helper = gegl_helper_path();
+  if (!install.flatpak) {
+    command.program = helper;
+    command.arguments = {QStringLiteral("--gegl"), library};
+    return command;
+  }
+  // GIMP's Flatpak: the helper runs in GIMP's sandbox, which sees the helper's folder
+  // read-only. Flatpak will not share a folder under /usr, so a helper installed there is
+  // copied to Patchy's data folder first.
+  command.flatpak = true;
+  if (helper.startsWith(QLatin1String("/usr/"))) {
+    const QDir data(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+    const auto copy = data.filePath(QStringLiteral("gegl-helper/patchy-gegl-host"));
+    const QFileInfo source(helper);
+    const QFileInfo target(copy);
+    if (!target.exists() || target.size() != source.size() || target.lastModified() < source.lastModified()) {
+      QDir().mkpath(target.absolutePath());
+      QFile::remove(copy);
+      QFile::copy(helper, copy);
+    }
+    helper = copy;
+  }
+  const auto flatpak = QStandardPaths::findExecutable(QStringLiteral("flatpak"));
+  command.program = flatpak.isEmpty() ? QStringLiteral("flatpak") : flatpak;
+  const bool system_wide = to_qstring(install.flatpak_root).startsWith(QLatin1String("/var/lib/flatpak"));
+  command.arguments = {QStringLiteral("run"),
+                       system_wide ? QStringLiteral("--system") : QStringLiteral("--user"),
+                       QStringLiteral("--die-with-parent"),
+                       QStringLiteral("--filesystem=%1:ro").arg(QFileInfo(helper).absolutePath()),
+                       QStringLiteral("--command=%1").arg(helper),
+                       QString::fromStdString(install.flatpak_app),
+                       QStringLiteral("--gegl"),
+                       library};
+  return command;
 }
 
 QString gegl_category_label(const QString& category) {
@@ -426,18 +474,17 @@ bool gegl_operation_offered(const QJsonObject& operation, QString* why) {
   return true;
 }
 
-GeglFilterScanResult scan_gegl_filters(const QString& library, const QString& language) {
+GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const QString& language) {
   GeglFilterScanResult result;
-  result.library = library;
-  const auto helper_path = gegl_helper_path();
-  if (!QFileInfo::exists(helper_path)) {
+  result.library = command.library;
+  if (!QFileInfo::exists(gegl_helper_path())) {
     result.problem =
         QCoreApplication::translate("GeglFilters", "Patchy's GEGL helper is missing from its program folder.");
     return result;
   }
   QProcess helper;
-  prepare_helper(helper, library, language);
-  helper.start(helper_path, {QStringLiteral("--gegl"), library, QStringLiteral("--gpl3"), QStringLiteral("--list")});
+  prepare_helper(helper, command, language);
+  helper.start(command.program, command.arguments + QStringList{QStringLiteral("--gpl3"), QStringLiteral("--list")});
   helper.closeWriteChannel();
   if (!helper.waitForFinished(60000) || helper.exitCode() != 0) {
     helper.kill();
@@ -470,10 +517,10 @@ GeglFilterScanResult scan_gegl_filters(const QString& library, const QString& la
       }
     }
     // The registry's compatibility path: GEGL's own defaults.
-    filter.apply = [library, spec](PixelBuffer& pixels) { run_operation(library, *spec, {}, pixels, nullptr); };
-    filter.catalog.execute = [library, spec](const FilterRegistry&, const FilterInvocation& invocation,
+    filter.apply = [command, spec](PixelBuffer& pixels) { run_operation(command, *spec, {}, pixels, nullptr); };
+    filter.catalog.execute = [command, spec](const FilterRegistry&, const FilterInvocation& invocation,
                                              PixelBuffer& pixels, const FilterProgress* progress) {
-      run_operation(library, *spec, invocation, pixels, progress);
+      run_operation(command, *spec, invocation, pixels, progress);
     };
     const auto categories = operation.value(QStringLiteral("categories")).toString().split(QLatin1Char(':'));
     result.categories[filter.identifier] = categories.value(0).toLower();

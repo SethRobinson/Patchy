@@ -454,6 +454,18 @@ void MainWindow::rebuild_gimp_plugins_menu() {
       }
     }
   }
+  // The protocol is GIMP 3.2's (gimp_protocol.hpp); another series' plug-ins refuse to
+  // start, so say which GIMP Patchy expects.
+  if (gimp_plugins_ != nullptr && gimp_plugins_->install.has_value() && !gimp_plugins_->install->series.empty() &&
+      gimp_plugins_->install->series != "3.2") {
+    //: %1 is the installed GIMP's version, for example 3.0.4.
+    auto* note = add_note(tr("Made for GIMP 3.2's plug-ins; this is GIMP %1, whose plug-ins may not start")
+                              .arg(QString::fromStdString(gimp_plugins_->install->version.empty()
+                                                              ? gimp_plugins_->install->series
+                                                              : gimp_plugins_->install->version)),
+                          "gimpPluginsVersionNote");
+    note->setToolTip(note->text());
+  }
   // Plug-in files that never registered: GIMP's Python on macOS, and anything else that
   // did not start (each listed in Preferences > Plug-ins with its error).
   if (gimp_plugins_ != nullptr) {

@@ -31848,6 +31848,11 @@ Bloqueada: %1</translation>
         <source>No GEGL filters found</source>
         <translation>No se encontraron filtros GEGL</translation>
     </message>
+    <message>
+        <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
+        <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
+        <translation>Hecho para los plugins de GIMP 3.2; este es GIMP %1, cuyos plugins quizá no se inicien</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

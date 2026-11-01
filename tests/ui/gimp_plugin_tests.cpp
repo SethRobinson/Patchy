@@ -315,7 +315,7 @@ void ui_gimp_plugin_menu_run_survives_menu_deletion_if_available() {
   if (menu == nullptr) return;
   patchy::ui::set_stored_gimp_plugin_own_dialog(QStringLiteral("patchy-test-invert-bands"), true);
   const auto reset = qScopeGuard([] {
-    patchy::ui::set_stored_gimp_plugin_own_dialog(QStringLiteral("patchy-test-invert-bands"), false);
+    patchy::ui::set_stored_gimp_plugin_own_dialog(QStringLiteral("patchy-test-invert-bands"), true);  // the default
   });
   patchy::ui::MainWindowTestAccess::set_gimp_plugin_dialog_answer(window, 1);
   // As a person does it: Plugins > GIMP 3 Plug-ins opened, then its Patchy Test submenu.
@@ -918,7 +918,8 @@ void ui_gegl_filters_list_and_apply_if_available() {
   // GEGL's labels follow the language Patchy asks for, from GEGL's own catalog.
   if (const auto installs = patchy::gimp::detect_gimp_installs(); !installs.empty()) {
     const auto library = patchy::ui::find_gegl_library(installs.front());
-    const auto german = patchy::ui::scan_gegl_filters(library, QStringLiteral("de"));
+    const auto german = patchy::ui::scan_gegl_filters(patchy::ui::gegl_helper_command(installs.front(), library),
+                                                      QStringLiteral("de"));
     const auto* german_blur = german.registry != nullptr ? german.registry->find("gegl.gaussian-blur") : nullptr;
     CHECK(german_blur != nullptr && german_blur->display_name != blur->display_name);
   }

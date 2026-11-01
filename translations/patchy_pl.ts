@@ -31931,6 +31931,11 @@ Zablokowano: %1</translation>
         <source>No GEGL filters found</source>
         <translation>Nie znaleziono filtrów GEGL</translation>
     </message>
+    <message>
+        <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
+        <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
+        <translation>Przeznaczone dla wtyczek GIMP 3.2; to jest GIMP %1, którego wtyczki mogą się nie uruchomić</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

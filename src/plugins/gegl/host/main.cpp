@@ -16,11 +16,13 @@
 // NOTICE-THIRD-PARTY.md). No GEGL source was read.
 
 #include <algorithm>
+#include <clocale>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -178,6 +180,8 @@ struct Api {
   // libintl's (or the C library's) dgettext; optional. GLib's g_dgettext would decline:
   // it translates a library only when the program has a catalog of its own.
   const char* (*dgettext)(const char*, const char*) = nullptr;
+  const char* (*bindtextdomain)(const char*, const char*) = nullptr;
+  const char* (*bind_textdomain_codeset)(const char*, const char*) = nullptr;
 };
 
 Api api;
@@ -304,11 +308,16 @@ void bind_api() {
   bind(api.g_value_get_float, "g_value_get_float");
   bind(api.g_value_get_double, "g_value_get_double");
   bind(api.g_value_get_string, "g_value_get_string");
-  for (const auto* name : {"libintl_dgettext", "dgettext"}) {
-    if (auto* symbol = find_symbol(name); symbol != nullptr && api.dgettext == nullptr) {
-      std::memcpy(&api.dgettext, &symbol, sizeof(api.dgettext));
+  const auto optional = [](auto& target, std::initializer_list<const char*> names) {
+    for (const auto* name : names) {
+      if (auto* symbol = find_symbol(name); symbol != nullptr && target == nullptr) {
+        std::memcpy(&target, &symbol, sizeof(target));
+      }
     }
-  }
+  };
+  optional(api.dgettext, {"libintl_dgettext", "dgettext"});
+  optional(api.bindtextdomain, {"libintl_bindtextdomain", "bindtextdomain"});
+  optional(api.bind_textdomain_codeset, {"libintl_bind_textdomain_codeset", "bind_textdomain_codeset"});
 }
 
 // GEGL's text in the LANGUAGE Patchy set, from GEGL's own catalog.
@@ -319,7 +328,20 @@ const char* translated(const char* text) {
   return api.dgettext("gegl-0.4", text);
 }
 
-void start_gegl(bool allow_gpl3) {
+void start_gegl(bool allow_gpl3, const std::string& library) {
+#ifndef _WIN32
+  // gettext ignores LANGUAGE (Patchy's language for GEGL's labels) in the "C" locale,
+  // where a program starts. Only the messages category moves: the numbers the helper
+  // reads and writes stay in the C locale's notation.
+  if (const char* messages = std::setlocale(LC_MESSAGES, "");
+      messages == nullptr || std::strcmp(messages, "C") == 0 || std::strcmp(messages, "POSIX") == 0) {
+    for (const auto* fallback : {"en_US.UTF-8", "C.UTF-8"}) {
+      if (std::setlocale(LC_MESSAGES, fallback) != nullptr) {
+        break;
+      }
+    }
+  }
+#endif
   // GEGL reads its thread count from the environment at start.
   const auto threads = std::to_string(std::max(1U, std::min(64U, std::thread::hardware_concurrency())));
 #ifdef _WIN32
@@ -337,6 +359,22 @@ void start_gegl(bool allow_gpl3) {
     api.g_object_set(api.gegl_config(), "application-license", "GPL3", nullptr);
   }
   api.gegl_init(nullptr, nullptr);
+#ifndef _WIN32
+  // GEGL's catalog is the one beside the library: GEGL can bind its domain to the folder
+  // of the machine it was built on (GIMP.app's does, and GIMP binds it again itself).
+  // Windows GEGL finds it relative to its DLL, and libintl there reads paths in the ANSI
+  // code page, so it is left alone.
+  if (api.bindtextdomain != nullptr) {
+    const auto slash = library.find_last_of('/');
+    const auto locale = (slash == std::string::npos ? std::string(".") : library.substr(0, slash)) + "/../share/locale";
+    api.bindtextdomain("gegl-0.4", locale.c_str());
+  }
+#else
+  (void)library;
+#endif
+  if (api.bind_textdomain_codeset != nullptr) {
+    api.bind_textdomain_codeset("gegl-0.4", "UTF-8");  // JSON is UTF-8
+  }
 }
 
 std::string json_string(const char* text) {
@@ -608,6 +646,6 @@ int main(int argc, char** argv) {
   }
   load_gegl(library);
   bind_api();
-  start_gegl(allow_gpl3);
+  start_gegl(allow_gpl3, library);
   return mode == "--list" ? list_operations() : run_operation();
 }

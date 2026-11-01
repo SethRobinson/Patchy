@@ -31931,6 +31931,11 @@ Locked: %1</source>
         <source>No GEGL filters found</source>
         <translation>Фильтры GEGL не найдены</translation>
     </message>
+    <message>
+        <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
+        <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
+        <translation>Рассчитано на плагины GIMP 3.2; это GIMP %1, и его плагины могут не запуститься</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

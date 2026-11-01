@@ -193,7 +193,7 @@ void set_stored_gimp_plugin_folders(const QStringList& folders);
 [[nodiscard]] QString stored_gimp_install_folder();
 void set_stored_gimp_install_folder(const QString& folder);
 // Per GIMP procedure ("plug-in-blinds"): whether the plug-in's own dialog opens instead
-// of Patchy's settings dialog, whether Patchy's dialog previews on the canvas (default
+// of Patchy's settings dialog (default yes), whether Patchy's dialog previews on the canvas (default
 // on), and the last values used there (JSON, gimp_plugin_arguments.hpp).
 [[nodiscard]] bool stored_gimp_plugin_own_dialog(const QString& procedure);
 void set_stored_gimp_plugin_own_dialog(const QString& procedure, bool own_dialog);

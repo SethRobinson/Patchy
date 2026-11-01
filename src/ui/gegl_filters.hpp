@@ -21,6 +21,16 @@ class QJsonObject;
 
 namespace patchy::ui {
 
+// How Patchy starts patchy-gegl-host for one GIMP install: directly, or inside GIMP's
+// Flatpak (flatpak run --command=<helper> org.gimp.GIMP), where GEGL's libraries live.
+// The helper's own --gpl3 and --list / --run follow `arguments`.
+struct GeglHelperCommand {
+  QString program;
+  QStringList arguments;
+  QString library;        // the libgegl the helper loads (a sandbox path inside GIMP's Flatpak)
+  bool flatpak{false};
+};
+
 struct GeglFilterScanResult {
   QString library;        // the libgegl the helper loads; empty when none was found
   QString problem;        // why nothing is offered (translated); empty otherwise
@@ -35,15 +45,17 @@ struct GeglFilterScanResult {
 inline constexpr char kGeglFilterIdPrefix[] = "gegl.";
 
 [[nodiscard]] QString gegl_helper_path();
-// The GEGL library of a GIMP 3 install; empty when it has none Patchy can load (GIMP's
-// Flatpak keeps its libraries inside its sandbox).
+// The GEGL library of a GIMP 3 install (inside GIMP's Flatpak: its sandbox path); empty
+// when it has none Patchy can load. From Patchy's own Flatpak, GIMP's Flatpak is not used.
 [[nodiscard]] QString find_gegl_library(const gimp::GimpInstall& install);
+// The helper's command line for that install and library.
+[[nodiscard]] GeglHelperCommand gegl_helper_command(const gimp::GimpInstall& install, const QString& library);
 // Whether an operation from the helper's list is offered; `why` gets the reason it is not.
 [[nodiscard]] bool gegl_operation_offered(const QJsonObject& operation, QString* why = nullptr);
 // Lists the operations of `library` through the helper and builds the registry, with
 // GEGL's labels in `language` (a Patchy language code; empty: English). Blocking; run it
 // on a worker.
-[[nodiscard]] GeglFilterScanResult scan_gegl_filters(const QString& library, const QString& language = {});
+[[nodiscard]] GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const QString& language = {});
 // "Edge-detect" -> "Edge Detect": a GEGL category as a menu label.
 [[nodiscard]] QString gegl_category_label(const QString& category);
 

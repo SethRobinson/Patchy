@@ -31848,6 +31848,11 @@ Verrouillé : %1</translation>
         <source>No GEGL filters found</source>
         <translation>Aucun filtre GEGL trouvé</translation>
     </message>
+    <message>
+        <source>Made for GIMP 3.2&apos;s plug-ins; this is GIMP %1, whose plug-ins may not start</source>
+        <extracomment>%1 is the installed GIMP&apos;s version, for example 3.0.4.</extracomment>
+        <translation>Conçu pour les modules externes de GIMP 3.2 ; ceci est GIMP %1, dont les modules externes risquent de ne pas démarrer</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -426,16 +426,18 @@ void set_stored_gimp_plugin_folders(const QStringList& folders) {
 
 QString stored_gimp_install_folder() { return app_settings().value(gimp_install_folder_key()).toString(); }
 
+// The plug-in's own dialog is the default (docs/gimp-plugins.md): only the choice of
+// Patchy's dialog is stored, as false.
 bool stored_gimp_plugin_own_dialog(const QString& procedure) {
-  return app_settings().value(gimp_procedure_key("ownDialog", procedure), false).toBool();
+  return app_settings().value(gimp_procedure_key("ownDialog", procedure), true).toBool();
 }
 
 void set_stored_gimp_plugin_own_dialog(const QString& procedure, bool own_dialog) {
   auto settings = app_settings();
   if (own_dialog) {
-    settings.setValue(gimp_procedure_key("ownDialog", procedure), true);
-  } else {
     settings.remove(gimp_procedure_key("ownDialog", procedure));
+  } else {
+    settings.setValue(gimp_procedure_key("ownDialog", procedure), false);
   }
 }
 
