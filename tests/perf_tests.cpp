@@ -5,6 +5,8 @@
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "core/worker_budget.hpp"
+#include "filters/deep_filters.hpp"
+#include "filters/smart_filter_renderer.hpp"
 #include "formats/pdf_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/native_cmyk.hpp"
@@ -67,6 +69,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -97,7 +100,9 @@ namespace patchy::ui {
 // definition per binary; this one only exposes what the perf scenarios need).
 class MainWindowTestAccess {
  public:
-  static void open_document_path(MainWindow& window, const QString& path) { window.open_document_path(path); }
+  static void open_document_path(MainWindow& window, const QString& path) {
+    window.open_document_path(path, MainWindow::OpenExisting::LoadCopy);
+  }
   static Document& document(MainWindow& window) { return window.document(); }
   static void toggle_layer_folder_expanded(MainWindow& window, patchy::LayerId id) {
     window.toggle_layer_folder_expanded(id);
@@ -3283,6 +3288,71 @@ void idle_new_document_perf() {
             << " presets=" << library.presets().size() << '\n';
 }
 
+// Gaussian Blur and its sibling line filters on a 6000x4000 RGBA image (GitHub issue
+// 564: slow next to GIMP on large images). Times the RGBA8 primitive behind Filter >
+// Blur > Gaussian Blur, the Smart Filter and the preview at radii 0.5 (the calibrated
+// small kernel), 2, 20 (direct kernels) and 200 (the recursive filter), Unsharp Mask
+// (the straight-color pass) and the 16-bit float path. PATCHY_PERF_GAUSSIAN_SIZE=WxH
+// picks another size; PATCHY_RENDER_THREADS=<n> prices fewer cores.
+void gaussian_blur_perf() {
+  std::int32_t width = 6000;
+  std::int32_t height = 4000;
+  const auto size_text = qEnvironmentVariable("PATCHY_PERF_GAUSSIAN_SIZE");
+  if (const auto parts = size_text.split(QLatin1Char('x')); parts.size() == 2) {
+    width = std::max(1, parts[0].toInt());
+    height = std::max(1, parts[1].toInt());
+  }
+  patchy::PixelBuffer image(width, height, patchy::PixelFormat::rgba8());
+  {
+    std::uint64_t state = 564U;
+    auto bytes = image.data();
+    for (std::size_t index = 0; index < bytes.size(); index += 4U) {
+      state += 0x9E3779B97F4A7C15ULL;
+      auto z = state;
+      z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+      z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+      z ^= z >> 31U;
+      const auto pixel = index / 4U;
+      const auto x = static_cast<std::int32_t>(pixel % static_cast<std::size_t>(width));
+      bytes[index] = static_cast<std::uint8_t>(z);
+      bytes[index + 1U] = static_cast<std::uint8_t>(z >> 8U);
+      bytes[index + 2U] = static_cast<std::uint8_t>(z >> 16U);
+      bytes[index + 3U] = x < width / 2 ? 255U : static_cast<std::uint8_t>(z >> 24U);
+    }
+  }
+  const auto bounds = patchy::Rect::from_size(width, height);
+  std::cout << "[PERF] gaussian image=" << width << 'x' << height
+            << " threads=" << patchy::hardware_worker_threads() << '\n';
+  const auto time_ms = [](auto&& work) {
+    const auto start = Clock::now();
+    work();
+    return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+  };
+  for (const auto radius : {0.5, 2.0, 20.0, 200.0}) {
+    std::uint64_t digest = 0;
+    const auto ms = time_ms([&] {
+      const auto result = patchy::render_photoshop_gaussian_blur(image, bounds, radius);
+      digest = std::accumulate(result.pixels.data().begin(), result.pixels.data().end(), std::uint64_t{0});
+    });
+    std::cout << "[PERF] gaussian rgba8 radius=" << radius << " ms=" << std::fixed << std::setprecision(1) << ms
+              << std::defaultfloat << std::setprecision(6) << " sum=" << digest << '\n';
+  }
+  for (const auto radius : {2.5, 20.0}) {
+    const auto ms = time_ms([&] {
+      (void)patchy::render_photoshop_unsharp_mask(image, bounds, 150.0, radius, 0);
+    });
+    std::cout << "[PERF] unsharp rgba8 radius=" << radius << " ms=" << std::fixed << std::setprecision(1) << ms
+              << std::defaultfloat << std::setprecision(6) << '\n';
+  }
+  auto deep = patchy::load_deep_image(image);
+  for (const auto radius : {2.0, 20.0, 200.0}) {
+    auto copy = deep;
+    const auto ms = time_ms([&] { patchy::deep_gaussian_blur(copy, radius, nullptr); });
+    std::cout << "[PERF] gaussian deep radius=" << radius << " ms=" << std::fixed << std::setprecision(1) << ms
+              << std::defaultfloat << std::setprecision(6) << '\n';
+  }
+}
+
 // Ctrl+J over and over on a fresh document (GitHub issue 402: the UI lagged past about
 // 100 layers while the reporter duplicated a text layer). Each duplicate is timed as the
 // call itself plus the event loop and canvas settling after it, the way a held Ctrl+J
@@ -3835,6 +3905,11 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "liquifydrag") {
       run_scenario("liquifydrag", liquify_drag_perf);
+      return 0;
+    }
+    // Explicit only: a 6000x4000 image through every Gaussian line filter (GitHub issue 564).
+    if (argc > 1 && std::string_view(argv[1]) == "gaussian") {
+      run_scenario("gaussian", gaussian_blur_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "duplicate") {

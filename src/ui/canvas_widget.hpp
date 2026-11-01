@@ -15,6 +15,7 @@
 #include "core/layer_alignment.hpp"
 #include "core/layer_tree.hpp"
 #include "core/magnetic_lasso.hpp"
+#include "core/path_point_edits.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/spot_heal.hpp"
@@ -908,6 +909,18 @@ public:
   // the bottom-most keeps its op, every other selected component takes `op`, the layer
   // combine's per-component rule. One undo step named `label`; false with fewer than two.
   bool combine_selected_path_components(patchy::PathCombineOp op, const QString& label);
+  // Point and segment commands (GitHub #555; docs/vector-path-edits.md): Break Path at Point,
+  // Join End Points, Merge into One Point and Delete Segment, on the target path's Direct Select
+  // point selection (Layer > Shape; the path context menu also acts on the point or segment under
+  // the pointer). One undo step each; false (nothing done) when the selection does not fit.
+  enum class PathPointCommand { BreakAtPoint, JoinEndPoints, MergePoints, DeleteSegment };
+  [[nodiscard]] bool path_point_command_available(PathPointCommand command) const;
+  // What the command needs, for a disabled entry's tooltip and the status bar.
+  [[nodiscard]] static QString path_point_command_requirement(PathPointCommand command);
+  bool run_path_point_command(PathPointCommand command);
+  // What owns path_edit_target_path() (None when nothing is targetable).
+  enum class PathEditTargetKind { None, VectorMask, DocumentPath, TextArea, ShapeLayer, WorkPath };
+  [[nodiscard]] PathEditTargetKind path_edit_target_kind() const;
   void clear_path_edit_selection();
   // Appends subpaths to the active layer's vector mask (undo + cache rebake);
   // used by pen commits and shape drags while the VectorMask target is active.
@@ -1471,6 +1484,10 @@ public:
   // Digit keys with a tool that has no opacity of its own (Move, the selection and path
   // tools; GitHub issue 527) ask the host to set the selected layers' opacity to `percent`.
   void set_layer_opacity_digit_callback(std::function<void(int)> callback);
+  // The 0-9 opacity keys (and Shift+digits for Flow). keyPressEvent calls it, and so does the
+  // main window for a digit typed while a panel or the tool palette has focus (GitHub issue
+  // 562). False when the key is not one the current tool takes.
+  bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   // The canvas asks the host (the layer panel is the selection's source of
   // truth) to make exactly these layers selected with active_id current; the
   // host pushes the result back through set_selected_layer_ids. Move-tool
@@ -2261,6 +2278,25 @@ private:
   // Applies the hit's Add/Delete/Convert edit to the target path; false for
   // Draw and Close. Shared by the pen click, the anchor tools, and the menu.
   bool apply_pen_hover_edit(const PenHoverHit& hit);
+  // The path_point_command plan for `hit` (the context menu's press; null: the selection only).
+  [[nodiscard]] std::optional<patchy::PathPointEditResult> plan_path_point_command(PathPointCommand command,
+                                                                                   const PenHoverHit* hit) const;
+  bool run_path_point_command(PathPointCommand command, const PenHoverHit* hit);
+  void add_path_point_command_entries(QMenu& menu, const PenHoverHit& hit);
+  // Weld on drag (GitHub #555): what releasing the snapped drag does (join two end points, merge
+  // two neighbouring points, or only snap), its status hint, and the weld itself, inside the
+  // drag's undo entry.
+  struct PathWeld {
+    enum class Kind { SnapOnly, Join, MergeNeighbours };
+    Kind kind{Kind::SnapOnly};
+    std::optional<patchy::PathPointEditResult> result;
+  };
+  [[nodiscard]] PathWeld plan_path_weld(const patchy::VectorPath& path) const;
+  [[nodiscard]] QString path_weld_hint(const patchy::VectorPath& path) const;
+  void weld_dragged_path_point();
+  // Whether a plain click on a segment adds a point: Direct Select (or Path Select's Ctrl swap)
+  // with an editable target; never the Pen's Ctrl latch.
+  [[nodiscard]] bool direct_select_click_adds_point() const;
   // The Pen plus the Add/Delete/Convert anchor tools, which share its handlers.
   [[nodiscard]] bool pen_family_tool_active() const noexcept;
   // Returns the badge it applied (Draw while the arrow shows).
@@ -3041,7 +3077,6 @@ private:
   void refresh_sample_loupe(QPoint widget_position, QPoint document_point);
   void clear_sample_loupe();
   void draw_sample_loupe(QPainter& painter) const;
-  bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   bool perform_pen_button_action(PenButtonAction action, const PenInputSample& sample);
   bool dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample);
 
@@ -3170,6 +3205,12 @@ private:
   std::map<LayerId, std::set<std::pair<int, int>>> extra_selected_anchors_;
   PathEditDrag path_drag_mode_{PathEditDrag::None};
   std::pair<int, int> path_drag_anchor_{-1, -1};
+  // The point a one-point Direct Select drag snapped onto (GitHub #555; Alt suppresses it).
+  std::optional<std::pair<int, int>> path_weld_target_;
+  // A plain Direct Select press on a segment: a click (released before the drag distance) adds
+  // a point there; a drag drops it and moves the segment (GitHub #555).
+  std::optional<PenHoverHit> path_segment_click_;
+  QPointF path_segment_click_press_{};
   QPointF path_drag_last_document_{};
   // Anchor-drag Shift constraint: raw press origin, last raw pointer position
   // (replayed on Shift key transitions), and the total delta already applied.

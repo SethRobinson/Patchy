@@ -17,6 +17,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_option_keys.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
@@ -27,12 +28,16 @@
 #include <QBuffer>
 #include <QButtonGroup>
 #include <QImageReader>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFrame>
+#include <QGuiApplication>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -44,13 +49,17 @@
 #include <QPainter>
 #include <QPointer>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QScreen>
 #include <QRadioButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QScopeGuard>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -105,10 +114,17 @@ constexpr const char* kGifDitherKey = "exportForWeb/gifDither";
 constexpr const char* kGifDitherAmountKey = "exportForWeb/gifDitherAmount";
 constexpr const char* kGifAnimateKey = "exportForWeb/gifAnimate";
 constexpr const char* kGifFrameDelayKey = "exportForWeb/gifFrameDelayMs";
+// The dialog's last size (a QSize) and the user presets (a JSON array, docs/web-export.md).
+constexpr const char* kDialogSizeKey = "exportForWeb/dialogSize";
+constexpr const char* kPresetsKey = "exportForWeb/presets";
 
 constexpr int kPreviewDebounceMs = 200;
 constexpr int kMaxOutputPixels = 100000;
 constexpr int kMaxPixelScale = 16;
+// Field widths in the narrow settings column (GitHub issue 571): three-digit quality fields
+// beside their preset combo, and the one-row Size fields.
+constexpr int kQualitySpinWidth = 56;
+constexpr int kSizeSpinWidth = 80;
 // Finished encodes kept by signature, so switching back to a format or setting shows its
 // result at once.
 constexpr std::size_t kCachedResults = 12;
@@ -123,6 +139,8 @@ constexpr std::size_t kCachedResults = 12;
       return QStringLiteral("sideBySide");
     case WebExportCompare::ResultOnly:
       return QStringLiteral("result");
+    case WebExportCompare::Quad:
+      return QStringLiteral("quad");
     case WebExportCompare::Split:
       break;
   }
@@ -135,6 +153,9 @@ constexpr std::size_t kCachedResults = 12;
   }
   if (key == QStringLiteral("result")) {
     return WebExportCompare::ResultOnly;
+  }
+  if (key == QStringLiteral("quad")) {
+    return WebExportCompare::Quad;
   }
   return WebExportCompare::Split;
 }
@@ -170,6 +191,11 @@ constexpr std::size_t kCachedResults = 12;
     }
   }
   return {colors.begin(), colors.end()};
+}
+
+// The output size of one side at `percent` of the document's, as the size fields compute it.
+[[nodiscard]] int output_pixels(int source, double percent) {
+  return static_cast<int>(std::clamp<long long>(std::llround(source * percent / 100.0), 1, kMaxOutputPixels));
 }
 
 [[nodiscard]] QString data_size_text(std::size_t bytes) {
@@ -268,11 +294,11 @@ WebExportAnimation decode_web_export_animation(WebExportFormat format, std::span
 
 const std::vector<WebExportFormat>& web_export_formats() {
   static const std::vector<WebExportFormat> formats = [] {
-    std::vector<WebExportFormat> list{WebExportFormat::Jpeg, WebExportFormat::Webp};
+    // JPEG XL sits under JPEG (GitHub issue 571); the enum keeps its order.
+    std::vector<WebExportFormat> list{WebExportFormat::Jpeg, WebExportFormat::Jxl, WebExportFormat::Webp};
     if (avif::is_available()) {
       list.push_back(WebExportFormat::Avif);
     }
-    list.push_back(WebExportFormat::Jxl);
     list.push_back(WebExportFormat::Png);
     list.push_back(WebExportFormat::Gif);
     return list;
@@ -639,6 +665,331 @@ WebExportJob web_export_job(const WebExportSettings& settings, WebExportFormat f
   }
   job.signature = signature;
   return job;
+}
+
+std::optional<WebExportSettings> web_export_reduced_settings(const WebExportSettings& settings,
+                                                             WebExportFormat format, int percent) {
+  const auto scaled = [percent](int value, int minimum) {
+    return std::max(minimum, static_cast<int>(std::lround(value * percent / 100.0)));
+  };
+  auto reduced = settings;
+  reduced.format = format;
+  switch (format) {
+    case WebExportFormat::Jpeg:
+      reduced.jpeg_quality = scaled(settings.jpeg_quality, 1);
+      return reduced;
+    case WebExportFormat::Webp:
+      if (settings.webp_lossless) {
+        return std::nullopt;
+      }
+      reduced.webp_quality = scaled(settings.webp_quality, 0);
+      return reduced;
+    case WebExportFormat::Avif:
+      if (settings.avif_lossless) {
+        return std::nullopt;
+      }
+      reduced.avif_quality = scaled(settings.avif_quality, 0);
+      return reduced;
+    case WebExportFormat::Jxl:
+      if (settings.jxl_lossless) {
+        return std::nullopt;
+      }
+      reduced.jxl_quality = scaled(settings.jxl_quality, 1);
+      return reduced;
+    case WebExportFormat::Gif:
+      reduced.gif_colors = scaled(settings.gif_colors, 2);
+      return reduced;
+    case WebExportFormat::Png:
+      if (!settings.png_palette || settings.png_animate) {
+        return std::nullopt;
+      }
+      reduced.png_colors = scaled(settings.png_colors, 2);
+      return reduced;
+  }
+  return std::nullopt;
+}
+
+QString web_export_quality_label(const WebExportSettings& settings, WebExportFormat format) {
+  switch (format) {
+    case WebExportFormat::Jpeg:
+      return QObject::tr("Quality %1").arg(settings.jpeg_quality);
+    case WebExportFormat::Webp:
+      return settings.webp_lossless ? QString() : QObject::tr("Quality %1").arg(settings.webp_quality);
+    case WebExportFormat::Avif:
+      return settings.avif_lossless ? QString() : QObject::tr("Quality %1").arg(settings.avif_quality);
+    case WebExportFormat::Jxl:
+      return settings.jxl_lossless ? QString() : QObject::tr("Quality %1").arg(settings.jxl_quality);
+    case WebExportFormat::Gif:
+      return QObject::tr("%n colors", nullptr, settings.gif_colors);
+    case WebExportFormat::Png:
+      return settings.png_palette && !settings.png_animate ? QObject::tr("%n colors", nullptr, settings.png_colors)
+                                                           : QString();
+  }
+  return {};
+}
+
+std::span<const WebExportQualityPreset> web_export_quality_presets() {
+  static constexpr std::array<WebExportQualityPreset, 5> presets{{
+      {QT_TRANSLATE_NOOP("QObject", "Low"), 30},
+      {QT_TRANSLATE_NOOP("QObject", "Medium"), 50},
+      {QT_TRANSLATE_NOOP("QObject", "High"), 70},
+      {QT_TRANSLATE_NOOP("QObject", "Very High"), 85},
+      {QT_TRANSLATE_NOOP("QObject", "Maximum"), 100},
+  }};
+  return presets;
+}
+
+namespace {
+
+[[nodiscard]] bool web_export_format_animates(WebExportFormat format) {
+  return format == WebExportFormat::Webp || format == WebExportFormat::Jxl || format == WebExportFormat::Png ||
+         format == WebExportFormat::Gif;
+}
+
+// One preset as stored in exportForWeb/presets. The keys are the exportForWeb/* key names
+// (plus name, scale and frameDelayMs) and are persisted identifiers: never rename.
+[[nodiscard]] QJsonObject web_export_preset_json(const WebExportPreset& preset) {
+  const auto& values = preset.settings;
+  QJsonObject json;
+  json.insert(QStringLiteral("name"), preset.name);
+  json.insert(QStringLiteral("format"), web_export_format_key(values.format));
+  switch (values.format) {
+    case WebExportFormat::Jpeg:
+      json.insert(QStringLiteral("jpegQuality"), values.jpeg_quality);
+      json.insert(QStringLiteral("jpegProgressive"), values.jpeg_progressive);
+      json.insert(QStringLiteral("jpegOptimize"), values.jpeg_optimize);
+      json.insert(QStringLiteral("thumbnail"), values.thumbnail);
+      break;
+    case WebExportFormat::Webp:
+      json.insert(QStringLiteral("webpQuality"), values.webp_quality);
+      json.insert(QStringLiteral("webpLossless"), values.webp_lossless);
+      json.insert(QStringLiteral("webpAnimate"), values.webp_animate);
+      break;
+    case WebExportFormat::Avif:
+      json.insert(QStringLiteral("avifQuality"), values.avif_quality);
+      json.insert(QStringLiteral("avifSpeed"), values.avif_speed);
+      json.insert(QStringLiteral("avifLossless"), values.avif_lossless);
+      break;
+    case WebExportFormat::Jxl:
+      json.insert(QStringLiteral("jxlQuality"), values.jxl_quality);
+      json.insert(QStringLiteral("jxlEffort"), values.jxl_effort);
+      json.insert(QStringLiteral("jxlLossless"), values.jxl_lossless);
+      json.insert(QStringLiteral("jxlAnimate"), values.jxl_animate);
+      break;
+    case WebExportFormat::Png:
+      json.insert(QStringLiteral("pngColors"), values.png_palette ? QStringLiteral("palette") : QStringLiteral("full"));
+      json.insert(QStringLiteral("pngPaletteColors"), values.png_colors);
+      json.insert(QStringLiteral("pngDither"), values.png_dither ? QStringLiteral("diffusion") : QStringLiteral("none"));
+      json.insert(QStringLiteral("pngDitherAmount"), values.png_dither_amount);
+      json.insert(QStringLiteral("pngAnimate"), values.png_animate);
+      break;
+    case WebExportFormat::Gif:
+      json.insert(QStringLiteral("gifColors"), values.gif_colors);
+      json.insert(QStringLiteral("gifDither"), values.gif_dither ? QStringLiteral("diffusion") : QStringLiteral("none"));
+      json.insert(QStringLiteral("gifDitherAmount"), values.gif_dither_amount);
+      json.insert(QStringLiteral("gifAnimate"), values.gif_animate);
+      break;
+  }
+  if (web_export_format_animates(values.format)) {
+    json.insert(QStringLiteral("frameDelayMs"), values.animation_frame_delay_ms);
+  }
+  json.insert(QStringLiteral("fillTransparent"), values.fill_transparent);
+  json.insert(QStringLiteral("jpegBackground"), values.jpeg_background.name(QColor::HexRgb));
+  json.insert(QStringLiteral("metadata"), metadata_policy_key(values.metadata));
+  json.insert(QStringLiteral("resample"), resample_key(values.resample));
+  json.insert(QStringLiteral("scale"), preset.scale_percent);
+  json.insert(QStringLiteral("trim"), values.trim);
+  json.insert(QStringLiteral("convertToSrgb"), values.convert_to_srgb);
+  return json;
+}
+
+[[nodiscard]] std::optional<WebExportPreset> web_export_preset_from_json(const QJsonObject& json) {
+  WebExportPreset preset;
+  preset.name = json.value(QStringLiteral("name")).toString().trimmed();
+  const auto format = web_export_format_from_key(json.value(QStringLiteral("format")).toString());
+  if (preset.name.isEmpty() || !format.has_value()) {
+    return std::nullopt;
+  }
+  auto& values = preset.settings;
+  values.format = *format;
+  const auto number = [&json](const char* key, int fallback, int minimum, int maximum) {
+    return std::clamp(json.value(QLatin1String(key)).toInt(fallback), minimum, maximum);
+  };
+  const auto flag = [&json](const char* key, bool fallback) { return json.value(QLatin1String(key)).toBool(fallback); };
+  values.jpeg_quality = number("jpegQuality", values.jpeg_quality, 1, 100);
+  values.jpeg_progressive = flag("jpegProgressive", values.jpeg_progressive);
+  values.jpeg_optimize = flag("jpegOptimize", values.jpeg_optimize);
+  values.thumbnail = flag("thumbnail", values.thumbnail);
+  values.webp_quality = number("webpQuality", values.webp_quality, 0, 100);
+  values.webp_lossless = flag("webpLossless", values.webp_lossless);
+  values.webp_animate = flag("webpAnimate", values.webp_animate);
+  values.avif_quality = number("avifQuality", values.avif_quality, 0, 100);
+  values.avif_speed = number("avifSpeed", values.avif_speed, 0, 10);
+  values.avif_lossless = flag("avifLossless", values.avif_lossless);
+  values.jxl_quality = number("jxlQuality", values.jxl_quality, 1, 100);
+  values.jxl_effort = number("jxlEffort", values.jxl_effort, 1, 9);
+  values.jxl_lossless = flag("jxlLossless", values.jxl_lossless);
+  values.jxl_animate = flag("jxlAnimate", values.jxl_animate);
+  values.png_palette = json.value(QStringLiteral("pngColors")).toString() == QStringLiteral("palette");
+  values.png_colors = number("pngPaletteColors", values.png_colors, 2, 256);
+  values.png_dither = json.value(QStringLiteral("pngDither")).toString() == QStringLiteral("diffusion");
+  values.png_dither_amount = number("pngDitherAmount", values.png_dither_amount, 0, 100);
+  values.png_animate = flag("pngAnimate", values.png_animate);
+  values.gif_colors = number("gifColors", values.gif_colors, 2, 256);
+  values.gif_dither = json.value(QStringLiteral("gifDither")).toString() == QStringLiteral("diffusion");
+  values.gif_dither_amount = number("gifDitherAmount", values.gif_dither_amount, 0, 100);
+  values.gif_animate = flag("gifAnimate", values.gif_animate);
+  values.animation_frame_delay_ms =
+      number("frameDelayMs", values.animation_frame_delay_ms, 0, static_cast<int>(animation::kMaxFrameDelayMs));
+  values.fill_transparent = flag("fillTransparent", values.fill_transparent);
+  const QColor background(json.value(QStringLiteral("jpegBackground")).toString());
+  values.jpeg_background = background.isValid() ? background : QColor(Qt::white);
+  values.metadata = metadata_policy_from_key(json.value(QStringLiteral("metadata")).toString())
+                        .value_or(metadata::MetadataPolicy::None);
+  values.resample = json.value(QStringLiteral("resample")).toString() == resample_key(WebExportResample::PixelArt)
+                        ? WebExportResample::PixelArt
+                        : WebExportResample::Smooth;
+  values.trim = flag("trim", values.trim);
+  values.convert_to_srgb = flag("convertToSrgb", values.convert_to_srgb);
+  preset.scale_percent =
+      std::clamp(json.value(QStringLiteral("scale")).toDouble(100.0), 0.01, 100.0 * kMaxOutputPixels);
+  return preset;
+}
+
+}  // namespace
+
+std::vector<WebExportPreset> web_export_builtin_presets() {
+  std::vector<WebExportPreset> presets;
+  const auto add = [&presets](const QString& name, const std::function<void(WebExportSettings&)>& configure) {
+    WebExportPreset preset;
+    preset.name = name;
+    preset.built_in = true;
+    configure(preset.settings);
+    presets.push_back(std::move(preset));
+  };
+  add(QObject::tr("JPEG Very High"), [](WebExportSettings& values) { values.jpeg_quality = 85; });
+  add(QObject::tr("JPEG Medium"), [](WebExportSettings& values) { values.jpeg_quality = 50; });
+  add(QObject::tr("WebP High"), [](WebExportSettings& values) {
+    values.format = WebExportFormat::Webp;
+    values.webp_quality = 70;
+  });
+  add(QObject::tr("PNG 256 Colors"), [](WebExportSettings& values) {
+    values.format = WebExportFormat::Png;
+    values.png_palette = true;
+  });
+  return presets;
+}
+
+std::vector<WebExportPreset> load_web_export_user_presets() {
+  std::vector<WebExportPreset> presets;
+  const auto stored = app_settings().value(QLatin1String(kPresetsKey)).toString();
+  const auto array = QJsonDocument::fromJson(stored.toUtf8()).array();
+  for (const auto& entry : array) {
+    if (auto preset = web_export_preset_from_json(entry.toObject()); preset.has_value()) {
+      presets.push_back(std::move(*preset));
+    }
+  }
+  return presets;
+}
+
+void save_web_export_user_presets(const std::vector<WebExportPreset>& presets) {
+  QJsonArray array;
+  for (const auto& preset : presets) {
+    if (!preset.built_in) {
+      array.append(web_export_preset_json(preset));
+    }
+  }
+  auto stored = app_settings();
+  if (array.isEmpty()) {
+    stored.remove(QLatin1String(kPresetsKey));
+  } else {
+    stored.setValue(QLatin1String(kPresetsKey),
+                    QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+  }
+}
+
+WebExportPreset make_web_export_preset(const QString& name, const WebExportSettings& settings, QSize document_size) {
+  WebExportPreset preset;
+  preset.name = name.trimmed();
+  preset.settings = settings;
+  if (settings.resample == WebExportResample::PixelArt) {
+    preset.scale_percent = 100.0 * std::clamp(settings.pixel_scale, 1, kMaxPixelScale);
+  } else if (settings.width > 0 && document_size.width() > 0) {
+    preset.scale_percent = settings.width * 100.0 / document_size.width();
+  }
+  return preset;
+}
+
+WebExportSettings apply_web_export_preset(const WebExportPreset& preset, WebExportSettings current,
+                                          QSize document_size) {
+  const auto& from = preset.settings;
+  current.format = from.format;
+  switch (from.format) {
+    case WebExportFormat::Jpeg:
+      current.jpeg_quality = from.jpeg_quality;
+      current.jpeg_progressive = from.jpeg_progressive;
+      current.jpeg_optimize = from.jpeg_optimize;
+      current.thumbnail = from.thumbnail;
+      break;
+    case WebExportFormat::Webp:
+      current.webp_quality = from.webp_quality;
+      current.webp_lossless = from.webp_lossless;
+      current.webp_animate = from.webp_animate;
+      break;
+    case WebExportFormat::Avif:
+      current.avif_quality = from.avif_quality;
+      current.avif_speed = from.avif_speed;
+      current.avif_lossless = from.avif_lossless;
+      break;
+    case WebExportFormat::Jxl:
+      current.jxl_quality = from.jxl_quality;
+      current.jxl_effort = from.jxl_effort;
+      current.jxl_lossless = from.jxl_lossless;
+      current.jxl_animate = from.jxl_animate;
+      break;
+    case WebExportFormat::Png:
+      current.png_palette = from.png_palette;
+      current.png_colors = from.png_colors;
+      current.png_dither = from.png_dither;
+      current.png_dither_amount = from.png_dither_amount;
+      current.png_animate = from.png_animate;
+      break;
+    case WebExportFormat::Gif:
+      current.gif_colors = from.gif_colors;
+      current.gif_dither = from.gif_dither;
+      current.gif_dither_amount = from.gif_dither_amount;
+      current.gif_animate = from.gif_animate;
+      break;
+  }
+  if (web_export_format_animates(from.format)) {
+    current.animation_frame_delay_ms = from.animation_frame_delay_ms;
+  }
+  current.fill_transparent = from.fill_transparent;
+  current.jpeg_background = from.jpeg_background;
+  current.metadata = from.metadata;
+  current.resample = from.resample;
+  current.trim = from.trim;
+  current.convert_to_srgb = from.convert_to_srgb;
+  const auto percent = preset.scale_percent;
+  const auto scale = std::clamp(static_cast<int>(std::lround(percent / 100.0)), 1, kMaxPixelScale);
+  current.pixel_scale = scale;
+  if (from.resample == WebExportResample::PixelArt) {
+    current.width = document_size.width() * scale;
+    current.height = document_size.height() * scale;
+  } else {
+    current.width = output_pixels(document_size.width(), percent);
+    current.height = output_pixels(document_size.height(), percent);
+  }
+  return current;
+}
+
+bool web_export_preset_matches(const WebExportPreset& preset, const WebExportSettings& current, QSize document_size) {
+  // Colors compare by their #rrggbb value (a picked color can carry another QColor spec).
+  auto applied = apply_web_export_preset(preset, current, document_size);
+  auto compared = current;
+  applied.jpeg_background = QColor(applied.jpeg_background.name(QColor::HexRgb));
+  compared.jpeg_background = QColor(compared.jpeg_background.name(QColor::HexRgb));
+  return applied == compared;
 }
 
 bool web_export_has_non_srgb_profile(const Document& document) {
@@ -1054,13 +1405,19 @@ public:
     update();
   }
   [[nodiscard]] bool has_result() const { return !result_.source().isNull(); }
+  // A note shown instead of the image (a 2 x 2 tile for a format with no quality to reduce).
+  void set_note(QString note) {
+    note_ = std::move(note);
+    setProperty("webExportNote", note_);
+    update();
+  }
 
 protected:
   void paint_backdrop(QPainter& painter) override { painter.fillRect(rect(), theme().canvas_backdrop); }
 
   void paint_content(QPainter& painter, const QRectF& image_rect) override {
     const auto visible = image_rect.intersected(QRectF(rect()));
-    if (visible.isEmpty()) {
+    if (visible.isEmpty() || !note_.isEmpty()) {
       return;
     }
     // The transparency checkerboard depicts alpha (deliberately not a theme role,
@@ -1152,6 +1509,10 @@ protected:
       painter.setPen(theme().status_text);
       painter.drawText(box, Qt::AlignCenter, text);
     };
+    if (!note_.isEmpty()) {
+      painter.setPen(theme().hint_text);
+      painter.drawText(rect().adjusted(12, 12, -12, -12), Qt::AlignCenter | Qt::TextWordWrap, note_);
+    }
     switch (content_) {
       case Content::Split:
         draw_tag(original_label_, false);
@@ -1212,6 +1573,7 @@ private:
   Content content_{Content::Split};
   QString original_label_;
   QString result_label_;
+  QString note_;
   double split_{0.5};
   bool dragging_divider_{false};
 };
@@ -1298,6 +1660,117 @@ PaletteRows add_palette_rows(QFormLayout* form, QWidget* parent, const QString& 
   return rows;
 }
 
+// A label whose size hints also fit `widest` (measured with the polished font when asked), so
+// a longer text never moves the row or clips.
+class WideLabel final : public QLabel {
+public:
+  WideLabel(QString widest, QWidget* parent) : QLabel(parent), widest_(std::move(widest)) {}
+  [[nodiscard]] QSize sizeHint() const override { return widened(QLabel::sizeHint()); }
+  [[nodiscard]] QSize minimumSizeHint() const override { return widened(QLabel::minimumSizeHint()); }
+
+private:
+  [[nodiscard]] QSize widened(QSize hint) const {
+    const auto margins = contentsMargins();
+    hint.setWidth(
+        std::max(hint.width(), fontMetrics().horizontalAdvance(widest_) + margins.left() + margins.right() + 4));
+    return hint;
+  }
+  QString widest_;
+};
+
+// A push button sized for its text or `other` (Play and Pause), whichever is wider.
+class WidePushButton final : public QPushButton {
+public:
+  WidePushButton(const QString& text, QString other, QWidget* parent)
+      : QPushButton(text, parent), other_(std::move(other)) {}
+  [[nodiscard]] QSize sizeHint() const override { return widened(QPushButton::sizeHint()); }
+  [[nodiscard]] QSize minimumSizeHint() const override { return widened(QPushButton::minimumSizeHint()); }
+
+private:
+  [[nodiscard]] QSize widened(QSize hint) const {
+    const auto extra = fontMetrics().horizontalAdvance(other_) - fontMetrics().horizontalAdvance(text());
+    if (extra > 0) {
+      hint.rwidth() += extra;
+    }
+    return hint;
+  }
+  QString other_;
+};
+
+// Two groups on one row (the compare buttons left, the zoom controls right), or the second
+// under the first when the row is narrower than both at their minimum, so no button is ever
+// squeezed below its text (GitHub issue 571). Its minimum width is the wider group's; while
+// wrapped it is a row taller.
+class WrappingRow final : public QWidget {
+public:
+  WrappingRow(QWidget* first, QWidget* second, int spacing, QWidget* parent)
+      : QWidget(parent), first_(first), second_(second), spacing_(spacing) {
+    first_->setParent(this);
+    second_->setParent(this);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    setProperty("webExportWrapped", false);
+  }
+
+  [[nodiscard]] QSize sizeHint() const override {
+    const auto first = first_->sizeHint();
+    const auto second = second_->sizeHint();
+    return {first.width() + spacing_ + second.width(), height_for(wrapped_)};
+  }
+  [[nodiscard]] QSize minimumSizeHint() const override {
+    return {std::max(first_->minimumSizeHint().width(), second_->minimumSizeHint().width()), height_for(wrapped_)};
+  }
+
+protected:
+  bool event(QEvent* event) override {
+    // A child's size changed (a longer zoom label, a language change): measure again.
+    if (event->type() == QEvent::LayoutRequest) {
+      arrange();
+      updateGeometry();
+    }
+    return QWidget::event(event);
+  }
+  void resizeEvent(QResizeEvent* event) override {
+    QWidget::resizeEvent(event);
+    arrange();
+  }
+
+private:
+  [[nodiscard]] int height_for(bool wrapped) const {
+    const auto first = first_->minimumSizeHint().expandedTo(first_->sizeHint()).height();
+    const auto second = second_->minimumSizeHint().expandedTo(second_->sizeHint()).height();
+    return wrapped ? first + spacing_ + second : std::max(first, second);
+  }
+
+  void arrange() {
+    const auto first_min = first_->minimumSizeHint().width();
+    const auto second_min = second_->minimumSizeHint().width();
+    const bool wrap = first_min + spacing_ + second_min > width();
+    if (wrap != wrapped_) {
+      wrapped_ = wrap;
+      setProperty("webExportWrapped", wrap);
+      updateGeometry();
+    }
+    const auto first_height = first_->sizeHint().height();
+    const auto second_height = second_->sizeHint().height();
+    if (wrap) {
+      const auto second_width = std::clamp(second_->sizeHint().width(), second_min, std::max(second_min, width()));
+      first_->setGeometry(0, 0, width(), first_height);
+      second_->setGeometry(width() - second_width, first_height + spacing_, second_width, second_height);
+      return;
+    }
+    const auto row_height = std::max(first_height, second_height);
+    const auto second_width =
+        std::clamp(width() - spacing_ - first_min, second_min, std::max(second_min, second_->sizeHint().width()));
+    first_->setGeometry(0, (row_height - first_height) / 2, width() - spacing_ - second_width, first_height);
+    second_->setGeometry(width() - second_width, (row_height - second_height) / 2, second_width, second_height);
+  }
+
+  QWidget* first_;
+  QWidget* second_;
+  int spacing_;
+  bool wrapped_{false};
+};
+
 [[nodiscard]] QGroupBox* make_group(QWidget* parent, const QString& title, const char* object_name) {
   auto* group = new QGroupBox(title, parent);
   group->setObjectName(QLatin1String(object_name));
@@ -1310,6 +1783,9 @@ PaletteRows add_palette_rows(QFormLayout* form, QWidget* parent, const QString& 
   form->setHorizontalSpacing(8);
   form->setVerticalSpacing(6);
   form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  // A row whose translated label and field do not fit the narrow column puts the field
+  // under its label (GitHub issue 571).
+  form->setRowWrapPolicy(QFormLayout::WrapLongRows);
   return form;
 }
 
@@ -1352,7 +1828,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   controls_scroll->setFrameShape(QFrame::NoFrame);
   controls_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   controls_scroll->setWidgetResizable(true);
-  controls_scroll->setFixedWidth(ui_text_length(410));
+  // 20% narrower than the first design (GitHub issue 571);
+  // ui_web_export_settings_column_fits_every_language checks that no label is clipped.
+  controls_scroll->setFixedWidth(ui_text_length(328));
   auto* controls_widget = new QWidget(controls_scroll);
   controls_widget->setObjectName(QStringLiteral("webExportControls"));
   controls_scroll->setWidget(controls_widget);
@@ -1360,6 +1838,31 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   controls->setContentsMargins(0, 0, 0, 0);
   controls->setSpacing(8);
   body->addWidget(controls_scroll);
+
+  // Presets: a saved format with its settings (WebExportPreset). Save asks for a name; Delete
+  // removes the selected user preset (built-in ones stay).
+  controls->addWidget(new QLabel(QObject::tr("Preset"), &dialog));
+  auto* preset_row = new QHBoxLayout();
+  preset_row->setSpacing(4);
+  auto* preset_combo = new QComboBox(&dialog);
+  preset_combo->setObjectName(QStringLiteral("webExportPresetCombo"));
+  preset_combo->setPlaceholderText(QObject::tr("Custom"));
+  preset_combo->setToolTip(
+      QObject::tr("A saved format with its settings. Custom shows when the settings match no preset."));
+  preset_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  preset_combo->setMinimumContentsLength(4);
+  preset_row->addWidget(preset_combo, 1);
+  auto* preset_save = new QPushButton(QObject::tr("Save..."), &dialog);
+  preset_save->setObjectName(QStringLiteral("webExportPresetSaveButton"));
+  preset_save->setToolTip(QObject::tr("Save the format and its settings as a preset"));
+  preset_save->setAutoDefault(false);
+  preset_row->addWidget(preset_save);
+  auto* preset_delete = new QPushButton(QObject::tr("Delete"), &dialog);
+  preset_delete->setObjectName(QStringLiteral("webExportPresetDeleteButton"));
+  preset_delete->setToolTip(QObject::tr("Delete the selected preset"));
+  preset_delete->setAutoDefault(false);
+  preset_row->addWidget(preset_delete);
+  controls->addLayout(preset_row);
 
   controls->addWidget(new QLabel(QObject::tr("Format"), &dialog));
   auto* format_list = new QTreeWidget(&dialog);
@@ -1399,19 +1902,48 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   set_themed_style(*format_hint, QStringLiteral("color: @hint_text;"));
   controls->addWidget(format_hint);
 
+  // Quality presets beside each Quality field (Patchy's own names and values): picking one sets
+  // the quality; a quality typed by hand shows its preset's name, or Custom when none matches.
+  const auto add_quality_presets = [](QSpinBox* quality, const char* object_name) {
+    auto* row = quality->parentWidget();
+    auto* combo = new QComboBox(row);
+    combo->setObjectName(QLatin1String(object_name));
+    combo->setPlaceholderText(QObject::tr("Custom"));
+    for (const auto& preset : web_export_quality_presets()) {
+      combo->addItem(QCoreApplication::translate("QObject", preset.name), preset.quality);
+    }
+    combo->setToolTip(QObject::tr("Quality presets"));
+    if (auto* layout = qobject_cast<QBoxLayout*>(row->layout())) {
+      layout->addWidget(combo);
+    }
+    const auto sync = [combo, quality] {
+      const QSignalBlocker block(combo);
+      combo->setCurrentIndex(combo->findData(quality->value()));
+    };
+    QObject::connect(quality, &QSpinBox::valueChanged, combo, [sync](int) { sync(); });
+    QObject::connect(combo, &QComboBox::activated, quality, [combo, quality](int index) {
+      if (index >= 0) {
+        quality->setValue(combo->itemData(index).toInt());
+      }
+    });
+    sync();
+  };
+
   // JPEG settings.
   auto* jpeg_group = make_group(&dialog, QObject::tr("JPEG settings"), "webExportJpegGroup");
   auto* jpeg_form = make_form(jpeg_group);
   auto* jpeg_quality = add_dialog_slider_spin_row(jpeg_form, jpeg_group, QObject::tr("Quality:"),
                                                   QStringLiteral("webExportJpegQualitySlider"),
                                                   QStringLiteral("webExportJpegQualitySpin"), 1, 100,
-                                                  settings.jpeg_quality);
-  auto* jpeg_progressive =
-      new QCheckBox(QObject::tr("Progressive (shows a rough image first while loading)"), jpeg_group);
+                                                  settings.jpeg_quality, QString(), kQualitySpinWidth);
+  add_quality_presets(jpeg_quality, "webExportJpegQualityPresetCombo");
+  auto* jpeg_progressive = new QCheckBox(QObject::tr("Progressive"), jpeg_group);
   jpeg_progressive->setObjectName(QStringLiteral("webExportJpegProgressiveCheck"));
+  jpeg_progressive->setToolTip(QObject::tr("Shows a rough image first while the file loads."));
   jpeg_form->addRow(jpeg_progressive);
-  auto* jpeg_optimize = new QCheckBox(QObject::tr("Optimize coding (smaller file, same image)"), jpeg_group);
+  auto* jpeg_optimize = new QCheckBox(QObject::tr("Optimize coding"), jpeg_group);
   jpeg_optimize->setObjectName(QStringLiteral("webExportJpegOptimizeCheck"));
+  jpeg_optimize->setToolTip(QObject::tr("Makes the file smaller without changing the image."));
   jpeg_form->addRow(jpeg_optimize);
   controls->addWidget(jpeg_group);
 
@@ -1421,7 +1953,8 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* webp_quality = add_dialog_slider_spin_row(webp_form, webp_group, QObject::tr("Quality:"),
                                                   QStringLiteral("webExportWebpQualitySlider"),
                                                   QStringLiteral("webExportWebpQualitySpin"), 0, 100,
-                                                  settings.webp_quality);
+                                                  settings.webp_quality, QString(), kQualitySpinWidth);
+  add_quality_presets(webp_quality, "webExportWebpQualityPresetCombo");
   auto* webp_lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), webp_group);
   webp_lossless->setObjectName(QStringLiteral("webExportWebpLosslessCheck"));
   webp_form->addRow(webp_lossless);
@@ -1441,14 +1974,16 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* avif_quality = add_dialog_slider_spin_row(avif_form, avif_group, QObject::tr("Quality:"),
                                                   QStringLiteral("webExportAvifQualitySlider"),
                                                   QStringLiteral("webExportAvifQualitySpin"), 0, 100,
-                                                  settings.avif_quality);
+                                                  settings.avif_quality, QString(), kQualitySpinWidth);
+  add_quality_presets(avif_quality, "webExportAvifQualityPresetCombo");
   auto* avif_speed = new QSpinBox(avif_group);
   avif_speed->setObjectName(QStringLiteral("webExportAvifSpeedSpin"));
   avif_speed->setRange(0, 10);
   avif_speed->setValue(settings.avif_speed);
   avif_speed->setToolTip(QObject::tr("Lower speed makes smaller files and takes longer to save."));
   configure_dialog_spinbox(avif_speed, 76);
-  avif_speed->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  // Speed and JPEG XL's Effort are the same width (GitHub issue 571).
+  avif_speed->setFixedWidth(ui_text_length(76));
   avif_form->addRow(QObject::tr("Speed:"), avif_speed);
   auto* avif_lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), avif_group);
   avif_lossless->setObjectName(QStringLiteral("webExportAvifLosslessCheck"));
@@ -1462,14 +1997,15 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* jxl_quality = add_dialog_slider_spin_row(jxl_form, jxl_group, QObject::tr("Quality:"),
                                                  QStringLiteral("webExportJxlQualitySlider"),
                                                  QStringLiteral("webExportJxlQualitySpin"), 1, 100,
-                                                 settings.jxl_quality);
+                                                 settings.jxl_quality, QString(), kQualitySpinWidth);
+  add_quality_presets(jxl_quality, "webExportJxlQualityPresetCombo");
   auto* jxl_effort = new QSpinBox(jxl_group);
   jxl_effort->setObjectName(QStringLiteral("webExportJxlEffortSpin"));
   jxl_effort->setRange(1, 9);
   jxl_effort->setValue(settings.jxl_effort);
   jxl_effort->setToolTip(QObject::tr("Higher effort makes smaller files and takes longer to save."));
   configure_dialog_spinbox(jxl_effort, 76);
-  jxl_effort->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  jxl_effort->setFixedWidth(ui_text_length(76));
   jxl_form->addRow(QObject::tr("Effort:"), jxl_effort);
   auto* jxl_lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), jxl_group);
   jxl_lossless->setObjectName(QStringLiteral("webExportJxlLosslessCheck"));
@@ -1487,6 +2023,10 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   png_colors_combo->addItem(QObject::tr("Palette"), QStringLiteral("palette"));
   png_colors_combo->setToolTip(
       QObject::tr("Palette writes up to 256 colors, much smaller for flat graphics, logos and screenshots."));
+  png_colors_combo->setMaximumWidth(ui_text_length(300));
+  png_colors_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  png_colors_combo->setMinimumContentsLength(10);
+  fit_combo_popup_to_entries(*png_colors_combo);
   png_form->addRow(QObject::tr("Type:"), png_colors_combo);
   auto* png_note = new QLabel(QObject::tr("Full color, lossless. Transparency is kept."), png_group);
   png_note->setObjectName(QStringLiteral("webExportPngNote"));
@@ -1499,12 +2039,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   png_palette_form->setHorizontalSpacing(8);
   png_palette_form->setVerticalSpacing(6);
   png_palette_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  png_palette_form->setRowWrapPolicy(QFormLayout::WrapLongRows);
   const auto png_rows = add_palette_rows(png_palette_form, png_palette_box, QStringLiteral("webExportPng"),
                                          settings.png_colors, settings.png_dither, settings.png_dither_amount);
-  auto* png_cut_note = new QLabel(QObject::tr("Pixels under 50% opacity become transparent."), png_palette_box);
-  png_cut_note->setWordWrap(true);
-  set_themed_style(*png_cut_note, QStringLiteral("color: @hint_text;"));
-  png_palette_form->addRow(png_cut_note);
   png_form->addRow(png_palette_box);
   auto* png_animation_note =
       new QLabel(QObject::tr("An animated PNG is written in full color; the palette applies to still images."), png_group);
@@ -1519,10 +2056,6 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* gif_form = make_form(gif_group);
   const auto gif_rows = add_palette_rows(gif_form, gif_group, QStringLiteral("webExportGif"), settings.gif_colors,
                                          settings.gif_dither, settings.gif_dither_amount);
-  auto* gif_cut_note = new QLabel(QObject::tr("Pixels under 50% opacity become transparent."), gif_group);
-  gif_cut_note->setWordWrap(true);
-  set_themed_style(*gif_cut_note, QStringLiteral("color: @hint_text;"));
-  gif_form->addRow(gif_cut_note);
   controls->addWidget(gif_group);
 
   // Animation, built from the same helper as the Export > Layers as Animated ... dialogs:
@@ -1547,6 +2080,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     animation_layout->addWidget(animate);
     auto timing = create_animation_timing_controls(animation_group, kind, QLatin1String(timing_prefix),
                                                    settings.animation_frame_delay_ms, loop_count);
+    timing.form->setRowWrapPolicy(QFormLayout::WrapLongRows);
     animation_layout->addWidget(timing.controls);
     animation_layout->addWidget(timing.explanation);
     animation_rows.push_back(AnimationRows{format, animate, timing});
@@ -1600,32 +2134,80 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                                       if (transparency_changed) {
                                                         transparency_changed();
                                                       }
-                                                    });
-  auto* jpeg_background_hint =
-      new QLabel(QObject::tr("Fills transparent areas (JPEG has no transparency)"), transparency_group);
-  jpeg_background_hint->setObjectName(QStringLiteral("webExportJpegBackgroundHint"));
-  jpeg_background_hint->setWordWrap(true);
-  set_themed_style(*jpeg_background_hint, QStringLiteral("color: @hint_text;"));
-  transparency_layout->addWidget(jpeg_background_hint);
+                                                    },
+                                                    /*one_row*/ true);
+  // JPEG's forced fill reads "Fill with:" like the other formats' radio, and an info mark
+  // after the color carries the explanation as its tooltip.
+  transparency.background_label->setText(QObject::tr("Fill with:"));
+  auto* jpeg_background_info = new QToolButton(transparency.fill_row);
+  jpeg_background_info->setObjectName(QStringLiteral("webExportJpegBackgroundInfo"));
+  jpeg_background_info->setIcon(themed_glyph_icon(
+      QStringLiteral("web-export-info"), 16.0, &ThemePalette::hint_text, [](QPainter& painter, const QColor& ink) {
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setPen(QPen(ink, 1.4));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(QRectF(1.5, 1.5, 13.0, 13.0));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(ink);
+        painter.drawEllipse(QRectF(7.1, 4.0, 1.8, 1.8));
+        painter.drawRoundedRect(QRectF(7.2, 6.8, 1.6, 5.4), 0.6, 0.6);
+      }));
+  jpeg_background_info->setIconSize(QSize(16, 16));
+  jpeg_background_info->setAutoRaise(true);
+  jpeg_background_info->setFocusPolicy(Qt::NoFocus);
+  jpeg_background_info->setToolTip(QObject::tr("Fills transparent areas (JPEG has no transparency)"));
+  jpeg_background_info->setAccessibleName(QObject::tr("Fills transparent areas (JPEG has no transparency)"));
+  if (auto* fill_layout = qobject_cast<QBoxLayout*>(transparency.fill_row->layout())) {
+    // After the swatch, before the row's closing stretch.
+    fill_layout->insertWidget(std::max(0, fill_layout->count() - 1), jpeg_background_info);
+  }
+  QObject::connect(jpeg_background_info, &QToolButton::clicked, jpeg_background_info, [jpeg_background_info] {
+    QToolTip::showText(jpeg_background_info->mapToGlobal(jpeg_background_info->rect().bottomLeft()),
+                       jpeg_background_info->toolTip(), jpeg_background_info);
+  });
+  // The two radios share a row when it fits the column (labels differ by language); otherwise
+  // Fill with goes under Keep transparent.
+  {
+    const auto* row = transparency.keep->parentWidget();
+    const auto available = ui_text_length(328) - controls_scroll->verticalScrollBar()->sizeHint().width() -
+                           transparency_layout->contentsMargins().left() -
+                           transparency_layout->contentsMargins().right() - 2 * transparency_group->contentsMargins().left() - 4;
+    const auto needed = transparency.keep->sizeHint().width() + row->layout()->spacing() +
+                        transparency.fill_row->sizeHint().width() - jpeg_background_info->sizeHint().width() - 8;
+    if (needed > available) {
+      transparency.fill_row->setParent(transparency_group);
+      transparency_layout->insertWidget(transparency_layout->indexOf(const_cast<QWidget*>(row)) + 1,
+                                        transparency.fill_row);
+    }
+  }
+  // GIF and palette PNG keep 1-bit transparency.
+  auto* cut_note = new QLabel(QObject::tr("Pixels under 50% opacity become transparent."), transparency_group);
+  cut_note->setObjectName(QStringLiteral("webExportTransparencyCutNote"));
+  cut_note->setWordWrap(true);
+  set_themed_style(*cut_note, QStringLiteral("color: @hint_text;"));
+  transparency_layout->addWidget(cut_note);
   controls->addWidget(transparency_group);
 
   // Image size.
   auto* size_group = make_group(&dialog, QObject::tr("Image size"), "webExportSizeGroup");
   auto* size_grid = new QGridLayout(size_group);
   size_grid->setContentsMargins(10, 10, 10, 8);
-  size_grid->setHorizontalSpacing(8);
+  size_grid->setHorizontalSpacing(6);
   size_grid->setVerticalSpacing(6);
   const auto make_pixels_spin = [&](const char* object_name, int basis) {
     auto* spin = new UnitIntSpinBox(SpinUnit::Pixels, size_group);
     spin->set_context_provider([basis] { return UnitConversionContext{72.0, static_cast<double>(basis)}; });
     spin->setObjectName(QLatin1String(object_name));
     spin->setRange(1, kMaxOutputPixels);
-    configure_dialog_spinbox(spin, 96);
+    configure_dialog_spinbox(spin, kSizeSpinWidth);
     return spin;
   };
-  // Each spin goes in right after its label (insertion order pairs the scrub handle).
-  size_grid->addWidget(new QLabel(QObject::tr("Width:"), size_group), 0, 0);
+  // One row: "Size: [width] [link] [height]" (GitHub issue 571). The spin goes in right after
+  // its label (insertion order pairs the scrub handle).
+  size_grid->addWidget(new QLabel(QObject::tr("Size:"), size_group), 0, 0);
   auto* width_spin = make_pixels_spin("webExportWidthSpin", document_size.width());
+  width_spin->setToolTip(QObject::tr("Width"));
+  width_spin->setAccessibleName(QObject::tr("Width"));
   size_grid->addWidget(width_spin, 0, 1);
   auto* link = new QToolButton(size_group);
   link->setObjectName(QStringLiteral("webExportLinkButton"));
@@ -1635,32 +2217,45 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   link->setChecked(true);
   link->setAutoRaise(true);
   link->setToolTip(QObject::tr("Constrain proportions"));
-  size_grid->addWidget(link, 0, 2, 2, 1, Qt::AlignCenter);
-  size_grid->addWidget(new QLabel(QObject::tr("Height:"), size_group), 1, 0);
+  size_grid->addWidget(link, 0, 2, Qt::AlignCenter);
   auto* height_spin = make_pixels_spin("webExportHeightSpin", document_size.height());
-  size_grid->addWidget(height_spin, 1, 1);
-  size_grid->addWidget(new QLabel(QObject::tr("Scale:"), size_group), 2, 0);
+  height_spin->setToolTip(QObject::tr("Height"));
+  height_spin->setAccessibleName(QObject::tr("Height"));
+  size_grid->addWidget(height_spin, 0, 3);
+  // Scale and Resample are rows of their own, so their (longer) translated labels never widen
+  // the Size row's label column.
+  auto* scale_row = new QHBoxLayout();
+  scale_row->setSpacing(8);
+  scale_row->addWidget(new QLabel(QObject::tr("Scale:"), size_group));
   auto* scale_spin = new QDoubleSpinBox(size_group);
   scale_spin->setObjectName(QStringLiteral("webExportScaleSpin"));
   scale_spin->setSuffix(percent_suffix());
-  configure_dialog_spinbox(scale_spin, 96);
-  size_grid->addWidget(scale_spin, 2, 1);
+  configure_dialog_spinbox(scale_spin, kSizeSpinWidth);
+  scale_row->addWidget(scale_spin);
   auto* original_size = new QLabel(
       QObject::tr("of %1 x %2").arg(document_size.width()).arg(document_size.height()), size_group);
   original_size->setObjectName(QStringLiteral("webExportOriginalSizeLabel"));
   set_themed_style(*original_size, QStringLiteral("color: @hint_text;"));
-  size_grid->addWidget(original_size, 2, 2, 1, 2);
-  size_grid->addWidget(new QLabel(QObject::tr("Resample:"), size_group), 3, 0);
+  scale_row->addWidget(original_size, 1);
+  size_grid->addLayout(scale_row, 1, 0, 1, 5);
+  auto* resample_row = new QHBoxLayout();
+  resample_row->setSpacing(8);
+  resample_row->addWidget(new QLabel(QObject::tr("Resample:"), size_group));
   auto* resample_combo = new QComboBox(size_group);
   resample_combo->setObjectName(QStringLiteral("webExportResampleCombo"));
   resample_combo->addItem(QObject::tr("Smooth"), resample_key(WebExportResample::Smooth));
   resample_combo->addItem(QObject::tr("Pixel art (whole pixels)"), resample_key(WebExportResample::PixelArt));
   resample_combo->setToolTip(QObject::tr("Pixel art enlarges by whole pixels with no smoothing, so sprites stay crisp."));
-  size_grid->addWidget(resample_combo, 3, 1, 1, 3);
+  resample_combo->setMaximumWidth(ui_text_length(300));
+  resample_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  resample_combo->setMinimumContentsLength(10);
+  fit_combo_popup_to_entries(*resample_combo);
+  resample_row->addWidget(resample_combo, 1);
+  size_grid->addLayout(resample_row, 2, 0, 1, 5);
   auto* trim_check = new QCheckBox(QObject::tr("Trim transparent edges"), size_group);
   trim_check->setObjectName(QStringLiteral("webExportTrimCheck"));
-  size_grid->addWidget(trim_check, 4, 0, 1, 4);
-  size_grid->setColumnStretch(3, 1);
+  size_grid->addWidget(trim_check, 3, 0, 1, 5);
+  size_grid->setColumnStretch(4, 1);
   controls->addWidget(size_group);
 
   // Metadata and color.
@@ -1670,8 +2265,12 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   metadata_combo->setObjectName(QStringLiteral("webExportMetadataCombo"));
   add_export_metadata_choices(*metadata_combo);
   metadata_combo->setToolTip(QObject::tr("File Info metadata to include. None writes the smallest file."));
+  metadata_combo->setMaximumWidth(ui_text_length(300));
+  metadata_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  metadata_combo->setMinimumContentsLength(10);
+  fit_combo_popup_to_entries(*metadata_combo);
   metadata_form->addRow(QObject::tr("Metadata:"), metadata_combo);
-  auto* thumbnail_check = new QCheckBox(QObject::tr("Include thumbnail (about 5 to 10 KB)"), metadata_group);
+  auto* thumbnail_check = new QCheckBox(QObject::tr("Include thumbnail"), metadata_group);
   thumbnail_check->setObjectName(QStringLiteral("webExportThumbnailCheck"));
   thumbnail_check->setToolTip(QObject::tr(
       "Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every "
@@ -1697,26 +2296,44 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   // --- right column: preview ---
   auto* preview_column = new QVBoxLayout();
   preview_column->setSpacing(6);
-  auto* panes_row = new QHBoxLayout();
-  panes_row->setSpacing(10);
+  // Panes: the original (Side by side and 2 x 2) left of the result; 2 x 2 adds the result at
+  // 50% and 25% of the quality below them.
+  auto* panes_grid = new QGridLayout();
+  panes_grid->setSpacing(10);
   auto* original_pane = new WebExportPane(&dialog);
   original_pane->setObjectName(QStringLiteral("webExportOriginalPreview"));
   original_pane->set_content(WebExportPane::Content::Original);
   auto* main_pane = new WebExportPane(&dialog);
   main_pane->setObjectName(QStringLiteral("webExportPreview"));
-  main_pane->setMinimumSize(300, 420);
-  original_pane->setMinimumSize(300, 420);
-  panes_row->addWidget(original_pane, 1);
-  panes_row->addWidget(main_pane, 1);
-  preview_column->addLayout(panes_row, 1);
+  auto* half_pane = new WebExportPane(&dialog);
+  half_pane->setObjectName(QStringLiteral("webExportHalfQualityPreview"));
+  half_pane->set_content(WebExportPane::Content::Result);
+  auto* quarter_pane = new WebExportPane(&dialog);
+  quarter_pane->setObjectName(QStringLiteral("webExportQuarterQualityPreview"));
+  quarter_pane->set_content(WebExportPane::Content::Result);
+  panes_grid->addWidget(original_pane, 0, 0);
+  panes_grid->addWidget(main_pane, 0, 1);
+  panes_grid->addWidget(half_pane, 1, 0);
+  panes_grid->addWidget(quarter_pane, 1, 1);
+  panes_grid->setColumnStretch(1, 1);
+  panes_grid->setRowStretch(0, 1);
+  half_pane->hide();
+  quarter_pane->hide();
+  const std::array<WebExportPane*, 4> panes{main_pane, original_pane, half_pane, quarter_pane};
+  preview_column->addLayout(panes_grid, 1);
 
-  auto* view_row = new QHBoxLayout();
+  // The compare buttons and the zoom controls share a row, or wrap onto two when the dialog
+  // is too narrow for both (WrappingRow): every button keeps its whole text.
+  auto* compare_group = new QWidget(&dialog);
+  compare_group->setObjectName(QStringLiteral("webExportCompareButtons"));
+  auto* view_row = new QHBoxLayout(compare_group);
+  view_row->setContentsMargins(0, 0, 0, 0);
   view_row->setSpacing(4);
-  view_row->addWidget(new QLabel(QObject::tr("Compare:"), &dialog));
+  view_row->addWidget(new QLabel(QObject::tr("Compare:"), compare_group));
   auto* compare_buttons = new QButtonGroup(&dialog);
   compare_buttons->setExclusive(true);
   const auto make_compare_button = [&](const QString& text, const char* object_name, WebExportCompare mode) {
-    auto* button = new QPushButton(text, &dialog);
+    auto* button = new QPushButton(text, compare_group);
     button->setObjectName(QLatin1String(object_name));
     button->setCheckable(true);
     button->setFocusPolicy(Qt::NoFocus);
@@ -1727,13 +2344,22 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   (void)make_compare_button(QObject::tr("Split"), "webExportCompareSplit", WebExportCompare::Split);
   (void)make_compare_button(QObject::tr("Side by side"), "webExportCompareSideBySide", WebExportCompare::SideBySide);
   (void)make_compare_button(QObject::tr("Result only"), "webExportCompareResult", WebExportCompare::ResultOnly);
+  (void)make_compare_button(QObject::tr("2 x 2"), "webExportCompareQuad", WebExportCompare::Quad)
+      ->setToolTip(QObject::tr("The original, the result, and the result at 50% and 25% of the quality"));
   view_row->addStretch(1);
+  auto* zoom_group = new QWidget(&dialog);
+  zoom_group->setObjectName(QStringLiteral("webExportZoomControls"));
+  auto* zoom_row = new QHBoxLayout(zoom_group);
+  zoom_row->setContentsMargins(0, 0, 0, 0);
+  zoom_row->setSpacing(4);
+  // Framed push buttons like the compare buttons (GitHub issue 571), so they read as buttons.
+  // No explicit minimum width: a push button never shrinks below its text.
   const auto make_zoom_button = [&dialog](const char* object_name, const QString& text, const QString& tooltip) {
-    auto* button = new QToolButton(&dialog);
+    auto* button = new QPushButton(text, &dialog);
     button->setObjectName(QLatin1String(object_name));
-    button->setText(text);
     button->setToolTip(tooltip);
-    button->setAutoRaise(true);
+    button->setAccessibleName(tooltip);
+    button->setAutoDefault(false);
     button->setFocusPolicy(Qt::NoFocus);
     return button;
   };
@@ -1742,16 +2368,19 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                     QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
   auto* zoom_out = make_zoom_button("webExportZoomOut", QStringLiteral("-"), QObject::tr("Zoom out"));
   auto* zoom_in = make_zoom_button("webExportZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
-  auto* zoom_label = new QLabel(&dialog);
+  // As wide as the longest text it can show (the zoom stops at 1600%), so it neither jumps
+  // nor clips.
+  auto* zoom_label = new WideLabel(QObject::tr("Fit (%1%)").arg(1600), zoom_group);
   zoom_label->setObjectName(QStringLiteral("webExportZoomLabel"));
-  zoom_label->setMinimumWidth(ui_text_length(72));
   zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  view_row->addWidget(zoom_fit);
-  view_row->addWidget(zoom_100);
-  view_row->addWidget(zoom_out);
-  view_row->addWidget(zoom_in);
-  view_row->addWidget(zoom_label);
-  preview_column->addLayout(view_row);
+  for (auto* button : {zoom_fit, zoom_100, zoom_out, zoom_in}) {
+    button->setParent(zoom_group);
+    zoom_row->addWidget(button);
+  }
+  zoom_row->addWidget(zoom_label);
+  auto* view_controls = new WrappingRow(compare_group, zoom_group, 4, &dialog);
+  view_controls->setObjectName(QStringLiteral("webExportViewRow"));
+  preview_column->addWidget(view_controls);
 
   // Playback for an animated result (shown only then): Play/Pause, previous and next frame,
   // the frame counter with the frame's delay, and Loop.
@@ -1760,10 +2389,10 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* playback_layout = new QHBoxLayout(playback_row);
   playback_layout->setContentsMargins(0, 0, 0, 0);
   playback_layout->setSpacing(4);
-  auto* play_button = new QPushButton(QObject::tr("Pause"), playback_row);
+  // Wide enough for Play and Pause alike, so it keeps its width as it toggles.
+  auto* play_button = new WidePushButton(QObject::tr("Pause"), QObject::tr("Play"), playback_row);
   play_button->setObjectName(QStringLiteral("webExportPlayButton"));
   play_button->setFocusPolicy(Qt::NoFocus);
-  play_button->setMinimumWidth(ui_text_length(72));
   auto* previous_frame = make_zoom_button("webExportPreviousFrameButton", QStringLiteral("<"),
                                           QObject::tr("Previous frame"));
   auto* next_frame = make_zoom_button("webExportNextFrameButton", QStringLiteral(">"), QObject::tr("Next frame"));
@@ -1915,9 +2544,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     height_spin->setValue(std::clamp(height, 1, kMaxOutputPixels));
     scale_spin->setValue(percent);
   };
-  const auto pixels_for = [](int source, double percent) {
-    return static_cast<int>(std::clamp<long long>(std::llround(source * percent / 100.0), 1, kMaxOutputPixels));
-  };
+  const auto pixels_for = [](int source, double percent) { return output_pixels(source, percent); };
   const auto refresh_format_rows = [&] {
     const auto current = read_settings();
     for (int row = 0; row < format_list->topLevelItemCount(); ++row) {
@@ -1975,7 +2602,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     animation_group->setVisible(offer_animation && animation_format);
     // Transparency: free choice for the formats with alpha, forced fill for JPEG.
     set_transparency_choice_forced_fill(transparency, format == WebExportFormat::Jpeg);
-    jpeg_background_hint->setVisible(format == WebExportFormat::Jpeg);
+    jpeg_background_info->setVisible(format == WebExportFormat::Jpeg);
     const bool png_palette = png_colors_combo->currentData().toString() == QStringLiteral("palette");
     png_palette_box->setVisible(png_palette);
     png_note->setVisible(!png_palette);
@@ -1984,19 +2611,36 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     png_colors_combo->setEnabled(!png_animated);
     png_palette_box->setEnabled(!png_animated);
     png_animation_note->setVisible(png_animated);
+    // GIF and palette PNG: under 50% opacity is transparent (filled pixels are not affected).
+    cut_note->setVisible(format == WebExportFormat::Gif ||
+                         (format == WebExportFormat::Png && png_palette && !png_animated));
+    cut_note->setEnabled(!transparency.fill->isChecked());
     for (const auto* rows : {&png_rows, &gif_rows}) {
       rows->amount->setEnabled(rows->dither->currentData().toString() == QStringLiteral("diffusion"));
     }
     thumbnail_check->setVisible(format == WebExportFormat::Jpeg);
     webp_quality->parentWidget()->setEnabled(!webp_lossless->isChecked());
   };
+  const auto compare_mode = [&] { return static_cast<WebExportCompare>(std::max(0, compare_buttons->checkedId())); };
   const auto refresh_compare = [&] {
-    const auto mode = static_cast<WebExportCompare>(std::max(0, compare_buttons->checkedId()));
-    original_pane->setVisible(mode == WebExportCompare::SideBySide);
+    const auto mode = compare_mode();
+    const bool quad = mode == WebExportCompare::Quad;
+    const bool with_original = quad || mode == WebExportCompare::SideBySide;
+    original_pane->setVisible(with_original);
+    half_pane->setVisible(quad);
+    quarter_pane->setVisible(quad);
+    panes_grid->setColumnStretch(0, with_original ? 1 : 0);
+    panes_grid->setRowStretch(1, quad ? 1 : 0);
+    // Four tiles share the room two panes have in the other modes.
+    for (auto* pane : panes) {
+      pane->setMinimumSize(quad ? QSize(240, 200) : QSize(300, 420));
+    }
     main_pane->set_content(mode == WebExportCompare::Split ? WebExportPane::Content::Split
                                                            : WebExportPane::Content::Result);
-    if (original_pane->isVisible()) {
-      original_pane->set_view_state(main_pane->view_state());
+    for (auto* pane : panes) {
+      if (pane != main_pane && !pane->isHidden()) {
+        pane->set_view_state(main_pane->view_state());
+      }
     }
   };
   // The animated result being played: its frames stay cached (display images) until another
@@ -2080,10 +2724,49 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     const auto count = static_cast<int>(animation->frames.size());
     show_frame((animation_frame + direction + count) % count);
   };
-  QObject::connect(previous_frame, &QToolButton::clicked, &dialog, [&] { step_frame(-1); });
-  QObject::connect(next_frame, &QToolButton::clicked, &dialog, [&] { step_frame(1); });
+  QObject::connect(previous_frame, &QPushButton::clicked, &dialog, [&] { step_frame(-1); });
+  QObject::connect(next_frame, &QPushButton::clicked, &dialog, [&] { step_frame(1); });
   // Closing or hiding the dialog stops playback.
   QObject::connect(&dialog, &QDialog::finished, playback_timer, &QTimer::stop);
+
+  // The 2 x 2 mode's lower tiles: the selected format at 50% and 25% of its quality (or a
+  // palette's colors), from the engine's cache like the main result.
+  const auto variant_jobs = [&](const WebExportSettings& current) {
+    std::vector<std::pair<WebExportPane*, std::optional<WebExportJob>>> jobs;
+    for (const auto& [pane, percent] : {std::pair{half_pane, 50}, std::pair{quarter_pane, 25}}) {
+      const auto reduced = web_export_reduced_settings(current, current.format, percent);
+      jobs.emplace_back(pane, reduced.has_value() ? std::optional(web_export_job(*reduced, current.format, document_size))
+                                                  : std::nullopt);
+    }
+    return jobs;
+  };
+  const auto show_variants = [&] {
+    if (compare_mode() != WebExportCompare::Quad) {
+      return;
+    }
+    const auto current = read_settings();
+    const auto format_label = web_export_format_name(current.format);
+    for (const auto& [pane, job] : variant_jobs(current)) {
+      if (!job.has_value()) {
+        pane->set_labels({}, {});
+        pane->set_note(QObject::tr("%1 at these settings has no quality to reduce.").arg(format_label));
+        pane->setProperty("webExportShowsCurrent", true);
+        continue;
+      }
+      pane->set_note({});
+      const auto reduced = web_export_reduced_settings(current, current.format, pane == half_pane ? 50 : 25);
+      const auto label = QObject::tr("%1, %2").arg(format_label, web_export_quality_label(*reduced, current.format));
+      const auto cached = engine.cached(job->signature);
+      if (cached.has_value() && cached->bytes != nullptr) {
+        pane->set_images(cached->original, cached->decoded);
+        pane->set_labels({}, QObject::tr("%1: %2").arg(label, data_size_text(cached->bytes->size())));
+      } else {
+        pane->set_labels({}, QObject::tr("%1: encoding...").arg(label));
+      }
+      pane->setProperty("webExportShowsCurrent", cached.has_value());
+      pane->setProperty("webExportQualityLabel", web_export_quality_label(*reduced, current.format));
+    }
+  };
 
   const auto show_result = [&] {
     const auto current = read_settings();
@@ -2109,7 +2792,12 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
         original_pane->set_images(cached->original, {});
       }
       const auto size_text = data_size_text(cached->bytes->size());
-      main_pane->set_labels(QObject::tr("Original"), QObject::tr("%1: %2").arg(format_label, size_text));
+      // In 2 x 2 the result's tag names its quality, like the tiles below it.
+      const auto quality_label = web_export_quality_label(current, format);
+      const auto result_label = compare_mode() == WebExportCompare::Quad && !quality_label.isEmpty()
+                                    ? QObject::tr("%1, %2").arg(format_label, quality_label)
+                                    : format_label;
+      main_pane->set_labels(QObject::tr("Original"), QObject::tr("%1: %2").arg(result_label, size_text));
       original_pane->set_labels(QObject::tr("Original"), {});
       const auto width = cached->decoded.width();
       const auto height = cached->decoded.height();
@@ -2158,6 +2846,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     }
     main_pane->setProperty("webExportShowsCurrent", cached.has_value());
     busy->set_active(engine.busy() || !cached.has_value());
+    show_variants();
   };
 
   auto* debounce = new QTimer(&dialog);
@@ -2169,6 +2858,15 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     // The selected format first, then the others one at a time.
     visited.insert(current.format);
     jobs.push_back(web_export_job(current, current.format, document_size));
+    // 2 x 2: the reduced-quality tiles next, on the second worker (AVIF and JPEG XL stay off
+    // the UI thread like every encode).
+    if (compare_mode() == WebExportCompare::Quad) {
+      for (const auto& [pane, job] : variant_jobs(current)) {
+        if (job.has_value()) {
+          jobs.push_back(*job);
+        }
+      }
+    }
     // Then the fast formats, then AVIF and JPEG XL rows that have been selected once.
     for (const bool slow : {false, true}) {
       for (const auto format : web_export_formats()) {
@@ -2205,10 +2903,13 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
         dialog.accept();
         return;
       }
+    } else if (compare_mode() == WebExportCompare::Quad) {
+      show_variants();
     }
     busy->set_active(engine.busy() || !engine.cached(current_job.signature).has_value());
   });
 
+  std::function<void()> refresh_preset_selection;
   const auto on_changed = [&] {
     if (syncing) {
       return;
@@ -2216,6 +2917,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     refresh_visibility();
     refresh_format_rows();
     show_result();
+    if (refresh_preset_selection) {
+      refresh_preset_selection();
+    }
     debounce->start();
   };
   const auto write_settings = [&](const WebExportSettings& values) {
@@ -2284,6 +2988,122 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     refresh_visibility();
     syncing = false;
   };
+
+  // Presets: built-in ones first, then the user's (exportForWeb/presets). The combo shows the
+  // preset the settings match (the last one picked or saved when several do), else Custom.
+  const auto builtin_presets = web_export_builtin_presets();
+  auto user_presets = load_web_export_user_presets();
+  QString chosen_preset;
+  const auto preset_for_key = [&](const QString& key) -> const WebExportPreset* {
+    if (key.startsWith(QStringLiteral("b:"))) {
+      const auto index = key.mid(2).toInt();
+      return index >= 0 && index < static_cast<int>(builtin_presets.size())
+                 ? &builtin_presets[static_cast<std::size_t>(index)]
+                 : nullptr;
+    }
+    if (key.startsWith(QStringLiteral("u:"))) {
+      const auto name = key.mid(2);
+      for (const auto& preset : user_presets) {
+        if (preset.name == name) {
+          return &preset;
+        }
+      }
+    }
+    return nullptr;
+  };
+  // A preset as this document can take it: no animation on a one-layer document, and an sRGB
+  // document always converts (it has nothing to convert).
+  const auto effective_preset = [&](WebExportPreset preset) {
+    if (!offer_animation) {
+      preset.settings.webp_animate = false;
+      preset.settings.gif_animate = false;
+      preset.settings.jxl_animate = false;
+      preset.settings.png_animate = false;
+    }
+    if (convert_check == nullptr) {
+      preset.settings.convert_to_srgb = true;
+    }
+    return preset;
+  };
+  const auto rebuild_presets = [&] {
+    const QSignalBlocker block(preset_combo);
+    preset_combo->clear();
+    for (std::size_t index = 0; index < builtin_presets.size(); ++index) {
+      preset_combo->addItem(builtin_presets[index].name, QStringLiteral("b:%1").arg(index));
+    }
+    if (!user_presets.empty()) {
+      preset_combo->insertSeparator(preset_combo->count());
+    }
+    for (const auto& preset : user_presets) {
+      preset_combo->addItem(preset.name, QStringLiteral("u:") + preset.name);
+    }
+  };
+  refresh_preset_selection = [&] {
+    const auto current = read_settings();
+    int match = -1;
+    for (int index = 0; index < preset_combo->count(); ++index) {
+      const auto key = preset_combo->itemData(index).toString();
+      const auto* preset = preset_for_key(key);
+      if (preset == nullptr || !web_export_preset_matches(effective_preset(*preset), current, document_size)) {
+        continue;
+      }
+      if (key == chosen_preset) {
+        match = index;
+        break;
+      }
+      if (match < 0) {
+        match = index;
+      }
+    }
+    const QSignalBlocker block(preset_combo);
+    preset_combo->setCurrentIndex(match);
+    preset_delete->setEnabled(match >= 0 && preset_combo->itemData(match).toString().startsWith(QStringLiteral("u:")));
+  };
+  QObject::connect(preset_combo, &QComboBox::activated, &dialog, [&](int index) {
+    const auto key = preset_combo->itemData(index).toString();
+    const auto* preset = preset_for_key(key);
+    if (preset == nullptr) {
+      return;
+    }
+    chosen_preset = key;
+    write_settings(apply_web_export_preset(effective_preset(*preset), read_settings(), document_size));
+    on_changed();
+  });
+  QObject::connect(preset_save, &QPushButton::clicked, &dialog, [&] {
+    const auto* shown = preset_for_key(preset_combo->currentData().toString());
+    const auto name = request_text_input(&dialog, QStringLiteral("webExportPresetNameDialog"),
+                                         QObject::tr("Save Preset"), QObject::tr("Preset name:"),
+                                         shown != nullptr && !shown->built_in ? shown->name : QString());
+    if (!name.has_value() || name->trimmed().isEmpty()) {
+      return;
+    }
+    // A preset of the same name is replaced.
+    auto preset = make_web_export_preset(*name, read_settings(), document_size);
+    const auto existing = std::find_if(user_presets.begin(), user_presets.end(),
+                                       [&preset](const WebExportPreset& other) { return other.name == preset.name; });
+    chosen_preset = QStringLiteral("u:") + preset.name;
+    if (existing != user_presets.end()) {
+      *existing = std::move(preset);
+    } else {
+      user_presets.push_back(std::move(preset));
+    }
+    save_web_export_user_presets(user_presets);
+    rebuild_presets();
+    refresh_preset_selection();
+  });
+  QObject::connect(preset_delete, &QPushButton::clicked, &dialog, [&] {
+    const auto key = preset_combo->currentData().toString();
+    if (!key.startsWith(QStringLiteral("u:"))) {
+      return;
+    }
+    const auto name = key.mid(2);
+    std::erase_if(user_presets, [&name](const WebExportPreset& preset) { return preset.name == name; });
+    save_web_export_user_presets(user_presets);
+    chosen_preset.clear();
+    rebuild_presets();
+    refresh_preset_selection();
+  });
+  rebuild_presets();
 
   // Size fields: linked, width, height and scale follow each other.
   QObject::connect(width_spin, &QSpinBox::valueChanged, &dialog, [&](int width) {
@@ -2382,7 +3202,11 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   if (convert_check != nullptr) {
     QObject::connect(convert_check, &QCheckBox::toggled, &dialog, [&](bool) { on_changed(); });
   }
-  QObject::connect(compare_buttons, &QButtonGroup::idClicked, &dialog, [&](int) { refresh_compare(); });
+  QObject::connect(compare_buttons, &QButtonGroup::idClicked, &dialog, [&](int) {
+    refresh_compare();
+    // 2 x 2 needs its tiles encoded; the other modes show what is cached.
+    request_encodes();
+  });
 
   // Zoom: the main pane drives; side by side keeps the two panes in step.
   const auto refresh_zoom_label = [&] {
@@ -2391,24 +3215,31 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                               : QStringLiteral("%1%").arg(percent));
   };
   bool syncing_view = false;
-  const auto sync_view = [&](WebExportPane* from, WebExportPane* to) {
-    // Only while both panes show (side by side): a hidden pane's updates never move the other.
-    if (syncing_view || !to->isVisible() || !from->isVisible()) {
+  const auto sync_view = [&](WebExportPane* from) {
+    // Only between showing panes: a hidden pane's updates never move the others.
+    if (syncing_view || !from->isVisible()) {
       return;
     }
     syncing_view = true;
-    to->set_view_state(from->view_state());
+    for (auto* to : panes) {
+      if (to != from && to->isVisible()) {
+        to->set_view_state(from->view_state());
+      }
+    }
     syncing_view = false;
   };
-  main_pane->set_zoom_changed_callback([&] {
-    refresh_zoom_label();
-    sync_view(main_pane, original_pane);
-  });
-  original_pane->set_zoom_changed_callback([&] { sync_view(original_pane, main_pane); });
-  QObject::connect(zoom_fit, &QToolButton::clicked, &dialog, [&] { main_pane->zoom_to_fit(); });
-  QObject::connect(zoom_100, &QToolButton::clicked, &dialog, [&] { main_pane->zoom_to(1.0); });
-  QObject::connect(zoom_out, &QToolButton::clicked, &dialog, [&] { main_pane->zoom_step(-1); });
-  QObject::connect(zoom_in, &QToolButton::clicked, &dialog, [&] { main_pane->zoom_step(1); });
+  for (auto* pane : panes) {
+    pane->set_zoom_changed_callback([&, pane] {
+      if (pane == main_pane) {
+        refresh_zoom_label();
+      }
+      sync_view(pane);
+    });
+  }
+  QObject::connect(zoom_fit, &QPushButton::clicked, &dialog, [&] { main_pane->zoom_to_fit(); });
+  QObject::connect(zoom_100, &QPushButton::clicked, &dialog, [&] { main_pane->zoom_to(1.0); });
+  QObject::connect(zoom_out, &QPushButton::clicked, &dialog, [&] { main_pane->zoom_step(-1); });
+  QObject::connect(zoom_in, &QPushButton::clicked, &dialog, [&] { main_pane->zoom_step(1); });
 
   QObject::connect(reset_button, &QPushButton::clicked, &dialog, [&] {
     auto defaults = WebExportSettings{};
@@ -2440,17 +3271,43 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   });
 
   write_settings(settings);
+  refresh_preset_selection();
   append_themed_style(dialog, dialog_spinbox_button_style());
+  // The spin boxes here have no - / + buttons: their text gets the room the shared style keeps
+  // for them (the settings column is narrow, GitHub issue 571).
+  for (auto* spin : dialog.findChildren<QAbstractSpinBox*>()) {
+    if (spin->buttonSymbols() == QAbstractSpinBox::NoButtons) {
+      spin->setProperty("webExportNoSpinButtons", true);
+    }
+  }
+  append_themed_style(dialog, ThemedQss(QStringLiteral(
+                                  "QSpinBox[webExportNoSpinButtons=\"true\"], "
+                                  "QDoubleSpinBox[webExportNoSpinButtons=\"true\"] { padding-right: 6px; }")));
   // A wheel over an unfocused combo box, spin box or slider in the settings column scrolls
   // the column (GitHub issue 92's guard; it also covers controls shown later).
   install_wheel_scroll_guard(dialog);
   const auto engine_cleanup = qScopeGuard([&engine] { engine.close(); });
-  dialog.resize(1280, 820);
+  // The first time at its smallest size, then at the size it last closed with (GitHub issue
+  // 571), never larger than the screen.
+  dialog.layout()->activate();
+  const auto minimum = dialog.minimumSizeHint().expandedTo(dialog.minimumSize());
+  auto size = app_settings().value(QLatin1String(kDialogSizeKey)).toSize();
+  size = size.isValid() ? size.expandedTo(minimum) : minimum;
+  if (const auto* screen = parent != nullptr ? parent->screen() : QGuiApplication::primaryScreen()) {
+    size = size.boundedTo(screen->availableGeometry().size());
+  }
+  dialog.resize(size);
   request_encodes();
 
   const auto code = exec_dialog(dialog);
   playback_timer->stop();
   engine.close();
+  // The size and the compare mode are kept however the dialog closes.
+  {
+    auto stored = app_settings();
+    stored.setValue(QLatin1String(kDialogSizeKey), dialog.size());
+    stored.setValue(QLatin1String(kCompareKey), compare_key(compare_mode()));
+  }
   if (code != QDialog::Accepted) {
     return std::nullopt;
   }

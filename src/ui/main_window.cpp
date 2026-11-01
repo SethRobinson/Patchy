@@ -4828,6 +4828,41 @@ bool MainWindow::handle_spacebar_canvas_pan_event(QObject* watched, QEvent* even
   return false;
 }
 
+// The 0-9 opacity keys work anywhere in the main window, as in Photoshop (GitHub issue 562), not
+// only while the canvas has focus: a digit pressed with the tool palette, a panel or an options
+// bar button focused goes to the active canvas. Text fields, spin boxes, editable combos (the
+// text-input guard the spacebar pan uses), dialogs, float windows, menus and the canvas itself,
+// whose keyPressEvent handles them, keep theirs. A digit the tool does not take goes on as usual.
+bool MainWindow::handle_opacity_digit_key_event(QObject* watched, QEvent* event) {
+  if (event->type() != QEvent::KeyPress || canvas_ == nullptr || shutting_down_ || !has_active_document()) {
+    return false;
+  }
+  auto* key_event = static_cast<QKeyEvent*>(event);
+  if (key_event->key() < Qt::Key_0 || key_event->key() > Qt::Key_9) {
+    return false;
+  }
+  // An application filter sees the press once per widget it propagates through: only the first
+  // delivery, to the focus widget (or this window when nothing has focus), counts.
+  auto* widget = qobject_cast<QWidget*>(watched);
+  auto* focus = QApplication::focusWidget();
+  if (widget == nullptr || widget != (focus != nullptr ? focus : static_cast<QWidget*>(this)) ||
+      widget->window() != this || QApplication::activeModalWidget() != nullptr ||
+      QApplication::activePopupWidget() != nullptr) {
+    return false;
+  }
+  for (const QWidget* current = widget; current != nullptr; current = current->parentWidget()) {
+    if (qobject_cast<const CanvasWidget*>(current) != nullptr) {
+      return false;
+    }
+  }
+  if (spacebar_canvas_pan_blocked_by_text_input(widget) ||
+      !canvas_->handle_opacity_digit_key(key_event->key(), key_event->modifiers(), key_event->isAutoRepeat())) {
+    return false;
+  }
+  key_event->accept();
+  return true;
+}
+
 bool MainWindow::spacebar_canvas_pan_target_in_window(QWidget* widget) const noexcept {
   if (widget == nullptr) {
     return false;
@@ -5088,6 +5123,9 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     QTimer::singleShot(0, this, [] { refresh_cursor_under_pointer(); });
   }
   if (handle_spacebar_canvas_pan_event(watched, event)) {
+    return true;
+  }
+  if (handle_opacity_digit_key_event(watched, event)) {
     return true;
   }
   if (handle_options_bar_focus_event(watched, event)) {
@@ -5594,10 +5632,12 @@ void MainWindow::changeEvent(QEvent* event) {
   if (event->type() == QEvent::LanguageChange) {
     retranslate_ui();
   }
-  if (event->type() == QEvent::ActivationChange && isActiveWindow() && canvas_ != nullptr) {
+  if (event->type() == QEvent::ActivationChange && isActiveWindow() && canvas_ != nullptr &&
+      QApplication::activeModalWidget() == nullptr) {
     // Windows resets the cursor to an arrow when the window is re-activated;
     // re-apply the tool cursor so a hovering pen shows the brush immediately
-    // instead of waiting for the first move event.
+    // instead of waiting for the first move event. Not while a modal dialog is up: the
+    // window is blocked and shows the arrow (GitHub issue 504, Alt+Tab back to Patchy).
     canvas_->refresh_tool_cursor();
   }
   if (event->type() == QEvent::WindowStateChange) {
@@ -6173,6 +6213,14 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         }
         actions.append(nullptr);
       }
+    }
+    // The selected shapes' clipboard, color and new-layer commands (GitHub #555).
+    if (tool == CanvasTool::PathSelect || tool == CanvasTool::DirectSelect) {
+      refresh_path_edit_action_states();
+      actions.append({path_merge_shapes_action_, nullptr, path_shapes_cut_action_, path_shapes_copy_action_,
+                      path_shapes_paste_action_, nullptr,
+                      path_shapes_color_action_, path_shapes_to_new_layer_action_,
+                      path_shapes_copy_to_new_layer_action_, nullptr});
     }
     actions.append({path_make_selection_action_, nullptr, path_fill_action_, path_stroke_action_,
                     nullptr, path_simplify_action_, nullptr, path_duplicate_action_, path_delete_action_});

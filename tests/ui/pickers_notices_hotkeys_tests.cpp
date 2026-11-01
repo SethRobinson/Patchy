@@ -26,7 +26,10 @@
 #include "ui/app_settings.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_preset_popup.hpp"
+#include "ui/command_search.hpp"
+#include "ui/hotkey_registry.hpp"
 #include "psd/psd_document_io.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include <QAbstractItemView>
 #include <QAbstractSpinBox>
@@ -52,8 +55,12 @@
 #include <QMessageBox>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPointer>
+#include <QListWidget>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QStringList>
 #include <QSlider>
@@ -740,7 +747,63 @@ void ui_compatibility_report_flags_psd_text_placeholders() {
   CHECK(!warnings.isEmpty());
   CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("placeholder")));
   CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("TySh")));
-  CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("unknown PSD layer block")));
+  // The text block is understood data (its own note above), not an unknown block.
+  CHECK(!warnings.join(QLatin1Char('\n')).contains(QStringLiteral("unknown PSD layer block")));
+}
+// The blocks Photoshop writes on every ordinary layer are routine or modeled data, not
+// "unknown PSD layer block(s)" (GitHub issue 559: about nine per layer); a key nothing
+// handles still is.
+void ui_compatibility_report_counts_routine_photoshop_blocks_as_known() {
+  patchy::Document document(60, 40, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Shape", solid_pixels(60, 40, patchy::PixelFormat::rgba8(),
+                                                               QColor(20, 80, 200, 255)));
+  for (const char* key : {"luni", "lnsr", "lyid", "clbl", "infx", "knko", "lspf", "lclr", "shmd", "fxrp",
+                          "lyvr", "vscg", "vsms", "vogk", "vstk", "tsly", "lmgm", "vmgm", "sn2P", "ffxi",
+                          "cinf", "lfxs", "lmfx", "TySh", "artd"}) {
+    CHECK(patchy::psd::is_understood_layer_block_key(key));
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{key, {0, 0, 0, 1}});
+  }
+  CHECK(!patchy::psd::is_understood_layer_block_key("zzzz"));
+  auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+  if (!warnings.isEmpty()) {
+    std::fprintf(stderr, "  %s\n", qPrintable(warnings.join(QLatin1Char('\n'))));
+  }
+  CHECK(warnings.isEmpty());
+  document.layers().front().unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
+  warnings = patchy::ui::compatibility_warnings_for_document(document);
+  CHECK(warnings.size() == 1);
+  CHECK(!warnings.isEmpty() && warnings.front().contains(QStringLiteral("Shape preserves 1 unknown PSD layer block")));
+  // Document-level blocks: Photoshop's Patt and FMsk are understood, an unknown key is not.
+  document.layers().front().unknown_psd_blocks().pop_back();
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"Patt", {}});
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"FMsk", {0, 0, 0, 0}});
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"Txt2", {0, 0}});
+  CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
+  warnings = patchy::ui::compatibility_warnings_for_document(document);
+  CHECK(warnings.size() == 1);
+  CHECK(!warnings.isEmpty() && warnings.front().contains(QStringLiteral("preserves 1 unknown PSD image resource")));
+}
+// A file Patchy saved reopens with nothing to report: its Background carries the 'lspf'
+// lock block from the second save on (GitHub issue 559).
+void ui_compatibility_report_is_empty_for_patchy_saved_background() {
+  patchy::Document document(60, 40, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(60, 40, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+  document.add_pixel_layer("Layer 1", solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(200, 30, 30, 128)));
+  const auto first = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto second = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(first));
+  bool saw_lspf = false;
+  for (const auto& layer : second.layers()) {
+    for (const auto& block : layer.unknown_psd_blocks()) {
+      saw_lspf = saw_lspf || block.key == "lspf";
+    }
+  }
+  CHECK(saw_lspf);
+  const auto warnings = patchy::ui::compatibility_warnings_for_document(second);
+  if (!warnings.isEmpty()) {
+    std::fprintf(stderr, "  %s\n", qPrintable(warnings.join(QLatin1Char('\n'))));
+  }
+  CHECK(warnings.isEmpty());
 }
 void ui_compatibility_report_ignores_patchy_written_psd_blocks() {
   patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
@@ -1129,6 +1192,86 @@ void ui_psd_import_warning_dialog_shows_when_enabled() {
   CHECK(saw_compatibility_report);
   CHECK(tabs->count() == original_tab_count + 1);
   CHECK(tabs->tabText(tabs->currentIndex()) == QFileInfo(psd_path).fileName());
+}
+// The reporter's files from GitHub issue 559 (local fixtures): a Photoshop file of six
+// stroke-preset shape layers and a Patchy-saved one both reopen with nothing to report.
+void ui_compatibility_report_is_empty_for_issue_559_files_if_available() {
+  const auto folder = patchy::test::source_root_path() / "local-test-fixtures" / "issue-559";
+  for (const char* name : {"photoshop-stroke-presets.psd", "patchy-dashes-test-2.psd"}) {
+    const auto path = folder / name;
+    patchy::test::skip_unless_exists(path);
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+    if (!warnings.isEmpty()) {
+      std::fprintf(stderr, "  %s: %s\n", name, qPrintable(warnings.join(QLatin1Char('\n'))));
+    }
+    CHECK(warnings.isEmpty());
+  }
+}
+// With the popup preference on, a PSD whose layers carry only routine Photoshop blocks opens
+// without the report; on a file with a real unknown block, "Don't show this again" turns the
+// preference off (GitHub issue 559).
+void ui_compatibility_report_dont_show_turns_popup_preference_off() {
+  SettingsValueRestorer restore_psd_warning_check(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+    settings.sync();
+  }
+  ensure_artifact_dir();
+  const auto routine_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("psd-routine-blocks.psd")))
+          .absoluteFilePath();
+  {
+    patchy::Document document(8, 6, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer(
+        "Routine Blocks", solid_pixels(8, 6, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"lnsr", {'l', 'a', 'y', 'r'}});
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"lyvr", {0, 0, 0, 70}});
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"shmd", {0, 0, 0, 0}});
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"knko", {0, 0, 0, 0}});
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(routine_path));
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  const auto open_and_answer = [&window](const QString& path, bool tick_dont_show) {
+    auto saw_report = std::make_shared<bool>(false);
+    auto done = std::make_shared<bool>(false);
+    auto poll = std::make_shared<std::function<void(int)>>();
+    *poll = [saw_report, done, tick_dont_show, weak = std::weak_ptr<std::function<void(int)>>(poll)](int attempts) {
+      QTimer::singleShot(50, [saw_report, done, tick_dont_show, attempts, weak] {
+        if (*done) {
+          return;
+        }
+        auto* dialog = find_top_level_dialog(QStringLiteral("patchyCompatibilityReportDialog"));
+        if (dialog != nullptr) {
+          auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("compatibilityReportDontShowCheck"));
+          if (check == nullptr) {
+            patchy::test::report_failure("compatibility report has no Don't show this again check");
+          } else if (tick_dont_show) {
+            check->setChecked(true);
+            save_widget_artifact("i559-compatibility-report-dont-show", *dialog);
+          }
+          *saw_report = true;
+          *done = true;
+          dialog->accept();
+          return;
+        }
+        if (const auto next = weak.lock(); next != nullptr && attempts > 0) {
+          (*next)(attempts - 1);
+        }
+      });
+    };
+    (*poll)(2400);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    *done = true;
+    QApplication::processEvents();
+    return *saw_report;
+  };
+  CHECK(!open_and_answer(routine_path, false));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool());
+  const auto unknown_path = write_psd_import_warning_fixture(QStringLiteral("psd-import-warning-dont-show.psd"));
+  CHECK(open_and_answer(unknown_path, true));
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), true).toBool());
 }
 void ui_alt_left_click_samples_foreground_color() {
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -4352,6 +4495,518 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
   QApplication::processEvents();
   CHECK(saw_dialog);
 }
+// GitHub issue 561: only the command list scrolls; the search row and hint stay put at the
+// top of the page. GitHub issue 562: the 0-9 row names layer opacity and the 1% to 100% range.
+void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_hotkeys_tab(*dialog);
+    QApplication::processEvents();
+    auto* panel = dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel"));
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+    auto* list_scroll = dialog->findChild<QScrollArea*>(QStringLiteral("hotkeyListScroll"));
+    CHECK(panel != nullptr && search != nullptr && list_scroll != nullptr);
+    if (panel == nullptr || search == nullptr || list_scroll == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // No page-level scroll area wraps the panel, and the search field is outside the list.
+    for (QWidget* ancestor = panel->parentWidget(); ancestor != nullptr && ancestor != dialog;
+         ancestor = ancestor->parentWidget()) {
+      CHECK(qobject_cast<QScrollArea*>(ancestor) == nullptr);
+    }
+    CHECK(!list_scroll->isAncestorOf(search));
+
+    auto* bar = list_scroll->verticalScrollBar();
+    CHECK(bar->maximum() > 0);
+    bar->setValue(0);
+    QApplication::processEvents();
+    const QRect search_before(search->mapTo(dialog, QPoint(0, 0)), search->size());
+    bar->setValue(bar->maximum());
+    QApplication::processEvents();
+    const QRect search_after(search->mapTo(dialog, QPoint(0, 0)), search->size());
+    CHECK(search->isVisible());
+    CHECK(search_after == search_before);
+    CHECK(search_after.bottom() < list_scroll->mapTo(dialog, QPoint(0, 0)).y());
+    // The rows end where the search row ends, beside the scroll bar.
+    auto* reset_all = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
+    auto* list = list_scroll->widget();
+    CHECK(reset_all != nullptr && list != nullptr);
+    if (reset_all != nullptr && list != nullptr) {
+      const int reset_right = reset_all->mapTo(dialog, QPoint(reset_all->width(), 0)).x();
+      int panel_right = 0;
+      for (auto* frame : list->findChildren<QFrame*>(Qt::FindDirectChildrenOnly)) {
+        if (frame->isVisible()) {
+          panel_right = std::max(panel_right, frame->mapTo(dialog, QPoint(frame->width(), 0)).x());
+        }
+      }
+      CHECK(panel_right > 0);
+      CHECK(std::abs(reset_right - panel_right) <= 1);
+    }
+
+    // The bottom of the list is the built-in keys panel, with the 0-9 row's new text.
+    bool saw_opacity_row = false;
+    for (auto* label : list->findChildren<QLabel*>()) {
+      if (label->text() == QStringLiteral("Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)")) {
+        saw_opacity_row = label->isVisible();
+      }
+      CHECK(!label->text().contains(QStringLiteral("10%-100%")));
+    }
+    CHECK(saw_opacity_row);
+    save_widget_artifact("hotkey_editor_scrolled_to_bottom", *dialog);
+
+    // A search starts the list at the top again.
+    search->setText(QStringLiteral("opacity"));
+    QApplication::processEvents();
+    CHECK(bar->value() == 0);
+    search->clear();
+    QApplication::processEvents();
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
+// GitHub issue 554: Help > Search Commands (and the menu bar's button after Help) lists every
+// enabled menu command with its menu path and shortcut, filters as you type, and Enter runs
+// the chosen command once the popup has closed.
+void ui_command_search_popup_filters_and_runs_commands() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* search_action = require_action(window, "helpSearchCommandsAction");
+  CHECK(search_action->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Slash));
+  CHECK(search_action->menuRole() == QAction::NoRole);
+  QApplication::processEvents();
+#ifndef Q_OS_MACOS
+  auto* button = window.menuBar()->findChild<QToolButton*>(QStringLiteral("menuBarCommandSearchButton"));
+  CHECK(button != nullptr);
+  if (button != nullptr && !window.menuBar()->isNativeMenuBar()) {
+    CHECK(button->isVisible());
+    QAction* help = nullptr;
+    for (auto* action : window.menuBar()->actions()) {
+      if (action->menu() != nullptr && action->isVisible()) {  // a theme's menu hides when unused
+        help = action;
+      }
+    }
+    CHECK(help != nullptr && help->text() == QStringLiteral("&Help"));
+    if (help != nullptr) {
+      CHECK(button->x() > window.menuBar()->actionGeometry(help).right());
+    }
+    CHECK(button->toolTip().startsWith(QStringLiteral("Search Commands")));
+    // A press on the button is the button's, never a title-bar drag.
+    CHECK(!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, button->geometry().center()));
+  }
+#endif
+
+  // The shared matcher: every word must appear in the name or path; names starting with
+  // the query rank first.
+  const std::vector<patchy::ui::MenuCommandEntry> sample{
+      {nullptr, QStringLiteral("Motion Blur"), QStringLiteral("Filter › Blur")},
+      {nullptr, QStringLiteral("Blur"), QStringLiteral("Filter › Blur")},
+      {nullptr, QStringLiteral("Levels"), QStringLiteral("Image › Adjustments")},
+  };
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("blur")) == std::vector<int>{1, 0}));
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("adjust lev")) == std::vector<int>{2}));
+  CHECK(patchy::ui::match_menu_commands(sample, QStringLiteral("sharpen")).empty());
+  CHECK(patchy::ui::match_menu_commands(sample, QString()).size() == 3);
+
+  search_action->trigger();
+  QApplication::processEvents();
+  QPointer<QFrame> popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  CHECK(popup->isVisible());
+  auto* edit = popup->findChild<QLineEdit*>(QStringLiteral("commandSearchEdit"));
+  auto* list = popup->findChild<QListWidget*>(QStringLiteral("commandSearchList"));
+  CHECK(edit != nullptr && list != nullptr);
+  if (edit == nullptr || list == nullptr) {
+    return;
+  }
+  CHECK(list->count() > 100);  // every enabled command, before typing
+  CHECK(list->viewport()->height() >= 10 * list->sizeHintForRow(0));  // a dozen rows show at once
+  for (int row = 0; row < list->count(); ++row) {
+    CHECK(!list->item(row)->text().endsWith(QStringLiteral("...")));
+  }
+  const auto find_row = [list](const QString& name) -> QListWidgetItem* {
+    for (int row = 0; row < list->count(); ++row) {
+      if (list->item(row)->text() == name) {
+        return list->item(row);
+      }
+    }
+    return nullptr;
+  };
+
+  edit->setText(QStringLiteral("blur"));
+  QApplication::processEvents();
+  auto* gaussian = find_row(QStringLiteral("Gaussian Blur"));
+  CHECK(gaussian != nullptr);
+  if (gaussian != nullptr) {
+    CHECK(gaussian->data(Qt::UserRole + 1).toString() == QStringLiteral("Filter › Blur"));
+  }
+  for (int row = 0; row < list->count(); ++row) {
+    CHECK(list->item(row)->text().contains(QStringLiteral("blur"), Qt::CaseInsensitive) ||
+          list->item(row)->data(Qt::UserRole + 1).toString().contains(QStringLiteral("blur"), Qt::CaseInsensitive) ||
+          list->item(row)->data(Qt::UserRole + 5).toString().contains(QStringLiteral("blur"), Qt::CaseInsensitive));
+  }
+  save_window_popup_artifact("command_search_blur", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("levels"));
+  QApplication::processEvents();
+  auto* levels = find_row(QStringLiteral("Levels"));
+  CHECK(levels != nullptr);
+  if (levels != nullptr) {
+    CHECK(levels->data(Qt::UserRole + 1).toString() == QStringLiteral("Image › Adjustments"));
+    CHECK(levels->data(Qt::UserRole + 2).toString() ==
+          QKeySequence(Qt::CTRL | Qt::Key_L).toString(QKeySequence::NativeText));
+  }
+  // A checkable command reports its state.
+  auto* rulers_action = window.hotkey_registry().find_command(QStringLiteral("view.rulers")) != nullptr
+                            ? window.hotkey_registry().find_command(QStringLiteral("view.rulers"))->action.data()
+                            : nullptr;
+  CHECK(rulers_action != nullptr && rulers_action->isCheckable());
+  if (rulers_action != nullptr) {
+    edit->setText(patchy::ui::strip_menu_ellipsis(patchy::ui::clean_action_text(rulers_action)));
+    QApplication::processEvents();
+    auto* rulers = find_row(edit->text());
+    CHECK(rulers != nullptr);
+    if (rulers != nullptr) {
+      CHECK(rulers->data(Qt::UserRole + 3).toInt() == (rulers_action->isChecked() ? 1 : 0));
+    }
+  }
+  // No match leaves an empty list; Enter then does nothing and the popup stays.
+  edit->setText(QStringLiteral("zzqqxx"));
+  QApplication::processEvents();
+  CHECK(list->count() == 0);
+  {
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(edit, &enter);
+  }
+  QApplication::processEvents();
+  CHECK(popup != nullptr && popup->isVisible());
+
+  // Up/Down move the choice; Enter runs it once the popup has closed.
+  const auto* select_all_command = window.hotkey_registry().find_command(QStringLiteral("select.all"));
+  CHECK(select_all_command != nullptr && select_all_command->action != nullptr);
+  if (select_all_command == nullptr || select_all_command->action == nullptr) {
+    return;
+  }
+  QAction* select_all = select_all_command->action.data();
+  int select_all_runs = 0;
+  QObject::connect(select_all, &QAction::triggered, &window, [&select_all_runs] { ++select_all_runs; });
+  edit->setText(QStringLiteral("select all"));
+  QApplication::processEvents();
+  CHECK(list->count() >= 1);
+  CHECK(list->currentRow() == 0);
+  if (list->count() > 1) {
+    QKeyEvent down(QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier);
+    QApplication::sendEvent(edit, &down);
+    CHECK(list->currentRow() == 1);
+    QKeyEvent up(QEvent::KeyPress, Qt::Key_Up, Qt::NoModifier);
+    QApplication::sendEvent(edit, &up);
+    CHECK(list->currentRow() == 0);
+  }
+  int select_all_row = -1;
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->text() == patchy::ui::strip_menu_ellipsis(patchy::ui::clean_action_text(select_all))) {
+      select_all_row = row;
+    }
+  }
+  CHECK(select_all_row >= 0);
+  list->setCurrentRow(select_all_row);
+  {
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(edit, &enter);
+  }
+  CHECK(select_all_runs == 0);  // deferred until the popup is gone
+  CHECK(process_events_until([&] { return popup == nullptr; }));
+  CHECK(process_events_until([&] { return select_all_runs == 1; }));
+
+  // Esc closes; a second request while it is open closes it too.
+  search_action->trigger();
+  QApplication::processEvents();
+  popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+  CHECK(popup != nullptr);
+  if (popup != nullptr) {
+    auto* reopened_edit = popup->findChild<QLineEdit*>(QStringLiteral("commandSearchEdit"));
+    CHECK(reopened_edit != nullptr && reopened_edit->text().isEmpty());
+    if (reopened_edit != nullptr) {
+      QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+      QApplication::sendEvent(reopened_edit, &escape);
+    }
+    CHECK(process_events_until([&] { return popup == nullptr; }));
+  }
+  search_action->trigger();
+  QApplication::processEvents();
+  popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+  CHECK(popup != nullptr);
+  search_action->trigger();
+  CHECK(process_events_until([&] { return popup == nullptr; }));
+}
+// GitHub issue 554 follow-up: results keep menu bar order after the exact and starts-with
+// matches, the tools and the keys outside the menus are listed with their shortcuts, and a
+// short description per command is searched and shown.
+void ui_command_search_lists_tools_keys_and_descriptions() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  const auto& registry = window.hotkey_registry();
+
+  // Every written description names a command the search can list (hotkey ids and objectNames
+  // are permanent), except the commands this platform does not build.
+  {
+    QSet<QString> listed_ids;
+    for (const auto& entry : patchy::ui::collect_search_commands(window.menuBar(), registry, true)) {
+      listed_ids.insert(entry.id);
+    }
+    const QStringList other_platforms{
+#ifndef Q_OS_WIN
+        QStringLiteral("plugins.repeat_last"), QStringLiteral("plugins.last_settings"),
+        QStringLiteral("plugins.open_folder"), QStringLiteral("plugins.rescan"),
+#else
+        QStringLiteral("pluginsLegacyWindowsOnlyNote"),
+#endif
+#if !defined(Q_OS_WIN) && !defined(Q_OS_MACOS)
+        QStringLiteral("file.import_scanner"), QStringLiteral("file.import_photocopy"),
+        QStringLiteral("file.import_divide_photos"),
+#endif
+    };
+    for (const auto& id : patchy::ui::command_search_described_ids()) {
+      if (!listed_ids.contains(id) && !other_platforms.contains(id)) {
+        std::cerr << "described command id not listed by the search: " << id.toStdString() << '\n';
+        CHECK(false);
+      }
+    }
+  }
+  CHECK(patchy::ui::command_search_description(QStringLiteral("layer.new_with_dialog")) ==
+        QStringLiteral("Add New Layer"));
+  CHECK(patchy::ui::command_search_description(QStringLiteral("no.such.command")).isEmpty());
+
+  // The matcher: an exact name or description first, then starts-with, then menu order.
+  const std::vector<patchy::ui::MenuCommandEntry> sample{
+      {nullptr, QStringLiteral("New Layer"), QStringLiteral("Layer › New"), QStringLiteral("Add New Layer")},
+      {nullptr, QStringLiteral("Duplicate Layer"), QStringLiteral("Layer")},
+      {nullptr, QStringLiteral("Layer via Copy"), QStringLiteral("Layer › New")},
+      {nullptr, QStringLiteral("Move"), QStringLiteral("Tools"), QStringLiteral("Move layers and selections")},
+      {nullptr, QStringLiteral("Layer"), QStringLiteral("Window")},
+  };
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("layer")) == std::vector<int>{4, 2, 0, 1, 3}));
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("add new layer")) == std::vector<int>{0}));
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("selections")) == std::vector<int>{3}));
+  CHECK((patchy::ui::match_menu_commands(sample, QStringLiteral("tools move")) == std::vector<int>{3}));
+  CHECK(patchy::ui::match_menu_commands(sample, QStringLiteral("ections")).empty());  // descriptions: word starts
+
+  const auto entries = patchy::ui::collect_search_commands(window.menuBar(), registry);
+  const auto find_entry = [&entries](const QAction* action) -> const patchy::ui::MenuCommandEntry* {
+    for (const auto& entry : entries) {
+      if (entry.action.data() == action) {
+        return &entry;
+      }
+    }
+    return nullptr;
+  };
+  const auto action_of = [&registry](const char* id) -> QAction* {
+    const auto* command = registry.find_command(QLatin1String(id));
+    return command != nullptr ? command->action.data() : nullptr;
+  };
+  // Menu bar order: every File command before the first Edit command.
+  int last_file = -1;
+  int first_edit = -1;
+  for (int index = 0; index < static_cast<int>(entries.size()); ++index) {
+    const auto& path = entries[static_cast<std::size_t>(index)].path;
+    if (path == QStringLiteral("File") || path.startsWith(QStringLiteral("File ›"))) {
+      last_file = index;
+    }
+    if (first_edit < 0 && (path == QStringLiteral("Edit") || path.startsWith(QStringLiteral("Edit ›")))) {
+      first_edit = index;
+    }
+  }
+  CHECK(last_file >= 0 && first_edit > last_file);
+
+  // Every palette tool, as "Tools" after the menu commands unless a menu holds it.
+  auto* move_tool = action_of("tools.move");
+  auto* ruler_tool = action_of("tools.ruler");
+  CHECK(move_tool != nullptr && ruler_tool != nullptr);
+  const auto* move_entry = find_entry(move_tool);
+  CHECK(move_entry != nullptr);
+  if (move_entry != nullptr) {
+    CHECK(move_entry->path == QStringLiteral("Tools"));
+    CHECK(move_entry->name == QStringLiteral("Move"));
+    CHECK(move_entry->description == QStringLiteral("Move layers and selections"));
+    CHECK(move_entry > &entries[static_cast<std::size_t>(first_edit)]);
+  }
+  // The Type tool is also in the Type menu, so it is listed there instead.
+  for (const auto& command : registry.commands()) {
+    if (command.category == QStringLiteral("tools") && command.action != nullptr && command.action->isEnabled()) {
+      const auto* entry = find_entry(command.action.data());
+      if (entry == nullptr || entry->path.isEmpty()) {
+        std::cerr << "tool missing from the command search: " << command.id.toStdString() << '\n';
+        CHECK(false);
+      }
+    }
+  }
+  // A key outside the menus, with no path.
+  auto* blend_normal = action_of("layer.blend_mode.normal");
+  CHECK(blend_normal != nullptr && blend_normal->isEnabled());
+  const auto* blend_entry = find_entry(blend_normal);
+  CHECK(blend_entry != nullptr);
+  if (blend_entry != nullptr) {
+    CHECK(blend_entry->name == QStringLiteral("Blend Mode: Normal"));
+    CHECK(blend_entry->path.isEmpty());
+  }
+  // A menu command keeps its menu path and is listed once.
+  const auto* new_layer_entry = find_entry(action_of("layer.new_with_dialog"));
+  CHECK(new_layer_entry != nullptr);
+  if (new_layer_entry != nullptr) {
+    CHECK(new_layer_entry->path == QStringLiteral("Layer › New"));
+    CHECK(new_layer_entry->description == QStringLiteral("Add New Layer"));
+  }
+  int new_layer_rows = 0;
+  for (const auto& entry : entries) {
+    new_layer_rows += entry.action.data() == action_of("layer.new_with_dialog") ? 1 : 0;
+  }
+  CHECK(new_layer_rows == 1);
+
+  // The popup shows them: the description finds New Layer first, a tool row shows its key,
+  // and Enter on it selects the tool.
+  auto* search_action = require_action(window, "helpSearchCommandsAction");
+  search_action->trigger();
+  QApplication::processEvents();
+  QPointer<QFrame> popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  auto* edit = popup->findChild<QLineEdit*>(QStringLiteral("commandSearchEdit"));
+  auto* list = popup->findChild<QListWidget*>(QStringLiteral("commandSearchList"));
+  CHECK(edit != nullptr && list != nullptr);
+  if (edit == nullptr || list == nullptr) {
+    return;
+  }
+  edit->setText(QStringLiteral("add new layer"));
+  QApplication::processEvents();
+  CHECK(list->count() >= 1);
+  if (list->count() >= 1) {
+    CHECK(list->item(0)->text() == QStringLiteral("New Layer"));
+    CHECK(list->item(0)->data(Qt::UserRole + 1).toString() == QStringLiteral("Layer › New"));
+    CHECK(list->item(0)->data(Qt::UserRole + 5).toString() == QStringLiteral("Add New Layer"));
+  }
+  save_window_popup_artifact("command_search_add_new_layer", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("blend mode"));
+  QApplication::processEvents();
+  bool blend_row = false;
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->text() == QStringLiteral("Blend Mode: Normal")) {
+      blend_row = true;
+      CHECK(list->item(row)->data(Qt::UserRole + 2).toString() ==
+            QKeySequence(Qt::SHIFT | Qt::ALT | Qt::Key_N).toString(QKeySequence::NativeText));
+    }
+  }
+  CHECK(blend_row);
+  save_window_popup_artifact("command_search_blend_mode", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("move"));
+  QApplication::processEvents();
+  CHECK(list->count() >= 1);
+  if (list->count() >= 1) {
+    CHECK(list->item(0)->text() == QStringLiteral("Move"));  // the exact name first
+    CHECK(list->item(0)->data(Qt::UserRole + 1).toString() == QStringLiteral("Tools"));
+    CHECK(list->item(0)->data(Qt::UserRole + 2).toString() == QStringLiteral("V"));
+  }
+  for (int row = 0; row < list->count(); ++row) {
+    CHECK(list->item(row)->text() != QStringLiteral("Strip All Metadata"));  // "Remove EXIF" is no match
+  }
+  save_window_popup_artifact("command_search_move", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("layer"));
+  QApplication::processEvents();
+  save_window_popup_artifact("command_search_layer", window, *window.menuBar(), *popup);
+
+  // Every listed row carries a description (ui_command_search_every_command_has_a_description).
+  edit->setText(QStringLiteral("window"));
+  QApplication::processEvents();
+  for (int row = 0; row < list->count(); ++row) {
+    CHECK(!list->item(row)->data(Qt::UserRole + 5).toString().isEmpty() ||
+          list->item(row)->text().startsWith(QStringLiteral("1 ")));  // an open document's row
+  }
+  save_window_popup_artifact("command_search_window", window, *window.menuBar(), *popup);
+
+  edit->setText(QStringLiteral("measure"));
+  QApplication::processEvents();
+  int ruler_row = -1;
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->text() == patchy::ui::strip_menu_ellipsis(patchy::ui::clean_action_text(ruler_tool))) {
+      ruler_row = row;
+    }
+  }
+  CHECK(ruler_row >= 0);
+  CHECK(ruler_tool != nullptr && !ruler_tool->isChecked());
+  list->setCurrentRow(std::max(0, ruler_row));
+  {
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(edit, &enter);
+  }
+  CHECK(process_events_until([&] { return popup == nullptr; }));
+  CHECK(process_events_until([&] { return ruler_tool != nullptr && ruler_tool->isChecked(); }));
+}
+// Every command Search Commands can list has a description (docs/command-search.md,
+// "Descriptions"): menu commands hidden or disabled right now included, the tools and the keys
+// outside the menus. The failure names each command's id and place so the missing lines can
+// be written; scripts/update-translations.ps1 runs this test to report them too.
+void ui_command_search_every_command_has_a_description() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  // Opening the popup builds the menus that fill themselves on demand (File > Scripts, the
+  // Window menu's documents), as it does for a user.
+  auto* search_action = require_action(window, "helpSearchCommandsAction");
+  search_action->trigger();
+  QApplication::processEvents();
+  if (QPointer<QFrame> popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup")); popup != nullptr) {
+    popup->close();
+    CHECK(process_events_until([&] { return popup == nullptr; }));
+  }
+  const auto entries = patchy::ui::collect_search_commands(window.menuBar(), window.hotkey_registry(), true);
+  CHECK(entries.size() > 300);
+  int missing = 0;
+  QSet<QString> ids;
+  for (const auto& entry : entries) {
+    if (patchy::ui::command_search_exempt(entry)) {
+      continue;
+    }
+    const auto place = entry.path.isEmpty() ? entry.name : entry.path + QStringLiteral(" › ") + entry.name;
+    if (entry.id.isEmpty()) {
+      std::cerr << "command without an id or objectName: " << place.toStdString() << '\n';
+      ++missing;
+      continue;
+    }
+    if (ids.contains(entry.id)) {
+      std::cerr << "two commands share the id " << entry.id.toStdString() << ": " << place.toStdString() << '\n';
+    }
+    ids.insert(entry.id);
+    if (entry.description.isEmpty()) {
+      std::cerr << "missing command description: " << entry.id.toStdString() << " | " << place.toStdString() << '\n';
+      ++missing;
+    }
+  }
+  if (missing > 0) {
+    std::cerr << missing << " command(s) without a description: add them to kCommandDescriptions in "
+                 "src/ui/command_search.cpp (docs/command-search.md)\n";
+  }
+  CHECK(missing == 0);
+}
 void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
   HotkeySettingsGroupRestorer restore_hotkeys;
   clear_hotkey_overrides();
@@ -4850,6 +5505,14 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_compatibility_report_flags_psd_text_placeholders},
       {"ui_compatibility_report_ignores_patchy_written_psd_blocks",
        ui_compatibility_report_ignores_patchy_written_psd_blocks},
+      {"ui_compatibility_report_counts_routine_photoshop_blocks_as_known",
+       ui_compatibility_report_counts_routine_photoshop_blocks_as_known},
+      {"ui_compatibility_report_is_empty_for_patchy_saved_background",
+       ui_compatibility_report_is_empty_for_patchy_saved_background},
+      {"ui_compatibility_report_is_empty_for_issue_559_files_if_available",
+       ui_compatibility_report_is_empty_for_issue_559_files_if_available},
+      {"ui_compatibility_report_dont_show_turns_popup_preference_off",
+       ui_compatibility_report_dont_show_turns_popup_preference_off},
       {"ui_compatibility_report_treats_native_adjustment_blocks_as_known",
        ui_compatibility_report_treats_native_adjustment_blocks_as_known},
       {"ui_compatibility_report_treats_levels_as_native_psd_adjustment",
@@ -4926,6 +5589,9 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
+      {"ui_command_search_popup_filters_and_runs_commands", ui_command_search_popup_filters_and_runs_commands},
+      {"ui_command_search_lists_tools_keys_and_descriptions", ui_command_search_lists_tools_keys_and_descriptions},
+      {"ui_command_search_every_command_has_a_description", ui_command_search_every_command_has_a_description},
       {"ui_brush_hardness_shortcuts_step_by_quarters", ui_brush_hardness_shortcuts_step_by_quarters},
       {"ui_preset_step_shortcuts_cycle_brush_and_gradient_presets",
        ui_preset_step_shortcuts_cycle_brush_and_gradient_presets},
@@ -4938,6 +5604,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_editor_steals_conflicting_shortcut", ui_hotkey_editor_steals_conflicting_shortcut},
       {"ui_hotkey_editor_reset_all_clears_overrides", ui_hotkey_editor_reset_all_clears_overrides},
       {"ui_hotkey_editor_lists_scripts_category", ui_hotkey_editor_lists_scripts_category},
+      {"ui_hotkey_editor_search_row_stays_while_list_scrolls", ui_hotkey_editor_search_row_stays_while_list_scrolls},
       {"ui_color_picker_accepts_css_rgba_and_names", ui_color_picker_accepts_css_rgba_and_names},
       {"ui_color_picker_opens_with_hex_field_selected_for_paste", ui_color_picker_opens_with_hex_field_selected_for_paste},
       {"ui_color_picker_cmyk_fields_follow_working_space", ui_color_picker_cmyk_fields_follow_working_space},

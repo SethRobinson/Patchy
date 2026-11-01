@@ -505,6 +505,8 @@ struct StrokeRun {
   DPoint dot_direction{};
 };
 
+std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std::vector<StrokeRun>& original);
+
 // A shape's stroke follows the Boolean result, not the hidden contours of its
 // operands. Split the flattened segments at crossings, retain only edges with
 // different final fill on their two sides, then walk the directed boundaries.
@@ -523,6 +525,14 @@ std::vector<StrokeRun> combined_stroke_contours(const VectorPath& path) {
   if (!multiple_groups && all_closed && !path.subpaths.empty() &&
       path.subpaths.front().op == PathCombineOp::Intersect) return {};
   if (!multiple_groups || !all_closed) return original;
+  return fill_boundary_contours(path, original);
+}
+
+// The directed boundary of the path's combined fill (inside on the left): the flattened
+// segments of every contour split at crossings, kept where the fill differs on the two sides,
+// then walked into closed loops on the 1/256 lattice. `original` holds the flattened contours of
+// path.subpaths in order (open ones close with their chord, as the fill does).
+std::vector<StrokeRun> fill_boundary_contours(const VectorPath& path, const std::vector<StrokeRun>& original) {
   struct Segment { DPoint a, b; std::vector<double> cuts{0.0, 1.0}; };
   std::vector<Segment> segments;
   for (const auto& contour : original) {
@@ -659,10 +669,12 @@ double distance(const DPoint& a, const DPoint& b) noexcept {
 // two-point Pen line drew nothing, issue 553). Photoshop instead moves the
 // centered stroke half a width sideways: Inside to the right of the path's
 // direction on the y-down canvas, Outside to the left (measured on a PS file
-// with a dotted and a dashed 2-point line). `distance` > 0 moves right. Joins
+// with a dotted and a dashed 2-point line). `offset` > 0 moves right. Joins
 // meet at the offset lines' intersection; a turn sharper than that limit keeps
-// both segment ends instead, so a hairpin never throws a vertex far away.
-std::vector<DPoint> offset_open_polyline(const std::vector<DPoint>& input, double offset) {
+// both segment ends instead, so a hairpin never throws a vertex far away. A
+// zero-length run (a dot) moves along the normal of `dot_direction`.
+std::vector<DPoint> offset_open_polyline(const std::vector<DPoint>& input, double offset,
+                                         DPoint dot_direction = {}) {
   std::vector<DPoint> points;
   points.reserve(input.size());
   for (const auto& point : input) {
@@ -671,7 +683,12 @@ std::vector<DPoint> offset_open_polyline(const std::vector<DPoint>& input, doubl
     }
   }
   if (points.size() < 2) {
-    return input;  // no direction to offset along
+    std::vector<DPoint> result = input;  // no direction of its own to offset along
+    for (auto& point : result) {
+      point.x -= dot_direction.y * offset;
+      point.y += dot_direction.x * offset;
+    }
+    return result;
   }
   std::vector<DPoint> normals;
   normals.reserve(points.size() - 1);
@@ -1007,6 +1024,27 @@ void append_run_outline(const StrokeRun& run, double h, double cap_half_width,
 
 }  // namespace
 
+std::vector<std::vector<std::array<double, 2>>> vector_path_fill_contours(const VectorPath& path) {
+  std::vector<std::vector<std::array<double, 2>>> result;
+  if (path.subpaths.empty()) {
+    return result;
+  }
+  std::vector<StrokeRun> original;
+  original.reserve(path.subpaths.size());
+  for (const auto& subpath : path.subpaths) {
+    original.push_back({subpath_polyline(subpath), subpath.closed});
+  }
+  for (const auto& contour : fill_boundary_contours(path, original)) {
+    std::vector<std::array<double, 2>> points;
+    points.reserve(contour.points.size());
+    for (const auto& point : contour.points) {
+      points.push_back({point.x, point.y});
+    }
+    result.push_back(std::move(points));
+  }
+  return result;
+}
+
 std::vector<std::array<double, 2>> flatten_subpath_polyline(const PathSubpath& subpath) {
   std::vector<std::array<double, 2>> points;
   for (const auto& point : subpath_polyline(subpath)) {
@@ -1180,9 +1218,12 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
       continue;
     }
     if (!centered && !contour.closed) {
+      // Photoshop spaces dashes along the path itself and then moves each dash
+      // sideways, so dashes past a corner keep the centered stroke's phase
+      // (issue 558: offsetting first put them about 8 px off on a 10 px line).
       const double side = stroke.alignment == VectorStrokeAlignment::Inside ? 1.0 : -1.0;
-      const auto shifted = offset_open_polyline(contour.points, side * stroke.width / 2.0);
-      for (const auto& run : apply_dashes(shifted, false, dashes_px, offset_px)) {
+      for (auto run : apply_dashes(contour.points, false, dashes_px, offset_px)) {
+        run.points = offset_open_polyline(run.points, side * stroke.width / 2.0, run.dot_direction);
         append_run_outline(run, stroke.width / 2.0, stroke.width / 2.0, stroke.cap, stroke.join,
                            stroke.miter_limit, 0, 0, open_edges);
       }

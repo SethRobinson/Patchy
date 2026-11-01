@@ -581,12 +581,16 @@ void ui_combine_shapes_in_context_menus_and_on_path_components() {
           combine != nullptr) {
         QStringList names;
         for (auto* action : combine->actions()) {
-          names << action->objectName();
+          if (!action->isSeparator()) {
+            names << action->objectName();
+          }
         }
+        // The four combine commands, then Merge Shapes (GitHub #555).
         layer_menu_listed = names == QStringList{QStringLiteral("layerCombineUniteAction"),
                                                  QStringLiteral("layerCombineSubtractAction"),
                                                  QStringLiteral("layerCombineIntersectAction"),
-                                                 QStringLiteral("layerCombineExcludeAction")};
+                                                 QStringLiteral("layerCombineExcludeAction"),
+                                                 QStringLiteral("pathMergeShapesAction")};
       }
       menu->close();
       return;

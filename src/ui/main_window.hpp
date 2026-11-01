@@ -100,6 +100,7 @@ struct PanelSpec;
 class ToolPaletteFooter;
 class ToolPaletteLayout;
 class ArtboardPresetPicker;
+struct StrokeStylePreset;
 enum class LayerCtrlClickTarget;
 }  // namespace patchy::ui
 class QShowEvent;
@@ -473,6 +474,10 @@ public:
   // Help > Set up AI Control: the paste-into-your-assistant dialog
   // (ai_setup_dialog.hpp), single non-modal instance like the guide.
   void open_ai_setup_dialog();
+  // Help > Search Commands (command_search.hpp, GitHub issue 554): a popup listing every
+  // enabled menu command, filtered as you type; Enter runs the chosen one. A second
+  // request while it is open closes it.
+  void show_command_search();
   // Help > Add Patchy to Applications Menu... / Remove Patchy from Applications Menu
   // (main_window_appimage_menu_entry.cpp): shown only when running from an AppImage,
   // unavailable when another tool or package already put Patchy in the menu.
@@ -537,6 +542,11 @@ private:
     // Pixel copies: the session they were copied from, so Paste can put them back in place
     // in that document (GitHub issue 193, docs/tools.md "Clipboard pixel placement").
     std::int64_t source_session_id{0};
+    // Copied path components (GitHub #555): the selected shapes' subpaths, groups and ops kept,
+    // and when they came from a shape layer, that layer with only them (a paste that makes a new
+    // layer clones it; pattern_resources holds its tiles).
+    std::optional<patchy::VectorPath> path_components{};
+    std::vector<Layer> path_components_layer{};
   };
 
   // Defaults match the Round startup preset (brush_presets.cpp); load_tool_settings()
@@ -672,6 +682,7 @@ private:
   void update_window_resize_cursor(Qt::Edges edges);
   void clear_window_resize_cursor();
   bool handle_spacebar_canvas_pan_event(QObject* watched, QEvent* event);
+  bool handle_opacity_digit_key_event(QObject* watched, QEvent* event);
   [[nodiscard]] bool spacebar_canvas_pan_target_in_window(QWidget* widget) const noexcept;
   [[nodiscard]] bool spacebar_canvas_pan_target_is_canvas(QWidget* widget) const noexcept;
   [[nodiscard]] bool spacebar_canvas_pan_blocked_by_text_input(QWidget* widget) const noexcept;
@@ -875,6 +886,8 @@ private:
   [[nodiscard]] DocumentSession* session_for_canvas(CanvasWidget* canvas) noexcept;
   [[nodiscard]] const DocumentSession* session_for_canvas(CanvasWidget* canvas) const noexcept;
   [[nodiscard]] DocumentSession* session_with_id(std::int64_t session_id) noexcept;
+  // The open document whose file is `path` (compared by file_identity_key), else null.
+  [[nodiscard]] DocumentSession* session_for_file_path(const QString& path);
   [[nodiscard]] std::vector<DocumentSession*> open_smart_object_child_sessions(std::int64_t parent_session_id);
   void activate_document_session(DocumentSession& target_session);
   // The active document's session (resolved through canvas_), or null when no
@@ -969,7 +982,11 @@ private:
   // Defined in main_window.cpp (it needs the text render machinery there).
   void rerender_text_layers_through_transforms(DocumentSession& target);
   void open_document();
-  void open_document_path(QString path);
+  // What open_document_path does with a file a document already shows (GitHub issue 560):
+  // switch to that document (File > Open, Open Recent, drops, a second launch), or load
+  // another copy (app.open in scripts, which returns a new document, and Edit Contents).
+  enum class OpenExisting { Activate, LoadCopy };
+  void open_document_path(QString path, OpenExisting existing = OpenExisting::Activate);
   // File > Open Folder: every supported image directly inside the picked folder
   // (natural name order, PDFs excluded) opens as its own document, the first one
   // active and the rest as background tabs. Also the target of a dropped or
@@ -1806,6 +1823,37 @@ private:
   void simplify_target_path();
   void combine_selected_shape_layers(patchy::PathCombineOp op);
   void refresh_combine_shapes_action_states();
+  // Point, segment and component commands (GitHub #555, main_window_path_components.cpp;
+  // docs/vector-path-edits.md "Point and segment commands", "Component commands").
+  void create_path_component_actions(QMenu* layer_shape_menu);
+  void refresh_path_edit_action_states();
+  void run_path_point_command(int command);  // a CanvasWidget::PathPointCommand value
+  // Edit > Cut/Copy act on the selected components while Path or Direct Select has some.
+  [[nodiscard]] bool path_component_clipboard_active() const;
+  void copy_path_components(bool cutting);
+  // Pastes copied components into the target path, or as a new shape layer; false when the
+  // clipboard holds none.
+  bool paste_path_components();
+  void color_selected_path_components();
+  // Merge Shapes (GitHub #555): the selected components (all of the target path's when none are
+  // selected; two or more selected shape layers combine first) become one outline.
+  void merge_selected_path_components();
+  // Layer > Arrange > Align on two or more shapes picked with Path Select or Direct Select: they
+  // align inside their layer or path, to their joint bounds (or the canvas with Align to Canvas).
+  // False when there are not two such shapes (the layer alignment runs instead).
+  bool align_selected_path_components(AlignEdge edge);
+  // Why Merge Shapes cannot run now (empty: it can; "-": no document or canvas).
+  [[nodiscard]] QString merge_shapes_refusal() const;
+  bool set_selected_path_components_color(QColor color);
+  void selected_path_components_to_new_layer(bool keep_originals);
+  // Removes `groups` from the target path inside an open undo step; a shape layer left empty goes.
+  void remove_path_components_in_open_undo_step(const std::vector<int>& groups);
+  // A new shape layer (not inserted) with the options-bar appearance, named "Shape N".
+  [[nodiscard]] Layer shape_layer_from_subpaths(std::vector<patchy::PathSubpath> subpaths);
+  [[nodiscard]] std::string unused_duplicate_layer_name(const std::string& source_name);
+  // Replaces a shape layer's content and re-rasterizes it (no undo step); paint parts drop
+  // groups the path no longer has.
+  void write_shape_layer_content(Layer& layer, patchy::VectorShapeContent content);
   void update_vector_swatch_icons();
   // The options bar's paint chip (the shape Fill/Stroke swatches and the Text color
   // button), drawn at the button's icon size with the theme's swatch outline.
@@ -1852,6 +1900,24 @@ private:
   // 0 while the stroke is off, and a 0 entry turns it off while keeping the last real width.
   double vector_stroke_field_value() const;
   void set_vector_stroke_width_from_field(double value);
+  // The options bar's dash combo (GitHub #556 and #557 follow-up), one stroke list: the
+  // built-in dash presets, the saved stroke presets (item data kSavedStrokePresetRow + index),
+  // Custom (kStrokeComboCustomRow; shown only for a selected pattern nothing matches, not
+  // pickable), then Manage Presets... (kStrokeComboManageRow, opens the Stroke Presets
+  // manager). A built-in applies with its caps and corners (apply_stroke_dash_preset); a saved
+  // preset sets Align, Caps, Corners, the dashes and the offset. Both reach new shapes and the
+  // selected shape layers. rebuild_ refills the items after the saved list changes; refresh_
+  // selects the entry `shown` matches (a saved preset before a built-in), or the one for the
+  // selection or new shapes.
+  void set_vector_stroke_dash_preset_from_combo(patchy::StrokeDashPreset preset);
+  void apply_vector_stroke_style_preset(const StrokeStylePreset& preset);
+  void rebuild_vector_stroke_dash_combo();
+  void refresh_vector_stroke_dash_combo(const patchy::VectorStroke& shown);
+  void refresh_vector_stroke_dash_combo();
+  static constexpr int kStrokeComboCustomRow = -1;
+  static constexpr int kStrokeComboManageRow = -2;
+  // A dash preset picked or synced from a layer also updates the saved-preset line settings.
+  void set_new_shape_stroke_dash_preset(patchy::StrokeDashPreset preset);
   bool apply_options_bar_appearance_to_active_shape(const std::vector<std::string>& fields = {});
   void schedule_vector_appearance_apply();
   void finish_pending_shape_appearance_edit();
@@ -2230,6 +2296,7 @@ private:
   void open_gradient_manager(QWidget* parent = nullptr);
   void open_pattern_manager(QWidget* parent = nullptr);
   void open_custom_shape_manager(QWidget* parent = nullptr);
+  void open_stroke_preset_manager(QWidget* parent = nullptr);
   void expand_selection_dialog();
   void contract_selection_dialog();
   void border_selection_dialog();
@@ -2995,6 +3062,17 @@ private:
   // Unite / Subtract Front / Intersect / Exclude, enabled with a combinable
   // multi-selection (refresh_combine_shapes_action_states).
   std::array<QAction*, 4> layer_combine_actions_{};
+  // Break Path at Point, Join End Points, Merge into One Point, Delete Segment (PathPointCommand
+  // order), then the component commands (GitHub #555).
+  std::array<QAction*, 4> path_point_actions_{};
+  QAction* path_shapes_color_action_{nullptr};
+  QAction* path_merge_shapes_action_{nullptr};
+  QPushButton* path_merge_shapes_button_{nullptr};  // the options bar's Merge Shapes
+  QAction* path_shapes_to_new_layer_action_{nullptr};
+  QAction* path_shapes_copy_to_new_layer_action_{nullptr};
+  QAction* path_shapes_cut_action_{nullptr};
+  QAction* path_shapes_copy_action_{nullptr};
+  QAction* path_shapes_paste_action_{nullptr};
   // Layer > Arrange > Align (AlignEdge order) and Distribute (DistributeMode
   // order); the Move tool's options-bar buttons wrap these same QActions.
   std::array<QAction*, 6> layer_align_actions_{};
@@ -3540,6 +3618,8 @@ private:
   // document may live in a float window).
   QPointer<CanvasWidget> preview_dialog_edit_lock_canvas_;
   QWidget* window_chrome_controls_{nullptr};
+  QToolButton* command_search_button_{nullptr};  // after the last menu title; null on macOS
+  QPointer<QFrame> command_search_popup_;
   QToolButton* maximize_button_{nullptr};
   ScreenMode screen_mode_{ScreenMode::Standard};
   std::optional<StandardScreenChrome> standard_screen_chrome_;
@@ -3784,6 +3864,11 @@ private:
   bool current_vector_stroke_enabled_{false};
   patchy::VectorFill current_vector_stroke_paint_{};
   double current_vector_stroke_width_{3.0};
+  patchy::StrokeDashPreset current_vector_stroke_dash_preset_{patchy::StrokeDashPreset::Solid};
+  // Align, Caps, Corners, dashes and offset for new shapes once a saved stroke preset was
+  // picked (persisted as tools/vectorStrokeStyle); unset, new shapes use the dash preset
+  // and Inside alignment. Only those line fields are used.
+  std::optional<patchy::VectorStroke> current_vector_stroke_style_;
   // Library storage ids of the last PICKED gradient presets (persisted; a
   // custom gradient synced from a layer lives only for the session).
   QString current_vector_fill_gradient_id_;
@@ -3810,6 +3895,7 @@ private:
   bool current_line_arrow_end_{false};
   QToolButton* vector_fill_swatch_button_{nullptr};
   QToolButton* vector_stroke_swatch_button_{nullptr};
+  QComboBox* vector_stroke_dash_combo_{nullptr};
   // Debounces live-editing bursts (stroke-width spin / its popup slider) into
   // one undo entry + one rasterize.
   QTimer* vector_appearance_apply_timer_{nullptr};
@@ -3818,7 +3904,7 @@ private:
   UnitSpinBox* vector_shape_width_spin_{nullptr};
   UnitSpinBox* vector_shape_height_spin_{nullptr};
   QPushButton* vector_shape_link_size_button_{nullptr};
-  QPushButton* vector_appearance_button_{nullptr};
+  QToolButton* vector_appearance_button_{nullptr};
   QTimer* vector_shape_size_apply_timer_{nullptr};
   double vector_shape_size_ratio_{1.0};  // width / height at the last sync (link button)
   // Per-mode refinement of the shape tools' options bar, applied after the

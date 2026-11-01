@@ -177,21 +177,37 @@ Flatpak (Qt 6.11), X11, Windows and macOS apply cursors per window.
 `install_wayland_pointer_cursor_fix()` (`src/ui/wayland_pointer_cursor.cpp`, called from
 `main()`) installs an application event filter when `wayland_pointer_cursor_fix_needed()`
 holds: a `wayland*` platform and Qt before 6.10. It tracks the widget under the pointer
-from the Enter and Leave events Qt sends as the pointer crosses widgets and windows. After
-a `CursorChange` on a created widget in another native window, it re-applies the cursor
+from the Enter and Leave events Qt sends as the pointer crosses widgets and windows,
+ignoring an Enter in a window a modal blocks (Qt drops the compositor's enter there, so
+such an Enter is Qt's synthetic one for a widget shown where the pointer last was). After
+a `CursorChange` from a created widget or from a `QWindow` (Qt's enter dispatch changes a
+window's cursor with no widget event) in another native window, it re-applies the cursor
 Qt shows over the pointer's widget (its own or its nearest ancestor's, the arrow when
 disabled) to the pointer's window, unsetting it first because `QWindow::setCursor` skips a
 shape the window already holds. It does nothing while an application override cursor is
 set, which shows everywhere by design. The fix covers every window, modal or not, and the
 reverse case of a dialog widget changing its cursor while the pointer is on the canvas.
-Where it runs, `install_blocked_window_cursor_fix()` (issue 504, the arrow on windows a
-modal blocks) stays off: setting a blocked window's cursor would show it over the dialog.
+
+Three changes reach the plug-in with no `CursorChange` at all, so the filter sends the
+pointer's cursor again on each (`restore_pointer_cursor`): the application override cursor
+stack emptying (`QGuiApplication::restoreOverrideCursor` re-applies every window's cursor
+in turn and the last, usually the main window's tool cursor, stayed over the dialog: the
+Colors and Themes page fills its list under a wait cursor, issue 215's follow-up on 1.23),
+the application becoming active again (Alt+Tab back: the compositor shows the last cursor
+Patchy sent wherever the pointer returns, issue 504's follow-up), and the pointer leaving a
+window while a modal is up (it is going to a blocked window, which gets no enter from Qt).
+With the pointer on a blocked window or nowhere Qt tracks, it sends the arrow through a
+blocked window. `install_blocked_window_cursor_fix()` (issue 504) runs on Wayland too and is
+installed after this filter, so it runs first: its arrow on the blocked window lands, then
+this filter puts the dialog's own cursor back.
 
 `ui_wayland_pointer_cursor_fix_keeps_the_dialog_cursor` drives the filter offscreen with
 the Enter and Leave events Qt sends and checks the cursor each window holds, which is what
 the plug-in would show; `ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts`
-does the same over the real modal dialogs while the canvas changes its brush cursor.
-Offscreen cannot show the compositor's cursor.
+does the same over the real modal dialogs while the canvas changes its brush cursor;
+`ui_blocked_window_cursor_survives_reactivation_and_tool_switches` runs both filters in
+main()'s order over Preferences through Alt+Tab, a tool switch, the Colors and Themes page
+and the pointer leaving the dialog. Offscreen cannot show the compositor's cursor.
 
 ## A window taller than the screen (GitHub issue 108)
 

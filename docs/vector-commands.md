@@ -8,7 +8,8 @@ encodings, and Pen/Direct Select basics live in
 [legal-constraints.md](legal-constraints.md); the JavaScript contract in
 [vector-automation.md](vector-automation.md) (scripts and the UI share
 fitting, selection coverage, stroke sampling, and mask baking through
-`src/ui/vector_operations.cpp`). Tests:
+`src/ui/vector_operations.cpp`). Structural point edits and component commands:
+[vector-path-edits.md](vector-path-edits.md). Tests:
 `tests/ui/vector_point_editing_tests.cpp`, `tests/ui/vector_commands_tests.cpp`.
 
 Which tools show the target outline (`target_path_outline_tool_allows`): path tools always,
@@ -20,9 +21,8 @@ path tool the overlay also outlines every Layers-panel-selected shape layer with
 (outline only under Path Select; `set_panel_selected_layer_ids`); only the target gets filled anchors, handles, edits.
 
 Overlay glyphs (`draw_pen_overlay`, `draw_path_edit_overlay`, canvas_widget_vector_tools.cpp):
-visibility comes from contrast, not size (GitHub issue 105). The accent is a saturated blue (`path_overlay_accent`, 30 136
-255), every glyph is three-tone, and handle lines sit on a translucent dark halo
-(`draw_handle_line`: 3.5 px black at 47 percent under a 1.6 px accent line). Every path outline
+visibility comes from contrast, not size (GitHub issue 105). The accent is a saturated blue (`path_overlay_accent`), every glyph is three-tone, and handle lines sit on a translucent dark halo
+(`draw_handle_line`). Every path outline
 and the Pen's preview segment are a 1-device-pixel accent hairline with no halo
 (`draw_path_outline`, Photoshop's path display), shifted half a device pixel so an edge on whole
 pixels covers one row (GitHub issue 238; `ui_path_overlay_outline_is_hairline`). Anchors are 8 px
@@ -225,16 +225,15 @@ Tests: `ui_path_select_*` in tests/ui/vector_point_editing_tests.cpp,
 
 Direct Select (or the Pen's Ctrl latch) drags every selected anchor when the
 press lands on a selected anchor OR on a segment whose two ends are already
-selected (a marquee, then a drag on any of its lines); Shift on a segment
-adds it, an unselected segment replaces the selection with its two ends.
-Test: `ui_direct_select_drags_marquee_selection_by_segment`.
+selected (a marquee, then a drag on any of its lines); Shift+click adds a
+segment's ends, a plain click [adds a point](vector-path-edits.md#direct-select-click-on-a-segment).
+Test: `ui_direct_select_drags_marquee_selection_by_segment`. One-point drags
+[weld](vector-path-edits.md#weld-while-dragging).
 
-Shift held during the drag constrains movement to the nearest horizontal,
+Shift during the drag constrains movement to the nearest horizontal,
 vertical, or 45-degree axis (`constrain_drag_to_axes`), re-evaluated every
-move against the total delta from the press (never latched); the points follow
-the mouse's projection onto that axis. Anchor drags track the total delta
-(`path_drag_applied_delta_`) and apply per-move increments
-(`update_path_edit_drag`). Shift pressed or released with a stationary cursor
+move against the total delta from the press (never latched). Anchor drags track
+the total delta (`path_drag_applied_delta_`) and apply per-move increments. Shift pressed or released with a stationary cursor
 replays the drag at the last raw pointer position. Shift at press keeps its
 additive meaning. Handle drags and the Pen's in-session Ctrl anchor drag stay
 unconstrained.
@@ -265,17 +264,18 @@ right button never pans); a release within `startDragDistance` opens
 `canvasPathContextMenu` (`show_path_context_menu`, public for tests, reached
 through `show_canvas_context_menu`, which falls back to the shared canvas menu
 when the path menu has no target), otherwise the gesture opened nothing.
-Every entry is always listed and enabled by context (object names
+Every entry is listed and enabled by context (object names
 `pathMenu*Action`): Add Anchor Point (over a segment), Delete Anchor Point
-and Convert Point (over an anchor), Delete Selected Points and Deselect
+and Convert Point (over an anchor), Break, Join, Merge and Delete Segment
+([vector-path-edits.md](vector-path-edits.md)), Delete Selected Points and Deselect
 Points (with a selection; Delete Selected Shapes and Deselect Shapes under Path
 Select, whose selection is whole shapes; it is the Delete key's
 `delete_selected_path_anchors`, so a shape layer it empties is deleted too, see
 [Deleting the last shape](#deleting-the-last-shape)), then Free Transform Points (Direct Select with a
 selection) or Free Transform Path, enabled for Path/Direct Select only (the
 Pen family sees it disabled and keeps falling through to the layer
-transform). Then the Paths panel's QActions (`set_path_context_actions_callback`,
-issue 396): Make Selection | Fill, Stroke | Simplify | Duplicate, Delete Path.
+transform). Then the component commands and the Paths panel's QActions
+(`set_path_context_actions_callback`, issue 396): Make Selection | Fill, Stroke | Simplify | Duplicate, Delete Path.
 They act on the panel's row, so the callback first runs
 `target_canvas_path_in_paths_panel` (no row targeted: target the edited path's
 row); `set_active_document_path` keeps the point selection when the edited path

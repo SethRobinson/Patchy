@@ -237,6 +237,26 @@ QCursor build_direct_select_cursor() {
   return QCursor(pixmap, 3, 3);
 }
 
+// Direct Select over a segment (GitHub #555): a click there adds a point, so the anchor badge
+// becomes a plus (light ink over a dark halo, like the arrow).
+QCursor build_direct_select_add_cursor() {
+  constexpr int kSize = 32;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  draw_pointer_arrow(painter);
+  const QPointF center(21.0, 21.0);
+  constexpr double kArm = 4.5;
+  for (const auto& [color, width] : {std::pair{QColor(20, 23, 28), 3.6}, std::pair{QColor(245, 248, 252), 1.6}}) {
+    painter.setPen(QPen(color, width, Qt::SolidLine, Qt::SquareCap));
+    painter.drawLine(QPointF(center.x() - kArm, center.y()), QPointF(center.x() + kArm, center.y()));
+    painter.drawLine(QPointF(center.x(), center.y() - kArm), QPointF(center.x(), center.y() + kArm));
+  }
+  painter.end();
+  return QCursor(pixmap, 3, 3);
+}
+
 // The arrow plus a closed outline badge at the lower right (a halo pass, then ink).
 QCursor build_transform_gesture_cursor(const QPolygonF& badge) {
   constexpr int kSize = 32;
@@ -391,6 +411,11 @@ QCursor path_select_cursor() {
 
 QCursor direct_select_cursor() {
   static const QCursor cursor = build_direct_select_cursor();
+  return cursor;
+}
+
+QCursor direct_select_add_cursor() {
+  static const QCursor cursor = build_direct_select_add_cursor();
   return cursor;
 }
 

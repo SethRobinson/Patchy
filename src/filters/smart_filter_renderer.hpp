@@ -11,13 +11,16 @@ namespace patchy {
 // The calibrated separable line filters behind the Gaussian Blur, High Pass and
 // Unsharp Mask primitives below, for float pipelines (16/32-bit filters,
 // docs/high-bit-depth.md): filters every row and then every column of the
-// single-channel `plane` (width * height samples) in place, repeating edge
-// samples, without the byte rounding the RGBA8 primitives apply between passes.
+// `plane` (width * height pixels of `channels` interleaved samples, each channel
+// filtered on its own) in place, repeating edge samples, without the byte
+// rounding the RGBA8 primitives apply between passes. Runs in parallel; the
+// result does not depend on the worker count or on `channels`.
 enum class PhotoshopLineKernel : std::uint8_t { Gaussian, HighPass, Unsharp };
 void filter_plane_with_photoshop_kernel(std::vector<float> &plane,
                                         std::int32_t width,
                                         std::int32_t height, double radius,
-                                        PhotoshopLineKernel kernel);
+                                        PhotoshopLineKernel kernel,
+                                        std::size_t channels = 1U);
 
 // Add Noise's position-hashed delta for one lane (0..2 per channel, 3 for
 // monochromatic noise) on the 0..255 scale, before the RGBA8 primitive rounds

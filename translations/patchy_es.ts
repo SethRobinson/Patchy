@@ -3706,6 +3706,14 @@
         <translation>Patchy conservó los datos editables que reconoce y marcó las áreas que pueden diferir de Photoshop u otros editores de PSD.</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>No volver a mostrar</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>A partir de ahora, los avisos y notas de importación aparecen en la barra de estado. La ventana emergente se vuelve a activar en Preferencias &gt; Aplicación.</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>Gráfico de curvas</translation>
     </message>
@@ -13024,14 +13032,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Ajustes de JPEG</translation>
     </message>
     <message>
-        <source>Progressive (shows a rough image first while loading)</source>
-        <translation>Progresivo (muestra primero una imagen aproximada al cargar)</translation>
-    </message>
-    <message>
-        <source>Optimize coding (smaller file, same image)</source>
-        <translation>Optimizar codificación (archivo más pequeño, misma imagen)</translation>
-    </message>
-    <message>
         <source>Fills transparent areas (JPEG has no transparency)</source>
         <translation>Rellena las áreas transparentes (JPEG no tiene transparencia)</translation>
     </message>
@@ -13074,10 +13074,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>File Info metadata to include. None writes the smallest file.</source>
         <translation>Metadatos de Información de archivo que se incluyen. Ninguno escribe el archivo más pequeño.</translation>
-    </message>
-    <message>
-        <source>Include thumbnail (about 5 to 10 KB)</source>
-        <translation>Incluir miniatura (unos 5 a 10 KB)</translation>
     </message>
     <message>
         <source>Convert to sRGB (from %1)</source>
@@ -14300,6 +14296,161 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Dash dot dot</source>
         <translation>Raya y dos puntos</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>Guardar Alinear, Extremos, Esquinas, Guiones y Desplazamiento de guiones como ajuste preestablecido</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>Eliminar el ajuste preestablecido elegido</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>Desplaza el patrón de guiones a lo largo del trazado, en anchos de trazo</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>Desplazamiento de guiones:</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>Guardar ajuste preestablecido de trazo</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>Ajuste preestablecido de trazo %1</translation>
+    </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>Ajustes preestablecidos de trazo</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>Eliminar el ajuste preestablecido seleccionado (Supr)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>Usar ajuste preestablecido</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>Usar el ajuste preestablecido para formas nuevas y las capas de forma seleccionadas</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>Eliminar ajuste preestablecido de trazo</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>¿Eliminar el ajuste preestablecido de trazo &quot;%1&quot;?</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>Ya existe un ajuste preestablecido de trazo llamado &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>Ajuste preestablecido integrado: se puede usar, pero no cambiar de nombre, mover ni eliminar.</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>Aún no hay ajustes preestablecidos de trazo guardados. En Apariencia de forma, configure el trazo y haga clic en Guardar... junto a Guiones.</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>Sin cambios</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>Integrado</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors</source>
+        <translation>
+            <numerusform>%n color</numerusform>
+            <numerusform>%n colores</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>Baja</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>Alta</translation>
+    </message>
+    <message>
+        <source>Very High</source>
+        <translation>Muy alta</translation>
+    </message>
+    <message>
+        <source>JPEG Very High</source>
+        <translation>JPEG muy alta</translation>
+    </message>
+    <message>
+        <source>JPEG Medium</source>
+        <translation>JPEG media</translation>
+    </message>
+    <message>
+        <source>WebP High</source>
+        <translation>WebP alta</translation>
+    </message>
+    <message>
+        <source>PNG 256 Colors</source>
+        <translation>PNG 256 colores</translation>
+    </message>
+    <message>
+        <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
+        <translation>Un formato guardado con su configuración. Se muestra Personalizado cuando la configuración no coincide con ningún ajuste preestablecido.</translation>
+    </message>
+    <message>
+        <source>Save the format and its settings as a preset</source>
+        <translation>Guardar el formato y su configuración como ajuste preestablecido</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset</source>
+        <translation>Eliminar el ajuste preestablecido seleccionado</translation>
+    </message>
+    <message>
+        <source>Quality presets</source>
+        <translation>Ajustes de calidad preestablecidos</translation>
+    </message>
+    <message>
+        <source>Progressive</source>
+        <translation>Progresivo</translation>
+    </message>
+    <message>
+        <source>Shows a rough image first while the file loads.</source>
+        <translation>Muestra primero una imagen aproximada mientras se carga el archivo.</translation>
+    </message>
+    <message>
+        <source>Optimize coding</source>
+        <translation>Optimizar codificación</translation>
+    </message>
+    <message>
+        <source>Makes the file smaller without changing the image.</source>
+        <translation>Reduce el tamaño del archivo sin cambiar la imagen.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail</source>
+        <translation>Incluir miniatura</translation>
+    </message>
+    <message>
+        <source>2 x 2</source>
+        <translation>2 x 2</translation>
+    </message>
+    <message>
+        <source>The original, the result, and the result at 50% and 25% of the quality</source>
+        <translation>El original, el resultado y el resultado al 50 % y al 25 % de la calidad</translation>
+    </message>
+    <message>
+        <source>%1 at these settings has no quality to reduce.</source>
+        <translation>%1 con esta configuración no tiene calidad que reducir.</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 <context>
@@ -15927,10 +16078,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Haga clic para seleccionar la forma y arrastre para moverla. %CTRL%+T la transforma.</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>Arrastre para mover el punto. Shift+clic lo añade a la selección; Delete elimina los puntos seleccionados.</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>Arrastre el manejador para modificar la curva</translation>
     </message>
@@ -16314,6 +16461,86 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Clone source cleared</source>
         <translation>Origen de clonación borrado</translation>
     </message>
+    <message>
+        <source>Break path</source>
+        <translation>Dividir trazado</translation>
+    </message>
+    <message>
+        <source>Join end points</source>
+        <translation>Unir puntos finales</translation>
+    </message>
+    <message>
+        <source>Merge points</source>
+        <translation>Fusionar puntos</translation>
+    </message>
+    <message>
+        <source>Delete segment</source>
+        <translation>Eliminar segmento</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>Dividir trazado en el punto</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>Unir puntos finales</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>Fusionar en un punto</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>Eliminar segmento</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>Seleccione un punto con Selección directa (dentro de un trazado abierto, o cualquier punto de uno cerrado), o haga clic derecho en un punto</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>Seleccione con Selección directa dos puntos finales, o puntos vecinos de un trazado, o haga clic derecho en un segmento</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>Puntos finales unidos</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>Suelte para unir los puntos finales. Mantenga %ALT% para colocar el punto libremente.</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>Arrastre para mover el punto; suelte un punto final sobre otro para unirlos. Mayús+clic añade a la selección. Clic derecho para Dividir, Unir y Fusionar.</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>Seleccione con Selección directa dos puntos finales para unirlos, o un punto de un trazado abierto para cerrarlo</translation>
+    </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Flujo del pincel: %1% (Aerógrafo activado; Mayús+número define la opacidad)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>Puntos fusionados</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>Suelte para fusionar los puntos. Mantenga %ALT% para colocar el punto libremente.</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>Ajustado a un punto. Solo los puntos finales o los puntos vecinos se convierten en un punto. Mantenga %ALT% para colocar el punto libremente.</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>Haga Mayús+clic en un segmento con Selección directa para seleccionarlo, o haga clic derecho en él</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>Clic para añadir un punto, arrastre para remodelar, Mayús+clic para seleccionar el segmento</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -16619,6 +16846,1749 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Create a new blank image</source>
+        <translation>Crear una imagen en blanco</translation>
+    </message>
+    <message>
+        <source>Open an image file</source>
+        <translation>Abrir un archivo de imagen</translation>
+    </message>
+    <message>
+        <source>New image from the clipboard</source>
+        <translation>Imagen nueva desde el portapapeles</translation>
+    </message>
+    <message>
+        <source>Open every image in a folder</source>
+        <translation>Abrir todas las imágenes de una carpeta</translation>
+    </message>
+    <message>
+        <source>Save the document</source>
+        <translation>Guardar el documento</translation>
+    </message>
+    <message>
+        <source>Save to a new file or format</source>
+        <translation>Guardar en un archivo o formato nuevo</translation>
+    </message>
+    <message>
+        <source>Save a flattened copy</source>
+        <translation>Guardar una copia acoplada</translation>
+    </message>
+    <message>
+        <source>Optimize and save for the web</source>
+        <translation>Optimizar y guardar para la web</translation>
+    </message>
+    <message>
+        <source>Save the layers as a GIF animation</source>
+        <translation>Guardar las capas como animación GIF</translation>
+    </message>
+    <message>
+        <source>Combine the layers into one sheet</source>
+        <translation>Combinar las capas en una hoja</translation>
+    </message>
+    <message>
+        <source>Insert an image as a Smart Object</source>
+        <translation>Insertar una imagen como objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Insert a linked image file</source>
+        <translation>Insertar un archivo de imagen vinculado</translation>
+    </message>
+    <message>
+        <source>Open several images as layers</source>
+        <translation>Abrir varias imágenes como capas</translation>
+    </message>
+    <message>
+        <source>Scan an image</source>
+        <translation>Escanear una imagen</translation>
+    </message>
+    <message>
+        <source>Author, copyright and other metadata</source>
+        <translation>Autor, copyright y otros metadatos</translation>
+    </message>
+    <message>
+        <source>Remove EXIF and other metadata</source>
+        <translation>Quitar EXIF y otros metadatos</translation>
+    </message>
+    <message>
+        <source>Print the image</source>
+        <translation>Imprimir la imagen</translation>
+    </message>
+    <message>
+        <source>Close the document</source>
+        <translation>Cerrar el documento</translation>
+    </message>
+    <message>
+        <source>Settings and options</source>
+        <translation>Ajustes y opciones</translation>
+    </message>
+    <message>
+        <source>Exit Patchy</source>
+        <translation>Salir de Patchy</translation>
+    </message>
+    <message>
+        <source>Take back the last change</source>
+        <translation>Deshacer el último cambio</translation>
+    </message>
+    <message>
+        <source>Redo the change you took back</source>
+        <translation>Rehacer el cambio deshecho</translation>
+    </message>
+    <message>
+        <source>Move the selection to the clipboard</source>
+        <translation>Mover la selección al portapapeles</translation>
+    </message>
+    <message>
+        <source>Copy the selection to the clipboard</source>
+        <translation>Copiar la selección al portapapeles</translation>
+    </message>
+    <message>
+        <source>Copy what all visible layers show</source>
+        <translation>Copiar lo que muestran todas las capas visibles</translation>
+    </message>
+    <message>
+        <source>Paste from the clipboard</source>
+        <translation>Pegar desde el portapapeles</translation>
+    </message>
+    <message>
+        <source>Paste at the same position</source>
+        <translation>Pegar en la misma posición</translation>
+    </message>
+    <message>
+        <source>Fill with a color or pattern</source>
+        <translation>Rellenar con un color o motivo</translation>
+    </message>
+    <message>
+        <source>Draw an outline along the selection</source>
+        <translation>Dibujar un contorno a lo largo de la selección</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or move freely</source>
+        <translation>Escalar, rotar o mover libremente</translation>
+    </message>
+    <message>
+        <source>Resize the layer or selection</source>
+        <translation>Cambiar el tamaño de la capa o selección</translation>
+    </message>
+    <message>
+        <source>Turn the layer or selection</source>
+        <translation>Girar la capa o selección</translation>
+    </message>
+    <message>
+        <source>Bend the layer with a grid</source>
+        <translation>Deformar la capa con una cuadrícula</translation>
+    </message>
+    <message>
+        <source>Erase an object and fill the gap</source>
+        <translation>Borrar un objeto y rellenar el hueco</translation>
+    </message>
+    <message>
+        <source>Make a brush from the selection</source>
+        <translation>Crear un pincel a partir de la selección</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from a path</source>
+        <translation>Crear una forma personalizada a partir de un trazado</translation>
+    </message>
+    <message>
+        <source>Change the color profile</source>
+        <translation>Cambiar el perfil de color</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Gestionar los ajustes preestablecidos de degradado</translation>
+    </message>
+    <message>
+        <source>Manage pattern presets</source>
+        <translation>Gestionar los ajustes preestablecidos de motivo</translation>
+    </message>
+    <message>
+        <source>Resize or scale the image</source>
+        <translation>Cambiar el tamaño o escalar la imagen</translation>
+    </message>
+    <message>
+        <source>Add or remove space around the image</source>
+        <translation>Añadir o quitar espacio alrededor de la imagen</translation>
+    </message>
+    <message>
+        <source>Crop the image to the selection</source>
+        <translation>Recortar la imagen a la selección</translation>
+    </message>
+    <message>
+        <source>Remove empty borders</source>
+        <translation>Quitar los bordes vacíos</translation>
+    </message>
+    <message>
+        <source>Set the black point, white point and midtones</source>
+        <translation>Ajustar el punto negro, el punto blanco y los medios tonos</translation>
+    </message>
+    <message>
+        <source>Adjust the tones with a curve</source>
+        <translation>Ajustar los tonos con una curva</translation>
+    </message>
+    <message>
+        <source>Change colors, saturation and lightness</source>
+        <translation>Cambiar colores, saturación y luminosidad</translation>
+    </message>
+    <message>
+        <source>Shift the colors of shadows and highlights</source>
+        <translation>Desplazar los colores de sombras e iluminaciones</translation>
+    </message>
+    <message>
+        <source>Turn the image gray</source>
+        <translation>Pasar la imagen a escala de grises</translation>
+    </message>
+    <message>
+        <source>Make muted colors stronger</source>
+        <translation>Intensificar los colores apagados</translation>
+    </message>
+    <message>
+        <source>Brighten or darken the image</source>
+        <translation>Aclarar u oscurecer la imagen</translation>
+    </message>
+    <message>
+        <source>Fix tone and color automatically</source>
+        <translation>Corregir el tono y el color automáticamente</translation>
+    </message>
+    <message>
+        <source>Reduce the image to a color palette</source>
+        <translation>Reducir la imagen a una paleta de colores</translation>
+    </message>
+    <message>
+        <source>Use 16 bits per channel</source>
+        <translation>Usar 16 bits por canal</translation>
+    </message>
+    <message>
+        <source>Add New Layer</source>
+        <translation>Añadir capa nueva</translation>
+    </message>
+    <message>
+        <source>Add an empty layer at once</source>
+        <translation>Añadir una capa vacía al instante</translation>
+    </message>
+    <message>
+        <source>Copy the layer</source>
+        <translation>Copiar la capa</translation>
+    </message>
+    <message>
+        <source>Remove the layer</source>
+        <translation>Quitar la capa</translation>
+    </message>
+    <message>
+        <source>Change the layer name</source>
+        <translation>Cambiar el nombre de la capa</translation>
+    </message>
+    <message>
+        <source>Put the selected layers in a folder</source>
+        <translation>Poner las capas seleccionadas en una carpeta</translation>
+    </message>
+    <message>
+        <source>Copy the selection to a new layer</source>
+        <translation>Copiar la selección a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Move the selection to a new layer</source>
+        <translation>Mover la selección a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Combine with the layer below</source>
+        <translation>Combinar con la capa de debajo</translation>
+    </message>
+    <message>
+        <source>Combine all visible layers</source>
+        <translation>Combinar todas las capas visibles</translation>
+    </message>
+    <message>
+        <source>Add a layer mask</source>
+        <translation>Añadir una máscara de capa</translation>
+    </message>
+    <message>
+        <source>Bake the mask into the pixels</source>
+        <translation>Aplicar la máscara a los píxeles</translation>
+    </message>
+    <message>
+        <source>Drop shadow, stroke, glow and other effects</source>
+        <translation>Sombra paralela, trazo, resplandor y otros efectos</translation>
+    </message>
+    <message>
+        <source>Clip to the layer below</source>
+        <translation>Recortar con la capa de debajo</translation>
+    </message>
+    <message>
+        <source>Show or hide layers</source>
+        <translation>Mostrar u ocultar capas</translation>
+    </message>
+    <message>
+        <source>Protect layers from changes</source>
+        <translation>Proteger las capas contra cambios</translation>
+    </message>
+    <message>
+        <source>Move the layer up the stack</source>
+        <translation>Subir la capa en la pila</translation>
+    </message>
+    <message>
+        <source>Move the layer down the stack</source>
+        <translation>Bajar la capa en la pila</translation>
+    </message>
+    <message>
+        <source>Fill with the foreground color</source>
+        <translation>Rellenar con el color frontal</translation>
+    </message>
+    <message>
+        <source>Fill with the background color</source>
+        <translation>Rellenar con el color de fondo</translation>
+    </message>
+    <message>
+        <source>Erase the layer or selection</source>
+        <translation>Borrar la capa o la selección</translation>
+    </message>
+    <message>
+        <source>Select the whole image</source>
+        <translation>Seleccionar toda la imagen</translation>
+    </message>
+    <message>
+        <source>Clear the selection</source>
+        <translation>Quitar la selección</translation>
+    </message>
+    <message>
+        <source>Bring back the last selection</source>
+        <translation>Recuperar la última selección</translation>
+    </message>
+    <message>
+        <source>Swap selected and unselected areas</source>
+        <translation>Intercambiar zonas seleccionadas y no seleccionadas</translation>
+    </message>
+    <message>
+        <source>Select every layer</source>
+        <translation>Seleccionar todas las capas</translation>
+    </message>
+    <message>
+        <source>Make the selection larger</source>
+        <translation>Agrandar la selección</translation>
+    </message>
+    <message>
+        <source>Make the selection smaller</source>
+        <translation>Reducir la selección</translation>
+    </message>
+    <message>
+        <source>Select a band along the edge</source>
+        <translation>Seleccionar una franja a lo largo del borde</translation>
+    </message>
+    <message>
+        <source>Add neighboring similar colors</source>
+        <translation>Añadir colores similares contiguos</translation>
+    </message>
+    <message>
+        <source>Add similar colors anywhere</source>
+        <translation>Añadir colores similares en cualquier lugar</translation>
+    </message>
+    <message>
+        <source>Paint a selection as a mask</source>
+        <translation>Pintar una selección como máscara</translation>
+    </message>
+    <message>
+        <source>Magnify the view</source>
+        <translation>Ampliar la vista</translation>
+    </message>
+    <message>
+        <source>Show more of the image</source>
+        <translation>Mostrar más de la imagen</translation>
+    </message>
+    <message>
+        <source>Show the whole image</source>
+        <translation>Mostrar toda la imagen</translation>
+    </message>
+    <message>
+        <source>Zoom to 100%</source>
+        <translation>Zoom al 100%</translation>
+    </message>
+    <message>
+        <source>Show or hide the rulers</source>
+        <translation>Mostrar u ocultar las reglas</translation>
+    </message>
+    <message>
+        <source>Show or hide the grid</source>
+        <translation>Mostrar u ocultar la cuadrícula</translation>
+    </message>
+    <message>
+        <source>Show or hide the guides</source>
+        <translation>Mostrar u ocultar las guías</translation>
+    </message>
+    <message>
+        <source>Line up with guides and edges while dragging</source>
+        <translation>Alinear con guías y bordes al arrastrar</translation>
+    </message>
+    <message>
+        <source>Show the pixel grid when zoomed in</source>
+        <translation>Mostrar la cuadrícula de píxeles al ampliar</translation>
+    </message>
+    <message>
+        <source>Add a guide line</source>
+        <translation>Añadir una guía</translation>
+    </message>
+    <message>
+        <source>Remove all guides</source>
+        <translation>Quitar todas las guías</translation>
+    </message>
+    <message>
+        <source>Move layers and selections</source>
+        <translation>Mover capas y selecciones</translation>
+    </message>
+    <message>
+        <source>Select a rectangle</source>
+        <translation>Seleccionar un rectángulo</translation>
+    </message>
+    <message>
+        <source>Select an ellipse or circle</source>
+        <translation>Seleccionar una elipse o un círculo</translation>
+    </message>
+    <message>
+        <source>Draw a freehand selection</source>
+        <translation>Dibujar una selección a mano alzada</translation>
+    </message>
+    <message>
+        <source>Select with straight edges</source>
+        <translation>Seleccionar con bordes rectos</translation>
+    </message>
+    <message>
+        <source>Select along edges it finds</source>
+        <translation>Seleccionar siguiendo los bordes que encuentra</translation>
+    </message>
+    <message>
+        <source>Select similar colors with a click</source>
+        <translation>Seleccionar colores similares con un clic</translation>
+    </message>
+    <message>
+        <source>Paint a selection that finds edges</source>
+        <translation>Pintar una selección que encuentra los bordes</translation>
+    </message>
+    <message>
+        <source>Select an object automatically</source>
+        <translation>Seleccionar un objeto automáticamente</translation>
+    </message>
+    <message>
+        <source>Paint with a brush</source>
+        <translation>Pintar con un pincel</translation>
+    </message>
+    <message>
+        <source>Mix paint with the colors under it</source>
+        <translation>Mezclar la pintura con los colores de debajo</translation>
+    </message>
+    <message>
+        <source>Copy pixels from one place to another</source>
+        <translation>Copiar píxeles de un lugar a otro</translation>
+    </message>
+    <message>
+        <source>Paint with a pattern</source>
+        <translation>Pintar con un motivo</translation>
+    </message>
+    <message>
+        <source>Repair blemishes with sampled pixels</source>
+        <translation>Reparar imperfecciones con píxeles muestreados</translation>
+    </message>
+    <message>
+        <source>Remove spots with one click</source>
+        <translation>Quitar manchas con un clic</translation>
+    </message>
+    <message>
+        <source>Replace an area with pixels from elsewhere</source>
+        <translation>Sustituir una zona con píxeles de otro lugar</translation>
+    </message>
+    <message>
+        <source>Fix red eyes in photos</source>
+        <translation>Corregir ojos rojos en fotos</translation>
+    </message>
+    <message>
+        <source>Smear paint</source>
+        <translation>Difuminar la pintura</translation>
+    </message>
+    <message>
+        <source>Lighten areas</source>
+        <translation>Aclarar zonas</translation>
+    </message>
+    <message>
+        <source>Darken areas</source>
+        <translation>Oscurecer zonas</translation>
+    </message>
+    <message>
+        <source>Change the color saturation</source>
+        <translation>Cambiar la saturación del color</translation>
+    </message>
+    <message>
+        <source>Soften areas</source>
+        <translation>Suavizar zonas</translation>
+    </message>
+    <message>
+        <source>Sharpen areas</source>
+        <translation>Enfocar zonas</translation>
+    </message>
+    <message>
+        <source>Erase pixels</source>
+        <translation>Borrar píxeles</translation>
+    </message>
+    <message>
+        <source>Draw a color gradient</source>
+        <translation>Dibujar un degradado de color</translation>
+    </message>
+    <message>
+        <source>Fill an area with color</source>
+        <translation>Rellenar una zona con color</translation>
+    </message>
+    <message>
+        <source>Draw a straight line</source>
+        <translation>Dibujar una línea recta</translation>
+    </message>
+    <message>
+        <source>Draw a rectangle</source>
+        <translation>Dibujar un rectángulo</translation>
+    </message>
+    <message>
+        <source>Draw an ellipse or circle</source>
+        <translation>Dibujar una elipse o un círculo</translation>
+    </message>
+    <message>
+        <source>Draw a polygon or star</source>
+        <translation>Dibujar un polígono o una estrella</translation>
+    </message>
+    <message>
+        <source>Draw a custom shape</source>
+        <translation>Dibujar una forma personalizada</translation>
+    </message>
+    <message>
+        <source>Pick a color from the image</source>
+        <translation>Tomar un color de la imagen</translation>
+    </message>
+    <message>
+        <source>Measure distances and angles</source>
+        <translation>Medir distancias y ángulos</translation>
+    </message>
+    <message>
+        <source>Add text</source>
+        <translation>Añadir texto</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>Desplazar la vista</translation>
+    </message>
+    <message>
+        <source>Zoom in and out</source>
+        <translation>Acercar y alejar</translation>
+    </message>
+    <message>
+        <source>Draw paths and curves</source>
+        <translation>Dibujar trazados y curvas</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes</source>
+        <translation>Seleccionar y mover formas completas</translation>
+    </message>
+    <message>
+        <source>Edit points and handles</source>
+        <translation>Editar puntos y manejadores</translation>
+    </message>
+    <message>
+        <source>Add a point to a path</source>
+        <translation>Añadir un punto a un trazado</translation>
+    </message>
+    <message>
+        <source>Remove a point from a path</source>
+        <translation>Quitar un punto de un trazado</translation>
+    </message>
+    <message>
+        <source>Switch points between corner and smooth</source>
+        <translation>Cambiar puntos entre esquina y suave</translation>
+    </message>
+    <message>
+        <source>Crop or straighten the image</source>
+        <translation>Recortar o enderezar la imagen</translation>
+    </message>
+    <message>
+        <source>Crop and fix the perspective</source>
+        <translation>Recortar y corregir la perspectiva</translation>
+    </message>
+    <message>
+        <source>Add and arrange artboards</source>
+        <translation>Añadir y organizar mesas de trabajo</translation>
+    </message>
+    <message>
+        <source>Search commands and tools</source>
+        <translation>Buscar comandos y herramientas</translation>
+    </message>
+    <message>
+        <source>Empty the list of recent files</source>
+        <translation>Vaciar la lista de archivos recientes</translation>
+    </message>
+    <message>
+        <source>Empty the list of recent folders</source>
+        <translation>Vaciar la lista de carpetas recientes</translation>
+    </message>
+    <message>
+        <source>Scan and print in one step</source>
+        <translation>Escanear e imprimir en un solo paso</translation>
+    </message>
+    <message>
+        <source>Scan several photos and split them apart</source>
+        <translation>Escanear varias fotos y separarlas</translation>
+    </message>
+    <message>
+        <source>Cut a sprite sheet into layers</source>
+        <translation>Dividir una hoja de sprites en capas</translation>
+    </message>
+    <message>
+        <source>Load numbered images as layers</source>
+        <translation>Cargar imágenes numeradas como capas</translation>
+    </message>
+    <message>
+        <source>Save several documents as one PDF</source>
+        <translation>Guardar varios documentos como un solo PDF</translation>
+    </message>
+    <message>
+        <source>Save every open document to a folder</source>
+        <translation>Guardar todos los documentos abiertos en una carpeta</translation>
+    </message>
+    <message>
+        <source>Save each artboard as its own file</source>
+        <translation>Guardar cada mesa de trabajo como un archivo propio</translation>
+    </message>
+    <message>
+        <source>Save each layer as a numbered image</source>
+        <translation>Guardar cada capa como una imagen numerada</translation>
+    </message>
+    <message>
+        <source>Save the layers as a WebP animation</source>
+        <translation>Guardar las capas como una animación WebP</translation>
+    </message>
+    <message>
+        <source>Save the layers as an APNG animation</source>
+        <translation>Guardar las capas como una animación APNG</translation>
+    </message>
+    <message>
+        <source>Look for hidden watermarks in an image</source>
+        <translation>Buscar marcas de agua ocultas en una imagen</translation>
+    </message>
+    <message>
+        <source>Choose paper size and orientation</source>
+        <translation>Elegir el tamaño y la orientación del papel</translation>
+    </message>
+    <message>
+        <source>Run, edit and organize scripts</source>
+        <translation>Ejecutar, editar y organizar scripts</translation>
+    </message>
+    <message>
+        <source>Show the scripts folder on disk</source>
+        <translation>Mostrar la carpeta de scripts en el disco</translation>
+    </message>
+    <message>
+        <source>Close every open document</source>
+        <translation>Cerrar todos los documentos abiertos</translation>
+    </message>
+    <message>
+        <source>Slant the layer or selection</source>
+        <translation>Sesgar la capa o la selección</translation>
+    </message>
+    <message>
+        <source>Drag each corner freely</source>
+        <translation>Arrastrar cada esquina libremente</translation>
+    </message>
+    <message>
+        <source>Make one side wider than the other</source>
+        <translation>Hacer un lado más ancho que el otro</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from an SVG file</source>
+        <translation>Crear una forma personalizada a partir de un archivo SVG</translation>
+    </message>
+    <message>
+        <source>Manage layer style presets</source>
+        <translation>Administrar los ajustes preestablecidos de estilos de capa</translation>
+    </message>
+    <message>
+        <source>Manage brush tips and import ABR</source>
+        <translation>Administrar puntas de pincel e importar ABR</translation>
+    </message>
+    <message>
+        <source>Manage saved brushes</source>
+        <translation>Administrar pinceles guardados</translation>
+    </message>
+    <message>
+        <source>Manage custom shape presets</source>
+        <translation>Administrar los ajustes preestablecidos de formas personalizadas</translation>
+    </message>
+    <message>
+        <source>Convert to full color</source>
+        <translation>Convertir a color completo</translation>
+    </message>
+    <message>
+        <source>Preview and save for print colors</source>
+        <translation>Previsualizar y guardar para colores de impresión</translation>
+    </message>
+    <message>
+        <source>Use 8 bits per channel</source>
+        <translation>Usar 8 bits por canal</translation>
+    </message>
+    <message>
+        <source>Use 32-bit HDR color</source>
+        <translation>Usar color HDR de 32 bits</translation>
+    </message>
+    <message>
+        <source>Limit the layer to the palette colors</source>
+        <translation>Limitar la capa a los colores de la paleta</translation>
+    </message>
+    <message>
+        <source>Limit every layer to the palette colors</source>
+        <translation>Limitar todas las capas a los colores de la paleta</translation>
+    </message>
+    <message>
+        <source>Make the image lighter, darker or punchier</source>
+        <translation>Hacer la imagen más clara, más oscura o más intensa</translation>
+    </message>
+    <message>
+        <source>Warm or cool the colors like a lens filter</source>
+        <translation>Calentar o enfriar los colores como un filtro de lente</translation>
+    </message>
+    <message>
+        <source>Blend the red, green and blue channels</source>
+        <translation>Mezclar los canales rojo, verde y azul</translation>
+    </message>
+    <message>
+        <source>Apply a color grading table</source>
+        <translation>Aplicar una tabla de gradación de color</translation>
+    </message>
+    <message>
+        <source>Make a negative</source>
+        <translation>Crear un negativo</translation>
+    </message>
+    <message>
+        <source>Reduce the number of tones</source>
+        <translation>Reducir el número de tonos</translation>
+    </message>
+    <message>
+        <source>Turn the image black and white</source>
+        <translation>Convertir la imagen a blanco y negro</translation>
+    </message>
+    <message>
+        <source>Map the tones to a gradient</source>
+        <translation>Asignar los tonos a un degradado</translation>
+    </message>
+    <message>
+        <source>Adjust one range of colors</source>
+        <translation>Ajustar un rango de colores</translation>
+    </message>
+    <message>
+        <source>Remove all color</source>
+        <translation>Quitar todo el color</translation>
+    </message>
+    <message>
+        <source>Stretch the tones automatically</source>
+        <translation>Estirar los tonos automáticamente</translation>
+    </message>
+    <message>
+        <source>Improve contrast automatically</source>
+        <translation>Mejorar el contraste automáticamente</translation>
+    </message>
+    <message>
+        <source>Remove a color cast automatically</source>
+        <translation>Eliminar una dominante de color automáticamente</translation>
+    </message>
+    <message>
+        <source>Add an artboard</source>
+        <translation>Añadir una mesa de trabajo</translation>
+    </message>
+    <message>
+        <source>Editable lighter, darker or punchier</source>
+        <translation>Más claro, más oscuro o más intenso, editable</translation>
+    </message>
+    <message>
+        <source>Editable black point, white point and midtones</source>
+        <translation>Punto negro, punto blanco y medios tonos editables</translation>
+    </message>
+    <message>
+        <source>Editable tone curve</source>
+        <translation>Curva tonal editable</translation>
+    </message>
+    <message>
+        <source>Editable colors, saturation and lightness</source>
+        <translation>Colores, saturación y luminosidad editables</translation>
+    </message>
+    <message>
+        <source>Editable color shift in shadows and highlights</source>
+        <translation>Desplazamiento de color editable en sombras e iluminaciones</translation>
+    </message>
+    <message>
+        <source>Editable negative</source>
+        <translation>Negativo editable</translation>
+    </message>
+    <message>
+        <source>Editable tone reduction</source>
+        <translation>Reducción de tonos editable</translation>
+    </message>
+    <message>
+        <source>Editable black and white cutoff</source>
+        <translation>Corte editable entre blanco y negro</translation>
+    </message>
+    <message>
+        <source>Editable brightening or darkening</source>
+        <translation>Aclarado u oscurecimiento editable</translation>
+    </message>
+    <message>
+        <source>Editable boost for muted colors</source>
+        <translation>Refuerzo editable de colores apagados</translation>
+    </message>
+    <message>
+        <source>Editable channel blend</source>
+        <translation>Mezcla de canales editable</translation>
+    </message>
+    <message>
+        <source>Editable warming or cooling filter</source>
+        <translation>Filtro de calentamiento o enfriamiento editable</translation>
+    </message>
+    <message>
+        <source>Editable mapping of tones to a gradient</source>
+        <translation>Asignación editable de tonos a un degradado</translation>
+    </message>
+    <message>
+        <source>Editable conversion to gray</source>
+        <translation>Conversión a gris editable</translation>
+    </message>
+    <message>
+        <source>Editable color grading table</source>
+        <translation>Tabla de gradación de color editable</translation>
+    </message>
+    <message>
+        <source>Editable change to one color range</source>
+        <translation>Cambio editable de un rango de colores</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with one color</source>
+        <translation>Añadir una capa rellena de un color</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with a gradient</source>
+        <translation>Añadir una capa rellena de un degradado</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with a pattern</source>
+        <translation>Añadir una capa rellena de un motivo</translation>
+    </message>
+    <message>
+        <source>Remove the layer&apos;s color label</source>
+        <translation>Quitar la etiqueta de color de la capa</translation>
+    </message>
+    <message>
+        <source>Tag the layer red in the Layers panel</source>
+        <translation>Marcar la capa en rojo en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer orange in the Layers panel</source>
+        <translation>Marcar la capa en naranja en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer yellow in the Layers panel</source>
+        <translation>Marcar la capa en amarillo en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer green in the Layers panel</source>
+        <translation>Marcar la capa en verde en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer blue in the Layers panel</source>
+        <translation>Marcar la capa en azul en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer violet in the Layers panel</source>
+        <translation>Marcar la capa en violeta en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer gray in the Layers panel</source>
+        <translation>Marcar la capa en gris en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Make every layer visible</source>
+        <translation>Hacer visibles todas las capas</translation>
+    </message>
+    <message>
+        <source>Hide the background with a mask automatically</source>
+        <translation>Ocultar el fondo con una máscara automáticamente</translation>
+    </message>
+    <message>
+        <source>Paint on the mask instead of the layer</source>
+        <translation>Pintar en la máscara en lugar de en la capa</translation>
+    </message>
+    <message>
+        <source>Show the mask as a red overlay</source>
+        <translation>Mostrar la máscara como una superposición roja</translation>
+    </message>
+    <message>
+        <source>Show only the mask in gray</source>
+        <translation>Mostrar solo la máscara en gris</translation>
+    </message>
+    <message>
+        <source>Move the mask together with the layer</source>
+        <translation>Mover la máscara junto con la capa</translation>
+    </message>
+    <message>
+        <source>Turn the mask off for now</source>
+        <translation>Desactivar la máscara temporalmente</translation>
+    </message>
+    <message>
+        <source>Swap what the mask shows and hides</source>
+        <translation>Intercambiar lo que la máscara muestra y oculta</translation>
+    </message>
+    <message>
+        <source>Remove the layer mask</source>
+        <translation>Quitar la máscara de capa</translation>
+    </message>
+    <message>
+        <source>Add a vector mask that shows everything</source>
+        <translation>Añadir una máscara vectorial que lo muestra todo</translation>
+    </message>
+    <message>
+        <source>Add a vector mask that hides everything</source>
+        <translation>Añadir una máscara vectorial que lo oculta todo</translation>
+    </message>
+    <message>
+        <source>Mask the layer with the selected path</source>
+        <translation>Enmascarar la capa con el trazado seleccionado</translation>
+    </message>
+    <message>
+        <source>Remove the vector mask</source>
+        <translation>Quitar la máscara vectorial</translation>
+    </message>
+    <message>
+        <source>Turn the vector mask off for now</source>
+        <translation>Desactivar la máscara vectorial temporalmente</translation>
+    </message>
+    <message>
+        <source>Turn the vector mask into a pixel mask</source>
+        <translation>Convertir la máscara vectorial en una máscara de píxeles</translation>
+    </message>
+    <message>
+        <source>Change the settings of the adjustment layer</source>
+        <translation>Cambiar los ajustes de la capa de ajuste</translation>
+    </message>
+    <message>
+        <source>Wrap the layers so edits stay editable</source>
+        <translation>Envolver las capas para que las ediciones sigan siendo editables</translation>
+    </message>
+    <message>
+        <source>Open the contents in their own tab</source>
+        <translation>Abrir el contenido en su propia pestaña</translation>
+    </message>
+    <message>
+        <source>Swap in another file as the contents</source>
+        <translation>Sustituir el contenido por otro archivo</translation>
+    </message>
+    <message>
+        <source>Reload the linked file</source>
+        <translation>Volver a cargar el archivo vinculado</translation>
+    </message>
+    <message>
+        <source>Point the link at another file</source>
+        <translation>Apuntar el vínculo a otro archivo</translation>
+    </message>
+    <message>
+        <source>Store the linked file inside the document</source>
+        <translation>Guardar el archivo vinculado dentro del documento</translation>
+    </message>
+    <message>
+        <source>Save the contents as a file</source>
+        <translation>Guardar el contenido como un archivo</translation>
+    </message>
+    <message>
+        <source>Duplicate as an independent Smart Object</source>
+        <translation>Duplicar como objeto inteligente independiente</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object into pixels</source>
+        <translation>Rasterizar el objeto inteligente en píxeles</translation>
+    </message>
+    <message>
+        <source>Merge the shapes into one outline</source>
+        <translation>Combinar las formas en un solo contorno</translation>
+    </message>
+    <message>
+        <source>Cut the top shape out of the others</source>
+        <translation>Recortar la forma superior de las demás</translation>
+    </message>
+    <message>
+        <source>Keep only where the shapes overlap</source>
+        <translation>Conservar solo donde se solapan las formas</translation>
+    </message>
+    <message>
+        <source>Keep everything except the overlap</source>
+        <translation>Conservar todo excepto el solapamiento</translation>
+    </message>
+    <message>
+        <source>Line up layers on the left</source>
+        <translation>Alinear las capas a la izquierda</translation>
+    </message>
+    <message>
+        <source>Center layers side to side</source>
+        <translation>Centrar las capas en horizontal</translation>
+    </message>
+    <message>
+        <source>Line up layers on the right</source>
+        <translation>Alinear las capas a la derecha</translation>
+    </message>
+    <message>
+        <source>Line up layers along the top</source>
+        <translation>Alinear las capas arriba</translation>
+    </message>
+    <message>
+        <source>Center layers top to bottom</source>
+        <translation>Centrar las capas en vertical</translation>
+    </message>
+    <message>
+        <source>Line up layers along the bottom</source>
+        <translation>Alinear las capas abajo</translation>
+    </message>
+    <message>
+        <source>Align to the selected area</source>
+        <translation>Alinear con la selección</translation>
+    </message>
+    <message>
+        <source>Align to the document edges</source>
+        <translation>Alinear con los bordes del documento</translation>
+    </message>
+    <message>
+        <source>Space the left edges evenly</source>
+        <translation>Distribuir los bordes izquierdos por igual</translation>
+    </message>
+    <message>
+        <source>Space the centers evenly across</source>
+        <translation>Distribuir los centros por igual en horizontal</translation>
+    </message>
+    <message>
+        <source>Space the right edges evenly</source>
+        <translation>Distribuir los bordes derechos por igual</translation>
+    </message>
+    <message>
+        <source>Space the top edges evenly</source>
+        <translation>Distribuir los bordes superiores por igual</translation>
+    </message>
+    <message>
+        <source>Space the centers evenly down</source>
+        <translation>Distribuir los centros por igual en vertical</translation>
+    </message>
+    <message>
+        <source>Space the bottom edges evenly</source>
+        <translation>Distribuir los bordes inferiores por igual</translation>
+    </message>
+    <message>
+        <source>Equal gaps between layers across</source>
+        <translation>Espacios iguales entre capas en horizontal</translation>
+    </message>
+    <message>
+        <source>Equal gaps between layers down</source>
+        <translation>Espacios iguales entre capas en vertical</translation>
+    </message>
+    <message>
+        <source>Mirror the layer left to right</source>
+        <translation>Reflejar la capa de izquierda a derecha</translation>
+    </message>
+    <message>
+        <source>Mirror the layer top to bottom</source>
+        <translation>Reflejar la capa de arriba abajo</translation>
+    </message>
+    <message>
+        <source>Save the layer as a PNG at once</source>
+        <translation>Guardar la capa como PNG al instante</translation>
+    </message>
+    <message>
+        <source>Save the layer to a file</source>
+        <translation>Guardar la capa en un archivo</translation>
+    </message>
+    <message>
+        <source>Copy the layer into another document</source>
+        <translation>Copiar la capa en otro documento</translation>
+    </message>
+    <message>
+        <source>Keep dragged layers out of folders and artboards</source>
+        <translation>Mantener las capas arrastradas fuera de carpetas y mesas de trabajo</translation>
+    </message>
+    <message>
+        <source>Paint only where the layer has pixels</source>
+        <translation>Pintar solo donde la capa tiene píxeles</translation>
+    </message>
+    <message>
+        <source>Combine the selected layers into a new one</source>
+        <translation>Combinar las capas seleccionadas en una nueva</translation>
+    </message>
+    <message>
+        <source>Step to the next blend mode</source>
+        <translation>Pasar al siguiente modo de fusión</translation>
+    </message>
+    <message>
+        <source>Step to the previous blend mode</source>
+        <translation>Pasar al modo de fusión anterior</translation>
+    </message>
+    <message>
+        <source>Show the layer as is</source>
+        <translation>Mostrar la capa tal cual</translation>
+    </message>
+    <message>
+        <source>Scatter pixels by opacity</source>
+        <translation>Dispersar píxeles según la opacidad</translation>
+    </message>
+    <message>
+        <source>Keep the darker colors</source>
+        <translation>Conservar los colores más oscuros</translation>
+    </message>
+    <message>
+        <source>Darken like stacked ink</source>
+        <translation>Oscurecer como tinta superpuesta</translation>
+    </message>
+    <message>
+        <source>Darken with more contrast</source>
+        <translation>Oscurecer con más contraste</translation>
+    </message>
+    <message>
+        <source>Darken by lowering brightness</source>
+        <translation>Oscurecer reduciendo el brillo</translation>
+    </message>
+    <message>
+        <source>Keep the lighter colors</source>
+        <translation>Conservar los colores más claros</translation>
+    </message>
+    <message>
+        <source>Lighten like projected light</source>
+        <translation>Aclarar como luz proyectada</translation>
+    </message>
+    <message>
+        <source>Lighten with less contrast</source>
+        <translation>Aclarar con menos contraste</translation>
+    </message>
+    <message>
+        <source>Lighten by adding brightness</source>
+        <translation>Aclarar sumando brillo</translation>
+    </message>
+    <message>
+        <source>Raise contrast by the colors below</source>
+        <translation>Aumentar el contraste según los colores de abajo</translation>
+    </message>
+    <message>
+        <source>Gently lighten or darken</source>
+        <translation>Aclarar u oscurecer suavemente</translation>
+    </message>
+    <message>
+        <source>Strongly lighten or darken</source>
+        <translation>Aclarar u oscurecer con fuerza</translation>
+    </message>
+    <message>
+        <source>Burn or dodge by contrast</source>
+        <translation>Subexponer o sobreexponer mediante el contraste</translation>
+    </message>
+    <message>
+        <source>Burn or dodge by brightness</source>
+        <translation>Subexponer o sobreexponer mediante el brillo</translation>
+    </message>
+    <message>
+        <source>Replace colors by lightness</source>
+        <translation>Sustituir colores según la luminosidad</translation>
+    </message>
+    <message>
+        <source>Push colors to pure primaries</source>
+        <translation>Llevar los colores a primarios puros</translation>
+    </message>
+    <message>
+        <source>Subtract the colors from each other</source>
+        <translation>Restar los colores entre sí</translation>
+    </message>
+    <message>
+        <source>A softer difference</source>
+        <translation>Una diferencia más suave</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s hue</source>
+        <translation>Tomar solo el tono de la capa</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s saturation</source>
+        <translation>Tomar solo la saturación de la capa</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s hue and saturation</source>
+        <translation>Tomar el tono y la saturación de la capa</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s brightness</source>
+        <translation>Tomar solo el brillo de la capa</translation>
+    </message>
+    <message>
+        <source>Replace fonts that are not installed</source>
+        <translation>Sustituir las fuentes no instaladas</translation>
+    </message>
+    <message>
+        <source>Select no layers</source>
+        <translation>No seleccionar ninguna capa</translation>
+    </message>
+    <message>
+        <source>Make the next layer down the active one</source>
+        <translation>Activar la siguiente capa hacia abajo</translation>
+    </message>
+    <message>
+        <source>Make the next layer up the active one</source>
+        <translation>Activar la siguiente capa hacia arriba</translation>
+    </message>
+    <message>
+        <source>Select the main subject automatically</source>
+        <translation>Seleccionar el sujeto principal automáticamente</translation>
+    </message>
+    <message>
+        <source>Select everything but the main subject</source>
+        <translation>Seleccionar todo menos el sujeto principal</translation>
+    </message>
+    <message>
+        <source>Select the layer&apos;s opaque pixels</source>
+        <translation>Seleccionar los píxeles opacos de la capa</translation>
+    </message>
+    <message>
+        <source>Add the next layer down to the selected layers</source>
+        <translation>Añadir la siguiente capa hacia abajo a las capas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Add the next layer up to the selected layers</source>
+        <translation>Añadir la siguiente capa hacia arriba a las capas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Select the object inside the selection</source>
+        <translation>Seleccionar el objeto dentro de la selección</translation>
+    </message>
+    <message>
+        <source>Repeat the last filter</source>
+        <translation>Repetir el último filtro</translation>
+    </message>
+    <message>
+        <source>Dreamy glow on the highlights</source>
+        <translation>Brillo onírico en las luces</translation>
+    </message>
+    <message>
+        <source>Bolder colors and contrast</source>
+        <translation>Colores y contraste más intensos</translation>
+    </message>
+    <message>
+        <source>Moody black and white</source>
+        <translation>Blanco y negro dramático</translation>
+    </message>
+    <message>
+        <source>Film look with lifted blacks</source>
+        <translation>Aspecto de película con negros levantados</translation>
+    </message>
+    <message>
+        <source>Faded old photo look</source>
+        <translation>Aspecto de foto antigua desvaída</translation>
+    </message>
+    <message>
+        <source>Brown old photo tint</source>
+        <translation>Tono marrón de foto antigua</translation>
+    </message>
+    <message>
+        <source>Darken the corners</source>
+        <translation>Oscurecer las esquinas</translation>
+    </message>
+    <message>
+        <source>Even blur over a square area</source>
+        <translation>Desenfoque uniforme sobre un área cuadrada</translation>
+    </message>
+    <message>
+        <source>Smooth soft blur</source>
+        <translation>Desenfoque suave y uniforme</translation>
+    </message>
+    <message>
+        <source>Streak as if moving</source>
+        <translation>Estelas como en movimiento</translation>
+    </message>
+    <message>
+        <source>Spin or zoom blur around a center</source>
+        <translation>Desenfoque de giro o zoom alrededor de un centro</translation>
+    </message>
+    <message>
+        <source>Smooth while keeping edges</source>
+        <translation>Suavizar conservando los bordes</translation>
+    </message>
+    <message>
+        <source>Camera-like depth of field</source>
+        <translation>Profundidad de campo como de cámara</translation>
+    </message>
+    <message>
+        <source>Sharp spot with blur around it</source>
+        <translation>Zona nítida con desenfoque alrededor</translation>
+    </message>
+    <message>
+        <source>Miniature look with a sharp band</source>
+        <translation>Aspecto de miniatura con una franja nítida</translation>
+    </message>
+    <message>
+        <source>Soften slightly</source>
+        <translation>Suavizar ligeramente</translation>
+    </message>
+    <message>
+        <source>Soften a bit more</source>
+        <translation>Suavizar un poco más</translation>
+    </message>
+    <message>
+        <source>Fill with the average color</source>
+        <translation>Rellenar con el color promedio</translation>
+    </message>
+    <message>
+        <source>Crisp up slightly</source>
+        <translation>Dar un poco de nitidez</translation>
+    </message>
+    <message>
+        <source>Sharpen with amount and radius</source>
+        <translation>Enfocar con cantidad y radio</translation>
+    </message>
+    <message>
+        <source>Keep only the fine detail</source>
+        <translation>Conservar solo el detalle fino</translation>
+    </message>
+    <message>
+        <source>Crisp up a bit more</source>
+        <translation>Dar algo más de nitidez</translation>
+    </message>
+    <message>
+        <source>Sharpen only the edges</source>
+        <translation>Enfocar solo los bordes</translation>
+    </message>
+    <message>
+        <source>Swirl around the center</source>
+        <translation>Arremolinar alrededor del centro</translation>
+    </message>
+    <message>
+        <source>Ripple in waves</source>
+        <translation>Ondular en olas</translation>
+    </message>
+    <message>
+        <source>Squeeze in or bulge out</source>
+        <translation>Comprimir hacia dentro o abombar hacia fuera</translation>
+    </message>
+    <message>
+        <source>Film-like grain</source>
+        <translation>Grano como de película</translation>
+    </message>
+    <message>
+        <source>Sprinkle random speckles</source>
+        <translation>Esparcir motas aleatorias</translation>
+    </message>
+    <message>
+        <source>Smooth out specks</source>
+        <translation>Suavizar las motas</translation>
+    </message>
+    <message>
+        <source>Hide small dust and scratches</source>
+        <translation>Ocultar polvo y arañazos pequeños</translation>
+    </message>
+    <message>
+        <source>Turn into large square blocks</source>
+        <translation>Convertir en grandes bloques cuadrados</translation>
+    </message>
+    <message>
+        <source>Print-style dots per color</source>
+        <translation>Puntos de impresión por color</translation>
+    </message>
+    <message>
+        <source>Shiny wrapped-in-plastic look</source>
+        <translation>Aspecto brillante envuelto en plástico</translation>
+    </message>
+    <message>
+        <source>Scatter pixels softly</source>
+        <translation>Dispersar los píxeles suavemente</translation>
+    </message>
+    <message>
+        <source>Show only the edges</source>
+        <translation>Mostrar solo los bordes</translation>
+    </message>
+    <message>
+        <source>Raised relief look</source>
+        <translation>Aspecto de relieve en alto</translation>
+    </message>
+    <message>
+        <source>Push out 3D blocks</source>
+        <translation>Extruir bloques 3D</translation>
+    </message>
+    <message>
+        <source>Outline edges on white</source>
+        <translation>Contornear bordes sobre blanco</translation>
+    </message>
+    <message>
+        <source>Neon edges on black</source>
+        <translation>Bordes de neón sobre negro</translation>
+    </message>
+    <message>
+        <source>Mix negative and positive</source>
+        <translation>Mezclar negativo y positivo</translation>
+    </message>
+    <message>
+        <source>Break into offset tiles</source>
+        <translation>Dividir en mosaicos desplazados</translation>
+    </message>
+    <message>
+        <source>Outline tone boundaries</source>
+        <translation>Contornear los límites tonales</translation>
+    </message>
+    <message>
+        <source>Streak pixels sideways</source>
+        <translation>Estirar píxeles en estelas laterales</translation>
+    </message>
+    <message>
+        <source>Fill with soft cloud noise</source>
+        <translation>Rellenar con ruido suave de nubes</translation>
+    </message>
+    <message>
+        <source>Blend cloud noise by difference</source>
+        <translation>Fusionar ruido de nubes por diferencia</translation>
+    </message>
+    <message>
+        <source>Fill with fiber strands</source>
+        <translation>Rellenar con hebras de fibra</translation>
+    </message>
+    <message>
+        <source>Draw flames</source>
+        <translation>Dibujar llamas</translation>
+    </message>
+    <message>
+        <source>Add a bright camera flare</source>
+        <translation>Añadir un destello de cámara brillante</translation>
+    </message>
+    <message>
+        <source>Run the last plug-in again</source>
+        <translation>Volver a ejecutar el último plugin</translation>
+    </message>
+    <message>
+        <source>Run the last plug-in with its dialog</source>
+        <translation>Ejecutar el último plugin con su cuadro de diálogo</translation>
+    </message>
+    <message>
+        <source>Show the plug-ins folder on disk</source>
+        <translation>Mostrar la carpeta de plugins en el disco</translation>
+    </message>
+    <message>
+        <source>Look for new or removed plug-ins</source>
+        <translation>Buscar plugins nuevos o eliminados</translation>
+    </message>
+    <message>
+        <source>8BF plug-ins need Windows</source>
+        <translation>Los plugins 8BF requieren Windows</translation>
+    </message>
+    <message>
+        <source>Zoom until the image fills the window</source>
+        <translation>Ampliar hasta que la imagen llene la ventana</translation>
+    </message>
+    <message>
+        <source>Zoom to twice the size</source>
+        <translation>Ampliar al doble del tamaño</translation>
+    </message>
+    <message>
+        <source>Show shape edits live while dragging</source>
+        <translation>Mostrar en vivo los cambios de forma al arrastrar</translation>
+    </message>
+    <message>
+        <source>Preview the print colors</source>
+        <translation>Previsualizar los colores de impresión</translation>
+    </message>
+    <message>
+        <source>Mark colors that cannot print</source>
+        <translation>Marcar los colores que no se pueden imprimir</translation>
+    </message>
+    <message>
+        <source>Show or hide guides, grid and edges</source>
+        <translation>Mostrar u ocultar guías, cuadrícula y bordes</translation>
+    </message>
+    <message>
+        <source>Show or hide the marching ants</source>
+        <translation>Mostrar u ocultar el contorno animado de la selección</translation>
+    </message>
+    <message>
+        <source>Show or hide the active path outline</source>
+        <translation>Mostrar u ocultar el contorno del trazado activo</translation>
+    </message>
+    <message>
+        <source>Choose which extras show</source>
+        <translation>Elegir qué extras se muestran</translation>
+    </message>
+    <message>
+        <source>Stop guides from moving</source>
+        <translation>Impedir que las guías se muevan</translation>
+    </message>
+    <message>
+        <source>Snap to guide lines</source>
+        <translation>Ajustar a las guías</translation>
+    </message>
+    <message>
+        <source>Snap to the grid</source>
+        <translation>Ajustar a la cuadrícula</translation>
+    </message>
+    <message>
+        <source>Snap to the canvas edges and center</source>
+        <translation>Ajustar a los bordes y el centro del lienzo</translation>
+    </message>
+    <message>
+        <source>Snap to other layers</source>
+        <translation>Ajustar a otras capas</translation>
+    </message>
+    <message>
+        <source>Snap to the selection edges</source>
+        <translation>Ajustar a los bordes de la selección</translation>
+    </message>
+    <message>
+        <source>Add column and row guides</source>
+        <translation>Añadir guías de columnas y filas</translation>
+    </message>
+    <message>
+        <source>Remove the selected guides</source>
+        <translation>Quitar las guías seleccionadas</translation>
+    </message>
+    <message>
+        <source>See the image repeated as a tile</source>
+        <translation>Ver la imagen repetida como mosaico</translation>
+    </message>
+    <message>
+        <source>Normal window with panels</source>
+        <translation>Ventana normal con paneles</translation>
+    </message>
+    <message>
+        <source>Full screen keeping the menus</source>
+        <translation>Pantalla completa conservando los menús</translation>
+    </message>
+    <message>
+        <source>Full screen without panels</source>
+        <translation>Pantalla completa sin paneles</translation>
+    </message>
+    <message>
+        <source>Switch to the next screen mode</source>
+        <translation>Cambiar al siguiente modo de pantalla</translation>
+    </message>
+    <message>
+        <source>Move the document into its own window</source>
+        <translation>Mover el documento a su propia ventana</translation>
+    </message>
+    <message>
+        <source>Put the document back in a tab</source>
+        <translation>Devolver el documento a una pestaña</translation>
+    </message>
+    <message>
+        <source>Give every document its own window</source>
+        <translation>Dar a cada documento su propia ventana</translation>
+    </message>
+    <message>
+        <source>Put every document in tabs</source>
+        <translation>Poner todos los documentos en pestañas</translation>
+    </message>
+    <message>
+        <source>Arrange document windows side by side</source>
+        <translation>Organizar las ventanas de documentos en paralelo</translation>
+    </message>
+    <message>
+        <source>Stack document windows diagonally</source>
+        <translation>Apilar las ventanas de documentos en diagonal</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1280 by 720</source>
+        <translation>Cambiar el tamaño de la ventana a 1280 por 720</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1366 by 768</source>
+        <translation>Cambiar el tamaño de la ventana a 1366 por 768</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1600 by 900</source>
+        <translation>Cambiar el tamaño de la ventana a 1600 por 900</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1920 by 1080</source>
+        <translation>Cambiar el tamaño de la ventana a 1920 por 1080</translation>
+    </message>
+    <message>
+        <source>Resize the window to 2560 by 1440</source>
+        <translation>Cambiar el tamaño de la ventana a 2560 por 1440</translation>
+    </message>
+    <message>
+        <source>Resize the window to 3840 by 2160</source>
+        <translation>Cambiar el tamaño de la ventana a 3840 por 2160</translation>
+    </message>
+    <message>
+        <source>Redraw the whole window</source>
+        <translation>Volver a dibujar toda la ventana</translation>
+    </message>
+    <message>
+        <source>Hide and arrange tools</source>
+        <translation>Ocultar y organizar herramientas</translation>
+    </message>
+    <message>
+        <source>Show the brush dynamics panel</source>
+        <translation>Mostrar el panel Dinámica de pincel</translation>
+    </message>
+    <message>
+        <source>Show the brush tips panel</source>
+        <translation>Mostrar el panel Puntas de pincel</translation>
+    </message>
+    <message>
+        <source>Show the Channels panel</source>
+        <translation>Mostrar el panel Canales</translation>
+    </message>
+    <message>
+        <source>Show the Color panel</source>
+        <translation>Mostrar el panel Color</translation>
+    </message>
+    <message>
+        <source>Show the undo history panel</source>
+        <translation>Mostrar el panel Historial de deshacer</translation>
+    </message>
+    <message>
+        <source>Show the Info panel</source>
+        <translation>Mostrar el panel Información</translation>
+    </message>
+    <message>
+        <source>Show the Layers panel</source>
+        <translation>Mostrar el panel Capas</translation>
+    </message>
+    <message>
+        <source>Show the Palette panel</source>
+        <translation>Mostrar el panel Paleta</translation>
+    </message>
+    <message>
+        <source>Show the Paths panel</source>
+        <translation>Mostrar el panel Trazados</translation>
+    </message>
+    <message>
+        <source>Show the Properties panel</source>
+        <translation>Mostrar el panel Propiedades</translation>
+    </message>
+    <message>
+        <source>Restore the default panel layout</source>
+        <translation>Restaurar la disposición predeterminada de paneles</translation>
+    </message>
+    <message>
+        <source>Show or hide the tool palette</source>
+        <translation>Mostrar u ocultar la paleta de herramientas</translation>
+    </message>
+    <message>
+        <source>Show or hide the options bar</source>
+        <translation>Mostrar u ocultar la barra de opciones</translation>
+    </message>
+    <message>
+        <source>Find any command by name</source>
+        <translation>Buscar cualquier comando por su nombre</translation>
+    </message>
+    <message>
+        <source>Read how to write scripts</source>
+        <translation>Leer cómo escribir scripts</translation>
+    </message>
+    <message>
+        <source>Connect an AI assistant to Patchy</source>
+        <translation>Conectar un asistente de AI a Patchy</translation>
+    </message>
+    <message>
+        <source>Add a launcher to your desktop menu</source>
+        <translation>Añadir un lanzador al menú del escritorio</translation>
+    </message>
+    <message>
+        <source>Version and credits</source>
+        <translation>Versión y créditos</translation>
+    </message>
+    <message>
+        <source>Switch between the move tools</source>
+        <translation>Alternar entre las herramientas de mover</translation>
+    </message>
+    <message>
+        <source>Switch between the marquee tools</source>
+        <translation>Alternar entre las herramientas de marco</translation>
+    </message>
+    <message>
+        <source>Switch between the lasso tools</source>
+        <translation>Alternar entre las herramientas de lazo</translation>
+    </message>
+    <message>
+        <source>Switch between the wand and quick select tools</source>
+        <translation>Alternar entre la varita mágica y la selección rápida</translation>
+    </message>
+    <message>
+        <source>Switch between the crop tools</source>
+        <translation>Alternar entre las herramientas de recorte</translation>
+    </message>
+    <message>
+        <source>Switch between the gradient and fill tools</source>
+        <translation>Alternar entre las herramientas de degradado y relleno</translation>
+    </message>
+    <message>
+        <source>Switch between the stamp tools</source>
+        <translation>Alternar entre las herramientas de tampón</translation>
+    </message>
+    <message>
+        <source>Switch between the healing tools</source>
+        <translation>Alternar entre las herramientas de corrección</translation>
+    </message>
+    <message>
+        <source>Switch between blur, sharpen and smudge</source>
+        <translation>Alternar entre desenfocar, enfocar y dedo</translation>
+    </message>
+    <message>
+        <source>Switch between dodge, burn and sponge</source>
+        <translation>Alternar entre sobreexponer, subexponer y esponja</translation>
+    </message>
+    <message>
+        <source>Switch between the pen tools</source>
+        <translation>Alternar entre las herramientas de pluma</translation>
+    </message>
+    <message>
+        <source>Switch between the path selection tools</source>
+        <translation>Alternar entre las herramientas de selección de trazado</translation>
+    </message>
+    <message>
+        <source>Switch between the shape tools</source>
+        <translation>Alternar entre las herramientas de forma</translation>
+    </message>
+    <message>
+        <source>Switch between the eyedropper and ruler</source>
+        <translation>Alternar entre el cuentagotas y la regla</translation>
+    </message>
+    <message>
+        <source>Reset to black and white</source>
+        <translation>Restablecer a blanco y negro</translation>
+    </message>
+    <message>
+        <source>Exchange foreground and background colors</source>
+        <translation>Intercambiar los colores frontal y de fondo</translation>
+    </message>
+    <message>
+        <source>Make the brush smaller</source>
+        <translation>Reducir el pincel</translation>
+    </message>
+    <message>
+        <source>Make the brush bigger</source>
+        <translation>Agrandar el pincel</translation>
+    </message>
+    <message>
+        <source>Make the brush a lot smaller</source>
+        <translation>Reducir mucho el pincel</translation>
+    </message>
+    <message>
+        <source>Make the brush a lot bigger</source>
+        <translation>Agrandar mucho el pincel</translation>
+    </message>
+    <message>
+        <source>Soften the brush edge</source>
+        <translation>Suavizar el borde del pincel</translation>
+    </message>
+    <message>
+        <source>Harden the brush edge</source>
+        <translation>Endurecer el borde del pincel</translation>
+    </message>
+    <message>
+        <source>Pick the previous brush preset</source>
+        <translation>Elegir el ajuste preestablecido de pincel anterior</translation>
+    </message>
+    <message>
+        <source>Pick the next brush preset</source>
+        <translation>Elegir el ajuste preestablecido de pincel siguiente</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>Administrar ajustes preestablecidos de trazo integrados y guardados</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -16663,6 +18633,67 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Search fonts...</source>
         <translation>Buscar fuentes...</translation>
+    </message>
+    <message>
+        <source>All Styles</source>
+        <translation>Todos los estilos</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>Serifa</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>Sans serif</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>Serifa egipcia</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>Manuscrita</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>Decorativa</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>Símbolos</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>Monoespaciada</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>Variable</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>Recientes</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>Todas las fuentes</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>Leyendo estilos de fuente... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>Mostrar solo fuentes de este estilo</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>Mostrar solo fuentes compatibles con este idioma</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>Todos los idiomas</translation>
     </message>
 </context>
 <context>
@@ -16875,10 +18906,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Desplazar la vista del lienzo (mantener pulsada); al arrastrar, mueve la selección o la forma</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>Definir la opacidad de la herramienta (10%-100%)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>Desplazar la capa 1 px / 10 px</translation>
     </message>
@@ -16953,6 +18980,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Scripts</source>
         <translation>Scripts</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>Definir la opacidad de la herramienta o de la capa (1 = 10%, 0 = 100%; escribe dos dígitos rápido para un valor exacto)</translation>
     </message>
 </context>
 <context>
@@ -23685,10 +25716,6 @@ Y: %2
         <translation>Editar el relleno, trazo, opacidad y borde de la capa de forma activa</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>Apariencia...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>Editar apariencia...</translation>
     </message>
@@ -29098,6 +31125,238 @@ Bloqueada: %1</translation>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation>Capas de texto de este archivo de GIMP sobre las que se pintó después de escribir el texto: %1</translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
+        <translation>Buscar &amp;comandos...</translation>
+    </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>Las imágenes de %1 ya están abiertas</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 ya está abierto</translation>
+    </message>
+    <message>
+        <source>The selected shapes only cut into others and paint nothing of their own</source>
+        <translation>Las formas seleccionadas solo recortan otras y no pintan nada propio</translation>
+    </message>
+    <message>
+        <source>Shapes combined with Intersect or Exclude share one color</source>
+        <translation>Las formas combinadas con Intersecar o Excluir comparten un color</translation>
+    </message>
+    <message>
+        <source>An inverted shape has one color</source>
+        <translation>Una forma invertida tiene un solo color</translation>
+    </message>
+    <message>
+        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
+        <translation>Seleccione formas en una capa de forma con Selección de trazado o Selección directa</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>Dividir trazado en el punto</translation>
+    </message>
+    <message>
+        <source>Open the path at the selected points</source>
+        <translation>Abrir el trazado en los puntos seleccionados</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>Unir puntos finales</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>Fusionar en un punto</translation>
+    </message>
+    <message>
+        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
+        <translation>Fusionar los puntos finales seleccionados, o una fila de puntos seleccionados, en un punto en su centro</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>Eliminar segmento</translation>
+    </message>
+    <message>
+        <source>Delete the selected segments and leave the path open</source>
+        <translation>Eliminar los segmentos seleccionados y dejar el trazado abierto</translation>
+    </message>
+    <message>
+        <source>Color Selected Shapes...</source>
+        <translation>Colorear formas seleccionadas...</translation>
+    </message>
+    <message>
+        <source>Give the selected shapes a fill color of their own</source>
+        <translation>Dar a las formas seleccionadas un color de relleno propio</translation>
+    </message>
+    <message>
+        <source>Move Selected Shapes to New Layer</source>
+        <translation>Mover formas seleccionadas a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Move the selected shapes to a new shape layer above</source>
+        <translation>Mover las formas seleccionadas a una capa de forma nueva encima</translation>
+    </message>
+    <message>
+        <source>Copy Selected Shapes to New Layer</source>
+        <translation>Copiar formas seleccionadas a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes to a new shape layer above</source>
+        <translation>Copiar las formas seleccionadas a una capa de forma nueva encima</translation>
+    </message>
+    <message>
+        <source>Cut Shapes</source>
+        <translation>Cortar formas</translation>
+    </message>
+    <message>
+        <source>Cut the selected shapes</source>
+        <translation>Cortar las formas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Copy Shapes</source>
+        <translation>Copiar formas</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes</source>
+        <translation>Copiar las formas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Paste Shapes</source>
+        <translation>Pegar formas</translation>
+    </message>
+    <message>
+        <source>Paste the copied shapes into the target path</source>
+        <translation>Pegar las formas copiadas en el trazado de destino</translation>
+    </message>
+    <message>
+        <source>Cut shapes</source>
+        <translation>Cortar formas</translation>
+    </message>
+    <message>
+        <source>Cut %1 shape(s)</source>
+        <translation>%1 forma(s) cortada(s)</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s)</source>
+        <translation>%1 forma(s) copiada(s)</translation>
+    </message>
+    <message>
+        <source>Paste shapes</source>
+        <translation>Pegar formas</translation>
+    </message>
+    <message>
+        <source>Pasted %1 shape(s)</source>
+        <translation>%1 forma(s) pegada(s)</translation>
+    </message>
+    <message>
+        <source>Shape color</source>
+        <translation>Color de forma</translation>
+    </message>
+    <message>
+        <source>Colored %1 shape(s)</source>
+        <translation>%1 forma(s) coloreada(s)</translation>
+    </message>
+    <message>
+        <source>Shape Color</source>
+        <translation>Color de forma</translation>
+    </message>
+    <message>
+        <source>Select shapes with Path Select or Direct Select first</source>
+        <translation>Seleccione primero formas con Selección de trazado o Selección directa</translation>
+    </message>
+    <message>
+        <source>Copy shapes to new layer</source>
+        <translation>Copiar formas a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Move shapes to new layer</source>
+        <translation>Mover formas a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s) to a new layer</source>
+        <translation>%1 forma(s) copiada(s) a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Moved %1 shape(s) to a new layer</source>
+        <translation>%1 forma(s) movida(s) a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation>Fusionar formas</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>Convertir las formas seleccionadas, combinadas tal como se ven, en un solo contorno que puede mover y editar</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>Fusionar formas: convertir las formas seleccionadas, combinadas tal como se ven, en un solo contorno</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>Seleccione primero una capa de forma o un trazado</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>Un área de texto conserva un solo contorno</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>El trazado no tiene formas</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>Las formas con colores propios no se pueden fusionar con otras</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>Fusionar formas</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>Las formas no dejaron área; se eliminó la capa</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>%1 forma(s) fusionada(s) en un solo contorno</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>Unir los dos puntos finales seleccionados con un segmento recto, o cerrar cada trazado abierto que tenga un punto seleccionado</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>Las formas seleccionadas ya están alineadas</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>Alinear formas</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>%1 forma(s) alineada(s)</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>Ajustes preestablecidos de trazo...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>Cambiar el nombre, ordenar y eliminar los ajustes preestablecidos de trazo guardados en Apariencia de forma.</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>Ajuste preestablecido de trazo: %1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>Administrar ajustes preestablecidos...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Guiones del trazo y ajustes preestablecidos de trazo guardados. Los guiones usan extremos planos; los puntos usan extremos y esquinas redondeados</translation>
     </message>
 </context>
 <context>

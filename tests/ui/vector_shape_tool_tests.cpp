@@ -1,4 +1,7 @@
 #include <QJsonObject>
+#include <QFormLayout>
+#include <QScopeGuard>
+#include <QGroupBox>
 #include <QLayout>
 #include <QScrollBar>
 #include <QSlider>
@@ -6,6 +9,9 @@
 #include "ui/modifier_names.hpp"
 #include "render/compositor.hpp"
 #include <QAbstractItemView>
+#include <QListView>
+#include <QStandardItemModel>
+#include <QToolBar>
 #include "ui/edit_conversions.hpp"
 #include "ui/tool_cursors.hpp"
 #include "ui/canvas_widget.hpp"
@@ -55,6 +61,9 @@
 #include "core/vector_raster.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/shape_appearance_dialog.hpp"
+#include "ui/stroke_preset_manager_dialog.hpp"
+#include <QMessageBox>
+#include <QTreeWidget>
 #include <QLineEdit>
 #include "ui/default_custom_shapes.hpp"
 #include "ui/preset_grid_widget.hpp"
@@ -2524,7 +2533,8 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
                              QStringLiteral("editPresetsGradientsAction"),
                              QStringLiteral("editPresetsPatternsAction"),
                              QStringLiteral("-"),
-                             QStringLiteral("editPresetsCustomShapesAction")};
+                             QStringLiteral("editPresetsCustomShapesAction"),
+                             QStringLiteral("editPresetsStrokePresetsAction")};
   CHECK(entries == expected);
   QStringList texts;
   for (auto* action : presets->actions()) {
@@ -2534,7 +2544,8 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
   }
   CHECK(texts == (QStringList{QStringLiteral("Styles Manager..."), QStringLiteral("Brush Tips..."),
                               QStringLiteral("Saved Brushes..."), QStringLiteral("Gradient Manager..."),
-                              QStringLiteral("Pattern Manager..."), QStringLiteral("Shapes Manager...")}));
+                              QStringLiteral("Pattern Manager..."), QStringLiteral("Shapes Manager..."),
+                              QStringLiteral("Stroke Presets...")}));
   // The menu is built from the list the Preferences Presets page reads.
   QStringList listed;
   for (const auto& entry : patchy::ui::MainWindow::preset_manager_entries()) {
@@ -2552,7 +2563,8 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
       {"editPresetsSavedBrushesAction", QStringLiteral("brushPresetManager")},
       {"editPresetsGradientsAction", QStringLiteral("gradientManagerDialog")},
       {"editPresetsPatternsAction", QStringLiteral("patternManagerDialog")},
-      {"editPresetsCustomShapesAction", QStringLiteral("customShapeManagerDialog")}};
+      {"editPresetsCustomShapesAction", QStringLiteral("customShapeManagerDialog")},
+      {"editPresetsStrokePresetsAction", QStringLiteral("strokePresetManagerDialog")}};
   for (const auto& [action_name, dialog_name] : dialogs) {
     bool found = false;
     QTimer::singleShot(0, [&, dialog_name] {
@@ -3033,7 +3045,8 @@ void ui_shape_appearance_dotted_draws_on_butt_caps() {
 
 // GitHub #548 follow-up: the Dashes combo lists the named presets with Custom
 // last; each row writes its stroke_dash_preset_pattern for the current cap,
-// the dot rows switch Caps to Round, and a reopened layer shows its row.
+// the dash rows set Butt caps and the rows with dots Round caps and Round
+// corners (apply_stroke_dash_preset), and a reopened layer shows its row.
 void ui_shape_appearance_dash_presets_set_patterns() {
   using patchy::StrokeDashPreset;
   VectorSettingsGuard settings_guard;
@@ -3076,9 +3089,10 @@ void ui_shape_appearance_dash_presets_set_patterns() {
       auto* width_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
       auto* align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
       auto* caps = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeCapCombo"));
+      auto* joins = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeJoinCombo"));
       auto* dashes = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeDashCombo"));
       CHECK(fill_kind != nullptr && width_spin != nullptr && align != nullptr && caps != nullptr &&
-            dashes != nullptr);
+            joins != nullptr && dashes != nullptr);
       CHECK(dashes->count() == static_cast<int>(rows.size()) + 1);
       for (std::size_t r = 0; r < rows.size(); ++r) {
         CHECK(dashes->itemText(static_cast<int>(r)) == QObject::tr(rows[r].label));
@@ -3088,12 +3102,18 @@ void ui_shape_appearance_dash_presets_set_patterns() {
       fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::None)));
       width_spin->setValue(width);
       align->setCurrentIndex(align->findData(static_cast<int>(patchy::VectorStrokeAlignment::Center)));
-      caps->setCurrentIndex(caps->findData(static_cast<int>(patchy::VectorStrokeCap::Butt)));
+      // Start from Square caps and Bevel corners so every preset's own choice shows.
+      caps->setCurrentIndex(caps->findData(static_cast<int>(patchy::VectorStrokeCap::Square)));
+      joins->setCurrentIndex(joins->findData(static_cast<int>(patchy::VectorStrokeJoin::Bevel)));
       dashes->setCurrentIndex(static_cast<int>(i));
       QApplication::processEvents();
-      const bool dots = patchy::stroke_dash_preset_is_dots(row.preset);
       CHECK(caps->currentData().toInt() ==
-            static_cast<int>(dots ? patchy::VectorStrokeCap::Round : patchy::VectorStrokeCap::Butt));
+            static_cast<int>(patchy::stroke_dash_preset_cap(row.preset).value_or(patchy::VectorStrokeCap::Square)));
+      CHECK(joins->currentData().toInt() ==
+            static_cast<int>(patchy::stroke_dash_preset_join(row.preset).value_or(patchy::VectorStrokeJoin::Bevel)));
+      if (row.preset == StrokeDashPreset::Dotted) {
+        save_widget_artifact("shape_appearance_dotted_round_caps_corners", *dialog);
+      }
       if (row.preset == StrokeDashPreset::SparseDots) {
         dashes->showPopup();
         QApplication::processEvents();
@@ -3157,6 +3177,869 @@ void ui_shape_appearance_dash_presets_set_patterns() {
   ensure_artifact_dir();
   patchy::ui::display_qimage_from_pixel_buffer(patchy::Compositor{}.flatten_rgb8(document))
       .save(QStringLiteral("test-artifacts/shape_appearance_dash_presets_canvas.png"));
+}
+
+// GitHub #557: Shape Appearance's Dash offset field (stroke widths, enabled
+// only for a dashed stroke) previews live and saves to the layer. Save...
+// beside Dashes stores Align, Caps, Corners, the dashes and the offset as a
+// named preset in the app settings (a built-in's name is refused); the preset
+// joins the Dashes list, picking it restores them, Delete removes it, and a
+// reopened dialog shows the preset the layer matches.
+void ui_shape_appearance_dash_offset_and_stroke_presets() {
+  using patchy::ui::StrokeStylePreset;
+  {
+    const StrokeStylePreset preset{QStringLiteral("Offset dots"), patchy::VectorStrokeAlignment::Outside,
+                                   patchy::VectorStrokeCap::Round, patchy::VectorStrokeJoin::Bevel,
+                                   std::vector<double>{0.0, 2.5}, 1.25};
+    StrokeStylePreset plain;
+    plain.name = QStringLiteral("Plain");
+    const auto parsed =
+        patchy::ui::parse_stroke_style_presets_json(patchy::ui::stroke_style_presets_json({preset, plain}));
+    CHECK(parsed.size() == 2);
+    if (parsed.size() == 2) {
+      CHECK(parsed[0].name == preset.name);
+      CHECK(parsed[0].alignment == preset.alignment);
+      CHECK(parsed[0].cap == preset.cap);
+      CHECK(parsed[0].join == preset.join);
+      CHECK(parsed[0].dashes == preset.dashes);
+      CHECK(parsed[0].dash_offset == 1.25);
+      CHECK(parsed[1].dashes.empty() && parsed[1].dash_offset == 0.0);
+    }
+    // Entries without a name or with an unusable pattern are skipped.
+    CHECK(patchy::ui::parse_stroke_style_presets_json(QStringLiteral(
+              R"([{"name":""},{"name":"a","dashes":[0,0]},{"name":"b","dashes":[-1,2]},{"name":"c","cap":"square"}])"))
+              .size() == 1);
+    CHECK(patchy::ui::parse_stroke_style_presets_json(QStringLiteral("not json")).empty());
+    patchy::VectorStroke stroke;
+    patchy::ui::apply_stroke_style_preset(stroke, preset);
+    CHECK(patchy::ui::stroke_matches_style_preset(stroke, preset));
+    stroke.dash_offset = 1.0;
+    CHECK(!patchy::ui::stroke_matches_style_preset(stroke, preset));
+  }
+
+  SettingsValueRestorer saved_presets{QString::fromLatin1(patchy::ui::kStrokeStylePresetsKey)};
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kStrokeStylePresetsKey));
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+  const auto answer_name_prompt = [](const QString& name) {
+    QTimer::singleShot(0, [name] {
+      auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("shapeStrokePresetNameDialog")));
+      CHECK(prompt != nullptr);
+      if (prompt != nullptr) {
+        prompt->setTextValue(name);
+        prompt->accept();
+      }
+    });
+  };
+  // A built-in's name is refused: the prompt closes, then the warning is answered.
+  const auto answer_refused_name = [](const QString& name) {
+    QTimer::singleShot(0, [name] {
+      auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("shapeStrokePresetNameDialog")));
+      CHECK(prompt != nullptr);
+      if (prompt == nullptr) return;
+      QTimer::singleShot(0, [] {
+        auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+        CHECK(box != nullptr);
+        if (box != nullptr) box->button(QMessageBox::Ok)->click();
+      });
+      prompt->setTextValue(name);
+      prompt->accept();
+    });
+  };
+  const auto stroke_of_layer = [&]() -> patchy::VectorStroke {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    return layer != nullptr && layer->vector_shape() != nullptr ? layer->vector_shape()->stroke
+                                                               : patchy::VectorStroke{};
+  };
+
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+    auto* align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
+    auto* caps = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeCapCombo"));
+    auto* joins = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeJoinCombo"));
+    auto* dashes = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeDashCombo"));
+    auto* offset = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeDashOffsetSpin"));
+    auto* save = dialog->findChild<QPushButton*>(QStringLiteral("shapeStrokePresetSaveButton"));
+    auto* remove = dialog->findChild<QPushButton*>(QStringLiteral("shapeStrokePresetDeleteButton"));
+    CHECK(width != nullptr && align != nullptr && caps != nullptr && joins != nullptr && dashes != nullptr &&
+          offset != nullptr && save != nullptr && remove != nullptr);
+    if (width == nullptr || align == nullptr || caps == nullptr || joins == nullptr || dashes == nullptr ||
+        offset == nullptr || save == nullptr || remove == nullptr) {
+      return;
+    }
+    // One list (GitHub #557 follow-up): no separate Preset combo; Save... and Delete sit in the
+    // Dashes row, and the built-ins, saved presets and Custom share the Dashes combo.
+    CHECK(dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePresetCombo")) == nullptr);
+    CHECK(save->parentWidget() == dashes->parentWidget() && remove->parentWidget() == dashes->parentWidget());
+    const int builtin_count = static_cast<int>(patchy::stroke_dash_presets_in_menu_order().size());
+    CHECK(dashes->count() == builtin_count + 1 && !remove->isEnabled());
+    width->setValue(6.0);
+    align->setCurrentIndex(align->findData(static_cast<int>(patchy::VectorStrokeAlignment::Outside)));
+    dashes->setCurrentIndex(dashes->findData(static_cast<int>(patchy::StrokeDashPreset::Solid)));
+    QApplication::processEvents();
+    CHECK(!offset->isEnabled());
+    dashes->setCurrentIndex(dashes->findData(static_cast<int>(patchy::StrokeDashPreset::Dashed)));
+    QApplication::processEvents();
+    CHECK(offset->isEnabled());
+    offset->setValue(1.5);
+    joins->setCurrentIndex(joins->findData(static_cast<int>(patchy::VectorStrokeJoin::Bevel)));
+    QApplication::processEvents();
+    // The live preview applies once an in-flight preview render finishes.
+    CHECK(process_events_until([&] { return stroke_of_layer().dash_offset == 1.5; }, 10000));
+
+    answer_refused_name(QStringLiteral("dotted"));
+    save->click();
+    QApplication::processEvents();
+    CHECK(patchy::ui::load_stroke_style_presets().empty());
+    answer_name_prompt(QStringLiteral("Offset dashes"));
+    save->click();
+    QApplication::processEvents();
+    // The built-ins, a separator, the saved preset, Custom.
+    CHECK(dashes->count() == builtin_count + 3);
+    CHECK(dashes->currentText() == QStringLiteral("Offset dashes") && remove->isEnabled());
+    const auto stored = patchy::ui::load_stroke_style_presets();
+    CHECK(stored.size() == 1);
+    if (stored.size() == 1) {
+      CHECK(stored[0].name == QStringLiteral("Offset dashes"));
+      CHECK(stored[0].alignment == patchy::VectorStrokeAlignment::Outside);
+      CHECK(stored[0].cap == patchy::VectorStrokeCap::Butt);
+      CHECK(stored[0].join == patchy::VectorStrokeJoin::Bevel);
+      CHECK((stored[0].dashes == std::vector<double>{2.0, 2.0}));
+      CHECK(stored[0].dash_offset == 1.5);
+    }
+    patchy::test::ui::save_widget_artifact("issue557_shape_appearance_stroke_preset", *dialog);
+
+    // Any other line setting leaves the preset; picking it brings everything back.
+    caps->setCurrentIndex(caps->findData(static_cast<int>(patchy::VectorStrokeCap::Round)));
+    QApplication::processEvents();
+    CHECK(dashes->currentData().toInt() == static_cast<int>(patchy::StrokeDashPreset::Dashed));
+    CHECK(!remove->isEnabled());
+    dashes->setCurrentIndex(dashes->findData(static_cast<int>(patchy::StrokeDashPreset::Solid)));
+    align->setCurrentIndex(align->findData(static_cast<int>(patchy::VectorStrokeAlignment::Center)));
+    QApplication::processEvents();
+    CHECK(!offset->isEnabled());
+    dashes->setCurrentIndex(dashes->findText(QStringLiteral("Offset dashes")));
+    QApplication::processEvents();
+    CHECK(align->currentData().toInt() == static_cast<int>(patchy::VectorStrokeAlignment::Outside));
+    CHECK(caps->currentData().toInt() == static_cast<int>(patchy::VectorStrokeCap::Butt));
+    CHECK(joins->currentData().toInt() == static_cast<int>(patchy::VectorStrokeJoin::Bevel));
+    CHECK(offset->isEnabled() && offset->value() == 1.5);
+    CHECK(dashes->currentText() == QStringLiteral("Offset dashes"));
+    CHECK(process_events_until([&] {
+      const auto stroke = stroke_of_layer();
+      return stroke.dashes == std::vector<double>{2.0, 2.0} && stroke.join == patchy::VectorStrokeJoin::Bevel;
+    }, 10000));
+    const auto previewed = stroke_of_layer();
+    CHECK((previewed.dashes == std::vector<double>{2.0, 2.0}) && previewed.dash_offset == 1.5);
+
+    // A second preset, then Delete removes the chosen one from the settings too.
+    joins->setCurrentIndex(joins->findData(static_cast<int>(patchy::VectorStrokeJoin::Round)));
+    QApplication::processEvents();
+    answer_name_prompt(QStringLiteral("Round corners"));
+    save->click();
+    QApplication::processEvents();
+    CHECK(dashes->count() == builtin_count + 4 && dashes->currentText() == QStringLiteral("Round corners"));
+    remove->click();
+    QApplication::processEvents();
+    CHECK(dashes->count() == builtin_count + 3 && dashes->findText(QStringLiteral("Round corners")) < 0);
+    CHECK(dashes->currentData().toInt() == static_cast<int>(patchy::StrokeDashPreset::Dashed));
+    CHECK(patchy::ui::load_stroke_style_presets().size() == 1);
+    dashes->setCurrentIndex(dashes->findText(QStringLiteral("Offset dashes")));
+    QApplication::processEvents();
+    checked = true;
+    dialog->accept();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(checked);
+  const auto stroke = stroke_of_layer();
+  CHECK(stroke.alignment == patchy::VectorStrokeAlignment::Outside);
+  CHECK(stroke.join == patchy::VectorStrokeJoin::Bevel);
+  CHECK((stroke.dashes == std::vector<double>{2.0, 2.0}));
+  CHECK(stroke.dash_offset == 1.5);
+
+  // Reopened, the dialog shows the offset and the preset the layer matches.
+  checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* offset = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeDashOffsetSpin"));
+    auto* dashes = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeDashCombo"));
+    CHECK(offset != nullptr && dashes != nullptr);
+    if (offset == nullptr || dashes == nullptr) return;
+    CHECK(offset->isEnabled() && offset->value() == 1.5);
+    CHECK(dashes->currentText() == QStringLiteral("Offset dashes"));
+    checked = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(checked);
+}
+
+// GitHub #552 follow-up: with a Gradient fill or stroke, Style, Angle, Scale
+// and Reverse form a nested block under the Gradient row: its labels start at
+// or after the Gradient picker (the outer field column), its fields share a
+// column further right, and the rows around it keep the outer field column.
+// The block hides with the other paint kinds.
+void ui_shape_appearance_gradient_rows_indent() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  make_rect_shape_layer(window, *canvas);
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+    auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
+    auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+    auto* align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
+    auto* fill_block = dialog->findChild<QWidget*>(QStringLiteral("shapeFillGradientBlock"));
+    auto* stroke_block = dialog->findChild<QWidget*>(QStringLiteral("shapeStrokeGradientBlock"));
+    CHECK(fill_kind != nullptr && stroke_paint != nullptr && width != nullptr && align != nullptr &&
+          fill_block != nullptr && stroke_block != nullptr);
+    if (fill_kind == nullptr || stroke_paint == nullptr || width == nullptr || align == nullptr ||
+        fill_block == nullptr || stroke_block == nullptr) {
+      return;
+    }
+    CHECK(!fill_block->isVisibleTo(dialog) && !stroke_block->isVisibleTo(dialog));
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
+    width->setValue(8.0);
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    QApplication::processEvents();
+    CHECK(fill_block->isVisibleTo(dialog) && stroke_block->isVisibleTo(dialog));
+    const auto left = [dialog](const QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+    const auto check_block = [&](QWidget* block, QWidget* outer_field, const char* gradient_name,
+                                 const char* type_name, const char* angle_name, const char* scale_name,
+                                 const char* reverse_name) {
+      auto* gradient = dialog->findChild<QComboBox*>(QLatin1String(gradient_name));
+      auto* type = dialog->findChild<QComboBox*>(QLatin1String(type_name));
+      auto* angle = dialog->findChild<QAbstractSpinBox*>(QLatin1String(angle_name));
+      auto* scale = dialog->findChild<QAbstractSpinBox*>(QLatin1String(scale_name));
+      auto* reverse = dialog->findChild<QCheckBox*>(QLatin1String(reverse_name));
+      auto* inner = qobject_cast<QFormLayout*>(block->layout());
+      CHECK(gradient != nullptr && type != nullptr && angle != nullptr && scale != nullptr && reverse != nullptr &&
+            inner != nullptr);
+      if (gradient == nullptr || type == nullptr || angle == nullptr || scale == nullptr || reverse == nullptr ||
+          inner == nullptr) {
+        return;
+      }
+      const int gradient_x = left(gradient);
+      // The rows outside the block keep the outer field column.
+      CHECK(left(outer_field) == gradient_x);
+      CHECK(block->isAncestorOf(type) && block->isAncestorOf(angle) && block->isAncestorOf(scale) &&
+            block->isAncestorOf(reverse));
+      const int field_x = left(type);
+      CHECK(field_x > gradient_x + 20);
+      for (QWidget* field : std::initializer_list<QWidget*>{type, angle->parentWidget(), scale->parentWidget()}) {
+        auto* label = qobject_cast<QLabel*>(inner->labelForField(field));
+        CHECK(label != nullptr && label->isVisibleTo(dialog));
+        if (label != nullptr) {
+          CHECK(left(label) >= gradient_x);
+          CHECK(left(label) + label->width() <= field_x);
+        }
+        CHECK(left(field) == field_x);
+      }
+      CHECK(left(reverse) == field_x);
+    };
+    check_block(fill_block, fill_kind, "shapeFillGradientCombo", "shapeGradientTypeCombo", "shapeGradientAngleSpin",
+                "shapeGradientScaleSpin", "shapeGradientReverseCheck");
+    check_block(stroke_block, align, "shapeStrokeGradientCombo", "shapeStrokeGradientTypeCombo",
+                "shapeStrokeGradientAngleSpin", "shapeStrokeGradientScaleSpin", "shapeStrokeGradientReverseCheck");
+    patchy::test::ui::save_widget_artifact("issue552_shape_appearance_gradient_indent", *dialog);
+    // The Fill group down to the stroke's gradient block, for the issue reply.
+    auto* fill_group = fill_kind->parentWidget();
+    while (fill_group != nullptr && qobject_cast<QGroupBox*>(fill_group) == nullptr) {
+      fill_group = fill_group->parentWidget();
+    }
+    CHECK(fill_group != nullptr);
+    if (fill_group != nullptr) {
+      const QRect fill_rect(fill_group->mapTo(dialog, QPoint(0, 0)), fill_group->size());
+      const QRect block_rect(stroke_block->mapTo(dialog, QPoint(0, 0)), stroke_block->size());
+      const QRect crop(fill_rect.left(), fill_rect.top(), fill_rect.width(),
+                       block_rect.bottom() + 8 - fill_rect.top());
+      ensure_artifact_dir();
+      dialog->grab(crop).save(QStringLiteral("test-artifacts/issue552_shape_appearance_gradient_indent_crop.png"));
+    }
+    // Another paint kind hides the whole block.
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Solid)));
+    QApplication::processEvents();
+    CHECK(!stroke_block->isVisibleTo(dialog));
+    checked = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(checked);
+}
+
+// GitHub #552 follow-up: a Pattern fill or stroke nests Scale, Angle, Offset
+// X/Y and Align with layer under the Pattern row the same way: labels at or
+// after the Pattern picker, fields and the checkbox in one inner column, the
+// outer rows unmoved, and the block hidden for the other paint kinds.
+void ui_shape_appearance_pattern_rows_indent() {
+  VectorSettingsGuard settings_guard;
+  // Seed the default patterns into the test library (the app does on first
+  // run) so the pickers in the reply screenshot show a real pattern; the
+  // scratch library and the version setting go back afterwards.
+  SettingsValueRestorer pattern_version_restorer(QStringLiteral("patterns/defaultPatternsVersion"));
+  clear_pattern_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 0);
+    settings.sync();
+  }
+  const auto clear_seeded_patterns = qScopeGuard([] { clear_pattern_test_state(); });
+  auto&& [window, canvas] = ShownWindowFixture{};
+  make_rect_shape_layer(window, *canvas);
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+    auto* stroke_paint = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePaintCombo"));
+    auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
+    auto* align = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeAlignCombo"));
+    auto* fill_block = dialog->findChild<QWidget*>(QStringLiteral("shapeFillPatternBlock"));
+    auto* stroke_block = dialog->findChild<QWidget*>(QStringLiteral("shapeStrokePatternBlock"));
+    CHECK(fill_kind != nullptr && stroke_paint != nullptr && width != nullptr && align != nullptr &&
+          fill_block != nullptr && stroke_block != nullptr);
+    if (fill_kind == nullptr || stroke_paint == nullptr || width == nullptr || align == nullptr ||
+        fill_block == nullptr || stroke_block == nullptr) {
+      return;
+    }
+    CHECK(!fill_block->isVisibleTo(dialog) && !stroke_block->isVisibleTo(dialog));
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
+    width->setValue(8.0);
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Pattern)));
+    // Visible patterns in both pickers, so the swatch and name show.
+    for (const auto& [combo_name, pattern_name] :
+         {std::pair{"shapeFillPatternCombo", "Bricks"}, std::pair{"shapeStrokePatternCombo", "Polka Dots"}}) {
+      auto* combo = dialog->findChild<QComboBox*>(QLatin1String(combo_name));
+      CHECK(combo != nullptr);
+      if (combo == nullptr) continue;
+      const int row = combo->findText(QLatin1String(pattern_name));
+      CHECK(row >= 0);
+      if (row >= 0) combo->setCurrentIndex(row);
+    }
+    QApplication::processEvents();
+    QApplication::processEvents();
+    CHECK(fill_block->isVisibleTo(dialog) && stroke_block->isVisibleTo(dialog));
+    const auto left = [dialog](const QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+    const auto check_block = [&](QWidget* block, QWidget* outer_field, const char* picker_name,
+                                 const std::array<const char*, 4>& spin_names, const char* check_name) {
+      auto* picker = dialog->findChild<QComboBox*>(QLatin1String(picker_name));
+      auto* align_check = dialog->findChild<QCheckBox*>(QLatin1String(check_name));
+      auto* inner = qobject_cast<QFormLayout*>(block->layout());
+      CHECK(picker != nullptr && align_check != nullptr && inner != nullptr);
+      if (picker == nullptr || align_check == nullptr || inner == nullptr) return;
+      const int picker_x = left(picker);
+      CHECK(left(outer_field) == picker_x);
+      CHECK(block->isAncestorOf(align_check));
+      std::optional<int> field_x;
+      for (const char* name : spin_names) {
+        auto* spin = dialog->findChild<QAbstractSpinBox*>(QLatin1String(name));
+        CHECK(spin != nullptr && block->isAncestorOf(spin));
+        if (spin == nullptr) continue;
+        QWidget* field = spin->parentWidget();
+        if (!field_x.has_value()) field_x = left(field);
+        CHECK(left(field) == *field_x);
+        auto* label = qobject_cast<QLabel*>(inner->labelForField(field));
+        CHECK(label != nullptr && label->isVisibleTo(dialog));
+        if (label != nullptr) {
+          CHECK(left(label) >= picker_x);
+          CHECK(left(label) + label->width() <= *field_x);
+        }
+      }
+      CHECK(field_x.has_value() && *field_x > picker_x + 20);
+      CHECK(field_x.has_value() && left(align_check) == *field_x);
+    };
+    check_block(fill_block, fill_kind, "shapeFillPatternCombo",
+                {"shapePatternScaleSpin", "shapePatternAngleSpin", "shapePatternOffsetXSpin", "shapePatternOffsetYSpin"},
+                "shapePatternAlignCheck");
+    check_block(stroke_block, align, "shapeStrokePatternCombo",
+                {"shapeStrokePatternScaleSpin", "shapeStrokePatternAngleSpin", "shapeStrokePatternOffsetXSpin",
+                 "shapeStrokePatternOffsetYSpin"},
+                "shapeStrokePatternAlignCheck");
+    patchy::test::ui::save_widget_artifact("issue552_shape_appearance_pattern_block", *dialog);
+    // The Fill group down to the stroke's pattern block, for the issue reply.
+    auto* fill_group = fill_kind->parentWidget();
+    while (fill_group != nullptr && qobject_cast<QGroupBox*>(fill_group) == nullptr) {
+      fill_group = fill_group->parentWidget();
+    }
+    CHECK(fill_group != nullptr);
+    if (fill_group != nullptr) {
+      const QRect fill_rect(fill_group->mapTo(dialog, QPoint(0, 0)), fill_group->size());
+      const QRect block_rect(stroke_block->mapTo(dialog, QPoint(0, 0)), stroke_block->size());
+      const QRect crop(fill_rect.left(), fill_rect.top(), fill_rect.width(),
+                       block_rect.bottom() + 8 - fill_rect.top());
+      ensure_artifact_dir();
+      dialog->grab(crop).save(QStringLiteral("test-artifacts/issue552_shape_appearance_pattern_block_crop.png"));
+    }
+    fill_kind->setCurrentIndex(fill_kind->findData(static_cast<int>(patchy::VectorFillKind::Solid)));
+    stroke_paint->setCurrentIndex(stroke_paint->findData(static_cast<int>(patchy::VectorFillKind::Gradient)));
+    QApplication::processEvents();
+    CHECK(!fill_block->isVisibleTo(dialog) && !stroke_block->isVisibleTo(dialog));
+    checked = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(checked);
+}
+
+// GitHub #556: the shape bars' dash combo, right after the Stroke swatch, lists
+// Shape Appearance's presets. Picking one restyles the selected shape layer in
+// one undo step with the preset's caps and corners (apply_stroke_dash_preset)
+// and seeds the next shape; a selected shape whose pattern matches no preset
+// shows the Custom row, which cannot be picked.
+void ui_options_bar_dash_combo_applies_presets() {
+  SettingsValueRestorer saved_presets{QString::fromLatin1(patchy::ui::kStrokeStylePresetsKey)};
+  patchy::ui::app_settings().remove(QLatin1String(patchy::ui::kStrokeStylePresetsKey));
+  using patchy::StrokeDashPreset;
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("vectorStrokeDashCombo"));
+  CHECK(radius_spin != nullptr && stroke_width != nullptr && combo != nullptr);
+  radius_spin->setValue(0);
+  stroke_width->setValue(6.0);
+  QApplication::processEvents();
+
+  const auto& presets = patchy::stroke_dash_presets_in_menu_order();
+  const int custom_row = static_cast<int>(presets.size());
+  // The built-ins, Custom, a separator and Manage Presets... (no saved presets here).
+  CHECK(combo->count() == custom_row + 3);
+  CHECK(combo->itemText(custom_row + 2) == QStringLiteral("Manage Presets..."));
+  for (int row = 0; row < custom_row; ++row) {
+    CHECK(combo->itemText(row) == patchy::ui::stroke_dash_preset_label(presets[static_cast<std::size_t>(row)]));
+    CHECK(combo->itemData(row).toInt() == static_cast<int>(presets[static_cast<std::size_t>(row)]));
+  }
+  CHECK(combo->itemText(custom_row) == QObject::tr("Custom"));
+  {
+    // The closed combo shows every preset name in full (GitHub issue 556 follow-up).
+    QStyleOptionComboBox option;
+    option.initFrom(combo);
+    option.rect = combo->rect();
+    const QRect field =
+        combo->style()->subControlRect(QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, combo);
+    const QFontMetrics metrics(combo->font());
+    for (int row = 0; row < custom_row; ++row) {
+      const int text_width = metrics.horizontalAdvance(combo->itemText(row));
+      if (text_width > field.width()) {
+        std::printf("  dash preset '%s' needs %d px, field %d px\n", qPrintable(combo->itemText(row)), text_width,
+                    field.width());
+      }
+      CHECK(text_width <= field.width());
+    }
+  }
+  auto* view = qobject_cast<QListView*>(combo->view());
+  auto* model = qobject_cast<QStandardItemModel*>(combo->model());
+  CHECK(view != nullptr && model != nullptr);
+  CHECK(!model->item(custom_row)->isEnabled());
+  CHECK(view->isRowHidden(custom_row));
+  CHECK(combo->currentData().toInt() == static_cast<int>(StrokeDashPreset::Solid));
+
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto first = document.active_layer_id();
+  CHECK(first.has_value());
+  QApplication::processEvents();
+  CHECK(combo->isVisible() && combo->isEnabled());
+  const auto stroke_of = [&](patchy::LayerId id) {
+    const auto* layer = std::as_const(document).find_layer(id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    return layer->vector_shape()->stroke;
+  };
+  CHECK(stroke_of(*first).enabled);
+  CHECK(stroke_of(*first).dashes.empty());
+
+  // Dotted: Round caps and Round corners, one undo step.
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  combo->setCurrentIndex(combo->findData(static_cast<int>(StrokeDashPreset::Dotted)));
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  auto stroke = stroke_of(*first);
+  CHECK(stroke.cap == patchy::VectorStrokeCap::Round);
+  CHECK(stroke.join == patchy::VectorStrokeJoin::Round);
+  CHECK(stroke.dashes == patchy::stroke_dash_preset_pattern(StrokeDashPreset::Dotted, patchy::VectorStrokeCap::Round));
+  save_widget_artifact("issue_556_options_bar_dash_combo", *window.findChild<QToolBar*>(QStringLiteral("Options")));
+  // Long dashes: Butt caps; the corners stay Round.
+  combo->setCurrentIndex(combo->findData(static_cast<int>(StrokeDashPreset::LongDashes)));
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  stroke = stroke_of(*first);
+  CHECK(stroke.cap == patchy::VectorStrokeCap::Butt);
+  CHECK(stroke.join == patchy::VectorStrokeJoin::Round);
+  CHECK(stroke.dashes == patchy::stroke_dash_preset_pattern(StrokeDashPreset::LongDashes, patchy::VectorStrokeCap::Butt));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(stroke_of(*first).cap == patchy::VectorStrokeCap::Round);
+
+  // The next shape takes the last pick.
+  combo->setCurrentIndex(combo->findData(static_cast<int>(StrokeDashPreset::DashDot)));
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(100, 260), QPoint(300, 380));
+  const auto second = document.active_layer_id();
+  CHECK(second.has_value() && *second != *first);
+  stroke = stroke_of(*second);
+  CHECK(stroke.cap == patchy::VectorStrokeCap::Round);
+  CHECK(stroke.join == patchy::VectorStrokeJoin::Round);
+  CHECK(stroke.dashes == patchy::stroke_dash_preset_pattern(StrokeDashPreset::DashDot, patchy::VectorStrokeCap::Round));
+
+  // An odd pattern on the first shape shows as Custom when it is selected, and the
+  // preset for new shapes stays.
+  if (auto* layer = document.find_layer(*first); layer != nullptr && layer->vector_shape() != nullptr) {
+    auto content = *layer->vector_shape();
+    content.stroke.dashes = {7.0, 1.5};  // no preset on any cap ({5, 3} is Round-cap Long dashes)
+    layer->set_vector_shape(std::move(content));
+  }
+  MainWindowTestAccess::select_layers(window, {*first}, *first);
+  QApplication::processEvents();
+  CHECK(combo->currentIndex() == custom_row);
+  CHECK(!view->isRowHidden(custom_row));
+  MainWindowTestAccess::select_layers(window, {*second}, *second);
+  QApplication::processEvents();
+  CHECK(combo->currentData().toInt() == static_cast<int>(StrokeDashPreset::DashDot));
+  CHECK(view->isRowHidden(custom_row));
+
+  // At 1366 px the Rectangle bar keeps the wider combo and the Appearance gear on one row.
+  window.resize(1366, 738);
+  QApplication::processEvents();
+  process_events_for(20);
+  auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  auto* appearance = window.findChild<QToolButton*>(QStringLiteral("vectorAppearanceButton"));
+  CHECK(options != nullptr && appearance != nullptr && appearance->isVisible());
+  if (options != nullptr && appearance != nullptr) {
+    const QPoint gear = appearance->mapTo(options, appearance->rect().center());
+    const QPoint dashes = combo->mapTo(options, combo->rect().center());
+    CHECK(std::abs(gear.y() - dashes.y()) <= 2);
+    const QRect strip(0, 0, appearance->mapTo(options, appearance->rect().bottomRight()).x() + 8, options->height());
+    save_image_artifact("issue556_rectangle_options_bar_1366", options->grab(strip).toImage());
+  }
+}
+
+// GitHub #557 follow-up: the Stroke Presets manager lists the built-in dash presets first,
+// locked (usable, never renamed, moved or deleted), then the saved presets, which it renames,
+// reorders and deletes straight into the setting; Use returns the chosen one of either kind.
+void ui_stroke_preset_manager_edits_round_trip_through_the_setting() {
+  using patchy::ui::StrokeStylePreset;
+  SettingsValueRestorer saved_presets{QString::fromLatin1(patchy::ui::kStrokeStylePresetsKey)};
+  const StrokeStylePreset first{QStringLiteral("Fine dots"), patchy::VectorStrokeAlignment::Center,
+                                patchy::VectorStrokeCap::Round, patchy::VectorStrokeJoin::Round,
+                                std::vector<double>{0.0, 2.0}, 0.0};
+  const StrokeStylePreset second{QStringLiteral("Outside dashes"), patchy::VectorStrokeAlignment::Outside,
+                                 patchy::VectorStrokeCap::Butt, patchy::VectorStrokeJoin::Bevel,
+                                 std::vector<double>{6.0, 2.0, 1.0, 2.0}, 1.5};
+  StrokeStylePreset third;
+  third.name = QStringLiteral("Plain");
+  patchy::ui::save_stroke_style_presets({first, second, third});
+  const auto names = [] {
+    QStringList result;
+    for (const auto& preset : patchy::ui::load_stroke_style_presets()) result << preset.name;
+    return result;
+  };
+  const auto& builtins = patchy::stroke_dash_presets_in_menu_order();
+  const int builtin_count = static_cast<int>(builtins.size());
+  CHECK(patchy::ui::stroke_preset_name_is_builtin(QStringLiteral("dashed")));
+  CHECK(!patchy::ui::stroke_preset_name_is_builtin(QStringLiteral("Fine dots")));
+  // Answers the next message box (a refused name, the Delete question) with its default.
+  const auto answer_message_box = [](QMessageBox::StandardButton button) {
+    QTimer::singleShot(0, [button] {
+      auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+      CHECK(box != nullptr);
+      if (box != nullptr && box->button(button) != nullptr) box->button(button)->click();
+    });
+  };
+
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("strokePresetManagerDialog")));
+    CHECK(manager != nullptr);
+    if (manager == nullptr) return;
+    auto* tree = manager->findChild<QTreeWidget*>(QStringLiteral("strokePresetManagerTree"));
+    auto* name_edit = manager->findChild<QLineEdit*>(QStringLiteral("strokePresetManagerNameEdit"));
+    auto* dashes = manager->findChild<QLabel*>(QStringLiteral("strokePresetManagerDashesLabel"));
+    auto* align = manager->findChild<QLabel*>(QStringLiteral("strokePresetManagerAlignLabel"));
+    auto* note = manager->findChild<QLabel*>(QStringLiteral("strokePresetManagerBuiltinNote"));
+    auto* preview = manager->findChild<QLabel*>(QStringLiteral("strokePresetManagerPreview"));
+    auto* up = manager->findChild<QPushButton*>(QStringLiteral("strokePresetManagerUpButton"));
+    auto* down = manager->findChild<QPushButton*>(QStringLiteral("strokePresetManagerDownButton"));
+    auto* remove = manager->findChild<QPushButton*>(QStringLiteral("strokePresetManagerDeleteButton"));
+    auto* use = manager->findChild<QPushButton*>(QStringLiteral("strokePresetManagerUseButton"));
+    CHECK(tree != nullptr && name_edit != nullptr && dashes != nullptr && align != nullptr && note != nullptr &&
+          preview != nullptr && up != nullptr && down != nullptr && remove != nullptr && use != nullptr);
+    if (tree == nullptr || name_edit == nullptr || dashes == nullptr || align == nullptr || note == nullptr ||
+        preview == nullptr || up == nullptr || down == nullptr || remove == nullptr || use == nullptr) {
+      manager->reject();
+      return;
+    }
+    // The built-ins first, marked, then the saved presets.
+    CHECK(tree->topLevelItemCount() == builtin_count + 3);
+    for (int row = 0; row < builtin_count; ++row) {
+      CHECK(tree->topLevelItem(row)->text(0) ==
+            patchy::ui::stroke_dash_preset_label(builtins[static_cast<std::size_t>(row)]));
+      CHECK(tree->topLevelItem(row)->text(1) == QStringLiteral("Built-in"));
+    }
+    CHECK(tree->topLevelItem(builtin_count)->text(0) == QStringLiteral("Fine dots"));
+    CHECK(tree->topLevelItem(builtin_count)->text(1).isEmpty());
+    // The initial name preselects its row and shows its settings.
+    CHECK(tree->indexOfTopLevelItem(tree->currentItem()) == builtin_count + 1);
+    CHECK(name_edit->text() == QStringLiteral("Outside dashes") && name_edit->isEnabled());
+    CHECK(align->text() == QStringLiteral("Outside"));
+    CHECK(dashes->text().contains(QStringLiteral("6")));
+    CHECK(preview->pixmap().width() > 0);
+    CHECK(note->isHidden());
+    CHECK(up->isEnabled() && down->isEnabled() && remove->isEnabled() && use->isEnabled());
+    // A built-in can be used, not renamed, moved or deleted.
+    tree->setCurrentItem(tree->topLevelItem(1));
+    QApplication::processEvents();
+    CHECK(name_edit->text() == patchy::ui::stroke_dash_preset_label(builtins[1]) && !name_edit->isEnabled());
+    CHECK(!up->isEnabled() && !down->isEnabled() && !remove->isEnabled() && use->isEnabled());
+    CHECK(!note->isHidden());
+    CHECK(align->text() == QStringLiteral("Unchanged"));
+    save_widget_artifact("ui_stroke_preset_manager_builtin", *manager);
+    // Rename; a built-in's name is refused.
+    tree->setCurrentItem(tree->topLevelItem(builtin_count + 1));
+    QApplication::processEvents();
+    answer_message_box(QMessageBox::Ok);
+    name_edit->setText(QStringLiteral("Dashed"));
+    QMetaObject::invokeMethod(name_edit, "editingFinished");
+    QApplication::processEvents();
+    CHECK(names() == (QStringList{QStringLiteral("Fine dots"), QStringLiteral("Outside dashes"), QStringLiteral("Plain")}));
+    CHECK(name_edit->text() == QStringLiteral("Outside dashes"));
+    name_edit->setText(QStringLiteral("Wide dashes"));
+    QMetaObject::invokeMethod(name_edit, "editingFinished");
+    QApplication::processEvents();
+    CHECK(names() == (QStringList{QStringLiteral("Fine dots"), QStringLiteral("Wide dashes"), QStringLiteral("Plain")}));
+    // Reorder; the first saved preset cannot move above the built-ins.
+    up->click();
+    QApplication::processEvents();
+    CHECK(names() == (QStringList{QStringLiteral("Wide dashes"), QStringLiteral("Fine dots"), QStringLiteral("Plain")}));
+    CHECK(tree->indexOfTopLevelItem(tree->currentItem()) == builtin_count);
+    CHECK(!up->isEnabled() && down->isEnabled());
+    save_widget_artifact("ui_stroke_preset_manager_dialog", *manager);
+    // Delete Plain after the confirmation.
+    tree->setCurrentItem(tree->topLevelItem(builtin_count + 2));
+    QApplication::processEvents();
+    CHECK(!down->isEnabled());
+    answer_message_box(QMessageBox::Yes);
+    remove->click();
+    QApplication::processEvents();
+    CHECK(names() == (QStringList{QStringLiteral("Wide dashes"), QStringLiteral("Fine dots")}));
+    CHECK(tree->topLevelItemCount() == builtin_count + 2);
+    // Use returns the chosen preset.
+    tree->setCurrentItem(tree->topLevelItem(builtin_count));
+    QApplication::processEvents();
+    use->click();
+  });
+  const auto chosen = patchy::ui::request_stroke_preset_manager(nullptr, QStringLiteral("Outside dashes"));
+  CHECK(!chosen.builtin.has_value() && chosen.saved.has_value());
+  if (chosen.saved.has_value()) {
+    CHECK(chosen.saved->name == QStringLiteral("Wide dashes"));
+    CHECK(chosen.saved->alignment == patchy::VectorStrokeAlignment::Outside);
+    CHECK(chosen.saved->join == patchy::VectorStrokeJoin::Bevel);
+    CHECK(chosen.saved->dashes == second.dashes);
+    CHECK(chosen.saved->dash_offset == 1.5);
+  }
+  // The renamed preset kept its settings in the setting.
+  const auto stored = patchy::ui::load_stroke_style_presets();
+  CHECK(stored.size() == 2 && stored.front().dashes == second.dashes && stored.front().dash_offset == 1.5 &&
+        stored.back().cap == patchy::VectorStrokeCap::Round);
+
+  // Use on a built-in returns the built-in.
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("strokePresetManagerDialog")));
+    CHECK(manager != nullptr);
+    if (manager == nullptr) return;
+    auto* tree = manager->findChild<QTreeWidget*>(QStringLiteral("strokePresetManagerTree"));
+    auto* use = manager->findChild<QPushButton*>(QStringLiteral("strokePresetManagerUseButton"));
+    if (tree == nullptr || use == nullptr) {
+      manager->reject();
+      return;
+    }
+    // A built-in's name preselects it.
+    CHECK(tree->indexOfTopLevelItem(tree->currentItem()) == 4);
+    use->click();
+  });
+  const auto builtin_choice =
+      patchy::ui::request_stroke_preset_manager(nullptr, patchy::ui::stroke_dash_preset_label(builtins[4]));
+  CHECK(builtin_choice.builtin == builtins[4] && !builtin_choice.saved.has_value());
+}
+
+// GitHub #557 follow-up: the shape options bar's dash combo is the one stroke list: the
+// built-ins, the saved stroke presets, Custom and Manage Presets.... A built-in applies as
+// before; a saved preset sets Align, Caps, Corners, dashes and offset on the selected shape
+// in one undo step and for the next shape; Manage Presets... opens the manager, keeps the
+// combo on its entry, and the manager's edits show in the list. The old preset button is gone.
+void ui_options_bar_dash_combo_lists_saved_stroke_presets() {
+  using patchy::StrokeDashPreset;
+  using patchy::ui::MainWindowTestAccess;
+  using patchy::ui::StrokeStylePreset;
+  SettingsValueRestorer saved_presets{QString::fromLatin1(patchy::ui::kStrokeStylePresetsKey)};
+  SettingsValueRestorer saved_style{QStringLiteral("tools/vectorStrokeStyle")};
+  patchy::ui::app_settings().remove(QStringLiteral("tools/vectorStrokeStyle"));
+  const StrokeStylePreset dots{QStringLiteral("Center dots"), patchy::VectorStrokeAlignment::Center,
+                               patchy::VectorStrokeCap::Round, patchy::VectorStrokeJoin::Round,
+                               std::vector<double>{0.0, 2.0}, 0.5};
+  const StrokeStylePreset dashes{QStringLiteral("Outside dashes"), patchy::VectorStrokeAlignment::Outside,
+                                 patchy::VectorStrokeCap::Butt, patchy::VectorStrokeJoin::Bevel,
+                                 std::vector<double>{6.0, 2.0, 1.0, 2.0}, 1.5};
+  patchy::ui::save_stroke_style_presets({dots, dashes});
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("vectorStrokeDashCombo"));
+  CHECK(radius_spin != nullptr && stroke_width != nullptr && combo != nullptr);
+  if (radius_spin == nullptr || stroke_width == nullptr || combo == nullptr) return;
+  CHECK(window.findChild<QWidget*>(QStringLiteral("vectorStrokePresetButton")) == nullptr);
+  radius_spin->setValue(0);
+  stroke_width->setValue(6.0);
+  QApplication::processEvents();
+  // The built-ins, a separator, the saved presets, Custom, a separator, Manage Presets....
+  const auto& builtins = patchy::stroke_dash_presets_in_menu_order();
+  const int saved_row = static_cast<int>(builtins.size()) + 1;
+  CHECK(combo->count() == saved_row + 5);
+  CHECK(!combo->itemData(saved_row - 1).isValid());
+  CHECK(combo->itemText(saved_row) == QStringLiteral("Center dots"));
+  CHECK(combo->itemText(saved_row + 1) == QStringLiteral("Outside dashes"));
+  CHECK(combo->itemData(saved_row + 2).toInt() == -1 /* Custom */);
+  CHECK(combo->itemText(saved_row + 4) == QStringLiteral("Manage Presets..."));
+  CHECK(combo->currentData().toInt() == static_cast<int>(StrokeDashPreset::Solid));
+
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto first = document.active_layer_id();
+  CHECK(first.has_value());
+  if (!first.has_value()) return;
+  QApplication::processEvents();
+  const auto stroke_of = [&](patchy::LayerId id) {
+    const auto* layer = std::as_const(document).find_layer(id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    return layer != nullptr && layer->vector_shape() != nullptr ? layer->vector_shape()->stroke
+                                                                : patchy::VectorStroke{};
+  };
+  CHECK(stroke_of(*first).alignment == patchy::VectorStrokeAlignment::Inside);
+
+  // A built-in, as before: Dotted sets Round caps and corners.
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  combo->setCurrentIndex(combo->findData(static_cast<int>(StrokeDashPreset::Dotted)));
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(stroke_of(*first).cap == patchy::VectorStrokeCap::Round);
+  CHECK(stroke_of(*first).alignment == patchy::VectorStrokeAlignment::Inside);
+
+  // A saved preset: every line setting, one undo step, width kept.
+  combo->setCurrentIndex(saved_row + 1);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  auto stroke = stroke_of(*first);
+  CHECK(stroke.alignment == patchy::VectorStrokeAlignment::Outside);
+  CHECK(stroke.cap == patchy::VectorStrokeCap::Butt);
+  CHECK(stroke.join == patchy::VectorStrokeJoin::Bevel);
+  CHECK(stroke.dashes == dashes.dashes);
+  CHECK(stroke.dash_offset == 1.5);
+  CHECK(stroke.width == 6.0);
+  CHECK(combo->currentText() == QStringLiteral("Outside dashes"));
+  // Undo puts the Dotted stroke back, and the combo follows.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(stroke_of(*first).alignment == patchy::VectorStrokeAlignment::Inside);
+  CHECK(combo->currentData().toInt() == static_cast<int>(StrokeDashPreset::Dotted));
+  combo->setCurrentIndex(saved_row + 1);
+  QApplication::processEvents();
+  CHECK(combo->currentText() == QStringLiteral("Outside dashes"));
+  save_widget_artifact("issue_557_options_bar_dash_combo_saved",
+                       *window.findChild<QToolBar*>(QStringLiteral("Options")));
+  // The open list under the bar, for the issue thread (test-artifacts/issue_557_dash_combo_list.png).
+  combo->showPopup();
+  QApplication::processEvents();
+  if (auto* popup = combo->view() != nullptr ? combo->view()->window() : nullptr; popup != nullptr) {
+    const auto popup_shot = popup->grab();
+    const auto combo_rect = QRect(combo->mapTo(&window, QPoint(0, 0)), combo->size());
+    const auto bar_rect = QRect(0, combo_rect.top() - 6, combo_rect.right() + 60, combo_rect.height() + 12)
+                              .intersected(window.rect());
+    QPixmap shot(std::max(bar_rect.width(), combo_rect.left() + popup_shot.width() + 12),
+                 bar_rect.height() + popup_shot.height() + 6);
+    shot.fill(window.palette().window().color());
+    QPainter painter(&shot);
+    painter.drawPixmap(0, 0, window.grab(bar_rect));
+    painter.drawPixmap(combo_rect.left(), bar_rect.height(), popup_shot);
+    painter.end();
+    ensure_artifact_dir();
+    shot.save(QStringLiteral("test-artifacts/issue_557_dash_combo_list.png"));
+  }
+  combo->hidePopup();
+  QApplication::processEvents();
+
+  // The next shape takes the pick, and the pick is saved with the tool settings.
+  shape_drag(*canvas, QPoint(100, 260), QPoint(300, 380));
+  const auto second = document.active_layer_id();
+  CHECK(second.has_value() && *second != *first);
+  if (second.has_value()) {
+    CHECK(patchy::ui::stroke_matches_style_preset(stroke_of(*second), dashes));
+  }
+  QApplication::processEvents();
+  MainWindowTestAccess::save_tool_settings(window);
+  CHECK(patchy::ui::app_settings().contains(QStringLiteral("tools/vectorStrokeStyle")));
+
+  // Manage Presets... returns the combo to its entry and opens the manager; Use there applies
+  // to the selected shape, and a rename made there shows in the list.
+  combo->setCurrentIndex(combo->findData(-2 /* Manage Presets... */));
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("strokePresetManagerDialog")));
+    CHECK(manager != nullptr);
+    if (manager == nullptr) return;
+    CHECK(combo->currentText() == QStringLiteral("Outside dashes"));
+    auto* tree = manager->findChild<QTreeWidget*>(QStringLiteral("strokePresetManagerTree"));
+    auto* name_edit = manager->findChild<QLineEdit*>(QStringLiteral("strokePresetManagerNameEdit"));
+    auto* use = manager->findChild<QPushButton*>(QStringLiteral("strokePresetManagerUseButton"));
+    CHECK(tree != nullptr && name_edit != nullptr && use != nullptr);
+    if (tree == nullptr || name_edit == nullptr || use == nullptr) {
+      manager->reject();
+      return;
+    }
+    // It opens on the preset the shape uses.
+    CHECK(name_edit->text() == QStringLiteral("Outside dashes"));
+    tree->setCurrentItem(tree->topLevelItem(static_cast<int>(builtins.size())));
+    QApplication::processEvents();
+    name_edit->setText(QStringLiteral("Round dots"));
+    QMetaObject::invokeMethod(name_edit, "editingFinished");
+    QApplication::processEvents();
+    use->click();
+  });
+  process_events_for(50);
+  QApplication::processEvents();
+  if (second.has_value()) {
+    stroke = stroke_of(*second);
+    CHECK(stroke.alignment == patchy::VectorStrokeAlignment::Center);
+    CHECK(stroke.cap == patchy::VectorStrokeCap::Round);
+    CHECK(stroke.dashes == dots.dashes);
+    CHECK(stroke.dash_offset == 0.5);
+  }
+  CHECK(combo->itemText(saved_row) == QStringLiteral("Round dots"));
+  CHECK(combo->currentText() == QStringLiteral("Round dots"));
+  // The first shape still shows its own entry when selected.
+  MainWindowTestAccess::select_layers(window, {*first}, *first);
+  QApplication::processEvents();
+  CHECK(combo->currentText() == QStringLiteral("Outside dashes"));
 }
 
 // Issues 327 and 329: the px fields (UnitSpinBox, a QDoubleSpinBox) drew the
@@ -4210,7 +5093,7 @@ void ui_shape_options_group_stroke_controls_and_end_with_appearance() {
   auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
   auto* stroke_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorStrokeSwatchButton"));
   auto* stroke_label = window.findChild<QLabel*>(QStringLiteral("vectorStrokeWidthLabel"));
-  auto* appearance = window.findChild<QPushButton*>(QStringLiteral("vectorAppearanceButton"));
+  auto* appearance = window.findChild<QToolButton*>(QStringLiteral("vectorAppearanceButton"));
   auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
   CHECK(stroke_width && stroke_swatch && stroke_label && appearance && options);
   CHECK(window.findChild<QCheckBox*>(QStringLiteral("vectorStrokeCheck")) == nullptr);  // issue 311
@@ -7510,7 +8393,7 @@ void ui_shape_appearance_entry_points_open_the_dialog() {
   // (a) Options-bar button in Shape mode.
   require_action(window, "toolRectAction")->trigger();
   QApplication::processEvents();
-  auto* appearance_button = window.findChild<QPushButton*>(QStringLiteral("vectorAppearanceButton"));
+  auto* appearance_button = window.findChild<QToolButton*>(QStringLiteral("vectorAppearanceButton"));
   CHECK(appearance_button != nullptr && appearance_button->isVisible() && appearance_button->isEnabled());
   CHECK(opens_dialog([&] { appearance_button->click(); }));
 
@@ -8077,6 +8960,14 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_appearance_custom_dash_pattern_edits_stroke},
       {"ui_shape_appearance_dotted_draws_on_butt_caps", ui_shape_appearance_dotted_draws_on_butt_caps},
       {"ui_shape_appearance_dash_presets_set_patterns", ui_shape_appearance_dash_presets_set_patterns},
+      {"ui_shape_appearance_dash_offset_and_stroke_presets", ui_shape_appearance_dash_offset_and_stroke_presets},
+      {"ui_shape_appearance_gradient_rows_indent", ui_shape_appearance_gradient_rows_indent},
+      {"ui_shape_appearance_pattern_rows_indent", ui_shape_appearance_pattern_rows_indent},
+      {"ui_options_bar_dash_combo_applies_presets", ui_options_bar_dash_combo_applies_presets},
+      {"ui_stroke_preset_manager_edits_round_trip_through_the_setting",
+       ui_stroke_preset_manager_edits_round_trip_through_the_setting},
+      {"ui_options_bar_dash_combo_lists_saved_stroke_presets",
+       ui_options_bar_dash_combo_lists_saved_stroke_presets},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
       {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},
       {"ui_shape_pattern_fill_uses_custom_library_pattern",

@@ -195,7 +195,9 @@ add_library(patchy_core
   src/core/palette.cpp
   src/core/palette_presets.cpp
   src/core/font_substitutes.cpp
+  src/core/font_style_class.cpp
   src/core/path_fit.cpp
+  src/core/path_point_edits.cpp
   src/core/path_simplify.cpp
   src/core/shape_combine.cpp
   src/core/pattern_presets.cpp
@@ -1266,6 +1268,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget_spot_healing.cpp
       src/ui/canvas_widget_red_eye.cpp
       src/ui/canvas_widget_transform.cpp
+      src/ui/canvas_widget_path_edits.cpp
       src/ui/canvas_widget_vector_tools.cpp
       src/ui/canvas_widget_view.cpp
       src/ui/channel_panel.hpp
@@ -1323,10 +1326,14 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/zoomable_image_preview.cpp
       src/ui/font_picker.hpp
       src/ui/font_picker.cpp
+      src/ui/font_family_filters.hpp
+      src/ui/font_family_filters.cpp
       src/ui/blend_if_range_editor.hpp
       src/ui/blend_if_range_editor.cpp
       src/ui/gradient_stops_editor.hpp
       src/ui/gradient_stops_editor.cpp
+      src/ui/command_search.hpp
+      src/ui/command_search.cpp
       src/ui/hotkey_editor.hpp
       src/ui/hotkey_editor.cpp
       src/ui/hotkey_registry.hpp
@@ -1447,6 +1454,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_stress_test.cpp
       src/ui/main_window_theme.cpp
       src/ui/main_window_theme_extras.cpp
+      src/ui/main_window_path_components.cpp
       src/ui/main_window_paths.cpp
       src/ui/main_window_tool_options.cpp
       src/ui/main_window_vector.cpp
@@ -1597,6 +1605,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/style_library.cpp
       src/ui/style_manager_dialog.hpp
       src/ui/style_manager_dialog.cpp
+      src/ui/stroke_preset_manager_dialog.hpp
+      src/ui/stroke_preset_manager_dialog.cpp
       src/ui/theme_file.hpp
       src/ui/theme_file.cpp
       src/ui/theme_backdrop.hpp
@@ -2325,6 +2335,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/atomic_write_recovery_tests.cpp
     tests/core/font_zip_tests.cpp
     tests/core/font_substitutes_tests.cpp
+    tests/core/font_style_class_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
@@ -2380,6 +2391,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/svg_tests.cpp
     tests/core/vector_raster_tests.cpp
     tests/core/vector_shape_tests.cpp
+    tests/core/path_edits_tests.cpp
     tests/core/translation_marker_tests.cpp
     tests/core/floating_selection_tests.cpp
     tests/core/ai_selection_tests.cpp
@@ -2487,6 +2499,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/brush_engine_stroke_tests_healing_patch.cpp
       tests/ui/brush_engine_stroke_tests_strokes.cpp
       tests/ui/text_editor_font_picker_tests.cpp
+      tests/ui/font_picker_filter_tests.cpp
       tests/ui/psd_text_import_tests.cpp
       tests/ui/text_transform_commit_tests.cpp
       tests/ui/text_transform_commit_tests_transform.cpp
@@ -2530,6 +2543,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_preview_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
       tests/ui/vector_commands_tests.cpp
+      tests/ui/vector_path_edits_tests.cpp
       tests/ui/layer_merge_tests.cpp
       tests/ui/vector_scripting_tests.cpp
       tests/ui/svg_ui_tests.cpp

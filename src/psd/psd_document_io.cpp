@@ -3156,6 +3156,28 @@ bool is_native_adjustment_block_key(std::string_view key) noexcept {
   return std::find(kKeys.begin(), kKeys.end(), key) != kKeys.end();
 }
 
+bool is_understood_layer_block_key(std::string_view key) noexcept {
+  if (is_native_adjustment_block_key(key) || is_vector_content_block_key(key) || is_artboard_block_key(key)) {
+    return true;
+  }
+  static constexpr std::array<std::string_view, 37> kKeys{
+      // Parsed into the layer model (psd_layer_records.cpp, the read loop above, render/layer_knockout.hpp).
+      "luni", "iOpa", "lspf", "lclr", "lmgm", "vmgm", "infx", "clbl", "knko", "tsly", "brst", "lsct", "lsdk",
+      "lfx2", "lfxs", "lmfx", "lrFX", "TySh", "tySh", "SoLd", "SoLE", "PlLd", "plLd", "vowv", "CgEd", "sn2P",
+      // Patchy's own blocks (plFX/plAD written by older builds, pvcl/pvfi read-only compound markers).
+      "plFX", "plAD", "pvcl", "pvfi",
+      // Photoshop bookkeeping kept byte for byte: layer id, name source, layer version, metadata
+      // setting, effects reference point, foreign effect id, compositor info.
+      "lyid", "lnsr", "lyvr", "shmd", "fxrp", "ffxi", "cinf"};
+  return std::find(kKeys.begin(), kKeys.end(), key) != kKeys.end();
+}
+
+bool is_understood_global_block_key(std::string_view key) noexcept {
+  static constexpr std::array<std::string_view, 12> kKeys{"Txt2", "Patt", "Pat2", "Pat3", "FMsk", "LMsk",
+                                                          "Mtrn", "Mt16", "Mt32", "Alph", "artd", "Anno"};
+  return std::find(kKeys.begin(), kKeys.end(), key) != kKeys.end();
+}
+
 void DocumentIo::write_layered_rgb8_file(const Document& document, const std::filesystem::path& path,
                                          WriteOptions options) {
   const auto bytes = write_layered_rgb8(document, options);

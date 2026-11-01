@@ -67,7 +67,7 @@ void set_animation_timing_loop_count(const AnimationTimingControls& controls, in
 // names `<prefix>KeepTransparencyRadio`, `<prefix>FillTransparencyRadio`,
 // `<prefix>BackgroundLabel`, `<prefix>BackgroundColorSwatch`. With forced fill (JPEG, no alpha)
 // the radios hide and "Background:" labels the swatch. `changed` runs when the choice or the
-// picked color changes.
+// picked color changes. `one_row` puts both radios on one row (File > Export for Web).
 struct TransparencyChoiceWidgets {
   QRadioButton* keep{nullptr};
   QRadioButton* fill{nullptr};
@@ -78,7 +78,8 @@ struct TransparencyChoiceWidgets {
 [[nodiscard]] TransparencyChoiceWidgets add_transparency_choice(QVBoxLayout* layout, QWidget* parent,
                                                                 QWidget& picker_parent, const QString& object_prefix,
                                                                 QColor color, bool fill, bool forced_fill,
-                                                                std::function<void()> changed = {});
+                                                                std::function<void()> changed = {},
+                                                                bool one_row = false);
 // Switches a choice between forced fill (JPEG) and the free choice without changing which
 // radio is checked, so a format switch keeps the user's choice for the formats with alpha.
 void set_transparency_choice_forced_fill(const TransparencyChoiceWidgets& widgets, bool forced);

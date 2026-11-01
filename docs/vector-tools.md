@@ -20,7 +20,9 @@ line with Weight) and the options-bar paints. Stroke alignment defaults to
 Inside, like PS. An open subpath (a two-point Pen line) has no area to clip
 to, so `rasterize_vector_stroke` moves its centered stroke half a width to the
 right of the path's direction for Inside, to the left for Outside, as PS draws
-it (issue 553, measured on a PS file); closed subpaths keep the clip. Combine (New Layer / Add / Subtract / Intersect / Exclude)
+it (issue 553, measured on a PS file); closed subpaths keep the clip. Dashes
+are spaced along the path itself and each dash is then moved, so dashes past
+a corner keep the centered stroke's phase (issue 558, PS COM renders). Combine (New Layer / Add / Subtract / Intersect / Exclude)
 appends a group with that op to the active shape layer (Shift at the press: Add
 once; Ctrl: [Path Select](vector-commands.md#tool-roles)). Path mode appends
 to the work path; Pixels keeps the raster commit byte-identical.
@@ -348,7 +350,7 @@ and vector masks (convert to a smart object or rasterize first).
 ## Appearance editing and fill layers
 
 The Shape Appearance dialog opens from the vector badge, the layer and
-canvas context menus ([tools.md](tools.md)), the options-bar Appearance... button, Layer >
+canvas context menus ([tools.md](tools.md)), the options-bar Appearance gear, Layer >
 Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
 panel's Edit Appearance..., and a Path Select / Direct Select double-click on
 the shape's geometry. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
@@ -362,10 +364,17 @@ Butt caps), so Dotted is `dotted_dash_pattern(cap)`: {0, 2}, or {1, 1} with Butt
 same square dots; changing Caps while Dotted is chosen swaps the array (GitHub issue 548).
 The other new presets follow the cap the same way (`stroke_dash_preset_pattern`: written for
 Butt caps, each dash one width shorter and each gap one width longer for Round or Square), so
-they look alike on every cap; Dashed alone stays a fixed {2, 2}. Picking Dotted or Sparse dots
-also sets Caps to Round, so the dots are round. `stroke_dash_preset_for` maps a file's array to
+they look alike on every cap; Dashed alone stays a fixed {2, 2}. Picking a preset also sets
+its caps and corners (`apply_stroke_dash_preset`, shared with the options bar's dash combo;
+GitHub issue 548 follow-up): Dashed, Long dashes and Short dashes set Butt caps; Dotted, Sparse
+dots, Dash dot and Dash dot dot set Round caps and Round corners, so every dot is round; Solid
+sets neither. Caps and Corners stay editable after. `stroke_dash_preset_for` maps a file's array to
 its row by its shortest repeating period (GIMP repeats each pattern to fill its dash table), so
 GIMP's Dense dots on Butt caps is Dotted; arrays matching no preset show as Custom.
+Dash offset (`shapeStrokeDashOffsetSpin`, stroke widths; vstk strokeStyleLineDashOffset, SVG
+`stroke-dashoffset`) is enabled only while dashed. Saved stroke presets join the built-ins in one Dashes list (#557):
+[style-presets.md](style-presets.md#shape-appearance-stroke-presets). A gradient's and a pattern's own
+rows are a nested form in their picker row's field column (#552).
 `pattern_linked` anchors at the effects
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).

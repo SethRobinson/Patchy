@@ -30,6 +30,7 @@ struct ThemePalette {
   // Base surfaces, text, and window frame.
   QColor window_bg;
   QColor window_border;
+  QColor resize_grip_ink;
   QColor text_primary;
   QColor script_accent;
   QColor script_card_border;

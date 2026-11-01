@@ -3699,6 +3699,14 @@
         <translation>Patchy 已保留其可理解的可編輯資料，並標示出可能與 Photoshop 或其他 PSD 編輯器不同的部分。</translation>
     </message>
     <message>
+        <source>Don&apos;t show this again</source>
+        <translation>不再顯示</translation>
+    </message>
+    <message>
+        <source>Import warnings and notes go to the status bar from now on. Turn the popup back on in Preferences &gt; Application.</source>
+        <translation>今後匯入警告和注意事項將顯示於狀態列。可在 偏好設定 &gt; 應用程式 中重新開啟彈出視窗。</translation>
+    </message>
+    <message>
         <source>Curves graph</source>
         <translation>曲線圖表</translation>
     </message>
@@ -12989,14 +12997,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>JPEG 設定</translation>
     </message>
     <message>
-        <source>Progressive (shows a rough image first while loading)</source>
-        <translation>漸進式（載入時先顯示粗略影像）</translation>
-    </message>
-    <message>
-        <source>Optimize coding (smaller file, same image)</source>
-        <translation>最佳化編碼（檔案更小，影像相同）</translation>
-    </message>
-    <message>
         <source>Fills transparent areas (JPEG has no transparency)</source>
         <translation>填滿透明區域（JPEG 不支援透明）</translation>
     </message>
@@ -13039,10 +13039,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>File Info metadata to include. None writes the smallest file.</source>
         <translation>要包含的檔案資訊中繼資料。「無」寫出的檔案最小。</translation>
-    </message>
-    <message>
-        <source>Include thumbnail (about 5 to 10 KB)</source>
-        <translation>包含縮圖（約 5 到 10 KB）</translation>
     </message>
     <message>
         <source>Convert to sRGB (from %1)</source>
@@ -14257,6 +14253,160 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Dash dot dot</source>
         <translation>雙點劃線</translation>
+    </message>
+    <message>
+        <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
+        <translation>將對齊、端點、轉角、虛線和虛線位移儲存為預設集</translation>
+    </message>
+    <message>
+        <source>Delete the chosen preset</source>
+        <translation>刪除所選的預設集</translation>
+    </message>
+    <message>
+        <source>Moves the dash pattern along the path, in stroke widths</source>
+        <translation>沿路徑移動虛線圖樣，以筆畫寬度為單位</translation>
+    </message>
+    <message>
+        <source>Dash offset:</source>
+        <translation>虛線位移:</translation>
+    </message>
+    <message>
+        <source>Save Stroke Preset</source>
+        <translation>儲存筆畫預設集</translation>
+    </message>
+    <message>
+        <source>Stroke preset %1</source>
+        <translation>筆畫預設集 %1</translation>
+    </message>
+    <message>
+        <source>Stroke Presets</source>
+        <translation>筆畫預設集</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset (Del)</source>
+        <translation>刪除所選預設集 (Del)</translation>
+    </message>
+    <message>
+        <source>Use Preset</source>
+        <translation>使用預設集</translation>
+    </message>
+    <message>
+        <source>Use the preset for new shapes and the selected shape layers</source>
+        <translation>將預設集用於新形狀和所選形狀圖層</translation>
+    </message>
+    <message>
+        <source>Delete Stroke Preset</source>
+        <translation>刪除筆畫預設集</translation>
+    </message>
+    <message>
+        <source>Delete stroke preset &quot;%1&quot;?</source>
+        <translation>刪除筆畫預設集「%1」？</translation>
+    </message>
+    <message>
+        <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation>已有名為「%1」的筆畫預設集。</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>內建預設集：可以使用，但不能重新命名、移動或刪除。</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>還沒有儲存的筆畫預設集。請在「形狀外觀」中設定筆畫，然後按一下「虛線」旁的「儲存...」。</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>不變</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>內建</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors</source>
+        <translation>
+            <numerusform>%n 種顏色</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>低</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>高</translation>
+    </message>
+    <message>
+        <source>Very High</source>
+        <translation>很高</translation>
+    </message>
+    <message>
+        <source>JPEG Very High</source>
+        <translation>JPEG 很高</translation>
+    </message>
+    <message>
+        <source>JPEG Medium</source>
+        <translation>JPEG 中</translation>
+    </message>
+    <message>
+        <source>WebP High</source>
+        <translation>WebP 高</translation>
+    </message>
+    <message>
+        <source>PNG 256 Colors</source>
+        <translation>PNG 256 色</translation>
+    </message>
+    <message>
+        <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
+        <translation>已儲存的格式及其設定。設定與任何預設集都不相符時顯示為自訂。</translation>
+    </message>
+    <message>
+        <source>Save the format and its settings as a preset</source>
+        <translation>將格式及其設定儲存為預設集</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset</source>
+        <translation>刪除選取的預設集</translation>
+    </message>
+    <message>
+        <source>Quality presets</source>
+        <translation>品質預設集</translation>
+    </message>
+    <message>
+        <source>Progressive</source>
+        <translation>漸進式</translation>
+    </message>
+    <message>
+        <source>Shows a rough image first while the file loads.</source>
+        <translation>在檔案載入時先顯示粗略的影像。</translation>
+    </message>
+    <message>
+        <source>Optimize coding</source>
+        <translation>最佳化編碼</translation>
+    </message>
+    <message>
+        <source>Makes the file smaller without changing the image.</source>
+        <translation>在不改變影像的情況下縮小檔案。</translation>
+    </message>
+    <message>
+        <source>Include thumbnail</source>
+        <translation>包含縮圖</translation>
+    </message>
+    <message>
+        <source>2 x 2</source>
+        <translation>2 x 2</translation>
+    </message>
+    <message>
+        <source>The original, the result, and the result at 50% and 25% of the quality</source>
+        <translation>原始影像、結果，以及品質為 50% 和 25% 時的結果</translation>
+    </message>
+    <message>
+        <source>%1 at these settings has no quality to reduce.</source>
+        <translation>在這些設定下，%1 沒有可降低的品質。</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 <context>
@@ -15884,10 +16034,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>按一下可選取形狀,拖曳可移動形狀。按 %CTRL%+T 可進行變形。</translation>
     </message>
     <message>
-        <source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source>
-        <translation>拖曳可移動錨點。按住 Shift 並按一下可將它加入選取範圍;按 Delete 可刪除選取的錨點。</translation>
-    </message>
-    <message>
         <source>Drag the handle to reshape the curve</source>
         <translation>拖曳控制把手可調整曲線形狀</translation>
     </message>
@@ -16271,6 +16417,86 @@ Each item&apos;s own View setting still applies.</source>
         <source>Clone source cleared</source>
         <translation>仿製來源已清除</translation>
     </message>
+    <message>
+        <source>Break path</source>
+        <translation>分割路徑</translation>
+    </message>
+    <message>
+        <source>Join end points</source>
+        <translation>連接端點</translation>
+    </message>
+    <message>
+        <source>Merge points</source>
+        <translation>合併錨點</translation>
+    </message>
+    <message>
+        <source>Delete segment</source>
+        <translation>刪除線段</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>在錨點處分割路徑</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>連接端點</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>合併為一個錨點</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>刪除線段</translation>
+    </message>
+    <message>
+        <source>Select a point with Direct Select (inside an open path, or any point of a closed one), or right-click a point</source>
+        <translation>請用直接選取工具選取一個錨點（開放路徑內部的錨點，或封閉路徑的任一錨點），或在錨點上按右鍵</translation>
+    </message>
+    <message>
+        <source>Select two end points, or neighbouring points of one path, with Direct Select, or right-click a segment</source>
+        <translation>請用直接選取工具選取兩個端點，或同一路徑上相鄰的錨點，或在線段上按右鍵</translation>
+    </message>
+    <message>
+        <source>Joined the end points</source>
+        <translation>已連接端點</translation>
+    </message>
+    <message>
+        <source>Release to join the end points. Hold %ALT% to place the point freely.</source>
+        <translation>放開即可連接端點。按住 %ALT% 可自由放置錨點。</translation>
+    </message>
+    <message>
+        <source>Drag to move the point; drop an end point on another to join them. Shift+click adds to the selection. Right-click for Break, Join and Merge.</source>
+        <translation>拖曳可移動錨點；把端點放到另一個端點上即可連接。Shift+按一下會加入選取範圍。按右鍵可分割、連接和合併。</translation>
+    </message>
+    <message>
+        <source>Select two end points to join, or a point of an open path to close it, with Direct Select</source>
+        <translation>請用直接選取工具選取要連接的兩個端點，或選取開放路徑上的一個錨點以封閉它</translation>
+    </message>
+    <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>筆刷流量:%1%(噴槍已開啟；Shift+數字設定不透明度)</translation>
+    </message>
+    <message>
+        <source>Merged the points</source>
+        <translation>已合併錨點</translation>
+    </message>
+    <message>
+        <source>Release to merge the points. Hold %ALT% to place the point freely.</source>
+        <translation>放開即可合併錨點。按住 %ALT% 可自由放置錨點。</translation>
+    </message>
+    <message>
+        <source>Snapped to a point. Only end points or neighbouring points become one point. Hold %ALT% to place the point freely.</source>
+        <translation>已貼齊錨點。只有端點或相鄰的錨點才能合併為一個錨點。按住 %ALT% 可自由放置錨點。</translation>
+    </message>
+    <message>
+        <source>Shift+click a segment with Direct Select to select it, or right-click it</source>
+        <translation>用直接選取工具按住 Shift 按一下線段以選取它，或在它上面按右鍵</translation>
+    </message>
+    <message>
+        <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation>按一下新增錨點，拖曳調整形狀，Shift+按一下選取線段</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -16576,6 +16802,1749 @@ Each item&apos;s own View setting still applies.</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::CommandSearch</name>
+    <message>
+        <source>Create a new blank image</source>
+        <translation>建立新的空白影像</translation>
+    </message>
+    <message>
+        <source>Open an image file</source>
+        <translation>開啟影像檔案</translation>
+    </message>
+    <message>
+        <source>New image from the clipboard</source>
+        <translation>從剪貼簿新增影像</translation>
+    </message>
+    <message>
+        <source>Open every image in a folder</source>
+        <translation>開啟資料夾中的所有影像</translation>
+    </message>
+    <message>
+        <source>Save the document</source>
+        <translation>儲存文件</translation>
+    </message>
+    <message>
+        <source>Save to a new file or format</source>
+        <translation>儲存為新檔案或格式</translation>
+    </message>
+    <message>
+        <source>Save a flattened copy</source>
+        <translation>儲存合併後的副本</translation>
+    </message>
+    <message>
+        <source>Optimize and save for the web</source>
+        <translation>最佳化並儲存為網頁格式</translation>
+    </message>
+    <message>
+        <source>Save the layers as a GIF animation</source>
+        <translation>將圖層儲存為 GIF 動畫</translation>
+    </message>
+    <message>
+        <source>Combine the layers into one sheet</source>
+        <translation>將圖層合併為一張圖集</translation>
+    </message>
+    <message>
+        <source>Insert an image as a Smart Object</source>
+        <translation>將影像作為智慧型物件插入</translation>
+    </message>
+    <message>
+        <source>Insert a linked image file</source>
+        <translation>插入連結的影像檔案</translation>
+    </message>
+    <message>
+        <source>Open several images as layers</source>
+        <translation>將多張影像作為圖層開啟</translation>
+    </message>
+    <message>
+        <source>Scan an image</source>
+        <translation>掃描影像</translation>
+    </message>
+    <message>
+        <source>Author, copyright and other metadata</source>
+        <translation>作者、版權等中繼資料</translation>
+    </message>
+    <message>
+        <source>Remove EXIF and other metadata</source>
+        <translation>移除 EXIF 等中繼資料</translation>
+    </message>
+    <message>
+        <source>Print the image</source>
+        <translation>列印影像</translation>
+    </message>
+    <message>
+        <source>Close the document</source>
+        <translation>關閉文件</translation>
+    </message>
+    <message>
+        <source>Settings and options</source>
+        <translation>設定和選項</translation>
+    </message>
+    <message>
+        <source>Exit Patchy</source>
+        <translation>結束 Patchy</translation>
+    </message>
+    <message>
+        <source>Take back the last change</source>
+        <translation>復原上一次變更</translation>
+    </message>
+    <message>
+        <source>Redo the change you took back</source>
+        <translation>重做已復原的變更</translation>
+    </message>
+    <message>
+        <source>Move the selection to the clipboard</source>
+        <translation>將選取範圍移到剪貼簿</translation>
+    </message>
+    <message>
+        <source>Copy the selection to the clipboard</source>
+        <translation>將選取範圍複製到剪貼簿</translation>
+    </message>
+    <message>
+        <source>Copy what all visible layers show</source>
+        <translation>複製所有可見圖層的顯示內容</translation>
+    </message>
+    <message>
+        <source>Paste from the clipboard</source>
+        <translation>從剪貼簿貼上</translation>
+    </message>
+    <message>
+        <source>Paste at the same position</source>
+        <translation>貼上到相同位置</translation>
+    </message>
+    <message>
+        <source>Fill with a color or pattern</source>
+        <translation>用顏色或圖樣填滿</translation>
+    </message>
+    <message>
+        <source>Draw an outline along the selection</source>
+        <translation>沿選取範圍描邊</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or move freely</source>
+        <translation>自由縮放、旋轉或移動</translation>
+    </message>
+    <message>
+        <source>Resize the layer or selection</source>
+        <translation>調整圖層或選取範圍的大小</translation>
+    </message>
+    <message>
+        <source>Turn the layer or selection</source>
+        <translation>旋轉圖層或選取範圍</translation>
+    </message>
+    <message>
+        <source>Bend the layer with a grid</source>
+        <translation>用網格彎曲圖層</translation>
+    </message>
+    <message>
+        <source>Erase an object and fill the gap</source>
+        <translation>擦除物件並填補空缺</translation>
+    </message>
+    <message>
+        <source>Make a brush from the selection</source>
+        <translation>用選取範圍建立筆刷</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from a path</source>
+        <translation>用路徑建立自訂形狀</translation>
+    </message>
+    <message>
+        <source>Change the color profile</source>
+        <translation>變更色彩描述檔</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>管理漸層預設集</translation>
+    </message>
+    <message>
+        <source>Manage pattern presets</source>
+        <translation>管理圖樣預設集</translation>
+    </message>
+    <message>
+        <source>Resize or scale the image</source>
+        <translation>調整影像大小或縮放影像</translation>
+    </message>
+    <message>
+        <source>Add or remove space around the image</source>
+        <translation>新增或移除影像周圍的空間</translation>
+    </message>
+    <message>
+        <source>Crop the image to the selection</source>
+        <translation>將影像裁切為選取範圍</translation>
+    </message>
+    <message>
+        <source>Remove empty borders</source>
+        <translation>移除空白邊框</translation>
+    </message>
+    <message>
+        <source>Set the black point, white point and midtones</source>
+        <translation>設定黑場、白場和中間調</translation>
+    </message>
+    <message>
+        <source>Adjust the tones with a curve</source>
+        <translation>用曲線調整色調</translation>
+    </message>
+    <message>
+        <source>Change colors, saturation and lightness</source>
+        <translation>變更顏色、飽和度和明度</translation>
+    </message>
+    <message>
+        <source>Shift the colors of shadows and highlights</source>
+        <translation>偏移陰影和亮部的顏色</translation>
+    </message>
+    <message>
+        <source>Turn the image gray</source>
+        <translation>將影像轉為灰階</translation>
+    </message>
+    <message>
+        <source>Make muted colors stronger</source>
+        <translation>增強暗淡的顏色</translation>
+    </message>
+    <message>
+        <source>Brighten or darken the image</source>
+        <translation>調亮或調暗影像</translation>
+    </message>
+    <message>
+        <source>Fix tone and color automatically</source>
+        <translation>自動修正色調和顏色</translation>
+    </message>
+    <message>
+        <source>Reduce the image to a color palette</source>
+        <translation>將影像減少為調色盤顏色</translation>
+    </message>
+    <message>
+        <source>Use 16 bits per channel</source>
+        <translation>使用每色版 16 位元</translation>
+    </message>
+    <message>
+        <source>Add New Layer</source>
+        <translation>新增圖層</translation>
+    </message>
+    <message>
+        <source>Add an empty layer at once</source>
+        <translation>立即新增空白圖層</translation>
+    </message>
+    <message>
+        <source>Copy the layer</source>
+        <translation>複製圖層</translation>
+    </message>
+    <message>
+        <source>Remove the layer</source>
+        <translation>移除圖層</translation>
+    </message>
+    <message>
+        <source>Change the layer name</source>
+        <translation>變更圖層名稱</translation>
+    </message>
+    <message>
+        <source>Put the selected layers in a folder</source>
+        <translation>將所選圖層放入資料夾</translation>
+    </message>
+    <message>
+        <source>Copy the selection to a new layer</source>
+        <translation>將選取範圍複製到新圖層</translation>
+    </message>
+    <message>
+        <source>Move the selection to a new layer</source>
+        <translation>將選取範圍移到新圖層</translation>
+    </message>
+    <message>
+        <source>Combine with the layer below</source>
+        <translation>與下方圖層合併</translation>
+    </message>
+    <message>
+        <source>Combine all visible layers</source>
+        <translation>合併所有可見圖層</translation>
+    </message>
+    <message>
+        <source>Add a layer mask</source>
+        <translation>新增圖層遮色片</translation>
+    </message>
+    <message>
+        <source>Bake the mask into the pixels</source>
+        <translation>將遮色片套用到像素</translation>
+    </message>
+    <message>
+        <source>Drop shadow, stroke, glow and other effects</source>
+        <translation>陰影、描邊、光暈等效果</translation>
+    </message>
+    <message>
+        <source>Clip to the layer below</source>
+        <translation>剪裁到下方圖層</translation>
+    </message>
+    <message>
+        <source>Show or hide layers</source>
+        <translation>顯示或隱藏圖層</translation>
+    </message>
+    <message>
+        <source>Protect layers from changes</source>
+        <translation>保護圖層不被變更</translation>
+    </message>
+    <message>
+        <source>Move the layer up the stack</source>
+        <translation>將圖層在堆疊中上移</translation>
+    </message>
+    <message>
+        <source>Move the layer down the stack</source>
+        <translation>將圖層在堆疊中下移</translation>
+    </message>
+    <message>
+        <source>Fill with the foreground color</source>
+        <translation>用前景色填滿</translation>
+    </message>
+    <message>
+        <source>Fill with the background color</source>
+        <translation>用背景色填滿</translation>
+    </message>
+    <message>
+        <source>Erase the layer or selection</source>
+        <translation>擦除圖層或選取範圍</translation>
+    </message>
+    <message>
+        <source>Select the whole image</source>
+        <translation>選取整個影像</translation>
+    </message>
+    <message>
+        <source>Clear the selection</source>
+        <translation>取消選取範圍</translation>
+    </message>
+    <message>
+        <source>Bring back the last selection</source>
+        <translation>恢復上一個選取範圍</translation>
+    </message>
+    <message>
+        <source>Swap selected and unselected areas</source>
+        <translation>互換已選取和未選取的區域</translation>
+    </message>
+    <message>
+        <source>Select every layer</source>
+        <translation>選取所有圖層</translation>
+    </message>
+    <message>
+        <source>Make the selection larger</source>
+        <translation>擴大選取範圍</translation>
+    </message>
+    <message>
+        <source>Make the selection smaller</source>
+        <translation>縮小選取範圍</translation>
+    </message>
+    <message>
+        <source>Select a band along the edge</source>
+        <translation>沿邊緣選取一條帶狀區域</translation>
+    </message>
+    <message>
+        <source>Add neighboring similar colors</source>
+        <translation>加入相鄰的相似顏色</translation>
+    </message>
+    <message>
+        <source>Add similar colors anywhere</source>
+        <translation>加入任何位置的相似顏色</translation>
+    </message>
+    <message>
+        <source>Paint a selection as a mask</source>
+        <translation>將選取範圍作為遮色片繪製</translation>
+    </message>
+    <message>
+        <source>Magnify the view</source>
+        <translation>放大檢視</translation>
+    </message>
+    <message>
+        <source>Show more of the image</source>
+        <translation>顯示更多影像內容</translation>
+    </message>
+    <message>
+        <source>Show the whole image</source>
+        <translation>顯示整個影像</translation>
+    </message>
+    <message>
+        <source>Zoom to 100%</source>
+        <translation>縮放到 100%</translation>
+    </message>
+    <message>
+        <source>Show or hide the rulers</source>
+        <translation>顯示或隱藏尺標</translation>
+    </message>
+    <message>
+        <source>Show or hide the grid</source>
+        <translation>顯示或隱藏格點</translation>
+    </message>
+    <message>
+        <source>Show or hide the guides</source>
+        <translation>顯示或隱藏參考線</translation>
+    </message>
+    <message>
+        <source>Line up with guides and edges while dragging</source>
+        <translation>拖曳時對齊參考線和邊緣</translation>
+    </message>
+    <message>
+        <source>Show the pixel grid when zoomed in</source>
+        <translation>放大時顯示像素格點</translation>
+    </message>
+    <message>
+        <source>Add a guide line</source>
+        <translation>新增參考線</translation>
+    </message>
+    <message>
+        <source>Remove all guides</source>
+        <translation>移除所有參考線</translation>
+    </message>
+    <message>
+        <source>Move layers and selections</source>
+        <translation>移動圖層和選取範圍</translation>
+    </message>
+    <message>
+        <source>Select a rectangle</source>
+        <translation>選取矩形區域</translation>
+    </message>
+    <message>
+        <source>Select an ellipse or circle</source>
+        <translation>選取橢圓或圓形區域</translation>
+    </message>
+    <message>
+        <source>Draw a freehand selection</source>
+        <translation>手繪選取範圍</translation>
+    </message>
+    <message>
+        <source>Select with straight edges</source>
+        <translation>用直線邊緣選取</translation>
+    </message>
+    <message>
+        <source>Select along edges it finds</source>
+        <translation>沿偵測到的邊緣選取</translation>
+    </message>
+    <message>
+        <source>Select similar colors with a click</source>
+        <translation>按一下選取相似顏色</translation>
+    </message>
+    <message>
+        <source>Paint a selection that finds edges</source>
+        <translation>繪製能識別邊緣的選取範圍</translation>
+    </message>
+    <message>
+        <source>Select an object automatically</source>
+        <translation>自動選取物件</translation>
+    </message>
+    <message>
+        <source>Paint with a brush</source>
+        <translation>用筆刷繪畫</translation>
+    </message>
+    <message>
+        <source>Mix paint with the colors under it</source>
+        <translation>將顏料與下方顏色混合</translation>
+    </message>
+    <message>
+        <source>Copy pixels from one place to another</source>
+        <translation>將像素從一處複製到另一處</translation>
+    </message>
+    <message>
+        <source>Paint with a pattern</source>
+        <translation>用圖樣繪畫</translation>
+    </message>
+    <message>
+        <source>Repair blemishes with sampled pixels</source>
+        <translation>用取樣像素修復瑕疵</translation>
+    </message>
+    <message>
+        <source>Remove spots with one click</source>
+        <translation>按一下去除斑點</translation>
+    </message>
+    <message>
+        <source>Replace an area with pixels from elsewhere</source>
+        <translation>用別處的像素取代區域</translation>
+    </message>
+    <message>
+        <source>Fix red eyes in photos</source>
+        <translation>修正相片中的紅眼</translation>
+    </message>
+    <message>
+        <source>Smear paint</source>
+        <translation>塗抹顏料</translation>
+    </message>
+    <message>
+        <source>Lighten areas</source>
+        <translation>調亮區域</translation>
+    </message>
+    <message>
+        <source>Darken areas</source>
+        <translation>調暗區域</translation>
+    </message>
+    <message>
+        <source>Change the color saturation</source>
+        <translation>變更顏色飽和度</translation>
+    </message>
+    <message>
+        <source>Soften areas</source>
+        <translation>柔化區域</translation>
+    </message>
+    <message>
+        <source>Sharpen areas</source>
+        <translation>銳利化區域</translation>
+    </message>
+    <message>
+        <source>Erase pixels</source>
+        <translation>擦除像素</translation>
+    </message>
+    <message>
+        <source>Draw a color gradient</source>
+        <translation>繪製顏色漸層</translation>
+    </message>
+    <message>
+        <source>Fill an area with color</source>
+        <translation>用顏色填滿區域</translation>
+    </message>
+    <message>
+        <source>Draw a straight line</source>
+        <translation>繪製直線</translation>
+    </message>
+    <message>
+        <source>Draw a rectangle</source>
+        <translation>繪製矩形</translation>
+    </message>
+    <message>
+        <source>Draw an ellipse or circle</source>
+        <translation>繪製橢圓或圓形</translation>
+    </message>
+    <message>
+        <source>Draw a polygon or star</source>
+        <translation>繪製多邊形或星形</translation>
+    </message>
+    <message>
+        <source>Draw a custom shape</source>
+        <translation>繪製自訂形狀</translation>
+    </message>
+    <message>
+        <source>Pick a color from the image</source>
+        <translation>從影像中選取顏色</translation>
+    </message>
+    <message>
+        <source>Measure distances and angles</source>
+        <translation>測量距離和角度</translation>
+    </message>
+    <message>
+        <source>Add text</source>
+        <translation>新增文字</translation>
+    </message>
+    <message>
+        <source>Scroll the view</source>
+        <translation>捲動檢視</translation>
+    </message>
+    <message>
+        <source>Zoom in and out</source>
+        <translation>放大和縮小</translation>
+    </message>
+    <message>
+        <source>Draw paths and curves</source>
+        <translation>繪製路徑和曲線</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes</source>
+        <translation>選取並移動整個形狀</translation>
+    </message>
+    <message>
+        <source>Edit points and handles</source>
+        <translation>編輯錨點和控制點</translation>
+    </message>
+    <message>
+        <source>Add a point to a path</source>
+        <translation>在路徑上新增錨點</translation>
+    </message>
+    <message>
+        <source>Remove a point from a path</source>
+        <translation>從路徑刪除錨點</translation>
+    </message>
+    <message>
+        <source>Switch points between corner and smooth</source>
+        <translation>在角點和平滑點之間切換</translation>
+    </message>
+    <message>
+        <source>Crop or straighten the image</source>
+        <translation>裁切或拉直影像</translation>
+    </message>
+    <message>
+        <source>Crop and fix the perspective</source>
+        <translation>裁切並校正透視</translation>
+    </message>
+    <message>
+        <source>Add and arrange artboards</source>
+        <translation>新增和排列工作區域</translation>
+    </message>
+    <message>
+        <source>Search commands and tools</source>
+        <translation>搜尋命令和工具</translation>
+    </message>
+    <message>
+        <source>Empty the list of recent files</source>
+        <translation>清除最近使用的檔案清單</translation>
+    </message>
+    <message>
+        <source>Empty the list of recent folders</source>
+        <translation>清除最近使用的資料夾清單</translation>
+    </message>
+    <message>
+        <source>Scan and print in one step</source>
+        <translation>一步完成掃描和列印</translation>
+    </message>
+    <message>
+        <source>Scan several photos and split them apart</source>
+        <translation>掃描多張相片並將其分開</translation>
+    </message>
+    <message>
+        <source>Cut a sprite sheet into layers</source>
+        <translation>將精靈圖集切分為圖層</translation>
+    </message>
+    <message>
+        <source>Load numbered images as layers</source>
+        <translation>將編號影像載入為圖層</translation>
+    </message>
+    <message>
+        <source>Save several documents as one PDF</source>
+        <translation>將多個文件儲存為一個 PDF</translation>
+    </message>
+    <message>
+        <source>Save every open document to a folder</source>
+        <translation>將所有開啟的文件儲存到資料夾</translation>
+    </message>
+    <message>
+        <source>Save each artboard as its own file</source>
+        <translation>將每個工作區域儲存為個別檔案</translation>
+    </message>
+    <message>
+        <source>Save each layer as a numbered image</source>
+        <translation>將每個圖層儲存為編號影像</translation>
+    </message>
+    <message>
+        <source>Save the layers as a WebP animation</source>
+        <translation>將圖層儲存為 WebP 動畫</translation>
+    </message>
+    <message>
+        <source>Save the layers as an APNG animation</source>
+        <translation>將圖層儲存為 APNG 動畫</translation>
+    </message>
+    <message>
+        <source>Look for hidden watermarks in an image</source>
+        <translation>尋找影像中的隱藏浮水印</translation>
+    </message>
+    <message>
+        <source>Choose paper size and orientation</source>
+        <translation>選擇紙張大小和方向</translation>
+    </message>
+    <message>
+        <source>Run, edit and organize scripts</source>
+        <translation>執行、編輯和整理指令碼</translation>
+    </message>
+    <message>
+        <source>Show the scripts folder on disk</source>
+        <translation>在磁碟上顯示指令碼資料夾</translation>
+    </message>
+    <message>
+        <source>Close every open document</source>
+        <translation>關閉所有開啟的文件</translation>
+    </message>
+    <message>
+        <source>Slant the layer or selection</source>
+        <translation>傾斜圖層或選取範圍</translation>
+    </message>
+    <message>
+        <source>Drag each corner freely</source>
+        <translation>自由拖曳每個角</translation>
+    </message>
+    <message>
+        <source>Make one side wider than the other</source>
+        <translation>使一側比另一側更寬</translation>
+    </message>
+    <message>
+        <source>Make a custom shape from an SVG file</source>
+        <translation>從 SVG 檔案建立自訂形狀</translation>
+    </message>
+    <message>
+        <source>Manage layer style presets</source>
+        <translation>管理圖層樣式預設集</translation>
+    </message>
+    <message>
+        <source>Manage brush tips and import ABR</source>
+        <translation>管理筆刷筆尖並匯入 ABR</translation>
+    </message>
+    <message>
+        <source>Manage saved brushes</source>
+        <translation>管理已儲存的筆刷</translation>
+    </message>
+    <message>
+        <source>Manage custom shape presets</source>
+        <translation>管理自訂形狀預設集</translation>
+    </message>
+    <message>
+        <source>Convert to full color</source>
+        <translation>轉換為全彩</translation>
+    </message>
+    <message>
+        <source>Preview and save for print colors</source>
+        <translation>以印刷色彩預覽和儲存</translation>
+    </message>
+    <message>
+        <source>Use 8 bits per channel</source>
+        <translation>使用每色版 8 位元</translation>
+    </message>
+    <message>
+        <source>Use 32-bit HDR color</source>
+        <translation>使用 32 位元 HDR 色彩</translation>
+    </message>
+    <message>
+        <source>Limit the layer to the palette colors</source>
+        <translation>將圖層限制為調色盤色彩</translation>
+    </message>
+    <message>
+        <source>Limit every layer to the palette colors</source>
+        <translation>將所有圖層限制為調色盤色彩</translation>
+    </message>
+    <message>
+        <source>Make the image lighter, darker or punchier</source>
+        <translation>使影像更亮、更暗或更鮮明</translation>
+    </message>
+    <message>
+        <source>Warm or cool the colors like a lens filter</source>
+        <translation>像鏡頭濾鏡一樣使色彩變暖或變冷</translation>
+    </message>
+    <message>
+        <source>Blend the red, green and blue channels</source>
+        <translation>混合紅、綠、藍色版</translation>
+    </message>
+    <message>
+        <source>Apply a color grading table</source>
+        <translation>套用調色表</translation>
+    </message>
+    <message>
+        <source>Make a negative</source>
+        <translation>製作負片</translation>
+    </message>
+    <message>
+        <source>Reduce the number of tones</source>
+        <translation>減少色調數量</translation>
+    </message>
+    <message>
+        <source>Turn the image black and white</source>
+        <translation>將影像變為黑白</translation>
+    </message>
+    <message>
+        <source>Map the tones to a gradient</source>
+        <translation>將色調對應到漸層</translation>
+    </message>
+    <message>
+        <source>Adjust one range of colors</source>
+        <translation>調整某一色彩範圍</translation>
+    </message>
+    <message>
+        <source>Remove all color</source>
+        <translation>去除所有色彩</translation>
+    </message>
+    <message>
+        <source>Stretch the tones automatically</source>
+        <translation>自動延展色調</translation>
+    </message>
+    <message>
+        <source>Improve contrast automatically</source>
+        <translation>自動改善對比</translation>
+    </message>
+    <message>
+        <source>Remove a color cast automatically</source>
+        <translation>自動去除色偏</translation>
+    </message>
+    <message>
+        <source>Add an artboard</source>
+        <translation>新增工作區域</translation>
+    </message>
+    <message>
+        <source>Editable lighter, darker or punchier</source>
+        <translation>可編輯的變亮、變暗或增強鮮明度</translation>
+    </message>
+    <message>
+        <source>Editable black point, white point and midtones</source>
+        <translation>可編輯的黑點、白點和中間調</translation>
+    </message>
+    <message>
+        <source>Editable tone curve</source>
+        <translation>可編輯的色調曲線</translation>
+    </message>
+    <message>
+        <source>Editable colors, saturation and lightness</source>
+        <translation>可編輯的色彩、飽和度和明度</translation>
+    </message>
+    <message>
+        <source>Editable color shift in shadows and highlights</source>
+        <translation>可編輯的陰影和亮部色彩偏移</translation>
+    </message>
+    <message>
+        <source>Editable negative</source>
+        <translation>可編輯的負片</translation>
+    </message>
+    <message>
+        <source>Editable tone reduction</source>
+        <translation>可編輯的色調減少</translation>
+    </message>
+    <message>
+        <source>Editable black and white cutoff</source>
+        <translation>可編輯的黑白臨界值</translation>
+    </message>
+    <message>
+        <source>Editable brightening or darkening</source>
+        <translation>可編輯的提亮或壓暗</translation>
+    </message>
+    <message>
+        <source>Editable boost for muted colors</source>
+        <translation>可編輯的黯淡色彩增強</translation>
+    </message>
+    <message>
+        <source>Editable channel blend</source>
+        <translation>可編輯的色版混合</translation>
+    </message>
+    <message>
+        <source>Editable warming or cooling filter</source>
+        <translation>可編輯的加溫或冷卻濾鏡</translation>
+    </message>
+    <message>
+        <source>Editable mapping of tones to a gradient</source>
+        <translation>可編輯的色調到漸層對應</translation>
+    </message>
+    <message>
+        <source>Editable conversion to gray</source>
+        <translation>可編輯的灰階轉換</translation>
+    </message>
+    <message>
+        <source>Editable color grading table</source>
+        <translation>可編輯的調色表</translation>
+    </message>
+    <message>
+        <source>Editable change to one color range</source>
+        <translation>可編輯的單一色彩範圍變更</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with one color</source>
+        <translation>新增以單一色彩填滿的圖層</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with a gradient</source>
+        <translation>新增以漸層填滿的圖層</translation>
+    </message>
+    <message>
+        <source>Add a layer filled with a pattern</source>
+        <translation>新增以圖樣填滿的圖層</translation>
+    </message>
+    <message>
+        <source>Remove the layer&apos;s color label</source>
+        <translation>移除圖層的色彩標籤</translation>
+    </message>
+    <message>
+        <source>Tag the layer red in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為紅色</translation>
+    </message>
+    <message>
+        <source>Tag the layer orange in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為橙色</translation>
+    </message>
+    <message>
+        <source>Tag the layer yellow in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為黃色</translation>
+    </message>
+    <message>
+        <source>Tag the layer green in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為綠色</translation>
+    </message>
+    <message>
+        <source>Tag the layer blue in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為藍色</translation>
+    </message>
+    <message>
+        <source>Tag the layer violet in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為紫色</translation>
+    </message>
+    <message>
+        <source>Tag the layer gray in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為灰色</translation>
+    </message>
+    <message>
+        <source>Make every layer visible</source>
+        <translation>顯示所有圖層</translation>
+    </message>
+    <message>
+        <source>Hide the background with a mask automatically</source>
+        <translation>自動以遮色片隱藏背景</translation>
+    </message>
+    <message>
+        <source>Paint on the mask instead of the layer</source>
+        <translation>在遮色片而非圖層上繪畫</translation>
+    </message>
+    <message>
+        <source>Show the mask as a red overlay</source>
+        <translation>以紅色覆蓋顯示遮色片</translation>
+    </message>
+    <message>
+        <source>Show only the mask in gray</source>
+        <translation>僅以灰色顯示遮色片</translation>
+    </message>
+    <message>
+        <source>Move the mask together with the layer</source>
+        <translation>讓遮色片隨圖層一起移動</translation>
+    </message>
+    <message>
+        <source>Turn the mask off for now</source>
+        <translation>暫時停用遮色片</translation>
+    </message>
+    <message>
+        <source>Swap what the mask shows and hides</source>
+        <translation>互換遮色片顯示和隱藏的區域</translation>
+    </message>
+    <message>
+        <source>Remove the layer mask</source>
+        <translation>移除圖層遮色片</translation>
+    </message>
+    <message>
+        <source>Add a vector mask that shows everything</source>
+        <translation>新增顯示全部的向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Add a vector mask that hides everything</source>
+        <translation>新增隱藏全部的向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Mask the layer with the selected path</source>
+        <translation>以選取的路徑為圖層加上遮色片</translation>
+    </message>
+    <message>
+        <source>Remove the vector mask</source>
+        <translation>移除向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Turn the vector mask off for now</source>
+        <translation>暫時停用向量圖遮色片</translation>
+    </message>
+    <message>
+        <source>Turn the vector mask into a pixel mask</source>
+        <translation>將向量圖遮色片轉換為像素遮色片</translation>
+    </message>
+    <message>
+        <source>Change the settings of the adjustment layer</source>
+        <translation>變更調整圖層的設定</translation>
+    </message>
+    <message>
+        <source>Wrap the layers so edits stay editable</source>
+        <translation>包裝圖層，使編輯保持可編輯</translation>
+    </message>
+    <message>
+        <source>Open the contents in their own tab</source>
+        <translation>在獨立的分頁中開啟內容</translation>
+    </message>
+    <message>
+        <source>Swap in another file as the contents</source>
+        <translation>以另一個檔案取代內容</translation>
+    </message>
+    <message>
+        <source>Reload the linked file</source>
+        <translation>重新載入連結的檔案</translation>
+    </message>
+    <message>
+        <source>Point the link at another file</source>
+        <translation>將連結指向另一個檔案</translation>
+    </message>
+    <message>
+        <source>Store the linked file inside the document</source>
+        <translation>將連結的檔案儲存在文件中</translation>
+    </message>
+    <message>
+        <source>Save the contents as a file</source>
+        <translation>將內容儲存為檔案</translation>
+    </message>
+    <message>
+        <source>Duplicate as an independent Smart Object</source>
+        <translation>複製為獨立的智慧型物件</translation>
+    </message>
+    <message>
+        <source>Rasterize the Smart Object into pixels</source>
+        <translation>將智慧型物件點陣化為像素</translation>
+    </message>
+    <message>
+        <source>Merge the shapes into one outline</source>
+        <translation>將形狀合併為一個輪廓</translation>
+    </message>
+    <message>
+        <source>Cut the top shape out of the others</source>
+        <translation>從其他形狀中減去頂層形狀</translation>
+    </message>
+    <message>
+        <source>Keep only where the shapes overlap</source>
+        <translation>僅保留形狀重疊的部分</translation>
+    </message>
+    <message>
+        <source>Keep everything except the overlap</source>
+        <translation>保留重疊部分以外的全部</translation>
+    </message>
+    <message>
+        <source>Line up layers on the left</source>
+        <translation>將圖層靠左對齊</translation>
+    </message>
+    <message>
+        <source>Center layers side to side</source>
+        <translation>將圖層水平置中</translation>
+    </message>
+    <message>
+        <source>Line up layers on the right</source>
+        <translation>將圖層靠右對齊</translation>
+    </message>
+    <message>
+        <source>Line up layers along the top</source>
+        <translation>將圖層頂部對齊</translation>
+    </message>
+    <message>
+        <source>Center layers top to bottom</source>
+        <translation>將圖層垂直置中</translation>
+    </message>
+    <message>
+        <source>Line up layers along the bottom</source>
+        <translation>將圖層底部對齊</translation>
+    </message>
+    <message>
+        <source>Align to the selected area</source>
+        <translation>對齊到選取範圍</translation>
+    </message>
+    <message>
+        <source>Align to the document edges</source>
+        <translation>對齊到文件邊緣</translation>
+    </message>
+    <message>
+        <source>Space the left edges evenly</source>
+        <translation>平均分配左邊緣</translation>
+    </message>
+    <message>
+        <source>Space the centers evenly across</source>
+        <translation>水平平均分配中心</translation>
+    </message>
+    <message>
+        <source>Space the right edges evenly</source>
+        <translation>平均分配右邊緣</translation>
+    </message>
+    <message>
+        <source>Space the top edges evenly</source>
+        <translation>平均分配頂邊</translation>
+    </message>
+    <message>
+        <source>Space the centers evenly down</source>
+        <translation>垂直平均分配中心</translation>
+    </message>
+    <message>
+        <source>Space the bottom edges evenly</source>
+        <translation>平均分配底邊</translation>
+    </message>
+    <message>
+        <source>Equal gaps between layers across</source>
+        <translation>圖層之間水平間距相等</translation>
+    </message>
+    <message>
+        <source>Equal gaps between layers down</source>
+        <translation>圖層之間垂直間距相等</translation>
+    </message>
+    <message>
+        <source>Mirror the layer left to right</source>
+        <translation>左右鏡像圖層</translation>
+    </message>
+    <message>
+        <source>Mirror the layer top to bottom</source>
+        <translation>上下鏡像圖層</translation>
+    </message>
+    <message>
+        <source>Save the layer as a PNG at once</source>
+        <translation>立即將圖層儲存為 PNG</translation>
+    </message>
+    <message>
+        <source>Save the layer to a file</source>
+        <translation>將圖層儲存到檔案</translation>
+    </message>
+    <message>
+        <source>Copy the layer into another document</source>
+        <translation>將圖層複製到另一個文件</translation>
+    </message>
+    <message>
+        <source>Keep dragged layers out of folders and artboards</source>
+        <translation>拖曳的圖層不放入資料夾和工作區域</translation>
+    </message>
+    <message>
+        <source>Paint only where the layer has pixels</source>
+        <translation>僅在圖層有像素處繪畫</translation>
+    </message>
+    <message>
+        <source>Combine the selected layers into a new one</source>
+        <translation>將選取的圖層合併為新圖層</translation>
+    </message>
+    <message>
+        <source>Step to the next blend mode</source>
+        <translation>切換到下一個混合模式</translation>
+    </message>
+    <message>
+        <source>Step to the previous blend mode</source>
+        <translation>切換到上一個混合模式</translation>
+    </message>
+    <message>
+        <source>Show the layer as is</source>
+        <translation>按原樣顯示圖層</translation>
+    </message>
+    <message>
+        <source>Scatter pixels by opacity</source>
+        <translation>依不透明度散布像素</translation>
+    </message>
+    <message>
+        <source>Keep the darker colors</source>
+        <translation>保留較暗的顏色</translation>
+    </message>
+    <message>
+        <source>Darken like stacked ink</source>
+        <translation>像疊加墨水一樣變暗</translation>
+    </message>
+    <message>
+        <source>Darken with more contrast</source>
+        <translation>以更高對比變暗</translation>
+    </message>
+    <message>
+        <source>Darken by lowering brightness</source>
+        <translation>透過降低亮度變暗</translation>
+    </message>
+    <message>
+        <source>Keep the lighter colors</source>
+        <translation>保留較亮的顏色</translation>
+    </message>
+    <message>
+        <source>Lighten like projected light</source>
+        <translation>像投射光一樣變亮</translation>
+    </message>
+    <message>
+        <source>Lighten with less contrast</source>
+        <translation>以較低對比變亮</translation>
+    </message>
+    <message>
+        <source>Lighten by adding brightness</source>
+        <translation>透過增加亮度變亮</translation>
+    </message>
+    <message>
+        <source>Raise contrast by the colors below</source>
+        <translation>依下方顏色提高對比</translation>
+    </message>
+    <message>
+        <source>Gently lighten or darken</source>
+        <translation>柔和地變亮或變暗</translation>
+    </message>
+    <message>
+        <source>Strongly lighten or darken</source>
+        <translation>強烈地變亮或變暗</translation>
+    </message>
+    <message>
+        <source>Burn or dodge by contrast</source>
+        <translation>透過對比加深或加亮</translation>
+    </message>
+    <message>
+        <source>Burn or dodge by brightness</source>
+        <translation>透過亮度加深或加亮</translation>
+    </message>
+    <message>
+        <source>Replace colors by lightness</source>
+        <translation>依明暗替換顏色</translation>
+    </message>
+    <message>
+        <source>Push colors to pure primaries</source>
+        <translation>將顏色推向純原色</translation>
+    </message>
+    <message>
+        <source>Subtract the colors from each other</source>
+        <translation>顏色相互相減</translation>
+    </message>
+    <message>
+        <source>A softer difference</source>
+        <translation>更柔和的差異化</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s hue</source>
+        <translation>僅採用圖層的色相</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s saturation</source>
+        <translation>僅採用圖層的飽和度</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s hue and saturation</source>
+        <translation>採用圖層的色相和飽和度</translation>
+    </message>
+    <message>
+        <source>Take only the layer&apos;s brightness</source>
+        <translation>僅採用圖層的亮度</translation>
+    </message>
+    <message>
+        <source>Replace fonts that are not installed</source>
+        <translation>取代未安裝的字體</translation>
+    </message>
+    <message>
+        <source>Select no layers</source>
+        <translation>不選取任何圖層</translation>
+    </message>
+    <message>
+        <source>Make the next layer down the active one</source>
+        <translation>啟用下方的下一個圖層</translation>
+    </message>
+    <message>
+        <source>Make the next layer up the active one</source>
+        <translation>啟用上方的下一個圖層</translation>
+    </message>
+    <message>
+        <source>Select the main subject automatically</source>
+        <translation>自動選取主體</translation>
+    </message>
+    <message>
+        <source>Select everything but the main subject</source>
+        <translation>選取主體以外的全部</translation>
+    </message>
+    <message>
+        <source>Select the layer&apos;s opaque pixels</source>
+        <translation>選取圖層的不透明像素</translation>
+    </message>
+    <message>
+        <source>Add the next layer down to the selected layers</source>
+        <translation>將下方的下一個圖層加入選取的圖層</translation>
+    </message>
+    <message>
+        <source>Add the next layer up to the selected layers</source>
+        <translation>將上方的下一個圖層加入選取的圖層</translation>
+    </message>
+    <message>
+        <source>Select the object inside the selection</source>
+        <translation>選取選取範圍內的物件</translation>
+    </message>
+    <message>
+        <source>Repeat the last filter</source>
+        <translation>重複上一個濾鏡</translation>
+    </message>
+    <message>
+        <source>Dreamy glow on the highlights</source>
+        <translation>亮部的夢幻光暈</translation>
+    </message>
+    <message>
+        <source>Bolder colors and contrast</source>
+        <translation>更濃烈的色彩和對比</translation>
+    </message>
+    <message>
+        <source>Moody black and white</source>
+        <translation>情緒化的黑白</translation>
+    </message>
+    <message>
+        <source>Film look with lifted blacks</source>
+        <translation>提亮黑色的底片效果</translation>
+    </message>
+    <message>
+        <source>Faded old photo look</source>
+        <translation>褪色老照片效果</translation>
+    </message>
+    <message>
+        <source>Brown old photo tint</source>
+        <translation>舊照片的棕色色調</translation>
+    </message>
+    <message>
+        <source>Darken the corners</source>
+        <translation>壓暗四角</translation>
+    </message>
+    <message>
+        <source>Even blur over a square area</source>
+        <translation>在方形區域內均勻模糊</translation>
+    </message>
+    <message>
+        <source>Smooth soft blur</source>
+        <translation>平滑柔和的模糊</translation>
+    </message>
+    <message>
+        <source>Streak as if moving</source>
+        <translation>像運動一樣拖出條紋</translation>
+    </message>
+    <message>
+        <source>Spin or zoom blur around a center</source>
+        <translation>繞著中心旋轉或縮放模糊</translation>
+    </message>
+    <message>
+        <source>Smooth while keeping edges</source>
+        <translation>平滑但保留邊緣</translation>
+    </message>
+    <message>
+        <source>Camera-like depth of field</source>
+        <translation>類似相機的景深</translation>
+    </message>
+    <message>
+        <source>Sharp spot with blur around it</source>
+        <translation>清晰區域周圍模糊</translation>
+    </message>
+    <message>
+        <source>Miniature look with a sharp band</source>
+        <translation>帶清晰條帶的微縮效果</translation>
+    </message>
+    <message>
+        <source>Soften slightly</source>
+        <translation>稍微柔化</translation>
+    </message>
+    <message>
+        <source>Soften a bit more</source>
+        <translation>再柔化一些</translation>
+    </message>
+    <message>
+        <source>Fill with the average color</source>
+        <translation>用平均顏色填滿</translation>
+    </message>
+    <message>
+        <source>Crisp up slightly</source>
+        <translation>稍微銳利化</translation>
+    </message>
+    <message>
+        <source>Sharpen with amount and radius</source>
+        <translation>依總量和半徑銳利化</translation>
+    </message>
+    <message>
+        <source>Keep only the fine detail</source>
+        <translation>僅保留細節</translation>
+    </message>
+    <message>
+        <source>Crisp up a bit more</source>
+        <translation>再銳利化一些</translation>
+    </message>
+    <message>
+        <source>Sharpen only the edges</source>
+        <translation>僅銳利化邊緣</translation>
+    </message>
+    <message>
+        <source>Swirl around the center</source>
+        <translation>繞著中心漩渦扭曲</translation>
+    </message>
+    <message>
+        <source>Ripple in waves</source>
+        <translation>產生波紋</translation>
+    </message>
+    <message>
+        <source>Squeeze in or bulge out</source>
+        <translation>向內擠壓或向外凸出</translation>
+    </message>
+    <message>
+        <source>Film-like grain</source>
+        <translation>類似底片的顆粒</translation>
+    </message>
+    <message>
+        <source>Sprinkle random speckles</source>
+        <translation>撒上隨機斑點</translation>
+    </message>
+    <message>
+        <source>Smooth out specks</source>
+        <translation>平滑斑點</translation>
+    </message>
+    <message>
+        <source>Hide small dust and scratches</source>
+        <translation>隱藏細小的灰塵和刮痕</translation>
+    </message>
+    <message>
+        <source>Turn into large square blocks</source>
+        <translation>變成大的方塊</translation>
+    </message>
+    <message>
+        <source>Print-style dots per color</source>
+        <translation>每種顏色的印刷風格網點</translation>
+    </message>
+    <message>
+        <source>Shiny wrapped-in-plastic look</source>
+        <translation>光亮的塑膠包裹效果</translation>
+    </message>
+    <message>
+        <source>Scatter pixels softly</source>
+        <translation>柔和地散布像素</translation>
+    </message>
+    <message>
+        <source>Show only the edges</source>
+        <translation>僅顯示邊緣</translation>
+    </message>
+    <message>
+        <source>Raised relief look</source>
+        <translation>凸起的浮雕效果</translation>
+    </message>
+    <message>
+        <source>Push out 3D blocks</source>
+        <translation>凸出 3D 方塊</translation>
+    </message>
+    <message>
+        <source>Outline edges on white</source>
+        <translation>在白色上勾勒邊緣</translation>
+    </message>
+    <message>
+        <source>Neon edges on black</source>
+        <translation>黑色上的霓虹邊緣</translation>
+    </message>
+    <message>
+        <source>Mix negative and positive</source>
+        <translation>混合負片與正片</translation>
+    </message>
+    <message>
+        <source>Break into offset tiles</source>
+        <translation>分割成錯位拼貼</translation>
+    </message>
+    <message>
+        <source>Outline tone boundaries</source>
+        <translation>勾勒色調邊界</translation>
+    </message>
+    <message>
+        <source>Streak pixels sideways</source>
+        <translation>將像素橫向拖出條紋</translation>
+    </message>
+    <message>
+        <source>Fill with soft cloud noise</source>
+        <translation>以柔和的雲狀雜訊填滿</translation>
+    </message>
+    <message>
+        <source>Blend cloud noise by difference</source>
+        <translation>以差異混合雲狀雜訊</translation>
+    </message>
+    <message>
+        <source>Fill with fiber strands</source>
+        <translation>以纖維絲填滿</translation>
+    </message>
+    <message>
+        <source>Draw flames</source>
+        <translation>繪製火焰</translation>
+    </message>
+    <message>
+        <source>Add a bright camera flare</source>
+        <translation>加入明亮的鏡頭光暈</translation>
+    </message>
+    <message>
+        <source>Run the last plug-in again</source>
+        <translation>再次執行上一個外掛程式</translation>
+    </message>
+    <message>
+        <source>Run the last plug-in with its dialog</source>
+        <translation>開啟對話方塊執行上一個外掛程式</translation>
+    </message>
+    <message>
+        <source>Show the plug-ins folder on disk</source>
+        <translation>在磁碟上顯示外掛程式資料夾</translation>
+    </message>
+    <message>
+        <source>Look for new or removed plug-ins</source>
+        <translation>尋找新增或已移除的外掛程式</translation>
+    </message>
+    <message>
+        <source>8BF plug-ins need Windows</source>
+        <translation>8BF 外掛程式需要 Windows</translation>
+    </message>
+    <message>
+        <source>Zoom until the image fills the window</source>
+        <translation>縮放到影像填滿視窗</translation>
+    </message>
+    <message>
+        <source>Zoom to twice the size</source>
+        <translation>縮放到兩倍大小</translation>
+    </message>
+    <message>
+        <source>Show shape edits live while dragging</source>
+        <translation>拖曳時即時顯示形狀編輯</translation>
+    </message>
+    <message>
+        <source>Preview the print colors</source>
+        <translation>預視列印色彩</translation>
+    </message>
+    <message>
+        <source>Mark colors that cannot print</source>
+        <translation>標示無法列印的色彩</translation>
+    </message>
+    <message>
+        <source>Show or hide guides, grid and edges</source>
+        <translation>顯示或隱藏參考線、格點和邊緣</translation>
+    </message>
+    <message>
+        <source>Show or hide the marching ants</source>
+        <translation>顯示或隱藏選取範圍螞蟻線</translation>
+    </message>
+    <message>
+        <source>Show or hide the active path outline</source>
+        <translation>顯示或隱藏作用中路徑外框</translation>
+    </message>
+    <message>
+        <source>Choose which extras show</source>
+        <translation>選擇要顯示的額外內容</translation>
+    </message>
+    <message>
+        <source>Stop guides from moving</source>
+        <translation>防止參考線移動</translation>
+    </message>
+    <message>
+        <source>Snap to guide lines</source>
+        <translation>靠齊參考線</translation>
+    </message>
+    <message>
+        <source>Snap to the grid</source>
+        <translation>靠齊格點</translation>
+    </message>
+    <message>
+        <source>Snap to the canvas edges and center</source>
+        <translation>靠齊版面邊緣和中心</translation>
+    </message>
+    <message>
+        <source>Snap to other layers</source>
+        <translation>靠齊其他圖層</translation>
+    </message>
+    <message>
+        <source>Snap to the selection edges</source>
+        <translation>靠齊選取範圍邊緣</translation>
+    </message>
+    <message>
+        <source>Add column and row guides</source>
+        <translation>新增欄和列參考線</translation>
+    </message>
+    <message>
+        <source>Remove the selected guides</source>
+        <translation>移除選取的參考線</translation>
+    </message>
+    <message>
+        <source>See the image repeated as a tile</source>
+        <translation>以拼貼方式重複檢視影像</translation>
+    </message>
+    <message>
+        <source>Normal window with panels</source>
+        <translation>含面板的一般視窗</translation>
+    </message>
+    <message>
+        <source>Full screen keeping the menus</source>
+        <translation>保留選單的全螢幕</translation>
+    </message>
+    <message>
+        <source>Full screen without panels</source>
+        <translation>不含面板的全螢幕</translation>
+    </message>
+    <message>
+        <source>Switch to the next screen mode</source>
+        <translation>切換到下一個螢幕模式</translation>
+    </message>
+    <message>
+        <source>Move the document into its own window</source>
+        <translation>將文件移到獨立視窗</translation>
+    </message>
+    <message>
+        <source>Put the document back in a tab</source>
+        <translation>將文件放回分頁</translation>
+    </message>
+    <message>
+        <source>Give every document its own window</source>
+        <translation>讓每份文件使用獨立視窗</translation>
+    </message>
+    <message>
+        <source>Put every document in tabs</source>
+        <translation>將所有文件放入分頁</translation>
+    </message>
+    <message>
+        <source>Arrange document windows side by side</source>
+        <translation>並排排列文件視窗</translation>
+    </message>
+    <message>
+        <source>Stack document windows diagonally</source>
+        <translation>沿對角線層疊文件視窗</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1280 by 720</source>
+        <translation>將視窗大小調整為 1280×720</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1366 by 768</source>
+        <translation>將視窗大小調整為 1366×768</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1600 by 900</source>
+        <translation>將視窗大小調整為 1600×900</translation>
+    </message>
+    <message>
+        <source>Resize the window to 1920 by 1080</source>
+        <translation>將視窗大小調整為 1920×1080</translation>
+    </message>
+    <message>
+        <source>Resize the window to 2560 by 1440</source>
+        <translation>將視窗大小調整為 2560×1440</translation>
+    </message>
+    <message>
+        <source>Resize the window to 3840 by 2160</source>
+        <translation>將視窗大小調整為 3840×2160</translation>
+    </message>
+    <message>
+        <source>Redraw the whole window</source>
+        <translation>重繪整個視窗</translation>
+    </message>
+    <message>
+        <source>Hide and arrange tools</source>
+        <translation>隱藏和排列工具</translation>
+    </message>
+    <message>
+        <source>Show the brush dynamics panel</source>
+        <translation>顯示筆刷動態面板</translation>
+    </message>
+    <message>
+        <source>Show the brush tips panel</source>
+        <translation>顯示筆刷筆尖面板</translation>
+    </message>
+    <message>
+        <source>Show the Channels panel</source>
+        <translation>顯示色版面板</translation>
+    </message>
+    <message>
+        <source>Show the Color panel</source>
+        <translation>顯示顏色面板</translation>
+    </message>
+    <message>
+        <source>Show the undo history panel</source>
+        <translation>顯示復原步驟記錄面板</translation>
+    </message>
+    <message>
+        <source>Show the Info panel</source>
+        <translation>顯示資訊面板</translation>
+    </message>
+    <message>
+        <source>Show the Layers panel</source>
+        <translation>顯示圖層面板</translation>
+    </message>
+    <message>
+        <source>Show the Palette panel</source>
+        <translation>顯示調色盤面板</translation>
+    </message>
+    <message>
+        <source>Show the Paths panel</source>
+        <translation>顯示路徑面板</translation>
+    </message>
+    <message>
+        <source>Show the Properties panel</source>
+        <translation>顯示內容面板</translation>
+    </message>
+    <message>
+        <source>Restore the default panel layout</source>
+        <translation>還原預設面板版面配置</translation>
+    </message>
+    <message>
+        <source>Show or hide the tool palette</source>
+        <translation>顯示或隱藏工具面板</translation>
+    </message>
+    <message>
+        <source>Show or hide the options bar</source>
+        <translation>顯示或隱藏選項列</translation>
+    </message>
+    <message>
+        <source>Find any command by name</source>
+        <translation>依名稱尋找任何命令</translation>
+    </message>
+    <message>
+        <source>Read how to write scripts</source>
+        <translation>閱讀指令碼撰寫說明</translation>
+    </message>
+    <message>
+        <source>Connect an AI assistant to Patchy</source>
+        <translation>將 AI 助理連線到 Patchy</translation>
+    </message>
+    <message>
+        <source>Add a launcher to your desktop menu</source>
+        <translation>在桌面選單加入啟動器</translation>
+    </message>
+    <message>
+        <source>Version and credits</source>
+        <translation>版本與致謝</translation>
+    </message>
+    <message>
+        <source>Switch between the move tools</source>
+        <translation>在移動工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the marquee tools</source>
+        <translation>在選取畫面工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the lasso tools</source>
+        <translation>在套索工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the wand and quick select tools</source>
+        <translation>在魔術棒和快速選取工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the crop tools</source>
+        <translation>在裁切工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the gradient and fill tools</source>
+        <translation>在漸層和填滿工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the stamp tools</source>
+        <translation>在印章工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the healing tools</source>
+        <translation>在修復工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between blur, sharpen and smudge</source>
+        <translation>在模糊、銳利化和指尖工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between dodge, burn and sponge</source>
+        <translation>在加亮、加深和海綿工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the pen tools</source>
+        <translation>在筆型工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the path selection tools</source>
+        <translation>在路徑選取工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the shape tools</source>
+        <translation>在形狀工具之間切換</translation>
+    </message>
+    <message>
+        <source>Switch between the eyedropper and ruler</source>
+        <translation>在滴管和尺標工具之間切換</translation>
+    </message>
+    <message>
+        <source>Reset to black and white</source>
+        <translation>重設為黑白</translation>
+    </message>
+    <message>
+        <source>Exchange foreground and background colors</source>
+        <translation>交換前景色和背景色</translation>
+    </message>
+    <message>
+        <source>Make the brush smaller</source>
+        <translation>縮小筆刷</translation>
+    </message>
+    <message>
+        <source>Make the brush bigger</source>
+        <translation>放大筆刷</translation>
+    </message>
+    <message>
+        <source>Make the brush a lot smaller</source>
+        <translation>大幅縮小筆刷</translation>
+    </message>
+    <message>
+        <source>Make the brush a lot bigger</source>
+        <translation>大幅放大筆刷</translation>
+    </message>
+    <message>
+        <source>Soften the brush edge</source>
+        <translation>柔化筆刷邊緣</translation>
+    </message>
+    <message>
+        <source>Harden the brush edge</source>
+        <translation>硬化筆刷邊緣</translation>
+    </message>
+    <message>
+        <source>Pick the previous brush preset</source>
+        <translation>選擇上一個筆刷預設集</translation>
+    </message>
+    <message>
+        <source>Pick the next brush preset</source>
+        <translation>選擇下一個筆刷預設集</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>管理內建和已儲存的筆畫預設集</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::CustomShapeLibrary</name>
     <message>
         <source>Could not read %1</source>
@@ -16620,6 +18589,67 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Search fonts...</source>
         <translation>搜尋字體...</translation>
+    </message>
+    <message>
+        <source>All Styles</source>
+        <translation>所有樣式</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>襯線</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>無襯線</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>粗襯線</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>手寫體</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>裝飾</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>符號</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>等寬</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>可變</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>最近使用</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>所有字型</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>正在讀取字型樣式... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>僅顯示此樣式的字型</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>僅顯示支援此語言的字型</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>所有語言</translation>
     </message>
 </context>
 <context>
@@ -16831,10 +18861,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>平移畫布(按住);拖曳期間則移動選取範圍或形狀</translation>
     </message>
     <message>
-        <source>Set tool opacity (10%-100%)</source>
-        <translation>設定工具不透明度(10%-100%)</translation>
-    </message>
-    <message>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>以 1 px / 10 px 微調圖層位置</translation>
     </message>
@@ -16909,6 +18935,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Scripts</source>
         <translation>指令碼</translation>
+    </message>
+    <message>
+        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <translation>設定工具或圖層不透明度(1 = 10%，0 = 100%；快速輸入兩位數字可設為精確值)</translation>
     </message>
 </context>
 <context>
@@ -23626,10 +25656,6 @@ Y：%2
         <translation>編輯目前形狀圖層的填色、筆畫、不透明度和邊緣</translation>
     </message>
     <message>
-        <source>Appearance...</source>
-        <translation>外觀...</translation>
-    </message>
-    <message>
         <source>Edit Appearance...</source>
         <translation>編輯外觀...</translation>
     </message>
@@ -29016,6 +31042,238 @@ Locked: %1</source>
     <message>
         <source>Text layers in this GIMP file that were painted on after their text was set: %1</source>
         <translation>此 GIMP 檔案中設定文字後又被繪製過的文字圖層：%1</translation>
+    </message>
+    <message>
+        <source>Search &amp;Commands...</source>
+        <translation>搜尋命令(&amp;C)...</translation>
+    </message>
+    <message>
+        <source>The images in %1 are already open</source>
+        <translation>%1 中的影像已開啟</translation>
+    </message>
+    <message>
+        <source>%1 is already open</source>
+        <translation>%1 已開啟</translation>
+    </message>
+    <message>
+        <source>The selected shapes only cut into others and paint nothing of their own</source>
+        <translation>選取的形狀只會從其他形狀中減去，本身不繪製任何內容</translation>
+    </message>
+    <message>
+        <source>Shapes combined with Intersect or Exclude share one color</source>
+        <translation>以相交或排除組合的形狀共用一種顏色</translation>
+    </message>
+    <message>
+        <source>An inverted shape has one color</source>
+        <translation>反轉的形狀只有一種顏色</translation>
+    </message>
+    <message>
+        <source>Select shapes on a shape layer with Path Select or Direct Select</source>
+        <translation>請用路徑選取或直接選取工具選取形狀圖層上的形狀</translation>
+    </message>
+    <message>
+        <source>Break Path at Point</source>
+        <translation>在錨點處分割路徑</translation>
+    </message>
+    <message>
+        <source>Open the path at the selected points</source>
+        <translation>在選取的錨點處分割路徑</translation>
+    </message>
+    <message>
+        <source>Join End Points</source>
+        <translation>連接端點</translation>
+    </message>
+    <message>
+        <source>Merge into One Point</source>
+        <translation>合併為一個錨點</translation>
+    </message>
+    <message>
+        <source>Merge the selected end points, or a row of selected points, into one point at their middle</source>
+        <translation>將選取的端點或一串選取的錨點合併為位於其中間的一個錨點</translation>
+    </message>
+    <message>
+        <source>Delete Segment</source>
+        <translation>刪除線段</translation>
+    </message>
+    <message>
+        <source>Delete the selected segments and leave the path open</source>
+        <translation>刪除選取的線段，讓路徑保持開放</translation>
+    </message>
+    <message>
+        <source>Color Selected Shapes...</source>
+        <translation>為選取的形狀上色...</translation>
+    </message>
+    <message>
+        <source>Give the selected shapes a fill color of their own</source>
+        <translation>為選取的形狀設定獨立的填色</translation>
+    </message>
+    <message>
+        <source>Move Selected Shapes to New Layer</source>
+        <translation>將選取的形狀移到新圖層</translation>
+    </message>
+    <message>
+        <source>Move the selected shapes to a new shape layer above</source>
+        <translation>將選取的形狀移到上方的新形狀圖層</translation>
+    </message>
+    <message>
+        <source>Copy Selected Shapes to New Layer</source>
+        <translation>將選取的形狀拷貝到新圖層</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes to a new shape layer above</source>
+        <translation>將選取的形狀拷貝到上方的新形狀圖層</translation>
+    </message>
+    <message>
+        <source>Cut Shapes</source>
+        <translation>剪下形狀</translation>
+    </message>
+    <message>
+        <source>Cut the selected shapes</source>
+        <translation>剪下選取的形狀</translation>
+    </message>
+    <message>
+        <source>Copy Shapes</source>
+        <translation>拷貝形狀</translation>
+    </message>
+    <message>
+        <source>Copy the selected shapes</source>
+        <translation>拷貝選取的形狀</translation>
+    </message>
+    <message>
+        <source>Paste Shapes</source>
+        <translation>貼上形狀</translation>
+    </message>
+    <message>
+        <source>Paste the copied shapes into the target path</source>
+        <translation>將拷貝的形狀貼到目標路徑</translation>
+    </message>
+    <message>
+        <source>Cut shapes</source>
+        <translation>剪下形狀</translation>
+    </message>
+    <message>
+        <source>Cut %1 shape(s)</source>
+        <translation>已剪下 %1 個形狀</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s)</source>
+        <translation>已拷貝 %1 個形狀</translation>
+    </message>
+    <message>
+        <source>Paste shapes</source>
+        <translation>貼上形狀</translation>
+    </message>
+    <message>
+        <source>Pasted %1 shape(s)</source>
+        <translation>已貼上 %1 個形狀</translation>
+    </message>
+    <message>
+        <source>Shape color</source>
+        <translation>形狀顏色</translation>
+    </message>
+    <message>
+        <source>Colored %1 shape(s)</source>
+        <translation>已為 %1 個形狀上色</translation>
+    </message>
+    <message>
+        <source>Shape Color</source>
+        <translation>形狀顏色</translation>
+    </message>
+    <message>
+        <source>Select shapes with Path Select or Direct Select first</source>
+        <translation>請先用路徑選取或直接選取工具選取形狀</translation>
+    </message>
+    <message>
+        <source>Copy shapes to new layer</source>
+        <translation>將形狀拷貝到新圖層</translation>
+    </message>
+    <message>
+        <source>Move shapes to new layer</source>
+        <translation>將形狀移到新圖層</translation>
+    </message>
+    <message>
+        <source>Copied %1 shape(s) to a new layer</source>
+        <translation>已將 %1 個形狀拷貝到新圖層</translation>
+    </message>
+    <message>
+        <source>Moved %1 shape(s) to a new layer</source>
+        <translation>已將 %1 個形狀移到新圖層</translation>
+    </message>
+    <message>
+        <source>Merge Shapes</source>
+        <translation>融合形狀</translation>
+    </message>
+    <message>
+        <source>Turn the selected shapes, combined as they show, into one outline you can move and edit</source>
+        <translation>將選取的形狀依顯示的組合方式變成一個可移動、可編輯的輪廓</translation>
+    </message>
+    <message>
+        <source>Merge Shapes: turn the selected shapes, combined as they show, into one outline</source>
+        <translation>融合形狀：將選取的形狀依顯示的組合方式變成一個輪廓</translation>
+    </message>
+    <message>
+        <source>Select a shape layer or a path first</source>
+        <translation>請先選取形狀圖層或路徑</translation>
+    </message>
+    <message>
+        <source>A text area keeps one outline</source>
+        <translation>文字區域保持一個輪廓</translation>
+    </message>
+    <message>
+        <source>The path has no shapes</source>
+        <translation>路徑中沒有形狀</translation>
+    </message>
+    <message>
+        <source>Shapes with their own colors cannot merge with others</source>
+        <translation>擁有獨立顏色的形狀不能與其他形狀融合</translation>
+    </message>
+    <message>
+        <source>Merge shapes</source>
+        <translation>融合形狀</translation>
+    </message>
+    <message>
+        <source>The shapes left no area; the layer was removed</source>
+        <translation>形狀沒有剩下任何區域；已移除該圖層</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one outline</source>
+        <translation>已將 %1 個形狀融合為一個輪廓</translation>
+    </message>
+    <message>
+        <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
+        <translation>以直線段連接兩個選取的端點，或封閉每條含有選取錨點的開放路徑</translation>
+    </message>
+    <message>
+        <source>The selected shapes are already aligned</source>
+        <translation>選取的形狀已經對齊</translation>
+    </message>
+    <message>
+        <source>Align shapes</source>
+        <translation>對齊形狀</translation>
+    </message>
+    <message>
+        <source>Aligned %1 shape(s)</source>
+        <translation>已對齊 %1 個形狀</translation>
+    </message>
+    <message>
+        <source>Stroke Presets...</source>
+        <translation>筆畫預設集...</translation>
+    </message>
+    <message>
+        <source>Rename, sort and delete the stroke presets saved in Shape Appearance.</source>
+        <translation>重新命名、排序和刪除在「形狀外觀」中儲存的筆畫預設集。</translation>
+    </message>
+    <message>
+        <source>Stroke preset: %1</source>
+        <translation>筆畫預設集：%1</translation>
+    </message>
+    <message>
+        <source>Manage Presets...</source>
+        <translation>管理預設集...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>筆畫虛線和已儲存的筆畫預設集。虛線預設集使用平頭端點；點狀預設集使用圓頭端點和圓角</translation>
     </message>
 </context>
 <context>

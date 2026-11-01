@@ -176,6 +176,80 @@ embed_in_filter_canvas(const PixelBuffer &placed_pixels, Rect placed_bounds,
   return FilterRenderResult{std::move(canvas), filter_canvas_bounds};
 }
 
+// Runs body(begin, end) over [0, count) in blocks. Large jobs fan out to
+// worker threads sized by the hardware and the wasm blocking fan-out budget.
+// Every block writes only its own output pixels, so the result never depends
+// on scheduling. Only the calling thread reports progress: callbacks and
+// FilterCancelled never cross threads, and a cancel stops the workers at their
+// next block before the exception propagates.
+template <typename Body>
+void run_filter_blocks(std::int32_t count, std::uint64_t work_per_item,
+                       const FilterProgress *progress,
+                       FilterProgressStage stage, const Body &body) {
+  if (count <= 0) {
+    report_progress(progress, 1, 1, stage);
+    return;
+  }
+  constexpr std::uint64_t kMinimumParallelWork = 1U << 22;
+  const auto total_work = static_cast<std::uint64_t>(count) *
+                          std::max<std::uint64_t>(1U, work_per_item);
+  const auto workers =
+      total_work < kMinimumParallelWork
+          ? 1
+          : max_blocking_fanout_workers(
+                std::clamp(std::min(hardware_worker_threads(), count), 1, 16));
+  const auto block =
+      workers < 2 ? 1 : std::max<std::int32_t>(1, count / (workers * 8));
+  std::atomic<std::int32_t> next{0};
+  std::atomic<std::int32_t> finished{0};
+  std::atomic<bool> stop{false};
+  const auto run_block = [&]() -> bool {
+    const auto begin = next.fetch_add(block);
+    if (begin >= count) {
+      return false;
+    }
+    const auto end = std::min(count, begin + block);
+    body(begin, end);
+    finished.fetch_add(end - begin);
+    return true;
+  };
+  std::vector<std::future<void>> helpers;
+  try {
+    for (int worker = 1; worker < workers; ++worker) {
+      helpers.push_back(std::async(std::launch::async, [&] {
+        try {
+          while (!stop.load() && run_block()) {
+          }
+        } catch (...) {
+          stop.store(true);
+          throw;
+        }
+      }));
+    }
+    report_progress(progress, 0, count, stage);
+    while (!stop.load() && run_block()) {
+      report_progress(progress, finished.load(), count, stage);
+    }
+    for (auto &helper : helpers) {
+      while (helper.wait_for(std::chrono::milliseconds(20)) !=
+             std::future_status::ready) {
+        report_progress(progress, finished.load(), count, stage);
+      }
+    }
+  } catch (...) {
+    stop.store(true);
+    for (auto &helper : helpers) {
+      helper.wait();
+    }
+    throw;
+  }
+  // get() rethrows a worker's exception (bad_alloc under memory pressure).
+  for (auto &helper : helpers) {
+    helper.get();
+  }
+  report_progress(progress, count, count, stage);
+}
+
 [[nodiscard]] std::uint8_t rounded_byte(double value) noexcept {
   if (!(value > 0.0)) {
     return 0;
@@ -392,48 +466,180 @@ struct GaussianLinePlan {
   return plan;
 }
 
-void filter_gaussian_line(std::vector<double> &values,
-                          std::vector<double> &scratch,
-                          const GaussianLinePlan &plan) {
-  const auto count = values.size();
-  scratch.resize(count);
+// Filters `lanes` interleaved lines of `count` samples each: sample i of lane l
+// sits at values[i * lanes + l]. Every lane gets exactly the arithmetic of a
+// lone line (same operations in the same order, no FMA: docs/platform.md), so
+// the result never depends on how many lines run side by side. Returns the
+// buffer holding the result (`scratch` for the direct kernel, `values` for the
+// recursive filter); both buffers hold count * lanes samples.
+template <std::size_t FixedLanes = 0>
+[[nodiscard]] const double *
+filter_gaussian_lines(double *values, double *scratch, std::size_t count,
+                      std::size_t lanes, const GaussianLinePlan &plan) {
+  if constexpr (FixedLanes != 0) {
+    lanes = FixedLanes;
+  }
+  if (count == 0U) {
+    return values;
+  }
   if (plan.direct) {
     const auto radius = static_cast<std::ptrdiff_t>(plan.kernel.size() / 2U);
-    for (std::size_t index = 0; index < count; ++index) {
-      double value = 0.0;
+    const auto last = static_cast<std::ptrdiff_t>(count) - 1;
+    const auto *kernel = plan.kernel.data();
+    for (std::ptrdiff_t index = 0; index <= last; ++index) {
+      auto *out = scratch + static_cast<std::size_t>(index) * lanes;
+      std::fill_n(out, lanes, 0.0);
       for (std::ptrdiff_t offset = -radius; offset <= radius; ++offset) {
-        const auto source = std::clamp<std::ptrdiff_t>(
-            static_cast<std::ptrdiff_t>(index) + offset, 0,
-            static_cast<std::ptrdiff_t>(count) - 1);
-        value += values[static_cast<std::size_t>(source)] *
-                 plan.kernel[static_cast<std::size_t>(offset + radius)];
+        const auto source = std::clamp<std::ptrdiff_t>(index + offset, 0, last);
+        const auto *in = values + static_cast<std::size_t>(source) * lanes;
+        const auto weight = kernel[offset + radius];
+        for (std::size_t lane = 0; lane < lanes; ++lane) {
+          out[lane] += in[lane] * weight;
+        }
       }
-      scratch[index] = value;
     }
-    values.swap(scratch);
-    return;
+    return scratch;
   }
 
+  // Young and van Vliet's forward pass seeds its history with the first
+  // input sample, the backward pass with the last forward output.
+  const auto gain = plan.gain;
+  const auto c1 = plan.coefficient1;
+  const auto c2 = plan.coefficient2;
+  const auto c3 = plan.coefficient3;
+  const auto at = [lanes](double *line, std::size_t index) {
+    return line + index * lanes;
+  };
   for (std::size_t index = 0; index < count; ++index) {
-    const auto previous1 = index >= 1U ? scratch[index - 1U] : values.front();
-    const auto previous2 = index >= 2U ? scratch[index - 2U] : values.front();
-    const auto previous3 = index >= 3U ? scratch[index - 3U] : values.front();
-    scratch[index] = plan.gain * values[index] + plan.coefficient1 * previous1 +
-                     plan.coefficient2 * previous2 +
-                     plan.coefficient3 * previous3;
+    const auto *in = at(values, index);
+    auto *out = at(scratch, index);
+    if (index >= 3U) {
+      const auto *previous1 = at(scratch, index - 1U);
+      const auto *previous2 = at(scratch, index - 2U);
+      const auto *previous3 = at(scratch, index - 3U);
+      for (std::size_t lane = 0; lane < lanes; ++lane) {
+        out[lane] = gain * in[lane] + c1 * previous1[lane] +
+                    c2 * previous2[lane] + c3 * previous3[lane];
+      }
+      continue;
+    }
+    for (std::size_t lane = 0; lane < lanes; ++lane) {
+      const auto front = values[lane];
+      const auto previous1 = index >= 1U ? at(scratch, index - 1U)[lane] : front;
+      const auto previous2 = index >= 2U ? at(scratch, index - 2U)[lane] : front;
+      const auto previous3 = front;
+      out[lane] = gain * in[lane] + c1 * previous1 + c2 * previous2 +
+                  c3 * previous3;
+    }
   }
+  const auto *back = at(scratch, count - 1U);
   for (std::size_t reverse = count; reverse > 0U; --reverse) {
     const auto index = reverse - 1U;
-    const auto following1 =
-        index + 1U < count ? values[index + 1U] : scratch.back();
-    const auto following2 =
-        index + 2U < count ? values[index + 2U] : scratch.back();
-    const auto following3 =
-        index + 3U < count ? values[index + 3U] : scratch.back();
-    values[index] =
-        plan.gain * scratch[index] + plan.coefficient1 * following1 +
-        plan.coefficient2 * following2 + plan.coefficient3 * following3;
+    const auto *in = at(scratch, index);
+    auto *out = at(values, index);
+    if (index + 3U < count) {
+      const auto *following1 = at(values, index + 1U);
+      const auto *following2 = at(values, index + 2U);
+      const auto *following3 = at(values, index + 3U);
+      for (std::size_t lane = 0; lane < lanes; ++lane) {
+        out[lane] = gain * in[lane] + c1 * following1[lane] +
+                    c2 * following2[lane] + c3 * following3[lane];
+      }
+      continue;
+    }
+    for (std::size_t lane = 0; lane < lanes; ++lane) {
+      const auto following1 =
+          index + 1U < count ? at(values, index + 1U)[lane] : back[lane];
+      const auto following2 =
+          index + 2U < count ? at(values, index + 2U)[lane] : back[lane];
+      const auto following3 = back[lane];
+      out[lane] = gain * in[lane] + c1 * following1 + c2 * following2 +
+                  c3 * following3;
+    }
   }
+  return values;
+}
+
+// Columns filtered side by side in the column pass: one row of a block is a
+// 64-byte line of the byte plane, and the block's doubles stay small enough
+// to stream through the cache instead of striding a whole row per sample.
+constexpr std::int32_t kGaussianColumnBlock = 16;
+// The single-channel plane filter's blocks: one sample per column, so four
+// times the columns for the same number of lanes.
+constexpr std::int32_t kPlaneColumnBlock = kGaussianColumnBlock * 4;
+
+[[nodiscard]] std::uint64_t gaussian_work_per_sample(const GaussianLinePlan &plan) {
+  return plan.direct ? std::max<std::uint64_t>(1U, plan.kernel.size()) : 8U;
+}
+
+// The separable two-pass filter shared by the RGBA8 primitives: each row's
+// `channels` interleaved lanes (load_row fills width * channels doubles)
+// through `plan`, byte-rounded into a plane, then blocks of columns down that
+// plane; store_row(y, x0, columns, values) takes one row of a column block.
+// Rows and column blocks run in parallel (run_filter_blocks); each writes only
+// its own pixels, so the bytes never depend on the worker count.
+template <std::size_t Channels, typename LoadRow, typename StoreRow>
+void run_gaussian_passes(std::int32_t width, std::int32_t height,
+                         const GaussianLinePlan &plan,
+                         const FilterProgress *progress,
+                         const LoadRow &load_row, const StoreRow &store_row) {
+  const auto row_samples = static_cast<std::size_t>(width) * Channels;
+  std::vector<std::uint8_t> horizontal(row_samples *
+                                       static_cast<std::size_t>(height));
+  auto *horizontal_data = horizontal.data();
+  const auto work = gaussian_work_per_sample(plan);
+  const auto row_progress = phase_progress(progress, 0, 2);
+  run_filter_blocks(
+      height, row_samples * work, &row_progress, FilterProgressStage::Blurring,
+      [&](std::int32_t begin, std::int32_t end) {
+        std::vector<double> values(row_samples);
+        std::vector<double> scratch(row_samples);
+        for (auto y = begin; y < end; ++y) {
+          load_row(y, values.data());
+          const auto *filtered = filter_gaussian_lines<Channels>(
+              values.data(), scratch.data(), static_cast<std::size_t>(width),
+              Channels, plan);
+          auto *destination =
+              horizontal_data + static_cast<std::size_t>(y) * row_samples;
+          for (std::size_t index = 0; index < row_samples; ++index) {
+            destination[index] = rounded_byte(filtered[index]);
+          }
+        }
+      });
+
+  const auto blocks =
+      (width + kGaussianColumnBlock - 1) / kGaussianColumnBlock;
+  const auto block_samples =
+      static_cast<std::size_t>(kGaussianColumnBlock) * Channels;
+  const auto column_progress = phase_progress(progress, 1, 2);
+  run_filter_blocks(
+      blocks,
+      static_cast<std::uint64_t>(height) * block_samples * work,
+      &column_progress, FilterProgressStage::Blurring,
+      [&](std::int32_t begin, std::int32_t end) {
+        std::vector<double> values(block_samples *
+                                   static_cast<std::size_t>(height));
+        std::vector<double> scratch(values.size());
+        for (auto block = begin; block < end; ++block) {
+          const auto x0 = block * kGaussianColumnBlock;
+          const auto columns = std::min(kGaussianColumnBlock, width - x0);
+          const auto lanes = static_cast<std::size_t>(columns) * Channels;
+          for (std::int32_t y = 0; y < height; ++y) {
+            const auto *source = horizontal_data +
+                                 static_cast<std::size_t>(y) * row_samples +
+                                 static_cast<std::size_t>(x0) * Channels;
+            std::copy(source, source + lanes,
+                      values.data() + static_cast<std::size_t>(y) * lanes);
+          }
+          const auto *filtered = filter_gaussian_lines(
+              values.data(), scratch.data(), static_cast<std::size_t>(height),
+              lanes, plan);
+          for (std::int32_t y = 0; y < height; ++y) {
+            store_row(y, x0, columns,
+                      filtered + static_cast<std::size_t>(y) * lanes);
+          }
+        }
+      });
 }
 
 [[nodiscard]] FilterRenderResult
@@ -448,95 +654,58 @@ render_gaussian(const FilterRenderResult &input, double radius,
   const auto bounds = input.bounds;
   const auto pixel_count = static_cast<std::uint64_t>(bounds.width) *
                            static_cast<std::uint64_t>(bounds.height);
-  if (pixel_count > std::numeric_limits<std::size_t>::max() / sizeof(float)) {
+  if (pixel_count > std::numeric_limits<std::size_t>::max() / 4U) {
     throw std::overflow_error("Smart Filter working buffer overflow");
   }
 
   const auto plan = make_gaussian_line_plan(radius, margin);
   PixelBuffer output(bounds.width, bounds.height, PixelFormat::rgba8());
   output.clear(0);
-  std::vector<float> horizontal(static_cast<std::size_t>(pixel_count));
-  std::vector<double> values;
-  std::vector<double> scratch;
-
-  const std::array<int, 4> channels{3, 0, 1, 2};
-  const auto source_data = input.pixels.data();
-  auto output_data = output.data();
-  const auto source_width = input.pixels.width();
+  // Detached here, on the launching thread: the passes write it in parallel.
+  auto *output_data = output.data().data();
+  const auto *source_data = input.pixels.data().data();
+  const auto source_width = static_cast<std::size_t>(input.pixels.width());
   const auto width = bounds.width;
-  const auto height = bounds.height;
-  const auto total_lines =
-      static_cast<std::uint64_t>(channels.size()) *
-      (static_cast<std::uint64_t>(width) + static_cast<std::uint64_t>(height));
-  std::uint64_t completed_lines = 0U;
 
-  for (const auto channel : channels) {
-    values.resize(static_cast<std::size_t>(width));
-    scratch.resize(static_cast<std::size_t>(width));
-    for (std::int32_t y = 0; y < height; ++y) {
-      report_fraction(progress, completed_lines++, total_lines,
-                      FilterProgressStage::Blurring);
-      const auto source_y = y;
-      for (std::int32_t x = 0; x < width; ++x) {
-        const auto source_x = x;
-        const auto source_offset =
-            (static_cast<std::size_t>(source_y) *
-                 static_cast<std::size_t>(source_width) +
-             static_cast<std::size_t>(source_x)) *
-            4U;
-        const auto alpha = source_data[source_offset + 3U];
-        values[static_cast<std::size_t>(x)] =
-            channel == 3
-                ? static_cast<double>(alpha)
-                : static_cast<double>(
-                      source_data[source_offset +
-                                  static_cast<std::size_t>(channel)]) *
-                      static_cast<double>(alpha) / 255.0;
-      }
-      filter_gaussian_line(values, scratch, plan);
-      const auto row_offset =
-          static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
-      for (std::int32_t x = 0; x < width; ++x) {
-        horizontal[row_offset + static_cast<std::size_t>(x)] =
-            static_cast<float>(rounded_byte(
-                values[static_cast<std::size_t>(x)]));
-      }
-    }
-
-    values.resize(static_cast<std::size_t>(height));
-    scratch.resize(static_cast<std::size_t>(height));
-    for (std::int32_t x = 0; x < width; ++x) {
-      report_fraction(progress, completed_lines++, total_lines,
-                      FilterProgressStage::Blurring);
-      for (std::int32_t y = 0; y < height; ++y) {
-        values[static_cast<std::size_t>(y)] =
-            horizontal[static_cast<std::size_t>(y) *
-                           static_cast<std::size_t>(width) +
-                       static_cast<std::size_t>(x)];
-      }
-      filter_gaussian_line(values, scratch, plan);
-      for (std::int32_t y = 0; y < height; ++y) {
-        const auto output_offset =
-            (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-             static_cast<std::size_t>(x)) *
-            4U;
-        if (channel == 3) {
-          output_data[output_offset + 3U] =
-              rounded_byte(values[static_cast<std::size_t>(y)]);
-          continue;
+  // Alpha and alpha-premultiplied color blur separately; color divides back
+  // out by the blurred, rounded alpha.
+  run_gaussian_passes<4>(
+      width, bounds.height, plan, progress,
+      [&](std::int32_t y, double *values) {
+        const auto *source =
+            source_data + static_cast<std::size_t>(y) * source_width * 4U;
+        for (std::int32_t x = 0; x < width; ++x) {
+          const auto *pixel = source + static_cast<std::size_t>(x) * 4U;
+          auto *lane = values + static_cast<std::size_t>(x) * 4U;
+          const auto alpha = pixel[3];
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            lane[channel] = static_cast<double>(pixel[channel]) *
+                            static_cast<double>(alpha) / 255.0;
+          }
+          lane[3] = static_cast<double>(alpha);
         }
-        const auto alpha = output_data[output_offset + 3U];
-        const auto premultiplied =
-            rounded_byte(values[static_cast<std::size_t>(y)]);
-        output_data[output_offset + static_cast<std::size_t>(channel)] =
-            alpha == 0U ? 0U
-                        : rounded_byte(static_cast<double>(premultiplied) *
-                                       255.0 / static_cast<double>(alpha));
-      }
-    }
-  }
-  report_fraction(progress, total_lines, total_lines,
-                  FilterProgressStage::Blurring);
+      },
+      [&](std::int32_t y, std::int32_t x0, std::int32_t columns,
+          const double *values) {
+        auto *destination =
+            output_data + (static_cast<std::size_t>(y) *
+                               static_cast<std::size_t>(width) +
+                           static_cast<std::size_t>(x0)) *
+                              4U;
+        for (std::int32_t column = 0; column < columns; ++column) {
+          const auto *lane = values + static_cast<std::size_t>(column) * 4U;
+          auto *pixel = destination + static_cast<std::size_t>(column) * 4U;
+          const auto alpha = rounded_byte(lane[3]);
+          pixel[3] = alpha;
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            const auto premultiplied = rounded_byte(lane[channel]);
+            pixel[channel] =
+                alpha == 0U ? 0U
+                            : rounded_byte(static_cast<double>(premultiplied) *
+                                           255.0 / static_cast<double>(alpha));
+          }
+        }
+      });
   return FilterRenderResult{std::move(output), bounds};
 }
 
@@ -553,55 +722,74 @@ render_straight_gaussian(const FilterRenderResult &input, double radius,
   const auto height = input.bounds.height;
   const auto pixel_count = static_cast<std::uint64_t>(width) *
                            static_cast<std::uint64_t>(height);
-  if (pixel_count > std::numeric_limits<std::size_t>::max() / sizeof(float)) {
+  if (pixel_count > std::numeric_limits<std::size_t>::max() / 4U) {
     throw std::overflow_error("Smart Filter working buffer overflow");
   }
-  std::vector<float> horizontal(static_cast<std::size_t>(pixel_count));
-  std::vector<double> values;
-  std::vector<double> scratch;
-  const auto total_lines = 3U *
-                           (static_cast<std::uint64_t>(width) +
-                            static_cast<std::uint64_t>(height));
-  std::uint64_t completed_lines = 0U;
-  for (std::size_t channel = 0; channel < 3U; ++channel) {
-    values.resize(static_cast<std::size_t>(width));
-    scratch.resize(static_cast<std::size_t>(width));
-    for (std::int32_t y = 0; y < height; ++y) {
-      report_fraction(progress, completed_lines++, total_lines,
-                      FilterProgressStage::Blurring);
-      for (std::int32_t x = 0; x < width; ++x) {
-        values[static_cast<std::size_t>(x)] =
-            input.pixels.pixel(x, y)[channel];
-      }
-      filter_gaussian_line(values, scratch, plan);
-      const auto row_offset =
-          static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
-      for (std::int32_t x = 0; x < width; ++x) {
-        horizontal[row_offset + static_cast<std::size_t>(x)] =
-            rounded_byte(values[static_cast<std::size_t>(x)]);
-      }
-    }
+  // Detached here, on the launching thread: the passes write it in parallel.
+  auto *output_data = output.data().data();
+  const auto *source_data = input.pixels.data().data();
+  const auto row_bytes = static_cast<std::size_t>(input.pixels.width()) * 4U;
+  // Straight color blurs; alpha stays as it is.
+  run_gaussian_passes<3>(
+      width, height, plan, progress,
+      [&](std::int32_t y, double *values) {
+        const auto *source = source_data + static_cast<std::size_t>(y) * row_bytes;
+        for (std::int32_t x = 0; x < width; ++x) {
+          const auto *pixel = source + static_cast<std::size_t>(x) * 4U;
+          auto *lane = values + static_cast<std::size_t>(x) * 3U;
+          lane[0] = pixel[0];
+          lane[1] = pixel[1];
+          lane[2] = pixel[2];
+        }
+      },
+      [&](std::int32_t y, std::int32_t x0, std::int32_t columns,
+          const double *values) {
+        auto *destination = output_data + static_cast<std::size_t>(y) * row_bytes +
+                            static_cast<std::size_t>(x0) * 4U;
+        for (std::int32_t column = 0; column < columns; ++column) {
+          const auto *lane = values + static_cast<std::size_t>(column) * 3U;
+          auto *pixel = destination + static_cast<std::size_t>(column) * 4U;
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            pixel[channel] = rounded_byte(lane[channel]);
+          }
+        }
+      });
+  return FilterRenderResult{std::move(output), input.bounds};
+}
 
-    values.resize(static_cast<std::size_t>(height));
-    scratch.resize(static_cast<std::size_t>(height));
-    for (std::int32_t x = 0; x < width; ++x) {
-      report_fraction(progress, completed_lines++, total_lines,
-                      FilterProgressStage::Blurring);
-      for (std::int32_t y = 0; y < height; ++y) {
-        values[static_cast<std::size_t>(y)] =
-            horizontal[static_cast<std::size_t>(y) *
-                           static_cast<std::size_t>(width) +
-                       static_cast<std::size_t>(x)];
-      }
-      filter_gaussian_line(values, scratch, plan);
-      for (std::int32_t y = 0; y < height; ++y) {
-        output.pixel(x, y)[channel] =
-            rounded_byte(values[static_cast<std::size_t>(y)]);
-      }
-    }
-  }
-  report_fraction(progress, total_lines, total_lines,
-                  FilterProgressStage::Blurring);
+// The High Pass and Unsharp Mask detail step: combine(source, low_frequency,
+// destination) over every RGBA8 pixel, in parallel row blocks.
+template <typename Combine>
+[[nodiscard]] FilterRenderResult
+combine_with_low_frequency(const FilterRenderResult &input,
+                           const PixelBuffer &blurred,
+                           const FilterProgress *progress,
+                           const Combine &combine) {
+  const auto width = input.bounds.width;
+  PixelBuffer output(width, input.bounds.height, PixelFormat::rgba8());
+  // Detached here, on the launching thread: the blocks write it in parallel.
+  auto *output_data = output.data().data();
+  const auto *source_data = input.pixels.data().data();
+  const auto *blurred_data = blurred.data().data();
+  const auto source_stride = static_cast<std::size_t>(input.pixels.width()) * 4U;
+  const auto blurred_stride = static_cast<std::size_t>(blurred.width()) * 4U;
+  const auto output_stride = static_cast<std::size_t>(width) * 4U;
+  run_filter_blocks(
+      input.bounds.height, static_cast<std::uint64_t>(width) * 4U, progress,
+      FilterProgressStage::Sharpening,
+      [&](std::int32_t begin, std::int32_t end) {
+        for (auto y = begin; y < end; ++y) {
+          const auto row = static_cast<std::size_t>(y);
+          const auto *source = source_data + row * source_stride;
+          const auto *low_frequency = blurred_data + row * blurred_stride;
+          auto *destination = output_data + row * output_stride;
+          for (std::int32_t x = 0; x < width; ++x) {
+            const auto offset = static_cast<std::size_t>(x) * 4U;
+            combine(source + offset, low_frequency + offset,
+                    destination + offset);
+          }
+        }
+      });
   return FilterRenderResult{std::move(output), input.bounds};
 }
 
@@ -611,28 +799,19 @@ render_high_pass(const FilterRenderResult &input, double radius,
   auto blur_progress = phase_progress(progress, 0, 2);
   const auto blurred =
       render_straight_gaussian(input, radius, &blur_progress);
-  PixelBuffer output(input.bounds.width, input.bounds.height,
-                     PixelFormat::rgba8());
-  auto detail_progress = phase_progress(progress, 1, 2);
-  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
-    report_progress(&detail_progress, y, input.bounds.height,
-                    FilterProgressStage::Sharpening);
-    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
-      const auto *source = input.pixels.pixel(x, y);
-      const auto *low_frequency = blurred.pixels.pixel(x, y);
-      auto *destination = output.pixel(x, y);
-      for (std::size_t channel = 0; channel < 3U; ++channel) {
-        destination[channel] = static_cast<std::uint8_t>(std::clamp(
-            static_cast<int>(source[channel]) -
-                static_cast<int>(low_frequency[channel]) + 128,
-            0, 255));
-      }
-      destination[3] = source[3];
-    }
-  }
-  report_progress(&detail_progress, input.bounds.height, input.bounds.height,
-                  FilterProgressStage::Sharpening);
-  return FilterRenderResult{std::move(output), input.bounds};
+  const auto detail_progress = phase_progress(progress, 1, 2);
+  return combine_with_low_frequency(
+      input, blurred.pixels, &detail_progress,
+      [](const std::uint8_t *source, const std::uint8_t *low_frequency,
+         std::uint8_t *destination) {
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          destination[channel] = static_cast<std::uint8_t>(std::clamp(
+              static_cast<int>(source[channel]) -
+                  static_cast<int>(low_frequency[channel]) + 128,
+              0, 255));
+        }
+        destination[3] = source[3];
+      });
 }
 
 [[nodiscard]] FilterRenderResult
@@ -642,39 +821,31 @@ render_unsharp_mask(const FilterRenderResult &input, double amount_percent,
   auto blur_progress = phase_progress(progress, 0, 2);
   const auto blurred =
       render_straight_gaussian(input, radius, &blur_progress, true);
-  PixelBuffer output(input.bounds.width, input.bounds.height,
-                     PixelFormat::rgba8());
-  auto sharpen_progress = phase_progress(progress, 1, 2);
-  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
-    report_progress(&sharpen_progress, y, input.bounds.height,
-                    FilterProgressStage::Sharpening);
-    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
-      const auto *source = input.pixels.pixel(x, y);
-      const auto *low_frequency = blurred.pixels.pixel(x, y);
-      auto *destination = output.pixel(x, y);
-      for (std::size_t channel = 0; channel < 3U; ++channel) {
-        const auto detail = static_cast<int>(source[channel]) -
-                            static_cast<int>(low_frequency[channel]);
-        // Photoshop scales the detail first, then removes Threshold from the
-        // signed adjustment. This differs from the common pre-test shortcut
-        // and is pinned by the Photoshop 27.8 one-pixel-line captures.
-        const auto scaled_detail = static_cast<int>(
-            static_cast<double>(detail) * amount_percent / 100.0);
-        const auto magnitude = std::abs(scaled_detail);
-        const auto adjustment =
-            magnitude <= threshold
-                ? 0
-                : (scaled_detail < 0 ? -(magnitude - threshold)
-                                     : magnitude - threshold);
-        destination[channel] = static_cast<std::uint8_t>(
-            std::clamp(static_cast<int>(source[channel]) + adjustment, 0, 255));
-      }
-      destination[3] = source[3];
-    }
-  }
-  report_progress(&sharpen_progress, input.bounds.height, input.bounds.height,
-                  FilterProgressStage::Sharpening);
-  return FilterRenderResult{std::move(output), input.bounds};
+  const auto sharpen_progress = phase_progress(progress, 1, 2);
+  return combine_with_low_frequency(
+      input, blurred.pixels, &sharpen_progress,
+      [amount_percent, threshold](const std::uint8_t *source,
+                                  const std::uint8_t *low_frequency,
+                                  std::uint8_t *destination) {
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          const auto detail = static_cast<int>(source[channel]) -
+                              static_cast<int>(low_frequency[channel]);
+          // Photoshop scales the detail first, then removes Threshold from the
+          // signed adjustment. This differs from the common pre-test shortcut
+          // and is pinned by the Photoshop 27.8 one-pixel-line captures.
+          const auto scaled_detail = static_cast<int>(
+              static_cast<double>(detail) * amount_percent / 100.0);
+          const auto magnitude = std::abs(scaled_detail);
+          const auto adjustment =
+              magnitude <= threshold
+                  ? 0
+                  : (scaled_detail < 0 ? -(magnitude - threshold)
+                                       : magnitude - threshold);
+          destination[channel] = static_cast<std::uint8_t>(
+              std::clamp(static_cast<int>(source[channel]) + adjustment, 0, 255));
+        }
+        destination[3] = source[3];
+      });
 }
 
 [[nodiscard]] std::int64_t floor_divide(std::int64_t numerator,
@@ -685,80 +856,6 @@ render_unsharp_mask(const FilterRenderResult &input, double amount_percent,
   }
   const auto quotient = numerator / denominator;
   return quotient - (numerator % denominator < 0 ? 1 : 0);
-}
-
-// Runs body(begin, end) over [0, count) in blocks. Large jobs fan out to
-// worker threads sized by the hardware and the wasm blocking fan-out budget.
-// Every block writes only its own output pixels, so the result never depends
-// on scheduling. Only the calling thread reports progress: callbacks and
-// FilterCancelled never cross threads, and a cancel stops the workers at their
-// next block before the exception propagates.
-template <typename Body>
-void run_filter_blocks(std::int32_t count, std::uint64_t work_per_item,
-                       const FilterProgress *progress,
-                       FilterProgressStage stage, const Body &body) {
-  if (count <= 0) {
-    report_progress(progress, 1, 1, stage);
-    return;
-  }
-  constexpr std::uint64_t kMinimumParallelWork = 1U << 22;
-  const auto total_work = static_cast<std::uint64_t>(count) *
-                          std::max<std::uint64_t>(1U, work_per_item);
-  const auto workers =
-      total_work < kMinimumParallelWork
-          ? 1
-          : max_blocking_fanout_workers(
-                std::clamp(std::min(hardware_worker_threads(), count), 1, 16));
-  const auto block =
-      workers < 2 ? 1 : std::max<std::int32_t>(1, count / (workers * 8));
-  std::atomic<std::int32_t> next{0};
-  std::atomic<std::int32_t> finished{0};
-  std::atomic<bool> stop{false};
-  const auto run_block = [&]() -> bool {
-    const auto begin = next.fetch_add(block);
-    if (begin >= count) {
-      return false;
-    }
-    const auto end = std::min(count, begin + block);
-    body(begin, end);
-    finished.fetch_add(end - begin);
-    return true;
-  };
-  std::vector<std::future<void>> helpers;
-  try {
-    for (int worker = 1; worker < workers; ++worker) {
-      helpers.push_back(std::async(std::launch::async, [&] {
-        try {
-          while (!stop.load() && run_block()) {
-          }
-        } catch (...) {
-          stop.store(true);
-          throw;
-        }
-      }));
-    }
-    report_progress(progress, 0, count, stage);
-    while (!stop.load() && run_block()) {
-      report_progress(progress, finished.load(), count, stage);
-    }
-    for (auto &helper : helpers) {
-      while (helper.wait_for(std::chrono::milliseconds(20)) !=
-             std::future_status::ready) {
-        report_progress(progress, finished.load(), count, stage);
-      }
-    }
-  } catch (...) {
-    stop.store(true);
-    for (auto &helper : helpers) {
-      helper.wait();
-    }
-    throw;
-  }
-  // get() rethrows a worker's exception (bad_alloc under memory pressure).
-  for (auto &helper : helpers) {
-    helper.get();
-  }
-  report_progress(progress, count, count, stage);
 }
 
 constexpr std::int64_t kMotionBlurCoordinateScale = 65536;
@@ -3084,10 +3181,11 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
 void filter_plane_with_photoshop_kernel(std::vector<float> &plane,
                                         std::int32_t width,
                                         std::int32_t height, double radius,
-                                        PhotoshopLineKernel kernel) {
-  if (width <= 0 || height <= 0 ||
+                                        PhotoshopLineKernel kernel,
+                                        std::size_t channels) {
+  if (width <= 0 || height <= 0 || channels == 0U ||
       plane.size() != static_cast<std::size_t>(width) *
-                          static_cast<std::size_t>(height)) {
+                          static_cast<std::size_t>(height) * channels) {
     return;
   }
   const auto margin =
@@ -3098,31 +3196,76 @@ void filter_plane_with_photoshop_kernel(std::vector<float> &plane,
           : kernel == PhotoshopLineKernel::Unsharp
                 ? make_unsharp_line_plan(radius, margin)
                 : make_gaussian_line_plan(radius, margin);
-  std::vector<double> values(static_cast<std::size_t>(width));
-  std::vector<double> scratch;
-  for (std::int32_t y = 0; y < height; ++y) {
-    auto *row = plane.data() + static_cast<std::size_t>(y) *
-                                   static_cast<std::size_t>(width);
-    std::copy(row, row + width, values.begin());
-    filter_gaussian_line(values, scratch, plan);
-    for (std::int32_t x = 0; x < width; ++x) {
-      row[x] = static_cast<float>(values[static_cast<std::size_t>(x)]);
+  // Rows, then blocks of columns, in parallel: each block writes only its own
+  // samples, and every lane keeps a lone line's arithmetic.
+  auto *data = plane.data();
+  const auto row_samples = static_cast<std::size_t>(width) * channels;
+  const auto work = gaussian_work_per_sample(plan);
+  const auto filter_row = [&](double *values, double *scratch) {
+    const auto count = static_cast<std::size_t>(width);
+    switch (channels) {
+    case 1U:
+      return filter_gaussian_lines<1>(values, scratch, count, 1U, plan);
+    case 3U:
+      return filter_gaussian_lines<3>(values, scratch, count, 3U, plan);
+    case 4U:
+      return filter_gaussian_lines<4>(values, scratch, count, 4U, plan);
+    default:
+      return filter_gaussian_lines(values, scratch, count, channels, plan);
     }
-  }
-  values.resize(static_cast<std::size_t>(height));
-  for (std::int32_t x = 0; x < width; ++x) {
-    for (std::int32_t y = 0; y < height; ++y) {
-      values[static_cast<std::size_t>(y)] =
-          plane[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-                static_cast<std::size_t>(x)];
-    }
-    filter_gaussian_line(values, scratch, plan);
-    for (std::int32_t y = 0; y < height; ++y) {
-      plane[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-            static_cast<std::size_t>(x)] =
-          static_cast<float>(values[static_cast<std::size_t>(y)]);
-    }
-  }
+  };
+  run_filter_blocks(
+      height, row_samples * work, nullptr, FilterProgressStage::Blurring,
+      [&](std::int32_t begin, std::int32_t end) {
+        std::vector<double> values(row_samples);
+        std::vector<double> scratch(row_samples);
+        for (auto y = begin; y < end; ++y) {
+          auto *row = data + static_cast<std::size_t>(y) * row_samples;
+          std::copy(row, row + row_samples, values.begin());
+          const auto *filtered = filter_row(values.data(), scratch.data());
+          for (std::size_t index = 0; index < row_samples; ++index) {
+            row[index] = static_cast<float>(filtered[index]);
+          }
+        }
+      });
+  const auto block_columns = std::max<std::int32_t>(
+      1, kPlaneColumnBlock / static_cast<std::int32_t>(
+                                 std::min<std::size_t>(channels, 64U)));
+  const auto block_samples =
+      static_cast<std::size_t>(block_columns) * channels;
+  const auto blocks = (width + block_columns - 1) / block_columns;
+  run_filter_blocks(
+      blocks, static_cast<std::uint64_t>(height) * block_samples * work,
+      nullptr, FilterProgressStage::Blurring,
+      [&](std::int32_t begin, std::int32_t end) {
+        std::vector<double> values(block_samples *
+                                   static_cast<std::size_t>(height));
+        std::vector<double> scratch(values.size());
+        for (auto block = begin; block < end; ++block) {
+          const auto x0 = block * block_columns;
+          const auto lanes =
+              static_cast<std::size_t>(std::min(block_columns, width - x0)) *
+              channels;
+          const auto offset = static_cast<std::size_t>(x0) * channels;
+          for (std::int32_t y = 0; y < height; ++y) {
+            const auto *source =
+                data + static_cast<std::size_t>(y) * row_samples + offset;
+            std::copy(source, source + lanes,
+                      values.data() + static_cast<std::size_t>(y) * lanes);
+          }
+          const auto *filtered = filter_gaussian_lines(
+              values.data(), scratch.data(), static_cast<std::size_t>(height),
+              lanes, plan);
+          for (std::int32_t y = 0; y < height; ++y) {
+            auto *destination =
+                data + static_cast<std::size_t>(y) * row_samples + offset;
+            const auto *line = filtered + static_cast<std::size_t>(y) * lanes;
+            for (std::size_t lane = 0; lane < lanes; ++lane) {
+              destination[lane] = static_cast<float>(line[lane]);
+            }
+          }
+        }
+      });
 }
 
 double add_noise_delta(std::int32_t x, std::int32_t y, std::int32_t seed,

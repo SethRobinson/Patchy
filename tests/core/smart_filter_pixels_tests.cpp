@@ -1,4 +1,5 @@
 #include <string_view>
+#include "filters/deep_filters.hpp"
 #include "filters/filter_engine.hpp"
 #include "filters/filter_registry.hpp"
 #include "filters/smart_filter_renderer.hpp"
@@ -2070,6 +2071,336 @@ void motion_blur_cancel_stops_parallel_workers() {
   }
 }
 
+// GitHub issue 564: the Gaussian line filters behind Gaussian Blur, High Pass,
+// Unsharp Mask and the 16/32-bit plane filter run in parallel strips over
+// interleaved channels. These digests were taken from the single-threaded,
+// one-channel-at-a-time implementation they replaced, so the output bytes
+// (and float bits) must never depend on strip count or channel interleaving.
+// The large image reaches the parallel path; odd and one-pixel sizes the edges.
+std::uint64_t gaussian_pin_next(std::uint64_t &state) {
+  state += 0x9E3779B97F4A7C15ULL;
+  auto z = state;
+  z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+  z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+  return z ^ (z >> 31U);
+}
+
+patchy::PixelBuffer gaussian_pin_image(std::int32_t width, std::int32_t height,
+                                       std::uint64_t seed) {
+  patchy::PixelBuffer image(width, height, patchy::PixelFormat::rgba8());
+  auto state = seed;
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto *pixel = image.pixel(x, y);
+      const auto bits = gaussian_pin_next(state);
+      pixel[0] = static_cast<std::uint8_t>(bits);
+      pixel[1] = static_cast<std::uint8_t>(bits >> 8U);
+      pixel[2] = static_cast<std::uint8_t>(bits >> 16U);
+      // Transparent and opaque bands between noisy alpha.
+      const auto band = (x / 7 + y / 5) % 4;
+      pixel[3] = band == 0   ? 0U
+                 : band == 1 ? 255U
+                             : static_cast<std::uint8_t>(bits >> 24U);
+    }
+  }
+  return image;
+}
+
+std::uint64_t gaussian_pin_digest(const patchy::FilterRenderResult &result) {
+  const std::array<std::int32_t, 4> bounds{result.bounds.x, result.bounds.y,
+                                           result.bounds.width,
+                                           result.bounds.height};
+  std::vector<std::uint8_t> bytes(sizeof(bounds));
+  std::memcpy(bytes.data(), bounds.data(), sizeof(bounds));
+  const auto data = result.pixels.data();
+  bytes.insert(bytes.end(), data.begin(), data.end());
+  return fnv1a_hash_bytes(bytes);
+}
+
+std::uint64_t gaussian_pin_digest(std::span<const float> values) {
+  std::vector<std::uint8_t> bytes(values.size() * sizeof(float));
+  std::memcpy(bytes.data(), values.data(), bytes.size());
+  return fnv1a_hash_bytes(bytes);
+}
+
+void gaussian_line_filters_match_pinned_bytes() {
+  struct Pin {
+    std::string name;
+    std::uint64_t digest;
+  };
+  struct Size {
+    std::int32_t width;
+    std::int32_t height;
+  };
+  struct PlaneCase {
+    patchy::PhotoshopLineKernel kernel;
+    double radius;
+    const char *name;
+  };
+  std::vector<Pin> actual;
+  const std::array<Size, 5> sizes{
+      {{37, 23}, {1, 45}, {61, 1}, {129, 77}, {1100, 900}}};
+  const auto size_name = [](const Size &size) {
+    return std::to_string(size.width) + "x" + std::to_string(size.height);
+  };
+  const auto radius_name = [](double radius) {
+    std::ostringstream text;
+    text << radius;
+    return text.str();
+  };
+  for (const auto &size : sizes) {
+    const auto image = gaussian_pin_image(
+        size.width, size.height,
+        static_cast<std::uint64_t>(size.width) * 977U +
+            static_cast<std::uint64_t>(size.height));
+    const patchy::Rect bounds{5, -3, size.width, size.height};
+    const bool large = size.width * size.height > 100000;
+    const auto gaussian_radii =
+        large ? std::vector<double>{0.5, 2.0, 8.0, 20.0, 200.0}
+              : std::vector<double>{0.1, 0.3, 0.5, 0.7, 1.0, 2.0, 4.5,
+                                    6.3, 8.0, 8.5, 20.0, 64.0, 200.0};
+    const auto prefix = size_name(size) + " r";
+    for (const auto radius : gaussian_radii) {
+      actual.push_back(
+          {"gaussian " + prefix + radius_name(radius),
+           gaussian_pin_digest(
+               patchy::render_photoshop_gaussian_blur(image, bounds, radius))});
+    }
+    for (const auto radius : {1.0, 9.0, 30.0}) {
+      actual.push_back(
+          {"high_pass " + prefix + radius_name(radius),
+           gaussian_pin_digest(
+               patchy::render_photoshop_high_pass(image, bounds, radius))});
+    }
+    for (const auto radius : {1.3, 2.5, 15.0}) {
+      actual.push_back({"unsharp " + prefix + radius_name(radius),
+                        gaussian_pin_digest(patchy::render_photoshop_unsharp_mask(
+                            image, bounds, 150.0, radius, 8))});
+    }
+    for (const auto &plane_case :
+         {PlaneCase{patchy::PhotoshopLineKernel::Gaussian, 0.5, "gaussian"},
+          PlaneCase{patchy::PhotoshopLineKernel::Gaussian, 3.0, "gaussian"},
+          PlaneCase{patchy::PhotoshopLineKernel::Gaussian, 20.0, "gaussian"},
+          PlaneCase{patchy::PhotoshopLineKernel::HighPass, 10.0, "high_pass"},
+          PlaneCase{patchy::PhotoshopLineKernel::Unsharp, 2.5, "unsharp"}}) {
+      std::vector<float> plane(static_cast<std::size_t>(size.width) *
+                               static_cast<std::size_t>(size.height));
+      auto state = static_cast<std::uint64_t>(plane.size()) + 17U;
+      for (auto &value : plane) {
+        value = static_cast<float>(gaussian_pin_next(state) % 65536U) / 257.0F;
+      }
+      patchy::filter_plane_with_photoshop_kernel(
+          plane, size.width, size.height, plane_case.radius, plane_case.kernel);
+      actual.push_back({std::string("plane ") + plane_case.name + " " + prefix +
+                            radius_name(plane_case.radius),
+                        gaussian_pin_digest(plane)});
+    }
+    for (const auto radius : {1.0, 20.0}) {
+      auto deep = patchy::load_deep_image(image);
+      for (std::size_t index = 0; index < deep.rgba.size(); ++index) {
+        deep.rgba[index] += static_cast<float>(index % 7U) / 7.0F;
+      }
+      patchy::deep_gaussian_blur(deep, radius, nullptr);
+      actual.push_back({"deep gaussian " + prefix + radius_name(radius),
+                        gaussian_pin_digest(deep.rgba)});
+    }
+    for (const auto radius : {2.5, 10.0, 30.0}) {
+      auto high_pass = patchy::load_deep_image(image);
+      patchy::deep_high_pass(high_pass, radius, nullptr);
+      actual.push_back({"deep high_pass " + prefix + radius_name(radius),
+                        gaussian_pin_digest(high_pass.rgba)});
+      auto unsharp = patchy::load_deep_image(image);
+      patchy::deep_unsharp_mask(unsharp, 150.0, radius, 8, nullptr);
+      actual.push_back({"deep unsharp " + prefix + radius_name(radius),
+                        gaussian_pin_digest(unsharp.rgba)});
+    }
+  }
+
+  static const std::vector<Pin> kPinned{
+      {"gaussian 37x23 r0.1", 0x9b832cee74642a33ULL},
+      {"gaussian 37x23 r0.3", 0x782791249d77e720ULL},
+      {"gaussian 37x23 r0.5", 0xf6883fe71d405f22ULL},
+      {"gaussian 37x23 r0.7", 0x8f8928745895fbeaULL},
+      {"gaussian 37x23 r1", 0x67962e6691bff879ULL},
+      {"gaussian 37x23 r2", 0x794a87d8cd4fae58ULL},
+      {"gaussian 37x23 r4.5", 0x4f907bc521f8600aULL},
+      {"gaussian 37x23 r6.3", 0x2d24103f3f1e1865ULL},
+      {"gaussian 37x23 r8", 0xca5c6336f1d167eULL},
+      {"gaussian 37x23 r8.5", 0x3c5b9e98cc36a6fULL},
+      {"gaussian 37x23 r20", 0x81a85342c5ae764aULL},
+      {"gaussian 37x23 r64", 0xcaacadfe3a120e3bULL},
+      {"gaussian 37x23 r200", 0xe2e8096bccedbffcULL},
+      {"high_pass 37x23 r1", 0x7f1ce3e2c723e2afULL},
+      {"high_pass 37x23 r9", 0x4edc2870bb016ca9ULL},
+      {"high_pass 37x23 r30", 0xf41a314c10b1a3b1ULL},
+      {"unsharp 37x23 r1.3", 0xc5306cf57af9553aULL},
+      {"unsharp 37x23 r2.5", 0x7703e5e2ddb26e71ULL},
+      {"unsharp 37x23 r15", 0x7a5fc74e098ce52fULL},
+      {"plane gaussian 37x23 r0.5", 0x5a2ec6984fc083d1ULL},
+      {"plane gaussian 37x23 r3", 0x8f71389e3ff56ea6ULL},
+      {"plane gaussian 37x23 r20", 0xf6e1c7df8a8bd27eULL},
+      {"plane high_pass 37x23 r10", 0xf0cd59a8838f0bfeULL},
+      {"plane unsharp 37x23 r2.5", 0x8391826f049fc097ULL},
+      {"deep gaussian 37x23 r1", 0x63188668b65ae00ULL},
+      {"deep gaussian 37x23 r20", 0xee3d1bddbe46ac76ULL},
+      {"deep high_pass 37x23 r2.5", 0xbca7e1c96bf52c08ULL},
+      {"deep unsharp 37x23 r2.5", 0x6982715491083f7fULL},
+      {"deep high_pass 37x23 r10", 0x76992b3d6fec7758ULL},
+      {"deep unsharp 37x23 r10", 0x91231223982f46fbULL},
+      {"deep high_pass 37x23 r30", 0x56a3a8bf474a2bd4ULL},
+      {"deep unsharp 37x23 r30", 0x9347748192fb811fULL},
+      {"gaussian 1x45 r0.1", 0x3d6171df14e965bcULL},
+      {"gaussian 1x45 r0.3", 0xc111511d8388077ULL},
+      {"gaussian 1x45 r0.5", 0x3869ded6b8eaaf8bULL},
+      {"gaussian 1x45 r0.7", 0x21c62d5688c659fULL},
+      {"gaussian 1x45 r1", 0x552c7c86a8e6b7e5ULL},
+      {"gaussian 1x45 r2", 0x9b1540e4830ac8ccULL},
+      {"gaussian 1x45 r4.5", 0x8ee934f2ee3fb908ULL},
+      {"gaussian 1x45 r6.3", 0xbe1229247b9627edULL},
+      {"gaussian 1x45 r8", 0xfbd85f8840c6a58cULL},
+      {"gaussian 1x45 r8.5", 0xe6ca4239bea041dbULL},
+      {"gaussian 1x45 r20", 0x5e4a0a4a07f782bbULL},
+      {"gaussian 1x45 r64", 0xde237d92985a6f53ULL},
+      {"gaussian 1x45 r200", 0xd6666ebc060eba63ULL},
+      {"high_pass 1x45 r1", 0xde1b6126fafb2098ULL},
+      {"high_pass 1x45 r9", 0xbae773ec3a7a4664ULL},
+      {"high_pass 1x45 r30", 0x5ef1880d2ecf97cdULL},
+      {"unsharp 1x45 r1.3", 0x35d30607dc8c5612ULL},
+      {"unsharp 1x45 r2.5", 0xb72d6127a3bb5662ULL},
+      {"unsharp 1x45 r15", 0x23bc5312a4f88307ULL},
+      {"plane gaussian 1x45 r0.5", 0xc791987631783d8aULL},
+      {"plane gaussian 1x45 r3", 0xf3bd1f3f455ce77bULL},
+      {"plane gaussian 1x45 r20", 0xda87d0e539a860e6ULL},
+      {"plane high_pass 1x45 r10", 0x33bb4c9fae2eab76ULL},
+      {"plane unsharp 1x45 r2.5", 0x52b1c2b1336b4279ULL},
+      {"deep gaussian 1x45 r1", 0xeb2752431c8674cULL},
+      {"deep gaussian 1x45 r20", 0x80643014cdf66d45ULL},
+      {"deep high_pass 1x45 r2.5", 0x6e9e36d01e38a892ULL},
+      {"deep unsharp 1x45 r2.5", 0xf3a4aa42660a9252ULL},
+      {"deep high_pass 1x45 r10", 0xd88acef98a5b483dULL},
+      {"deep unsharp 1x45 r10", 0x9c1ad254c3c25b0bULL},
+      {"deep high_pass 1x45 r30", 0x6bb43ed3be4e276ULL},
+      {"deep unsharp 1x45 r30", 0xbcd2e25682a6392fULL},
+      {"gaussian 61x1 r0.1", 0x454110ea01efdbd6ULL},
+      {"gaussian 61x1 r0.3", 0x98f7928f87408d10ULL},
+      {"gaussian 61x1 r0.5", 0x8367bff5980a42f7ULL},
+      {"gaussian 61x1 r0.7", 0x8f6c831d41a8d293ULL},
+      {"gaussian 61x1 r1", 0xa432b43bddb3b48bULL},
+      {"gaussian 61x1 r2", 0xedf9165969a8e5d0ULL},
+      {"gaussian 61x1 r4.5", 0x9859d6bc03617ba1ULL},
+      {"gaussian 61x1 r6.3", 0x736068a998fab525ULL},
+      {"gaussian 61x1 r8", 0x1e11e94d9f3bcfd3ULL},
+      {"gaussian 61x1 r8.5", 0xce84ab14e08bbf35ULL},
+      {"gaussian 61x1 r20", 0xd8355ec9728a77c7ULL},
+      {"gaussian 61x1 r64", 0xa62c7af83c86a876ULL},
+      {"gaussian 61x1 r200", 0xa1db45a55dccf7ecULL},
+      {"high_pass 61x1 r1", 0xb0ce3e4b6cfb0318ULL},
+      {"high_pass 61x1 r9", 0x5be577cb50e20b61ULL},
+      {"high_pass 61x1 r30", 0xe5d4e10d15eb52efULL},
+      {"unsharp 61x1 r1.3", 0xd1fdb18fcc78f400ULL},
+      {"unsharp 61x1 r2.5", 0xdbfec1839eaf6157ULL},
+      {"unsharp 61x1 r15", 0x7f36c418a8fd9132ULL},
+      {"plane gaussian 61x1 r0.5", 0x1e37d7083cb34775ULL},
+      {"plane gaussian 61x1 r3", 0x1ad5b3e5e13a8b79ULL},
+      {"plane gaussian 61x1 r20", 0xac21fd1bc30562c8ULL},
+      {"plane high_pass 61x1 r10", 0x6acc2cb96e7fe288ULL},
+      {"plane unsharp 61x1 r2.5", 0xb8a7b94f6aca4114ULL},
+      {"deep gaussian 61x1 r1", 0xdc2b5320d9f52648ULL},
+      {"deep gaussian 61x1 r20", 0x253eb90cc562351fULL},
+      {"deep high_pass 61x1 r2.5", 0x58eba9abd9377902ULL},
+      {"deep unsharp 61x1 r2.5", 0xac713415e8e17185ULL},
+      {"deep high_pass 61x1 r10", 0x67a637bc0206fd28ULL},
+      {"deep unsharp 61x1 r10", 0x3ce914be584e7f01ULL},
+      {"deep high_pass 61x1 r30", 0x67c5be7002162370ULL},
+      {"deep unsharp 61x1 r30", 0xd7ddfd980bff2bbcULL},
+      {"gaussian 129x77 r0.1", 0x8c78eec32c3542b7ULL},
+      {"gaussian 129x77 r0.3", 0x5009a6bbd984e3b3ULL},
+      {"gaussian 129x77 r0.5", 0xea300e741364ba04ULL},
+      {"gaussian 129x77 r0.7", 0x41c508c0f8bc5215ULL},
+      {"gaussian 129x77 r1", 0x291869fe7f4ac6aeULL},
+      {"gaussian 129x77 r2", 0x2bba9442fd16d1b8ULL},
+      {"gaussian 129x77 r4.5", 0x4fe35a4032cd6105ULL},
+      {"gaussian 129x77 r6.3", 0xf22768093db80078ULL},
+      {"gaussian 129x77 r8", 0xd0512d843e9e68f2ULL},
+      {"gaussian 129x77 r8.5", 0xdf8abbd3727f733aULL},
+      {"gaussian 129x77 r20", 0x8a7d5d608e356192ULL},
+      {"gaussian 129x77 r64", 0x4727824bd020ca76ULL},
+      {"gaussian 129x77 r200", 0xa5ca04874204029ULL},
+      {"high_pass 129x77 r1", 0x30323ddc1637c1fULL},
+      {"high_pass 129x77 r9", 0xe6a1739d9933e855ULL},
+      {"high_pass 129x77 r30", 0xbc4926ed513c0b6bULL},
+      {"unsharp 129x77 r1.3", 0x54db72c1c1f2faf3ULL},
+      {"unsharp 129x77 r2.5", 0xe4a2f9aad3cb2ab1ULL},
+      {"unsharp 129x77 r15", 0x65944d4a52812986ULL},
+      {"plane gaussian 129x77 r0.5", 0x69c317d34195606ULL},
+      {"plane gaussian 129x77 r3", 0xfb622e3ccf66f532ULL},
+      {"plane gaussian 129x77 r20", 0x3bac596f76a968eeULL},
+      {"plane high_pass 129x77 r10", 0x2e1f1319cd51df3fULL},
+      {"plane unsharp 129x77 r2.5", 0xe0eee7f0ea535ddbULL},
+      {"deep gaussian 129x77 r1", 0xf89c01ca987ed4cfULL},
+      {"deep gaussian 129x77 r20", 0xc4c7a3d3a1b89320ULL},
+      {"deep high_pass 129x77 r2.5", 0xa9109c409c10f56ULL},
+      {"deep unsharp 129x77 r2.5", 0x58293cb6f99114ddULL},
+      {"deep high_pass 129x77 r10", 0x9a0e8322c91798d8ULL},
+      {"deep unsharp 129x77 r10", 0xa59b3141c66c70e3ULL},
+      {"deep high_pass 129x77 r30", 0x2d9f609d29af45a0ULL},
+      {"deep unsharp 129x77 r30", 0xffee6b33f3ff0195ULL},
+      {"gaussian 1100x900 r0.5", 0xaf6999e2426ecb2dULL},
+      {"gaussian 1100x900 r2", 0xb661acc87f8516c0ULL},
+      {"gaussian 1100x900 r8", 0xfdc77e60eb6e99acULL},
+      {"gaussian 1100x900 r20", 0xab0f5adcf7fa3543ULL},
+      {"gaussian 1100x900 r200", 0xa57ac86e0727426cULL},
+      {"high_pass 1100x900 r1", 0xb03afd0b5073a6c1ULL},
+      {"high_pass 1100x900 r9", 0x1a5f284cfa798f47ULL},
+      {"high_pass 1100x900 r30", 0xbf7ec930089ea54cULL},
+      {"unsharp 1100x900 r1.3", 0x1574c31d5030bc39ULL},
+      {"unsharp 1100x900 r2.5", 0xd02f5d7892482031ULL},
+      {"unsharp 1100x900 r15", 0x9f615e2e8cb8399cULL},
+      {"plane gaussian 1100x900 r0.5", 0xf30e583aaa76544eULL},
+      {"plane gaussian 1100x900 r3", 0xca270a16b22419e3ULL},
+      {"plane gaussian 1100x900 r20", 0xf1f20d9248204eb7ULL},
+      {"plane high_pass 1100x900 r10", 0xf86c25c03f76c73bULL},
+      {"plane unsharp 1100x900 r2.5", 0xd7414ad2f5fa4664ULL},
+      {"deep gaussian 1100x900 r1", 0xd51871b5cba84775ULL},
+      {"deep gaussian 1100x900 r20", 0x9261da437058ef4dULL},
+      {"deep high_pass 1100x900 r2.5", 0xc433c840624afce3ULL},
+      {"deep unsharp 1100x900 r2.5", 0x4093623b359a87a0ULL},
+      {"deep high_pass 1100x900 r10", 0x790eb8d0b810479dULL},
+      {"deep unsharp 1100x900 r10", 0xc35e3a14abfa3cebULL},
+      {"deep high_pass 1100x900 r30", 0xb910903e4f3ea420ULL},
+      {"deep unsharp 1100x900 r30", 0xecfdf7c1bc31a5f3ULL},
+  };
+  bool all_match = actual.size() == kPinned.size();
+  for (std::size_t index = 0; index < actual.size(); ++index) {
+    if (index >= kPinned.size() || kPinned[index].name != actual[index].name ||
+        kPinned[index].digest != actual[index].digest) {
+      all_match = false;
+      std::cout << "      {\"" << actual[index].name << "\", 0x" << std::hex
+                << actual[index].digest << std::dec << "ULL},\n";
+    }
+  }
+  CHECK(all_match);
+}
+
+void gaussian_blur_cancel_stops_parallel_workers() {
+  const auto image = gaussian_pin_image(1500, 1100, 5U);
+  const auto bounds = patchy::Rect::from_size(image.width(), image.height());
+  for (const auto radius : {2.0, 40.0}) {
+    int calls = 0;
+    patchy::FilterProgress cancel_early{
+        [&calls](int, int, patchy::FilterProgressStage) { return ++calls < 3; }};
+    bool cancelled = false;
+    try {
+      (void)patchy::render_photoshop_gaussian_blur(image, bounds, radius,
+                                                   &cancel_early);
+    } catch (const patchy::FilterCancelled &) {
+      cancelled = true;
+    }
+    CHECK(cancelled);
+    CHECK(calls == 3);
+  }
+}
+
 void plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths() {
   patchy::PixelBuffer source(9, 7, patchy::PixelFormat::rgba8());
   for (std::int32_t y = 0; y < source.height(); ++y) {
@@ -2586,6 +2917,10 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
        motion_blur_running_sum_tracks_tap_kernel},
       {"motion_blur_cancel_stops_parallel_workers",
        motion_blur_cancel_stops_parallel_workers},
+      {"gaussian_line_filters_match_pinned_bytes",
+       gaussian_line_filters_match_pinned_bytes},
+      {"gaussian_blur_cancel_stops_parallel_workers",
+       gaussian_blur_cancel_stops_parallel_workers},
       {"plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths",
        plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths},
   };

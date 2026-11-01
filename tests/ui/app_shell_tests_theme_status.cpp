@@ -169,7 +169,7 @@ void ui_theme_text_roles_contrast_with_their_backgrounds() {
     QColor patchy::ui::ThemePalette::* text;
     QColor patchy::ui::ThemePalette::* background;
   };
-  const std::array<TextPair, 12> pairs{{
+  const std::array<TextPair, 14> pairs{{
       {"the About dialog's body text", &patchy::ui::ThemePalette::splash_body_text,
        &patchy::ui::ThemePalette::splash_bg},
       {"a highlighted menu item", &patchy::ui::ThemePalette::text_on_accent,
@@ -194,6 +194,10 @@ void ui_theme_text_roles_contrast_with_their_backgrounds() {
        &patchy::ui::ThemePalette::layer_row_selected_bg},
       {"an import note in the status bar", &patchy::ui::ThemePalette::status_notice_text,
        &patchy::ui::ThemePalette::status_bar_bg},
+      {"a dialog's resize grip", &patchy::ui::ThemePalette::resize_grip_ink,
+       &patchy::ui::ThemePalette::window_bg},
+      {"the font picker's resize grip", &patchy::ui::ThemePalette::resize_grip_ink,
+       &patchy::ui::ThemePalette::popup_list_bg},
   }};
 
   // 3:1 is the floor for UI text and large type; every pair here clears it in

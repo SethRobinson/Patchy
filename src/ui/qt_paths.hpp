@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QDir>
+#include <QFileInfo>
 #include <QString>
 
 #include <filesystem>
@@ -21,6 +23,25 @@ namespace patchy::ui {
 
 [[nodiscard]] inline QString to_qstring(const std::filesystem::path& path) {
   return QString::fromStdU16String(path.u16string());
+}
+
+// What two paths naming the same file have in common (GitHub issue 560): the canonical
+// path when the file exists (links resolved), else the cleaned absolute path, folded to
+// one case on Windows and macOS, whose file systems ignore case by default. Empty for an
+// empty path, so an untitled document never matches.
+[[nodiscard]] inline QString file_identity_key(const QString& path) {
+  if (path.isEmpty()) {
+    return {};
+  }
+  const QFileInfo info(path);
+  auto key = info.canonicalFilePath();
+  if (key.isEmpty()) {
+    key = QDir::cleanPath(info.absoluteFilePath());
+  }
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+  key = key.toCaseFolded();
+#endif
+  return key;
 }
 
 }  // namespace patchy::ui

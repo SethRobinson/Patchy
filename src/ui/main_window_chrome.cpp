@@ -736,6 +736,10 @@ bool MainWindow::title_bar_drag_area_contains(QPoint menu_bar_position) const {
       return false;
     }
   }
+  if (command_search_button_ != nullptr && command_search_button_->isVisible() &&
+      command_search_button_->geometry().contains(menu_bar_position)) {
+    return false;
+  }
   return true;
 }
 

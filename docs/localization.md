@@ -61,6 +61,11 @@ context name identifies the surface.
    Two branches appending to the same context can merge into one `<message>` holding two
    `<source>` elements in every catalog ("missing source" from the gate); split them back
    into separate messages.
+6. A new menu command, tool or keyboard command also gets its Search Commands description
+   (`kCommandDescriptions`, [command-search.md](command-search.md#descriptions)) in the same
+   change, translated like any other string. `scripts\update-translations.ps1` ends by running
+   `ui_command_search_every_command_has_a_description` from the last built
+   `patchy_ui_visual_tests.exe` and lists every command still missing one; it exits 1 then.
 
 Application builds require a host Python 3.8+ interpreter, including WebAssembly
 cross builds. `scripts/check-translations.py` uses only the standard library and the
