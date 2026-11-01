@@ -14310,10 +14310,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Tiret-point-point</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>Appliquer un contour prédéfini enregistré</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>Enregistrer Alignement, Extrémités, Angles, Tirets et Décalage des tirets comme contour prédéfini</translation>
     </message>
@@ -14330,14 +14326,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Décalage des tirets :</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>Aucun contour prédéfini enregistré</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>Choisir un contour prédéfini</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>Enregistrer le contour prédéfini</translation>
     </message>
@@ -14348,10 +14336,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Stroke Presets</source>
         <translation>Contours prédéfinis</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>Aucun contour prédéfini enregistré. Dans Apparence de la forme, réglez le contour puis cliquez sur Enregistrer... sur la ligne Paramètre prédéfini.</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14376,6 +14360,22 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>Un contour prédéfini nommé « %1 » existe déjà.</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>Paramètre intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé.</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>Aucun contour prédéfini enregistré. Dans Apparence de la forme, réglez le contour puis cliquez sur Enregistrer... à côté de Tirets.</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>Inchangé</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>Intégré</translation>
     </message>
 </context>
 <context>
@@ -18507,6 +18507,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Pick the next brush preset</source>
         <translation>Choisir le pinceau prédéfini suivant</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>Gérer les contours prédéfinis intégrés et enregistrés</translation>
     </message>
 </context>
 <context>
@@ -30991,10 +30995,6 @@ Verrouillé : %1</translation>
         <translation>&amp;Rechercher des commandes...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>Tirets du contour. Les préréglages à tirets utilisent des extrémités aplaties ; ceux à points, des extrémités et des angles arrondis</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>Les images de %1 sont déjà ouvertes</translation>
     </message>
@@ -31203,10 +31203,6 @@ Verrouillé : %1</translation>
         <translation>%1 forme(s) alignée(s)</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>Contours prédéfinis enregistrés : alignement, extrémités, angles, tirets et décalage des tirets</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>Contours prédéfinis...</translation>
     </message>
@@ -31219,12 +31215,12 @@ Verrouillé : %1</translation>
         <translation>Contour prédéfini : %1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>Aucun contour prédéfini</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>Gérer les paramètres prédéfinis...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Tirets du contour et contours prédéfinis enregistrés. Les tirets utilisent des extrémités plates, les points des extrémités et angles arrondis</translation>
     </message>
 </context>
 <context>

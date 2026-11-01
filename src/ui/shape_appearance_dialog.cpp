@@ -4,6 +4,8 @@
 // GradientLibrary; patterns list the document store first, then the library
 // (adoption into the store happens in the caller when applying).
 #include "ui/shape_appearance_dialog.hpp"
+
+#include "ui/stroke_preset_manager_dialog.hpp"
 #include "ui/appearance_properties.hpp"
 
 #include "core/pattern_resource.hpp"
@@ -34,6 +36,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QLocale>
 #include <QRegularExpression>
 #include <QStringList>
@@ -251,6 +254,30 @@ std::vector<StrokeStylePreset> parse_stroke_style_presets_json(const QString& js
     if (usable) presets.push_back(std::move(preset));
   }
   return presets;
+}
+
+bool stroke_preset_name_is_builtin(const QString& name) {
+  const auto trimmed = name.trimmed();
+  return std::any_of(stroke_dash_presets_in_menu_order().begin(), stroke_dash_presets_in_menu_order().end(),
+                     [&](StrokeDashPreset preset) {
+                       return stroke_dash_preset_label(preset).compare(trimmed, Qt::CaseInsensitive) == 0;
+                     });
+}
+
+StrokeStylePreset builtin_stroke_style_preset(StrokeDashPreset preset) {
+  VectorStroke stroke;
+  stroke.alignment = VectorStrokeAlignment::Inside;
+  stroke.cap = VectorStrokeCap::Butt;
+  stroke.join = VectorStrokeJoin::Miter;
+  apply_stroke_dash_preset(stroke, preset);
+  return stroke_style_preset_from(stroke, stroke_dash_preset_label(preset));
+}
+
+int matching_stroke_style_preset(const VectorStroke& stroke, const std::vector<StrokeStylePreset>& presets) {
+  for (std::size_t i = 0; i < presets.size(); ++i) {
+    if (stroke_matches_style_preset(stroke, presets[i])) return static_cast<int>(i);
+  }
+  return -1;
 }
 
 std::vector<StrokeStylePreset> load_stroke_style_presets() {
@@ -1079,30 +1106,6 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
                   "document origin"));
   stroke_pattern_form->addRow(QString(), stroke_pattern_align_check);
 
-  // Saved stroke styles (GitHub #557): Align, Caps, Corners, the dash pattern
-  // and its offset under a name, kept in the app settings. Width and paint are
-  // not part of a preset. The combo shows the preset the settings match.
-  auto* stroke_preset_row = new QWidget(stroke_group);
-  auto* stroke_preset_layout = new QHBoxLayout(stroke_preset_row);
-  stroke_preset_layout->setContentsMargins(0, 0, 0, 0);
-  stroke_preset_layout->setSpacing(6);
-  auto* stroke_preset_combo = new QComboBox(stroke_preset_row);
-  stroke_preset_combo->setObjectName(QStringLiteral("shapeStrokePresetCombo"));
-  stroke_preset_combo->setToolTip(QObject::tr("Apply a saved stroke preset"));
-  use_scrolling_list_popup(*stroke_preset_combo);
-  auto* stroke_preset_save = new QPushButton(QObject::tr("Save..."), stroke_preset_row);
-  stroke_preset_save->setObjectName(QStringLiteral("shapeStrokePresetSaveButton"));
-  stroke_preset_save->setToolTip(
-      QObject::tr("Save Align, Caps, Corners, Dashes and Dash offset as a preset"));
-  auto* stroke_preset_delete = new QPushButton(QObject::tr("Delete"), stroke_preset_row);
-  stroke_preset_delete->setObjectName(QStringLiteral("shapeStrokePresetDeleteButton"));
-  stroke_preset_delete->setToolTip(QObject::tr("Delete the chosen preset"));
-  stroke_preset_layout->addWidget(stroke_preset_combo, 1);
-  stroke_preset_layout->addWidget(stroke_preset_save);
-  stroke_preset_layout->addWidget(stroke_preset_delete);
-  stroke_form->addRow(QObject::tr("Preset:"), stroke_preset_row);
-  field_rows[stroke_preset_combo] = stroke_preset_row;
-
   auto* stroke_align_combo = new QComboBox(stroke_group);
   stroke_align_combo->setObjectName(QStringLiteral("shapeStrokeAlignCombo"));
   stroke_align_combo->addItem(QObject::tr("Inside"),
@@ -1128,13 +1131,46 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_join_combo->addItem(QObject::tr("Bevel"), static_cast<int>(VectorStrokeJoin::Bevel));
   stroke_form->addRow(QObject::tr("Corners:"), stroke_join_combo);
 
-  auto* stroke_dash_combo = new QComboBox(stroke_group);
+  // The Dashes row (GitHub #556, #557 and its follow-up): one list of the built-in dash
+  // presets, the saved stroke presets (Align, Caps, Corners, the dashes and the offset under
+  // a name, in the app settings; width and paint stay out) and Custom. Save... stores the
+  // current line settings, Delete removes the chosen saved preset. The list shows what the
+  // settings match, a saved preset before a built-in.
+  auto stroke_presets = std::make_shared<std::vector<StrokeStylePreset>>(load_stroke_style_presets());
+  auto* stroke_dash_row = new QWidget(stroke_group);
+  auto* stroke_dash_layout = new QHBoxLayout(stroke_dash_row);
+  stroke_dash_layout->setContentsMargins(0, 0, 0, 0);
+  stroke_dash_layout->setSpacing(6);
+  auto* stroke_dash_combo = new QComboBox(stroke_dash_row);
   stroke_dash_combo->setObjectName(QStringLiteral("shapeStrokeDashCombo"));
-  for (const auto preset : stroke_dash_presets_in_menu_order()) {
-    stroke_dash_combo->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
-  }
-  stroke_dash_combo->addItem(QObject::tr("Custom"), kDashCustom);
-  stroke_form->addRow(QObject::tr("Dashes:"), stroke_dash_combo);
+  use_scrolling_list_popup(*stroke_dash_combo);
+  auto* stroke_preset_save = new QPushButton(QObject::tr("Save..."), stroke_dash_row);
+  stroke_preset_save->setObjectName(QStringLiteral("shapeStrokePresetSaveButton"));
+  stroke_preset_save->setToolTip(
+      QObject::tr("Save Align, Caps, Corners, Dashes and Dash offset as a preset"));
+  auto* stroke_preset_delete = new QPushButton(QObject::tr("Delete"), stroke_dash_row);
+  stroke_preset_delete->setObjectName(QStringLiteral("shapeStrokePresetDeleteButton"));
+  stroke_preset_delete->setToolTip(QObject::tr("Delete the chosen preset"));
+  stroke_dash_layout->addWidget(stroke_dash_combo, 1);
+  stroke_dash_layout->addWidget(stroke_preset_save);
+  stroke_dash_layout->addWidget(stroke_preset_delete);
+  stroke_form->addRow(QObject::tr("Dashes:"), stroke_dash_row);
+  field_rows[stroke_dash_combo] = stroke_dash_row;
+  const auto rebuild_dash_list = [stroke_dash_combo, stroke_presets] {
+    QSignalBlocker blocker(stroke_dash_combo);
+    stroke_dash_combo->clear();
+    for (const auto preset : stroke_dash_presets_in_menu_order()) {
+      stroke_dash_combo->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
+    }
+    if (!stroke_presets->empty()) stroke_dash_combo->insertSeparator(stroke_dash_combo->count());
+    for (std::size_t i = 0; i < stroke_presets->size(); ++i) {
+      stroke_dash_combo->addItem((*stroke_presets)[i].name, kSavedStrokePresetRow + static_cast<int>(i));
+      stroke_dash_combo->setItemData(stroke_dash_combo->count() - 1,
+                                     stroke_style_preset_summary((*stroke_presets)[i]), Qt::ToolTipRole);
+    }
+    stroke_dash_combo->addItem(QObject::tr("Custom"), kDashCustom);
+  };
+  rebuild_dash_list();
 
   auto* stroke_dash_pattern_row = new QWidget(stroke_group);
   auto* stroke_dash_pattern_layout = new QHBoxLayout(stroke_dash_pattern_row);
@@ -1346,6 +1382,24 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
 
   // Align, Caps, Corners, Dashes and Dash offset from state->settings (also a
   // saved preset's pick).
+  // Custom while the user works on a pattern, else the saved preset the settings match,
+  // else the built-in (or Custom for a pattern no built-in has).
+  const auto select_dash_row = [=] {
+    QSignalBlocker dash_blocker(stroke_dash_combo);
+    const auto& dashes = state->settings.stroke.dashes;
+    auto dash_row = dash_row_for(dashes, state->settings.stroke.cap);
+    if (state->custom_dash_row && !dashes.empty()) {
+      dash_row = kDashCustom;
+    } else if (const auto saved = matching_stroke_style_preset(state->settings.stroke, *stroke_presets);
+               saved >= 0) {
+      dash_row = kSavedStrokePresetRow + saved;
+    }
+    // A pattern that matches no preset is the Custom row's, restorable after
+    // trying the presets.
+    if (dash_row == kDashCustom) state->custom_dashes = dashes;
+    stroke_dash_combo->setCurrentIndex(std::max(0, stroke_dash_combo->findData(dash_row)));
+    stroke_preset_delete->setEnabled(dash_row >= kSavedStrokePresetRow);
+  };
   const auto sync_stroke_style_controls = [=] {
     QSignalBlocker align_blocker(stroke_align_combo);
     stroke_align_combo->setCurrentIndex(std::max(
@@ -1356,14 +1410,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     QSignalBlocker join_blocker(stroke_join_combo);
     stroke_join_combo->setCurrentIndex(
         std::max(0, stroke_join_combo->findData(static_cast<int>(state->settings.stroke.join))));
-    QSignalBlocker dash_blocker(stroke_dash_combo);
-    const auto& dashes = state->settings.stroke.dashes;
-    auto dash_row = dash_row_for(dashes, state->settings.stroke.cap);
-    if (state->custom_dash_row && !dashes.empty()) dash_row = kDashCustom;
-    // A pattern that matches no preset is the Custom row's, restorable after
-    // trying the presets.
-    if (dash_row == kDashCustom) state->custom_dashes = dashes;
-    stroke_dash_combo->setCurrentIndex(std::max(0, stroke_dash_combo->findData(dash_row)));
+    select_dash_row();
     stroke_dash_pattern_edit->setText(dash_pattern_text(state->custom_dashes));
     stroke_dash_pattern_edit->setModified(false);
     QSignalBlocker offset_blocker(stroke_dash_offset_spin);
@@ -1697,10 +1744,12 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     notify({"stroke.alignment"});
   });
   QObject::connect(stroke_cap_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
+    const auto old_cap = state->settings.stroke.cap;
     state->settings.stroke.cap = static_cast<VectorStrokeCap>(stroke_cap_combo->currentData().toInt());
     // The presets follow the cap, so a Butt cap still draws Dotted's dots and
-    // a Round cap keeps the gaps open.
-    const auto dash_row = stroke_dash_combo->currentData().toInt();
+    // a Round cap keeps the gaps open; a saved preset's pattern counts as its built-in.
+    auto dash_row = stroke_dash_combo->currentData().toInt();
+    if (dash_row >= kSavedStrokePresetRow) dash_row = dash_row_for(state->settings.stroke.dashes, old_cap);
     if (dash_row != kDashCustom && stroke_dash_preset_follows_cap(static_cast<StrokeDashPreset>(dash_row))) {
       state->settings.stroke.dashes =
           stroke_dash_preset_pattern(static_cast<StrokeDashPreset>(dash_row), state->settings.stroke.cap);
@@ -1716,6 +1765,17 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   });
   QObject::connect(stroke_dash_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
     const auto row = stroke_dash_combo->currentData().toInt();
+    if (row >= kSavedStrokePresetRow) {
+      const auto index = static_cast<std::size_t>(row - kSavedStrokePresetRow);
+      if (index >= stroke_presets->size()) return;
+      apply_stroke_style_preset(state->settings.stroke, (*stroke_presets)[index]);
+      state->custom_dash_row = false;
+      sync_stroke_style_controls();
+      refresh_stroke_rows();
+      grow_to_fit();
+      notify({"stroke.alignment", "stroke.cap", "stroke.join", "stroke.dashes", "stroke.dash_offset"});
+      return;
+    }
     state->custom_dash_row = row == kDashCustom;
     std::vector<std::string> changed{"stroke.dashes"};
     if (row == kDashCustom) {
@@ -1763,54 +1823,26 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     notify({"stroke.dash_offset"});
   });
 
-  // Saved stroke presets: the list is read once per dialog and written back
-  // on every Save or Delete.
-  auto stroke_presets = std::make_shared<std::vector<StrokeStylePreset>>(load_stroke_style_presets());
-  const auto select_matching_preset = [=] {
-    int match = -1;
-    for (std::size_t i = 0; i < stroke_presets->size(); ++i) {
-      if (stroke_matches_style_preset(state->settings.stroke, (*stroke_presets)[i])) {
-        match = static_cast<int>(i);
-        break;
-      }
-    }
-    QSignalBlocker blocker(stroke_preset_combo);
-    stroke_preset_combo->setCurrentIndex(match);
-    stroke_preset_delete->setEnabled(match >= 0);
-  };
-  const auto rebuild_preset_list = [=] {
-    {
-      QSignalBlocker blocker(stroke_preset_combo);
-      stroke_preset_combo->clear();
-      for (const auto& preset : *stroke_presets) stroke_preset_combo->addItem(preset.name);
-      stroke_preset_combo->setPlaceholderText(stroke_presets->empty() ? QObject::tr("No saved presets")
-                                                                      : QObject::tr("Choose a preset"));
-      stroke_preset_combo->setEnabled(!stroke_presets->empty());
-    }
-    select_matching_preset();
-  };
-  rebuild_preset_list();
-  *refresh_preset_match = select_matching_preset;
-  QObject::connect(stroke_preset_combo, &QComboBox::activated, &dialog, [=](int index) {
-    if (index < 0 || index >= static_cast<int>(stroke_presets->size())) return;
-    apply_stroke_style_preset(state->settings.stroke, (*stroke_presets)[static_cast<std::size_t>(index)]);
-    state->custom_dash_row = false;
-    sync_stroke_style_controls();
-    refresh_stroke_rows();
-    grow_to_fit();
-    notify({"stroke.alignment", "stroke.cap", "stroke.join", "stroke.dashes", "stroke.dash_offset"});
-  });
+  // Saved stroke presets: the list is read once per dialog and written back on every
+  // Save or Delete.
+  *refresh_preset_match = select_dash_row;
   QObject::connect(stroke_preset_save, &QPushButton::clicked, &dialog, [=, &dialog] {
-    const int current = stroke_preset_combo->currentIndex();
+    const auto current = stroke_dash_combo->currentData().toInt() - kSavedStrokePresetRow;
+    const bool saved_chosen = current >= 0 && current < static_cast<int>(stroke_presets->size());
     QInputDialog prompt(&dialog);
     prompt.setObjectName(QStringLiteral("shapeStrokePresetNameDialog"));
     prompt.setWindowTitle(QObject::tr("Save Stroke Preset"));
     prompt.setLabelText(QObject::tr("Preset name:"));
-    prompt.setTextValue(current >= 0 ? (*stroke_presets)[static_cast<std::size_t>(current)].name
+    prompt.setTextValue(saved_chosen ? (*stroke_presets)[static_cast<std::size_t>(current)].name
                                      : QObject::tr("Stroke preset %1").arg(static_cast<int>(stroke_presets->size()) + 1));
     if (exec_dialog(prompt) != QDialog::Accepted) return;
     const auto name = prompt.textValue().trimmed();
     if (name.isEmpty()) return;
+    if (stroke_preset_name_is_builtin(name)) {
+      QMessageBox::warning(&dialog, QObject::tr("Save Stroke Preset"),
+                           QObject::tr("A stroke preset named \"%1\" already exists.").arg(name));
+      return;
+    }
     // A name already in the list replaces that preset in place.
     auto preset = stroke_style_preset_from(state->settings.stroke, name);
     const auto existing = std::find_if(stroke_presets->begin(), stroke_presets->end(),
@@ -1821,14 +1853,20 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       stroke_presets->push_back(std::move(preset));
     }
     save_stroke_style_presets(*stroke_presets);
-    rebuild_preset_list();
+    rebuild_dash_list();
+    state->custom_dash_row = false;
+    select_dash_row();
+    refresh_stroke_rows();
   });
   QObject::connect(stroke_preset_delete, &QPushButton::clicked, &dialog, [=] {
-    const int current = stroke_preset_combo->currentIndex();
+    const auto current = stroke_dash_combo->currentData().toInt() - kSavedStrokePresetRow;
     if (current < 0 || current >= static_cast<int>(stroke_presets->size())) return;
     stroke_presets->erase(stroke_presets->begin() + current);
     save_stroke_style_presets(*stroke_presets);
-    rebuild_preset_list();
+    rebuild_dash_list();
+    select_dash_row();
+    refresh_stroke_rows();
+    grow_to_fit();
   });
 
   QObject::connect(stroke_paint_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {

@@ -372,7 +372,7 @@ sets neither. Caps and Corners stay editable after. `stroke_dash_preset_for` map
 its row by its shortest repeating period (GIMP repeats each pattern to fill its dash table), so
 GIMP's Dense dots on Butt caps is Dotted; arrays matching no preset show as Custom.
 Dash offset (`shapeStrokeDashOffsetSpin`, stroke widths; vstk strokeStyleLineDashOffset, SVG
-`stroke-dashoffset`) is enabled only while dashed. Saved stroke presets (#557; a manager and an options bar list):
+`stroke-dashoffset`) is enabled only while dashed. Saved stroke presets join the built-ins in one Dashes list (#557):
 [style-presets.md](style-presets.md#shape-appearance-stroke-presets). A gradient's and a pattern's own
 rows are a nested form in their picker row's field column (#552).
 `pattern_linked` anchors at the effects

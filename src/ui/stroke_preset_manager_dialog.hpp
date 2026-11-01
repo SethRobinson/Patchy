@@ -18,11 +18,18 @@ namespace patchy::ui {
 // "Align: Center, Caps: Round, Corners: Bevel, Dashes: 4 2, Offset: 1".
 [[nodiscard]] QString stroke_style_preset_summary(const StrokeStylePreset& preset);
 
-// Opens the modal Stroke Presets manager (GitHub #557 follow-up): the saved stroke
-// presets of Shape Appearance's Preset row (load_stroke_style_presets), with rename,
-// move up/down and delete. Every edit is saved to the setting at once. Returns the
-// preset chosen with Use Preset or a double-click; nullopt when closed without one.
-[[nodiscard]] std::optional<StrokeStylePreset> request_stroke_preset_manager(QWidget* parent,
-                                                                             const QString& initial_name = {});
+// What the Stroke Presets manager's Use Preset chose: a built-in dash preset or a saved
+// preset; both empty when it was closed without one.
+struct StrokePresetChoice {
+  std::optional<StrokeDashPreset> builtin;
+  std::optional<StrokeStylePreset> saved;
+};
+
+// Opens the modal Stroke Presets manager (GitHub #557 follow-up). It lists the built-in dash
+// presets first, marked Built-in and locked (they can be used, never renamed, moved or
+// deleted), then the saved stroke presets (load_stroke_style_presets) with rename, move
+// up/down and delete; every edit is saved to the setting at once. `initial_name` preselects a
+// row by name.
+[[nodiscard]] StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString& initial_name = {});
 
 }  // namespace patchy::ui

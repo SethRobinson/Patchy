@@ -14310,10 +14310,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Strich-Punkt-Punkt</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>Gespeicherte Konturvorgabe anwenden</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>Ausrichtung, Enden, Ecken, Striche und Strichversatz als Vorgabe speichern</translation>
     </message>
@@ -14330,14 +14326,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Strichversatz:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>Keine gespeicherten Vorgaben</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>Vorgabe wählen</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>Konturvorgabe speichern</translation>
     </message>
@@ -14348,10 +14336,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Stroke Presets</source>
         <translation>Konturvorgaben</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>Noch keine gespeicherten Konturvorgaben. Richten Sie in Formdarstellung die Kontur ein und klicken Sie in der Zeile Vorgabe auf Speichern...</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14376,6 +14360,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>Es gibt bereits eine Konturvorgabe namens &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>Integrierte Vorgabe: Sie kann verwendet, aber nicht umbenannt, verschoben oder gelöscht werden.</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>Noch keine gespeicherten Konturvorgaben. Richten Sie in Formdarstellung die Kontur ein und klicken Sie neben Striche auf Speichern...</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>Unverändert</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>Integriert</translation>
     </message>
 </context>
 <context>
@@ -18507,6 +18507,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Pick the next brush preset</source>
         <translation>Die nächste Pinselvorgabe wählen</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>Integrierte und gespeicherte Konturvorgaben verwalten</translation>
     </message>
 </context>
 <context>
@@ -30991,10 +30995,6 @@ Fixiert: %1</translation>
         <translation>&amp;Befehle suchen...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>Striche der Kontur. Strich-Vorgaben verwenden einen abgeflachten Abschluss, Punkt-Vorgaben einen runden Abschluss und runde Ecken</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>Die Bilder in %1 sind bereits geöffnet</translation>
     </message>
@@ -31203,10 +31203,6 @@ Fixiert: %1</translation>
         <translation>%1 Form(en) ausgerichtet</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>Gespeicherte Konturvorgaben: Ausrichtung, Enden, Ecken, Striche und Strichversatz</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>Konturvorgaben...</translation>
     </message>
@@ -31219,12 +31215,12 @@ Fixiert: %1</translation>
         <translation>Konturvorgabe: %1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>Keine Konturvorgaben</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>Vorgaben verwalten...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Striche und gespeicherte Konturvorgaben. Strichvorgaben verwenden flache Enden, Punktvorgaben runde Enden und Ecken</translation>
     </message>
 </context>
 <context>

@@ -14293,10 +14293,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14313,14 +14309,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14330,10 +14318,6 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Stroke Presets</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14358,6 +14342,22 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built-in</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -18489,6 +18489,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Pick the next brush preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -30910,10 +30914,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation type="unfinished"></translation>
     </message>
@@ -31122,10 +31122,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -31138,11 +31134,11 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No stroke presets</source>
+        <source>Manage Presets...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Manage Presets...</source>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

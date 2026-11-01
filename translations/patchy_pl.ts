@@ -14353,10 +14353,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Kreska kropka kropka</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>Zastosuj zapisane ustawienie wstępne obrysu</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>Zapisz Wyrównanie, Zakończenia, Narożniki, Kreski i Przesunięcie kresek jako ustawienie wstępne</translation>
     </message>
@@ -14373,14 +14369,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Przesunięcie kresek:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>Brak zapisanych ustawień wstępnych</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>Wybierz ustawienie wstępne</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>Zapisz ustawienie wstępne obrysu</translation>
     </message>
@@ -14391,10 +14379,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Stroke Presets</source>
         <translation>Ustawienia wstępne obrysu</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>Brak zapisanych ustawień wstępnych obrysu. W oknie Wygląd kształtu ustaw obrys i kliknij Zapisz... w wierszu Ustawienie wstępne.</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14419,6 +14403,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>Ustawienie wstępne obrysu o nazwie „%1” już istnieje.</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>Wbudowane ustawienie wstępne: można go używać, ale nie można zmienić jego nazwy, przenieść go ani usunąć.</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>Brak zapisanych ustawień wstępnych obrysu. W oknie Wygląd kształtu ustaw obrys i kliknij Zapisz... obok pola Kreski.</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>Bez zmian</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>Wbudowane</translation>
     </message>
 </context>
 <context>
@@ -18550,6 +18550,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Pick the next brush preset</source>
         <translation>Wybierz następne ustawienie wstępne pędzla</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>Zarządzaj wbudowanymi i zapisanymi ustawieniami wstępnymi obrysu</translation>
     </message>
 </context>
 <context>
@@ -31073,10 +31077,6 @@ Zablokowano: %1</translation>
         <translation>&amp;Wyszukaj polecenia...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>Kreski obrysu. Ustawienia z kreskami używają płaskich zakończeń, a ustawienia z kropkami okrągłych zakończeń i narożników</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>Obrazy z %1 są już otwarte</translation>
     </message>
@@ -31285,10 +31285,6 @@ Zablokowano: %1</translation>
         <translation>Wyrównane kształty: %1</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>Zapisane ustawienia wstępne obrysu: wyrównanie, zakończenia, narożniki, kreski i przesunięcie kresek</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>Ustawienia wstępne obrysu...</translation>
     </message>
@@ -31301,12 +31297,12 @@ Zablokowano: %1</translation>
         <translation>Ustawienie wstępne obrysu: %1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>Brak ustawień wstępnych obrysu</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>Zarządzaj ustawieniami wstępnymi...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Kreski obrysu i zapisane ustawienia wstępne obrysu. Kreski mają płaskie zakończenia, kropki zaokrąglone zakończenia i narożniki</translation>
     </message>
 </context>
 <context>

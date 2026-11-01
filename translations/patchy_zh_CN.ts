@@ -14267,10 +14267,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>双点划线</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>应用已存储的描边预设</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>将对齐、端点、角点、虚线和虚线偏移存储为预设</translation>
     </message>
@@ -14287,14 +14283,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>虚线偏移:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>没有已存储的预设</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>选择预设</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>存储描边预设</translation>
     </message>
@@ -14305,10 +14293,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Stroke Presets</source>
         <translation>描边预设</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>还没有保存的描边预设。请在“形状外观”中设置描边，然后点击“预设”行上的“保存...”。</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14333,6 +14317,22 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>已存在名为“%1”的描边预设。</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>内置预设：可以使用，但不能重命名、移动或删除。</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>还没有保存的描边预设。请在“形状外观”中设置描边，然后点击“虚线”旁边的“保存...”。</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>不变</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>内置</translation>
     </message>
 </context>
 <context>
@@ -18464,6 +18464,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Pick the next brush preset</source>
         <translation>选择下一个画笔预设</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>管理内置和已保存的描边预设</translation>
     </message>
 </context>
 <context>
@@ -30909,10 +30913,6 @@ Locked: %1</source>
         <translation>搜索命令(&amp;C)...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>描边虚线。虚线预设使用平头端点；点线预设使用圆形端点和圆形拐角</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>%1 中的图像已打开</translation>
     </message>
@@ -31121,10 +31121,6 @@ Locked: %1</source>
         <translation>已对齐 %1 个形状</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>已保存的描边预设：对齐、端点、转角、虚线和虚线偏移</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>描边预设...</translation>
     </message>
@@ -31137,12 +31133,12 @@ Locked: %1</source>
         <translation>描边预设：%1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>没有描边预设</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>管理预设...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>描边虚线和已保存的描边预设。虚线预设使用平头端点；点状预设使用圆头端点和圆角</translation>
     </message>
 </context>
 <context>

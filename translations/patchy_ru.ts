@@ -14353,10 +14353,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Штрихпунктирная с двумя точками</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>Применить сохранённую настройку обводки</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>Сохранить выравнивание, концы, углы, штрихи и смещение штрихов как настройку</translation>
     </message>
@@ -14373,14 +14369,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Смещение штрихов:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>Нет сохранённых настроек</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>Выберите настройку</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>Сохранить настройку обводки</translation>
     </message>
@@ -14391,10 +14379,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Stroke Presets</source>
         <translation>Наборы обводки</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>Сохранённых наборов обводки пока нет. В окне «Внешний вид фигуры» настройте обводку и нажмите «Сохранить...» в строке «Набор».</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14419,6 +14403,22 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>Набор обводки с именем «%1» уже существует.</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>Встроенный набор: его можно использовать, но нельзя переименовать, переместить или удалить.</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>Сохранённых наборов обводки пока нет. В окне «Внешний вид фигуры» настройте обводку и нажмите «Сохранить...» рядом со штрихами.</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>Без изменений</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>Встроенный</translation>
     </message>
 </context>
 <context>
@@ -18550,6 +18550,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Pick the next brush preset</source>
         <translation>Выбрать следующую предустановку кисти</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>Управление встроенными и сохранёнными наборами обводки</translation>
     </message>
 </context>
 <context>
@@ -31073,10 +31077,6 @@ Locked: %1</source>
         <translation>&amp;Поиск команд...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>Штрихи обводки. Наборы со штрихами используют плоские концы, наборы с точками: круглые концы и углы</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>Изображения из %1 уже открыты</translation>
     </message>
@@ -31285,10 +31285,6 @@ Locked: %1</source>
         <translation>Выровнено фигур: %1</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>Сохранённые наборы обводки: выравнивание, концы, углы, штрихи и смещение штрихов</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>Наборы обводки...</translation>
     </message>
@@ -31301,12 +31297,12 @@ Locked: %1</source>
         <translation>Набор обводки: %1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>Нет наборов обводки</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>Управление наборами...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Штрихи обводки и сохранённые наборы обводки. Штриховые наборы используют плоские концы, точечные — круглые концы и углы</translation>
     </message>
 </context>
 <context>

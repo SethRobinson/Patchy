@@ -1077,11 +1077,17 @@ void MainWindow::open_style_manager(QWidget* parent) {
 }
 
 void MainWindow::open_stroke_preset_manager(QWidget* parent) {
-  // Preselect the preset the options bar shows; edits are saved by the dialog.
-  const auto chosen = request_stroke_preset_manager(parent != nullptr ? parent : this, vector_stroke_preset_shown_);
-  refresh_vector_stroke_preset_menu();
-  if (chosen.has_value()) {
-    apply_vector_stroke_style_preset(*chosen);
+  // Preselect the entry the options bar's dash combo shows; edits are saved by the dialog.
+  QString shown;
+  if (vector_stroke_dash_combo_ != nullptr && vector_stroke_dash_combo_->currentData().toInt() >= 0) {
+    shown = vector_stroke_dash_combo_->currentText();
+  }
+  const auto chosen = request_stroke_preset_manager(parent != nullptr ? parent : this, shown);
+  rebuild_vector_stroke_dash_combo();
+  if (chosen.builtin.has_value()) {
+    set_vector_stroke_dash_preset_from_combo(*chosen.builtin);
+  } else if (chosen.saved.has_value()) {
+    apply_vector_stroke_style_preset(*chosen.saved);
   }
 }
 
@@ -2975,11 +2981,7 @@ void MainWindow::load_tool_settings() {
     apply_stroke_style_preset(stroke, style.front());
     current_vector_stroke_style_ = stroke;
   }
-  refresh_vector_stroke_dash_combo(
-      current_vector_stroke_style_.has_value()
-          ? stroke_dash_preset_for(current_vector_stroke_style_->dashes, current_vector_stroke_style_->cap)
-          : std::optional<StrokeDashPreset>(current_vector_stroke_dash_preset_));
-  refresh_vector_stroke_preset_menu();
+  refresh_vector_stroke_dash_combo();
   // tools/vectorStrokeEnabled keeps its key: a saved "off" shows as 0 in the width field
   // (GitHub issue 311), and tools/vectorStrokeWidth keeps the last real width.
   if (auto* stroke_width = findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));

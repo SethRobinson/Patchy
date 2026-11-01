@@ -949,10 +949,9 @@ void ui_shape_options_bars_group_their_controls() {
       expect_next_to(QStringLiteral("vectorFillSwatchButton"), separator);
       expect_next_to(QStringLiteral("vectorStrokeWidthLabel"), QStringLiteral("vectorStrokeWidthSpin"));
       expect_next_to(QStringLiteral("vectorStrokeWidthSpin"), QStringLiteral("vectorStrokeSwatchButton"));
-      // The dash combo (GitHub #556) and the stroke preset menu (#557 follow-up) close the Stroke group.
+      // The dash combo, with the saved stroke presets in it (GitHub #556, #557), closes the Stroke group.
       expect_next_to(QStringLiteral("vectorStrokeSwatchButton"), QStringLiteral("vectorStrokeDashCombo"));
-      expect_next_to(QStringLiteral("vectorStrokeDashCombo"), QStringLiteral("vectorStrokePresetButton"));
-      expect_next_to(QStringLiteral("vectorStrokePresetButton"), separator);
+      expect_next_to(QStringLiteral("vectorStrokeDashCombo"), separator);
       if (at(tokens, QStringLiteral("vectorStrokeCheck")) >= 0) {
         problem("still shows the Stroke checkbox");
       }

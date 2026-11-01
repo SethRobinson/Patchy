@@ -14267,10 +14267,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>雙點劃線</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>套用已儲存的筆畫預設集</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>將對齊、端點、轉角、虛線和虛線位移儲存為預設集</translation>
     </message>
@@ -14287,14 +14283,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>虛線位移:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>沒有已儲存的預設集</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>選擇預設集</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>儲存筆畫預設集</translation>
     </message>
@@ -14305,10 +14293,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Stroke Presets</source>
         <translation>筆畫預設集</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>還沒有儲存的筆畫預設集。請在「形狀外觀」中設定筆畫，然後按一下「預設集」列上的「儲存...」。</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14333,6 +14317,22 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>已有名為「%1」的筆畫預設集。</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>內建預設集：可以使用，但不能重新命名、移動或刪除。</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>還沒有儲存的筆畫預設集。請在「形狀外觀」中設定筆畫，然後按一下「虛線」旁的「儲存...」。</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>不變</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>內建</translation>
     </message>
 </context>
 <context>
@@ -18464,6 +18464,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Pick the next brush preset</source>
         <translation>選擇下一個筆刷預設集</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>管理內建和已儲存的筆畫預設集</translation>
     </message>
 </context>
 <context>
@@ -30909,10 +30913,6 @@ Locked: %1</source>
         <translation>搜尋命令(&amp;C)...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>描邊虛線。虛線預設使用平端端點；點線預設使用圓形端點和圓形轉角</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>%1 中的影像已開啟</translation>
     </message>
@@ -31121,10 +31121,6 @@ Locked: %1</source>
         <translation>已對齊 %1 個形狀</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>已儲存的筆畫預設集：對齊、端點、轉角、虛線和虛線位移</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>筆畫預設集...</translation>
     </message>
@@ -31137,12 +31133,12 @@ Locked: %1</source>
         <translation>筆畫預設集：%1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>沒有筆畫預設集</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>管理預設集...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>筆畫虛線和已儲存的筆畫預設集。虛線預設集使用平頭端點；點狀預設集使用圓頭端點和圓角</translation>
     </message>
 </context>
 <context>

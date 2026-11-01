@@ -51,6 +51,7 @@
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/shape_appearance_dialog.hpp"
+#include "ui/stroke_preset_manager_dialog.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/tile_preview_window.hpp"
@@ -824,6 +825,29 @@ void MainWindow::sync_mixer_combination_combo() {
   }
   const QSignalBlocker blocker(mixer_combination_combo_);
   mixer_combination_combo_->setCurrentIndex(selection);
+}
+
+void MainWindow::rebuild_vector_stroke_dash_combo() {
+  auto* combo = vector_stroke_dash_combo_;
+  if (combo == nullptr) return;
+  {
+    const QSignalBlocker blocker(combo);
+    combo->clear();
+    for (const auto preset : stroke_dash_presets_in_menu_order()) {
+      combo->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
+    }
+    const auto presets = load_stroke_style_presets();
+    if (!presets.empty()) combo->insertSeparator(combo->count());
+    for (std::size_t i = 0; i < presets.size(); ++i) {
+      combo->addItem(presets[i].name, kSavedStrokePresetRow + static_cast<int>(i));
+      combo->setItemData(combo->count() - 1, stroke_style_preset_summary(presets[i]), Qt::ToolTipRole);
+    }
+    combo->addItem(QObject::tr("Custom"), kStrokeComboCustomRow);
+    combo->insertSeparator(combo->count());
+    combo->addItem(tr("Manage Presets..."), kStrokeComboManageRow);
+  }
+  widen_combo_popup_to_items(combo);
+  refresh_vector_stroke_dash_combo();
 }
 
 void MainWindow::build_options_bar(ActionBuildContext& ctx) {
@@ -4169,65 +4193,42 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_shape_mode_option_widgets_.push_back(vector_stroke_swatch_button_);
   connect(vector_stroke_swatch_button_, &QToolButton::clicked, this,
           [this] { show_vector_paint_menu(true); });
-  // Shape Appearance's dash presets (GitHub #556). The last row, Custom, shows only for a
-  // selected shape whose pattern matches no preset and cannot be picked here
-  // (refresh_vector_stroke_dash_combo); Shape Appearance edits that pattern.
+  // One stroke list (GitHub #556 and the #557 follow-up): the built-in dash presets, the saved
+  // stroke presets, Custom (only for a selected shape whose pattern nothing matches; Shape
+  // Appearance edits it) and Manage Presets.... The closed combo keeps its width so the
+  // Polygon bar stays one row at 1366 px; the popup widens to the names
+  // (rebuild_vector_stroke_dash_combo).
   vector_stroke_dash_combo_ = new QComboBox(toolbar);
   vector_stroke_dash_combo_->setObjectName(QStringLiteral("vectorStrokeDashCombo"));
-  for (const auto preset : stroke_dash_presets_in_menu_order()) {
-    vector_stroke_dash_combo_->addItem(stroke_dash_preset_label(preset), static_cast<int>(preset));
-  }
-  vector_stroke_dash_combo_->addItem(QObject::tr("Custom"), -1);
   vector_stroke_dash_combo_->setFixedWidth(ui_text_length(140));  // presets in full; 160 cost the Line row its 100 px slack (#556 follow-up)
-  widen_combo_popup_to_items(vector_stroke_dash_combo_);
   bind_tooltip(vector_stroke_dash_combo_,
-               QT_TR_NOOP("Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners"));
-  QPointer<QComboBox> dash_combo_pointer(vector_stroke_dash_combo_);
-  register_retranslation([dash_combo_pointer] {
-    if (dash_combo_pointer == nullptr) {
-      return;
-    }
-    const QSignalBlocker blocker(dash_combo_pointer);
-    const auto& presets = stroke_dash_presets_in_menu_order();
-    for (int row = 0; row < static_cast<int>(presets.size()); ++row) {
-      dash_combo_pointer->setItemText(row, stroke_dash_preset_label(presets[static_cast<std::size_t>(row)]));
-    }
-    dash_combo_pointer->setItemText(static_cast<int>(presets.size()), QObject::tr("Custom"));
-    widen_combo_popup_to_items(dash_combo_pointer);
-  });
+               QT_TR_NOOP("Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use "
+                          "round caps and corners"));
+  register_retranslation([this] { rebuild_vector_stroke_dash_combo(); });
   add_option_widget(vector_stroke_dash_combo_, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_stroke_dash_combo_);
-  refresh_vector_stroke_dash_combo(current_vector_stroke_dash_preset_);
+  rebuild_vector_stroke_dash_combo();
   connect(vector_stroke_dash_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
-    const auto preset = vector_stroke_dash_combo_->itemData(index).toInt();
-    if (preset < 0) {
+    const auto item_data = vector_stroke_dash_combo_->itemData(index);
+    if (!item_data.isValid()) return;  // a separator
+    const auto row = item_data.toInt();
+    if (row == kStrokeComboCustomRow) return;
+    if (row == kStrokeComboManageRow) {
+      // Back on the current entry, then the manager, once the popup has closed.
+      QTimer::singleShot(0, this, [this] {
+        refresh_vector_stroke_dash_combo();
+        open_stroke_preset_manager();
+      });
       return;
     }
-    set_vector_stroke_dash_preset_from_combo(static_cast<StrokeDashPreset>(preset));
+    if (row >= kSavedStrokePresetRow) {
+      const auto presets = load_stroke_style_presets();
+      const auto saved = static_cast<std::size_t>(row - kSavedStrokePresetRow);
+      if (saved < presets.size()) apply_vector_stroke_style_preset(presets[saved]);
+      return;
+    }
+    set_vector_stroke_dash_preset_from_combo(static_cast<StrokeDashPreset>(row));
   });
-  // The saved stroke presets (GitHub #557 follow-up) and Manage Presets..., which opens the
-  // Stroke Presets manager (Edit > Presets has it too): a compact menu button, so the Polygon
-  // bar still fits one row at 1366 px. The menu is rebuilt each time it opens.
-  vector_stroke_preset_button_ = new QToolButton(toolbar);
-  vector_stroke_preset_button_->setObjectName(QStringLiteral("vectorStrokePresetButton"));
-  vector_stroke_preset_button_->setIcon(simple_icon(QStringLiteral("stroke")));
-  vector_stroke_preset_button_->setIconSize(QSize(16, 16));
-  vector_stroke_preset_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  vector_stroke_preset_button_->setProperty("optionsBarMenuButton", true);
-  vector_stroke_preset_button_->setFocusPolicy(Qt::NoFocus);
-  vector_stroke_preset_button_->setPopupMode(QToolButton::InstantPopup);
-  bind_tooltip(vector_stroke_preset_button_,
-               QT_TR_NOOP("Saved stroke presets: Align, Caps, Corners, dashes and dash offset"));
-  {
-    auto* menu = new QMenu(vector_stroke_preset_button_);
-    menu->setObjectName(QStringLiteral("vectorStrokePresetMenu"));
-    menu->setToolTipsVisible(true);
-    vector_stroke_preset_button_->setMenu(menu);
-    connect(menu, &QMenu::aboutToShow, this, [this] { rebuild_vector_stroke_preset_menu(); });
-  }
-  add_option_widget(vector_stroke_preset_button_, vector_appearance_tools);
-  vector_shape_mode_option_widgets_.push_back(vector_stroke_preset_button_);
-  refresh_vector_stroke_preset_menu();
 
   // W / H of the ACTIVE shape layer (Photoshop's options-bar readouts): they
   // mirror the selected shape's bounds and resize it live (top-left anchored,

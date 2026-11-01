@@ -14310,10 +14310,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Traço e dois pontos</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>Aplicar uma predefinição de traçado salva</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>Salvar Alinhamento, Extremidades, Cantos, Traços e Deslocamento dos traços como predefinição</translation>
     </message>
@@ -14330,14 +14326,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Deslocamento dos traços:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>Nenhuma predefinição salva</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>Escolha uma predefinição</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>Salvar predefinição de traçado</translation>
     </message>
@@ -14348,10 +14336,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Stroke Presets</source>
         <translation>Predefinições de traçado</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>Ainda não há predefinições de traçado salvas. Em Aparência da forma, configure o traçado e clique em Salvar... na linha Predefinição.</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14376,6 +14360,22 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>Já existe uma predefinição de traçado chamada &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>Predefinição integrada: pode ser usada, mas não renomeada, movida ou excluída.</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>Ainda não há predefinições de traçado salvas. Em Aparência da forma, configure o traçado e clique em Salvar... ao lado de Traços.</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>Sem alteração</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>Integrada</translation>
     </message>
 </context>
 <context>
@@ -18507,6 +18507,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Pick the next brush preset</source>
         <translation>Escolher a próxima predefinição de pincel</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>Gerenciar predefinições de traçado integradas e salvas</translation>
     </message>
 </context>
 <context>
@@ -30991,10 +30995,6 @@ Bloqueado: %1</translation>
         <translation>Pesquisar &amp;comandos...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>Traços do contorno. Predefinições de traços usam extremidades retas; as de pontos usam extremidades e cantos redondos</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>As imagens de %1 já estão abertas</translation>
     </message>
@@ -31203,10 +31203,6 @@ Bloqueado: %1</translation>
         <translation>%1 forma(s) alinhada(s)</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>Predefinições de traçado salvas: alinhamento, extremidades, cantos, tracejado e deslocamento do tracejado</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>Predefinições de traçado...</translation>
     </message>
@@ -31219,12 +31215,12 @@ Bloqueado: %1</translation>
         <translation>Predefinição de traçado: %1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>Nenhuma predefinição de traçado</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>Gerenciar predefinições...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Tracejado do traçado e predefinições de traçado salvas. Os tracejados usam extremidades retas; os pontos usam extremidades e cantos arredondados</translation>
     </message>
 </context>
 <context>

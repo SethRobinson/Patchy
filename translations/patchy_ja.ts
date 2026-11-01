@@ -14267,10 +14267,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>二点鎖線</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>保存した線のプリセットを適用</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>整列、線端、角、破線、破線のオフセットをプリセットとして保存</translation>
     </message>
@@ -14287,14 +14283,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>破線のオフセット:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>保存したプリセットはありません</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>プリセットを選択</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>線のプリセットを保存</translation>
     </message>
@@ -14305,10 +14293,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Stroke Presets</source>
         <translation>線のプリセット</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>保存された線のプリセットはまだありません。シェイプの外観で線を設定し、プリセット行の「保存...」をクリックしてください。</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14333,6 +14317,22 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>「%1」という名前の線のプリセットは既にあります。</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>組み込みプリセット: 使用できますが、名前の変更、移動、削除はできません。</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>保存された線のプリセットはまだありません。シェイプの外観で線を設定し、破線の横の「保存...」をクリックしてください。</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>変更しない</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>組み込み</translation>
     </message>
 </context>
 <context>
@@ -18464,6 +18464,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Pick the next brush preset</source>
         <translation>次のブラシプリセットを選択</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>組み込みと保存済みの線のプリセットを管理</translation>
     </message>
 </context>
 <context>
@@ -30909,10 +30913,6 @@ Locked: %1</source>
         <translation>コマンドを検索(&amp;C)...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>線の破線。破線のプリセットは先端をバットに、点のプリセットは先端と角を丸にします</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>%1 の画像はすでに開いています</translation>
     </message>
@@ -31121,10 +31121,6 @@ Locked: %1</source>
         <translation>%1 個のシェイプを整列しました</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>保存された線のプリセット: 整列、線端、角、破線、破線のオフセット</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>線のプリセット...</translation>
     </message>
@@ -31137,12 +31133,12 @@ Locked: %1</source>
         <translation>線のプリセット: %1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>線のプリセットはありません</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>プリセットを管理...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>線の破線と保存済みの線のプリセット。破線のプリセットは線端なし、点のプリセットは丸型線端と丸い角を使います</translation>
     </message>
 </context>
 <context>

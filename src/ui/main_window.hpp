@@ -1900,19 +1900,22 @@ private:
   // 0 while the stroke is off, and a 0 entry turns it off while keeping the last real width.
   double vector_stroke_field_value() const;
   void set_vector_stroke_width_from_field(double value);
-  // The options bar's dash combo (GitHub #556): a preset applies to new shapes and the
-  // selected shape layers with its caps and corners (apply_stroke_dash_preset). The combo
-  // shows `shown`, or its unpickable Custom row for nullopt.
+  // The options bar's dash combo (GitHub #556 and #557 follow-up), one stroke list: the
+  // built-in dash presets, the saved stroke presets (item data kSavedStrokePresetRow + index),
+  // Custom (kStrokeComboCustomRow; shown only for a selected pattern nothing matches, not
+  // pickable), then Manage Presets... (kStrokeComboManageRow, opens the Stroke Presets
+  // manager). A built-in applies with its caps and corners (apply_stroke_dash_preset); a saved
+  // preset sets Align, Caps, Corners, the dashes and the offset. Both reach new shapes and the
+  // selected shape layers. rebuild_ refills the items after the saved list changes; refresh_
+  // selects the entry `shown` matches (a saved preset before a built-in), or the one for the
+  // selection or new shapes.
   void set_vector_stroke_dash_preset_from_combo(patchy::StrokeDashPreset preset);
-  void refresh_vector_stroke_dash_combo(std::optional<patchy::StrokeDashPreset> shown);
-  // The options bar's stroke preset menu button (GitHub #557 follow-up): the saved stroke
-  // presets (load_stroke_style_presets) and Manage Presets.... A pick sets Align, Caps, Corners,
-  // the dashes and the offset for new shapes and the selected shape layers. The menu checks
-  // the preset `shown` matches (null: none); it is rebuilt each time it opens.
   void apply_vector_stroke_style_preset(const StrokeStylePreset& preset);
-  void refresh_vector_stroke_preset_menu(const patchy::VectorStroke* shown);
-  void refresh_vector_stroke_preset_menu();
-  void rebuild_vector_stroke_preset_menu();
+  void rebuild_vector_stroke_dash_combo();
+  void refresh_vector_stroke_dash_combo(const patchy::VectorStroke& shown);
+  void refresh_vector_stroke_dash_combo();
+  static constexpr int kStrokeComboCustomRow = -1;
+  static constexpr int kStrokeComboManageRow = -2;
   // A dash preset picked or synced from a layer also updates the saved-preset line settings.
   void set_new_shape_stroke_dash_preset(patchy::StrokeDashPreset preset);
   bool apply_options_bar_appearance_to_active_shape(const std::vector<std::string>& fields = {});
@@ -3893,8 +3896,6 @@ private:
   QToolButton* vector_fill_swatch_button_{nullptr};
   QToolButton* vector_stroke_swatch_button_{nullptr};
   QComboBox* vector_stroke_dash_combo_{nullptr};
-  QToolButton* vector_stroke_preset_button_{nullptr};
-  QString vector_stroke_preset_shown_;  // the saved preset the menu checks, empty for none
   // Debounces live-editing bursts (stroke-width spin / its popup slider) into
   // one undo entry + one rasterize.
   QTimer* vector_appearance_apply_timer_{nullptr};

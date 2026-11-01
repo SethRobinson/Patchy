@@ -14310,10 +14310,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Raya y dos puntos</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>Aplicar un ajuste preestablecido de trazo guardado</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>Guardar Alinear, Extremos, Esquinas, Guiones y Desplazamiento de guiones como ajuste preestablecido</translation>
     </message>
@@ -14330,14 +14326,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Desplazamiento de guiones:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>No hay ajustes preestablecidos guardados</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>Elegir un ajuste preestablecido</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>Guardar ajuste preestablecido de trazo</translation>
     </message>
@@ -14348,10 +14336,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Stroke Presets</source>
         <translation>Ajustes preestablecidos de trazo</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>Aún no hay ajustes preestablecidos de trazo guardados. En Apariencia de forma, configure el trazo y haga clic en Guardar... en la fila Ajuste preestablecido.</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14376,6 +14360,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>Ya existe un ajuste preestablecido de trazo llamado &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>Ajuste preestablecido integrado: se puede usar, pero no cambiar de nombre, mover ni eliminar.</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>Aún no hay ajustes preestablecidos de trazo guardados. En Apariencia de forma, configure el trazo y haga clic en Guardar... junto a Guiones.</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>Sin cambios</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>Integrado</translation>
     </message>
 </context>
 <context>
@@ -18507,6 +18507,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Pick the next brush preset</source>
         <translation>Elegir el ajuste preestablecido de pincel siguiente</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>Administrar ajustes preestablecidos de trazo integrados y guardados</translation>
     </message>
 </context>
 <context>
@@ -30991,10 +30995,6 @@ Bloqueada: %1</translation>
         <translation>Buscar &amp;comandos...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>Guiones del trazo. Los ajustes de guiones usan terminaciones planas; los de puntos, terminaciones y esquinas redondas</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>Las imágenes de %1 ya están abiertas</translation>
     </message>
@@ -31203,10 +31203,6 @@ Bloqueada: %1</translation>
         <translation>%1 forma(s) alineada(s)</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>Ajustes preestablecidos de trazo guardados: alineación, extremos, esquinas, guiones y desplazamiento de guiones</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>Ajustes preestablecidos de trazo...</translation>
     </message>
@@ -31219,12 +31215,12 @@ Bloqueada: %1</translation>
         <translation>Ajuste preestablecido de trazo: %1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>No hay ajustes preestablecidos de trazo</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>Administrar ajustes preestablecidos...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>Guiones del trazo y ajustes preestablecidos de trazo guardados. Los guiones usan extremos planos; los puntos usan extremos y esquinas redondeados</translation>
     </message>
 </context>
 <context>

@@ -76,6 +76,20 @@ void apply_stroke_style_preset(VectorStroke& stroke, const StrokeStylePreset& pr
 [[nodiscard]] std::vector<StrokeStylePreset> load_stroke_style_presets();
 void save_stroke_style_presets(const std::vector<StrokeStylePreset>& presets);
 
+// One stroke list (GitHub #557 follow-up): Shape Appearance's Dashes combo and the
+// options bar's dash combo list the built-in dash presets, then the saved presets with
+// item data kSavedStrokePresetRow + index, then Custom. The Stroke Presets manager lists
+// the built-ins first too, locked.
+inline constexpr int kSavedStrokePresetRow = 1000;
+// A saved preset may not take a built-in's name (compared case-insensitively, in the UI language).
+[[nodiscard]] bool stroke_preset_name_is_builtin(const QString& name);
+// A built-in dash preset as the manager shows it: its name, its caps and corners (Butt and
+// Miter where it sets none), its pattern for those caps, Inside and no offset.
+[[nodiscard]] StrokeStylePreset builtin_stroke_style_preset(StrokeDashPreset preset);
+// The index of the first saved preset `stroke` matches on every field, or -1.
+[[nodiscard]] int matching_stroke_style_preset(const VectorStroke& stroke,
+                                               const std::vector<StrokeStylePreset>& presets);
+
 // Live-preview dialog for a shape layer's fill and stroke (the
 // request_levels_settings convention): every control change fires
 // preview_changed with the full settings; returns nullopt on cancel. Pattern

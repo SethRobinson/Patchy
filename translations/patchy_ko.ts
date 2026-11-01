@@ -14267,10 +14267,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>이점 쇄선</translation>
     </message>
     <message>
-        <source>Apply a saved stroke preset</source>
-        <translation>저장된 획 사전 설정 적용</translation>
-    </message>
-    <message>
         <source>Save Align, Caps, Corners, Dashes and Dash offset as a preset</source>
         <translation>정렬, 끝, 모서리, 점선, 점선 오프셋을 사전 설정으로 저장</translation>
     </message>
@@ -14287,14 +14283,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>점선 오프셋:</translation>
     </message>
     <message>
-        <source>No saved presets</source>
-        <translation>저장된 사전 설정 없음</translation>
-    </message>
-    <message>
-        <source>Choose a preset</source>
-        <translation>사전 설정 선택</translation>
-    </message>
-    <message>
         <source>Save Stroke Preset</source>
         <translation>획 사전 설정 저장</translation>
     </message>
@@ -14305,10 +14293,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Stroke Presets</source>
         <translation>획 사전 설정</translation>
-    </message>
-    <message>
-        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... on the Preset row.</source>
-        <translation>저장된 획 사전 설정이 아직 없습니다. 모양 외형에서 획을 설정한 다음 사전 설정 행의 저장...을 클릭하세요.</translation>
     </message>
     <message>
         <source>Delete the selected preset (Del)</source>
@@ -14333,6 +14317,22 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>A stroke preset named &quot;%1&quot; already exists.</source>
         <translation>&quot;%1&quot;(이)라는 획 사전 설정이 이미 있습니다.</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
+        <translation>기본 제공 사전 설정: 사용할 수 있지만 이름 바꾸기, 이동, 삭제는 할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
+        <translation>저장된 획 사전 설정이 아직 없습니다. 모양 외형에서 획을 설정한 다음 점선 패턴 옆의 저장...을 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Unchanged</source>
+        <translation>변경 안 함</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>기본 제공</translation>
     </message>
 </context>
 <context>
@@ -18464,6 +18464,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Pick the next brush preset</source>
         <translation>다음 브러시 사전 설정 선택</translation>
+    </message>
+    <message>
+        <source>Manage built-in and saved stroke presets</source>
+        <translation>기본 제공 및 저장된 획 사전 설정 관리</translation>
     </message>
 </context>
 <context>
@@ -30909,10 +30913,6 @@ Locked: %1</source>
         <translation>명령 검색(&amp;C)...</translation>
     </message>
     <message>
-        <source>Stroke dashes. Dash presets use butt caps; dot presets use round caps and corners</source>
-        <translation>선 점선 패턴. 대시 사전 설정은 맞대기 캡을, 점 사전 설정은 원형 캡과 원형 모서리를 사용합니다</translation>
-    </message>
-    <message>
         <source>The images in %1 are already open</source>
         <translation>%1의 이미지가 이미 열려 있습니다</translation>
     </message>
@@ -31121,10 +31121,6 @@ Locked: %1</source>
         <translation>모양 %1개를 정렬했습니다</translation>
     </message>
     <message>
-        <source>Saved stroke presets: Align, Caps, Corners, dashes and dash offset</source>
-        <translation>저장된 획 사전 설정: 정렬, 끝, 모서리, 대시, 대시 오프셋</translation>
-    </message>
-    <message>
         <source>Stroke Presets...</source>
         <translation>획 사전 설정...</translation>
     </message>
@@ -31137,12 +31133,12 @@ Locked: %1</source>
         <translation>획 사전 설정: %1</translation>
     </message>
     <message>
-        <source>No stroke presets</source>
-        <translation>획 사전 설정 없음</translation>
-    </message>
-    <message>
         <source>Manage Presets...</source>
         <translation>사전 설정 관리...</translation>
+    </message>
+    <message>
+        <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
+        <translation>획 대시와 저장된 획 사전 설정. 대시 사전 설정은 평평한 끝을, 점 사전 설정은 둥근 끝과 모서리를 사용합니다</translation>
     </message>
 </context>
 <context>
