@@ -31847,6 +31847,10 @@ Locked: %1</source>
         <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
         <translation>Patchy에서 지원하지 않음</translation>
     </message>
+    <message>
+        <source>GIMP&apos;s GEGL filters are listed under Plugins &gt; GEGL Filters and follow this setting too. They open in Patchy&apos;s filter dialog with a live preview.</source>
+        <translation>GIMP의 GEGL 필터는 플러그인 &gt; GEGL 필터에 표시되며 이 설정도 따릅니다. 실시간 미리 보기가 있는 Patchy의 필터 대화 상자에서 열립니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

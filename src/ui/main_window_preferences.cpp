@@ -2080,6 +2080,13 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   gimp_intro->setWordWrap(true);
   gimp_intro->setObjectName(QStringLiteral("preferencesGimpPluginsIntro"));
   gimp_form->addRow(gimp_intro);
+  // GEGL filters come from the same install and follow the same switch (docs/gegl-filters.md).
+  auto* gegl_note = new QLabel(tr("GIMP's GEGL filters are listed under Plugins > GEGL Filters and follow this "
+                                  "setting too. They open in Patchy's filter dialog with a live preview."),
+                               gimp_group);
+  gegl_note->setWordWrap(true);
+  gegl_note->setObjectName(QStringLiteral("preferencesGeglFiltersNote"));
+  gimp_form->addRow(gegl_note);
   auto* gimp_install_label = new QLabel(gimp_group);
   gimp_install_label->setObjectName(QStringLiteral("preferencesGimpInstallLabel"));
   gimp_install_label->setWordWrap(true);
