@@ -26,6 +26,10 @@ On Windows the helper puts GIMP's `bin` first on its DLL search path and `PATH` 
 
 GEGL loads its GPL-3 operations (Cartoon, Cubism, Oilify, Emboss, Ripple and about 30 more) only for a program that sets GeglConfig's `application-license` to "GPL3", as GIMP does. Patchy passes `--gpl3` and the helper sets it before `gegl_init` (afterwards GEGL reloads every module and warns about duplicate types). Without the flag the list drops from 258 to 207 operations on GIMP 3.2.6.
 
+## The scan
+
+At startup (not offscreen), on Rescan GIMP Plug-ins and on a language change, a worker lists the operations (`scan_gegl_filters`). The helper's list is cached in `<AppData>/gegl-filters/operations.json` under a key of the cache version, GEGL's library file (path, size, time; inside GIMP's Flatpak the host file, `library_file`), the helper file and the language, so a launch with nothing changed starts no helper. Bump `kCacheVersion` when the list's shape changes.
+
 ## What is offered
 
 `gegl_operation_offered`: a `gegl:` operation with an input and an output pad and no aux pad (a one-layer filter), at least one category, none of the excluded categories (core, programming, hidden, meta, json, video, compositors, blend, transform, vector, svgfilter, input, output, debug), not excluded by name (inpainting, seamless clone, red eye, healing: the records in [legal-constraints.md](legal-constraints.md)), and no setting of a kind Patchy cannot hold (paths, curves, buffers, pointers). GIMP 3.2.6 on Windows: 258 operations, 112 offered (35 GPL-3) in 18 categories.

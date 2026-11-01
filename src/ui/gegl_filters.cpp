@@ -9,6 +9,7 @@
 #include "ui/qt_paths.hpp"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -17,6 +18,7 @@
 #include <QJsonObject>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QSaveFile>
 #include <QStandardPaths>
 
 #include <algorithm>
@@ -396,6 +398,7 @@ QString find_gegl_library(const gimp::GimpInstall& install) {
 GeglHelperCommand gegl_helper_command(const gimp::GimpInstall& install, const QString& library) {
   GeglHelperCommand command;
   command.library = library;
+  command.library_file = install.flatpak ? to_qstring(install.prefix / "lib" / "libgegl-0.4.so.0") : library;
   auto helper = gegl_helper_path();
   if (!install.flatpak) {
     command.program = helper;
@@ -507,18 +510,54 @@ GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const Q
         QCoreApplication::translate("GeglFilters", "Patchy's GEGL helper is missing from its program folder.");
     return result;
   }
-  QProcess helper;
-  prepare_helper(helper, command, language);
-  helper.start(command.program, command.arguments + QStringList{QStringLiteral("--gpl3"), QStringLiteral("--list")});
-  helper.closeWriteChannel();
-  if (!helper.waitForFinished(60000) || helper.exitCode() != 0) {
-    helper.kill();
-    //: %1 is what the helper reported.
-    result.problem = QCoreApplication::translate("GeglFilters", "GIMP's GEGL could not be loaded. %1")
-                         .arg(QString::fromUtf8(helper.readAllStandardError()).trimmed().left(400));
-    return result;
+  // The cache: the helper's last list, reused while its key matches. Bump kCacheVersion
+  // when the helper's list changes shape.
+  constexpr int kCacheVersion = 1;
+  const auto stamp = [](const QString& path) {
+    const QFileInfo info(path);
+    return QStringLiteral("%1|%2|%3").arg(path).arg(info.size()).arg(info.lastModified().toMSecsSinceEpoch());
+  };
+  const auto key = QStringLiteral("%1|%2|%3|%4")
+                       .arg(kCacheVersion)
+                       .arg(stamp(command.library_file.isEmpty() ? command.library : command.library_file),
+                            stamp(gegl_helper_path()), language);
+  const auto cache_path = QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+                              .filePath(QStringLiteral("gegl-filters/operations.json"));
+  QJsonObject document;
+  {
+    QFile cached(cache_path);
+    if (cached.open(QIODevice::ReadOnly)) {
+      const auto saved = QJsonDocument::fromJson(cached.readAll()).object();
+      if (saved.value(QStringLiteral("key")).toString() == key) {
+        document = saved.value(QStringLiteral("list")).toObject();
+      }
+    }
   }
-  const auto document = QJsonDocument::fromJson(helper.readAllStandardOutput()).object();
+  if (document.isEmpty()) {
+    QProcess helper;
+    prepare_helper(helper, command, language);
+    helper.start(command.program, command.arguments + QStringList{QStringLiteral("--gpl3"), QStringLiteral("--list")});
+    helper.closeWriteChannel();
+    if (!helper.waitForFinished(60000) || helper.exitCode() != 0) {
+      helper.kill();
+      //: %1 is what the helper reported.
+      result.problem = QCoreApplication::translate("GeglFilters", "GIMP's GEGL could not be loaded. %1")
+                           .arg(QString::fromUtf8(helper.readAllStandardError()).trimmed().left(400));
+      return result;
+    }
+    document = QJsonDocument::fromJson(helper.readAllStandardOutput()).object();
+    if (!document.value(QStringLiteral("operations")).toArray().isEmpty()) {
+      QDir().mkpath(QFileInfo(cache_path).absolutePath());
+      QSaveFile out(cache_path);
+      if (out.open(QIODevice::WriteOnly)) {
+        QJsonObject saved;
+        saved.insert(QStringLiteral("key"), key);
+        saved.insert(QStringLiteral("list"), document);
+        out.write(QJsonDocument(saved).toJson(QJsonDocument::Compact));
+        out.commit();
+      }
+    }
+  }
   auto registry = std::make_shared<FilterRegistry>();
   const auto operations = document.value(QStringLiteral("operations")).toArray();
   result.operations = static_cast<int>(operations.size());

@@ -26,6 +26,8 @@
 #include <QTimer>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
+#include <QStandardPaths>
 #include <QFile>
 #include <QImage>
 #include <QElapsedTimer>
@@ -930,6 +932,13 @@ void ui_gegl_filters_list_and_apply_if_available() {
                                                       QStringLiteral("de"));
     const auto* german_blur = german.registry != nullptr ? german.registry->find("gegl.gaussian-blur") : nullptr;
     CHECK(german_blur != nullptr && german_blur->display_name != blur->display_name);
+    // A second scan in the same language comes from the cache, the same list.
+    const auto again = patchy::ui::scan_gegl_filters(patchy::ui::gegl_helper_command(installs.front(), library),
+                                                     QStringLiteral("de"));
+    CHECK(again.registry != nullptr && german.registry != nullptr &&
+          again.registry->filters().size() == german.registry->filters().size());
+    CHECK(QFileInfo::exists(QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+                                .filePath(QStringLiteral("gegl-filters/operations.json"))));
   }
 
   // Scripts list them and run one by id.

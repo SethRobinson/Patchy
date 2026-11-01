@@ -28,6 +28,7 @@ struct GeglHelperCommand {
   QString program;
   QStringList arguments;
   QString library;        // the libgegl the helper loads (a sandbox path inside GIMP's Flatpak)
+  QString library_file;   // the same file as this process sees it (the scan cache's key)
   bool flatpak{false};
 };
 
@@ -53,8 +54,9 @@ inline constexpr char kGeglFilterIdPrefix[] = "gegl.";
 // Whether an operation from the helper's list is offered; `why` gets the reason it is not.
 [[nodiscard]] bool gegl_operation_offered(const QJsonObject& operation, QString* why = nullptr);
 // Lists the operations of `library` through the helper and builds the registry, with
-// GEGL's labels in `language` (a Patchy language code; empty: English). Blocking; run it
-// on a worker.
+// GEGL's labels in `language` (a Patchy language code; empty: English). The helper's list
+// is cached (<AppData>/gegl-filters/operations.json) while GEGL's library, the helper and
+// the language stay the same. Blocking; run it on a worker.
 [[nodiscard]] GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const QString& language = {});
 // A GEGL category as a menu label: Patchy's translated name for the known ones, else
 // GEGL's word capitalized ("edge-detect" -> "Edge Detect").
