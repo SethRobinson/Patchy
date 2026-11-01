@@ -224,6 +224,14 @@ QRegion stroke_samples_dirty_region(const std::vector<QRect>& rects) {
 }  // namespace
 
 bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
+  // Alt held aims a new Clone or Healing source: the old source's overlay hides until it
+  // is released (GitHub issue 573). The key event itself says which way Alt went.
+  if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && isVisible()) {
+    const auto* key_event = static_cast<QKeyEvent*>(event);
+    if (key_event->key() == Qt::Key_Alt && !key_event->isAutoRepeat()) {
+      set_clone_overlay_alt_held(event->type() == QEvent::KeyPress);
+    }
+  }
   // The Hand (the tool, or Space held over another tool) shows the magnifier
   // while Ctrl or Alt would make a click zoom (GitHub issue 304).
   if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && isVisible() &&
@@ -1845,6 +1853,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
   });
   emit_info_for_widget_position(event->pos());
+  if (!brush_adjust_dragging_) {
+    // Alt pressed or released while another window had the keys (GitHub issue 573).
+    set_clone_overlay_alt_held(event->modifiers().testFlag(Qt::AltModifier));
+  }
   track_brush_hover_position(event->pos());
   track_eyedropper_sample_outline(event->pos());
   track_stroke_connect_preview(event->pos(), event->modifiers());

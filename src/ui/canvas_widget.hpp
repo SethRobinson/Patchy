@@ -2208,6 +2208,8 @@ private:
   [[nodiscard]] QRect clone_overlay_widget_rect() const;
   void draw_clone_source_overlay(QPainter& painter) const;
   void invalidate_clone_overlay();
+  // Alt held picks a new source, so the old source's overlay hides (GitHub issue 573).
+  void set_clone_overlay_alt_held(bool held);
   // The Brush overlay (GitHub issue 517): one dab of the current tip in the foreground color
   // under the hovered brush, rendered once per tip, size, color and zoom into
   // brush_overlay_image_ and only blitted per repaint.
@@ -3868,6 +3870,7 @@ private:
   bool clone_overlay_shown_{true};
   int clone_overlay_opacity_{100};
   mutable QRect clone_overlay_drawn_rect_{};
+  bool clone_overlay_alt_held_{false};
   bool brush_overlay_shown_{false};
   bool brush_outline_shown_{true};
   int brush_overlay_opacity_{100};

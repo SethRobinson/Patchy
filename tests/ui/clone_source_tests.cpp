@@ -1106,6 +1106,71 @@ void ui_clone_source_overlay_follows_drag_resize() {
   scene.check_overlay(scene.hover, dragged);
 }
 
+// Alt held aims a new source, so the old source's overlay hides, and the next frame on screen
+// shows it gone (no stale copy left); releasing Alt brings it back (GitHub issue 573). The
+// Alt+right-drag resize still shows it as the size preview (issue 516), and so does the
+// Healing Brush's overlay follow Alt.
+void ui_clone_source_overlay_hides_while_alt_held() {
+  CloneResizeScene scene(20);
+  scene.check_overlay(scene.hover, 20);
+  const auto key_step = [&scene](QEvent::Type type) {
+    const auto last_frame = scene.canvas.grab().toImage();
+    PaintRegionRecorder recorder(&scene.canvas);
+    scene.canvas.installEventFilter(&recorder);
+    recorder.reset();
+    if (type == QEvent::KeyPress) {
+      send_key_press(scene.canvas, Qt::Key_Alt);
+    } else {
+      send_key_release(scene.canvas, Qt::Key_Alt, Qt::AltModifier);
+    }
+    QApplication::processEvents();
+    scene.canvas.removeEventFilter(&recorder);
+    const auto fresh = scene.canvas.grab().toImage();
+    CHECK(repaint_onto(last_frame, fresh, recorder.region()) == fresh);
+  };
+
+  key_step(QEvent::KeyPress);
+  CHECK(scene.overlay_bounds().isEmpty());
+  send_mouse(scene.canvas, QEvent::MouseMove, scene.hover, Qt::NoButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(scene.overlay_bounds().isEmpty());
+  key_step(QEvent::KeyRelease);
+  scene.check_overlay(scene.hover, 20);
+
+  // Alt+right-drag: the overlay is the size preview during the drag, hidden again once the
+  // drag ends with Alt still down.
+  key_step(QEvent::KeyPress);
+  const QPoint moved = scene.hover + QPoint(15, 0);
+  send_mouse(scene.canvas, QEvent::MouseButtonPress, scene.hover, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(scene.canvas, QEvent::MouseMove, moved, Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  QApplication::processEvents();
+  const auto dragged = scene.canvas.brush_size();
+  CHECK(dragged > 20);
+  scene.check_overlay(scene.hover, dragged);
+  send_mouse(scene.canvas, QEvent::MouseButtonRelease, moved, Qt::RightButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(scene.overlay_bounds().isEmpty());
+  key_step(QEvent::KeyRelease);
+  scene.check_overlay(scene.hover, dragged);
+
+  // A release the canvas never saw (Alt let go in another window): the next move without
+  // Alt brings the overlay back.
+  send_key_press(scene.canvas, Qt::Key_Alt);
+  CHECK(scene.overlay_bounds().isEmpty());
+  send_mouse(scene.canvas, QEvent::MouseMove, scene.hover, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  scene.check_overlay(scene.hover, dragged);
+
+  scene.canvas.set_tool(CanvasTool::Healing);
+  send_mouse(scene.canvas, QEvent::MouseMove, scene.hover, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!scene.overlay_bounds().isEmpty());
+  key_step(QEvent::KeyPress);
+  CHECK(scene.overlay_bounds().isEmpty());
+  key_step(QEvent::KeyRelease);
+  CHECK(!scene.overlay_bounds().isEmpty());
+}
+
 // With no source a Clone press is refused and the pointer is the not-allowed cursor, so
 // the brush footprint is painted on the canvas at every size (GitHub issue 516: below the
 // large-brush size [ left no circle and no centre cross at all).
@@ -1265,6 +1330,7 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_overlay_screenshot", ui_clone_source_overlay_screenshot},
       {"ui_clone_source_overlay_follows_bracket_resize", ui_clone_source_overlay_follows_bracket_resize},
       {"ui_clone_source_overlay_follows_drag_resize", ui_clone_source_overlay_follows_drag_resize},
+      {"ui_clone_source_overlay_hides_while_alt_held", ui_clone_source_overlay_hides_while_alt_held},
       {"ui_clone_source_overlay_resize_screenshot", ui_clone_source_overlay_resize_screenshot},
       {"ui_clone_source_no_source_bracket_resize_keeps_brush_outline",
        ui_clone_source_no_source_bracket_resize_keeps_brush_outline},
