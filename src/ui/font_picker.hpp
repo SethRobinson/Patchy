@@ -24,6 +24,12 @@ class FontPickerCombo;
 // renaming it would make focusing the search box auto-commit an open inline text editor.
 inline constexpr char kFontPickerPopupObjectName[] = "textFontPickerPopup";
 
+// The popup list's rows: families, plus the two section headers when the Recent section shows
+// (GitHub issue 569). Headers are not selectable; the row-kind role tells them apart.
+inline constexpr int kFontPickerRowKindRole = Qt::UserRole + 1;
+inline constexpr int kFontPickerRecentRowRole = Qt::UserRole + 2;  // bool: a row of the Recent section
+enum class FontPickerRowKind { family = 0, recent_header = 1, all_header = 2 };
+
 // Per-family info for list rows and previews, computed lazily the first time a family is
 // painted or hovered (never precomputed across the whole database -- hundreds of families).
 struct FontFamilyRenderInfo {
@@ -69,8 +75,8 @@ private:
 };
 
 // Drop-in QFontComboBox for the Options bar: the closed control is unchanged, but opening it
-// shows a searchable family list (live substring filter) with a hover/keyboard preview pane
-// instead of the stock dropdown. Selection commits through setCurrentIndex, so
+// shows a searchable family list (live substring filter, Style and Language filters, a Recent
+// section on top) with a hover/keyboard preview pane instead of the stock dropdown. Selection commits through setCurrentIndex, so
 // currentFontChanged fires exactly like the stock combo and existing wiring keeps working.
 class FontPickerCombo : public QFontComboBox {
   Q_OBJECT

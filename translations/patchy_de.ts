@@ -18555,6 +18555,67 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Search fonts...</source>
         <translation>Schriften suchen...</translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation>Alle Stile</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>Serif</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>Serifenlos</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>Slab Serif</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>Schreibschrift</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>Dekorativ</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>Symbol</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>Dicktengleich</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>Variabel</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>Zuletzt verwendet</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>Alle Schriften</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>Schriftstile werden gelesen... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>Nur Schriften dieses Stils anzeigen</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>Nur Schriften anzeigen, die diese Sprache unterstützen</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>Alle Sprachen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

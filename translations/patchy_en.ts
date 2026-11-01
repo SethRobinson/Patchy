@@ -18538,6 +18538,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Search fonts...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

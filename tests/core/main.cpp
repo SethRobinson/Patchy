@@ -177,6 +177,7 @@ int main(int argc, char** argv) {
            unicode_path_tests,
            font_zip_tests,
            font_substitutes_tests,
+           font_style_class_tests,
            infra_selection_tests,
            pipl_tests,
            vector_shape_tests,

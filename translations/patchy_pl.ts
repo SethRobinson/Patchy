@@ -18598,6 +18598,67 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Search fonts...</source>
         <translation>Wyszukaj czcionki...</translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation>Wszystkie style</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>Szeryfowe</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>Bezszeryfowe</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>Szeryfowe prostokątne</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>Pisane</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>Ozdobne</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>Symbole</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>O stałej szerokości</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>Zmienne</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>Ostatnio używane</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>Wszystkie czcionki</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>Odczytywanie stylów czcionek... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>Pokaż tylko czcionki w tym stylu</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>Pokaż tylko czcionki obsługujące ten język</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>Wszystkie języki</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

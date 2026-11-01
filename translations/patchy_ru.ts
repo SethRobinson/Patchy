@@ -18598,6 +18598,67 @@ Each item&apos;s own View setting still applies.</source>
         <source>Search fonts...</source>
         <translation>Поиск шрифтов...</translation>
     </message>
+    <message>
+        <source>All Styles</source>
+        <translation>Все стили</translation>
+    </message>
+    <message>
+        <source>Serif</source>
+        <translation>С засечками</translation>
+    </message>
+    <message>
+        <source>Sans Serif</source>
+        <translation>Без засечек</translation>
+    </message>
+    <message>
+        <source>Slab Serif</source>
+        <translation>Брусковые</translation>
+    </message>
+    <message>
+        <source>Script</source>
+        <translation>Рукописные</translation>
+    </message>
+    <message>
+        <source>Decorative</source>
+        <translation>Декоративные</translation>
+    </message>
+    <message>
+        <source>Symbol</source>
+        <translation>Символьные</translation>
+    </message>
+    <message>
+        <source>Monospace</source>
+        <translation>Моноширинные</translation>
+    </message>
+    <message>
+        <source>Variable</source>
+        <extracomment>Variable fonts (one font file with adjustable weight or width axes).</extracomment>
+        <translation>Вариативные</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <translation>Недавние</translation>
+    </message>
+    <message>
+        <source>All Fonts</source>
+        <translation>Все шрифты</translation>
+    </message>
+    <message>
+        <source>Reading font styles... %1%</source>
+        <translation>Чтение стилей шрифтов... %1%</translation>
+    </message>
+    <message>
+        <source>Show only fonts of this style</source>
+        <translation>Показывать только шрифты этого стиля</translation>
+    </message>
+    <message>
+        <source>Show only fonts that support this language</source>
+        <translation>Показывать только шрифты с поддержкой этого языка</translation>
+    </message>
+    <message>
+        <source>All Languages</source>
+        <translation>Все языки</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
