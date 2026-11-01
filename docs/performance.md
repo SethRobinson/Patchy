@@ -103,6 +103,10 @@ still-shared buffer race to detach, each copying while another's replacement fre
 thread and hand the workers spans or raw pointers; `apply_row_spans_in_parallel`
 (src/ui/filter_workflows.cpp) and `heal_mask_from_surroundings` are the references.
 
+## Gaussian line filters
+
+Gaussian Blur, High Pass, Unsharp Mask (RGBA8, smart_filter_renderer.cpp) and the 16/32-bit plane filter (`filter_plane_with_photoshop_kernel`) share one separable line filter, `filter_gaussian_lines`: it filters several interleaved lines at once (the channels of a row, or every channel of a block of columns), giving each lane exactly a lone line's operations in order, so output never depends on lane count. Rows, then 16-column blocks (64 for one-channel planes), fan out through `run_filter_blocks`; the column pass reads a 64-byte slice of the byte-rounded row plane per row instead of striding a whole row per sample. `gaussian_line_filters_match_pinned_bytes` pins 152 digests taken from the earlier single-threaded, one-channel-at-a-time code; any change to these filters keeps them. `patchy_perf_tests.exe gaussian` times a 6000x4000 image (`PATCHY_PERF_GAUSSIAN_SIZE=WxH`): about 0.2 s per RGBA8 Gaussian at any radius on a 32-thread box, against 1.8 to 14 s before (GitHub issue 564).
+
 ## Compositor row kernels, mask plane, and the byte-identity corpus
 
 The per-pixel general loop in `composite_pixel_layer` (render/layer_compositor.hpp) is the compositor's slow path: a layer falls off the integer scanline fast path the moment it has a mask, a non-Normal blend mode, or any advanced feature, where throughput falls from ~860 Mpx/s to ~30 Mpx/s. These fast paths cut it without changing a single output byte:
