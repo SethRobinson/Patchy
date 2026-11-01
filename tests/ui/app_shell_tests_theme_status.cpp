@@ -213,6 +213,48 @@ void ui_theme_text_roles_contrast_with_their_backgrounds() {
   }
 }
 
+void ui_resize_grip_follows_the_active_theme() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  auto parent = make_themed_dialog_parent();
+  QDialog dialog(parent.get());
+  dialog.setObjectName(QStringLiteral("resizeGripProbeDialog"));
+  dialog.resize(160, 100);
+  auto* grip = new patchy::ui::VisibleSizeGrip(&dialog);
+  grip->setObjectName(QStringLiteral("resizeGripProbe"));
+  grip->move(dialog.width() - grip->width(), dialog.height() - grip->height());
+  dialog.show();
+
+  // Keep the same grip alive across both switches: caching its first ink color
+  // would pass a freshly constructed widget test but fail on an open popup.
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark,
+                                patchy::ui::ColorSchemePreference::Light,
+                                patchy::ui::ColorSchemePreference::Dark}) {
+    ColorSchemeRestorer::apply(preference);
+    parent->setStyleSheet(patchy::ui::photoshop_style());
+    QApplication::processEvents();
+    const auto shot = grip->grab().toImage();
+    CHECK(!shot.isNull());
+    if (shot.isNull()) {
+      return;
+    }
+    const auto& palette = patchy::ui::theme();
+    int ink_pixels = 0;
+    for (int y = 0; y < shot.height(); ++y) {
+      for (int x = 0; x < shot.width(); ++x) {
+        if (channel_delta(shot.pixelColor(x, y), palette.resize_grip_ink) <= 2) {
+          ++ink_pixels;
+        }
+      }
+    }
+    CHECK(ink_pixels >= 6);
+    CHECK(contrast_ratio(palette.resize_grip_ink, shot.pixelColor(0, 0)) >= 3.0);
+    CHECK(contrast_ratio(palette.resize_grip_ink, palette.popup_list_bg) >= 3.0);
+    save_widget_artifact(preference == patchy::ui::ColorSchemePreference::Light
+                             ? "ui_resize_grip_light" : "ui_resize_grip_dark", dialog);
+  }
+}
+
 // The rendered counterpart to the pair above: the palette can be right and the
 // chrome still wrong if a rule stops applying. Opens the real dialog over the
 // real canvas in Light and looks at the pixels.
@@ -872,6 +914,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part4() {
       {"ui_theme_palettes_define_every_role", ui_theme_palettes_define_every_role},
       {"ui_theme_adjacent_roles_stay_distinguishable", ui_theme_adjacent_roles_stay_distinguishable},
       {"ui_theme_text_roles_contrast_with_their_backgrounds", ui_theme_text_roles_contrast_with_their_backgrounds},
+      {"ui_resize_grip_follows_the_active_theme", ui_resize_grip_follows_the_active_theme},
       {"ui_light_scheme_dialog_chrome_separates_from_canvas", ui_light_scheme_dialog_chrome_separates_from_canvas},
       {"ui_dialog_chrome_outline_reads_at_the_dialog_edge", ui_dialog_chrome_outline_reads_at_the_dialog_edge},
       {"ui_light_scheme_panel_scroll_bar_handle_reads_against_track", ui_light_scheme_panel_scroll_bar_handle_reads_against_track},
