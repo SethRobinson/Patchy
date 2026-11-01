@@ -50,6 +50,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <optional>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -840,8 +841,11 @@ void ui_gegl_filters_list_and_apply_if_available() {
   patchy::ui::MainWindowTestAccess::ensure_gegl_filters_scanned(window);
   const auto registry =
       patchy::ui::MainWindowTestAccess::gegl_filter_registry(window, QStringLiteral("gegl.gaussian-blur"));
+  // Patchy's own GEGL when the build has it (docs/gegl-filters.md, "Bundled GEGL"), else GIMP 3's.
+  const auto bundled = patchy::ui::bundled_gegl_library();
   if (registry == nullptr || registry->find("gegl.gaussian-blur") == nullptr) {
-    patchy::test::skip("GIMP 3 with its GEGL is not installed");
+    CHECK(bundled.isEmpty());  // a build with its own GEGL always offers it
+    patchy::test::skip("neither Patchy's own GEGL nor GIMP 3's is available");
   }
   const auto* blur = registry->find("gegl.gaussian-blur");
   const auto parameter = [](const patchy::FilterDefinition& filter, std::string_view key)
@@ -861,23 +865,29 @@ void ui_gegl_filters_list_and_apply_if_available() {
   }
   const auto* abyss = parameter(*blur, "abyss-policy");
   CHECK(abyss != nullptr && abyss->kind == patchy::FilterParameterKind::Option && !abyss->options.empty());
-  CHECK(registry->find("gegl.cartoon") != nullptr);  // GPL-3, offered through --gpl3
+  // Patchy's own GEGL ships no GPL-3 operation; GIMP's GEGL offers them through --gpl3.
+  CHECK((registry->find("gegl.cartoon") != nullptr) == bundled.isEmpty());
+  // Left out by the legal review (docs/gegl-filters.md, "Legal review").
+  for (const auto* id : {"gegl.median-blur", "gegl.focus-blur", "gegl.slic", "gegl.waterpixels",
+                         "gegl.shadows-highlights", "gegl.seamless-clone"}) {
+    CHECK(registry->find(id) == nullptr);
+  }
   CHECK(registry->find("gegl.red-eye-removal") == nullptr);
   CHECK(registry->find("gegl.crop") == nullptr);       // geometry, not a filter
   CHECK(registry->find("gegl.over") == nullptr);       // two inputs
   CHECK(registry->find("gegl.text") == nullptr);       // a setting Patchy cannot hold (text)
   CHECK(registry->find("gegl.png-load") == nullptr);   // a file loader
-  // A render operation without an input replaces the layer: Plasma on flat gray.
-  if (const auto* plasma = registry->find("gegl.plasma"); plasma != nullptr) {
+  // A render operation without an input replaces the layer: Simplex Noise on flat gray.
+  if (const auto* noise = registry->find("gegl.simplex-noise"); noise != nullptr) {
     patchy::PixelBuffer flat(32, 32, patchy::PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::UInt8, 4});
     std::fill(flat.data().begin(), flat.data().end(), std::uint8_t{128});
     const auto gray = flat;
-    registry->apply(registry->default_invocation("gegl.plasma"), flat);
+    registry->apply(registry->default_invocation("gegl.simplex-noise"), flat);
     const auto rendered = std::as_const(flat).data();
     const auto flat_gray = std::as_const(gray).data();
     CHECK(!std::equal(rendered.begin(), rendered.end(), flat_gray.begin(), flat_gray.end()));
   } else {
-    CHECK(false);  // GIMP 3.2's GEGL has Plasma
+    CHECK(false);  // GEGL 0.4 has Simplex Noise (LGPL)
   }
 
   // Straight through the registry: a run changes a two-color buffer at its edge.
@@ -940,15 +950,18 @@ void ui_gegl_filters_list_and_apply_if_available() {
   }
 
   // GEGL's labels follow the language Patchy asks for, from GEGL's own catalog.
-  if (const auto installs = patchy::gimp::detect_gimp_installs(); !installs.empty()) {
-    const auto library = patchy::ui::find_gegl_library(installs.front());
-    const auto german = patchy::ui::scan_gegl_filters(patchy::ui::gegl_helper_command(installs.front(), library),
-                                                      QStringLiteral("de"));
+  std::optional<patchy::ui::GeglHelperCommand> command;
+  if (!bundled.isEmpty()) {
+    command = patchy::ui::bundled_gegl_command(bundled);
+  } else if (const auto installs = patchy::gimp::detect_gimp_installs(); !installs.empty()) {
+    command = patchy::ui::gegl_helper_command(installs.front(), patchy::ui::find_gegl_library(installs.front()));
+  }
+  if (command.has_value()) {
+    const auto german = patchy::ui::scan_gegl_filters(*command, QStringLiteral("de"));
     const auto* german_blur = german.registry != nullptr ? german.registry->find("gegl.gaussian-blur") : nullptr;
     CHECK(german_blur != nullptr && german_blur->display_name != blur->display_name);
     // A second scan in the same language comes from the cache, the same list.
-    const auto again = patchy::ui::scan_gegl_filters(patchy::ui::gegl_helper_command(installs.front(), library),
-                                                     QStringLiteral("de"));
+    const auto again = patchy::ui::scan_gegl_filters(*command, QStringLiteral("de"));
     CHECK(again.registry != nullptr && german.registry != nullptr &&
           again.registry->filters().size() == german.registry->filters().size());
     CHECK(QFileInfo::exists(QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
@@ -985,17 +998,17 @@ void ui_gegl_filters_list_and_apply_if_available() {
     listed = listed || action->data().toString() == QStringLiteral("gegl.gaussian-blur");
   }
   CHECK(listed);
-  // The menu and its Artistic submenu, saved to test-artifacts for visual QA.
+  // The menu (under Filter) and its Blur submenu, saved to test-artifacts for visual QA.
   if (auto* gegl_menu = window.findChild<QMenu*>(QStringLiteral("geglFiltersMenu")); gegl_menu != nullptr) {
     gegl_menu->popup(window.mapToGlobal(QPoint(40, 40)));
     QApplication::processEvents();
     save_widget_artifact("gegl-filters-menu", *gegl_menu);
     for (auto* action : gegl_menu->actions()) {
       if (action->menu() != nullptr && action->menu()->actions().size() > 5 &&
-          action->text().contains(QStringLiteral("Artistic"))) {
+          action->text().contains(QStringLiteral("Blur"))) {
         action->menu()->popup(window.mapToGlobal(QPoint(260, 40)));
         QApplication::processEvents();
-        save_widget_artifact("gegl-filters-artistic-menu", *action->menu());
+        save_widget_artifact("gegl-filters-blur-menu", *action->menu());
         action->menu()->hide();
       }
     }
@@ -1053,14 +1066,14 @@ void ui_gegl_filters_list_and_apply_if_available() {
     const auto& cancelled = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*layer_id)->pixels();
     CHECK(std::equal(cancelled.data().begin(), cancelled.data().end(), original.data().begin(), original.data().end()));
   };
-  open_dialog(QStringLiteral("gegl.cartoon"), QStringLiteral("geglParam_mask-radiusSlider"));
+  open_dialog(QStringLiteral("gegl.unsharp-mask"), QStringLiteral("geglParam_scaleSlider"));
   open_dialog(QStringLiteral("gegl.vignette"), QStringLiteral("geglParam_colorCombo"));
 
   // Search Commands finds them by name, GEGL's description as the line under it.
   bool searched = false;
   for (const auto& entry : patchy::ui::collect_menu_commands(window.menuBar())) {
-    if (entry.action != nullptr && entry.action->data().toString() == QLatin1String("gegl.cartoon")) {
-      searched = entry.name.contains(QStringLiteral("Cartoon"));
+    if (entry.action != nullptr && entry.action->data().toString() == QLatin1String("gegl.bloom")) {
+      searched = entry.name.contains(QStringLiteral("Bloom"));
     }
   }
   CHECK(searched);

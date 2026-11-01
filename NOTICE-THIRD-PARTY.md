@@ -1129,6 +1129,17 @@ of a header's numerical parameters and data structure layouts. No GIMP code,
 library, plug-in or data file is included in or distributed with Patchy; the
 user's own GIMP 3 installation provides the plug-ins at run time.
 
+## Patchy's own GEGL (the gegl folder)
+
+Windows packages carry GEGL 0.4.72 and babl 0.1.128 (GNU LGPL version 3 or later,
+<https://gegl.org>, <https://gegl.org/babl>), GLib 2.90 and json-glib 1.10 (GNU LGPL version
+2.1 or later), libiconv and the gettext runtime's libintl (GNU LGPL version 2.1 or later),
+libffi (MIT), PCRE2 (BSD) and zlib (zlib license), unmodified, as separate libraries in the
+`gegl` folder that `patchy-gegl-host` loads. Their license texts, and the exact versions with
+where to get their complete source, are in `gegl/licenses` (`SOURCES.txt`). No GPL code is
+included. Patchy's helper only calls these libraries; you may replace them with your own builds
+of the same versions.
+
 ## GEGL, babl and GLib interface declarations (patchy-gegl-host)
 
 Patchy's GEGL helper (`src/plugins/gegl/host/`) declares for itself the function

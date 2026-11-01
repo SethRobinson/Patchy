@@ -55,15 +55,25 @@ std::shared_ptr<GeglFilterScanResult> scan_for(const std::optional<GeglHelperCom
   return std::make_shared<GeglFilterScanResult>(scan_gegl_filters(*command, language));
 }
 
+// Patchy's own GEGL when the build ships one, whatever the GIMP settings; otherwise GIMP 3's,
+// which follows the GIMP plug-in settings.
+std::optional<GeglHelperCommand> scan_command(const GimpPluginScanOptions& options, QString* problem) {
+  if (const auto bundled = bundled_gegl_library(); !bundled.isEmpty()) {
+    return bundled_gegl_command(bundled);
+  }
+  if (!options.enabled) {
+    *problem = MainWindow::tr("GEGL filters come from GIMP 3, which is turned off in Preferences > Plug-ins.");
+    return std::nullopt;
+  }
+  return gegl_command_for(options, problem);
+}
+
 }  // namespace
 
 void MainWindow::start_gegl_filter_scan() {
   QString problem;
   const auto options = gimp_plugin_scan_options();
-  const auto command = options.enabled ? gegl_command_for(options, &problem) : std::nullopt;
-  if (!options.enabled) {
-    problem = tr("GEGL filters come from GIMP 3, which is turned off in Preferences > Plug-ins.");
-  }
+  const auto command = scan_command(options, &problem);
   const int generation = ++gegl_filter_scan_generation_;
   gegl_filter_scan_in_flight_ = true;
   rebuild_gegl_filters_menu_when_closed();  // the "Scanning..." note
@@ -91,7 +101,7 @@ void MainWindow::ensure_gegl_filters_scanned() {
     return;
   }
   QString problem;
-  const auto command = gegl_command_for(gimp_plugin_scan_options(), &problem);
+  const auto command = scan_command(gimp_plugin_scan_options(), &problem);
   finish_gegl_filter_scan(++gegl_filter_scan_generation_, scan_for(command, problem, gimp_plugin_language()));
 }
 

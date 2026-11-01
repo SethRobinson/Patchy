@@ -45,11 +45,21 @@ const std::set<QString> kExcludedCategories = {
     QStringLiteral("output"),      QStringLiteral("debug"),
 };
 
-// Left out by name, near the boundaries in docs/legal-constraints.md (healing,
-// inpainting, red eye), whatever their category.
+// Left out by name: the families docs/legal-constraints.md and its patent records keep out
+// of Patchy, whatever their category (the triage is in docs/gegl-filters.md, "Legal review").
+// GEGL's source is never read, so an operation whose method cannot be checked from its own
+// description against a recorded boundary stays out.
 bool excluded_by_name(const QString& name) {
-  return name.contains(QLatin1String("inpaint")) || name.contains(QLatin1String("seamless-clone")) ||
-         name.contains(QLatin1String("red-eye")) || name.contains(QLatin1String("heal"));
+  static const QStringList kExcluded = {
+      QStringLiteral("gegl:median-blur"),         // Surface Blur rule: histogram form unverifiable
+      QStringLiteral("gegl:focus-blur"),          // Blur Gallery record: a per-pixel blur radius mask
+      QStringLiteral("gegl:slic"),                // superpixels: not reviewed
+      QStringLiteral("gegl:waterpixels"),         // superpixels: not reviewed
+      QStringLiteral("gegl:shadows-highlights"),  // Shadow/Highlight adjustment family: not reviewed
+  };
+  return kExcluded.contains(name) || name.contains(QLatin1String("inpaint")) ||
+         name.contains(QLatin1String("seamless-clone")) || name.contains(QLatin1String("red-eye")) ||
+         name.contains(QLatin1String("heal"));
 }
 
 // GEGL's limits can be the whole double range; the dialog's fields need something sane.
@@ -364,6 +374,38 @@ QString gegl_helper_path() {
 #else
   return dir.filePath(QStringLiteral("patchy-gegl-host"));
 #endif
+}
+
+QString bundled_gegl_library() {
+  const QDir program(QCoreApplication::applicationDirPath());
+  QStringList candidates;
+#if defined(Q_OS_WIN)
+  candidates << program.filePath(QStringLiteral("gegl/bin/libgegl-0.4-0.dll"));
+#elif defined(Q_OS_MACOS)
+  candidates << program.filePath(QStringLiteral("../Frameworks/gegl/lib/libgegl-0.4.0.dylib"))
+             << program.filePath(QStringLiteral("gegl/lib/libgegl-0.4.0.dylib"));
+#else
+  candidates << program.filePath(QStringLiteral("gegl/lib/libgegl-0.4.so.0"))
+             << program.filePath(QStringLiteral("../lib/patchy/gegl/lib/libgegl-0.4.so.0"));
+  if (gimp::running_in_flatpak()) {
+    candidates << QStringLiteral("/app/lib/libgegl-0.4.so.0");  // the Flatpak's own gegl module
+  }
+#endif
+  for (const auto& candidate : candidates) {
+    if (QFileInfo::exists(candidate)) {
+      return QDir::cleanPath(candidate);
+    }
+  }
+  return {};
+}
+
+GeglHelperCommand bundled_gegl_command(const QString& library) {
+  GeglHelperCommand command;
+  command.library = library;
+  command.library_file = library;
+  command.program = gegl_helper_path();
+  command.arguments = {QStringLiteral("--gegl"), library};
+  return command;
 }
 
 QString find_gegl_library(const gimp::GimpInstall& install) {

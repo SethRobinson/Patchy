@@ -32013,10 +32013,6 @@ Zablokowano: %1</translation>
         <extracomment>Submenu of Plugins &gt; GIMP 3 Plug-ins holding the plug-ins Patchy cannot run.</extracomment>
         <translation>Nieobsługiwane przez Patchy</translation>
     </message>
-    <message>
-        <source>GIMP&apos;s GEGL filters are listed under Plugins &gt; GEGL Filters and follow this setting too. They open in Patchy&apos;s filter dialog with a live preview.</source>
-        <translation>Filtry GEGL z GIMP-a są w menu Wtyczki &gt; Filtry GEGL i również podlegają temu ustawieniu. Otwierają się w oknie filtra Patchy z podglądem na żywo.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

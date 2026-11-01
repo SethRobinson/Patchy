@@ -1,6 +1,6 @@
 # GEGL filters
 
-Patchy offers the image filters of the user's own GEGL (the library GIMP 3 builds most of its Filters menu from) under Plugins > GEGL Filters, one submenu per GEGL category. They run in Patchy's own filter dialog, with its canvas preview and in-dialog preview, progress and Cancel, and as one undo step. Legal boundary (binding): [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper); sources consulted: [gimp-plugins-provenance.md](gimp-plugins-provenance.md). Status: on the local branch `desk/i567-gimp3-plugins`, not in main.
+Patchy offers GEGL's image filters (GEGL is the Generic Graphics Library GIMP builds most of its Filters menu from) under Filter > GEGL Filters, one submenu per GEGL category. They come from Patchy's own GEGL where the package ships one ("Bundled GEGL"), else from the user's GIMP 3. They run in Patchy's own filter dialog, with its canvas preview and in-dialog preview, progress and Cancel, and as one undo step. Legal boundary (binding): [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper); sources consulted: [gimp-plugins-provenance.md](gimp-plugins-provenance.md). Status: on the local branch `desk/i567-gimp3-plugins`, not in main.
 
 ## Parts
 
@@ -12,15 +12,32 @@ Patchy offers the image filters of the user's own GEGL (the library GIMP 3 build
 
 Only the helper loads GEGL. Its declarations of GEGL, babl and GLib functions and structs are its own, from the installed public headers (`NOTICE-THIRD-PARTY.md`); nothing is linked at build time.
 
-## Finding GEGL
+## Bundled GEGL
 
-From the GIMP 3 install the GIMP plug-in settings select (`select_gimp_install`, Preferences > Plug-ins): `bin/libgegl-0.4-0.dll` (Windows), `lib/libgegl-0.4.0.dylib` in GIMP.app's `Contents` (macOS), `lib`, `lib64` or the multiarch folder's `libgegl-0.4.so.0` (Linux, untested). Turning GIMP plug-ins off in Preferences turns these off too; Preferences > Plug-ins says so under the GIMP intro (`preferencesGeglFiltersNote`). `gegl_helper_command` builds the helper's command line for the install (`GeglHelperCommand`).
+Decided November 3, 2026 (Seth asked for Patchy's own GEGL, independent of GIMP and its versions). `bundled_gegl_library` looks beside the program (`<program folder>/gegl` on Windows and in build trees, `Contents/Frameworks/gegl` in the macOS bundle, `../lib/patchy/gegl` or the Flatpak's `/app/lib` on Linux); when it is there it is used whatever the GIMP plug-in settings say, and GIMP's GEGL is not consulted.
+
+- Built from gimp.org's GEGL 0.4.72 and babl 0.1.128 release tarballs (SHA-256 pinned) with every optional dependency off (`-Dauto_features=disabled`: no PDF, raw, SVG, text, video or TIFF code), by `scripts/dev/gegl/build-gegl-msys2.sh` on Windows (MSYS2 CLANG64 for x64, CLANGARM64 for ARM64). It stages `.deps/gegl/0.4.72/<platform>/{bin,lib/gegl-0.4,lib/babl-0.1,share/locale,licenses}`; `cmake/patchy_gegl.cmake` finds it and copies it once into `<build>/gegl` (`patchy_gegl_bundle`); `build-release.bat` refuses a package without it and `package-selftest.js` runs Gaussian Blur from the packaged app.
+- Shipped: `libgegl`, `libbabl`, the libraries they import (followed with `ldd`: GLib's five, json-glib, libffi, PCRE2, libiconv, libintl, zlib), the operation modules `gegl-common`, `gegl-common-cxx`, `gegl-generated` (with their `-x86_64-v2`/`-v3` builds, which GEGL picks on newer CPUs), `gegl-core`, babl's extensions minus `cairo`, GEGL's catalogs for Patchy's languages, and every license with `licenses/SOURCES.txt` (versions, tarball URLs, MSYS2 package versions). Not shipped: file loaders and savers (and with them libjpeg and libpng), transforms, seamless clone, vector fill, the meta JSON operations, and the GPL-3 module (`gegl-common-gpl3`; `--gpl3` on the script adds it, see "Legal review").
+- Windows x64: 116 files, 17.4 MB, 7.3 MB in a zip (6.7 MB without the catalogs); 77 filters offered.
+
+## Finding GIMP's GEGL
+
+When the build has no GEGL of its own, from the GIMP 3 install the GIMP plug-in settings select (`select_gimp_install`, Preferences > Plug-ins): `bin/libgegl-0.4-0.dll` (Windows), `lib/libgegl-0.4.0.dylib` in GIMP.app's `Contents` (macOS), `lib`, `lib64` or the multiarch folder's `libgegl-0.4.so.0` (Linux, untested). Turning GIMP plug-ins off in Preferences turns GIMP's GEGL off too (not Patchy's own). `gegl_helper_command` builds the helper's command line for the install (`GeglHelperCommand`).
 
 GIMP's Flatpak (Linux): the helper runs inside GIMP's own sandbox, like its plug-ins: `flatpak run --user|--system --die-with-parent --filesystem=<helper folder>:ro --command=<helper> org.gimp.GIMP --gegl /app/lib/libgegl-0.4.so.0`. Flatpak refuses to share a folder under `/usr`, so a helper installed there is first copied to `<AppData>/gegl-helper/`. The helper is built in Patchy's own SDK and needs only the C and C++ runtime libraries, which GIMP's runtime has (checked with GIMP 3.2.6 from Flathub: 259 operations, a native Patchy build passes `ui_gegl_`). From Patchy's own Flatpak GIMP's Flatpak is not used: the helper would have to reach GIMP's sandbox through `flatpak-spawn --host` and a host path to itself (not done; the menu says GEGL filters are not available from GIMP's Flatpak).
 
 macOS: GIMP's dylibs name each other through an `@rpath` only GIMP's own programs set, so Patchy starts the helper with `DYLD_LIBRARY_PATH` at GIMP's `lib` folder (`prepare_helper`). A hardened-runtime helper ignores that variable and refuses libraries signed by another team, so `make-dmg.sh` signs `patchy-gegl-host` alone with `packaging/macos/patchy-gegl-host.entitlements` (`disable-library-validation`, `allow-dyld-environment-variables`) and then seals the app again over it. Checked with an ad-hoc hardened signature: refused without the entitlements, loads with them.
 
 Windows on ARM: GIMP's installer puts a native ARM64 GIMP there, and the ARM64 helper loads it (checked with GIMP 3.2.6 on a Snapdragon X Elite, November 3, 2026: `ui_gegl_` passes). An x64 GIMP installed on ARM64 Windows cannot be loaded by the ARM64 helper (a process loads only its own architecture's DLLs); the menu then says GIMP's GEGL could not be loaded, while that GIMP's plug-ins, separate programs, still run. On Windows the helper puts GIMP's `bin` first on its DLL search path and `PATH` before loading, since GEGL loads its operation modules (`lib/gegl-0.4`) later and they find GIMP's other DLLs there. `GEGL_THREADS` is set to the core count unless already set.
+
+## Legal review
+
+Binding rule: [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper). Of the 124 operations "What is offered" admits on GIMP 3.2.6's GEGL, the review of November 3, 2026 applied the recorded patent families by algorithm class, as the G'MIC triage did ([patent-research-gmic.md](patent-research-gmic.md#family-triage-of-the-offered-filters-2026-10-20)), from each operation's own description (GEGL's source is never read):
+
+- Left out (`excluded_by_name`): Median Blur (the Surface Blur rule allows only one window histogram updated one value at a time; GEGL's method cannot be checked), Focus Blur (a per-pixel blur-radius mask, the Blur Gallery family), SLIC and Waterpixels (superpixel methods, not reviewed), Shadows-Highlights (the Shadow/Highlight adjustment family, not reviewed), with the earlier inpainting, seamless clone, red eye and healing names.
+- Within recorded boundaries: Linear Motion Blur (one straight user kernel), Circular and Zoom Motion Blur (one polar transform), Bilateral Filter (direct range weights, no histogram), Unsharp Mask and High Pass, Noise Reduction, DCT Denoise and SNN Mean (no patch search), the tone mappers (Fattal 2002, Reinhard 2005, Mantiuk 2006), Stretch Contrast and Color Enhance (whole-image statistics), the rest plain point, convolution or geometric operations.
+- Not verified: Domain Transform (edge-aware smoothing, the guided-filter family the G'MIC record lists as unread), Mantiuk 2006's patent status, Bloom and Long Shadow by assignee sweep. A release needs no more than this list's decisions; adding an operation (a new GEGL) needs the same check.
+- GPL-3 operations (43 of the 124: Cartoon, Oilify, Emboss, Ripple, Plasma and others) are legal to ship but bring GPL-3 duties (their license and complete source with every release); the bundle leaves them out until Seth decides. GIMP's GEGL still offers them where it is used.
 
 ## GPL-3 operations
 
@@ -59,7 +76,7 @@ An operation without a shown setting applies at once, without a dialog. Titles, 
 
 ## Tests
 
-`ui_gegl_filters_list_and_apply_if_available` (tests/ui/gimp_plugin_tests.cpp; skips without GIMP's GEGL): the scan, Gaussian Blur's mapped settings, Cartoon offered through `--gpl3`, exclusions (Red Eye Removal, Crop, Over), runs straight through the registry at 8, 16 and 32 bits, Color Overlay in the foreground color, German labels, the menu entry, a run through `apply_filter` and its undo, script listing and `applyFilter`, the Cartoon and Vignette dialogs (saved to `test-artifacts/gegl-cartoon-dialog.png` and `gegl-vignette-dialog.png`; Vignette shows a color choice) cancelled with the layer unchanged, and Search Commands finding Cartoon.
+`ui_gegl_filters_list_and_apply_if_available` (tests/ui/gimp_plugin_tests.cpp; uses Patchy's own GEGL, else GIMP's, and skips only without both; a build with its own GEGL must offer it): the scan, Gaussian Blur's mapped settings, Cartoon offered only from GIMP's GEGL (the bundle has no GPL-3 operation), the legal and kind exclusions (Median Blur, Focus Blur, SLIC, Waterpixels, Shadows-Highlights, Seamless Clone, Red Eye Removal, Crop, Over, Text, PNG Load), Simplex Noise as a render operation, runs straight through the registry at 8, 16 and 32 bits, Color Overlay in the foreground color, German labels, the menu entry, a run through `apply_filter` and its undo, script listing and `applyFilter`, the Unsharp Mask and Vignette dialogs (saved to `test-artifacts/gegl-unsharp-mask-dialog.png` and `gegl-vignette-dialog.png`; Vignette shows a color choice) cancelled with the layer unchanged, the menu and its Blur submenu (`gegl-filters-menu.png`, `gegl-filters-blur-menu.png`), and Search Commands finding Bloom.
 
 ## Not done
 

@@ -197,7 +197,12 @@ if not exist "%BUILD_DIR%\patchy-gimp-host.exe" (
   goto fail
 )
 copy /Y "%BUILD_DIR%\patchy-gimp-host.exe" "%STAGE_DIR%\" >nul || goto fail
-rem The GEGL helper (docs/gegl-filters.md); GEGL itself is never shipped.
+rem The GEGL helper and Patchy's own GEGL, with its licenses in gegl\licenses (docs/gegl-filters.md).
+if not exist "%BUILD_DIR%\gegl\bin\libgegl-0.4-0.dll" (
+  echo Patchy's own GEGL was not copied into "%BUILD_DIR%\gegl"; build it with scripts\dev\gegl\build-gegl-msys2.sh.
+  goto fail
+)
+xcopy /E /I /Y "%BUILD_DIR%\gegl" "%STAGE_DIR%\gegl" >nul || goto fail
 if not exist "%BUILD_DIR%\patchy-gegl-host.exe" (
   echo The GEGL helper was not created at "%BUILD_DIR%\patchy-gegl-host.exe".
   goto fail

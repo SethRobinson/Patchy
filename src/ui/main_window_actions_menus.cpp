@@ -2356,6 +2356,20 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     filter_menu->addSeparator();
   }
 #endif
+#ifndef Q_OS_WASM
+  // GEGL's filters (docs/gegl-filters.md): Patchy's own GEGL, or GIMP 3's when a build has
+  // none, by GEGL category. Filled by the scan; the first eight rows above stay pinned.
+  gegl_filters_menu_ = filter_menu->addMenu(tr("GEGL Filters"));
+  gegl_filters_menu_->setObjectName(QStringLiteral("geglFiltersMenu"));
+  gegl_filters_menu_->menuAction()->setMenuRole(QAction::NoRole);
+  gegl_filters_menu_->setToolTipsVisible(true);
+  connect(gegl_filters_menu_, &QMenu::aboutToShow, this, [this] {
+    if (gegl_filters_menu_stale_) {
+      rebuild_gegl_filters_menu();
+    }
+  });
+  filter_menu->addSeparator();
+#endif
 
   const auto add_filter_submenu = [this, filter_menu](
                                       const char* object_name,
@@ -2534,16 +2548,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     start_gegl_filter_scan();  // the same GIMP install
   });
   bind_action_text(gimp_rescan_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rescan GIMP Plug-ins"));
-  // GEGL filters from the same GIMP 3 install (docs/gegl-filters.md), by GEGL category.
-  gegl_filters_menu_ = plugins_menu->addMenu(tr("GEGL Filters"));
-  gegl_filters_menu_->setObjectName(QStringLiteral("geglFiltersMenu"));
-  gegl_filters_menu_->menuAction()->setMenuRole(QAction::NoRole);
-  gegl_filters_menu_->setToolTipsVisible(true);
-  connect(gegl_filters_menu_, &QMenu::aboutToShow, this, [this] {
-    if (gegl_filters_menu_stale_) {
-      rebuild_gegl_filters_menu();
-    }
-  });
 #endif
 
   auto* zoom_in = view_menu->addAction(tr("Zoom &In"));

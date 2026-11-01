@@ -63,3 +63,7 @@ None of these were opened, searched or excerpted at any point, by a person or a 
 ### 2026-11-03: protocol version history
 
 - `GIMP_PROTOCOL_VERSION` read (the one constant only) from `libgimpbase/gimpprotocol.h` at tags `GIMP_2_10_0` (0x0016), `GIMP_2_10_38` (0x001A), `GIMP_2_99_2` and `GIMP_2_99_10` (0x010E), `GIMP_2_99_18` (0x0111), `GIMP_3_0_0_RC1` (0x0114), `GIMP_3_0_0` through `GIMP_3_0_6` and `GIMP_3_1_2`, `GIMP_3_1_4`, `GIMP_3_2_0_RC1` (0x0115), `GIMP_3_2_0_RC3` through `GIMP_3_2_6` (0x0117), and from master's `libgimpbase/gimpprotocol-private.h` (0x0119, November 3, 2026; the header was renamed private on September 18, 2026), plus the GitLab commit titles touching those files. Nothing else from them was read; recorded in [gimp-plugins.md](gimp-plugins.md#protocol).
+
+### 2026-11-03: Patchy's own GEGL
+
+- Built unmodified from gimp.org's `gegl-0.4.72.tar.xz` and `babl-0.1.128.tar.xz` (SHA-256 checked against gimp.org's `SHA256SUMS`) with Meson. Read: the option names in each tarball's `meson_options.txt` (build switches only), the license files it ships, and the build's own output. No `.c` file or operation source was opened; the legal review in [gegl-filters.md](gegl-filters.md#legal-review) works from each operation's own description.

@@ -235,6 +235,7 @@ add_library(patchy_core
 patchy_configure_target(patchy_core)
 
 include(cmake/patchy_ai.cmake)
+include(cmake/patchy_gegl.cmake)
 
 add_library(patchy_render
   src/render/compositor.cpp
@@ -1898,6 +1899,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       add_dependencies(patchy_ui patchy-gimp-host)
       target_sources(patchy_ui PRIVATE src/ui/gegl_filters.cpp src/ui/gegl_filters.hpp src/ui/main_window_gegl_filters.cpp)
       add_dependencies(patchy_ui patchy-gegl-host)
+      if(TARGET patchy_gegl_bundle)
+        add_dependencies(patchy_ui patchy_gegl_bundle)
+      endif()
     endif()
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
       # Font types of missing fonts from the user's fontconfig (GitHub issue 463), loaded with

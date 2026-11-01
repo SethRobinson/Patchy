@@ -46,6 +46,12 @@ struct GeglFilterScanResult {
 inline constexpr char kGeglFilterIdPrefix[] = "gegl.";
 
 [[nodiscard]] QString gegl_helper_path();
+// Patchy's own GEGL (docs/gegl-filters.md, "Bundled GEGL"), shipped beside the program:
+// <program folder>/gegl on Windows and in build trees, Contents/Frameworks/gegl in the macOS
+// bundle, the library folder of an installed or Flatpak Patchy. Empty when the build has none.
+[[nodiscard]] QString bundled_gegl_library();
+// The helper's command line for Patchy's own GEGL.
+[[nodiscard]] GeglHelperCommand bundled_gegl_command(const QString& library);
 // The GEGL library of a GIMP 3 install (inside GIMP's Flatpak: its sandbox path); empty
 // when it has none Patchy can load. From Patchy's own Flatpak, GIMP's Flatpak is not used.
 [[nodiscard]] QString find_gegl_library(const gimp::GimpInstall& install);
