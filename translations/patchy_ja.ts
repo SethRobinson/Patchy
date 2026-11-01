@@ -12997,14 +12997,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>JPEG 設定</translation>
     </message>
     <message>
-        <source>Progressive (shows a rough image first while loading)</source>
-        <translation>プログレッシブ (読み込み中にまず粗い画像を表示)</translation>
-    </message>
-    <message>
-        <source>Optimize coding (smaller file, same image)</source>
-        <translation>符号化を最適化 (同じ画像で小さいファイル)</translation>
-    </message>
-    <message>
         <source>Fills transparent areas (JPEG has no transparency)</source>
         <translation>透明部分を塗りつぶします (JPEG は透明を保持できません)</translation>
     </message>
@@ -13047,10 +13039,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>File Info metadata to include. None writes the smallest file.</source>
         <translation>含めるファイル情報のメタデータ。なしにすると最も小さいファイルになります。</translation>
-    </message>
-    <message>
-        <source>Include thumbnail (about 5 to 10 KB)</source>
-        <translation>サムネールを含める (約 5〜10 KB)</translation>
     </message>
     <message>
         <source>Convert to sRGB (from %1)</source>
@@ -14333,6 +14321,92 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Built-in</source>
         <translation>組み込み</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors</source>
+        <translation>
+            <numerusform>%n 色</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>低</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>高</translation>
+    </message>
+    <message>
+        <source>Very High</source>
+        <translation>非常に高い</translation>
+    </message>
+    <message>
+        <source>JPEG Very High</source>
+        <translation>JPEG 非常に高い画質</translation>
+    </message>
+    <message>
+        <source>JPEG Medium</source>
+        <translation>JPEG 中画質</translation>
+    </message>
+    <message>
+        <source>WebP High</source>
+        <translation>WebP 高画質</translation>
+    </message>
+    <message>
+        <source>PNG 256 Colors</source>
+        <translation>PNG 256 色</translation>
+    </message>
+    <message>
+        <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
+        <translation>形式とその設定を保存したものです。設定がどのプリセットにも一致しないときはカスタムと表示されます。</translation>
+    </message>
+    <message>
+        <source>Save the format and its settings as a preset</source>
+        <translation>形式と設定をプリセットとして保存</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset</source>
+        <translation>選択したプリセットを削除</translation>
+    </message>
+    <message>
+        <source>Quality presets</source>
+        <translation>品質プリセット</translation>
+    </message>
+    <message>
+        <source>Progressive</source>
+        <translation>プログレッシブ</translation>
+    </message>
+    <message>
+        <source>Shows a rough image first while the file loads.</source>
+        <translation>ファイルの読み込み中に、まず粗い画像を表示します。</translation>
+    </message>
+    <message>
+        <source>Optimize coding</source>
+        <translation>符号化を最適化</translation>
+    </message>
+    <message>
+        <source>Makes the file smaller without changing the image.</source>
+        <translation>画像を変えずにファイルを小さくします。</translation>
+    </message>
+    <message>
+        <source>Include thumbnail</source>
+        <translation>サムネールを含める</translation>
+    </message>
+    <message>
+        <source>2 x 2</source>
+        <translation>2 x 2</translation>
+    </message>
+    <message>
+        <source>The original, the result, and the result at 50% and 25% of the quality</source>
+        <translation>元の画像、結果、品質 50% と 25% の結果</translation>
+    </message>
+    <message>
+        <source>%1 at these settings has no quality to reduce.</source>
+        <translation>この設定の %1 には下げる品質がありません。</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 <context>

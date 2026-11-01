@@ -14,8 +14,35 @@ hooks in `src/ui/image_document_io.cpp`.
 
 ## Formats and options
 
-The list is JPEG, WebP, AVIF, JPEG XL, PNG and GIF (`WebExportFormat`, append-only; AVIF only
-where `avif::is_available()`, so not in the browser build). Each format keeps its own settings.
+The list is JPEG, JPEG XL, WebP, AVIF, PNG and GIF (`web_export_formats()`; JPEG XL sits under
+JPEG since GitHub issue 571, display order only: `WebExportFormat` stays append-only and the
+tokens do not change; AVIF only where `avif::is_available()`, so not in the browser build). Each
+format keeps its own settings.
+
+Layout (GitHub issue 571): the settings column is `ui_text_length(328)` wide, and
+`ui_web_export_settings_column_fits_every_language` fails when any label, check box, radio or
+button in it is cut off, for any format, in any shipped language (so long explanations go in
+tooltips: Progressive, Optimize coding, Include thumbnail). Full-width combos (Type, Resample,
+Metadata) stop at `ui_text_length(300)` and may shrink below their longest entry
+(`fit_combo_popup_to_entries` keeps the open list whole); the column's forms, the animation
+timing rows included, use `WrapLongRows`, so a translated label too long for its row puts the
+field under it. The spin boxes have no buttons, so the dialog drops the shared style's button
+padding (`webExportNoSpinButtons`). AVIF Speed and JPEG XL Effort have one fixed width.
+The dialog opens at its minimum size the first time, then at the size it last closed with
+(`exportForWeb/dialogSize`, bounded by the screen).
+
+- Presets (top of the column): `webExportPresetCombo` with Save... (asks a name; the same name
+  replaces) and Delete (user presets only). A `WebExportPreset` holds the format, that format's
+  options, and the shared ones: Fill and its color, the size as a percent of the document's width
+  (Pixel art: the factor), Resample, Trim, Metadata, Convert to sRGB; never another format's
+  options, the compare mode, Show when done or play counts. The combo shows the preset the
+  settings match (`web_export_preset_matches`: applying it changes nothing; the last picked one
+  wins a tie), else the placeholder Custom. Built-in presets (`web_export_builtin_presets`: JPEG
+  Very High 85, JPEG Medium 50, WebP High 70, PNG 256 Colors) are not stored and cannot be
+  deleted. On a one-layer document a preset applies without animation.
+- Quality presets: a combo after each Quality field of JPEG, JPEG XL, WebP and AVIF
+  (`web_export_quality_presets`: Low 30, Medium 50, High 70, Very High 85, Maximum 100, Patchy's
+  own list). Picking one sets the quality; any other value shows Custom.
 
 - JPEG: Quality 1-100 (default 80), Progressive (default on), Optimize coding (optimized Huffman
   tables, default on). JPEG has no alpha: the Transparency group (below) always fills.
@@ -45,13 +72,20 @@ where `avif::is_available()`, so not in the browser build). Each format keeps it
   (`webp_loop_count`, `jxl_loop_count`, `apng_loop_count`) start from the document's metadata
   (`webp.loop_count`, `jxl.loop_count`, `apng.loop_count`) and are written back after an animated
   export, as the old exports do; they are never persisted in settings.
-- Transparency (formats with alpha): Keep transparent or Fill with a color, the Export section's
-  group through the shared helper `add_transparency_choice` (`webExportKeepTransparencyRadio`,
-  `webExportFillTransparencyRadio`, `webExportBackgroundColorSwatch`). The color is one value
-  (`jpeg_background`, kept under its old key); JPEG shows only the color, with its hint. Fill
+- Transparency (formats with alpha): Keep transparent or Fill with a color on one row (two rows
+  when the language's labels do not fit the column), the Export section's group through the
+  shared helper `add_transparency_choice` with `one_row`
+  (`webExportKeepTransparencyRadio`, `webExportFillTransparencyRadio`,
+  `webExportBackgroundColorSwatch`). The color is one value (`jpeg_background`, kept under its old
+  key); JPEG shows only "Fill with:" and the color, then an info mark
+  (`webExportJpegBackgroundInfo`, a themed glyph) whose tooltip says JPEG has no transparency.
+  GIF and palette PNG show "Pixels under 50% opacity become transparent."
+  (`webExportTransparencyCutNote`) here, disabled while Fill is on. Fill
   (`export_fill_transparent`) applies to the still result, every animated frame
   (`for_each_animation_export_frame`) and so the preview; the Original pane stays unfilled.
-- Image size: Width, Height and Scale with a proportion link; Resample Smooth (the export resize,
+- Image size: one "Size:" row (width, the proportion link, height; tooltips name them), then
+  Scale and Resample rows of their own (their long translations stay out of the label column):
+  Smooth (the export resize,
   `export_width`/`export_height`) or Pixel art (whole-pixel `export_scale` 1x-16x, the size fields
   then follow the scale); Trim transparent edges. The size is per document, never persisted.
 - Metadata (Seth, October 27, 2026): None (default), Basic, Copyright and Contact Info, All, each
@@ -119,7 +153,15 @@ Panes (`WebExportPane`, a ZoomableImagePreview) draw only cached images: below 1
 smooth reduction is built once per size on a worker (`ScaledImageCache`). Compare modes: Split
 (a divider at a fraction of the pane width, original left, result right, dragged with the
 mouse), Side by side (a second pane; `ZoomableImagePreview::view_state`/`set_view_state` keep
-zoom and pan in step), Result only. `ScaledImageCache` keeps up to 64 reductions per size by image,
+zoom and pan in step across every showing pane), Result only, and 2 x 2 (GitHub issue 571): the
+original top left, the result top right, and below them the selected format at 50% and 25% of
+its quality (`web_export_reduced_settings`: rounded, clamped to the format's minimum, so 60 gives
+30 and 15; GIF and palette PNG halve and quarter Colors). Each tile's tag names its quality and
+size; a format with nothing to reduce (full-color PNG, lossless) shows a note in the lower tiles.
+The two extra jobs go to the second lane right after the selected format's job, only while 2 x 2
+is on, so AVIF and JPEG XL stay off the UI thread like every encode; a tile of an animated result
+shows frame 1. The zoom controls (Fit, 100%, -, +) and the frame steppers are framed push
+buttons. `ScaledImageCache` keeps up to 64 reductions per size by image,
 so an animation's frames are reduced once each and then reused as it loops.
 
 ### Animation playback
@@ -156,7 +198,7 @@ in the preview (Seth, October 27, 2026):
 `exportForWeb/format` (`jpeg`, `webp`, `png`), `exportForWeb/jpegQuality`, `jpegProgressive`,
 `jpegOptimize`, `jpegBackground` (`#rrggbb`), `webpQuality`, `webpLossless`, `webpAnimate`,
 `metadata` (`none`, `basic`, `copyright`, `all`), `thumbnail`, `resample` (`smooth`, `pixelArt`), `trim`,
-`convertToSrgb`, `compare` (`split`, `sideBySide`, `result`), `revealWhenDone`, `pngColors`
+`convertToSrgb`, `compare` (`split`, `sideBySide`, `result`, `quad`), `revealWhenDone`, `pngColors`
 (`full`, `palette`), `pngPaletteColors`, `pngDither` and `gifDither` (`none`, `diffusion`),
 `pngDitherAmount`, `pngAnimate`, `pngFrameDelayMs`, `gifColors`, `gifDitherAmount`, `gifAnimate`, `gifFrameDelayMs`, `avifQuality`, `avifSpeed`, `avifLossless`,
 `jxlQuality`, `jxlEffort`, `jxlLossless`, `jxlAnimate`, `jxlFrameDelayMs`, `fillTransparent`, all
@@ -164,8 +206,12 @@ under `exportForWeb/`. The default frame delay is the animated exports' `saveOpt
 (GIF's `saveOptions/gifFrameDelayCs` written beside it); the three `*FrameDelayMs` keys are still
 written with it and read only when the shared key was never set. Fill has its own key, not
 `saveOptions/exportFillTransparent`, so Export for Web's choice never changes Save As exports.
-Saved when the dialog is accepted. Reset returns every option to its first-use
-default and keeps the compare mode and reveal choice.
+Saved when the dialog is accepted, except `compare` and `dialogSize` (the window size, a QSize),
+which are saved however it closes. `presets` is a compact JSON array of user presets, each an
+object keyed like the settings above (`name`, `format`, that format's keys, `frameDelayMs` for the
+animating formats, `fillTransparent`, `jpegBackground`, `metadata`, `resample`, `scale` as a
+percent, `trim`, `convertToSrgb`); the keys are persisted identifiers. Reset returns every option
+to its first-use default and keeps the compare mode and reveal choice.
 
 ## Scripting
 
@@ -196,7 +242,12 @@ Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defau
 `ui_web_export_play_count_and_fill_read_back`,
 `ui_web_export_wheel_over_unfocused_control_scrolls_the_settings`,
 `ui_web_export_metadata_choices_and_thumbnail_with_none` (captures `web_export_metadata_choices`),
-`ui_web_export_animation_stale_frames_are_discarded`, `ui_web_export_animation_plays_in_the_preview`
+`ui_web_export_animation_stale_frames_are_discarded`,
+`ui_web_export_format_order_quality_steps_and_presets`,
+`ui_web_export_dialog_keeps_size_and_compare_mode_through_cancel`,
+`ui_web_export_quad_compare_and_presets_in_the_dialog` (captures `web_export_presets`,
+`web_export_png_transparency` and `web_export_quad`),
+`ui_web_export_settings_column_fits_every_language`, `ui_web_export_animation_plays_in_the_preview`
 (captures `web_export_gif_animation`, `web_export_png_animation` and `web_export_transparency_fill` from `test-fixtures/psd/web-export-animation.psd`, the #198
 Animation Preview document made by Patchy), `ui_web_export_dialog_previews_and_saves` (captures
 `web_export_jpeg_split`, `web_export_png_palette`, `web_export_gif_side_by_side`,

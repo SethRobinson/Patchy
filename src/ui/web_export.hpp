@@ -26,8 +26,9 @@ class QWidget;
 
 namespace patchy::ui {
 
-// The formats the dialog lists (web_export_formats() gives the list order: JPEG, WebP,
-// AVIF, JPEG XL, PNG, GIF; AVIF only where its encoder is built). Append-only.
+// The formats the dialog lists (web_export_formats() gives the list order: JPEG, JPEG XL,
+// WebP, AVIF, PNG, GIF; AVIF only where its encoder is built). Append-only: the list order
+// is display only.
 enum class WebExportFormat : std::uint8_t { Jpeg, Webp, Png, Gif, Avif, Jxl };
 
 [[nodiscard]] const std::vector<WebExportFormat>& web_export_formats();
@@ -41,7 +42,8 @@ enum class WebExportFormat : std::uint8_t { Jpeg, Webp, Png, Gif, Avif, Jxl };
 [[nodiscard]] QString web_export_format_name(WebExportFormat format);
 
 enum class WebExportResample : std::uint8_t { Smooth, PixelArt };
-enum class WebExportCompare : std::uint8_t { Split, SideBySide, ResultOnly };
+// Persisted as exportForWeb/compare ("split", "sideBySide", "result", "quad"). Append-only.
+enum class WebExportCompare : std::uint8_t { Split, SideBySide, ResultOnly, Quad };
 
 // Everything the dialog remembers (exportForWeb/* settings keys, docs/web-export.md),
 // plus the output size, which is per document and never persisted. Each format keeps its
@@ -116,6 +118,47 @@ void save_web_export_settings(const WebExportSettings& settings);
 [[nodiscard]] ImageSaveOptions web_export_geometry_options(const WebExportSettings& settings, QSize document_size);
 // A short description of a format's settings for its list row ("Quality 80, progressive").
 [[nodiscard]] QString web_export_format_summary(const WebExportSettings& settings, WebExportFormat format);
+
+// The 2 x 2 compare mode's lower tiles: the settings with the format's quality, or a palette
+// format's colors (GIF, palette PNG), at `percent` of the set value, rounded and clamped to
+// the format's minimum (quality 60 gives 30 and 15). Nullopt when the format at these
+// settings has neither (full-color or animated PNG, lossless WebP, AVIF and JPEG XL).
+[[nodiscard]] std::optional<WebExportSettings> web_export_reduced_settings(const WebExportSettings& settings,
+                                                                           WebExportFormat format, int percent);
+// The tile tag for a format's quality or colors: "Quality 30", "128 colors"; empty when the
+// format at these settings has neither.
+[[nodiscard]] QString web_export_quality_label(const WebExportSettings& settings, WebExportFormat format);
+
+// The quality presets beside the Quality field of JPEG, JPEG XL, WebP and AVIF (Patchy's own
+// names and values). `name` is the untranslated source text (context "QObject").
+struct WebExportQualityPreset {
+  const char* name;
+  int quality;
+};
+[[nodiscard]] std::span<const WebExportQualityPreset> web_export_quality_presets();
+
+// A saved export setup (the presets combo at the top of the settings column): the format, that
+// format's options, and the shared ones (transparency and its color, size as a scale,
+// resample, trim, metadata, thumbnail, Convert to sRGB). Other formats' options, the compare
+// mode, Show when done and the play counts are not part of a preset. User presets are kept in
+// exportForWeb/presets (a JSON array, docs/web-export.md); built-in ones cannot be deleted.
+struct WebExportPreset {
+  QString name;
+  bool built_in{false};
+  WebExportSettings settings;
+  // Width as a percent of the document's (Smooth), or the whole-pixel factor times 100 (Pixel art).
+  double scale_percent{100.0};
+};
+[[nodiscard]] std::vector<WebExportPreset> web_export_builtin_presets();
+[[nodiscard]] std::vector<WebExportPreset> load_web_export_user_presets();
+void save_web_export_user_presets(const std::vector<WebExportPreset>& presets);
+[[nodiscard]] WebExportPreset make_web_export_preset(const QString& name, const WebExportSettings& settings,
+                                                     QSize document_size);
+// `current` with the preset's part applied (the size follows the preset's scale on this document).
+[[nodiscard]] WebExportSettings apply_web_export_preset(const WebExportPreset& preset, WebExportSettings current,
+                                                        QSize document_size);
+[[nodiscard]] bool web_export_preset_matches(const WebExportPreset& preset, const WebExportSettings& current,
+                                             QSize document_size);
 
 // One encode the engine runs: a format at a settings signature. `animate` encodes from the
 // whole document (the animated writers need the layers); otherwise from the prepared one.
@@ -223,7 +266,7 @@ struct WebExportDialogResult {
 };
 
 // The Export for Web dialog over a snapshot of the document. Nullopt on cancel; settings
-// are saved on Save.
+// are saved on Save, the window size (exportForWeb/dialogSize) and the compare mode on any close.
 [[nodiscard]] std::optional<WebExportDialogResult> request_web_export(QWidget* parent,
                                                                       std::shared_ptr<const Document> document);
 

@@ -12997,14 +12997,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>JPEG 設定</translation>
     </message>
     <message>
-        <source>Progressive (shows a rough image first while loading)</source>
-        <translation>漸進式（載入時先顯示粗略影像）</translation>
-    </message>
-    <message>
-        <source>Optimize coding (smaller file, same image)</source>
-        <translation>最佳化編碼（檔案更小，影像相同）</translation>
-    </message>
-    <message>
         <source>Fills transparent areas (JPEG has no transparency)</source>
         <translation>填滿透明區域（JPEG 不支援透明）</translation>
     </message>
@@ -13047,10 +13039,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>File Info metadata to include. None writes the smallest file.</source>
         <translation>要包含的檔案資訊中繼資料。「無」寫出的檔案最小。</translation>
-    </message>
-    <message>
-        <source>Include thumbnail (about 5 to 10 KB)</source>
-        <translation>包含縮圖（約 5 到 10 KB）</translation>
     </message>
     <message>
         <source>Convert to sRGB (from %1)</source>
@@ -14333,6 +14321,92 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Built-in</source>
         <translation>內建</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors</source>
+        <translation>
+            <numerusform>%n 種顏色</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>低</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>高</translation>
+    </message>
+    <message>
+        <source>Very High</source>
+        <translation>很高</translation>
+    </message>
+    <message>
+        <source>JPEG Very High</source>
+        <translation>JPEG 很高</translation>
+    </message>
+    <message>
+        <source>JPEG Medium</source>
+        <translation>JPEG 中</translation>
+    </message>
+    <message>
+        <source>WebP High</source>
+        <translation>WebP 高</translation>
+    </message>
+    <message>
+        <source>PNG 256 Colors</source>
+        <translation>PNG 256 色</translation>
+    </message>
+    <message>
+        <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
+        <translation>已儲存的格式及其設定。設定與任何預設集都不相符時顯示為自訂。</translation>
+    </message>
+    <message>
+        <source>Save the format and its settings as a preset</source>
+        <translation>將格式及其設定儲存為預設集</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset</source>
+        <translation>刪除選取的預設集</translation>
+    </message>
+    <message>
+        <source>Quality presets</source>
+        <translation>品質預設集</translation>
+    </message>
+    <message>
+        <source>Progressive</source>
+        <translation>漸進式</translation>
+    </message>
+    <message>
+        <source>Shows a rough image first while the file loads.</source>
+        <translation>在檔案載入時先顯示粗略的影像。</translation>
+    </message>
+    <message>
+        <source>Optimize coding</source>
+        <translation>最佳化編碼</translation>
+    </message>
+    <message>
+        <source>Makes the file smaller without changing the image.</source>
+        <translation>在不改變影像的情況下縮小檔案。</translation>
+    </message>
+    <message>
+        <source>Include thumbnail</source>
+        <translation>包含縮圖</translation>
+    </message>
+    <message>
+        <source>2 x 2</source>
+        <translation>2 x 2</translation>
+    </message>
+    <message>
+        <source>The original, the result, and the result at 50% and 25% of the quality</source>
+        <translation>原始影像、結果，以及品質為 50% 和 25% 時的結果</translation>
+    </message>
+    <message>
+        <source>%1 at these settings has no quality to reduce.</source>
+        <translation>在這些設定下，%1 沒有可降低的品質。</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 <context>

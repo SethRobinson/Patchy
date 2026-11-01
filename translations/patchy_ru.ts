@@ -13067,14 +13067,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Параметры JPEG</translation>
     </message>
     <message>
-        <source>Progressive (shows a rough image first while loading)</source>
-        <translation>Прогрессивный (при загрузке сначала показывает грубое изображение)</translation>
-    </message>
-    <message>
-        <source>Optimize coding (smaller file, same image)</source>
-        <translation>Оптимизировать кодирование (меньше файл, то же изображение)</translation>
-    </message>
-    <message>
         <source>Fills transparent areas (JPEG has no transparency)</source>
         <translation>Заполняет прозрачные области (в JPEG нет прозрачности)</translation>
     </message>
@@ -13117,10 +13109,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>File Info metadata to include. None writes the smallest file.</source>
         <translation>Метаданные сведений о файле для включения. «Нет» даёт самый маленький файл.</translation>
-    </message>
-    <message>
-        <source>Include thumbnail (about 5 to 10 KB)</source>
-        <translation>Включить миниатюру (около 5–10 КБ)</translation>
     </message>
     <message>
         <source>Convert to sRGB (from %1)</source>
@@ -14419,6 +14407,94 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Built-in</source>
         <translation>Встроенный</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n colors</source>
+        <translation>
+            <numerusform>%n цвет</numerusform>
+            <numerusform>%n цвета</numerusform>
+            <numerusform>%n цветов</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>Низкое</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>Высокое</translation>
+    </message>
+    <message>
+        <source>Very High</source>
+        <translation>Очень высокое</translation>
+    </message>
+    <message>
+        <source>JPEG Very High</source>
+        <translation>JPEG, очень высокое</translation>
+    </message>
+    <message>
+        <source>JPEG Medium</source>
+        <translation>JPEG, среднее</translation>
+    </message>
+    <message>
+        <source>WebP High</source>
+        <translation>WebP, высокое</translation>
+    </message>
+    <message>
+        <source>PNG 256 Colors</source>
+        <translation>PNG, 256 цветов</translation>
+    </message>
+    <message>
+        <source>A saved format with its settings. Custom shows when the settings match no preset.</source>
+        <translation>Сохранённый формат с его настройками. Если настройки не совпадают ни с одним набором, показано Заказной.</translation>
+    </message>
+    <message>
+        <source>Save the format and its settings as a preset</source>
+        <translation>Сохранить формат и его настройки как набор</translation>
+    </message>
+    <message>
+        <source>Delete the selected preset</source>
+        <translation>Удалить выбранный набор</translation>
+    </message>
+    <message>
+        <source>Quality presets</source>
+        <translation>Наборы качества</translation>
+    </message>
+    <message>
+        <source>Progressive</source>
+        <translation>Прогрессивный</translation>
+    </message>
+    <message>
+        <source>Shows a rough image first while the file loads.</source>
+        <translation>При загрузке файла сначала показывает грубое изображение.</translation>
+    </message>
+    <message>
+        <source>Optimize coding</source>
+        <translation>Оптимизировать кодирование</translation>
+    </message>
+    <message>
+        <source>Makes the file smaller without changing the image.</source>
+        <translation>Уменьшает файл, не меняя изображение.</translation>
+    </message>
+    <message>
+        <source>Include thumbnail</source>
+        <translation>Включить миниатюру</translation>
+    </message>
+    <message>
+        <source>2 x 2</source>
+        <translation>2 x 2</translation>
+    </message>
+    <message>
+        <source>The original, the result, and the result at 50% and 25% of the quality</source>
+        <translation>Оригинал, результат и результат при 50% и 25% качества</translation>
+    </message>
+    <message>
+        <source>%1 at these settings has no quality to reduce.</source>
+        <translation>У %1 с этими настройками нет качества, которое можно снизить.</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 <context>
