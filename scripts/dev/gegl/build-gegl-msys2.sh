@@ -81,14 +81,15 @@ for catalog in "$REPO"/translations/patchy_*.ts; do
   fi
 done
 rm -f "$STAGE/lib/babl-0.1/cairo.dll"  # cairo pixel formats: Patchy hands GEGL no cairo surfaces
-# The MSYS2 libraries the staged ones load, found by following their imports until nothing
-# new appears (GLib and its libraries, json-glib, libjpeg-turbo, libpng, zlib, the C++
-# runtime where the toolchain links it as a DLL).
+# The MSYS2 libraries the staged ones load, found by following their import tables until
+# nothing new appears (GLib and its libraries, json-glib, zlib, the C++ runtime where the
+# toolchain links it as a DLL). Read statically with objdump: ldd loads each DLL and hangs
+# under MSYS2 on ARM64.
 while true; do
   added=0
-  for dll in $(ldd "$STAGE"/bin/*.dll "$STAGE"/lib/*/*.dll 2>/dev/null | awk -v sys="$SYSBIN/" 'index($3, sys) == 1 {print $3}' | sort -u); do
-    if [ ! -f "$STAGE/bin/$(basename "$dll")" ]; then
-      cp "$dll" "$STAGE/bin/"
+  for name in $(objdump -p "$STAGE"/bin/*.dll "$STAGE"/lib/*/*.dll 2>/dev/null | awk '/DLL Name:/ {print $3}' | sort -u); do
+    if [ -f "$SYSBIN/$name" ] && [ ! -f "$STAGE/bin/$name" ]; then
+      cp "$SYSBIN/$name" "$STAGE/bin/"
       added=1
     fi
   done
