@@ -16,10 +16,10 @@
 #include <QColor>
 #include <QListWidget>
 #include <QMenu>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QTimer>
-#include <QToolButton>
 
 #include <algorithm>
 #include <iostream>
