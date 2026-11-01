@@ -607,7 +607,10 @@ int run_operation() {
       default: fail(2, "Unknown setting kind for " + s.name);
     }
   }
-  api.gegl_node_link(source, node);
+  // A render operation (Plasma, Solid Noise) has no input: its output replaces the pixels.
+  if (api.gegl_node_has_pad(node, "input") != 0) {
+    api.gegl_node_link(source, node);
+  }
   api.gegl_node_blit(node, 1.0, &rect, babl, pixels.data(), static_cast<int>(row), 0 /* GEGL_BLIT_DEFAULT */);
   std::fwrite(pixels.data(), 1, pixels.size(), stdout);
   std::fflush(stdout);

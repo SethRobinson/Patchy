@@ -478,11 +478,14 @@ bool gegl_operation_offered(const QJsonObject& operation, QString* why) {
   if (!name.startsWith(QLatin1String("gegl:"))) {
     return say("not a gegl: operation");
   }
-  if (!operation.value(QStringLiteral("input")).toBool() || !operation.value(QStringLiteral("output")).toBool() ||
-      operation.value(QStringLiteral("aux")).toBool()) {
-    return say("not a one-input image filter");
-  }
   const auto categories = operation.value(QStringLiteral("categories")).toString().toLower().split(QLatin1Char(':'));
+  // A one-input filter, or a render operation without an input (Plasma, Solid Noise), whose
+  // result replaces the layer as GIMP's Render filters do.
+  const bool has_input = operation.value(QStringLiteral("input")).toBool();
+  if (!operation.value(QStringLiteral("output")).toBool() || operation.value(QStringLiteral("aux")).toBool() ||
+      (!has_input && !categories.contains(QStringLiteral("render")))) {
+    return say("not a one-input image filter or a render operation");
+  }
   if (categories.join(QString()).isEmpty()) {
     return say("no category");
   }
@@ -495,8 +498,11 @@ bool gegl_operation_offered(const QJsonObject& operation, QString* why) {
     return say("excluded by name (docs/legal-constraints.md)");
   }
   for (const auto& p : operation.value(QStringLiteral("properties")).toArray()) {
-    if (p.toObject().value(QStringLiteral("kind")).toString() == QLatin1String("other")) {
-      return say("a setting Patchy cannot hold (path, curve, buffer)");
+    // Text settings are file paths, matrices, graph descriptions (gegl:gegl, which could
+    // load files) or the words of gegl:text: nothing that works at its default.
+    const auto kind = p.toObject().value(QStringLiteral("kind")).toString();
+    if (kind == QLatin1String("other") || kind == QLatin1String("string")) {
+      return say("a setting Patchy cannot hold (text, path, curve, buffer)");
     }
   }
   return true;

@@ -865,6 +865,20 @@ void ui_gegl_filters_list_and_apply_if_available() {
   CHECK(registry->find("gegl.red-eye-removal") == nullptr);
   CHECK(registry->find("gegl.crop") == nullptr);       // geometry, not a filter
   CHECK(registry->find("gegl.over") == nullptr);       // two inputs
+  CHECK(registry->find("gegl.text") == nullptr);       // a setting Patchy cannot hold (text)
+  CHECK(registry->find("gegl.png-load") == nullptr);   // a file loader
+  // A render operation without an input replaces the layer: Plasma on flat gray.
+  if (const auto* plasma = registry->find("gegl.plasma"); plasma != nullptr) {
+    patchy::PixelBuffer flat(32, 32, patchy::PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::UInt8, 4});
+    std::fill(flat.data().begin(), flat.data().end(), std::uint8_t{128});
+    const auto gray = flat;
+    registry->apply(registry->default_invocation("gegl.plasma"), flat);
+    const auto rendered = std::as_const(flat).data();
+    const auto flat_gray = std::as_const(gray).data();
+    CHECK(!std::equal(rendered.begin(), rendered.end(), flat_gray.begin(), flat_gray.end()));
+  } else {
+    CHECK(false);  // GIMP 3.2's GEGL has Plasma
+  }
 
   // Straight through the registry: a run changes a two-color buffer at its edge.
   patchy::PixelBuffer pixels(16, 8, patchy::PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::UInt8, 4});
