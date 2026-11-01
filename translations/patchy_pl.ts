@@ -18631,6 +18631,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Manage built-in and saved stroke presets</source>
         <translation>Zarządzaj wbudowanymi i zapisanymi ustawieniami wstępnymi obrysu</translation>
     </message>
+    <message>
+        <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
+        <translation>Wyszukuje nowe lub zmienione wtyczki GIMP 3 i ponownie wczytuje to, co rejestrują</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -18738,6 +18742,47 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>All Languages</source>
         <translation>Wszystkie języki</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginRunDialog</name>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>Wtyczka GIMP 3</translation>
+    </message>
+    <message>
+        <source>The plug-in&apos;s own preview updates as you change its settings. Cancel there leaves the layer as it was.</source>
+        <translation>Własny podgląd wtyczki aktualizuje się podczas zmiany jej ustawień. Anulowanie w jej oknie pozostawia warstwę bez zmian.</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Uruchamianie %1...</translation>
+    </message>
+    <message>
+        <source>Stop Plug-in</source>
+        <translation>Zatrzymaj wtyczkę</translation>
+    </message>
+    <message>
+        <source>Ends the plug-in. The layer stays as it was.</source>
+        <translation>Kończy działanie wtyczki. Warstwa pozostaje bez zmian.</translation>
+    </message>
+    <message>
+        <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
+        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
+        <translation>Wtyczka %1 jest otwarta we własnym oknie. Dostosuj tam ustawienia i kliknij jej przycisk OK, aby zastosować ją do tej warstwy.</translation>
+    </message>
+    <message>
+        <source>Applying %1...</source>
+        <translation>Stosowanie %1...</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 its own progress message.</extracomment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Anuluj</translation>
     </message>
 </context>
 <context>
@@ -31441,6 +31486,190 @@ Zablokowano: %1</translation>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Kreski obrysu i zapisane ustawienia wstępne obrysu. Kreski mają płaskie zakończenia, kropki zaokrąglone zakończenia i narożniki</translation>
     </message>
+    <message>
+        <source>GIMP 3 Plug-ins</source>
+        <translation>Wtyczki GIMP 3</translation>
+    </message>
+    <message>
+        <source>Rescan GIMP Plug-ins</source>
+        <translation>Przeskanuj ponownie wtyczki GIMP</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>Skanowanie wtyczek GIMP zakończone: dostępne %1, nieużywalne %2</translation>
+    </message>
+    <message>
+        <source>It does not work on an image layer.</source>
+        <translation>Nie działa na warstwie obrazu.</translation>
+    </message>
+    <message>
+        <source>It makes something new instead of changing a layer.</source>
+        <translation>Tworzy coś nowego zamiast zmieniać warstwę.</translation>
+    </message>
+    <message>
+        <source>It needs several layers at once.</source>
+        <translation>Wymaga kilku warstw jednocześnie.</translation>
+    </message>
+    <message>
+        <source>It works only on grayscale or indexed images.</source>
+        <translation>Działa tylko na obrazach w skali szarości lub indeksowanych.</translation>
+    </message>
+    <message>
+        <source>It changes the image itself, not the pixels of one layer.</source>
+        <translation>Zmienia sam obraz, a nie piksele jednej warstwy.</translation>
+    </message>
+    <message>
+        <source>Script-Fu scripts are built from GIMP&apos;s own image operations, which Patchy does not provide.</source>
+        <translation>Skrypty Script-Fu składają się z własnych operacji na obrazach GIMP-a, których Patchy nie zapewnia.</translation>
+    </message>
+    <message>
+        <source>It creates a new image, which Patchy does not support for GIMP plug-ins yet.</source>
+        <translation>Tworzy nowy obraz, czego Patchy nie obsługuje jeszcze dla wtyczek GIMP.</translation>
+    </message>
+    <message>
+        <source>It works on the layers of an animation, which Patchy does not hand to GIMP plug-ins.</source>
+        <translation>Działa na warstwach animacji, których Patchy nie przekazuje wtyczkom GIMP.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s brushes, patterns, gradients, fonts or palettes, which Patchy does not provide yet.</source>
+        <translation>Wymaga pędzli, wzorków, gradientów, czcionek lub palet GIMP-a, których Patchy jeszcze nie zapewnia.</translation>
+    </message>
+    <message>
+        <source>It is a file format or a helper for other plug-ins.</source>
+        <translation>Jest formatem pliku lub narzędziem pomocniczym dla innych wtyczek.</translation>
+    </message>
+    <message>
+        <source>Patchy cannot run it.</source>
+        <translation>Patchy nie może jej uruchomić.</translation>
+    </message>
+    <message>
+        <source>%1 needs a GIMP feature Patchy does not support yet (%2). The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the GIMP procedure it called (for example gimp-layer-new).</extracomment>
+        <translation>Wtyczka %1 wymaga funkcji GIMP-a, której Patchy jeszcze nie obsługuje (%2). Warstwa nie została zmieniona.</translation>
+    </message>
+    <message>
+        <source>%1 stopped unexpectedly. The layer was not changed.</source>
+        <translation>Wtyczka %1 nieoczekiwanie przestała działać. Warstwa nie została zmieniona.</translation>
+    </message>
+    <message>
+        <source>%1 did not finish in time and was stopped. The layer was not changed.</source>
+        <translation>Wtyczka %1 nie zakończyła pracy na czas i została zatrzymana. Warstwa nie została zmieniona.</translation>
+    </message>
+    <message>
+        <source>%1 could not be started. The layer was not changed.</source>
+        <translation>Nie można uruchomić wtyczki %1. Warstwa nie została zmieniona.</translation>
+    </message>
+    <message>
+        <source>%1 takes a kind of setting Patchy cannot fill in yet. The layer was not changed.</source>
+        <translation>Wtyczka %1 przyjmuje rodzaj ustawienia, którego Patchy nie umie jeszcze wypełnić. Warstwa nie została zmieniona.</translation>
+    </message>
+    <message>
+        <source>%1 reported an error. The layer was not changed.</source>
+        <translation>Wtyczka %1 zgłosiła błąd. Warstwa nie została zmieniona.</translation>
+    </message>
+    <message>
+        <source>Scanning GIMP plug-ins...</source>
+        <translation>Skanowanie wtyczek GIMP...</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins found</source>
+        <translation>Nie znaleziono wtyczek GIMP 3</translation>
+    </message>
+    <message>
+        <source>Run the %1 GIMP plug-in on the active layer</source>
+        <translation>Uruchom wtyczkę GIMP %1 na aktywnej warstwie</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>Wtyczka GIMP 3</translation>
+    </message>
+    <message>
+        <source>Select an editable pixel layer before running the plug-in</source>
+        <translation>Przed uruchomieniem wtyczki wybierz edytowalną warstwę pikseli</translation>
+    </message>
+    <message>
+        <source>GIMP Plug-in: %1</source>
+        <translation>Wtyczka GIMP: %1</translation>
+    </message>
+    <message>
+        <source>GIMP 3 was not found, so its plug-ins cannot run.</source>
+        <translation>Nie znaleziono GIMP 3, więc jego wtyczek nie można uruchomić.</translation>
+    </message>
+    <message>
+        <source>%1 cannot run in Patchy: %2</source>
+        <translation>Wtyczki %1 nie można uruchomić w Patchy: %2</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins run on RGB layers. Convert the document to RGB first.</source>
+        <translation>Wtyczki GIMP działają na warstwach RGB. Najpierw przekonwertuj dokument na RGB.</translation>
+    </message>
+    <message>
+        <source>%1 could not be started: %2</source>
+        <translation>Nie można uruchomić wtyczki %1: %2</translation>
+    </message>
+    <message>
+        <source>Use GIMP 3 plug-ins</source>
+        <translation>Używaj wtyczek GIMP 3</translation>
+    </message>
+    <message>
+        <source>GIMP %1 in %2</source>
+        <extracomment>%1 is GIMP&apos;s version (&quot;3.2.6&quot;), %2 its install folder.</extracomment>
+        <translation>GIMP %1 w %2</translation>
+    </message>
+    <message>
+        <source>Not scanned yet.</source>
+        <translation>Jeszcze nie przeskanowano.</translation>
+    </message>
+    <message>
+        <source>Found:</source>
+        <translation>Znaleziono:</translation>
+    </message>
+    <message>
+        <source>Found automatically</source>
+        <translation>Wykrywany automatycznie</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>Przeglądaj...</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Folder</source>
+        <translation>Folder GIMP 3</translation>
+    </message>
+    <message>
+        <source>GIMP folder:</source>
+        <translation>Folder GIMP:</translation>
+    </message>
+    <message>
+        <source>Add GIMP Plug-in Folder</source>
+        <translation>Dodaj folder wtyczek GIMP</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>%1 did not start: %2</source>
+        <extracomment>A GIMP plug-in file whose registration failed; %1 is its file name, %2 the reason (English, from the plug-in).</extracomment>
+        <translation>Plik %1 nie uruchomił się: %2</translation>
+    </message>
+    <message>
+        <source>Plug-ins:</source>
+        <translation>Wtyczki:</translation>
+    </message>
+    <message>
+        <source>%1 can run, %2 cannot</source>
+        <extracomment>%1 and %2 are counts of GIMP plug-in commands.</extracomment>
+        <translation>Działające: %1, niedziałające: %2</translation>
+    </message>
+    <message>
+        <source>Plug-ins of your own GIMP 3 install are listed under Plugins &gt; GIMP 3 Plug-ins. They run as separate programs with your permissions and show their own dialog; only use plug-ins you trust. Patchy does not include GIMP: GIMP 3 must be installed separately.</source>
+        <translation>Wtyczki z Twojej instalacji GIMP 3 są wymienione w menu Wtyczki &gt; Wtyczki GIMP 3. Działają jako osobne programy z Twoimi uprawnieniami i wyświetlają własne okno dialogowe; używaj tylko wtyczek, którym ufasz. Patchy nie zawiera GIMP-a: GIMP 3 trzeba zainstalować osobno.</translation>
+    </message>
+    <message>
+        <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
+        <translation>Tworzy wynik za pomocą własnych operacji na obrazach GIMP-a (nowe warstwy lub obrazy, schowek, narzędzia malarskie), których Patchy nie zapewnia.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33570,6 +33799,78 @@ Zablokowano: %1</translation>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample to &quot;current&quot;, &quot;currentAndBelow&quot; lub &quot;all&quot;.</translation>
+    </message>
+    <message>
+        <source>rescan: unknown option %1.</source>
+        <translation>rescan: nieznana opcja %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins do not run in the web version.</source>
+        <translation>Wtyczki GIMP nie działają w wersji internetowej.</translation>
+    </message>
+    <message>
+        <source>%1 needs a number.</source>
+        <translation>%1 wymaga liczby.</translation>
+    </message>
+    <message>
+        <source>%1 must be between %2 and %3.</source>
+        <translation>%1 musi mieścić się w zakresie od %2 do %3.</translation>
+    </message>
+    <message>
+        <source>%1 must be one of: %2.</source>
+        <translation>%1 musi być jedną z wartości: %2.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be set from a script.</source>
+        <translation>Wartości %1 nie można ustawić ze skryptu.</translation>
+    </message>
+    <message>
+        <source>Unknown GIMP plug-in id: %1</source>
+        <translation>Nieznany identyfikator wtyczki GIMP: %1</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 cannot run: %2</source>
+        <translation>Nie można uruchomić wtyczki GIMP %1: %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: unknown option %1.</source>
+        <translation>applyGimpPlugin: nieznana opcja %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: its registration could not be read (%2).</source>
+        <translation>Wtyczka GIMP %1: nie można odczytać jej rejestracji (%2).</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: %2</source>
+        <translation>Wtyczka GIMP %1: %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1</source>
+        <translation>applyGimpPlugin: %1</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1 has no argument %2.</source>
+        <translation>applyGimpPlugin: %1 nie ma argumentu %2.</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin needs a pixel layer.</source>
+        <translation>applyGimpPlugin wymaga warstwy pikseli.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 was cancelled.</source>
+        <translation>Wtyczka GIMP %1 została anulowana.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 failed: %2</source>
+        <translation>Wtyczka GIMP %1 nie powiodła się: %2</translation>
+    </message>
+    <message>
+        <source>%1 needs a color such as &quot;#ff8800&quot; or [1, 0.5, 0].</source>
+        <translation>%1 wymaga koloru, na przykład &quot;#ff8800&quot; lub [1, 0.5, 0].</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: answerDialog is &quot;ok&quot; or &quot;cancel&quot;.</source>
+        <translation>applyGimpPlugin: answerDialog przyjmuje wartość &quot;ok&quot; lub &quot;cancel&quot;.</translation>
     </message>
 </context>
 <context>

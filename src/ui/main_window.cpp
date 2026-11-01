@@ -4484,6 +4484,19 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     start_legacy_plugin_scan(false);
   });
 #endif
+#ifndef Q_OS_WASM
+  // The GIMP 3 plug-in scan reuses the query cache and runs only new or changed plug-ins
+  // (docs/gimp-plugins.md); like the legacy scan it never delays the first paint.
+  // Offscreen runs (the UI tests, --headless) scan on first use instead
+  // (ensure_gimp_plugins_scanned), so no test window starts dozens of plug-ins.
+  if (QGuiApplication::platformName() != QLatin1String("offscreen")) {
+    gimp_plugin_scan_in_flight_ = true;
+    QTimer::singleShot(0, this, [this] {
+      gimp_plugin_scan_in_flight_ = false;
+      start_gimp_plugin_scan(false);
+    });
+  }
+#endif
   startup_trace::Scope docks_phase("mw.docks");
   create_docks();
   docks_phase.end();
@@ -12290,6 +12303,7 @@ bool command_works_without_document(const QAction& action, const QString& comman
       QStringLiteral("edit.define_custom_shape_svg"),
       QStringLiteral("plugins.open_folder"),
       QStringLiteral("plugins.rescan"),
+      QStringLiteral("plugins.gimp_rescan"),
       QStringLiteral("view.vector_preview"),  // a preference, also in Preferences
       QStringLiteral("view.pixel_grid"),      // a preference
   };

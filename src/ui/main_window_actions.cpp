@@ -276,6 +276,9 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
     bind_action_text(action, source);
     refresh_action_tooltip(action);
   }
+  if (gimp_plugins_menu_ != nullptr) {
+    bind_action_text(gimp_plugins_menu_->menuAction(), QT_TR_NOOP("GIMP 3 Plug-ins"));
+  }
   const std::vector<std::pair<QObject*, const char*>> translated_widgets = {
       {primary_color_button_, QT_TR_NOOP("FG")},
       {secondary_color_button_, QT_TR_NOOP("BG")},
@@ -458,6 +461,9 @@ void MainWindow::retranslate_ui() {
   refresh_vector_preview_action();
   rebuild_recent_folders_menu();
   rebuild_legacy_plugins_menu();  // translated status tips and the empty-menu note
+#ifndef Q_OS_WASM
+  rebuild_gimp_plugins_menu();
+#endif
   refresh_layer_list();
   refresh_layer_controls();
   refresh_channel_panel();

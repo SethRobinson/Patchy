@@ -44,7 +44,7 @@ name, so a search by synonym finds it ("resize" finds Image Size).
   tip, but only when the tip does not contain the name ("Apply Gaussian Blur to the active
   layer" adds nothing).
 - Exempt: rows built from data, which no fixed line can describe: recent files and folders,
-  the Window menu's open documents, scripts, legacy 8BF plug-ins. Their builders set
+  the Window menu's open documents, scripts, legacy 8BF and GIMP 3 plug-ins. Their builders set
   `kCommandSearchDataEntryProperty`; `command_search_exempt` reads it. A new data-built menu
   sets it too. Theme commands and panel commands are not listed, so they need none.
 - The rule: a new command gets its description in the same change, like its translation.

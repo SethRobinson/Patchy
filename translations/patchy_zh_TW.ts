@@ -18543,6 +18543,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>管理內建和已儲存的筆畫預設集</translation>
     </message>
+    <message>
+        <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
+        <translation>尋找新增或已變更的 GIMP 3 外掛程式，並重新載入它們註冊的內容</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -18650,6 +18654,47 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>All Languages</source>
         <translation>所有語言</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginRunDialog</name>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>GIMP 3 外掛程式</translation>
+    </message>
+    <message>
+        <source>The plug-in&apos;s own preview updates as you change its settings. Cancel there leaves the layer as it was.</source>
+        <translation>外掛程式本身的預覽會隨設定變更而更新。在其中按「取消」，圖層會保持原樣。</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>正在啟動 %1...</translation>
+    </message>
+    <message>
+        <source>Stop Plug-in</source>
+        <translation>停止外掛程式</translation>
+    </message>
+    <message>
+        <source>Ends the plug-in. The layer stays as it was.</source>
+        <translation>結束外掛程式。圖層保持原樣。</translation>
+    </message>
+    <message>
+        <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
+        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
+        <translation>%1 已在自己的視窗中開啟。請在該視窗中調整設定，然後按一下其中的「確定」按鈕，將其套用到此圖層。</translation>
+    </message>
+    <message>
+        <source>Applying %1...</source>
+        <translation>正在套用 %1...</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 its own progress message.</extracomment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
     </message>
 </context>
 <context>
@@ -31275,6 +31320,190 @@ Locked: %1</source>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>筆畫虛線和已儲存的筆畫預設集。虛線預設集使用平頭端點；點狀預設集使用圓頭端點和圓角</translation>
     </message>
+    <message>
+        <source>GIMP 3 Plug-ins</source>
+        <translation>GIMP 3 外掛程式</translation>
+    </message>
+    <message>
+        <source>Rescan GIMP Plug-ins</source>
+        <translation>重新掃描 GIMP 外掛程式</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>GIMP 外掛程式掃描完成：%1 個可用，%2 個無法使用</translation>
+    </message>
+    <message>
+        <source>It does not work on an image layer.</source>
+        <translation>它無法用於影像圖層。</translation>
+    </message>
+    <message>
+        <source>It makes something new instead of changing a layer.</source>
+        <translation>它會建立新內容，而不是修改圖層。</translation>
+    </message>
+    <message>
+        <source>It needs several layers at once.</source>
+        <translation>它需要同時使用多個圖層。</translation>
+    </message>
+    <message>
+        <source>It works only on grayscale or indexed images.</source>
+        <translation>它只適用於灰階或索引色影像。</translation>
+    </message>
+    <message>
+        <source>It changes the image itself, not the pixels of one layer.</source>
+        <translation>它會修改影像本身，而不是某個圖層的像素。</translation>
+    </message>
+    <message>
+        <source>Script-Fu scripts are built from GIMP&apos;s own image operations, which Patchy does not provide.</source>
+        <translation>Script-Fu 指令碼由 GIMP 本身的影像操作構成，而 Patchy 不提供這些操作。</translation>
+    </message>
+    <message>
+        <source>It creates a new image, which Patchy does not support for GIMP plug-ins yet.</source>
+        <translation>它會建立新影像，Patchy 目前尚不支援 GIMP 外掛程式這麼做。</translation>
+    </message>
+    <message>
+        <source>It works on the layers of an animation, which Patchy does not hand to GIMP plug-ins.</source>
+        <translation>它處理動畫的圖層，而 Patchy 不會將這些圖層交給 GIMP 外掛程式。</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s brushes, patterns, gradients, fonts or palettes, which Patchy does not provide yet.</source>
+        <translation>它需要 GIMP 的筆刷、圖樣、漸層、字型或調色盤，Patchy 目前尚未提供這些內容。</translation>
+    </message>
+    <message>
+        <source>It is a file format or a helper for other plug-ins.</source>
+        <translation>它是檔案格式外掛程式，或供其他外掛程式使用的輔助程式。</translation>
+    </message>
+    <message>
+        <source>Patchy cannot run it.</source>
+        <translation>Patchy 無法執行它。</translation>
+    </message>
+    <message>
+        <source>%1 needs a GIMP feature Patchy does not support yet (%2). The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the GIMP procedure it called (for example gimp-layer-new).</extracomment>
+        <translation>%1 需要 Patchy 尚不支援的 GIMP 功能（%2）。圖層未變更。</translation>
+    </message>
+    <message>
+        <source>%1 stopped unexpectedly. The layer was not changed.</source>
+        <translation>%1 意外停止。圖層未變更。</translation>
+    </message>
+    <message>
+        <source>%1 did not finish in time and was stopped. The layer was not changed.</source>
+        <translation>%1 未能及時完成，已被停止。圖層未變更。</translation>
+    </message>
+    <message>
+        <source>%1 could not be started. The layer was not changed.</source>
+        <translation>無法啟動 %1。圖層未變更。</translation>
+    </message>
+    <message>
+        <source>%1 takes a kind of setting Patchy cannot fill in yet. The layer was not changed.</source>
+        <translation>%1 使用了 Patchy 尚無法填入的設定類型。圖層未變更。</translation>
+    </message>
+    <message>
+        <source>%1 reported an error. The layer was not changed.</source>
+        <translation>%1 回報了錯誤。圖層未變更。</translation>
+    </message>
+    <message>
+        <source>Scanning GIMP plug-ins...</source>
+        <translation>正在掃描 GIMP 外掛程式...</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins found</source>
+        <translation>找不到 GIMP 3 外掛程式</translation>
+    </message>
+    <message>
+        <source>Run the %1 GIMP plug-in on the active layer</source>
+        <translation>在作用中圖層上執行 GIMP 外掛程式 %1</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>GIMP 3 外掛程式</translation>
+    </message>
+    <message>
+        <source>Select an editable pixel layer before running the plug-in</source>
+        <translation>執行外掛程式前請先選取可編輯的像素圖層</translation>
+    </message>
+    <message>
+        <source>GIMP Plug-in: %1</source>
+        <translation>GIMP 外掛程式：%1</translation>
+    </message>
+    <message>
+        <source>GIMP 3 was not found, so its plug-ins cannot run.</source>
+        <translation>找不到 GIMP 3，因此無法執行其外掛程式。</translation>
+    </message>
+    <message>
+        <source>%1 cannot run in Patchy: %2</source>
+        <translation>%1 無法在 Patchy 中執行：%2</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins run on RGB layers. Convert the document to RGB first.</source>
+        <translation>GIMP 外掛程式只能在 RGB 圖層上執行。請先將文件轉換為 RGB。</translation>
+    </message>
+    <message>
+        <source>%1 could not be started: %2</source>
+        <translation>無法啟動 %1：%2</translation>
+    </message>
+    <message>
+        <source>Use GIMP 3 plug-ins</source>
+        <translation>使用 GIMP 3 外掛程式</translation>
+    </message>
+    <message>
+        <source>GIMP %1 in %2</source>
+        <extracomment>%1 is GIMP&apos;s version (&quot;3.2.6&quot;), %2 its install folder.</extracomment>
+        <translation>GIMP %1，位於 %2</translation>
+    </message>
+    <message>
+        <source>Not scanned yet.</source>
+        <translation>尚未掃描。</translation>
+    </message>
+    <message>
+        <source>Found:</source>
+        <translation>已找到：</translation>
+    </message>
+    <message>
+        <source>Found automatically</source>
+        <translation>自動尋找</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>瀏覽...</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Folder</source>
+        <translation>GIMP 3 資料夾</translation>
+    </message>
+    <message>
+        <source>GIMP folder:</source>
+        <translation>GIMP 資料夾：</translation>
+    </message>
+    <message>
+        <source>Add GIMP Plug-in Folder</source>
+        <translation>新增 GIMP 外掛程式資料夾</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>%1 did not start: %2</source>
+        <extracomment>A GIMP plug-in file whose registration failed; %1 is its file name, %2 the reason (English, from the plug-in).</extracomment>
+        <translation>%1 未能啟動：%2</translation>
+    </message>
+    <message>
+        <source>Plug-ins:</source>
+        <translation>外掛程式：</translation>
+    </message>
+    <message>
+        <source>%1 can run, %2 cannot</source>
+        <extracomment>%1 and %2 are counts of GIMP plug-in commands.</extracomment>
+        <translation>%1 個可執行，%2 個無法執行</translation>
+    </message>
+    <message>
+        <source>Plug-ins of your own GIMP 3 install are listed under Plugins &gt; GIMP 3 Plug-ins. They run as separate programs with your permissions and show their own dialog; only use plug-ins you trust. Patchy does not include GIMP: GIMP 3 must be installed separately.</source>
+        <translation>已安裝的 GIMP 3 中的外掛程式會列在「增效模組 &gt; GIMP 3 外掛程式」下。它們會以獨立程式、使用你的權限執行，並顯示自己的對話方塊；只使用你信任的外掛程式。Patchy 不包含 GIMP：必須另行安裝 GIMP 3。</translation>
+    </message>
+    <message>
+        <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
+        <translation>它使用 GIMP 本身的影像操作（新增圖層或影像、剪貼簿、繪畫工具）產生結果，而 Patchy 不提供這些操作。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33402,6 +33631,78 @@ Locked: %1</source>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample 為 &quot;current&quot;、&quot;currentAndBelow&quot; 或 &quot;all&quot;。</translation>
+    </message>
+    <message>
+        <source>rescan: unknown option %1.</source>
+        <translation>rescan: 未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins do not run in the web version.</source>
+        <translation>網頁版無法執行 GIMP 外掛程式。</translation>
+    </message>
+    <message>
+        <source>%1 needs a number.</source>
+        <translation>%1 需要一個數字。</translation>
+    </message>
+    <message>
+        <source>%1 must be between %2 and %3.</source>
+        <translation>%1 必須介於 %2 和 %3 之間。</translation>
+    </message>
+    <message>
+        <source>%1 must be one of: %2.</source>
+        <translation>%1 必須是下列值之一：%2。</translation>
+    </message>
+    <message>
+        <source>%1 cannot be set from a script.</source>
+        <translation>%1 無法透過指令碼設定。</translation>
+    </message>
+    <message>
+        <source>Unknown GIMP plug-in id: %1</source>
+        <translation>未知的 GIMP 外掛程式 ID：%1</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 cannot run: %2</source>
+        <translation>GIMP 外掛程式 %1 無法執行：%2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: unknown option %1.</source>
+        <translation>applyGimpPlugin: 未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: its registration could not be read (%2).</source>
+        <translation>GIMP 外掛程式 %1：無法讀取其註冊資訊（%2）。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: %2</source>
+        <translation>GIMP 外掛程式 %1：%2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1</source>
+        <translation>applyGimpPlugin: %1</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1 has no argument %2.</source>
+        <translation>applyGimpPlugin: %1 沒有參數 %2。</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin needs a pixel layer.</source>
+        <translation>applyGimpPlugin 需要像素圖層。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 was cancelled.</source>
+        <translation>GIMP 外掛程式 %1 已取消。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 failed: %2</source>
+        <translation>GIMP 外掛程式 %1 執行失敗：%2</translation>
+    </message>
+    <message>
+        <source>%1 needs a color such as &quot;#ff8800&quot; or [1, 0.5, 0].</source>
+        <translation>%1 需要一個顏色，例如 &quot;#ff8800&quot; 或 [1, 0.5, 0]。</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: answerDialog is &quot;ok&quot; or &quot;cancel&quot;.</source>
+        <translation>applyGimpPlugin: answerDialog 的值為 &quot;ok&quot; 或 &quot;cancel&quot;。</translation>
     </message>
 </context>
 <context>

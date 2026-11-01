@@ -20,7 +20,8 @@ change, and every change gets an entry in [scripting-api-changes.md](scripting-a
 - `src/ui/script_api.{hpp,cpp}`: the QObject wrappers JS sees (`app`, documents, layers,
   selection, `patchy.io`, `patchy.ui`, `patchy.recovery`, `patchy.scripts`,
   `patchy.plugins`, `patchy.gmic`; `patchy.plugins` and `layer.applyPlugin` front the 8BF host,
-  [plugins.md](plugins.md); `patchy.gmic` and `layer.applyGmic` the G'MIC engine, [gmic.md](gmic.md)).
+  [plugins.md](plugins.md); `patchy.gimpPlugins` and `layer.applyGimpPlugin` (`script_gimp_plugins.cpp`) the
+  GIMP 3 host, [gimp-plugins.md](gimp-plugins.md); `patchy.gmic` and `layer.applyGmic` the G'MIC engine, [gmic.md](gmic.md)).
 - `src/ui/script_vector*.{hpp,cpp}`: shape, paint, path, mask, organization and selection
   bindings ([vector-automation.md](vector-automation.md)); `src/ui/script_brush.cpp` and
   `brush_automation.*`: `patchy.brushes` ([brush-automation.md](brush-automation.md)).

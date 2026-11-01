@@ -504,6 +504,16 @@ public:
   [[nodiscard]] QJSValue legacy_plugin_list();
   // Rescans the plug-in folders (patchy.plugins.rescan / folders setter).
   void rescan_legacy_plugins();
+  // GIMP 3 plug-ins (script_gimp_plugins.cpp, docs/gimp-plugins.md): one procedure on a
+  // layer, limited to the session's selection and part of the run's undo entry.
+  void apply_gimp_plugin_to_layer(std::int64_t session_id, LayerId layer_id, const QString& plugin_id,
+                                  const QJSValue& options);
+  // Every procedure the last scan saw, as script objects.
+  [[nodiscard]] QJSValue gimp_plugin_list();
+  // The GIMP install the scan uses, as a script object.
+  [[nodiscard]] QJSValue gimp_plugin_install();
+  // Rescans synchronously; `force` queries every plug-in again.
+  void rescan_gimp_plugins(bool force);
 
   // Interactive helpers (suppressed for unattended runs - CLI automation mode
   // or a forwarded --run-script: alert logs instead, prompt returns its

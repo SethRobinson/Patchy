@@ -462,6 +462,57 @@ add_library(patchy_plugins
 target_link_libraries(patchy_plugins PUBLIC patchy_core)
 patchy_configure_target(patchy_plugins)
 
+# GIMP 3 plug-in support (docs/gimp-plugins.md): the Qt-free wire codec, install
+# discovery and query model Patchy and its helper share, and the helper,
+# patchy-gimp-host, which starts the user's installed plug-ins as separate programs
+# and serves them the layer. Nothing of GIMP is built, linked or loaded.
+add_library(patchy_gimp
+  src/plugins/gimp/gimp_host_link.hpp
+  src/plugins/gimp/gimp_install.cpp
+  src/plugins/gimp/gimp_install.hpp
+  src/plugins/gimp/gimp_procedure.cpp
+  src/plugins/gimp/gimp_procedure.hpp
+  src/plugins/gimp/gimp_protocol.hpp
+  src/plugins/gimp/gimp_wire_codec.cpp
+  src/plugins/gimp/gimp_wire_codec.hpp
+)
+patchy_configure_target(patchy_gimp)
+if(NOT EMSCRIPTEN)
+  add_executable(patchy-gimp-host
+    src/plugins/gimp/host/image_model.cpp
+    src/plugins/gimp/host/image_model.hpp
+    src/plugins/gimp/host/main.cpp
+    src/plugins/gimp/host/pdb.cpp
+    src/plugins/gimp/host/pdb.hpp
+    src/plugins/gimp/host/pdb_context.cpp
+    src/plugins/gimp/host/pdb_drawable.cpp
+    src/plugins/gimp/host/pdb_image.cpp
+    src/plugins/gimp/host/pdb_item.cpp
+    src/plugins/gimp/host/pdb_misc.cpp
+    src/plugins/gimp/host/pdb_progress.cpp
+    src/plugins/gimp/host/pdb_registration.cpp
+    src/plugins/gimp/host/pdb_selection.cpp
+    src/plugins/gimp/host/plugin_process.hpp
+    src/plugins/gimp/host/session.cpp
+    src/plugins/gimp/host/session.hpp
+    src/plugins/gimp/host/shared_pixels.cpp
+    src/plugins/gimp/host/shared_pixels.hpp
+  )
+  if(WIN32)
+    target_sources(patchy-gimp-host PRIVATE src/plugins/gimp/host/plugin_process_win.cpp)
+    # A console program Patchy starts without a window; its stdin and stdout are the link.
+    target_link_options(patchy-gimp-host PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/SUBSYSTEM:CONSOLE>)
+    target_link_libraries(patchy-gimp-host PRIVATE user32)
+  else()
+    target_sources(patchy-gimp-host PRIVATE src/plugins/gimp/host/plugin_process_posix.cpp)
+    find_package(Threads REQUIRED)
+    target_link_libraries(patchy-gimp-host PRIVATE Threads::Threads)
+  endif()
+  target_link_libraries(patchy-gimp-host PRIVATE patchy_gimp)
+  patchy_configure_target(patchy-gimp-host)
+  set_target_properties(patchy-gimp-host PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()
+
 if(WIN32)
   # The out-of-process host for classic Photoshop filter plug-ins
   # (docs/plugins.md): one Qt-free Win32 program built twice. On x64 the 64-bit
@@ -1573,6 +1624,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/script_editor_dialog.cpp
       src/ui/script_engine.hpp
       src/ui/script_engine.cpp
+      src/ui/script_gimp_plugins.cpp
       src/ui/script_automation.cpp
       src/ui/connector_freshness.hpp
       src/ui/connector_freshness.cpp
@@ -1802,6 +1854,23 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         "-framework Quartz"
         "-framework ImageCaptureCore"
       )
+    endif()
+    if(NOT EMSCRIPTEN)
+      # GIMP 3 plug-ins (docs/gimp-plugins.md): the scan, the runner talking to
+      # patchy-gimp-host, the run box and MainWindow's menu and commands.
+      target_sources(patchy_ui PRIVATE
+        src/ui/gimp_plugin_catalog.cpp
+        src/ui/gimp_plugin_catalog.hpp
+        src/ui/gimp_plugin_run_dialog.cpp
+        src/ui/gimp_plugin_run_dialog.hpp
+        src/ui/gimp_plugin_runner.cpp
+        src/ui/gimp_plugin_runner.hpp
+        src/ui/gimp_plugin_window.cpp
+        src/ui/gimp_plugin_window.hpp
+        src/ui/main_window_gimp_plugins.cpp
+      )
+      target_link_libraries(patchy_ui PRIVATE patchy_gimp)
+      add_dependencies(patchy_ui patchy-gimp-host)
     endif()
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
       # Font types of missing fonts from the user's fontconfig (GitHub issue 463), loaded with
@@ -2340,6 +2409,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
     tests/core/pipl_tests.cpp
+    tests/core/gimp_plugin_tests.cpp
     tests/core/guide_layout_tests.cpp
     tests/core/layer_alignment_tests.cpp
     tests/core/layer_metadata_tests.cpp
@@ -2415,6 +2485,7 @@ if(PATCHY_BUILD_TESTS)
     patchy_render
     patchy_psd
     patchy_plugins
+    patchy_gimp
     patchy_filters
     patchy_formats
     patchy_color
@@ -2561,6 +2632,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/mcp_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/legacy_plugin_tests.cpp
+      tests/ui/gimp_plugin_tests.cpp
       tests/ui/gmic_tests.cpp
       tests/ui/history_panel_tests.cpp
       tests/ui/color_dock_panel_tests.cpp

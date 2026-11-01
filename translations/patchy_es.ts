@@ -18587,6 +18587,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Manage built-in and saved stroke presets</source>
         <translation>Administrar ajustes preestablecidos de trazo integrados y guardados</translation>
     </message>
+    <message>
+        <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
+        <translation>Busca plugins de GIMP 3 nuevos o modificados y vuelve a cargar lo que registran</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -18694,6 +18698,47 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>All Languages</source>
         <translation>Todos los idiomas</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginRunDialog</name>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>Plugin de GIMP 3</translation>
+    </message>
+    <message>
+        <source>The plug-in&apos;s own preview updates as you change its settings. Cancel there leaves the layer as it was.</source>
+        <translation>La vista previa del propio plugin se actualiza al cambiar sus ajustes. Cancelar allí deja la capa como estaba.</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Iniciando %1...</translation>
+    </message>
+    <message>
+        <source>Stop Plug-in</source>
+        <translation>Detener plugin</translation>
+    </message>
+    <message>
+        <source>Ends the plug-in. The layer stays as it was.</source>
+        <translation>Finaliza el plugin. La capa queda como estaba.</translation>
+    </message>
+    <message>
+        <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
+        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
+        <translation>%1 está abierto en su propia ventana. Ajuste allí su configuración y haga clic en su botón OK para aplicarlo a esta capa.</translation>
+    </message>
+    <message>
+        <source>Applying %1...</source>
+        <translation>Aplicando %1...</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 its own progress message.</extracomment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancelar</translation>
     </message>
 </context>
 <context>
@@ -31358,6 +31403,190 @@ Bloqueada: %1</translation>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Guiones del trazo y ajustes preestablecidos de trazo guardados. Los guiones usan extremos planos; los puntos usan extremos y esquinas redondeados</translation>
     </message>
+    <message>
+        <source>GIMP 3 Plug-ins</source>
+        <translation>Plugins de GIMP 3</translation>
+    </message>
+    <message>
+        <source>Rescan GIMP Plug-ins</source>
+        <translation>Volver a examinar los plugins de GIMP</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>Examen de plugins de GIMP finalizado: %1 disponibles, %2 no utilizables</translation>
+    </message>
+    <message>
+        <source>It does not work on an image layer.</source>
+        <translation>No funciona en una capa de imagen.</translation>
+    </message>
+    <message>
+        <source>It makes something new instead of changing a layer.</source>
+        <translation>Crea algo nuevo en lugar de modificar una capa.</translation>
+    </message>
+    <message>
+        <source>It needs several layers at once.</source>
+        <translation>Necesita varias capas a la vez.</translation>
+    </message>
+    <message>
+        <source>It works only on grayscale or indexed images.</source>
+        <translation>Solo funciona en imágenes en escala de grises o indexadas.</translation>
+    </message>
+    <message>
+        <source>It changes the image itself, not the pixels of one layer.</source>
+        <translation>Modifica la imagen en sí, no los píxeles de una capa.</translation>
+    </message>
+    <message>
+        <source>Script-Fu scripts are built from GIMP&apos;s own image operations, which Patchy does not provide.</source>
+        <translation>Los scripts de Script-Fu se basan en las operaciones de imagen propias de GIMP, que Patchy no ofrece.</translation>
+    </message>
+    <message>
+        <source>It creates a new image, which Patchy does not support for GIMP plug-ins yet.</source>
+        <translation>Crea una imagen nueva, algo que Patchy aún no admite para los plugins de GIMP.</translation>
+    </message>
+    <message>
+        <source>It works on the layers of an animation, which Patchy does not hand to GIMP plug-ins.</source>
+        <translation>Trabaja con las capas de una animación, que Patchy no pasa a los plugins de GIMP.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s brushes, patterns, gradients, fonts or palettes, which Patchy does not provide yet.</source>
+        <translation>Necesita pinceles, motivos, degradados, fuentes o paletas de GIMP, que Patchy aún no ofrece.</translation>
+    </message>
+    <message>
+        <source>It is a file format or a helper for other plug-ins.</source>
+        <translation>Es un formato de archivo o un auxiliar para otros plugins.</translation>
+    </message>
+    <message>
+        <source>Patchy cannot run it.</source>
+        <translation>Patchy no puede ejecutarlo.</translation>
+    </message>
+    <message>
+        <source>%1 needs a GIMP feature Patchy does not support yet (%2). The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the GIMP procedure it called (for example gimp-layer-new).</extracomment>
+        <translation>%1 necesita una función de GIMP que Patchy aún no admite (%2). La capa no se ha modificado.</translation>
+    </message>
+    <message>
+        <source>%1 stopped unexpectedly. The layer was not changed.</source>
+        <translation>%1 se detuvo de forma inesperada. La capa no se ha modificado.</translation>
+    </message>
+    <message>
+        <source>%1 did not finish in time and was stopped. The layer was not changed.</source>
+        <translation>%1 no terminó a tiempo y se detuvo. La capa no se ha modificado.</translation>
+    </message>
+    <message>
+        <source>%1 could not be started. The layer was not changed.</source>
+        <translation>No se pudo iniciar %1. La capa no se ha modificado.</translation>
+    </message>
+    <message>
+        <source>%1 takes a kind of setting Patchy cannot fill in yet. The layer was not changed.</source>
+        <translation>%1 usa un tipo de ajuste que Patchy aún no puede rellenar. La capa no se ha modificado.</translation>
+    </message>
+    <message>
+        <source>%1 reported an error. The layer was not changed.</source>
+        <translation>%1 informó de un error. La capa no se ha modificado.</translation>
+    </message>
+    <message>
+        <source>Scanning GIMP plug-ins...</source>
+        <translation>Examinando plugins de GIMP...</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins found</source>
+        <translation>No se encontraron plugins de GIMP 3</translation>
+    </message>
+    <message>
+        <source>Run the %1 GIMP plug-in on the active layer</source>
+        <translation>Ejecutar el plugin de GIMP %1 en la capa activa</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>Plugin de GIMP 3</translation>
+    </message>
+    <message>
+        <source>Select an editable pixel layer before running the plug-in</source>
+        <translation>Seleccione una capa de píxeles editable antes de ejecutar el plugin</translation>
+    </message>
+    <message>
+        <source>GIMP Plug-in: %1</source>
+        <translation>Plugin de GIMP: %1</translation>
+    </message>
+    <message>
+        <source>GIMP 3 was not found, so its plug-ins cannot run.</source>
+        <translation>No se encontró GIMP 3, por lo que sus plugins no pueden ejecutarse.</translation>
+    </message>
+    <message>
+        <source>%1 cannot run in Patchy: %2</source>
+        <translation>%1 no puede ejecutarse en Patchy: %2</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins run on RGB layers. Convert the document to RGB first.</source>
+        <translation>Los plugins de GIMP funcionan en capas RGB. Convierta primero el documento a RGB.</translation>
+    </message>
+    <message>
+        <source>%1 could not be started: %2</source>
+        <translation>No se pudo iniciar %1: %2</translation>
+    </message>
+    <message>
+        <source>Use GIMP 3 plug-ins</source>
+        <translation>Usar plugins de GIMP 3</translation>
+    </message>
+    <message>
+        <source>GIMP %1 in %2</source>
+        <extracomment>%1 is GIMP&apos;s version (&quot;3.2.6&quot;), %2 its install folder.</extracomment>
+        <translation>GIMP %1 en %2</translation>
+    </message>
+    <message>
+        <source>Not scanned yet.</source>
+        <translation>Aún no se ha examinado.</translation>
+    </message>
+    <message>
+        <source>Found:</source>
+        <translation>Encontrado:</translation>
+    </message>
+    <message>
+        <source>Found automatically</source>
+        <translation>Detectado automáticamente</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>Examinar...</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Folder</source>
+        <translation>Carpeta de GIMP 3</translation>
+    </message>
+    <message>
+        <source>GIMP folder:</source>
+        <translation>Carpeta de GIMP:</translation>
+    </message>
+    <message>
+        <source>Add GIMP Plug-in Folder</source>
+        <translation>Añadir carpeta de plugins de GIMP</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>%1 did not start: %2</source>
+        <extracomment>A GIMP plug-in file whose registration failed; %1 is its file name, %2 the reason (English, from the plug-in).</extracomment>
+        <translation>%1 no se inició: %2</translation>
+    </message>
+    <message>
+        <source>Plug-ins:</source>
+        <translation>Plugins:</translation>
+    </message>
+    <message>
+        <source>%1 can run, %2 cannot</source>
+        <extracomment>%1 and %2 are counts of GIMP plug-in commands.</extracomment>
+        <translation>%1 se pueden ejecutar, %2 no</translation>
+    </message>
+    <message>
+        <source>Plug-ins of your own GIMP 3 install are listed under Plugins &gt; GIMP 3 Plug-ins. They run as separate programs with your permissions and show their own dialog; only use plug-ins you trust. Patchy does not include GIMP: GIMP 3 must be installed separately.</source>
+        <translation>Los plugins de su instalación de GIMP 3 aparecen en Plugins &gt; Plugins de GIMP 3. Se ejecutan como programas independientes con sus permisos y muestran su propio cuadro de diálogo; use solo plugins de confianza. Patchy no incluye GIMP: GIMP 3 debe instalarse por separado.</translation>
+    </message>
+    <message>
+        <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
+        <translation>Construye su resultado con las operaciones de imagen propias de GIMP (capas o imágenes nuevas, el portapapeles, herramientas de pintura), que Patchy no ofrece.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33486,6 +33715,78 @@ Bloqueada: %1</translation>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample es &quot;current&quot;, &quot;currentAndBelow&quot; o &quot;all&quot;.</translation>
+    </message>
+    <message>
+        <source>rescan: unknown option %1.</source>
+        <translation>rescan: opción desconocida %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins do not run in the web version.</source>
+        <translation>Los plugins de GIMP no funcionan en la versión web.</translation>
+    </message>
+    <message>
+        <source>%1 needs a number.</source>
+        <translation>%1 necesita un número.</translation>
+    </message>
+    <message>
+        <source>%1 must be between %2 and %3.</source>
+        <translation>%1 debe estar entre %2 y %3.</translation>
+    </message>
+    <message>
+        <source>%1 must be one of: %2.</source>
+        <translation>%1 debe ser uno de: %2.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be set from a script.</source>
+        <translation>%1 no se puede establecer desde un script.</translation>
+    </message>
+    <message>
+        <source>Unknown GIMP plug-in id: %1</source>
+        <translation>Id. de plugin de GIMP desconocido: %1</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 cannot run: %2</source>
+        <translation>El plugin de GIMP %1 no puede ejecutarse: %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: unknown option %1.</source>
+        <translation>applyGimpPlugin: opción desconocida %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: its registration could not be read (%2).</source>
+        <translation>Plugin de GIMP %1: no se pudo leer su registro (%2).</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: %2</source>
+        <translation>Plugin de GIMP %1: %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1</source>
+        <translation>applyGimpPlugin: %1</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1 has no argument %2.</source>
+        <translation>applyGimpPlugin: %1 no tiene el argumento %2.</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin needs a pixel layer.</source>
+        <translation>applyGimpPlugin necesita una capa de píxeles.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 was cancelled.</source>
+        <translation>Se canceló el plugin de GIMP %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 failed: %2</source>
+        <translation>Error del plugin de GIMP %1: %2</translation>
+    </message>
+    <message>
+        <source>%1 needs a color such as &quot;#ff8800&quot; or [1, 0.5, 0].</source>
+        <translation>%1 necesita un color como &quot;#ff8800&quot; o [1, 0.5, 0].</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: answerDialog is &quot;ok&quot; or &quot;cancel&quot;.</source>
+        <translation>applyGimpPlugin: answerDialog es &quot;ok&quot; o &quot;cancel&quot;.</translation>
     </message>
 </context>
 <context>

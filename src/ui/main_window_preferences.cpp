@@ -32,6 +32,9 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/qt_paths.hpp"
+#ifndef Q_OS_WASM
+#include "ui/gimp_plugin_catalog.hpp"
+#endif
 #include "ui/hotkey_editor.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/object_selection_model_download.hpp"
@@ -1953,11 +1956,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
               build_hotkey_editor();
             }
           });
-#ifdef Q_OS_WIN
-  // Plug-ins: the folders scanned for legacy Photoshop .8bf filters (Windows
-  // only, where they can run). The two automatic folders are fixed; the list
-  // holds the user-added ones (docs/plugins.md). Scanning never runs a plug-in.
+#ifndef Q_OS_WASM
+  // Plug-ins: legacy Photoshop .8bf filters (Windows only, where they can run) and the
+  // user's GIMP 3 plug-ins (docs/plugins.md, docs/gimp-plugins.md).
   auto [plugins_page, plugins_layout] = make_tab_page(page_stack);
+#endif
+#ifdef Q_OS_WIN
+  // The folders scanned for .8bf filters. The two automatic folders are fixed; the
+  // list holds the user-added ones. Scanning never runs a plug-in.
   auto* plugins_group = new QFrame(plugins_page);
   plugins_group->setObjectName(QStringLiteral("preferencesPluginsGroup"));
   configure_panel(plugins_group);
@@ -2052,6 +2058,144 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
          "themselves to this screen size, so a smaller size keeps them usable on large monitors."));
   plugins_form->addRow(tr("Screen size for plug-in windows:"), plugin_screen_combo);
   plugins_layout->addWidget(plugins_group);
+#endif
+#ifndef Q_OS_WASM
+  // GIMP 3 plug-ins: found from the user's GIMP install; the list shows what each one
+  // registered and why Patchy cannot run the rest.
+  auto* gimp_group = new QFrame(plugins_page);
+  gimp_group->setObjectName(QStringLiteral("preferencesGimpPluginsGroup"));
+  configure_panel(gimp_group);
+  auto* gimp_form = new QFormLayout(gimp_group);
+  configure_form(gimp_form);
+  auto* gimp_enabled_check = new QCheckBox(tr("Use GIMP 3 plug-ins"), gimp_group);
+  gimp_enabled_check->setObjectName(QStringLiteral("preferencesGimpPluginsEnabledCheck"));
+  const bool entry_gimp_enabled = stored_gimp_plugins_enabled();
+  gimp_enabled_check->setChecked(entry_gimp_enabled);
+  gimp_form->addRow(gimp_enabled_check);
+  auto* gimp_intro = new QLabel(
+      tr("Plug-ins of your own GIMP 3 install are listed under Plugins > GIMP 3 Plug-ins. They run as separate "
+         "programs with your permissions and show their own dialog; only use plug-ins you trust. Patchy does not "
+         "include GIMP: GIMP 3 must be installed separately."),
+      gimp_group);
+  gimp_intro->setWordWrap(true);
+  gimp_intro->setObjectName(QStringLiteral("preferencesGimpPluginsIntro"));
+  gimp_form->addRow(gimp_intro);
+  auto* gimp_install_label = new QLabel(gimp_group);
+  gimp_install_label->setObjectName(QStringLiteral("preferencesGimpInstallLabel"));
+  gimp_install_label->setWordWrap(true);
+  gimp_install_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  const auto* gimp_scan = gimp_plugins_.get();
+  if (gimp_scan != nullptr && gimp_scan->install.has_value()) {
+    const auto& install = *gimp_scan->install;
+    gimp_install_label->setText(
+        //: %1 is GIMP's version ("3.2.6"), %2 its install folder.
+        tr("GIMP %1 in %2").arg(QString::fromStdString(install.version.empty() ? install.series : install.version),
+                               QDir::toNativeSeparators(to_qstring(install.prefix))));
+  } else if (gimp_scan != nullptr && !gimp_scan->problem.isEmpty()) {
+    gimp_install_label->setText(gimp_scan->problem);
+  } else {
+    gimp_install_label->setText(tr("Not scanned yet."));
+  }
+  gimp_form->addRow(tr("Found:"), gimp_install_label);
+  auto* gimp_folder_field = new QWidget(gimp_group);
+  auto* gimp_folder_layout = new QHBoxLayout(gimp_folder_field);
+  gimp_folder_layout->setContentsMargins(0, 0, 0, 0);
+  auto* gimp_folder_edit = new QLineEdit(gimp_folder_field);
+  gimp_folder_edit->setObjectName(QStringLiteral("preferencesGimpInstallFolderEdit"));
+  gimp_folder_edit->setPlaceholderText(tr("Found automatically"));
+  const auto entry_gimp_folder = stored_gimp_install_folder();
+  gimp_folder_edit->setText(QDir::toNativeSeparators(entry_gimp_folder));
+  auto* gimp_folder_browse = new QPushButton(tr("Browse..."), gimp_folder_field);
+  gimp_folder_browse->setObjectName(QStringLiteral("preferencesGimpInstallBrowseButton"));
+  connect(gimp_folder_browse, &QPushButton::clicked, &dialog, [&dialog, gimp_folder_edit] {
+    const auto chosen = QFileDialog::getExistingDirectory(&dialog, tr("GIMP 3 Folder"), gimp_folder_edit->text());
+    if (!chosen.isEmpty()) {
+      gimp_folder_edit->setText(QDir::toNativeSeparators(chosen));
+    }
+  });
+  gimp_folder_layout->addWidget(gimp_folder_edit, 1);
+  gimp_folder_layout->addWidget(gimp_folder_browse);
+  gimp_form->addRow(tr("GIMP folder:"), gimp_folder_field);
+  auto* gimp_folders_field = new QWidget(gimp_group);
+  auto* gimp_folders_layout = new QVBoxLayout(gimp_folders_field);
+  gimp_folders_layout->setContentsMargins(0, 0, 0, 0);
+  auto* gimp_folders_list = new QListWidget(gimp_folders_field);
+  gimp_folders_list->setObjectName(QStringLiteral("preferencesGimpPluginFoldersList"));
+  gimp_folders_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  gimp_folders_list->setMaximumHeight(90);
+  const auto entry_gimp_folders = stored_gimp_plugin_folders();
+  for (const auto& folder : entry_gimp_folders) {
+    gimp_folders_list->addItem(QDir::toNativeSeparators(folder));
+  }
+  auto* gimp_folder_buttons = new QWidget(gimp_folders_field);
+  auto* gimp_folder_buttons_layout = new QHBoxLayout(gimp_folder_buttons);
+  gimp_folder_buttons_layout->setContentsMargins(0, 0, 0, 0);
+  auto* add_gimp_folder = new QPushButton(tr("Add Folder..."), gimp_folder_buttons);
+  add_gimp_folder->setObjectName(QStringLiteral("preferencesAddGimpPluginFolderButton"));
+  auto* remove_gimp_folder = new QPushButton(tr("Remove"), gimp_folder_buttons);
+  remove_gimp_folder->setObjectName(QStringLiteral("preferencesRemoveGimpPluginFolderButton"));
+  remove_gimp_folder->setEnabled(false);
+  gimp_folder_buttons_layout->addWidget(add_gimp_folder);
+  gimp_folder_buttons_layout->addWidget(remove_gimp_folder);
+  gimp_folder_buttons_layout->addStretch(1);
+  connect(gimp_folders_list, &QListWidget::itemSelectionChanged, &dialog, [gimp_folders_list, remove_gimp_folder] {
+    remove_gimp_folder->setEnabled(!gimp_folders_list->selectedItems().isEmpty());
+  });
+  connect(add_gimp_folder, &QPushButton::clicked, &dialog, [&dialog, gimp_folders_list] {
+    const auto chosen = QFileDialog::getExistingDirectory(&dialog, tr("Add GIMP Plug-in Folder"), QString());
+    if (chosen.isEmpty()) {
+      return;
+    }
+    const auto native = QDir::toNativeSeparators(chosen);
+    for (int row = 0; row < gimp_folders_list->count(); ++row) {
+      if (gimp_folders_list->item(row)->text() == native) {
+        return;
+      }
+    }
+    gimp_folders_list->addItem(native);
+  });
+  connect(remove_gimp_folder, &QPushButton::clicked, &dialog, [gimp_folders_list] {
+    qDeleteAll(gimp_folders_list->selectedItems());
+  });
+  gimp_folders_layout->addWidget(gimp_folders_list);
+  gimp_folders_layout->addWidget(gimp_folder_buttons);
+  gimp_form->addRow(tr("Added folders:"), gimp_folders_field);
+  // What the last scan found: every listed procedure, with the reason for those that
+  // cannot run (file formats and helpers are left out).
+  auto* gimp_found_list = new QListWidget(gimp_group);
+  gimp_found_list->setObjectName(QStringLiteral("preferencesGimpPluginsFoundList"));
+  gimp_found_list->setSelectionMode(QAbstractItemView::NoSelection);
+  gimp_found_list->setWordWrap(true);
+  gimp_found_list->setMinimumHeight(140);
+  int gimp_runnable = 0;
+  int gimp_unusable = 0;
+  if (gimp_scan != nullptr) {
+    for (const auto& procedure : gimp_scan->procedures) {
+      if (procedure.use == QLatin1String("hidden")) {
+        continue;
+      }
+      const bool runs = procedure.use == QLatin1String("layer");
+      (runs ? gimp_runnable : gimp_unusable) += 1;
+      const auto where = procedure.menu.isEmpty() ? procedure.label : procedure.menu.join(QStringLiteral(" > ")) + QStringLiteral(" > ") + procedure.label;
+      auto* item = new QListWidgetItem(runs ? where : tr("%1: %2").arg(where, gimp_plugin_reason_text(procedure.reason)));
+      item->setToolTip(QDir::toNativeSeparators(procedure.plugin_file));
+      gimp_found_list->addItem(item);
+    }
+    for (const auto& file : gimp_scan->files) {
+      if (!file.ok) {
+        auto* item = new QListWidgetItem(
+            //: A GIMP plug-in file whose registration failed; %1 is its file name, %2 the reason (English, from the plug-in).
+            tr("%1 did not start: %2").arg(QFileInfo(file.path).fileName(), file.error.left(200)));
+        item->setToolTip(QDir::toNativeSeparators(file.path));
+        gimp_found_list->addItem(item);
+      }
+    }
+  }
+  //: %1 and %2 are counts of GIMP plug-in commands.
+  const auto gimp_counts = tr("%1 can run, %2 cannot").arg(gimp_runnable).arg(gimp_unusable);
+  gimp_form->addRow(tr("Plug-ins:"), new QLabel(gimp_counts, gimp_group));
+  gimp_form->addRow(gimp_found_list);
+  plugins_layout->addWidget(gimp_group);
   plugins_layout->addStretch(1);
   add_page(plugins_page, tr("Plug-ins"), QStringLiteral("plugins"));
 #endif
@@ -2367,6 +2511,22 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       }
       const auto chosen_screen = plugin_screen_combo->currentData().toSize();
       set_stored_legacy_plugin_screen_size({chosen_screen.width(), chosen_screen.height()});
+    }
+#endif
+#ifndef Q_OS_WASM
+    {
+      QStringList gimp_folders;
+      for (int row = 0; row < gimp_folders_list->count(); ++row) {
+        gimp_folders << QDir::fromNativeSeparators(gimp_folders_list->item(row)->text());
+      }
+      const auto chosen_gimp_folder = gimp_folder_edit->text().trimmed();
+      if (gimp_folders != entry_gimp_folders || chosen_gimp_folder != QDir::toNativeSeparators(entry_gimp_folder) ||
+          gimp_enabled_check->isChecked() != entry_gimp_enabled) {
+        set_stored_gimp_plugin_folders(gimp_folders);
+        set_stored_gimp_install_folder(chosen_gimp_folder);
+        set_stored_gimp_plugins_enabled(gimp_enabled_check->isChecked());
+        start_gimp_plugin_scan(true);
+      }
     }
 #endif
     if (const CmykWorkingSettings chosen_cmyk{cmyk_profile_combo->currentData().toString(),

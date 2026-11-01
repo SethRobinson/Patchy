@@ -18543,6 +18543,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>組み込みと保存済みの線のプリセットを管理</translation>
     </message>
+    <message>
+        <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
+        <translation>新しいまたは変更された GIMP 3 プラグインを探し、登録内容を再読み込みします</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -18650,6 +18654,47 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>All Languages</source>
         <translation>すべての言語</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginRunDialog</name>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>GIMP 3 プラグイン</translation>
+    </message>
+    <message>
+        <source>The plug-in&apos;s own preview updates as you change its settings. Cancel there leaves the layer as it was.</source>
+        <translation>プラグイン自体のプレビューは、設定を変更すると更新されます。そちらでキャンセルすると、レイヤーは元のままです。</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>%1 を起動しています...</translation>
+    </message>
+    <message>
+        <source>Stop Plug-in</source>
+        <translation>プラグインを停止</translation>
+    </message>
+    <message>
+        <source>Ends the plug-in. The layer stays as it was.</source>
+        <translation>プラグインを終了します。レイヤーは元のままです。</translation>
+    </message>
+    <message>
+        <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
+        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
+        <translation>%1 は専用のウィンドウで開いています。そこで設定を調整し、その OK ボタンをクリックすると、このレイヤーに適用されます。</translation>
+    </message>
+    <message>
+        <source>Applying %1...</source>
+        <translation>%1 を適用しています...</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 its own progress message.</extracomment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>キャンセル</translation>
     </message>
 </context>
 <context>
@@ -31275,6 +31320,190 @@ Locked: %1</source>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>線の破線と保存済みの線のプリセット。破線のプリセットは線端なし、点のプリセットは丸型線端と丸い角を使います</translation>
     </message>
+    <message>
+        <source>GIMP 3 Plug-ins</source>
+        <translation>GIMP 3 プラグイン</translation>
+    </message>
+    <message>
+        <source>Rescan GIMP Plug-ins</source>
+        <translation>GIMP プラグインを再検索</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>GIMP プラグインの検索が完了しました: 使用可能 %1 個、使用不可 %2 個</translation>
+    </message>
+    <message>
+        <source>It does not work on an image layer.</source>
+        <translation>画像レイヤーでは動作しません。</translation>
+    </message>
+    <message>
+        <source>It makes something new instead of changing a layer.</source>
+        <translation>レイヤーを変更するのではなく、新しいものを作成します。</translation>
+    </message>
+    <message>
+        <source>It needs several layers at once.</source>
+        <translation>一度に複数のレイヤーを必要とします。</translation>
+    </message>
+    <message>
+        <source>It works only on grayscale or indexed images.</source>
+        <translation>グレースケールまたはインデックスカラーの画像でのみ動作します。</translation>
+    </message>
+    <message>
+        <source>It changes the image itself, not the pixels of one layer.</source>
+        <translation>1 つのレイヤーのピクセルではなく、画像そのものを変更します。</translation>
+    </message>
+    <message>
+        <source>Script-Fu scripts are built from GIMP&apos;s own image operations, which Patchy does not provide.</source>
+        <translation>Script-Fu スクリプトは GIMP 独自の画像操作で構成されており、Patchy はそれを提供していません。</translation>
+    </message>
+    <message>
+        <source>It creates a new image, which Patchy does not support for GIMP plug-ins yet.</source>
+        <translation>新しい画像を作成しますが、Patchy は GIMP プラグインによる画像の作成にまだ対応していません。</translation>
+    </message>
+    <message>
+        <source>It works on the layers of an animation, which Patchy does not hand to GIMP plug-ins.</source>
+        <translation>アニメーションのレイヤーを処理しますが、Patchy はそれらを GIMP プラグインに渡しません。</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s brushes, patterns, gradients, fonts or palettes, which Patchy does not provide yet.</source>
+        <translation>GIMP のブラシ、パターン、グラデーション、フォント、パレットを必要としますが、Patchy はまだそれらを提供していません。</translation>
+    </message>
+    <message>
+        <source>It is a file format or a helper for other plug-ins.</source>
+        <translation>ファイル形式用、または他のプラグイン用の補助プラグインです。</translation>
+    </message>
+    <message>
+        <source>Patchy cannot run it.</source>
+        <translation>Patchy では実行できません。</translation>
+    </message>
+    <message>
+        <source>%1 needs a GIMP feature Patchy does not support yet (%2). The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the GIMP procedure it called (for example gimp-layer-new).</extracomment>
+        <translation>%1 は Patchy がまだ対応していない GIMP の機能 (%2) を必要とします。レイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>%1 stopped unexpectedly. The layer was not changed.</source>
+        <translation>%1 が予期せず停止しました。レイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>%1 did not finish in time and was stopped. The layer was not changed.</source>
+        <translation>%1 が時間内に完了しなかったため停止しました。レイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>%1 could not be started. The layer was not changed.</source>
+        <translation>%1 を起動できませんでした。レイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>%1 takes a kind of setting Patchy cannot fill in yet. The layer was not changed.</source>
+        <translation>%1 は Patchy がまだ入力できない種類の設定を使用します。レイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>%1 reported an error. The layer was not changed.</source>
+        <translation>%1 がエラーを報告しました。レイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>Scanning GIMP plug-ins...</source>
+        <translation>GIMP プラグインを検索中...</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins found</source>
+        <translation>GIMP 3 プラグインが見つかりません</translation>
+    </message>
+    <message>
+        <source>Run the %1 GIMP plug-in on the active layer</source>
+        <translation>GIMP プラグイン %1 をアクティブレイヤーで実行します</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>GIMP 3 プラグイン</translation>
+    </message>
+    <message>
+        <source>Select an editable pixel layer before running the plug-in</source>
+        <translation>プラグインを実行する前に、編集可能なピクセルレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>GIMP Plug-in: %1</source>
+        <translation>GIMP プラグイン: %1</translation>
+    </message>
+    <message>
+        <source>GIMP 3 was not found, so its plug-ins cannot run.</source>
+        <translation>GIMP 3 が見つからないため、そのプラグインを実行できません。</translation>
+    </message>
+    <message>
+        <source>%1 cannot run in Patchy: %2</source>
+        <translation>%1 は Patchy では実行できません: %2</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins run on RGB layers. Convert the document to RGB first.</source>
+        <translation>GIMP プラグインは RGB レイヤーで動作します。先にドキュメントを RGB に変換してください。</translation>
+    </message>
+    <message>
+        <source>%1 could not be started: %2</source>
+        <translation>%1 を起動できませんでした: %2</translation>
+    </message>
+    <message>
+        <source>Use GIMP 3 plug-ins</source>
+        <translation>GIMP 3 プラグインを使用</translation>
+    </message>
+    <message>
+        <source>GIMP %1 in %2</source>
+        <extracomment>%1 is GIMP&apos;s version (&quot;3.2.6&quot;), %2 its install folder.</extracomment>
+        <translation>%2 の GIMP %1</translation>
+    </message>
+    <message>
+        <source>Not scanned yet.</source>
+        <translation>まだ検索していません。</translation>
+    </message>
+    <message>
+        <source>Found:</source>
+        <translation>検出:</translation>
+    </message>
+    <message>
+        <source>Found automatically</source>
+        <translation>自動検出</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>参照...</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Folder</source>
+        <translation>GIMP 3 フォルダー</translation>
+    </message>
+    <message>
+        <source>GIMP folder:</source>
+        <translation>GIMP フォルダー:</translation>
+    </message>
+    <message>
+        <source>Add GIMP Plug-in Folder</source>
+        <translation>GIMP プラグインフォルダーを追加</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>%1 did not start: %2</source>
+        <extracomment>A GIMP plug-in file whose registration failed; %1 is its file name, %2 the reason (English, from the plug-in).</extracomment>
+        <translation>%1 を開始できませんでした: %2</translation>
+    </message>
+    <message>
+        <source>Plug-ins:</source>
+        <translation>プラグイン:</translation>
+    </message>
+    <message>
+        <source>%1 can run, %2 cannot</source>
+        <extracomment>%1 and %2 are counts of GIMP plug-in commands.</extracomment>
+        <translation>実行可能 %1、実行不可 %2</translation>
+    </message>
+    <message>
+        <source>Plug-ins of your own GIMP 3 install are listed under Plugins &gt; GIMP 3 Plug-ins. They run as separate programs with your permissions and show their own dialog; only use plug-ins you trust. Patchy does not include GIMP: GIMP 3 must be installed separately.</source>
+        <translation>インストール済みの GIMP 3 のプラグインは「プラグイン &gt; GIMP 3 プラグイン」に表示されます。プラグインは別のプログラムとしてあなたの権限で実行され、独自のダイアログを表示します。信頼できるプラグインだけを使用してください。Patchy には GIMP は含まれていないため、GIMP 3 を別途インストールする必要があります。</translation>
+    </message>
+    <message>
+        <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
+        <translation>GIMP 独自の画像操作 (新しいレイヤーや画像、クリップボード、ペイントツール) で結果を作成しますが、Patchy はそれらを提供していません。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33402,6 +33631,78 @@ Locked: %1</source>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample は &quot;current&quot;、&quot;currentAndBelow&quot;、&quot;all&quot; のいずれかです。</translation>
+    </message>
+    <message>
+        <source>rescan: unknown option %1.</source>
+        <translation>rescan: 不明なオプション %1 です。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins do not run in the web version.</source>
+        <translation>GIMP プラグインは Web 版では実行できません。</translation>
+    </message>
+    <message>
+        <source>%1 needs a number.</source>
+        <translation>%1 には数値が必要です。</translation>
+    </message>
+    <message>
+        <source>%1 must be between %2 and %3.</source>
+        <translation>%1 は %2 から %3 の範囲で指定してください。</translation>
+    </message>
+    <message>
+        <source>%1 must be one of: %2.</source>
+        <translation>%1 は次のいずれかでなければなりません: %2。</translation>
+    </message>
+    <message>
+        <source>%1 cannot be set from a script.</source>
+        <translation>%1 はスクリプトから設定できません。</translation>
+    </message>
+    <message>
+        <source>Unknown GIMP plug-in id: %1</source>
+        <translation>不明な GIMP プラグイン ID: %1</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 cannot run: %2</source>
+        <translation>GIMP プラグイン %1 は実行できません: %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: unknown option %1.</source>
+        <translation>applyGimpPlugin: 不明なオプション %1 です。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: its registration could not be read (%2).</source>
+        <translation>GIMP プラグイン %1: 登録情報を読み取れませんでした (%2)。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: %2</source>
+        <translation>GIMP プラグイン %1: %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1</source>
+        <translation>applyGimpPlugin: %1</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1 has no argument %2.</source>
+        <translation>applyGimpPlugin: %1 には引数 %2 がありません。</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin needs a pixel layer.</source>
+        <translation>applyGimpPlugin にはピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 was cancelled.</source>
+        <translation>GIMP プラグイン %1 はキャンセルされました。</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 failed: %2</source>
+        <translation>GIMP プラグイン %1 が失敗しました: %2</translation>
+    </message>
+    <message>
+        <source>%1 needs a color such as &quot;#ff8800&quot; or [1, 0.5, 0].</source>
+        <translation>%1 には &quot;#ff8800&quot; や [1, 0.5, 0] のような色が必要です。</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: answerDialog is &quot;ok&quot; or &quot;cancel&quot;.</source>
+        <translation>applyGimpPlugin: answerDialog は &quot;ok&quot; または &quot;cancel&quot; です。</translation>
     </message>
 </context>
 <context>

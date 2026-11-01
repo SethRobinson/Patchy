@@ -18543,6 +18543,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>기본 제공 및 저장된 획 사전 설정 관리</translation>
     </message>
+    <message>
+        <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
+        <translation>새로 추가되거나 변경된 GIMP 3 플러그인을 찾고 등록 정보를 다시 불러옵니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -18650,6 +18654,47 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>All Languages</source>
         <translation>모든 언어</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginRunDialog</name>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>GIMP 3 플러그인</translation>
+    </message>
+    <message>
+        <source>The plug-in&apos;s own preview updates as you change its settings. Cancel there leaves the layer as it was.</source>
+        <translation>플러그인 자체 미리 보기는 설정을 변경하면 업데이트됩니다. 그곳에서 취소하면 레이어는 그대로 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>%1 시작 중...</translation>
+    </message>
+    <message>
+        <source>Stop Plug-in</source>
+        <translation>플러그인 정지</translation>
+    </message>
+    <message>
+        <source>Ends the plug-in. The layer stays as it was.</source>
+        <translation>플러그인을 종료합니다. 레이어는 그대로 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
+        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
+        <translation>%1이(가) 자체 창에서 열려 있습니다. 그 창에서 설정을 조정한 다음 확인 버튼을 클릭하면 이 레이어에 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>Applying %1...</source>
+        <translation>%1 적용 중...</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 its own progress message.</extracomment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>취소</translation>
     </message>
 </context>
 <context>
@@ -31275,6 +31320,190 @@ Locked: %1</source>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>획 대시와 저장된 획 사전 설정. 대시 사전 설정은 평평한 끝을, 점 사전 설정은 둥근 끝과 모서리를 사용합니다</translation>
     </message>
+    <message>
+        <source>GIMP 3 Plug-ins</source>
+        <translation>GIMP 3 플러그인</translation>
+    </message>
+    <message>
+        <source>Rescan GIMP Plug-ins</source>
+        <translation>GIMP 플러그인 다시 검색</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>GIMP 플러그인 검색 완료: 사용 가능 %1개, 사용 불가 %2개</translation>
+    </message>
+    <message>
+        <source>It does not work on an image layer.</source>
+        <translation>이미지 레이어에서는 작동하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It makes something new instead of changing a layer.</source>
+        <translation>레이어를 변경하는 대신 새로운 것을 만듭니다.</translation>
+    </message>
+    <message>
+        <source>It needs several layers at once.</source>
+        <translation>한 번에 여러 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>It works only on grayscale or indexed images.</source>
+        <translation>회색조 또는 인덱스 이미지에서만 작동합니다.</translation>
+    </message>
+    <message>
+        <source>It changes the image itself, not the pixels of one layer.</source>
+        <translation>한 레이어의 픽셀이 아니라 이미지 자체를 변경합니다.</translation>
+    </message>
+    <message>
+        <source>Script-Fu scripts are built from GIMP&apos;s own image operations, which Patchy does not provide.</source>
+        <translation>Script-Fu 스크립트는 GIMP 고유의 이미지 작업으로 구성되며, Patchy는 이를 제공하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It creates a new image, which Patchy does not support for GIMP plug-ins yet.</source>
+        <translation>새 이미지를 만드는데, Patchy는 아직 GIMP 플러그인의 이 기능을 지원하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It works on the layers of an animation, which Patchy does not hand to GIMP plug-ins.</source>
+        <translation>애니메이션의 레이어에서 작동하는데, Patchy는 이를 GIMP 플러그인에 전달하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s brushes, patterns, gradients, fonts or palettes, which Patchy does not provide yet.</source>
+        <translation>GIMP의 브러시, 패턴, 그레이디언트, 글꼴 또는 팔레트가 필요하지만 Patchy는 아직 이를 제공하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>It is a file format or a helper for other plug-ins.</source>
+        <translation>파일 형식이거나 다른 플러그인을 위한 도우미입니다.</translation>
+    </message>
+    <message>
+        <source>Patchy cannot run it.</source>
+        <translation>Patchy에서 실행할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a GIMP feature Patchy does not support yet (%2). The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the GIMP procedure it called (for example gimp-layer-new).</extracomment>
+        <translation>%1에는 Patchy가 아직 지원하지 않는 GIMP 기능(%2)이 필요합니다. 레이어는 변경되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>%1 stopped unexpectedly. The layer was not changed.</source>
+        <translation>%1이(가) 예기치 않게 중지되었습니다. 레이어는 변경되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>%1 did not finish in time and was stopped. The layer was not changed.</source>
+        <translation>%1이(가) 제시간에 완료되지 않아 중지되었습니다. 레이어는 변경되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>%1 could not be started. The layer was not changed.</source>
+        <translation>%1을(를) 시작할 수 없습니다. 레이어는 변경되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>%1 takes a kind of setting Patchy cannot fill in yet. The layer was not changed.</source>
+        <translation>%1은(는) Patchy가 아직 채울 수 없는 종류의 설정을 사용합니다. 레이어는 변경되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>%1 reported an error. The layer was not changed.</source>
+        <translation>%1에서 오류를 보고했습니다. 레이어는 변경되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>Scanning GIMP plug-ins...</source>
+        <translation>GIMP 플러그인을 검색하는 중...</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins found</source>
+        <translation>GIMP 3 플러그인을 찾을 수 없음</translation>
+    </message>
+    <message>
+        <source>Run the %1 GIMP plug-in on the active layer</source>
+        <translation>활성 레이어에서 %1 GIMP 플러그인 실행</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>GIMP 3 플러그인</translation>
+    </message>
+    <message>
+        <source>Select an editable pixel layer before running the plug-in</source>
+        <translation>플러그인을 실행하기 전에 편집 가능한 픽셀 레이어를 선택하세요</translation>
+    </message>
+    <message>
+        <source>GIMP Plug-in: %1</source>
+        <translation>GIMP 플러그인: %1</translation>
+    </message>
+    <message>
+        <source>GIMP 3 was not found, so its plug-ins cannot run.</source>
+        <translation>GIMP 3을 찾을 수 없어 해당 플러그인을 실행할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 cannot run in Patchy: %2</source>
+        <translation>%1은(는) Patchy에서 실행할 수 없습니다: %2</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins run on RGB layers. Convert the document to RGB first.</source>
+        <translation>GIMP 플러그인은 RGB 레이어에서 실행됩니다. 먼저 문서를 RGB로 변환하세요.</translation>
+    </message>
+    <message>
+        <source>%1 could not be started: %2</source>
+        <translation>%1을(를) 시작할 수 없습니다: %2</translation>
+    </message>
+    <message>
+        <source>Use GIMP 3 plug-ins</source>
+        <translation>GIMP 3 플러그인 사용</translation>
+    </message>
+    <message>
+        <source>GIMP %1 in %2</source>
+        <extracomment>%1 is GIMP&apos;s version (&quot;3.2.6&quot;), %2 its install folder.</extracomment>
+        <translation>%2의 GIMP %1</translation>
+    </message>
+    <message>
+        <source>Not scanned yet.</source>
+        <translation>아직 검색하지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>Found:</source>
+        <translation>찾은 항목:</translation>
+    </message>
+    <message>
+        <source>Found automatically</source>
+        <translation>자동으로 찾음</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>찾아보기...</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Folder</source>
+        <translation>GIMP 3 폴더</translation>
+    </message>
+    <message>
+        <source>GIMP folder:</source>
+        <translation>GIMP 폴더:</translation>
+    </message>
+    <message>
+        <source>Add GIMP Plug-in Folder</source>
+        <translation>GIMP 플러그인 폴더 추가</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>%1 did not start: %2</source>
+        <extracomment>A GIMP plug-in file whose registration failed; %1 is its file name, %2 the reason (English, from the plug-in).</extracomment>
+        <translation>%1을(를) 시작하지 못했습니다: %2</translation>
+    </message>
+    <message>
+        <source>Plug-ins:</source>
+        <translation>플러그인:</translation>
+    </message>
+    <message>
+        <source>%1 can run, %2 cannot</source>
+        <extracomment>%1 and %2 are counts of GIMP plug-in commands.</extracomment>
+        <translation>실행 가능 %1개, 실행 불가 %2개</translation>
+    </message>
+    <message>
+        <source>Plug-ins of your own GIMP 3 install are listed under Plugins &gt; GIMP 3 Plug-ins. They run as separate programs with your permissions and show their own dialog; only use plug-ins you trust. Patchy does not include GIMP: GIMP 3 must be installed separately.</source>
+        <translation>설치된 GIMP 3의 플러그인은 플러그인 &gt; GIMP 3 플러그인 아래에 나열됩니다. 플러그인은 사용자 권한으로 별도의 프로그램으로 실행되며 자체 대화 상자를 표시합니다. 신뢰하는 플러그인만 사용하세요. Patchy에는 GIMP가 포함되어 있지 않으므로 GIMP 3을 별도로 설치해야 합니다.</translation>
+    </message>
+    <message>
+        <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
+        <translation>GIMP 고유의 이미지 작업(새 레이어 또는 이미지, 클립보드, 페인팅 도구)으로 결과를 만드는데, Patchy는 이를 제공하지 않습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33402,6 +33631,78 @@ Locked: %1</source>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample는 &quot;current&quot;, &quot;currentAndBelow&quot; 또는 &quot;all&quot;입니다.</translation>
+    </message>
+    <message>
+        <source>rescan: unknown option %1.</source>
+        <translation>rescan: 알 수 없는 옵션 %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins do not run in the web version.</source>
+        <translation>GIMP 플러그인은 웹 버전에서 실행되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a number.</source>
+        <translation>%1에는 숫자가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 must be between %2 and %3.</source>
+        <translation>%1은(는) %2에서 %3 사이여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1 must be one of: %2.</source>
+        <translation>%1은(는) 다음 중 하나여야 합니다: %2.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be set from a script.</source>
+        <translation>%1은(는) 스크립트에서 설정할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Unknown GIMP plug-in id: %1</source>
+        <translation>알 수 없는 GIMP 플러그인 ID: %1</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 cannot run: %2</source>
+        <translation>GIMP 플러그인 %1을(를) 실행할 수 없습니다: %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: unknown option %1.</source>
+        <translation>applyGimpPlugin: 알 수 없는 옵션 %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: its registration could not be read (%2).</source>
+        <translation>GIMP 플러그인 %1: 등록 정보를 읽을 수 없습니다(%2).</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: %2</source>
+        <translation>GIMP 플러그인 %1: %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1</source>
+        <translation>applyGimpPlugin: %1</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1 has no argument %2.</source>
+        <translation>applyGimpPlugin: %1에 %2 인수가 없습니다.</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin needs a pixel layer.</source>
+        <translation>applyGimpPlugin에는 픽셀 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 was cancelled.</source>
+        <translation>GIMP 플러그인 %1이(가) 취소되었습니다.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 failed: %2</source>
+        <translation>GIMP 플러그인 %1 실패: %2</translation>
+    </message>
+    <message>
+        <source>%1 needs a color such as &quot;#ff8800&quot; or [1, 0.5, 0].</source>
+        <translation>%1에는 &quot;#ff8800&quot; 또는 [1, 0.5, 0]과 같은 색상이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: answerDialog is &quot;ok&quot; or &quot;cancel&quot;.</source>
+        <translation>applyGimpPlugin: answerDialog는 &quot;ok&quot; 또는 &quot;cancel&quot;입니다.</translation>
     </message>
 </context>
 <context>

@@ -54,6 +54,7 @@ std::vector<patchy::test::TestCase> font_substitutes_tests();
 std::vector<patchy::test::TestCase> font_style_class_tests();
 std::vector<patchy::test::TestCase> infra_selection_tests();
 std::vector<patchy::test::TestCase> pipl_tests();
+std::vector<patchy::test::TestCase> gimp_plugin_tests();
 std::vector<patchy::test::TestCase> vector_shape_tests();
 std::vector<patchy::test::TestCase> path_edits_tests();
 std::vector<patchy::test::TestCase> vector_raster_tests();

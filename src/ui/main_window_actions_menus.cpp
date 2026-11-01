@@ -2509,6 +2509,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
 #endif
   legacy_plugins_menu_ = plugins_menu->addMenu(tr("Legacy Photoshop Plug-ins"));
   legacy_plugins_menu_->setObjectName(QStringLiteral("legacyPluginsMenu"));
+#ifndef Q_OS_WASM
+  // GIMP 3 plug-ins from the user's own GIMP install (docs/gimp-plugins.md); the scan fills
+  // the submenu above its Rescan command.
+  gimp_plugins_menu_ = plugins_menu->addMenu(tr("GIMP 3 Plug-ins"));
+  gimp_plugins_menu_->setObjectName(QStringLiteral("gimpPluginsMenu"));
+  gimp_plugins_menu_->menuAction()->setMenuRole(QAction::NoRole);
+  auto* gimp_rescan_action = gimp_plugins_menu_->addAction(tr("Rescan GIMP Plug-ins"));
+  gimp_rescan_action->setObjectName(QStringLiteral("gimpPluginsRescanAction"));
+  gimp_rescan_action->setMenuRole(QAction::NoRole);
+  register_hotkey(gimp_rescan_action, "plugins.gimp_rescan");
+  connect(gimp_rescan_action, &QAction::triggered, this, [this] { start_gimp_plugin_scan(true, /*force_requery=*/true); });
+  bind_action_text(gimp_rescan_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rescan GIMP Plug-ins"));
+#endif
 
   auto* zoom_in = view_menu->addAction(tr("Zoom &In"));
   auto* zoom_out = view_menu->addAction(tr("Zoom &Out"));

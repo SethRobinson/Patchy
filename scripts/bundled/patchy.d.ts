@@ -517,6 +517,34 @@ interface PatchyLayer {
    */
   applyPlugin(pluginId: string, options?: { dialog?: boolean; captureDialog?: string }): void;
   /**
+   * Runs a GIMP 3 plug-in procedure (an id from patchy.gimpPlugins.list(), "gimp.<procedure>")
+   * on this 8, 16 or 32-bit RGB layer, limited to the document selection, as part of the
+   * run's undo entry. Without options it runs non-interactively with the procedure's
+   * registered defaults and a 120 s limit. `dialog: true` shows the plug-in's own dialog
+   * (ignored in unattended runs, no time limit); `lastValues: true` runs with the values the
+   * plug-in kept from its last run; `args` sets arguments by their registered name (checked
+   * against the procedure's types and ranges: choices by name, colors as "#rrggbb" or
+   * [r, g, b, a] in 0..1); `timeoutMs` (0: none); `trace` logs the conversation to stderr;
+   * `wireLog` writes it to a file for scripts/dev/gimp/wire_dump.py. Windows: with
+   * `dialog: true`, `captureDialog` saves a PNG of the plug-in's dialog once it has settled
+   * and `answerDialog` ("ok" or "cancel") answers it; an unattended run answers "ok" by
+   * itself. Throws with the reason when the plug-in fails, is cancelled, or calls a GIMP
+   * function Patchy does not provide.
+   */
+  applyGimpPlugin(
+    pluginId: string,
+    options?: {
+      dialog?: boolean;
+      lastValues?: boolean;
+      args?: Record<string, number | boolean | string | number[]>;
+      timeoutMs?: number;
+      trace?: boolean;
+      wireLog?: string;
+      captureDialog?: string;
+      answerDialog?: "ok" | "cancel";
+    },
+  ): void;
+  /**
    * Runs a G'MIC library filter (an id from patchy.gmic.list()) on this layer, limited
    * to the document selection, as part of the run's undo entry. `values` is an array
    * (one per parameter, in list() order) or an object keyed by parameter name; anything
@@ -1792,6 +1820,47 @@ interface PatchyPlugins {
   rescan(): ReturnType<PatchyPlugins["list"]>;
 }
 
+interface PatchyGimpPlugins {
+  /** Preferences > Plug-ins "Use GIMP 3 plug-ins" (persisted). Setting it rescans. */
+  enabled: boolean;
+  /** The GIMP 3 install folder chosen by hand, "" when found automatically (persisted). Setting it rescans. */
+  installFolder: string;
+  /** Plug-in folders added by hand (persisted). Setting it rescans. */
+  folders: string[];
+  /** The install the last scan used, and why nothing could be scanned when that is the case. */
+  install(): {
+    found: boolean;
+    folder?: string;
+    version?: string;
+    series?: string;
+    source?: string;
+    flatpak?: boolean;
+    pluginFolders: string[];
+    problem: string;
+  };
+  /**
+   * Every procedure the plug-ins registered. `supported` is false, with the reason, for those
+   * Patchy cannot run; `hidden` marks file formats and helpers that never show in a menu.
+   * `params` lists the arguments after the image ones, by their registered names.
+   */
+  list(): {
+    id: string;
+    procedure: string;
+    name: string;
+    menu: string;
+    supported: boolean;
+    hidden: boolean;
+    reason: string;
+    reasonCode: string;
+    file: string;
+    blurb: string;
+    imageTypes: string;
+    params: { name: string; label: string; description: string; kind: string; type: string }[];
+  }[];
+  /** Rescans (only new or changed plug-ins are queried; `force` queries all) and returns list(). */
+  rescan(options?: { force?: boolean }): ReturnType<PatchyGimpPlugins["list"]>;
+}
+
 type PatchyGmicValue = number | boolean | string | number[];
 type PatchyGmicInputLayers = "active" | "activeAndBelow" | "activeAndAbove" | "all" | "visible" | "hidden";
 
@@ -1915,6 +1984,7 @@ interface PatchyNamespace {
   readonly ui: PatchyUi;
   readonly recovery: PatchyRecovery;
   readonly plugins: PatchyPlugins;
+  readonly gimpPlugins: PatchyGimpPlugins;
   readonly gmic: PatchyGmic;
   readonly perspective: PatchyPerspective;
   readonly scripts: PatchyScripts;

@@ -18587,6 +18587,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Manage built-in and saved stroke presets</source>
         <translation>Gérer les contours prédéfinis intégrés et enregistrés</translation>
     </message>
+    <message>
+        <source>Look for new or changed GIMP 3 plug-ins and reload what they register</source>
+        <translation>Recherche les modules externes GIMP 3 nouveaux ou modifiés et recharge ce qu&apos;ils enregistrent</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -18694,6 +18698,47 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>All Languages</source>
         <translation>Toutes les langues</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::GimpPluginRunDialog</name>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>Module externe GIMP 3</translation>
+    </message>
+    <message>
+        <source>The plug-in&apos;s own preview updates as you change its settings. Cancel there leaves the layer as it was.</source>
+        <translation>L&apos;aperçu propre au module externe se met à jour lorsque vous modifiez ses réglages. Cliquer sur Annuler dans sa fenêtre laisse le calque tel quel.</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Démarrage de %1...</translation>
+    </message>
+    <message>
+        <source>Stop Plug-in</source>
+        <translation>Arrêter le module externe</translation>
+    </message>
+    <message>
+        <source>Ends the plug-in. The layer stays as it was.</source>
+        <translation>Termine le module externe. Le calque reste tel quel.</translation>
+    </message>
+    <message>
+        <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
+        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
+        <translation>%1 est ouvert dans sa propre fenêtre. Réglez-y ses paramètres et cliquez sur son bouton OK pour l&apos;appliquer à ce calque.</translation>
+    </message>
+    <message>
+        <source>Applying %1...</source>
+        <translation>Application de %1...</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 its own progress message.</extracomment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Annuler</translation>
     </message>
 </context>
 <context>
@@ -31358,6 +31403,190 @@ Verrouillé : %1</translation>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Tirets du contour et contours prédéfinis enregistrés. Les tirets utilisent des extrémités plates, les points des extrémités et angles arrondis</translation>
     </message>
+    <message>
+        <source>GIMP 3 Plug-ins</source>
+        <translation>Modules externes GIMP 3</translation>
+    </message>
+    <message>
+        <source>Rescan GIMP Plug-ins</source>
+        <translation>Réanalyser les modules externes GIMP</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>Analyse des modules externes GIMP terminée : %1 disponibles, %2 inutilisables</translation>
+    </message>
+    <message>
+        <source>It does not work on an image layer.</source>
+        <translation>Il ne fonctionne pas sur un calque d&apos;image.</translation>
+    </message>
+    <message>
+        <source>It makes something new instead of changing a layer.</source>
+        <translation>Il crée quelque chose de nouveau au lieu de modifier un calque.</translation>
+    </message>
+    <message>
+        <source>It needs several layers at once.</source>
+        <translation>Il a besoin de plusieurs calques à la fois.</translation>
+    </message>
+    <message>
+        <source>It works only on grayscale or indexed images.</source>
+        <translation>Il ne fonctionne que sur les images en niveaux de gris ou en couleurs indexées.</translation>
+    </message>
+    <message>
+        <source>It changes the image itself, not the pixels of one layer.</source>
+        <translation>Il modifie l&apos;image elle-même, pas les pixels d&apos;un calque.</translation>
+    </message>
+    <message>
+        <source>Script-Fu scripts are built from GIMP&apos;s own image operations, which Patchy does not provide.</source>
+        <translation>Les scripts Script-Fu reposent sur les opérations d&apos;image propres à GIMP, que Patchy ne fournit pas.</translation>
+    </message>
+    <message>
+        <source>It creates a new image, which Patchy does not support for GIMP plug-ins yet.</source>
+        <translation>Il crée une nouvelle image, ce que Patchy ne prend pas encore en charge pour les modules externes GIMP.</translation>
+    </message>
+    <message>
+        <source>It works on the layers of an animation, which Patchy does not hand to GIMP plug-ins.</source>
+        <translation>Il traite les calques d&apos;une animation, que Patchy ne transmet pas aux modules externes GIMP.</translation>
+    </message>
+    <message>
+        <source>It needs GIMP&apos;s brushes, patterns, gradients, fonts or palettes, which Patchy does not provide yet.</source>
+        <translation>Il a besoin des brosses, motifs, dégradés, polices ou palettes de GIMP, que Patchy ne fournit pas encore.</translation>
+    </message>
+    <message>
+        <source>It is a file format or a helper for other plug-ins.</source>
+        <translation>Il s&apos;agit d&apos;un format de fichier ou d&apos;un utilitaire pour d&apos;autres modules externes.</translation>
+    </message>
+    <message>
+        <source>Patchy cannot run it.</source>
+        <translation>Patchy ne peut pas l&apos;exécuter.</translation>
+    </message>
+    <message>
+        <source>%1 needs a GIMP feature Patchy does not support yet (%2). The layer was not changed.</source>
+        <extracomment>%1 is the plug-in&apos;s name, %2 the GIMP procedure it called (for example gimp-layer-new).</extracomment>
+        <translation>%1 a besoin d&apos;une fonction de GIMP que Patchy ne prend pas encore en charge (%2). Le calque n&apos;a pas été modifié.</translation>
+    </message>
+    <message>
+        <source>%1 stopped unexpectedly. The layer was not changed.</source>
+        <translation>%1 s&apos;est arrêté de manière inattendue. Le calque n&apos;a pas été modifié.</translation>
+    </message>
+    <message>
+        <source>%1 did not finish in time and was stopped. The layer was not changed.</source>
+        <translation>%1 ne s&apos;est pas terminé à temps et a été arrêté. Le calque n&apos;a pas été modifié.</translation>
+    </message>
+    <message>
+        <source>%1 could not be started. The layer was not changed.</source>
+        <translation>Impossible de démarrer %1. Le calque n&apos;a pas été modifié.</translation>
+    </message>
+    <message>
+        <source>%1 takes a kind of setting Patchy cannot fill in yet. The layer was not changed.</source>
+        <translation>%1 utilise un type de réglage que Patchy ne sait pas encore renseigner. Le calque n&apos;a pas été modifié.</translation>
+    </message>
+    <message>
+        <source>%1 reported an error. The layer was not changed.</source>
+        <translation>%1 a signalé une erreur. Le calque n&apos;a pas été modifié.</translation>
+    </message>
+    <message>
+        <source>Scanning GIMP plug-ins...</source>
+        <translation>Analyse des modules externes GIMP...</translation>
+    </message>
+    <message>
+        <source>No GIMP 3 plug-ins found</source>
+        <translation>Aucun module externe GIMP 3 trouvé</translation>
+    </message>
+    <message>
+        <source>Run the %1 GIMP plug-in on the active layer</source>
+        <translation>Exécuter le module externe GIMP %1 sur le calque actif</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Plug-in</source>
+        <translation>Module externe GIMP 3</translation>
+    </message>
+    <message>
+        <source>Select an editable pixel layer before running the plug-in</source>
+        <translation>Sélectionnez un calque de pixels modifiable avant d&apos;exécuter le module externe</translation>
+    </message>
+    <message>
+        <source>GIMP Plug-in: %1</source>
+        <translation>Module externe GIMP : %1</translation>
+    </message>
+    <message>
+        <source>GIMP 3 was not found, so its plug-ins cannot run.</source>
+        <translation>GIMP 3 est introuvable, ses modules externes ne peuvent donc pas s&apos;exécuter.</translation>
+    </message>
+    <message>
+        <source>%1 cannot run in Patchy: %2</source>
+        <translation>%1 ne peut pas s&apos;exécuter dans Patchy : %2</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins run on RGB layers. Convert the document to RGB first.</source>
+        <translation>Les modules externes GIMP fonctionnent sur des calques RVB. Convertissez d&apos;abord le document en RVB.</translation>
+    </message>
+    <message>
+        <source>%1 could not be started: %2</source>
+        <translation>Impossible de démarrer %1 : %2</translation>
+    </message>
+    <message>
+        <source>Use GIMP 3 plug-ins</source>
+        <translation>Utiliser les modules externes GIMP 3</translation>
+    </message>
+    <message>
+        <source>GIMP %1 in %2</source>
+        <extracomment>%1 is GIMP&apos;s version (&quot;3.2.6&quot;), %2 its install folder.</extracomment>
+        <translation>GIMP %1 dans %2</translation>
+    </message>
+    <message>
+        <source>Not scanned yet.</source>
+        <translation>Pas encore analysé.</translation>
+    </message>
+    <message>
+        <source>Found:</source>
+        <translation>Trouvé :</translation>
+    </message>
+    <message>
+        <source>Found automatically</source>
+        <translation>Détecté automatiquement</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>Parcourir...</translation>
+    </message>
+    <message>
+        <source>GIMP 3 Folder</source>
+        <translation>Dossier de GIMP 3</translation>
+    </message>
+    <message>
+        <source>GIMP folder:</source>
+        <translation>Dossier de GIMP :</translation>
+    </message>
+    <message>
+        <source>Add GIMP Plug-in Folder</source>
+        <translation>Ajouter un dossier de modules externes GIMP</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>%1 did not start: %2</source>
+        <extracomment>A GIMP plug-in file whose registration failed; %1 is its file name, %2 the reason (English, from the plug-in).</extracomment>
+        <translation>%1 n&apos;a pas démarré : %2</translation>
+    </message>
+    <message>
+        <source>Plug-ins:</source>
+        <translation>Modules externes :</translation>
+    </message>
+    <message>
+        <source>%1 can run, %2 cannot</source>
+        <extracomment>%1 and %2 are counts of GIMP plug-in commands.</extracomment>
+        <translation>%1 exécutables, %2 non</translation>
+    </message>
+    <message>
+        <source>Plug-ins of your own GIMP 3 install are listed under Plugins &gt; GIMP 3 Plug-ins. They run as separate programs with your permissions and show their own dialog; only use plug-ins you trust. Patchy does not include GIMP: GIMP 3 must be installed separately.</source>
+        <translation>Les modules externes de votre installation de GIMP 3 sont listés sous Modules externes &gt; Modules externes GIMP 3. Ils s&apos;exécutent comme des programmes distincts avec vos autorisations et affichent leur propre boîte de dialogue ; n&apos;utilisez que des modules externes de confiance. Patchy n&apos;inclut pas GIMP : GIMP 3 doit être installé séparément.</translation>
+    </message>
+    <message>
+        <source>It builds its result with GIMP&apos;s own image operations (new layers or images, the clipboard, painting tools), which Patchy does not provide.</source>
+        <translation>Il produit son résultat avec les opérations d&apos;image propres à GIMP (nouveaux calques ou nouvelles images, presse-papiers, outils de peinture), que Patchy ne fournit pas.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33486,6 +33715,78 @@ Verrouillé : %1</translation>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone : sample vaut &quot;current&quot;, &quot;currentAndBelow&quot; ou &quot;all&quot;.</translation>
+    </message>
+    <message>
+        <source>rescan: unknown option %1.</source>
+        <translation>rescan : option inconnue %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-ins do not run in the web version.</source>
+        <translation>Les modules externes GIMP ne fonctionnent pas dans la version web.</translation>
+    </message>
+    <message>
+        <source>%1 needs a number.</source>
+        <translation>%1 doit être un nombre.</translation>
+    </message>
+    <message>
+        <source>%1 must be between %2 and %3.</source>
+        <translation>%1 doit être compris entre %2 et %3.</translation>
+    </message>
+    <message>
+        <source>%1 must be one of: %2.</source>
+        <translation>%1 doit être l&apos;une des valeurs suivantes : %2.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be set from a script.</source>
+        <translation>%1 ne peut pas être défini depuis un script.</translation>
+    </message>
+    <message>
+        <source>Unknown GIMP plug-in id: %1</source>
+        <translation>Identifiant de module externe GIMP inconnu : %1</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 cannot run: %2</source>
+        <translation>Le module externe GIMP %1 ne peut pas s&apos;exécuter : %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: unknown option %1.</source>
+        <translation>applyGimpPlugin : option inconnue %1.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: its registration could not be read (%2).</source>
+        <translation>Module externe GIMP %1 : son enregistrement n&apos;a pas pu être lu (%2).</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1: %2</source>
+        <translation>Module externe GIMP %1 : %2</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1</source>
+        <translation>applyGimpPlugin : %1</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: %1 has no argument %2.</source>
+        <translation>applyGimpPlugin : %1 n&apos;a pas d&apos;argument %2.</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin needs a pixel layer.</source>
+        <translation>applyGimpPlugin nécessite un calque de pixels.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 was cancelled.</source>
+        <translation>Le module externe GIMP %1 a été annulé.</translation>
+    </message>
+    <message>
+        <source>GIMP plug-in %1 failed: %2</source>
+        <translation>Échec du module externe GIMP %1 : %2</translation>
+    </message>
+    <message>
+        <source>%1 needs a color such as &quot;#ff8800&quot; or [1, 0.5, 0].</source>
+        <translation>%1 doit être une couleur, par exemple &quot;#ff8800&quot; ou [1, 0.5, 0].</translation>
+    </message>
+    <message>
+        <source>applyGimpPlugin: answerDialog is &quot;ok&quot; or &quot;cancel&quot;.</source>
+        <translation>applyGimpPlugin : answerDialog vaut &quot;ok&quot; ou &quot;cancel&quot;.</translation>
     </message>
 </context>
 <context>

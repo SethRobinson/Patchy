@@ -93,9 +93,10 @@
 
 ## Plug-ins, scripting, and AI control
 
-- Classic Photoshop filter plug-ins (.8bf, 32-bit and 64-bit plug-in builds) on Windows, on 8 and 16-bit documents (Plugins > Repeat Last Plug-in is Ctrl+F): see [Photoshop plug-ins](../README.md#photoshop-plug-ins-8bf-windows-only)
-- JavaScript scripting: a Script Manager (File > Scripts) with a folder tree of bundled and user scripts, a code editor with live run status, per-script hotkeys (an `@hotkey` default or your own in Preferences), a documented API covering documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing, bundled examples from data merge to glitch effects and games, editable bundled scripts, and a --run-script flag with script arguments so other tools and AI agents can drive Patchy (--headless for servers and CI). See the [scripting guide](../scripts/bundled/scripting-guide.md) (Help menu)
-- Local AI control through the bundled MCP connector: native pressure-aware brush strokes, reusable brush presets, editable vector shapes and paths, palette controls, image previews, and persistent document sessions. Help > Set up AI Control provides setup instructions and example prompts; see the [AI control guide](ai-control.md)
+- Classic Photoshop filter plug-ins (.8bf, 32 and 64-bit) on Windows, 8 and 16-bit (Repeat Last Plug-in: Ctrl+F): see [Photoshop plug-ins](../README.md#photoshop-plug-ins-8bf-windows-only)
+- GIMP 3 plug-ins from your GIMP 3 install, with their dialogs and previews: [details](gimp-plugins.md)
+- JavaScript scripting: a Script Manager (File > Scripts) with a folder tree of bundled and user scripts, a code editor with live run status, per-script hotkeys (`@hotkey` defaults or your own), a documented API covering documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing, bundled examples from data merge to glitch effects and games, editable bundled scripts, and a --run-script flag with script arguments for tools and AI agents (--headless for servers and CI). See the [scripting guide](../scripts/bundled/scripting-guide.md) (Help menu)
+- Local AI control through the bundled MCP connector: native pressure-aware brush strokes, reusable brush presets, editable vector shapes and paths, palette controls, image previews, and persistent document sessions. Help > Set up AI Control has setup steps and prompts: [AI control guide](ai-control.md)
 
 ## Platforms, privacy, and interface
 

@@ -38,6 +38,9 @@ QString recovery_enabled_key() { return QStringLiteral("recovery/enabled"); }
 QString recovery_interval_key() { return QStringLiteral("recovery/intervalMinutes"); }
 QString legacy_plugin_folders_key() { return QStringLiteral("plugins/userFolders"); }
 QString legacy_plugin_screen_size_key() { return QStringLiteral("plugins/screenSize"); }
+QString gimp_plugins_enabled_key() { return QStringLiteral("gimpPlugins/enabled"); }
+QString gimp_plugin_folders_key() { return QStringLiteral("gimpPlugins/userFolders"); }
+QString gimp_install_folder_key() { return QStringLiteral("gimpPlugins/installFolder"); }
 QString update_check_interval_key() { return QStringLiteral("updates/checkIntervalDays"); }
 QString update_last_check_key() { return QStringLiteral("updates/lastCheckSecsSinceEpoch"); }
 QString update_skipped_version_key() { return QStringLiteral("updates/skippedVersion"); }
@@ -394,6 +397,39 @@ void set_stored_legacy_plugin_folders(const QStringList& folders) {
   cleaned.removeAll(QString());
   cleaned.removeDuplicates();
   settings.setValue(legacy_plugin_folders_key(), cleaned);
+}
+
+bool stored_gimp_plugins_enabled() { return app_settings().value(gimp_plugins_enabled_key(), true).toBool(); }
+
+void set_stored_gimp_plugins_enabled(bool enabled) {
+  auto settings = app_settings();
+  settings.setValue(gimp_plugins_enabled_key(), enabled);
+}
+
+QStringList stored_gimp_plugin_folders() {
+  QStringList folders = app_settings().value(gimp_plugin_folders_key()).toStringList();
+  folders.removeAll(QString());
+  folders.removeDuplicates();
+  return folders;
+}
+
+void set_stored_gimp_plugin_folders(const QStringList& folders) {
+  auto settings = app_settings();
+  QStringList cleaned = folders;
+  cleaned.removeAll(QString());
+  cleaned.removeDuplicates();
+  settings.setValue(gimp_plugin_folders_key(), cleaned);
+}
+
+QString stored_gimp_install_folder() { return app_settings().value(gimp_install_folder_key()).toString(); }
+
+void set_stored_gimp_install_folder(const QString& folder) {
+  auto settings = app_settings();
+  if (folder.trimmed().isEmpty()) {
+    settings.remove(gimp_install_folder_key());
+  } else {
+    settings.setValue(gimp_install_folder_key(), folder.trimmed());
+  }
 }
 
 std::pair<int, int> stored_legacy_plugin_screen_size() {

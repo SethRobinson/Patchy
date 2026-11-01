@@ -195,6 +195,10 @@ struct StartupLibraryPreloads;
 class GradientLibrary;
 struct GradientLibraryEntry;
 class ScriptEngineHost;
+struct GimpPluginProcedure;
+struct GimpPluginScanResult;
+struct GimpPluginScanOptions;
+struct GimpPluginRunResult;
 class ScriptEditorDialog;
 class StyleLibrary;
 class StatusDocumentInfoLabel;
@@ -1382,6 +1386,36 @@ private:
   bool add_legacy_plugin_entry(const QString& path, LegacyPhotoshopPluginProbe probe, QStringList* report);
   void finish_legacy_plugin_scan(int generation,
                                  std::vector<std::pair<QString, LegacyPhotoshopPluginProbe>> probes);
+  // GIMP 3 plug-ins (main_window_gimp_plugins.cpp, docs/gimp-plugins.md). The user's
+  // installed plug-ins run as separate programs through patchy-gimp-host; the scan
+  // queries new or changed plug-in files on a worker and caches what they register.
+  enum class GimpPluginApplyStatus { Applied, NoChange, Cancelled, Error };
+  struct GimpPluginApplyOptions {
+    int run_mode{0};                 // GIMP RunMode: 0 interactive, 1 non-interactive, 2 last values
+    QByteArray arguments;            // GIMP wire PROC_RUN carrying argument values (scripts)
+    std::uint32_t argument_count{0};
+    std::uint32_t timeout_ms{0};     // 0: none
+    bool trace{false};
+    QString wire_log;
+    QString capture_dialog;  // PNG of the plug-in's dialog once it settles (scripts)
+    int answer_dialog{0};    // 1 OK, 2 Cancel: answers the plug-in's dialog (scripts)
+  };
+  [[nodiscard]] GimpPluginScanOptions gimp_plugin_scan_options() const;
+  void start_gimp_plugin_scan(bool announce, bool force_requery = false);
+  // The same scan on the calling thread (scripts, tests).
+  void rescan_gimp_plugins(bool force_requery = false);
+  void ensure_gimp_plugins_scanned();
+  [[nodiscard]] bool gimp_plugin_scan_in_flight() const noexcept { return gimp_plugin_scan_in_flight_; }
+  void finish_gimp_plugin_scan(int generation, std::shared_ptr<GimpPluginScanResult> result, bool announce);
+  void rebuild_gimp_plugins_menu();
+  [[nodiscard]] const GimpPluginProcedure* find_gimp_plugin(const QString& identifier) const noexcept;
+  void run_gimp_plugin(const QString& identifier, int run_mode = 0);
+  GimpPluginApplyStatus apply_gimp_plugin(DocumentSession& session, LayerId layer_id, const GimpPluginProcedure& entry,
+                                          const GimpPluginApplyOptions& options, const std::function<void()>& before_write,
+                                          QString* error);
+  // A reason code from the query (gimp_procedure.hpp) as text for the user.
+  [[nodiscard]] static QString gimp_plugin_reason_text(const QString& code);
+  [[nodiscard]] static QString gimp_plugin_error_text(const QString& name, const GimpPluginRunResult& result);
   void cut_selection();
   void copy_selection();
   void copy_merged();
@@ -3662,6 +3696,13 @@ private:
   FilterRegistry filters_;
   PluginHost plugin_host_;
   std::vector<LegacyPluginEntry> legacy_plugins_;
+  QMenu* gimp_plugins_menu_{nullptr};
+  std::shared_ptr<GimpPluginScanResult> gimp_plugins_;
+  int gimp_plugin_scan_generation_{0};
+  bool gimp_plugin_scan_in_flight_{false};
+  bool gimp_plugin_scan_pending_{false};
+  // What plug-ins stored through gimp-pdb-set-data this session (their last values).
+  std::map<std::string, std::vector<std::uint8_t>> gimp_plugin_stored_data_;
   int legacy_plugin_scan_generation_{0};
   bool legacy_plugin_scan_in_flight_{false};
   bool legacy_plugin_scan_pending_{false};
