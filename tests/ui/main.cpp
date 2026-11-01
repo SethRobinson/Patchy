@@ -25,6 +25,7 @@
 #include "core/pixel_depth.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/app_style.hpp"
+#include "ui/spin_box_edit_field_fix.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
 #include "ui/psd_font_resolver.hpp"
@@ -265,6 +266,7 @@ int main(int argc, char* argv[]) {
   // The app's style, as main.cpp installs it: captures then draw what the app draws (on
   // Fusion, the offscreen style, the spin box step arrows come from AppStyle; GitHub issue 404).
   app.setStyle(new patchy::ui::AppStyle);
+  patchy::ui::install_spin_box_edit_field_fix();  // as main.cpp does (Qt 6.11.3, docs/linux-testing.md)
   // The app installs this at startup, so the suite must too: imported-PSD text tests
   // resolve PostScript font names against whatever fonts each test has registered.
   patchy::ui::install_font_database_psd_font_resolver();

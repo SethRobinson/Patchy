@@ -92,6 +92,27 @@ include, two GCC 15 `-Warray-bounds` false positives in test helpers (fixed by r
 the vector up front), and `QImage::mirrored`, deprecated from Qt 6.9 (its replacement
 `flipped` does not exist in 6.8.3, so tests call a version-checked helper).
 
+## Runtime updates and the spin box field (Qt 6.11.3)
+
+The runtime branch takes Qt patch releases without a manifest change: 6.11 moved to Qt
+6.11.3 on October 31, 2026, and the shipped Flatpak with it. Nine UI tests then failed.
+Qt 6.11.3's `QStyleSheetStyle` (and 6.12.0, reported upstream as QTBUG-151308) cuts a spin
+box's edit field at its buttons' rectangles, and a box without buttons gets empty ones at
+the origin: a style sheet box (a border or padding) with `NoButtons`, which is every Patchy
+field, got a 1 px line edit at x = 0 and showed no text. It also drops the left inset when
+buttons are shown; nothing fixes that (text starts on the border).
+
+`install_spin_box_edit_field_fix` (`src/ui/spin_box_edit_field_fix.cpp`, installed by
+`main.cpp` and `tests/ui/main.cpp`) corrects the line edit on its every move or resize to
+the field Qt 6.8 gives: the right inset from a right-to-left query (which cuts nothing),
+both insets from `sizeFromContents` less the base style's own, and the broken field's top
+and bottom. It acts only on that exact broken field (left 0, width 1, left-to-right,
+`NoButtons`), so a Qt without the bug never changes. Test:
+`ui_spin_box_edit_field_fix_keeps_styled_fields_readable`. To compare Qt versions, a
+probe program built in the SDK (`g++ ... $(pkg-config --cflags --libs Qt6Widgets)`) and
+against `.deps/Qt/6.8.3/gcc_64` on the host takes seconds. After any runtime update, run
+the full suites before a release.
+
 ## Foreign drags and the KDE rig (GitHub issue 62)
 
 On Wayland the old dock column dragged its panels with a real `QDrag`, so every enabled `acceptDrops` widget under the cursor saw drag events that carried no layers. The panels no longer float or drag, but any foreign drag (a file manager's, another app's) still reaches those widgets the same way.
