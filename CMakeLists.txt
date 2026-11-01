@@ -2277,6 +2277,15 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
           COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PATCHY_ONNXRUNTIME_RUNTIME_FILES}
                   "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/")
       endif()
+      # Patchy's own GEGL (cmake/patchy_gegl.cmake) in Frameworks/gegl, where
+      # bundled_gegl_library finds it; make-dmg.sh signs each of its libraries.
+      if(TARGET patchy_gegl_bundle)
+        list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS "${PATCHY_GEGL_BUNDLE_STAMP}")
+        list(APPEND PATCHY_BUNDLE_AI_COMMANDS
+          COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl"
+          COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/gegl"
+                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl")
+      endif()
       # The G'MIC engine's OpenMP runtime (cmake/patchy_gmic.cmake), found through the
       # executables' @executable_path/../Frameworks rpath.
       if(APPLE AND PATCHY_LIBOMP_DYLIB)

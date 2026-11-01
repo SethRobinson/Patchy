@@ -114,6 +114,12 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   fi
   unset PATCHY_KEYCHAIN_PASSWORD
   echo "== codesign (hardened runtime) =="
+  # Patchy's own GEGL sits in Frameworks/gegl/lib and its module folders, which --deep does
+  # not reliably reach: each library is signed first (docs/gegl-filters.md).
+  if [ -d "$STAGE/Patchy.app/Contents/Frameworks/gegl" ]; then
+    find "$STAGE/Patchy.app/Contents/Frameworks/gegl" -type f \( -name '*.dylib' -o -name '*.so' \) -print0 |
+      xargs -0 codesign --force --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY"
+  fi
   codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
   # The GEGL helper loads GIMP's libraries (docs/gegl-filters.md): it alone gets the
   # entitlements for that, then the app is sealed again over the re-signed helper.
