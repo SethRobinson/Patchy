@@ -67,7 +67,7 @@ if not defined LINUX_REPO_TAR goto repo_missing
 echo Uploading %LINUX_REPO_TAR% as PatchyFlatpakRepo.tar
 copy /y "%LINUX_REPO_TAR%" build\package\PatchyFlatpakRepo.tar >nul
 if errorlevel 1 goto repo_fail
-ssh rtsoft@rtsoft.com "mkdir -p www/flatpak"
+ssh -n rtsoft@rtsoft.com "mkdir -p www/flatpak"
 if errorlevel 1 goto repo_fail
 call "%~dp0upload-one-file.bat" build\package\PatchyFlatpakRepo.tar flatpak
 if errorlevel 1 goto repo_fail
@@ -80,7 +80,7 @@ rem The descriptor files move last: they only name the repository URL and key.
 echo Installing the repository on the server ...
 rem Every path is spelled out under D, which must end in /www/flatpak below a non-blank
 rem HOME, so no rm -rf depends on the remote working directory (AGENTS.md).
-ssh rtsoft@rtsoft.com "D=$HOME/www/flatpak && case $D in /?*/www/flatpak) ;; *) echo bad flatpak dir: $D; exit 1 ;; esac && rm -rf $D/incoming $D/repo.old && mkdir $D/incoming && tar -xf $D/PatchyFlatpakRepo.tar -C $D/incoming && test -s $D/incoming/repo/summary && test -s $D/incoming/repo/summary.sig && test -s $D/incoming/patchy.flatpakrepo && test -s $D/incoming/com.rtsoft.patchy.flatpakref && if [ -d $D/repo ]; then mv $D/repo $D/repo.old; fi && mv $D/incoming/repo $D/repo && mv $D/incoming/patchy.flatpakrepo $D/incoming/com.rtsoft.patchy.flatpakref $D/ && rm -rf $D/incoming $D/repo.old $D/PatchyFlatpakRepo.tar"
+ssh -n rtsoft@rtsoft.com "D=$HOME/www/flatpak && case $D in /?*/www/flatpak) ;; *) echo bad flatpak dir: $D; exit 1 ;; esac && rm -rf $D/incoming $D/repo.old && mkdir $D/incoming && tar -xf $D/PatchyFlatpakRepo.tar -C $D/incoming && test -s $D/incoming/repo/summary && test -s $D/incoming/repo/summary.sig && test -s $D/incoming/patchy.flatpakrepo && test -s $D/incoming/com.rtsoft.patchy.flatpakref && if [ -d $D/repo ]; then mv $D/repo $D/repo.old; fi && mv $D/incoming/repo $D/repo && mv $D/incoming/patchy.flatpakrepo $D/incoming/com.rtsoft.patchy.flatpakref $D/ && rm -rf $D/incoming $D/repo.old $D/PatchyFlatpakRepo.tar"
 if errorlevel 1 goto repo_fail
 rem The claim "it shipped" needs evidence from the public URL, not the ssh session.
 echo Verifying the live repository ...
