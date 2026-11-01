@@ -4131,6 +4131,16 @@ void ui_faux_bold_widening_matches_photoshop_captures() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
+  // The captures come from Photoshop on Windows, in Arial, Arial Black and Georgia. Arial
+  // resolves to the metric-compatible Liberation Sans off Windows, but tests/test_fonts.hpp
+  // has no candidate file at all for the other two, so the rows below would be measured in
+  // a substituted family. Same reason as the tests that pin Windows Arial line metrics.
+  const QStringList required_families{QStringLiteral("Arial Black"), QStringLiteral("Georgia")};
+  for (const auto& family : required_families) {
+    if (!QFontDatabase::families().contains(family)) {
+      patchy::test::skip("pins Photoshop captures in Arial Black and Georgia");
+    }
+  }
   struct Capture {
     const char* family;
     bool italic;
