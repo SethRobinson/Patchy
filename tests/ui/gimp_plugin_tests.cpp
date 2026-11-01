@@ -985,6 +985,23 @@ void ui_gegl_filters_list_and_apply_if_available() {
     listed = listed || action->data().toString() == QStringLiteral("gegl.gaussian-blur");
   }
   CHECK(listed);
+  // The menu and its Artistic submenu, saved to test-artifacts for visual QA.
+  if (auto* gegl_menu = window.findChild<QMenu*>(QStringLiteral("geglFiltersMenu")); gegl_menu != nullptr) {
+    gegl_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+    QApplication::processEvents();
+    save_widget_artifact("gegl-filters-menu", *gegl_menu);
+    for (auto* action : gegl_menu->actions()) {
+      if (action->menu() != nullptr && action->menu()->actions().size() > 5 &&
+          action->text().contains(QStringLiteral("Artistic"))) {
+        action->menu()->popup(window.mapToGlobal(QPoint(260, 40)));
+        QApplication::processEvents();
+        save_widget_artifact("gegl-filters-artistic-menu", *action->menu());
+        action->menu()->hide();
+      }
+    }
+    gegl_menu->hide();
+    QApplication::processEvents();
+  }
 
   // Through apply_filter onto a layer, one undo step.
   CHECK(run_script_verbose(window, QStringLiteral("var doc = app.newDocument(64, 48, {name: 'gegl'});\n"
