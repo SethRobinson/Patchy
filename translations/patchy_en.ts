@@ -16800,11 +16800,23 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
+        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
+        <source>Clear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

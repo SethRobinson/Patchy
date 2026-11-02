@@ -1,7 +1,7 @@
 #pragma once
 
 // The clone source settings (GitHub issue 424, docs/healing.md "Clone source settings"):
-// four source slots, the active source's point and offset, the Clone Stamp's scale,
+// four source slots, the active source's point (with Clear, issue 574) and offset, the Clone Stamp's scale,
 // rotation and Flip Horizontal/Vertical with a Reset, and the overlay preview with its
 // opacity. It shows what MainWindow hands it through set_state (signals blocked) and
 // reports each edit through its signals; MainWindow applies them to the active canvas.
@@ -54,6 +54,7 @@ public:
 
   [[nodiscard]] QToolButton* slot_button(int slot) const;
   [[nodiscard]] QLabel* source_label() const noexcept { return source_label_; }
+  [[nodiscard]] QPushButton* clear_source_button() const noexcept { return clear_source_button_; }
   [[nodiscard]] QSpinBox* offset_x_spin() const noexcept { return offset_x_spin_; }
   [[nodiscard]] QSpinBox* offset_y_spin() const noexcept { return offset_y_spin_; }
   [[nodiscard]] QDoubleSpinBox* scale_spin() const noexcept { return scale_spin_; }
@@ -66,6 +67,8 @@ public:
 
 signals:
   void slot_picked(int slot);
+  // Clear beside the Point: empty the active slot's source (GitHub issue 574).
+  void clear_source_requested(int slot);
   void offset_edited(QPoint offset);
   void transform_edited(patchy::CloneSourceTransform transform);
   void overlay_edited(bool shown, int opacity);
@@ -87,6 +90,7 @@ private:
   QLabel* slots_label_{nullptr};
   QLabel* source_caption_{nullptr};
   QLabel* source_label_{nullptr};
+  QPushButton* clear_source_button_{nullptr};
   QLabel* offset_label_{nullptr};
   QLabel* offset_x_label_{nullptr};
   QLabel* offset_y_label_{nullptr};

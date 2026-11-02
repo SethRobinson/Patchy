@@ -16861,12 +16861,24 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Odbij w pionie</translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
-        <translation>Powrót do 100%, 0 stopni i bez odbicia</translation>
-    </message>
-    <message>
         <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation>Skala, obrót i odbicie dotyczą Stempla.</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Wyczyść</translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation>Wyczyść źródło</translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation>Usuwa ten punkt źródłowy; kliknij płótno z %ALT%, aby ustawić nowy</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
+        <translation>Powrót do 100%, 0 stopni i bez odbicia; punkt źródłowy zostaje</translation>
     </message>
 </context>
 <context>

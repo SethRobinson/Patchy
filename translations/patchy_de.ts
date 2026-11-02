@@ -16817,12 +16817,24 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Vertikal spiegeln</translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
-        <translation>Zurück auf 100 %, 0 Grad und ohne Spiegelung</translation>
-    </message>
-    <message>
         <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation>Skalierung, Drehung und Spiegelung gelten für den Kopierstempel.</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Löschen</translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation>Quelle löschen</translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation>Diesen Quellpunkt löschen; ein %ALT%-Klick auf die Arbeitsfläche legt einen neuen fest</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
+        <translation>Zurück auf 100 %, 0 Grad und ohne Spiegelung; der Quellpunkt bleibt</translation>
     </message>
 </context>
 <context>

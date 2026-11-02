@@ -3324,6 +3324,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       }
       refresh_clone_source_panel();
     });
+    connect(clone_source_panel_, &CloneSourcePanel::clear_source_requested, this, [this](int slot) {
+      // The panel shows the canvas's active slot, so this clears the one it named.
+      if (canvas_ != nullptr && canvas_->clone_source_slot() == slot) {
+        canvas_->clear_clone_source();
+      }
+      refresh_clone_source_panel();
+    });
     connect(clone_source_panel_, &CloneSourcePanel::offset_edited, this, [this](QPoint offset) {
       if (canvas_ != nullptr) {
         canvas_->set_clone_source_offset(offset);

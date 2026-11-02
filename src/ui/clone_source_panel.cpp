@@ -82,12 +82,19 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   layout->addLayout(slot_row, 0, 2, 1, 3);
   connect(slot_group_, &QButtonGroup::idClicked, this, [this](int slot) { emit slot_picked(slot); });
 
-  // Row 1: where the active source is.
+  // Row 1: where the active source is, and Clear, which empties it (GitHub issue 574) in
+  // the column of Reset below, which only resets the transform.
   source_caption_ = new QLabel(this);
   layout->addWidget(source_caption_, 1, 0);
   source_label_ = new QLabel(this);
   source_label_->setObjectName(QStringLiteral("cloneSourcePointLabel"));
-  layout->addWidget(source_label_, 1, 2, 1, 3);
+  layout->addWidget(source_label_, 1, 2, 1, 2);
+  clear_source_button_ = new QPushButton(this);
+  clear_source_button_->setObjectName(QStringLiteral("cloneSourceClearButton"));
+  clear_source_button_->setAutoDefault(false);
+  layout->addWidget(clear_source_button_, 1, 4);
+  connect(clear_source_button_, &QPushButton::clicked, this,
+          [this] { emit clear_source_requested(state_.slot); });
 
   // Row 2: the offset, with a note under it while the next stroke still sets it.
   offset_label_ = new QLabel(this);
@@ -279,8 +286,12 @@ void CloneSourcePanel::retranslate() {
   flip_horizontal_button_->setAccessibleName(tr("Flip Horizontal"));
   flip_vertical_button_->setToolTip(tr("Flip Vertical: mirror the cloned content top to bottom"));
   flip_vertical_button_->setAccessibleName(tr("Flip Vertical"));
+  clear_source_button_->setText(tr("Clear"));
+  clear_source_button_->setAccessibleName(tr("Clear Source"));
+  clear_source_button_->setToolTip(
+      resolve_modifier_names(tr("Clear this source point; %ALT%-click the canvas to set a new one")));
   reset_button_->setText(tr("Reset"));
-  reset_button_->setToolTip(tr("Back to 100%, 0 degrees and no flip"));
+  reset_button_->setToolTip(tr("Back to 100%, 0 degrees and no flip; the source point stays"));
   overlay_check_->setText(tr("Show overlay"));
   overlay_check_->setToolTip(tr("Preview the source under the brush before you paint"));
   overlay_opacity_label_->setText(tr("Opacity:"));
@@ -312,6 +323,7 @@ void CloneSourcePanel::refresh() {
   const bool source_set = state_.has_document && state_.slot_set[active];
   source_label_->setText(source_set ? QStringLiteral("%1, %2").arg(state_.slot_point[active].x()).arg(state_.slot_point[active].y())
                                     : resolve_modifier_names(tr("Not set: %ALT%-click the canvas")));
+  clear_source_button_->setEnabled(source_set);
 
   const bool offset_editable = source_set && state_.aligned;
   for (auto* spin : {offset_x_spin_, offset_y_spin_}) {

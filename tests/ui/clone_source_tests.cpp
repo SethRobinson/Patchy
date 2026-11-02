@@ -445,12 +445,14 @@ void ui_clone_source_gear_popup_drives_canvas() {
   CHECK(canvas->clone_aligned());
   CHECK(!panel->source_label()->text().isEmpty());
   CHECK(!panel->offset_x_spin()->isEnabled());  // no source yet
+  CHECK(!panel->clear_source_button()->isEnabled());
 
   canvas->set_brush_size(30);
   alt_click(*canvas, QPoint(60, 60));
   QApplication::processEvents();
   CHECK(panel->source_label()->text() == QStringLiteral("60, 60"));
   CHECK(panel->offset_x_spin()->isEnabled());
+  CHECK(panel->clear_source_button()->isEnabled());
 
   panel->scale_spin()->setValue(150.0);
   CHECK(canvas->clone_source_transform().scale_percent == 150.0);
@@ -487,14 +489,39 @@ void ui_clone_source_gear_popup_drives_canvas() {
   CHECK(panel->scale_spin()->value() == 100.0);
   CHECK(!panel->flip_horizontal_button()->isChecked());
   CHECK(!panel->reset_button()->isEnabled());
+  // Reset is the transform only: the source point and offset stay (GitHub issue 574).
+  CHECK(canvas->clone_source_slot_state(0).set);
+  CHECK(canvas->clone_source_slot_state(0).point == QPoint(60, 60));
+  CHECK(panel->source_label()->text() == QStringLiteral("60, 60"));
+  CHECK(panel->clear_source_button()->isEnabled());
 
   // Slot 2 from the popup: an empty source, then back.
   panel->slot_button(1)->click();
   CHECK(canvas->clone_source_slot() == 1);
   CHECK(!panel->offset_x_spin()->isEnabled());
+  CHECK(!panel->clear_source_button()->isEnabled());
   panel->slot_button(0)->click();
   CHECK(canvas->clone_source_slot() == 0);
   CHECK(panel->offset_x_spin()->value() == -120);
+  CHECK(panel->clear_source_button()->isEnabled());
+
+  // Clear empties the active slot only (GitHub issue 574): slot 3 keeps its source.
+  panel->slot_button(2)->click();
+  alt_click(*canvas, QPoint(30, 40));
+  QApplication::processEvents();
+  CHECK(canvas->clone_source_slot_state(2).set);
+  panel->slot_button(0)->click();
+  CHECK(canvas->clone_source_slot() == 0);
+  panel->clear_source_button()->click();
+  QApplication::processEvents();
+  CHECK(!canvas->clone_source_slot_state(0).set);
+  CHECK(canvas->clone_source_slot_state(2).set);
+  CHECK(canvas->clone_source_slot_state(2).point == QPoint(30, 40));
+  CHECK(!panel->clear_source_button()->isEnabled());
+  CHECK(!panel->offset_x_spin()->isEnabled());
+  CHECK(panel->source_label()->text() != QStringLiteral("60, 60"));
+  CHECK(!panel->slot_button(0)->toolTip().contains(QStringLiteral("60")));
+  CHECK(menu->isVisible());  // the popup stays open for the next edit
 
   // On the Healing Brush the transform fields are off.
   require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();

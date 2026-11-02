@@ -16817,12 +16817,24 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Voltear vertical</translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
-        <translation>Volver a 100%, 0 grados y sin volteo</translation>
-    </message>
-    <message>
         <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation>La escala, la rotación y el volteo se aplican al Tampón de clonar.</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Borrar</translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation>Borrar origen</translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation>Borra este punto de origen; haga %ALT%+clic en el lienzo para definir otro</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
+        <translation>Volver a 100%, 0 grados y sin volteo; el punto de origen se mantiene</translation>
     </message>
 </context>
 <context>

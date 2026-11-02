@@ -16773,12 +16773,24 @@ Each item&apos;s own View setting still applies.</source>
         <translation>수직으로 뒤집기</translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
-        <translation>100%, 0도, 뒤집기 없음으로 되돌립니다</translation>
-    </message>
-    <message>
         <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation>비율, 회전, 뒤집기는 복제 도장에 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>지우기</translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation>소스 지우기</translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation>이 소스 지점을 지웁니다. 새로 설정하려면 캔버스를 %ALT%-클릭하세요</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
+        <translation>100%, 0도, 뒤집기 없음으로 되돌립니다. 소스 지점은 그대로입니다</translation>
     </message>
 </context>
 <context>

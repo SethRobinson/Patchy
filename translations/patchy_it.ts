@@ -16817,12 +16817,24 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Rifletti in verticale</translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
-        <translation>Torna a 100%, 0 gradi e nessun riflesso</translation>
-    </message>
-    <message>
         <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation>Scala, rotazione e riflesso valgono per il Timbro clone.</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Cancella</translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation>Cancella sorgente</translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation>Cancella questo punto sorgente; %ALT%+clic sulla tela per impostarne uno nuovo</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
+        <translation>Torna a 100%, 0 gradi e nessun riflesso; il punto sorgente resta</translation>
     </message>
 </context>
 <context>

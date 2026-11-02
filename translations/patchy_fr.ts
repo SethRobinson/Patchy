@@ -16817,12 +16817,24 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Symétrie verticale</translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
-        <translation>Retour à 100 %, 0 degré et sans symétrie</translation>
-    </message>
-    <message>
         <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation>L&apos;échelle, la rotation et la symétrie s&apos;appliquent au Tampon de duplication.</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Effacer</translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation>Effacer la source</translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation>Efface ce point source ; %ALT%-clic sur le canevas pour en définir un autre</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
+        <translation>Retour à 100 %, 0 degré et sans symétrie ; le point source est conservé</translation>
     </message>
 </context>
 <context>

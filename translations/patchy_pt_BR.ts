@@ -16817,12 +16817,24 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Inverter vertical</translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
-        <translation>Volta para 100%, 0 grau e sem inversão</translation>
-    </message>
-    <message>
         <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation>A escala, a rotação e a inversão valem para o Carimbo.</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Limpar</translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation>Limpar origem</translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation>Limpa este ponto de origem; %ALT%-clique na tela para definir outro</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
+        <translation>Volta para 100%, 0 grau e sem inversão; o ponto de origem fica</translation>
     </message>
 </context>
 <context>

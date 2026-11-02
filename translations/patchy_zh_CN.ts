@@ -16773,12 +16773,24 @@ Each item&apos;s own View setting still applies.</source>
         <translation>垂直翻转</translation>
     </message>
     <message>
-        <source>Back to 100%, 0 degrees and no flip</source>
-        <translation>恢复为 100%、0 度且不翻转</translation>
-    </message>
-    <message>
         <source>Scale, rotation and flip apply to the Clone Stamp.</source>
         <translation>缩放、旋转和翻转适用于仿制图章。</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>清除</translation>
+    </message>
+    <message>
+        <source>Clear Source</source>
+        <translation>清除源</translation>
+    </message>
+    <message>
+        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
+        <translation>清除此源点；按住 %ALT% 并单击画布可设置新的源点</translation>
+    </message>
+    <message>
+        <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
+        <translation>恢复为 100%、0 度且不翻转；源点保持不变</translation>
     </message>
 </context>
 <context>
