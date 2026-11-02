@@ -43,6 +43,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QMessageBox>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QToolButton>
@@ -103,6 +104,11 @@ struct SliderRowSpec {
   bool gradient_track{false};
 };
 
+// How far a GradientTrackSlider's track sits in from the slider's left edge. Controls
+// stacked under the sliders (Edit, Colorize, Preserve Luminosity) are indented by it so
+// their left edges line up with the tracks (#588, #591).
+constexpr int kGradientTrackInset = 5;
+
 // A slider whose track shows what it picks (#588, #591). The track colors are content, like a
 // color swatch, so they stay the same in every theme; the frame and the handle use theme
 // roles. A press jumps to the pointer and a drag follows it; the keys work as on any slider.
@@ -113,7 +119,7 @@ public:
     setObjectName(object_name);
     setFocusPolicy(Qt::StrongFocus);
     setFixedHeight(20);
-    setMinimumWidth(120);
+    setMinimumWidth(180);
   }
 
   void set_stops(QGradientStops stops) {
@@ -181,7 +187,8 @@ protected:
 
 private:
   [[nodiscard]] QRectF track_rect() const {
-    return QRectF(5.5, height() / 2.0 - 4.0, std::max(1.0, width() - 11.0), 8.0);
+    return QRectF(kGradientTrackInset + 0.5, height() / 2.0 - 4.0,
+                  std::max(1.0, width() - 2.0 * kGradientTrackInset - 1.0), 8.0);
   }
 
   [[nodiscard]] double x_for_value(int value) const {
@@ -352,10 +359,17 @@ private:
 };
 
 // Keeps the dialog buttons last in the tab order, after controls added once they existed;
-// every other widget keeps its place in the chain.
-void keep_buttons_last_in_tab_order(QDialog& dialog, const QDialogButtonBox& buttons) {
+// every other widget keeps its place in the chain. The button box itself moves with its
+// buttons: when it lays them out (on show) it chains them right after itself, which would
+// pull OK and Cancel back to wherever the box was left. The chain is a ring that also holds
+// the dialog: extras that put later-made controls first (Hue/Saturation's presets) can leave
+// the dialog in the middle of their order, so they name their first control in the
+// kFirstTabControlProperty property and the controls are taken from there.
+constexpr auto kFirstTabControlProperty = "patchy.firstTabControl";
+
+void keep_buttons_last_in_tab_order(QDialog& dialog, QDialogButtonBox& buttons) {
   std::vector<QWidget*> controls;
-  std::vector<QWidget*> trailing;
+  std::vector<QWidget*> trailing{&buttons};
   for (auto* widget = dialog.nextInFocusChain(); widget != nullptr && widget != &dialog;
        widget = widget->nextInFocusChain()) {
     if ((widget->focusPolicy() & Qt::TabFocus) == 0) {
@@ -363,9 +377,51 @@ void keep_buttons_last_in_tab_order(QDialog& dialog, const QDialogButtonBox& but
     }
     (buttons.isAncestorOf(widget) ? trailing : controls).push_back(widget);
   }
+  if (auto* first = qobject_cast<QWidget*>(dialog.property(kFirstTabControlProperty).value<QObject*>())) {
+    if (const auto found = std::find(controls.begin(), controls.end(), first); found != controls.end()) {
+      std::rotate(controls.begin(), found, controls.end());
+    }
+  }
   controls.insert(controls.end(), trailing.begin(), trailing.end());
   for (std::size_t index = 1; index < controls.size(); ++index) {
     QWidget::setTabOrder(controls[index - 1], controls[index]);
+  }
+}
+
+// The line under a preset section's Save, Delete, Import and Export buttons (#588, #592).
+QFrame* preset_section_separator(QWidget* parent, const QString& object_name) {
+  auto* separator = new QFrame(parent);
+  separator->setObjectName(object_name);
+  separator->setFrameShape(QFrame::HLine);
+  separator->setFrameShadow(QFrame::Plain);
+  return separator;
+}
+
+// `field` in a form-row layout indented to line up with the gradient tracks above or below
+// it. A layout, not a container widget: the field stays a direct child of the dialog, so the
+// dialog's tab-order chain is left alone. Alone, the field fills the row (a combo); with
+// `trailing` (a Reset button) the field keeps its size and `trailing` sits at the right end.
+QHBoxLayout* track_aligned_row(QWidget* field, QWidget* trailing = nullptr) {
+  auto* row = new QHBoxLayout();
+  row->setContentsMargins(kGradientTrackInset, 0, 0, 0);
+  if (trailing == nullptr) {
+    row->addWidget(field, 1);
+  } else {
+    row->addWidget(field);
+    row->addStretch(1);
+    row->addWidget(trailing);
+  }
+  return row;
+}
+
+// Inserts a "label: field" form row with the field indented to the tracks; the label's buddy
+// is the field.
+void insert_track_aligned_form_row(QFormLayout* form, int index, const QString& label, QWidget* field) {
+  form->insertRow(index, label, track_aligned_row(field));
+  if (auto* item = form->itemAt(index, QFormLayout::LabelRole); item != nullptr) {
+    if (auto* caption = qobject_cast<QLabel*>(item->widget())) {
+      caption->setBuddy(field);
+    }
   }
 }
 
@@ -848,7 +904,6 @@ std::optional<Settings> request_adjustment_settings_dialog(
   auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview->setObjectName(preview_object_name);
   preview->setChecked(true);
-  layout->addWidget(preview);
 
   if (connect_constraints) {
     connect_constraints(dialog, spins);
@@ -871,10 +926,15 @@ std::optional<Settings> request_adjustment_settings_dialog(
   }
   QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
 
+  // Preview sits at the left of the OK/Cancel line (#588, #591).
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   buttons->setObjectName(object_name + QStringLiteral("Buttons"));
   match_ok_cancel_widths(*buttons);
-  layout->addWidget(buttons);
+  auto* footer = new QHBoxLayout();
+  footer->addWidget(preview);
+  footer->addStretch(1);
+  footer->addWidget(buttons);
+  layout->addLayout(footer);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   // Extras run once the whole dialog exists, so they can add rows, buttons and tab order.
@@ -1156,6 +1216,7 @@ std::optional<LevelsSettings> request_levels_settings(
   preset_buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::Levels, QStringLiteral("levels"),
                                                AdjustmentPresetButtons::Arrangement::Column, preset_hooks, &dialog);
   side->addWidget(preset_buttons);
+  side->addWidget(preset_section_separator(&dialog, QStringLiteral("levelsPresetSeparator")));
   side->addStretch(1);
   side->addWidget(preview);
   {
@@ -1353,7 +1414,6 @@ std::optional<CurvesSettings> request_curves_settings(
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyCurvesDialog"));
   dialog.setWindowTitle(QObject::tr("Curves"));
-  dialog.setMinimumSize(560, 560);
 
   auto* root = new QVBoxLayout(&dialog);
   auto* canvas_tools = new QHBoxLayout();
@@ -1394,7 +1454,6 @@ std::optional<CurvesSettings> request_curves_settings(
   clipping_button->setToolTip(QObject::tr("Show shadow and highlight clipping together"));
   canvas_tools->addWidget(clipping_button);
   canvas_tools->addStretch(1);
-  root->addLayout(canvas_tools);
 
   const std::array canvas_tool_buttons{targeted_button, black_button, gray_button, white_button};
   for (auto* button : canvas_tool_buttons) {
@@ -1408,7 +1467,6 @@ std::optional<CurvesSettings> request_curves_settings(
   auto* editor = new CurvesEditorWidget(&dialog);
   editor->set_adjustment(initial);
   editor->set_histograms(std::move(histograms));
-  root->addWidget(editor, 1);
 
   constexpr int kPresetIdRole = Qt::UserRole + 1;
   constexpr QSize kPresetThumbnailSize(72, 48);
@@ -1479,23 +1537,27 @@ std::optional<CurvesSettings> request_curves_settings(
     return std::nullopt;
   };
 
-  // The preset strip on top with its buttons beside it (#592).
-  auto* preset_row = new QHBoxLayout();
-  preset_row->setSpacing(6);
-  preset_row->addWidget(preset_list, 1);
-  root->insertLayout(1, preset_row);
+  // Top to bottom (#592): the preset strip, its buttons, a separator, the canvas tools, the
+  // editor (Before joins its column beside the graph), then Preview on the OK/Cancel line.
+  root->addWidget(preset_list);
+  auto* preset_buttons_row = new QHBoxLayout();
+  root->addLayout(preset_buttons_row);
+  root->addWidget(preset_section_separator(&dialog, QStringLiteral("curvesPresetSeparator")));
+  root->addLayout(canvas_tools);
+  root->addWidget(editor, 1);
 
-  auto* footer = new QHBoxLayout();
   auto* before = new QPushButton(QObject::tr("Before"), &dialog);
   before->setObjectName(QStringLiteral("curvesBeforeButton"));
   before->setToolTip(QObject::tr("Hold to compare with the unadjusted image"));
-  footer->addWidget(before);
+  editor->add_column_button(before);
+  auto* footer = new QHBoxLayout();
   auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview->setObjectName(QStringLiteral("curvesPreviewCheck"));
   preview->setChecked(true);
   footer->addWidget(preview);
   footer->addStretch(1);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  match_ok_cancel_widths(*buttons);
   footer->addWidget(buttons);
   root->addLayout(footer);
 
@@ -1765,18 +1827,37 @@ std::optional<CurvesSettings> request_curves_settings(
     sync_curves_preset_selection();
   };
   preset_buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::Curves, QStringLiteral("curves"),
-                                               AdjustmentPresetButtons::Arrangement::Grid, preset_hooks, &dialog);
-  preset_row->addWidget(preset_buttons, 0, Qt::AlignVCenter);
+                                               AdjustmentPresetButtons::Arrangement::Row, preset_hooks, &dialog);
+  preset_buttons_row->addWidget(preset_buttons);
+  preset_buttons_row->addStretch(1);
   {
-    // Tab order follows the layout: the canvas tools, the presets and their buttons, then
-    // the editor.
-    QWidget* previous = clipping_button;
-    for (QWidget* next : {static_cast<QWidget*>(preset_list), static_cast<QWidget*>(preset_buttons->save_button()),
-                          static_cast<QWidget*>(preset_buttons->delete_button()),
-                          static_cast<QWidget*>(preset_buttons->import_button()),
-                          static_cast<QWidget*>(preset_buttons->export_button())}) {
-      QWidget::setTabOrder(previous, next);
-      previous = next;
+    // Tab order follows the layout: the presets and their buttons, the canvas tools, the
+    // editor and its column, Preview, then OK and Cancel.
+    std::vector<QWidget*> order{preset_list,
+                                preset_buttons->save_button(),
+                                preset_buttons->delete_button(),
+                                preset_buttons->import_button(),
+                                preset_buttons->export_button(),
+                                targeted_button,
+                                black_button,
+                                gray_button,
+                                white_button,
+                                shadow_clipping_button,
+                                highlight_clipping_button,
+                                clipping_button};
+    for (const char* name : {"curvesChannelTabs", "curvesGraph", "curvesInputSpin", "curvesOutputSpin",
+                             "curvesAutoButton", "curvesResetButton"}) {
+      if (auto* widget = editor->findChild<QWidget*>(QString::fromLatin1(name))) {
+        order.push_back(widget);
+      }
+    }
+    order.push_back(before);
+    order.push_back(preview);
+    order.push_back(buttons);  // See keep_buttons_last_in_tab_order.
+    order.push_back(buttons->button(QDialogButtonBox::Ok));
+    order.push_back(buttons->button(QDialogButtonBox::Cancel));
+    for (std::size_t index = 1; index < order.size(); ++index) {
+      QWidget::setTabOrder(order[index - 1], order[index]);
     }
   }
   sync_curves_preset_selection();
@@ -1931,10 +2012,10 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
   const auto rows_for = [](const HueSaturationSettings& value, bool colorize) {
     if (colorize) {
       return std::vector<SliderRowSpec>{
-          {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), 0, 360, value.colorize_hue, {}, true},
-          {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), 0, 100, value.colorize_saturation,
+          {QObject::tr("Hue:"), QStringLiteral("hueSaturationHue"), 0, 360, value.colorize_hue, {}, true},
+          {QObject::tr("Saturation:"), QStringLiteral("hueSaturationSaturation"), 0, 100, value.colorize_saturation,
            {}, true},
-          {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, value.colorize_lightness,
+          {QObject::tr("Lightness:"), QStringLiteral("hueSaturationLightness"), -100, 100, value.colorize_lightness,
            {}, true}};
     }
     const auto range = std::clamp(value.edit_range, 0, 6);
@@ -1944,9 +2025,9 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
     const auto lightness = range == 0 ? value.lightness_delta
                                       : value.bands[static_cast<std::size_t>(range - 1)].lightness_delta;
     return std::vector<SliderRowSpec>{
-        {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, hue, {}, true},
-        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, saturation, {}, true},
-        {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, lightness, {}, true}};
+        {QObject::tr("Hue:"), QStringLiteral("hueSaturationHue"), -180, 180, hue, {}, true},
+        {QObject::tr("Saturation:"), QStringLiteral("hueSaturationSaturation"), -100, 100, saturation, {}, true},
+        {QObject::tr("Lightness:"), QStringLiteral("hueSaturationLightness"), -100, 100, lightness, {}, true}};
   };
 
   // Reads the three spins back into whichever triple is currently selected.
@@ -1998,49 +2079,53 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
       parent, QStringLiteral("patchyHueSaturationDialog"), QObject::tr("Hue/Saturation"),
       QStringLiteral("hueSaturationPreviewCheck"), rows_for(initial, initial.colorize), build_settings,
       std::move(preview_changed), {},
-      [stash, colorize_check, capture, retarget, build_settings](QDialog& dialog, QFormLayout* form,
+      [stash, colorize_check, capture, retarget, build_settings, rows_for](QDialog& dialog, QFormLayout* form,
                                                                 const std::vector<QSpinBox*>& spins,
                                                                 const std::function<void()>& flush_preview) {
+        // The Edit entries; an entry whose Hue, Saturation or Lightness is not zero shows an
+        // asterisk (display text only: the index is the range).
+        const QStringList range_names{QObject::tr("Master"), QObject::tr("Reds"),  QObject::tr("Yellows"),
+                                      QObject::tr("Greens"), QObject::tr("Cyans"), QObject::tr("Blues"),
+                                      QObject::tr("Magentas")};
         auto* combo = new QComboBox(&dialog);
         combo->setObjectName(QStringLiteral("hueSaturationRangeCombo"));
-        combo->addItems({QObject::tr("Master"), QObject::tr("Reds"), QObject::tr("Yellows"), QObject::tr("Greens"),
-                         QObject::tr("Cyans"), QObject::tr("Blues"), QObject::tr("Magentas")});
+        combo->addItems(range_names);
         combo->setCurrentIndex(std::clamp(stash->edit_range, 0, 6));
         combo->setEnabled(!stash->colorize);
-        form->insertRow(0, QObject::tr("Edit:"), combo);
 
-        // Colorize, with a swatch of the color it gives a mid gray.
-        auto* colorize_row = new QWidget(&dialog);
-        auto* colorize_layout = new QHBoxLayout(colorize_row);
+        // Colorize, with a swatch of the color it gives a mid gray, and Reset at the right
+        // under the Lightness field (#588).
+        auto* colorize_box = new QWidget(&dialog);
+        auto* colorize_layout = new QHBoxLayout(colorize_box);
         colorize_layout->setContentsMargins(0, 0, 0, 0);
-        auto* check = new QCheckBox(QObject::tr("Colorize"), colorize_row);
+        auto* check = new QCheckBox(QObject::tr("Colorize"), colorize_box);
         check->setObjectName(QStringLiteral("hueSaturationColorizeCheck"));
         check->setChecked(stash->colorize);
         *colorize_check = check;
-        auto* swatch = new ColorSwatchLabel(colorize_row);
+        auto* swatch = new ColorSwatchLabel(colorize_box);
         swatch->setObjectName(QStringLiteral("hueSaturationColorizeSwatch"));
         swatch->setToolTip(QObject::tr("The color Colorize gives a mid gray"));
         swatch->setAccessibleName(QObject::tr("Colorize color"));
         colorize_layout->addWidget(check);
         colorize_layout->addWidget(swatch);
-        colorize_layout->addStretch(1);
-        form->addRow(QString(), colorize_row);
+        auto* reset = new QPushButton(QObject::tr("Reset"), &dialog);
+        reset->setObjectName(QStringLiteral("hueSaturationResetButton"));
+        reset->setToolTip(QObject::tr("Set the values the sliders show back to their defaults"));
+        reset->setAutoDefault(false);
+        form->addRow(QString(), track_aligned_row(colorize_box, reset));
 
-        // Presets on top (#588): the combo, then Save, Delete, Import and Export.
+        // Presets on top (#588): the combo, Save, Delete, Import and Export, then a separator
+        // and the Edit combo. The combos line up with the tracks.
+        auto* preset_combo = new QComboBox(&dialog);
+        preset_combo->setObjectName(QStringLiteral("hueSaturationPresetCombo"));
+        insert_track_aligned_form_row(form, 0, QObject::tr("Edit:"), combo);
+        form->insertRow(0, preset_section_separator(&dialog, QStringLiteral("hueSaturationPresetSeparator")));
         auto* preset_area = new QWidget(&dialog);
         preset_area->setObjectName(QStringLiteral("hueSaturationPresetArea"));
-        auto* preset_layout = new QVBoxLayout(preset_area);
-        preset_layout->setContentsMargins(0, 0, 0, 4);
-        preset_layout->setSpacing(6);
-        auto* combo_row = new QHBoxLayout();
-        combo_row->setSpacing(10);
-        auto* preset_combo = new QComboBox(preset_area);
-        preset_combo->setObjectName(QStringLiteral("hueSaturationPresetCombo"));
-        auto* preset_label = new QLabel(QObject::tr("Preset:"), preset_area);
-        preset_label->setBuddy(preset_combo);
-        combo_row->addWidget(preset_label);
-        combo_row->addWidget(preset_combo, 1);
-        preset_layout->addLayout(combo_row);
+        auto* preset_layout = new QHBoxLayout(preset_area);
+        preset_layout->setContentsMargins(0, 0, 0, 0);
+        form->insertRow(0, preset_area);
+        insert_track_aligned_form_row(form, 0, QObject::tr("Preset:"), preset_combo);
         std::vector<AdjustmentPresetCombo<HueSaturationAdjustment>::Shipped> shipped;
         for (const auto& preset : builtin_hue_saturation_presets()) {
           shipped.push_back({QString::fromLatin1(preset.id), QCoreApplication::translate("QObject", preset.name),
@@ -2052,10 +2137,22 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
             hue_saturation_presets_match);
         const auto current = [build_settings, spins] { return build_settings(spins); };
 
-        // Everything that shows the settings: the tracks, the swatch, the preset selection.
+        // Everything that shows the settings: the tracks, the swatch, the Edit asterisks, the
+        // preset selection.
         auto preset_buttons = std::make_shared<AdjustmentPresetButtons*>(nullptr);
-        const auto refresh = [&dialog, current, swatch, presets, preset_buttons] {
+        const auto refresh = [&dialog, current, swatch, presets, preset_buttons, combo, range_names] {
           const auto settings = current();
+          for (int range = 0; range < combo->count() && range < range_names.size(); ++range) {
+            const auto& band = settings.bands[static_cast<std::size_t>(std::max(0, range - 1))];
+            const bool changed = range == 0 ? settings.hue_shift != 0 || settings.saturation_delta != 0 ||
+                                                  settings.lightness_delta != 0
+                                            : band.hue_shift != 0 || band.saturation_delta != 0 ||
+                                                  band.lightness_delta != 0;
+            const auto text = changed ? range_names[range] + QLatin1Char('*') : range_names[range];
+            if (combo->itemText(range) != text) {
+              combo->setItemText(range, text);
+            }
+          }
           auto* hue = gradient_slider(dialog, QStringLiteral("hueSaturationHueSlider"));
           auto* saturation = gradient_slider(dialog, QStringLiteral("hueSaturationSaturationSlider"));
           auto* lightness = gradient_slider(dialog, QStringLiteral("hueSaturationLightnessSlider"));
@@ -2138,10 +2235,17 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
                                                     AdjustmentPresetButtons::Arrangement::Row, hooks, preset_area);
         *preset_buttons = buttons;
         preset_layout->addWidget(buttons);
-        if (auto* layout = qobject_cast<QVBoxLayout*>(dialog.layout()); layout != nullptr) {
-          layout->insertWidget(0, preset_area);
-        }
+        preset_layout->addStretch(1);
         refresh();
+
+        // Reset sets whatever the sliders edit back to its defaults: the Edit entry's zeros, or
+        // the Colorize defaults while Colorize is on (Colorize itself stays as it is).
+        QObject::connect(reset, &QPushButton::clicked, &dialog, [rows_for, check, spins] {
+          const auto defaults = rows_for(HueSaturationSettings{}, check->isChecked());
+          for (std::size_t index = 0; index < spins.size() && index < defaults.size(); ++index) {
+            spins[index]->setValue(defaults[index].value);
+          }
+        });
 
         QObject::connect(preset_combo, &QComboBox::activated, &dialog, [presets, apply_preset](int index) {
           if (const auto chosen = presets->settings_at(index); chosen.has_value()) {
@@ -2168,7 +2272,8 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
                            refresh();
                            flush_preview();
                          });
-        // Top to bottom: presets, Edit, the sliders, Colorize, Preview.
+        // Top to bottom: presets, Edit, the sliders, Colorize, Reset, Preview.
+        dialog.setProperty(kFirstTabControlProperty, QVariant::fromValue<QObject*>(preset_combo));
         QWidget* previous = preset_combo;
         for (QWidget* next : {static_cast<QWidget*>(buttons->save_button()), static_cast<QWidget*>(buttons->delete_button()),
                               static_cast<QWidget*>(buttons->import_button()),
@@ -2185,8 +2290,9 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
           previous = spin;
         }
         QWidget::setTabOrder(previous, check);
+        QWidget::setTabOrder(check, reset);
         if (auto* preview = dialog.findChild<QCheckBox*>(QStringLiteral("hueSaturationPreviewCheck"))) {
-          QWidget::setTabOrder(check, preview);
+          QWidget::setTabOrder(reset, preview);
         }
       });
 }
@@ -2258,7 +2364,13 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
         preserve->setObjectName(QStringLiteral("colorBalancePreserveLuminosityCheck"));
         preserve->setChecked(state->settings.preserve_luminosity);
         state->preserve = preserve;
-        form->addRow(QString(), preserve);
+        // Reset on the Preserve Luminosity line, right under the Yellow/Blue field (#591):
+        // back to the settings the dialog opened with.
+        auto* reset = new QPushButton(QObject::tr("Reset"), &dialog);
+        reset->setObjectName(QStringLiteral("colorBalanceResetButton"));
+        reset->setToolTip(QObject::tr("Restore the settings the dialog opened with"));
+        reset->setAutoDefault(false);
+        form->addRow(QString(), track_aligned_row(preserve, reset));
 
         // Each track runs between the two colors it trades (content colors).
         const std::array<QString, 3> prefixes{QStringLiteral("colorBalanceCyanRed"),
@@ -2295,25 +2407,17 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
         QObject::connect(preserve, &QCheckBox::toggled, &dialog,
                          [flush_preview](bool) { flush_preview(); });
 
-        // Reset, bottom left on the OK/Cancel line: back to the settings the dialog opened with.
-        if (auto* buttons = dialog.findChild<QDialogButtonBox*>(QStringLiteral("patchyColorBalanceDialogButtons"))) {
-          auto* reset = buttons->addButton(QObject::tr("Reset"), QDialogButtonBox::ResetRole);
-          reset->setObjectName(QStringLiteral("colorBalanceResetButton"));
-          reset->setToolTip(QObject::tr("Restore the settings the dialog opened with"));
-          reset->setAutoDefault(false);
-          QObject::connect(reset, &QPushButton::clicked, &dialog,
-                           [state, preserve, initial, show_tone, flush_preview] {
-                             state->settings = initial;
-                             {
-                               const QSignalBlocker block(preserve);
-                               preserve->setChecked(initial.preserve_luminosity);
-                             }
-                             show_tone();
-                             flush_preview();
-                           });
-        }
+        QObject::connect(reset, &QPushButton::clicked, &dialog, [state, preserve, initial, show_tone, flush_preview] {
+          state->settings = initial;
+          {
+            const QSignalBlocker block(preserve);
+            preserve->setChecked(initial.preserve_luminosity);
+          }
+          show_tone();
+          flush_preview();
+        });
 
-        // Top to bottom (#591): tone tabs, the sliders, Preserve Luminosity, Preview.
+        // Top to bottom (#591): tone tabs, the sliders, Preserve Luminosity, Reset, Preview.
         QWidget* previous = tabs;
         tabs->setFocusPolicy(Qt::StrongFocus);
         for (auto* spin : spins) {
@@ -2325,8 +2429,9 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
           previous = spin;
         }
         QWidget::setTabOrder(previous, preserve);
+        QWidget::setTabOrder(preserve, reset);
         if (auto* preview = dialog.findChild<QCheckBox*>(QStringLiteral("colorBalancePreviewCheck"))) {
-          QWidget::setTabOrder(preserve, preview);
+          QWidget::setTabOrder(reset, preview);
         }
       });
 }

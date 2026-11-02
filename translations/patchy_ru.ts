@@ -3408,10 +3408,6 @@
         <translation>Насыщенность</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>Светлота</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>Цветовой тон/Насыщенность</translation>
     </message>
@@ -14894,6 +14890,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Manage gradient presets</source>
         <translation>Управлять наборами градиентов</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>Цветовой тон:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>Светлота:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>Возвращает ползункам значения по умолчанию</translation>
     </message>
 </context>
 <context>

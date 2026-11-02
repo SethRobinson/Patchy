@@ -590,6 +590,25 @@ private:
   std::optional<int> sample_input_{};
 };
 
+namespace {
+
+// The fields and buttons of the column beside the graph share one width (labels keep theirs).
+void equalize_column_widths(QVBoxLayout& column) {
+  int width = 0;
+  for (int index = 0; index < column.count(); ++index) {
+    if (auto* widget = column.itemAt(index)->widget(); widget != nullptr && qobject_cast<QLabel*>(widget) == nullptr) {
+      width = std::max(width, widget->sizeHint().width());
+    }
+  }
+  for (int index = 0; index < column.count(); ++index) {
+    if (auto* widget = column.itemAt(index)->widget(); widget != nullptr && qobject_cast<QLabel*>(widget) == nullptr) {
+      widget->setFixedWidth(width);
+    }
+  }
+}
+
+}  // namespace
+
 CurvesEditorWidget::CurvesEditorWidget(QWidget* parent) : QWidget(parent) {
   setObjectName(QStringLiteral("curvesEditor"));
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -609,39 +628,44 @@ CurvesEditorWidget::CurvesEditorWidget(QWidget* parent) : QWidget(parent) {
   set_channel_tab_swatches(*channel_tabs_);
   root->addWidget(channel_tabs_);
 
+  // The graph with a column on its right (#592): Input and Output, each label above its
+  // field, then after a gap Auto, Reset and whatever the host adds (Before).
+  auto* body = new QHBoxLayout();
+  body->setSpacing(10);
   graph_ = new CurvesGraphWidget(this);
-  root->addWidget(graph_, 1);
-
-  auto* numeric_row = new QHBoxLayout();
-  numeric_row->setSpacing(6);
+  body->addWidget(graph_, 1);
+  column_ = new QVBoxLayout();
+  column_->setSpacing(4);
   auto* input_label = new QLabel(QObject::tr("Input:"), this);
-  numeric_row->addWidget(input_label);
+  column_->addWidget(input_label);
   input_spin_ = new QSpinBox(this);
   input_spin_->setObjectName(QStringLiteral("curvesInputSpin"));
   input_spin_->setRange(0, 255);
   configure_dialog_spinbox(input_spin_, 72);
   input_label->setBuddy(input_spin_);
-  numeric_row->addWidget(input_spin_);
-  numeric_row->addSpacing(14);
+  column_->addWidget(input_spin_);
+  column_->addSpacing(6);
   auto* output_label = new QLabel(QObject::tr("Output:"), this);
-  numeric_row->addWidget(output_label);
+  column_->addWidget(output_label);
   output_spin_ = new QSpinBox(this);
   output_spin_->setObjectName(QStringLiteral("curvesOutputSpin"));
   output_spin_->setRange(0, 255);
   configure_dialog_spinbox(output_spin_, 72);
   output_label->setBuddy(output_spin_);
-  numeric_row->addWidget(output_spin_);
-  numeric_row->addStretch(1);
-  // Auto and Reset share the Input/Output line (#592).
+  column_->addWidget(output_spin_);
+  column_->addSpacing(18);
   auto_button_ = new QPushButton(QObject::tr("Auto"), this);
   auto_button_->setObjectName(QStringLiteral("curvesAutoButton"));
   auto_button_->setToolTip(QObject::tr("Set the active channel from its histogram"));
-  numeric_row->addWidget(auto_button_);
+  column_->addWidget(auto_button_);
   reset_button_ = new QPushButton(QObject::tr("Reset"), this);
   reset_button_->setObjectName(QStringLiteral("curvesResetButton"));
   reset_button_->setToolTip(QObject::tr("Reset all channels"));
-  numeric_row->addWidget(reset_button_);
-  root->addLayout(numeric_row);
+  column_->addWidget(reset_button_);
+  column_->addStretch(1);
+  equalize_column_widths(*column_);
+  body->addLayout(column_);
+  root->addLayout(body, 1);
 
   graph_->point_selected = [this](int index) { select_point(index); };
   graph_->point_add_requested = [this](int input, int output) { return add_point(input, output); };
@@ -786,7 +810,14 @@ int CurvesEditorWidget::selected_point() const noexcept {
 }
 
 QSize CurvesEditorWidget::sizeHint() const {
-  return QSize(410, 445);
+  // The graph (about 330 square at its hint) plus the Input/Output column (#592).
+  return QSize(440, 360);
+}
+
+void CurvesEditorWidget::add_column_button(QPushButton* button) {
+  button->setParent(this);
+  column_->insertWidget(column_->count() - 1, button);
+  equalize_column_widths(*column_);
 }
 
 void CurvesEditorWidget::normalize_and_store(const CurvesAdjustment& adjustment) {

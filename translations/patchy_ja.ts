@@ -2628,10 +2628,6 @@ RGB: %2, %3, %4</translation>
         <translation>色相</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>明度</translation>
-    </message>
-    <message>
         <source>Color Balance</source>
         <translation>カラーバランス</translation>
     </message>
@@ -14804,6 +14800,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Manage gradient presets</source>
         <translation>グラデーションプリセットを管理</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>色相:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>明度:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>スライダーの値を既定値に戻します</translation>
     </message>
 </context>
 <context>

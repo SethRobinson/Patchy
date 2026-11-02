@@ -3343,10 +3343,6 @@
         <translation>Saturazione</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>Luminosità</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>Tonalità/saturazione</translation>
     </message>
@@ -14849,6 +14845,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Manage gradient presets</source>
         <translation>Gestisci i predefiniti sfumatura</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>Tonalità:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>Luminosità:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>Riporta i valori dei cursori ai valori predefiniti</translation>
     </message>
 </context>
 <context>

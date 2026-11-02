@@ -3406,10 +3406,6 @@
         <translation>채도</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>명도</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>색조/채도</translation>
     </message>
@@ -14804,6 +14800,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Manage gradient presets</source>
         <translation>그레이디언트 사전 설정 관리</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>색조:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>명도:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>슬라이더 값을 기본값으로 되돌립니다</translation>
     </message>
 </context>
 <context>

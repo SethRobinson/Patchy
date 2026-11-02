@@ -3407,10 +3407,6 @@
         <translation>Saturação</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>Luminosidade</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>Matiz/Saturação</translation>
     </message>
@@ -14849,6 +14845,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Manage gradient presets</source>
         <translation>Gerenciar predefinições de degradê</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>Matiz:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>Luminosidade:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>Restaura os valores padrão dos controles deslizantes</translation>
     </message>
 </context>
 <context>
