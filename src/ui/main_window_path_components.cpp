@@ -651,33 +651,54 @@ void MainWindow::merge_selected_path_components() {
   }
   canvas_->finish_free_transform();
   auto& doc = document();
-  push_undo_snapshot(tr("Merge shapes"));
-  if (canvas_->path_edit_selected_groups().empty()) {
-    const auto candidates = combine_shape_candidates(std::as_const(doc).layers(), selected_or_active_layer_ids());
-    if (candidates.refusal == ShapeCombineRefusal::None) {
-      const auto combined = combine_shape_layers(doc, candidates.bottom_to_top, PathCombineOp::Add);
-      if (combined.has_value()) {
-        doc.set_active_layer(combined->layer_id);
-        canvas_->clear_path_edit_selection();
-        refresh_layer_list();
-        refresh_layer_controls();
-        path_row_hidden_for_layer_.reset();
-        refresh_paths_panel();
-      }
+  const auto candidates = combine_shape_candidates(std::as_const(doc).layers(), selected_or_active_layer_ids());
+  const bool combine_layers =
+      canvas_->path_edit_selected_groups().empty() && candidates.refusal == ShapeCombineRefusal::None;
+  std::vector<int> groups;
+  std::optional<MergeComponentsResult> merged;
+  const auto merge_target = [&] {
+    const auto* path = canvas_->path_edit_target_path();
+    if (path == nullptr) {
+      return false;
+    }
+    groups = canvas_->path_edit_selected_groups();
+    if (groups.empty()) {
+      groups = all_groups(*path);
+    }
+    merged = merge_path_components(*path, groups);
+    return merged.has_value();
+  };
+  const auto nothing_overlaps = tr("No shapes overlap, so none were merged");
+  if (!combine_layers) {
+    if (!merge_target()) {
+      return;
+    }
+    if (merged->path == *canvas_->path_edit_target_path()) {
+      statusBar()->showMessage(nothing_overlaps);  // shapes that meet nothing stay as they are (#587)
+      return;
     }
   }
-  const auto* path = canvas_->path_edit_target_path();
-  if (path == nullptr) {
-    return;
+  push_undo_snapshot(tr("Merge shapes"));
+  if (combine_layers) {
+    const auto combined = combine_shape_layers(doc, candidates.bottom_to_top, PathCombineOp::Add);
+    if (combined.has_value()) {
+      doc.set_active_layer(combined->layer_id);
+      canvas_->clear_path_edit_selection();
+      refresh_layer_list();
+      refresh_layer_controls();
+      path_row_hidden_for_layer_.reset();
+      refresh_paths_panel();
+    }
+    if (!merge_target()) {
+      return;
+    }
   }
-  auto groups = canvas_->path_edit_selected_groups();
-  const bool whole = groups.empty();
-  if (whole) {
-    groups = all_groups(*path);
-  }
-  auto merged = merge_path_components(*path, groups);
-  if (!merged.has_value()) {
-    return;
+  // Shapes that met no other keep their live-shape annotations too.
+  std::vector<int> merging;
+  for (const int group : groups) {
+    if (std::find(merged->kept_groups.begin(), merged->kept_groups.end(), group) == merged->kept_groups.end()) {
+      merging.push_back(group);
+    }
   }
   const auto kind = canvas_->path_edit_target_kind();
   canvas_->clear_path_edit_selection();
@@ -690,20 +711,29 @@ void MainWindow::merge_selected_path_components() {
     }
     auto content = *std::as_const(*layer).vector_shape();
     content.path = std::move(merged->path);
-    drop_live_shape_origination(content, groups);
+    drop_live_shape_origination(content, merging);
     write_shape_layer_content(*layer, std::move(content));
   } else {
-    canvas_->replace_path_edit_target(std::move(merged->path), groups);
+    canvas_->replace_path_edit_target(std::move(merged->path), merging);
   }
-  if (merged->merged_subpaths > 0) {
-    canvas_->select_path_groups({merged->merged_group});
+  auto selected = merged->merged_groups;
+  selected.insert(selected.end(), merged->kept_groups.begin(), merged->kept_groups.end());
+  if (!selected.empty()) {
+    canvas_->select_path_groups(selected);
   }
   refresh_layer_list();
   refresh_layer_controls();
   refresh_paths_panel();
   refresh_layer_thumbnails();
   canvas_->document_changed();
-  statusBar()->showMessage(tr("Merged %1 shape(s) into one outline").arg(groups.size()));
+  if (merged->kept_groups.empty()) {
+    statusBar()->showMessage(tr("Merged %1 shape(s) into one outline").arg(groups.size()));
+  } else if (merged->merged_groups.empty() && merged->removed_groups.empty()) {
+    statusBar()->showMessage(nothing_overlaps);
+  } else {
+    statusBar()->showMessage(tr("Merged the shapes that overlap; %1 other shape(s) kept their points")
+                                 .arg(merged->kept_groups.size()));
+  }
   refresh_path_edit_action_states();
 }
 

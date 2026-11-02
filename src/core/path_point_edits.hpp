@@ -75,11 +75,16 @@ struct PathPointEditResult {
 // that do not intersect, a cutout bigger than its shape) the result has no subpath for them.
 // The render is unchanged when the merged components start the path; a run in the middle is
 // combined on its own first. nullopt when no listed group is in the path.
+// With two or more listed and none intersecting, only components whose fills overlap or touch
+// (one inside another counts) merge, each such cluster on its own as above; a component that
+// meets none of the others keeps its subpaths exactly (#587). None meeting leaves `path` as it was.
 struct MergeComponentsResult {
   VectorPath path;
-  int merged_group{0};
-  std::size_t merged_subpaths{0};
+  int merged_group{0};              // the first merged cluster's group
+  std::size_t merged_subpaths{0};   // over every merged cluster
   std::vector<int> removed_groups;  // the other listed groups, gone from the path
+  std::vector<int> merged_groups;   // one per merged cluster that left area, path order
+  std::vector<int> kept_groups;     // listed groups that met no other, unchanged
 };
 [[nodiscard]] std::optional<MergeComponentsResult> merge_path_components(const VectorPath& path,
                                                                          const std::vector<int>& groups,

@@ -31345,6 +31345,14 @@ Locked: %1</source>
         <translation>모양 %1개를 하나의 윤곽선으로 병합했습니다</translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation>겹치는 모양이 없어 병합하지 않았습니다</translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation>겹치는 모양을 병합했습니다. 나머지 모양 %1개는 점을 그대로 유지했습니다</translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>선택한 두 끝점을 직선 세그먼트로 연결하거나, 선택한 점이 있는 열린 패스를 각각 닫습니다</translation>
     </message>

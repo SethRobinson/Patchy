@@ -31428,6 +31428,14 @@ Bloqueado: %1</translation>
         <translation>%1 forma(s) mesclada(s) em um único contorno</translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation>Nenhuma forma se sobrepõe, então nada foi mesclado</translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation>Formas sobrepostas mescladas; %1 outra(s) forma(s) mantiveram seus pontos</translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Unir os dois pontos finais selecionados com um segmento reto, ou fechar cada demarcador aberto com um ponto selecionado</translation>
     </message>

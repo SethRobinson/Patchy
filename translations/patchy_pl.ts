@@ -31511,6 +31511,14 @@ Zablokowano: %1</translation>
         <translation>Kształty scalone w jeden kontur: %1</translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation>Żadne kształty nie nachodzą na siebie, więc nic nie scalono</translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation>Scalono nachodzące kształty; pozostałe kształty z zachowanymi punktami: %1</translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Połącz dwa wybrane punkty końcowe prostym segmentem albo zamknij każdą otwartą ścieżkę z wybranym punktem</translation>
     </message>

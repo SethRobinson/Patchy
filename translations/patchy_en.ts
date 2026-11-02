@@ -31347,6 +31347,14 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation type="unfinished"></translation>
     </message>

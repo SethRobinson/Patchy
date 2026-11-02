@@ -161,7 +161,20 @@ with others"). Live-shape annotations of the merged groups drop. One "Merge shap
 the merged component stays selected. Deterministic: lattice coordinates, fixed-order loops,
 `std::atan2` turn choice as the stroker already uses. Vector booleans are expired prior art
 ([vector-tools.md](vector-tools.md#patents-and-trademarks-assessed-july-2026)).
-Tests: `path_merge_components_*`, `ui_path_merge_shapes_bakes_the_combine`.
+
+Only shapes that overlap merge (#587). With two or more picked and none of them Intersect
+(Intersect clears everything outside it, so it acts on shapes it misses), the picked components
+first group into clusters whose own fills overlap or touch: each component's fill outline
+(`vector_path_fill_contours` of it alone, as integers on the 1/256 lattice) is tested against
+the others by bounds, then edge crossings or contact, then one loop inside the other's fill
+(nested shapes count; a shape in another's hole does not). Each cluster of two or more merges as
+above in its first one's place; a component that meets none of the others keeps its subpaths
+exactly (anchors, handles, live-shape annotation). When nothing meets, the command changes
+nothing, adds no undo step and says "No shapes overlap, so none were merged". One picked
+component still bakes on its own (a self-crossing outline cleans up). Everything picked stays
+selected afterwards.
+Tests: `path_merge_components_*`, `ui_path_merge_shapes_bakes_the_combine`,
+`ui_path_merge_shapes_keeps_shapes_that_overlap_nothing`.
 
 ## Aligning shapes inside a layer
 

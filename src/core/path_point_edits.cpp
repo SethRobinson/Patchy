@@ -4,8 +4,11 @@
 #include "core/vector_raster.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <numeric>
 
 namespace patchy {
 
@@ -507,19 +510,180 @@ std::map<int, int> append_path_components(VectorPath& path, const VectorPath& co
   return renumbered;
 }
 
-std::optional<MergeComponentsResult> merge_path_components(const VectorPath& path, const std::vector<int>& groups,
-                                                           double tolerance) {
-  // The listed groups in path order.
-  std::vector<int> ordered;
+namespace {
+
+// A component's own fill outline (its subpaths filled as one Add component, the fill rule kept)
+// on the 1/256 lattice as integers, with its bounds. Merge Shapes groups components by it.
+struct ComponentOutline {
+  using Point = std::array<std::int64_t, 2>;
+  std::vector<std::vector<Point>> loops;
+  Point min{0, 0};
+  Point max{-1, -1};
+  [[nodiscard]] bool empty() const { return loops.empty(); }
+};
+
+ComponentOutline component_outline(const VectorPath& path, int group) {
+  VectorPath alone;
+  alone.fill_rule_value = path.fill_rule_value;
   for (const auto& subpath : path.subpaths) {
-    if (std::find(groups.begin(), groups.end(), subpath.shape_group) != groups.end() &&
-        std::find(ordered.begin(), ordered.end(), subpath.shape_group) == ordered.end()) {
-      ordered.push_back(subpath.shape_group);
+    if (subpath.shape_group == group) {
+      auto copy = subpath;
+      copy.op = PathCombineOp::Add;
+      alone.subpaths.push_back(std::move(copy));
     }
   }
-  if (ordered.empty()) {
-    return std::nullopt;
+  ComponentOutline outline;
+  bool first = true;
+  for (const auto& contour : vector_path_fill_contours(alone)) {
+    if (contour.size() < 3) {
+      continue;
+    }
+    std::vector<ComponentOutline::Point> loop;
+    loop.reserve(contour.size());
+    for (const auto& point : contour) {
+      const ComponentOutline::Point lattice{std::llround(point[0] * 256.0), std::llround(point[1] * 256.0)};
+      if (first) {
+        outline.min = lattice;
+        outline.max = lattice;
+        first = false;
+      }
+      for (std::size_t axis = 0; axis < 2; ++axis) {
+        outline.min[axis] = std::min(outline.min[axis], lattice[axis]);
+        outline.max[axis] = std::max(outline.max[axis], lattice[axis]);
+      }
+      loop.push_back(lattice);
+    }
+    outline.loops.push_back(std::move(loop));
   }
+  return outline;
+}
+
+int orientation(const ComponentOutline::Point& a, const ComponentOutline::Point& b, const ComponentOutline::Point& c) {
+  const auto cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  return cross > 0 ? 1 : (cross < 0 ? -1 : 0);
+}
+
+bool within_box(const ComponentOutline::Point& a, const ComponentOutline::Point& b, const ComponentOutline::Point& p) {
+  return std::min(a[0], b[0]) <= p[0] && p[0] <= std::max(a[0], b[0]) && std::min(a[1], b[1]) <= p[1] &&
+         p[1] <= std::max(a[1], b[1]);
+}
+
+// Segments that cross or touch (end points and collinear overlaps included).
+bool segments_meet(const ComponentOutline::Point& a, const ComponentOutline::Point& b, const ComponentOutline::Point& c,
+                   const ComponentOutline::Point& d) {
+  const int o1 = orientation(a, b, c);
+  const int o2 = orientation(a, b, d);
+  const int o3 = orientation(c, d, a);
+  const int o4 = orientation(c, d, b);
+  if (o1 * o2 < 0 && o3 * o4 < 0) {
+    return true;
+  }
+  return (o1 == 0 && within_box(a, b, c)) || (o2 == 0 && within_box(a, b, d)) || (o3 == 0 && within_box(c, d, a)) ||
+         (o4 == 0 && within_box(c, d, b));
+}
+
+// Even-odd inside test against an outline's loops, for a point on none of them: the loops are
+// one fill's boundary, so their parity is that fill.
+bool inside_outline(const ComponentOutline& outline, const ComponentOutline::Point& point) {
+  bool inside = false;
+  for (const auto& loop : outline.loops) {
+    for (std::size_t i = 0, j = loop.size() - 1; i < loop.size(); j = i++) {
+      const auto& p = loop[j];
+      const auto& q = loop[i];
+      if ((p[1] > point[1]) != (q[1] > point[1])) {
+        const auto cross = (q[0] - p[0]) * (point[1] - p[1]) - (point[0] - p[0]) * (q[1] - p[1]);
+        if ((cross > 0) == (q[1] > p[1])) {
+          inside = !inside;
+        }
+      }
+    }
+  }
+  return inside;
+}
+
+// Whether two components' fills overlap or touch: their bounds meet, then an outline edge of one
+// meets an edge of the other, or one lies inside the other (nested shapes count).
+bool outlines_meet(const ComponentOutline& a, const ComponentOutline& b) {
+  if (a.empty() || b.empty() || a.max[0] < b.min[0] || b.max[0] < a.min[0] || a.max[1] < b.min[1] ||
+      b.max[1] < a.min[1]) {
+    return false;
+  }
+  for (const auto& loop_a : a.loops) {
+    for (std::size_t i = 0, j = loop_a.size() - 1; i < loop_a.size(); j = i++) {
+      const auto& p = loop_a[j];
+      const auto& q = loop_a[i];
+      if (std::max(p[0], q[0]) < b.min[0] || std::min(p[0], q[0]) > b.max[0] || std::max(p[1], q[1]) < b.min[1] ||
+          std::min(p[1], q[1]) > b.max[1]) {
+        continue;
+      }
+      for (const auto& loop_b : b.loops) {
+        for (std::size_t k = 0, l = loop_b.size() - 1; k < loop_b.size(); l = k++) {
+          if (segments_meet(p, q, loop_b[l], loop_b[k])) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  const auto any_loop_inside = [](const ComponentOutline& inner, const ComponentOutline& outer) {
+    return std::any_of(inner.loops.begin(), inner.loops.end(),
+                       [&outer](const auto& loop) { return inside_outline(outer, loop.front()); });
+  };
+  return any_loop_inside(a, b) || any_loop_inside(b, a);
+}
+
+// The listed groups (path order) split into clusters whose components overlap or touch, each in
+// path order, clusters ordered by their first component. One cluster of them all when fewer than
+// two are listed or any intersects (Intersect clears everything outside it, shapes it does not
+// touch included).
+std::vector<std::vector<int>> overlapping_component_clusters(const VectorPath& path, const std::vector<int>& ordered) {
+  const auto count = ordered.size();
+  const bool intersects =
+      std::any_of(path.subpaths.begin(), path.subpaths.end(), [&ordered](const PathSubpath& subpath) {
+        return subpath.op == PathCombineOp::Intersect &&
+               std::find(ordered.begin(), ordered.end(), subpath.shape_group) != ordered.end();
+      });
+  if (count < 2 || intersects) {
+    return {ordered};
+  }
+  std::vector<ComponentOutline> outlines;
+  outlines.reserve(count);
+  for (const int group : ordered) {
+    outlines.push_back(component_outline(path, group));
+  }
+  std::vector<std::size_t> parent(count);
+  std::iota(parent.begin(), parent.end(), std::size_t{0});
+  const auto root = [&parent](std::size_t index) {
+    while (parent[index] != index) {
+      index = parent[index] = parent[parent[index]];
+    }
+    return index;
+  };
+  for (std::size_t i = 0; i < count; ++i) {
+    for (std::size_t j = i + 1; j < count; ++j) {
+      const auto ri = root(i);
+      const auto rj = root(j);
+      if (ri != rj && outlines_meet(outlines[i], outlines[j])) {
+        parent[std::max(ri, rj)] = std::min(ri, rj);  // the root stays the cluster's first component
+      }
+    }
+  }
+  std::vector<std::vector<int>> clusters;
+  std::vector<std::size_t> cluster_of(count, count);
+  for (std::size_t i = 0; i < count; ++i) {
+    const auto r = root(i);
+    if (cluster_of[r] == count) {
+      cluster_of[r] = clusters.size();
+      clusters.emplace_back();
+    }
+    clusters[cluster_of[r]].push_back(ordered[i]);
+  }
+  return clusters;
+}
+
+// Merges the listed groups (non-empty, path order) into one component in the first one's place.
+MergeComponentsResult merge_ordered_components(const VectorPath& path, const std::vector<int>& ordered,
+                                               double tolerance) {
   const auto group_op = [&path](int group) {
     for (const auto& subpath : path.subpaths) {
       if (subpath.shape_group == group) {
@@ -569,6 +733,9 @@ std::optional<MergeComponentsResult> merge_path_components(const VectorPath& pat
   MergeComponentsResult result;
   result.merged_group = ordered.front();
   result.merged_subpaths = merged.size();
+  if (!merged.empty()) {
+    result.merged_groups.push_back(ordered.front());
+  }
   result.removed_groups.assign(ordered.begin() + 1, ordered.end());
   result.path.fill_rule_value = path.fill_rule_value;
   result.path.initial_fill_value = path.initial_fill_value;
@@ -585,6 +752,44 @@ std::optional<MergeComponentsResult> merge_path_components(const VectorPath& pat
       }
     }
   }
+  return result;
+}
+
+}  // namespace
+
+std::optional<MergeComponentsResult> merge_path_components(const VectorPath& path, const std::vector<int>& groups,
+                                                           double tolerance) {
+  // The listed groups in path order.
+  std::vector<int> ordered;
+  for (const auto& subpath : path.subpaths) {
+    if (std::find(groups.begin(), groups.end(), subpath.shape_group) != groups.end() &&
+        std::find(ordered.begin(), ordered.end(), subpath.shape_group) == ordered.end()) {
+      ordered.push_back(subpath.shape_group);
+    }
+  }
+  if (ordered.empty()) {
+    return std::nullopt;
+  }
+  const auto clusters = overlapping_component_clusters(path, ordered);
+  if (clusters.size() == 1) {
+    return merge_ordered_components(path, ordered, tolerance);
+  }
+  // Only shapes that overlap merge (#587): each cluster in its first one's place; a shape that
+  // meets none of the others stays exactly as it was.
+  MergeComponentsResult result;
+  result.path = path;
+  for (const auto& cluster : clusters) {
+    if (cluster.size() == 1) {
+      result.kept_groups.push_back(cluster.front());
+      continue;
+    }
+    auto step = merge_ordered_components(result.path, cluster, tolerance);
+    result.path = std::move(step.path);
+    result.merged_subpaths += step.merged_subpaths;
+    result.merged_groups.insert(result.merged_groups.end(), step.merged_groups.begin(), step.merged_groups.end());
+    result.removed_groups.insert(result.removed_groups.end(), step.removed_groups.begin(), step.removed_groups.end());
+  }
+  result.merged_group = result.merged_groups.empty() ? ordered.front() : result.merged_groups.front();
   return result;
 }
 

@@ -31345,6 +31345,14 @@ Locked: %1</source>
         <translation>%1 個のシェイプを 1 つの輪郭に統合しました</translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation>重なっているシェイプがないため、統合しませんでした</translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation>重なっているシェイプを統合しました。ほかの %1 個のシェイプはポイントをそのまま保ちました</translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>選択した 2 つの端点を直線セグメントで連結するか、選択したポイントを含む開いたパスをそれぞれ閉じます</translation>
     </message>
