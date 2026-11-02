@@ -26,6 +26,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_preset_popup.hpp"
+#include "ai/segmentation_engine.hpp"
 #include "ui/command_search.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "psd/psd_document_io.hpp"
@@ -46,12 +47,14 @@
 #include <QFrame>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QHelpEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
 #include <QTemporaryDir>
 #include <QMetaObject>
 #include <QPainter>
+#include <QToolTip>
 #include <QMessageBox>
 #include <QMenu>
 #include <QMenuBar>
@@ -4590,7 +4593,9 @@ void ui_command_search_popup_filters_and_runs_commands() {
   clear_hotkey_overrides();
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* search_action = require_action(window, "helpSearchCommandsAction");
-  CHECK(search_action->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Slash));
+  // Ctrl+F (Command+F) as in Photoshop's Search; the first key, Ctrl+Shift+/, stays as a second one.
+  CHECK((search_action->shortcuts() == QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::Key_F),
+                                                           QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Slash)}));
   CHECK(search_action->menuRole() == QAction::NoRole);
   QApplication::processEvents();
 #ifndef Q_OS_MACOS
@@ -4788,7 +4793,12 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
         QStringLiteral("file.import_divide_photos"),
 #endif
     };
+    // A build without ONNX Runtime or the model has no Object Selection tool.
+    const bool object_select_built = patchy::ai::segmentation_available();
     for (const auto& id : patchy::ui::command_search_described_ids()) {
+      if (!object_select_built && id == QStringLiteral("tools.object_select")) {
+        continue;
+      }
       if (!listed_ids.contains(id) && !other_platforms.contains(id)) {
         std::cerr << "described command id not listed by the search: " << id.toStdString() << '\n';
         CHECK(false);
@@ -4900,13 +4910,63 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
   if (edit == nullptr || list == nullptr) {
     return;
   }
+  // The description is searched ("add" is in no name or path here) and shown only as the
+  // row's tooltip (GitHub issue 554): the row draws nothing between the name and the key.
   edit->setText(QStringLiteral("add new layer"));
   QApplication::processEvents();
   CHECK(list->count() >= 1);
   if (list->count() >= 1) {
-    CHECK(list->item(0)->text() == QStringLiteral("New Layer"));
-    CHECK(list->item(0)->data(Qt::UserRole + 1).toString() == QStringLiteral("Layer › New"));
-    CHECK(list->item(0)->data(Qt::UserRole + 5).toString() == QStringLiteral("Add New Layer"));
+    auto* row = list->item(0);
+    CHECK(row->text() == QStringLiteral("New Layer"));
+    CHECK(row->data(Qt::UserRole + 1).toString() == QStringLiteral("Layer › New"));
+    CHECK(row->data(Qt::UserRole + 5).toString() == QStringLiteral("Add New Layer"));
+    CHECK(row->toolTip() == QStringLiteral("Add New Layer"));
+    const auto row_rect = list->visualItemRect(row);
+    const auto shot = list->viewport()->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    const auto metrics = list->fontMetrics();
+    const int dpr_scale = qRound(shot.devicePixelRatio());
+    const int name_end = 22 + metrics.horizontalAdvance(QStringLiteral("Layer › New › New Layer")) + 6;
+    // Where the description used to start: the 250 px after the name stay background (the
+    // shortcut sits further right).
+    const int scan_end = name_end + 250;
+    CHECK(scan_end < list->viewport()->width() - 120);
+    const QRgb background = shot.pixel(name_end * dpr_scale, row_rect.center().y() * dpr_scale);
+    int inked = 0;
+    for (int y = (row_rect.top() + 2) * dpr_scale; y < (row_rect.bottom() - 1) * dpr_scale; ++y) {
+      for (int x = name_end * dpr_scale; x < scan_end * dpr_scale; ++x) {
+        inked += shot.pixel(x, y) != background ? 1 : 0;
+      }
+    }
+    CHECK(inked == 0);
+    // Qt's own tooltip path (a help event on the list) shows the description.
+    QToolTip::hideText();
+    const QPoint at = row_rect.center();
+    QHelpEvent help(QEvent::ToolTip, at, list->viewport()->mapToGlobal(at));
+    QApplication::sendEvent(list->viewport(), &help);
+    QApplication::processEvents();
+    QLabel* tip = nullptr;
+    for (auto* top : QApplication::topLevelWidgets()) {
+      if (top->inherits("QTipLabel") && top->isVisible()) {
+        tip = qobject_cast<QLabel*>(top);
+      }
+    }
+    CHECK(tip != nullptr && tip->text() == QStringLiteral("Add New Layer"));
+    if (tip != nullptr) {
+      // The issue shot: the window with the popup and the row's tooltip painted in place.
+      auto image = window.grab().toImage();
+      const auto origin = window.mapToGlobal(QPoint(0, 0));
+      {
+        QPainter painter(&image);
+        painter.drawPixmap(popup->mapToGlobal(QPoint(0, 0)) - origin, popup->grab());
+        painter.drawPixmap(tip->mapToGlobal(QPoint(0, 0)) - origin, tip->grab());
+      }
+      const auto popup_rect = QRect(popup->mapToGlobal(QPoint(0, 0)) - origin, popup->size());
+      const auto tip_rect = QRect(tip->mapToGlobal(QPoint(0, 0)) - origin, tip->size());
+      const auto crop = QRect(0, 0, image.width(), 1).united(popup_rect).united(tip_rect).adjusted(0, 0, 0, 14);
+      save_image_artifact("command_search_description_tooltip", image.copy(crop.intersected(image.rect())));
+    }
+    QToolTip::hideText();
+    QApplication::processEvents();
   }
   save_window_popup_artifact("command_search_add_new_layer", window, *window.menuBar(), *popup);
 

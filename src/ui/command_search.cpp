@@ -563,10 +563,10 @@ void walk_menu(QMenu* menu, bool visible_only, const QString& top, QStringList& 
   }
 }
 
-// The menu path in the muted color, then the name ("Filter › Blur › Gaussian Blur"), then the
-// description in muted italics, the shortcut at the right edge; a check mark in the left
-// column for a checked command. The name keeps its full width first; the path elides from
-// the left, the description from the right.
+// The menu path in the muted color, then the name ("Filter › Blur › Gaussian Blur"), the
+// shortcut at the right edge; a check mark in the left column for a checked command. The
+// name keeps its full width first; the path elides from the left. The description is the
+// row's tooltip only (GitHub issue 554: on every row it was too much).
 class CommandRowDelegate final : public QStyledItemDelegate {
 public:
   using QStyledItemDelegate::QStyledItemDelegate;
@@ -624,16 +624,6 @@ public:
     const auto name = metrics.elidedText(full_name, Qt::ElideRight, right - x);
     painter->setPen(primary);
     painter->drawText(x, baseline, name);
-    x += metrics.horizontalAdvance(name) + 3 * kRowPadding;
-    const auto description = index.data(kDescriptionRole).toString();
-    if (!description.isEmpty() && right - x > 4 * metrics.averageCharWidth()) {
-      auto italic = option.font;
-      italic.setItalic(true);
-      const QFontMetrics italic_metrics(italic);
-      painter->setFont(italic);
-      painter->setPen(muted);
-      painter->drawText(x, baseline, italic_metrics.elidedText(description, Qt::ElideRight, right - x));
-    }
     painter->restore();
   }
 };

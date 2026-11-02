@@ -2498,16 +2498,16 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   }
 
 #ifdef Q_OS_WIN
-  // Ctrl+F (Photoshop's old Last Filter key) repeats the plug-in that ran last: a
-  // plug-in never previews on the canvas, so "apply, look, undo, adjust" is the loop
-  // and these two keep it short. Ctrl+Alt+F belongs to Filter > Last Filter, which
-  // repeats plug-ins too, so Last Plug-in Settings has no default key. Their text carries the plug-in's name and
+  // These two repeat the plug-in that ran last: a plug-in never previews on the canvas, so
+  // "apply, look, undo, adjust" is the loop and they keep it short. Neither has a default
+  // key: Ctrl+F is Help > Search Commands (as in Photoshop), and Photoshop's Ctrl+Alt+F
+  // belongs to Filter > Last Filter, which repeats plug-ins too. Their text carries the plug-in's name and
   // they are enabled by update_legacy_plugin_repeat_actions, not as document
   // actions (they also need a plug-in that ran).
   plugins_repeat_last_action_ = plugins_menu->addAction(tr("Repeat Last Plug-in"));
   plugins_repeat_last_action_->setObjectName(QStringLiteral("pluginsRepeatLastAction"));
   plugins_repeat_last_action_->setProperty("patchy.channelViewBlocked", true);
-  register_hotkey(plugins_repeat_last_action_, "plugins.repeat_last", QKeySequence(Qt::CTRL | Qt::Key_F));
+  register_hotkey(plugins_repeat_last_action_, "plugins.repeat_last");
   connect(plugins_repeat_last_action_, &QAction::triggered, this, [this] { run_last_legacy_plugin(/*show_dialog=*/false); });
   plugins_last_settings_action_ = plugins_menu->addAction(tr("Last Plug-in Settings..."));
   plugins_last_settings_action_->setObjectName(QStringLiteral("pluginsLastSettingsAction"));
@@ -2998,13 +2998,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
 
   // GitHub issue 554: search the menus by name. The menu bar's search button after Help
   // runs the same action; macOS's native Help menu has its own search, so no button there.
+  // Ctrl+F (Command+F) as in Photoshop's Search; Ctrl+Shift+/ was its first key and stays.
   auto* search_commands_action = help_menu->addAction(tr("Search &Commands..."));
   bind_action_text(search_commands_action, QT_TR_NOOP("Search &Commands..."));
   search_commands_action->setObjectName(QStringLiteral("helpSearchCommandsAction"));
   search_commands_action->setMenuRole(QAction::NoRole);
   search_commands_action->setIcon(simple_icon(QStringLiteral("search")));
   register_hotkey(search_commands_action, "help.search_commands",
-                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Slash));
+                  QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::Key_F),
+                                      QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Slash)});
   connect(search_commands_action, &QAction::triggered, this, [this] { show_command_search(); });
 #ifndef Q_OS_MACOS
   command_search_button_ = add_menu_bar_search_button(menuBar(), search_commands_action);
