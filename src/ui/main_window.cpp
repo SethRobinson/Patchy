@@ -9613,17 +9613,35 @@ int make_text_from_stored_gimp_text(Document& document, std::vector<Layer>& laye
 
 }  // namespace
 
-void MainWindow::offer_painted_gimp_text_conversion(DocumentSession& target, QStringList& notices) {
+namespace {
+
+QString painted_gimp_text_policy() {
+  const auto policy =
+      app_settings().value(QStringLiteral("imports/xcfPaintedTextLayers"), QStringLiteral("ask")).toString();
+  return policy == QStringLiteral("pixels") || policy == QStringLiteral("text") || policy == QStringLiteral("copies")
+             ? policy
+             : QStringLiteral("ask");
+}
+
+}  // namespace
+
+bool MainWindow::painted_gimp_text_question_pending(const DocumentSession& target) const {
+  // Scripts, MCP, batch runs and tests never wait on a question: they keep GIMP's pixels.
+  return !unattended_automation() && painted_gimp_text_policy() == QStringLiteral("ask") &&
+         count_stored_gimp_text_layers(std::as_const(target.document).layers()) > 0;
+}
+
+QStringList MainWindow::offer_painted_gimp_text_conversion(DocumentSession& target, QStringList& notices) {
+  QStringList answered;
   const auto count = count_stored_gimp_text_layers(std::as_const(target.document).layers());
   if (count == 0) {
-    return;
+    return answered;
   }
   const auto key = QStringLiteral("imports/xcfPaintedTextLayers");
   auto settings = app_settings();
-  auto policy = settings.value(key, QStringLiteral("ask")).toString();
-  if (policy != QStringLiteral("pixels") && policy != QStringLiteral("text") && policy != QStringLiteral("copies")) {
+  auto policy = painted_gimp_text_policy();
+  if (policy == QStringLiteral("ask")) {
     policy = QStringLiteral("pixels");
-    // Scripts, MCP, batch runs and tests never wait on a question: they keep GIMP's pixels.
     if (!unattended_automation()) {
       QMessageBox box(this);
       box.setObjectName(QStringLiteral("xcfPaintedTextMessageBox"));
@@ -9655,16 +9673,18 @@ void MainWindow::offer_painted_gimp_text_conversion(DocumentSession& target, QSt
       if (dont_ask->isChecked()) {
         settings.setValue(key, policy);
       }
+      // The user just chose: the notes about it stay out of the Import Notes box (#551).
+      answered.push_back(translate_data_text(xcf::painted_text_layers_notice()));
     }
   }
   if (policy == QStringLiteral("pixels")) {
-    return;  // the reader's notice already says they opened as pixel layers
+    return answered;  // the reader's notice already says they opened as pixel layers
   }
   const bool copies = policy == QStringLiteral("copies");
   auto layers = std::as_const(target.document).layers();
   const int made = make_text_from_stored_gimp_text(target.document, layers, copies, tr("%1 (text)"));
   if (made == 0) {
-    return;
+    return answered;
   }
   push_undo_snapshot(target, copies ? tr("Add GIMP Text Copies") : tr("Convert GIMP Text"));
   target.document.layers() = std::move(layers);
@@ -9672,6 +9692,9 @@ void MainWindow::offer_painted_gimp_text_conversion(DocumentSession& target, QSt
   notices.push_back(copies ? tr("Text layers painted on in GIMP kept their pixels; editable text copies of them were "
                                 "added above them, hidden.")
                            : tr("Text layers painted on in GIMP became editable text; their paint was dropped."));
+  if (!answered.isEmpty()) {
+    answered.push_back(notices.back());
+  }
   if (target.canvas != nullptr) {
     target.canvas->document_changed();
   }
@@ -9679,6 +9702,7 @@ void MainWindow::offer_painted_gimp_text_conversion(DocumentSession& target, QSt
     refresh_layer_list();
     refresh_layer_controls();
   }
+  return answered;
 }
 
 void MainWindow::render_pending_pdf_text_layers(Document& target) {

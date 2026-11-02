@@ -1168,9 +1168,10 @@ void ui_psd_import_warning_dialog_is_hidden_by_default() {
   const auto compatibility_report_done = std::make_shared<bool>(false);
   accept_compatibility_report_when_present(compatibility_report_done);
   patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  // The report comes up one event-loop turn after the open (#593).
+  QApplication::processEvents();
   const bool saw_compatibility_report = *compatibility_report_done;
   *compatibility_report_done = true;
-  QApplication::processEvents();
   CHECK(!saw_compatibility_report);
   CHECK(tabs->count() == original_tab_count + 1);
   CHECK(tabs->tabText(tabs->currentIndex()) == QFileInfo(psd_path).fileName());
@@ -1190,9 +1191,10 @@ void ui_psd_import_warning_dialog_shows_when_enabled() {
   const auto compatibility_report_done = std::make_shared<bool>(false);
   accept_compatibility_report_when_present(compatibility_report_done);
   patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  // The report comes up one event-loop turn after the open (#593).
+  QApplication::processEvents();
   const bool saw_compatibility_report = *compatibility_report_done;
   *compatibility_report_done = true;
-  QApplication::processEvents();
   CHECK(saw_compatibility_report);
   CHECK(tabs->count() == original_tab_count + 1);
   CHECK(tabs->tabText(tabs->currentIndex()) == QFileInfo(psd_path).fileName());
@@ -1267,8 +1269,8 @@ void ui_compatibility_report_dont_show_turns_popup_preference_off() {
     };
     (*poll)(2400);
     patchy::ui::MainWindowTestAccess::open_document_path(window, path);
-    *done = true;
     QApplication::processEvents();
+    *done = true;
     return *saw_report;
   };
   CHECK(!open_and_answer(routine_path, false));
