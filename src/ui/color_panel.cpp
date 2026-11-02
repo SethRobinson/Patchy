@@ -198,8 +198,8 @@ QString color_tool_tip(QColor color) {
   return color.name(QColor::HexRgb).toUpper();
 }
 
-// A color carried by drag-and-drop or the clipboard: Qt's standard color mime
-// (application/x-color) first, then "#RRGGBB"-style text.
+}  // namespace
+
 QColor parse_panel_color(QString text) {
   text = text.trimmed();
   if (!text.startsWith(QLatin1Char('#'))) {
@@ -224,6 +224,10 @@ QColor parse_panel_color(QString text) {
   return QColor(text);
 }
 
+namespace {
+
+// A color carried by drag-and-drop or the clipboard: Qt's standard color mime
+// (application/x-color) first, then "#RRGGBB"-style text.
 std::optional<QColor> color_from_mime(const QMimeData* mime) {
   if (mime == nullptr) {
     return std::nullopt;

@@ -16909,6 +16909,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>クリックまたはドラッグで前景色を設定します。右クリック、右ボタンでのドラッグ、%ALT% を押しながらクリック、または %ALT% を押しながらドラッグで背景色を設定します。</translation>
     </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>描画色の16進数値 (#RRGGBB)。値またはカラー名を入力するか貼り付けます。</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>描画色の16進数値</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CommandSearch</name>

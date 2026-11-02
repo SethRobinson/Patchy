@@ -16909,6 +16909,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>单击或拖动以设置前景色。右键单击、右键拖动、按住 %ALT% 单击或按住 %ALT% 拖动以设置背景色。</translation>
     </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>前景色的十六进制值 (#RRGGBB)。输入或粘贴数值或颜色名称。</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>前景色十六进制值</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CommandSearch</name>

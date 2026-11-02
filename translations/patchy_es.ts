@@ -16953,6 +16953,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Haz clic o arrastra para establecer el color de primer plano. Haz clic derecho, arrastra con el botón derecho, haz %ALT%-clic o %ALT%-arrastra para establecer el color de fondo.</translation>
     </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>Color frontal en hexadecimal (#RRGGBB). Escriba o pegue un valor o un nombre de color.</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>Valor hexadecimal del color frontal</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CommandSearch</name>

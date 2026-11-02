@@ -16953,6 +16953,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Fai clic o trascina per impostare il colore di primo piano. Fai clic destro, trascina con il pulsante destro, fai %ALT%-clic o %ALT%-trascina per impostare il colore di sfondo.</translation>
     </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>Colore di primo piano in esadecimale (#RRGGBB). Digita o incolla un valore o il nome di un colore.</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>Valore esadecimale del colore di primo piano</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CommandSearch</name>

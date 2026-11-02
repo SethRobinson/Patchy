@@ -16997,6 +16997,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Kliknij lub przeciągnij, aby ustawić kolor pierwszego planu. Kliknij prawym przyciskiem, przeciągnij prawym przyciskiem albo użyj %ALT%-kliknięcia lub %ALT%-przeciągnięcia, aby ustawić kolor tła.</translation>
     </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>Kolor narzędzia szesnastkowo (#RRGGBB). Wpisz lub wklej wartość albo nazwę koloru.</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>Wartość szesnastkowa koloru narzędzia</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CommandSearch</name>

@@ -16953,6 +16953,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Klicken oder ziehen, um die Vordergrundfarbe festzulegen. Mit Rechtsklick, Ziehen mit der rechten Maustaste, %ALT%-Klick oder %ALT%-Ziehen die Hintergrundfarbe festlegen.</translation>
     </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>Vordergrundfarbe als Hexadezimalwert (#RRGGBB). Einen Wert oder Farbnamen eingeben oder einfügen.</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>Hexwert der Vordergrundfarbe</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CommandSearch</name>

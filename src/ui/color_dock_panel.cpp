@@ -3,6 +3,8 @@
 #include "color/color_management.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/background_pick_cursor.hpp"
+#include "ui/color_panel.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/hdr_color_controls.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/theme_palette.hpp"
@@ -16,6 +18,7 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
@@ -40,6 +43,10 @@ namespace {
 constexpr int kWellWidth = 42;
 constexpr int kWellHeight = 44;
 constexpr int kFieldMinimum = 72;
+// The cube's field and strip may get shorter than wide: with the hex and RGB row under
+// them (GitHub issue 577) the cube still needs no more height than a slider view, so
+// switching to one can shrink the section.
+constexpr int kFieldMinimumHeight = 40;
 constexpr int kTrackHeight = 14;
 
 constexpr std::array<ColorDockPanel::View, 4> kViews = {
@@ -59,6 +66,17 @@ bool is_ink(ColorDockPanel::Channel channel) {
 // 0..100 percent from 0..255 and back; every percent survives the round trip.
 int percent_from_byte(int value) { return static_cast<int>(std::lround(value * 100.0 / 255.0)); }
 int byte_from_percent(int percent) { return static_cast<int>(std::lround(std::clamp(percent, 0, 100) * 2.55)); }
+
+// "RRGGBB" or "#RRGGBB": a value complete enough to apply while it is typed or pasted.
+bool is_whole_hex(const QString& text) {
+  const auto digits = QStringView(text).trimmed();
+  const auto hex = digits.startsWith(QLatin1Char('#')) ? digits.mid(1) : digits;
+  const auto is_hex_digit = [](QChar c) {
+    return (c >= QLatin1Char('0') && c <= QLatin1Char('9')) || (c >= QLatin1Char('a') && c <= QLatin1Char('f')) ||
+           (c >= QLatin1Char('A') && c <= QLatin1Char('F'));
+  };
+  return hex.size() == 6 && std::all_of(hex.begin(), hex.end(), is_hex_digit);
+}
 
 }  // namespace
 
@@ -205,23 +223,63 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   cube->setObjectName(QStringLiteral("colorPanelHueCubeView"));
   field_ = new ColorPlaneWidget(*this, cube);
   field_->setObjectName(QStringLiteral("colorPanelField"));
-  field_->setMinimumSize(kFieldMinimum, kFieldMinimum);
+  field_->setMinimumSize(kFieldMinimum, kFieldMinimumHeight);
   field_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   field_->setFocusPolicy(Qt::NoFocus);
   hue_strip_ = new HueSliderWidget(*this, cube);
   hue_strip_->setObjectName(QStringLiteral("colorPanelHueStrip"));
-  hue_strip_->setMinimumSize(HueSliderWidget::kDefaultWidth, kFieldMinimum);
+  hue_strip_->setMinimumSize(HueSliderWidget::kDefaultWidth, kFieldMinimumHeight);
   hue_strip_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
   hue_strip_->setFocusPolicy(Qt::NoFocus);
   // Alt over either shows the background cursor; the picker window's field and strip,
   // which edit one color, do not get one.
   field_cursor_ = new BackgroundPickCursor(field_, true);
   hue_strip_cursor_ = new BackgroundPickCursor(hue_strip_, true);
-  auto* cube_layout = new QHBoxLayout(cube);
+  auto* cube_row = new QHBoxLayout;
+  cube_row->setContentsMargins(0, 0, 0, 0);
+  cube_row->setSpacing(8);
+  cube_row->addWidget(field_, 1);
+  cube_row->addWidget(hue_strip_);
+  // The foreground as numbers under the cube (GitHub issue 577): a hex field that typing or
+  // Ctrl+V replaces, like the color window's HTML field, and R, G, B boxes. Each commit of a
+  // value is one pick of the foreground; showing a color never is one.
+  hex_edit_ = new QLineEdit(cube);
+  hex_edit_->setObjectName(QStringLiteral("colorPanelHexEdit"));
+  hex_edit_->setMinimumWidth(hex_edit_->fontMetrics().horizontalAdvance(QStringLiteral("#DDDDDD")) + 12);
+  select_all_on_focus(*hex_edit_);
+  connect(hex_edit_, &QLineEdit::textEdited, this, [this] { apply_hex_text(false); });
+  connect(hex_edit_, &QLineEdit::editingFinished, this, [this] { apply_hex_text(true); });
+  auto* input_row = new QHBoxLayout;
+  input_row->setContentsMargins(0, 0, 0, 0);
+  input_row->setSpacing(4);
+  input_row->addWidget(hex_edit_, 1);
+  static constexpr std::array<const char*, 3> rgb_names = {"Red", "Green", "Blue"};
+  for (std::size_t index = 0; index < cube_rgb_spins_.size(); ++index) {
+    const auto channel = static_cast<Channel>(index);
+    const auto name = QString::fromLatin1(rgb_names[index]);
+    auto* label = new QLabel(cube);
+    label->setObjectName(QStringLiteral("colorPanelCube%1Label").arg(name));
+    auto* spin = new QSpinBox(cube);
+    spin->setObjectName(QStringLiteral("colorPanelCube%1Spin").arg(name));
+    spin->setRange(0, 255);
+    spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    // A typed number applies on Return or focus out, not per keystroke.
+    spin->setKeyboardTracking(false);
+    select_all_on_focus(*spin);
+    connect(spin, qOverload<int>(&QSpinBox::valueChanged), this,
+            [this, channel](int level) { set_channel(channel, level); });
+    cube_rgb_labels_[index] = label;
+    cube_rgb_spins_[index] = spin;
+    input_row->addSpacing(index == 0 ? 4 : 2);
+    input_row->addWidget(label);
+    input_row->addWidget(spin);
+  }
+  auto* cube_layout = new QVBoxLayout(cube);
   cube_layout->setContentsMargins(0, 0, 0, 0);
-  cube_layout->setSpacing(8);
-  cube_layout->addWidget(field_, 1);
-  cube_layout->addWidget(hue_strip_);
+  cube_layout->setSpacing(6);
+  cube_layout->addLayout(cube_row, 1);
+  cube_layout->addLayout(input_row);
 
   views_ = new QStackedWidget(this);
   views_->setObjectName(QStringLiteral("colorPanelViews"));
@@ -374,6 +432,11 @@ QWidget* ColorDockPanel::channel_track(Channel channel) const {
 
 QSpinBox* ColorDockPanel::channel_spin(Channel channel) const {
   return channel_spins_[static_cast<std::size_t>(channel_index(channel))];
+}
+
+QSpinBox* ColorDockPanel::cube_rgb_spin(Channel channel) const {
+  const auto index = static_cast<std::size_t>(channel_index(channel));
+  return index < cube_rgb_spins_.size() ? cube_rgb_spins_[index] : nullptr;
 }
 
 int ColorDockPanel::channel_value(Channel channel) const {
@@ -593,6 +656,48 @@ void ColorDockPanel::refresh_channel_views() {
       track->update();
     }
   }
+  for (std::size_t index = 0; index < cube_rgb_spins_.size(); ++index) {
+    if (auto* spin = cube_rgb_spins_[index]; spin != nullptr) {
+      const QSignalBlocker blocker(spin);
+      spin->setValue(channel_value(static_cast<Channel>(index)));
+    }
+  }
+  show_hex(false);
+}
+
+void ColorDockPanel::show_hex(bool force) {
+  if (hex_edit_ == nullptr) {
+    return;
+  }
+  // Text being typed that already names the foreground stays as typed, so applying a
+  // whole value never rewrites the field under the caret.
+  if (!force && hex_edit_->hasFocus()) {
+    const auto typed = parse_panel_color(hex_edit_->text());
+    if (typed.isValid() && QColor(typed.rgb()).rgb() == rgb_.rgb()) {
+      return;
+    }
+  }
+  const QSignalBlocker blocker(hex_edit_);
+  hex_edit_->setText(rgb_.name(QColor::HexRgb).toUpper());
+}
+
+void ColorDockPanel::apply_hex_text(bool finished) {
+  const auto text = hex_edit_->text();
+  const auto parsed = finished || is_whole_hex(text) ? parse_panel_color(text) : QColor();
+  if (parsed.isValid()) {
+    // The stored foreground is opaque RGB: a "#RRGGBBAA" entry's alpha is dropped.
+    const QColor color(parsed.red(), parsed.green(), parsed.blue());
+    if (color.rgb() != rgb_.rgb()) {
+      take_slider_color(color);
+      produce_foreground(color);
+      field_->update();
+      hue_strip_->update();
+      emit_pick(color);
+    }
+  }
+  if (finished) {
+    show_hex(true);
+  }
 }
 
 bool ColorDockPanel::begin_field_pick(Qt::KeyboardModifiers modifiers, Qt::MouseButton button) {
@@ -695,6 +800,14 @@ void ColorDockPanel::retranslate() {
     channel_spins_[index]->setToolTip(names[index]);
     channel_spins_[index]->setAccessibleName(names[index]);
   }
+  for (std::size_t index = 0; index < cube_rgb_spins_.size(); ++index) {
+    cube_rgb_labels_[index]->setText(letters[index]);
+    cube_rgb_labels_[index]->setToolTip(names[index]);
+    cube_rgb_spins_[index]->setToolTip(names[index]);
+    cube_rgb_spins_[index]->setAccessibleName(names[index]);
+  }
+  hex_edit_->setToolTip(tr("Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name."));
+  hex_edit_->setAccessibleName(tr("Foreground color hex value"));
 }
 
 }  // namespace patchy::ui

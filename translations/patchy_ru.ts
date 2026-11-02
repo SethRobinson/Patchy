@@ -16997,6 +16997,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
         <translation>Щёлкните или перетащите, чтобы задать основной цвет. Щёлкните правой кнопкой, перетащите правой кнопкой, используйте %ALT%-щелчок или %ALT%-перетаскивание, чтобы задать фоновый цвет.</translation>
     </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>Основной цвет в шестнадцатеричном виде (#RRGGBB). Введите или вставьте значение или название цвета.</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>Шестнадцатеричное значение основного цвета</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CommandSearch</name>
