@@ -242,16 +242,21 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   cube_row->addWidget(hue_strip_);
   // The foreground as numbers under the cube (GitHub issue 577): a hex field that typing or
   // Ctrl+V replaces, like the color window's HTML field, and R, G, B boxes. Each commit of a
-  // value is one pick of the foreground; showing a color never is one.
+  // value is one pick of the foreground; showing a color never is one. The "#" is a label
+  // before the field, so the field holds and copies the bare digits.
+  auto* hex_label = new QLabel(QStringLiteral("#"), cube);
+  hex_label->setObjectName(QStringLiteral("colorPanelHexLabel"));
   hex_edit_ = new QLineEdit(cube);
   hex_edit_->setObjectName(QStringLiteral("colorPanelHexEdit"));
-  hex_edit_->setMinimumWidth(hex_edit_->fontMetrics().horizontalAdvance(QStringLiteral("#DDDDDD")) + 12);
+  hex_edit_->setMinimumWidth(hex_edit_->fontMetrics().horizontalAdvance(QStringLiteral("DDDDDD")) + 12);
+  hex_label->setBuddy(hex_edit_);
   select_all_on_focus(*hex_edit_);
   connect(hex_edit_, &QLineEdit::textEdited, this, [this] { apply_hex_text(false); });
   connect(hex_edit_, &QLineEdit::editingFinished, this, [this] { apply_hex_text(true); });
   auto* input_row = new QHBoxLayout;
   input_row->setContentsMargins(0, 0, 0, 0);
   input_row->setSpacing(4);
+  input_row->addWidget(hex_label);
   input_row->addWidget(hex_edit_, 1);
   static constexpr std::array<const char*, 3> rgb_names = {"Red", "Green", "Blue"};
   for (std::size_t index = 0; index < cube_rgb_spins_.size(); ++index) {
@@ -678,11 +683,19 @@ void ColorDockPanel::show_hex(bool force) {
     }
   }
   const QSignalBlocker blocker(hex_edit_);
-  hex_edit_->setText(rgb_.name(QColor::HexRgb).toUpper());
+  hex_edit_->setText(rgb_.name(QColor::HexRgb).mid(1).toUpper());
 }
 
 void ColorDockPanel::apply_hex_text(bool finished) {
-  const auto text = hex_edit_->text();
+  auto text = hex_edit_->text();
+  // A typed or pasted "#" comes out at once; the caret keeps its place among the digits.
+  if (text.contains(QLatin1Char('#'))) {
+    const auto caret = hex_edit_->cursorPosition() - text.left(hex_edit_->cursorPosition()).count(QLatin1Char('#'));
+    text.remove(QLatin1Char('#'));
+    const QSignalBlocker blocker(hex_edit_);
+    hex_edit_->setText(text);
+    hex_edit_->setCursorPosition(static_cast<int>(caret));
+  }
   const auto parsed = finished || is_whole_hex(text) ? parse_panel_color(text) : QColor();
   if (parsed.isValid()) {
     // The stored foreground is opaque RGB: a "#RRGGBBAA" entry's alpha is dropped.

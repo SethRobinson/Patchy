@@ -1236,7 +1236,8 @@ void ui_color_panel_field_drag_keeps_per_move_work_small() {
 
 // GitHub issue 577: the hex field takes typed and pasted values ("#RRGGBB" or "RRGGBB"),
 // short forms and names on Return, and the R, G, B boxes take numbers; each sets the
-// foreground once and leaves the background alone.
+// foreground once and leaves the background alone. A "#" label sits before the field,
+// which shows and copies bare digits and drops a typed or pasted "#" (the follow-up).
 void ui_color_panel_hex_and_rgb_fields_set_foreground() {
   SettingsValueRestorer view_setting(kColorPanelViewKey);
   patchy::ui::MainWindow window;
@@ -1258,12 +1259,24 @@ void ui_color_panel_hex_and_rgb_fields_set_foreground() {
     return;
   }
   CHECK(hex->isVisible() && red->isVisible() && green->isVisible() && blue->isVisible());
-  CHECK(hex->text() == QStringLiteral("#000000"));
+  CHECK(hex->text() == QStringLiteral("000000"));
+  auto* hex_label = panel->findChild<QLabel*>(QStringLiteral("colorPanelHexLabel"));
+  CHECK(hex_label != nullptr);
+  if (hex_label != nullptr) {
+    CHECK(hex_label->isVisible());
+    CHECK(hex_label->text() == QStringLiteral("#"));
+    CHECK(hex_label->buddy() == hex);
+    // Just left of the field, on its row.
+    CHECK(hex_label->geometry().right() < hex->geometry().left());
+    CHECK(hex->geometry().left() - hex_label->geometry().right() <= 12);
+    CHECK(hex_label->geometry().top() < hex->geometry().bottom() &&
+          hex_label->geometry().bottom() > hex->geometry().top());
+  }
   const auto background = canvas->secondary_color();
   int picks = 0;
   QObject::connect(panel, &ColorDockPanel::color_picked, panel, [&picks] { ++picks; });
   const auto shows = [&](QColor color) {
-    return hex->text() == color.name(QColor::HexRgb).toUpper() && red->value() == color.red() &&
+    return hex->text() == color.name(QColor::HexRgb).mid(1).toUpper() && red->value() == color.red() &&
            green->value() == color.green() && blue->value() == color.blue();
   };
 
@@ -1283,8 +1296,12 @@ void ui_color_panel_hex_and_rgb_fields_set_foreground() {
   CHECK(red->value() == typed.red() && green->value() == typed.green() && blue->value() == typed.blue());
   QTest::keyClick(hex, Qt::Key_Return);
   QApplication::processEvents();
-  CHECK(hex->text() == QStringLiteral("#1A2B3C"));
+  CHECK(hex->text() == QStringLiteral("1A2B3C"));
   CHECK(picks == 1);
+  // Copying the field gives the bare digits.
+  hex->selectAll();
+  QTest::keyClick(hex, Qt::Key_C, Qt::ControlModifier);
+  CHECK(QGuiApplication::clipboard()->text() == QStringLiteral("1A2B3C"));
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Foreground color changed"));
 
   // Ctrl+V over the selected value replaces it and applies, with or without the "#".
@@ -1292,6 +1309,7 @@ void ui_color_panel_hex_and_rgb_fields_set_foreground() {
   hex->selectAll();
   QTest::keyClick(hex, Qt::Key_V, Qt::ControlModifier);
   CHECK(canvas->primary_color().rgb() == QColor(0x33, 0x66, 0x99).rgb());
+  CHECK(hex->text() == QStringLiteral("336699"));
   QGuiApplication::clipboard()->setText(QStringLiteral("C0FFEE"));
   hex->selectAll();
   QTest::keyClick(hex, Qt::Key_V, Qt::ControlModifier);
@@ -1304,7 +1322,14 @@ void ui_color_panel_hex_and_rgb_fields_set_foreground() {
   // Short forms and names apply on Return; text that names no color brings the value back.
   hex->selectAll();
   QTest::keyClicks(hex, QStringLiteral("#f80"));
+  CHECK(hex->text() == QStringLiteral("f80"));
   CHECK(canvas->primary_color().rgb() == QColor(0xC0, 0xFF, 0xEE).rgb());
+  // A "#" typed among the digits comes out with the caret kept in place.
+  QTest::keyClick(hex, Qt::Key_Left);
+  QTest::keyClicks(hex, QStringLiteral("#"));
+  CHECK(hex->text() == QStringLiteral("f80"));
+  CHECK(hex->cursorPosition() == 2);
+  QTest::keyClick(hex, Qt::Key_End);
   QTest::keyClick(hex, Qt::Key_Return);
   QApplication::processEvents();
   CHECK(canvas->primary_color().rgb() == QColor(0xFF, 0x88, 0x00).rgb());
@@ -1378,7 +1403,7 @@ void ui_color_panel_hex_and_rgb_fields_follow_the_foreground() {
     return;
   }
   const auto shows = [&](QColor color) {
-    return hex->text() == color.name(QColor::HexRgb).toUpper() &&
+    return hex->text() == color.name(QColor::HexRgb).mid(1).toUpper() &&
            panel->cube_rgb_spin(Channel::Red)->value() == color.red() &&
            panel->cube_rgb_spin(Channel::Green)->value() == color.green() &&
            panel->cube_rgb_spin(Channel::Blue)->value() == color.blue();

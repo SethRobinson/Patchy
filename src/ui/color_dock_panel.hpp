@@ -139,7 +139,7 @@ private:
   void adopt_foreground(QColor color);
   void produce_foreground(QColor color);
   void refresh_channel_views();
-  // The hex field's text as the foreground. While typing (`finished` false) only a whole
+  // The hex field's text as the foreground, with any "#" taken out of the field. While typing (`finished` false) only a whole
   // six-digit value applies; on Return or focus out anything parse_panel_color reads does,
   // and the field then shows the foreground again.
   void apply_hex_text(bool finished);
