@@ -33614,6 +33614,26 @@ Verrouillé : %1</translation>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage : impossible d&apos;écrire %1.</translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>L&apos;ancre de resizeCanvas doit être l&apos;une des valeurs %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1 doit être un nombre compris entre -30000 et 30000.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas : option inconnue %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas accepte une ancre ou x et y, pas les deux.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>Pixellisez les filtres dynamiques et les objets dynamiques avant de redimensionner la zone de travail avec une ancre ou un décalage.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

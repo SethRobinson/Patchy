@@ -33614,6 +33614,26 @@ Bloqueada: %1</translation>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: no se pudo escribir %1.</translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>El ancla de resizeCanvas debe ser una de %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1 debe ser un número entre -30000 y 30000.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: opción desconocida %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas acepta un ancla o x e y, no ambos.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>Rasterice los filtros inteligentes y los objetos inteligentes antes de cambiar el tamaño del lienzo con un ancla o un desplazamiento.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

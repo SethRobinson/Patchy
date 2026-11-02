@@ -240,6 +240,9 @@ interface PatchyMaskData {
 }
 
 /** A raster layer mask as layer.getLayerMask() reports it. */
+type PatchyCanvasAnchor = "topLeft" | "top" | "topRight" | "left" | "center" | "right" | "bottomLeft" |
+  "bottom" | "bottomRight";
+
 interface PatchyLayerMask extends PatchyMaskData {
   /** Coverage outside the block: 0 (hidden) or 255 (shown). */
   defaultColor: number;
@@ -1232,7 +1235,14 @@ interface PatchyDocument {
    *  Bicubic Sharper for a reduction, Bicubic Smoother for an enlargement); an unknown id
    *  throws. Text layers and smart objects re-render from their sources afterwards. */
   resizeImage(width: number, height: number, options?: {method?: PatchyResampleMethod}): void;
-  resizeCanvas(width: number, height: number): void;
+  /** Without options only the canvas size changes: layers keep their positions and nothing is
+   *  filled. With options it is Image > Canvas Size: `anchor` (default "topLeft") or `x`/`y`
+   *  (where the old canvas's top-left lands in the new one, so `{x: 200}` adds 200 px on the
+   *  left) places the content, the Background layer fills the new area with `fill` (default
+   *  white), and the selection moves with the content. Throws for Smart Filters and unparsed
+   *  Smart Objects when options are given. */
+  resizeCanvas(width: number, height: number, options?: {anchor?: PatchyCanvasAnchor; x?: number; y?: number;
+    fill?: string}): void;
   /** The artboards, top of the layer stack first (empty without artboards). */
   readonly artboards: PatchyLayer[];
   /**

@@ -33530,6 +33530,26 @@ Locked: %1</source>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: %1을(를) 쓸 수 없습니다.</translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>resizeCanvas 기준점은 %1 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1은(는) -30000에서 30000 사이의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: 알 수 없는 옵션 %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas에는 기준점 또는 x와 y 중 하나만 지정하세요.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>기준점이나 오프셋으로 캔버스 크기를 변경하기 전에 스마트 필터와 스마트 개체를 래스터화하세요.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

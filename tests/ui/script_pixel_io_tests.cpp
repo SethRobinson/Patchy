@@ -272,6 +272,47 @@ void ui_script_io_image_round_trips_unicode_path() {
   remove_test_scratch_dir(dir);
 }
 
+// doc.resizeCanvas with an offset or an anchor moves the content and the selection and fills
+// the Background; without options only the size changes; bad options throw.
+void ui_script_resize_canvas_anchor_and_offset() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.newDocument(40, 30);
+    var layer = doc.addLayer('Content');
+    layer.fillRect(0, 0, 10, 10, '#ff0000');
+    doc.selection.selectRect(2, 3, 4, 5);
+    doc.resizeCanvas(70, 50, {x: 30, y: 20, fill: '#00ff00'});
+    var b = doc.selection.bounds;
+    var corner = new Uint8Array(doc.getCompositePixels({x: 0, y: 0, width: 1, height: 1}).data);
+    var moved = new Uint8Array(doc.getCompositePixels({x: 30, y: 20, width: 1, height: 1}).data);
+    console.log('offset=' + doc.width + 'x' + doc.height + ' layer=' + layer.x + ',' + layer.y +
+                ' sel=' + b.x + ',' + b.y + ',' + b.width + 'x' + b.height +
+                ' corner=' + corner[0] + ',' + corner[1] + ',' + corner[2] + ' moved=' + moved[0] + ',' + moved[1]);
+    doc.resizeCanvas(80, 60, {anchor: 'center'});
+    console.log('center=' + doc.width + 'x' + doc.height + ' layer=' + layer.x + ',' + layer.y);
+    doc.resizeCanvas(100, 60, {anchor: 'bottomRight'});
+    console.log('bottomRight=' + layer.x + ',' + layer.y);
+    doc.resizeCanvas(120, 70);
+    console.log('plain=' + doc.width + 'x' + doc.height + ' layer=' + layer.x + ',' + layer.y);
+
+    var errors = [];
+    [function () { doc.resizeCanvas(10, 10, {anchor: 'middle'}); },
+     function () { doc.resizeCanvas(10, 10, {anchor: 'top', x: 1}); },
+     function () { doc.resizeCanvas(10, 10, {x: 'left'}); },
+     function () { doc.resizeCanvas(10, 10, {fill: 'nope'}); },
+     function () { doc.resizeCanvas(10, 10, {offset: 1}); }].forEach(function (f) {
+      try { f(); errors.push('no-throw'); } catch (e) { errors.push(e.message.length > 0 ? 'thrown' : 'empty'); }
+    });
+    console.log('errors=' + errors.join(',') + ' size=' + doc.width + 'x' + doc.height);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("offset=70x50 layer=30,20 sel=32,23,4x5 corner=0,255,0 moved=255,0")));
+  CHECK(backlog_contains(window, QStringLiteral("center=80x60 layer=35,25")));
+  CHECK(backlog_contains(window, QStringLiteral("bottomRight=55,25")));
+  CHECK(backlog_contains(window, QStringLiteral("plain=120x70 layer=55,25")));
+  CHECK(backlog_contains(window, QStringLiteral("errors=thrown,thrown,thrown,thrown,thrown size=120x70")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> script_pixel_io_tests() {
@@ -282,5 +323,6 @@ std::vector<patchy::test::TestCase> script_pixel_io_tests() {
        ui_script_layer_mask_companion_insert_is_one_undo_step},
       {"ui_script_composite_pixels_match_flatten", ui_script_composite_pixels_match_flatten},
       {"ui_script_io_image_round_trips_unicode_path", ui_script_io_image_round_trips_unicode_path},
+      {"ui_script_resize_canvas_anchor_and_offset", ui_script_resize_canvas_anchor_and_offset},
   };
 }

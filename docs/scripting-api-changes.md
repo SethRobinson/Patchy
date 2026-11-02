@@ -14,6 +14,13 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-11-02 (additive): `doc.resizeCanvas(w, h, options)` takes `anchor` (nine ids, `"topLeft"`
+to `"bottomRight"`) or `x`/`y` (the old canvas origin in the new canvas) and `fill`; with options
+it works like Image > Canvas Size (content and selection move, the Background fills with `fill`,
+default white). Without options it is unchanged. `get_state` layers add `hasLayerMask` and
+`layerMask` (`bounds`, `enabled`, `defaultColor`, `density`, `feather`, or null). Permanent
+identifiers: the option keys, the anchor ids and the two state fields. Pinned by
+`ui_script_resize_canvas_anchor_and_offset` and `ui_mcp_state_reports_layer_masks`.
 2026-11-02 (behavioral and additive, MCP): the attach socket serves up to four clients at once
 instead of refusing a second one with `workspace_unavailable`; a request while another client's
 script runs gets `busy`. `get_info` adds `mainWindow` (`geometry`, `minimized`, `nativeId` on

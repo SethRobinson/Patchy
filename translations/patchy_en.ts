@@ -33533,6 +33533,26 @@ Locked: %1</source>
         <source>writeImage: could not write %1.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

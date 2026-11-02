@@ -33614,6 +33614,26 @@ Fixiert: %1</translation>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: %1 konnte nicht geschrieben werden.</translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>Der resizeCanvas-Anker muss einer der folgenden sein: %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1 muss eine Zahl zwischen -30000 und 30000 sein.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: unbekannte Option %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas nimmt einen Anker oder x und y, nicht beides.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>Rastern Sie Smartfilter und Smartobjekte, bevor Sie die Arbeitsfläche mit einem Anker oder Versatz ändern.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

@@ -33698,6 +33698,26 @@ Locked: %1</source>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: не удалось записать %1.</translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>Привязка resizeCanvas должна быть одной из %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1 должно быть числом от -30000 до 30000.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: неизвестный параметр %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas принимает привязку или x и y, но не то и другое.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>Растеризуйте смарт-фильтры и смарт-объекты, прежде чем менять размер холста с привязкой или смещением.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

@@ -22,6 +22,7 @@
 #include <QUuid>
 
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -286,10 +287,50 @@ void ui_companion_menu_lists_manifests_and_launches() {
 
 }  // namespace
 
+// get_state reports each layer's raster mask (bounds and settings), so a companion can find
+// the layers it inserted; a layer without one reports null.
+void ui_mcp_state_reports_layer_masks() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var masked = doc.addLayer('Masked');
+    masked.fillRect(0, 0, 32, 32, '#ff0000');
+    masked.setLayerMask({x: 4, y: 6, width: 8, height: 2, data: new Uint8Array(16).fill(255).buffer, density: 50,
+                         feather: 2});
+    doc.addLayer('Plain').fillRect(0, 0, 8, 8, '#0000ff');
+  )JS")));
+  const auto endpoint = unique_endpoint();
+  patchy::ui::McpAttachment attachment(window, endpoint);
+  CHECK(attachment.error().isEmpty());
+  SocketClient client;
+  CHECK(client.open(endpoint));
+  CHECK(client.initialize(QStringLiteral("Mask reader")));
+  const auto state = client.call("get_state")["structuredContent"].toObject();
+  QJsonObject masked;
+  QJsonObject plain;
+  const auto active = state["activeDocumentId"].toString();
+  for (const auto& document : state["documents"].toArray()) {
+    if (document.toObject()["id"].toString() != active) { continue; }
+    for (const auto& layer : document.toObject()["layers"].toArray()) {
+      const auto object = layer.toObject();
+      if (object["name"] == "Masked") { masked = object; }
+      if (object["name"] == "Plain") { plain = object; }
+    }
+  }
+  CHECK(masked["hasLayerMask"].toBool());
+  const auto mask = masked["layerMask"].toObject();
+  CHECK(mask["bounds"].toObject() == (QJsonObject{{"x", 4}, {"y", 6}, {"width", 8}, {"height", 2}}));
+  CHECK(mask["enabled"].toBool() && mask["defaultColor"].toInt() == 0 && mask["feather"].toDouble() == 2.0);
+  CHECK(std::abs(mask["density"].toDouble() - 50.0) < 0.5);
+  CHECK(!plain.isEmpty() && !plain["hasLayerMask"].toBool() && plain["layerMask"].isNull());
+}
+
 std::vector<patchy::test::TestCase> companion_tests() {
   return {
       {"ui_mcp_multi_client_attach_tokens_and_busy", ui_mcp_multi_client_attach_tokens_and_busy},
       {"ui_mcp_events_reach_subscribed_companions", ui_mcp_events_reach_subscribed_companions},
       {"ui_companion_menu_lists_manifests_and_launches", ui_companion_menu_lists_manifests_and_launches},
+      {"ui_mcp_state_reports_layer_masks", ui_mcp_state_reports_layer_masks},
   };
 }

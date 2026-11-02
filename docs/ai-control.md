@@ -250,7 +250,8 @@ The additive API remains version 1. Read the packaged TypeScript reference and
 [scripting guide](../scripts/bundled/scripting-guide.md) for signatures and examples.
 Native vector automation goes through `execute_script`; `get_info` advertises vector
 capabilities and `get_state` includes compact shape, mask, path/revision and target
-discovery, covered by attached state tokens ([vector-automation.md](vector-automation.md)).
+discovery, covered by attached state tokens; layers also report `hasLayerMask` and
+`layerMask` (raster mask bounds and settings) ([vector-automation.md](vector-automation.md)).
 
 - Document `id` and layer `id` are decimal strings, avoiding JavaScript number
   precision loss. A document ID is valid until close in its owning Patchy process;

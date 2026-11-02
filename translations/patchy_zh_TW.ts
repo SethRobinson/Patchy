@@ -33530,6 +33530,26 @@ Locked: %1</source>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage：無法寫入 %1。</translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>resizeCanvas 的錨點必須是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas 的 %1 必須是 -30000 到 30000 之間的數字。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas：未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas 只能指定錨點或 x 和 y，不能同時指定。</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>使用錨點或位移調整版面尺寸之前，請先點陣化智慧型濾鏡和智慧型物件。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

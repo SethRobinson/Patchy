@@ -33530,6 +33530,26 @@ Locked: %1</source>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: %1 を書き込めませんでした。</translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>resizeCanvas のアンカーは %1 のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas の %1 は -30000 から 30000 の数値にしてください。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: 不明なオプション %1。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas にはアンカーか x と y のどちらか一方を指定してください。</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>アンカーまたはオフセットでカンバスサイズを変更する前に、スマートフィルターとスマートオブジェクトをラスタライズしてください。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

@@ -39,6 +39,8 @@ result.setLayerMask({x: mask.x, y: mask.y, width: mask.width, height: mask.heigh
 patchy.setResult({layer: result.id});
 ```
 
+Expand grows the canvas in the same run: `doc.resizeCanvas(W, H, {x: LEFT, y: TOP})` moves the content and the selection and extends the Background, then the result is inserted as above. `get_state` reports each layer's `hasLayerMask` and `layerMask` settings, so a companion can find its inserted layers without reading mask pixels.
+
 Variations go into `doc.addGroup` in the same run. Discard is `doc.undo()` (or the `undo` tool) while the history is as the companion left it; check `get_state` history first so an artist's later edit is never undone. Keep with one variation: undo, then insert only the chosen layer, in one script (undo must precede mutations in a run).
 
 ## Events

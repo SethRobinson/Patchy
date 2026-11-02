@@ -52,6 +52,7 @@
 #include "ui/document_recovery.hpp"
 #include "ui/legacy_plugin_folder.hpp"
 #include "ui/layer_merge.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/qt_paths.hpp"
 #include "color/rgb_profiles.hpp"
@@ -3168,17 +3169,102 @@ void ScriptDocumentObject::resizeImage(int width, int height, const QJSValue& op
   if (read_document()) { host_.resize_session_image(session_id_, width, height, method); }
 }
 
-void ScriptDocumentObject::resizeCanvas(int width, int height) {
+void ScriptDocumentObject::resizeCanvas(int width, int height, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   if (width < 1 || height < 1 || width > 30000 || height > 30000) {
     host_.throw_js_error(ScriptEngineHost::tr("resizeCanvas needs a size between 1 and 30000."));
     return;
   }
+  if (!options.isObject()) {
+    // Without options only the size changes: layers keep their positions and nothing is filled.
+    auto* document = write_document();
+    if (document == nullptr) {
+      return;
+    }
+    document->resize_canvas(width, height);
+    host_.note_structure_changed(session_id_);
+    return;
+  }
+  // With options it is Image > Canvas Size: the content moves with the anchor or offset and
+  // the Background layer fills the new area with `fill`.
+  static constexpr std::array<std::pair<const char*, CanvasAnchor>, 9> kAnchors{{
+      {"topLeft", CanvasAnchor::TopLeft}, {"top", CanvasAnchor::Top}, {"topRight", CanvasAnchor::TopRight},
+      {"left", CanvasAnchor::Left}, {"center", CanvasAnchor::Center}, {"right", CanvasAnchor::Right},
+      {"bottomLeft", CanvasAnchor::BottomLeft}, {"bottom", CanvasAnchor::Bottom},
+      {"bottomRight", CanvasAnchor::BottomRight}}};
+  std::optional<CanvasAnchor> anchor;
+  std::optional<int> offset_x;
+  std::optional<int> offset_y;
+  QColor fill(Qt::white);
+  QJSValueIterator it(options);
+  while (it.hasNext()) {
+    it.next();
+    const auto key = it.name();
+    const auto value = it.value();
+    if (value.isUndefined()) {
+      continue;
+    }
+    if (key == QStringLiteral("anchor")) {
+      const auto id = value.toString();
+      for (const auto& [name, candidate] : kAnchors) {
+        if (id == QLatin1String(name)) {
+          anchor = candidate;
+        }
+      }
+      if (!anchor.has_value()) {
+        host_.throw_js_error(ScriptEngineHost::tr("resizeCanvas anchor must be one of %1.")
+                                 .arg(QStringLiteral("\"topLeft\", \"top\", \"topRight\", \"left\", \"center\", "
+                                                     "\"right\", \"bottomLeft\", \"bottom\", \"bottomRight\"")));
+        return;
+      }
+    } else if (key == QStringLiteral("x") || key == QStringLiteral("y")) {
+      const auto number = value.toNumber();
+      if (!value.isNumber() || !std::isfinite(number) || std::abs(number) > 30000.0) {
+        host_.throw_js_error(ScriptEngineHost::tr("resizeCanvas %1 must be a number between -30000 and 30000.").arg(key));
+        return;
+      }
+      (key == QStringLiteral("x") ? offset_x : offset_y) = static_cast<int>(std::lround(number));
+    } else if (key == QStringLiteral("fill")) {
+      if (!parse_color(host_, value.toString(), &fill)) {
+        return;
+      }
+    } else {
+      host_.throw_js_error(ScriptEngineHost::tr("resizeCanvas: unknown option %1.").arg(key));
+      return;
+    }
+  }
+  if (anchor.has_value() && (offset_x.has_value() || offset_y.has_value())) {
+    host_.throw_js_error(ScriptEngineHost::tr("resizeCanvas takes an anchor or x and y, not both."));
+    return;
+  }
+  const auto* current = read_document();
+  if (current == nullptr) {
+    return;
+  }
+  if (document_contains_smart_filters(*current) || document_contains_unparsed_smart_objects(*current)) {
+    host_.throw_js_error(ScriptEngineHost::tr(
+        "Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset."));
+    return;
+  }
+  const auto canvas = Rect::from_size(current->width(), current->height());
+  // The frame is the new canvas in current document coordinates; `x`/`y` place the old origin.
+  const auto frame = anchor.has_value() || (!offset_x.has_value() && !offset_y.has_value())
+                         ? canvas_resize_frame(canvas, anchor.value_or(CanvasAnchor::TopLeft), width, height)
+                         : Rect{-offset_x.value_or(0), -offset_y.value_or(0), width, height};
+  // The selection stays on the content it covered.
+  const auto selection_bounds =
+      host_.has_selection(session_id_) ? host_.selection_region(session_id_).boundingRect() : QRect();
+  const auto selection =
+      selection_bounds.isEmpty() ? PixelBuffer() : host_.selection_coverage(session_id_, selection_bounds);
   auto* document = write_document();
   if (document == nullptr) {
     return;
   }
-  document->resize_canvas(width, height);
+  resize_canvas_to_frame(*document, frame, edit_color(fill), false);
+  static_cast<void>(grow_canvas_to_artboards(*document));
+  if (!selection_bounds.isEmpty()) {
+    host_.set_selection_coverage(session_id_, selection_bounds.translated(-frame.x, -frame.y), selection);
+  }
   host_.note_structure_changed(session_id_);
 }
 

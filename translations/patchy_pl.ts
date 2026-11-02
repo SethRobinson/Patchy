@@ -33698,6 +33698,26 @@ Zablokowano: %1</translation>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: nie można zapisać %1.</translation>
     </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>Kotwica resizeCanvas musi być jedną z wartości %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1 musi być liczbą od -30000 do 30000.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: nieznana opcja %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas przyjmuje kotwicę albo x i y, nie oba naraz.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>Rasteryzuj inteligentne filtry i inteligentne obiekty przed zmianą rozmiaru obszaru roboczego z kotwicą lub przesunięciem.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

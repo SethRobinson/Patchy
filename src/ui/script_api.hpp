@@ -362,7 +362,8 @@ public:
   [[nodiscard]] QString xmp() const;
   // `options.method`: a resample id (core/resample.hpp), default "automatic".
   Q_INVOKABLE void resizeImage(int width, int height, const QJSValue& options = QJSValue());
-  Q_INVOKABLE void resizeCanvas(int width, int height);
+  // `options`: `anchor` (a CanvasAnchor id) or `x`/`y` (where the old canvas lands), plus `fill`.
+  Q_INVOKABLE void resizeCanvas(int width, int height, const QJSValue& options = QJSValue());
   Q_INVOKABLE void convertBitDepth(int bits);
   Q_INVOKABLE void convertToProfile(const QString& profile, const QJSValue& options = QJSValue());
   Q_INVOKABLE void crop(int x, int y, int width, int height);
