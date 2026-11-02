@@ -301,6 +301,16 @@ public:
   [[nodiscard]] CanvasTool tool() const noexcept;
   void set_edit_locked(bool locked) noexcept;
   [[nodiscard]] bool edit_locked() const noexcept;
+  // A filter dialog that lets the selection change while it is open (local-028; "Selection
+  // edits under a filter dialog" in docs/selection-tools.md): with this on, the edit lock
+  // still passes left-button input of the selection tools, their arrow nudges and the
+  // lasso keys. Everything else stays locked.
+  void set_selection_edits_allowed_while_locked(bool allowed) noexcept;
+  [[nodiscard]] bool selection_edits_allowed_while_locked() const noexcept;
+  // Called before a press of a pixel-reading selection tool (Magic Wand, Quick Selection,
+  // Magnetic Lasso, Object Selection) passes the lock, so the host can put the unfiltered
+  // pixels back under the tool first.
+  void set_selection_sampling_callback(std::function<void()> callback);
   void set_layer_edit_target(LayerEditTarget target) noexcept;
   [[nodiscard]] LayerEditTarget layer_edit_target() const noexcept;
   void set_document_channel_edit_target(ChannelId id, MaskDisplayMode mode = MaskDisplayMode::Grayscale);
@@ -2011,6 +2021,9 @@ private:
   void show_layer_pixels_locked_message() const;
   void show_layer_position_locked_message() const;
   void show_edit_locked_message() const;
+  // True when the edit lock lets the active selection tool through
+  // (set_selection_edits_allowed_while_locked).
+  [[nodiscard]] bool selection_tool_passes_edit_lock() const noexcept;
   [[nodiscard]] Layer* topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel,
                                               bool skip_locked) const noexcept;
   [[nodiscard]] Layer* topmost_move_layer_at(QPoint document_point, bool skip_locked) const noexcept;
@@ -3130,6 +3143,8 @@ private:
   QPointF stroke_constraint_start_{};
   StrokeConstraintAxis stroke_constraint_axis_{StrokeConstraintAxis::None};
   bool edit_locked_{false};
+  bool selection_edits_allowed_while_locked_{false};
+  std::function<void()> selection_sampling_callback_;
   QPointF brush_smoothing_last_input_position_{};
   QPointF brush_smoothing_last_rendered_position_{};
   bool brush_smoothing_active_{false};
