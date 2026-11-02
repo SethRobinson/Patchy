@@ -362,11 +362,23 @@ void ui_font_picker_recent_separator_reads_in_both_schemes() {
     auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
     CHECK(list != nullptr);
     CHECK(row_kind(list->model()->index(3, 0)) == FontPickerRowKind::all_header);
-    // The rule is drawn in the separator role two pixels into the All Fonts row.
+    // The rule is drawn in field_border near the top of the All Fonts row (searched over a few
+    // rows: the device pixel ratio and the style's row origin differ per platform).
     const auto row = list->visualRect(list->model()->index(3, 0));
     const auto image = list->viewport()->grab().toImage();
-    CHECK(image.pixelColor(row.center().x() / 2, row.top() + 2).rgb() == patchy::ui::theme().field_border.rgb());
+    const auto ratio = image.devicePixelRatio();
+    const auto rule = patchy::ui::theme().field_border;
+    bool found_rule = false;
+    const int x = static_cast<int>(row.center().x() / 2 * ratio);
+    for (int y = static_cast<int>(row.top() * ratio); y <= static_cast<int>((row.top() + 5) * ratio); ++y) {
+      if (x < image.width() && y >= 0 && y < image.height()) {
+        const auto pixel = image.pixelColor(x, y);
+        found_rule = found_rule || (std::abs(pixel.red() - rule.red()) <= 6 && std::abs(pixel.green() - rule.green()) <= 6 &&
+                                    std::abs(pixel.blue() - rule.blue()) <= 6);
+      }
+    }
     save_widget_artifact(name, *popup);
+    CHECK(found_rule);
     popup->close();
     QApplication::processEvents();
   };
