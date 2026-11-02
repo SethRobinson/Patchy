@@ -186,6 +186,7 @@
         "PATCHY_BUILD_APP": "ON",
         "PATCHY_BUILD_TESTS": "OFF",
         "PATCHY_REQUIRE_AI_SELECTION": "ON",
+        "PATCHY_REQUIRE_GEGL": "ON",
         "PATCHY_GMIC_THREADS": "ON",
         "PATCHY_ONNXRUNTIME_DIR": "/opt/deps/onnxruntime/1.30.0/linux-x64",
         "PATCHY_AI_MODELS_DIR": "/opt/deps/ai-models",

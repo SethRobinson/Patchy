@@ -40,9 +40,33 @@ GPL version 3). The other GEGL and babl files are under the GNU LGPL version 3 o
 
 Source code: the complete corresponding source of every library here (the archives listed
 above, MSYS2's packaging of the Windows ones, and the scripts that built them) is
-PatchyGeglSources.zip, published with every Patchy release at
-https://github.com/SethRobinson/Patchy/releases next to the downloads, and at
-https://rtsoft.com/files/PatchyGeglSources.zip. Patchy's own source, the GEGL helper's
-included, is the release's tag in https://github.com/SethRobinson/Patchy.
+PatchyGeglSources.zip, an asset of every Patchy release on GitHub, next to the downloads:
+https://github.com/SethRobinson/Patchy/releases (the release of this Patchy version,
+https://github.com/SethRobinson/Patchy/releases/tag/v<version>). Patchy's own source, the
+GEGL helper's included, is that release's tag in https://github.com/SethRobinson/Patchy.
 EOF
+}
+
+# patchy_gegl_check_sources <SOURCES.txt>: the packagers' check that a bundle about to ship
+# matches the PatchyGeglSources.zip published beside it: every checksum and MSYS2 source
+# package it names is in sources.lock, and it carries the current source note (a bundle built
+# before it named another place for the source). Prints the problem and returns 1.
+patchy_gegl_check_sources() {
+  [ -f "$1" ] || { echo "ERROR: $1 does not exist" >&2; return 1; }
+  grep -q 'releases/tag/v<version>' "$1" ||
+    { echo "ERROR: $1 predates the current source note; rebuild the GEGL bundle (scripts/dev/gegl/)" >&2; return 1; }
+  for sha in $(grep -o 'sha256 [0-9a-f]\{64\}' "$1" | cut -d' ' -f2); do
+    awk -v s="$sha" '!/^#/ && $2 == s {found = 1} END {exit !found}' "$PATCHY_GEGL_SCRIPTS/sources.lock" ||
+      { echo "ERROR: $1 names sha256 $sha, which is not in sources.lock" >&2; return 1; }
+  done
+  for archive in $(grep -o '[^ ]*\.src\.tar\.zst' "$1"); do
+    patchy_gegl_locked "$archive" || { echo "ERROR: $1 names $archive, which is not in sources.lock" >&2; return 1; }
+  done
+}
+
+# patchy_gegl_license <source> <name>: copies one license text into $STAGE/licenses/<name>,
+# failing the build when it is missing (a bundle never ships without its licenses).
+patchy_gegl_license() {
+  [ -f "$1" ] || { echo "license text not found: $1" >&2; exit 1; }
+  cp "$1" "$STAGE/licenses/$2"
 }

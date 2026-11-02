@@ -59,6 +59,39 @@ foreach ($line in Get-Content -LiteralPath $lockPath) {
 }
 if ($entries.Count -eq 0) { Fail 'sources.lock lists nothing' }
 
+# The bundles in the staged Windows packages, and the Flatpak manifest's babl and GEGL, must
+# be built from exactly these archives: every checksum and MSYS2 source package a bundle's
+# SOURCES.txt names is in the lock, and it carries the current source note (a bundle built
+# before it named another place for the source). make-dmg.sh and the AppImage build check
+# their bundles the same way (patchy_gegl_check_sources in scripts/dev/gegl/common.sh).
+$lockedNames = @{}
+$lockedShas = @{}
+foreach ($item in $entries) { $lockedNames[$item.Name] = $true; $lockedShas[$item.Sha] = $true }
+$bundleSources = @(Get-ChildItem -Path (Join-Path $repoRoot 'build\package\staging*\*\gegl\licenses\SOURCES.txt') -ErrorAction SilentlyContinue)
+if ($bundleSources.Count -eq 0) { Fail 'no staged Windows package carries gegl\licenses\SOURCES.txt' }
+foreach ($file in $bundleSources) {
+  $text = [System.IO.File]::ReadAllText($file.FullName)
+  if ($text -notmatch [regex]::Escape('releases/tag/v<version>')) {
+    Fail "$($file.FullName) predates the current source note; rebuild the GEGL bundle (scripts\dev\gegl\)"
+  }
+  foreach ($match in [regex]::Matches($text, 'sha256 ([0-9a-f]{64})')) {
+    if (-not $lockedShas.ContainsKey($match.Groups[1].Value)) { Fail "$($file.FullName) names sha256 $($match.Groups[1].Value), which is not in sources.lock" }
+  }
+  foreach ($match in [regex]::Matches($text, '(\S+\.src\.tar\.zst)')) {
+    if (-not $lockedNames.ContainsKey($match.Groups[1].Value)) { Fail "$($file.FullName) names $($match.Groups[1].Value), which is not in sources.lock" }
+  }
+  Write-Host "bundle sources ok: $($file.FullName)"
+}
+$lastUrl = ''
+foreach ($line in Get-Content -LiteralPath (Join-Path $repoRoot 'packaging\linux\flatpak\com.rtsoft.patchy.yml')) {
+  if ($line -match '^\s*url:\s*(\S+)') { $lastUrl = $Matches[1]; continue }
+  if ($line -notmatch '^\s*sha256:\s*([0-9a-f]{64})') { continue }
+  $sha = $Matches[1]
+  if ($lastUrl -match 'download\.gimp\.org/pub/(babl|gegl)/' -and -not $lockedShas.ContainsKey($sha)) {
+    Fail "the Flatpak manifest builds $lastUrl, whose sha256 is not in sources.lock"
+  }
+}
+
 $readme = @"
 Source code of the GEGL libraries Patchy ships (Filter > GEGL Filters)
 

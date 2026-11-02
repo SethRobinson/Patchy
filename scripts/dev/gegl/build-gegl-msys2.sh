@@ -120,9 +120,14 @@ for package in $packages; do
     echo "add to scripts/dev/gegl/sources.lock: $source $(sha256sum "$cache/$source" | cut -d' ' -f1) https://repo.msys2.org/mingw/sources/$source" >&2
     missing=1
   fi
+  copied=0
   for file in "/${MSYSTEM,,}/share/licenses/$short"/*; do
-    [ -f "$file" ] && cp "$file" "$STAGE/licenses/$short-$(basename "$file").txt"
+    [ -f "$file" ] || continue
+    cp "$file" "$STAGE/licenses/$short-$(basename "$file").txt"
+    copied=$((copied + 1))
   done
+  # Every staged library ships its license (docs/gegl-filters.md, "Bundled GEGL").
+  [ $copied -gt 0 ] || { echo "$package has no license file in /${MSYSTEM,,}/share/licenses/$short" >&2; exit 1; }
 done
 [ $missing = 0 ] || { echo "the source packages above are not in sources.lock: nothing staged" >&2; exit 3; }
 

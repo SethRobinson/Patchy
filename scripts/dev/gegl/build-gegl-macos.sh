@@ -139,10 +139,10 @@ cp "gegl-$GEGL_VERSION/COPYING" "$STAGE/licenses/gegl-COPYING.txt"
 cp "babl-$BABL_VERSION/COPYING" "$STAGE/licenses/babl-COPYING.txt"
 cp "glib-$GLIB_VERSION/COPYING" "$STAGE/licenses/glib-COPYING.txt"
 cp "json-glib-$JSON_GLIB_VERSION/COPYING" "$STAGE/licenses/json-glib-COPYING.txt"
-cp "gettext-$GETTEXT_VERSION/gettext-runtime/intl/COPYING.LIB" "$STAGE/licenses/libintl-COPYING.LIB.txt" 2>/dev/null ||
-  cp "gettext-$GETTEXT_VERSION/COPYING" "$STAGE/licenses/gettext-COPYING.txt"
-pcre2_license=$(find "build-glib-$GLIB_VERSION" "glib-$GLIB_VERSION/subprojects" -maxdepth 3 -name LICENCE* 2>/dev/null | head -1)
-[ -n "$pcre2_license" ] && cp "$pcre2_license" "$STAGE/licenses/pcre2-LICENCE.txt"
+# libintl is under the LGPL (intl/COPYING.LIB), never gettext's GPL COPYING.
+patchy_gegl_license "gettext-$GETTEXT_VERSION/gettext-runtime/intl/COPYING.LIB" libintl-COPYING.LIB.txt
+pcre2_license=$(find "build-glib-$GLIB_VERSION" "glib-$GLIB_VERSION/subprojects" -maxdepth 3 -name 'LICENCE*' 2>/dev/null | head -1)
+patchy_gegl_license "${pcre2_license:-the PCRE2 LICENCE of the GLib subproject}" pcre2-LICENCE.txt
 {
   echo "Patchy's GEGL bundle (osx-arm64, macOS $MACOSX_DEPLOYMENT_TARGET and later), built $(date -u +%Y-%m-%d) by scripts/dev/gegl/build-gegl-macos.sh"
   echo "GEGL $GEGL_VERSION https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz sha256 $GEGL_SHA256"

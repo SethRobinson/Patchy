@@ -147,7 +147,26 @@ $assets = [ordered]@{
 }
 # -SkipGeglSources is only for backfilling a release from before Patchy shipped its own GEGL.
 if (-not $SkipGeglSources) {
-  $assets['PatchyGeglSources.zip'] = Resolve-Asset 'PatchyGeglSources.zip' $null
+  $geglSources = Resolve-Asset 'PatchyGeglSources.zip' $null
+  $assets['PatchyGeglSources.zip'] = $geglSources
+  # A stale zip must not ship beside new packages: make-gegl-sources.ps1 writes it after both
+  # Windows packages, and it must hold exactly the archives sources.lock lists now.
+  foreach ($windowsPackage in @('PatchyWindowsInstaller.exe', 'PatchyWindowsArm64Installer.exe')) {
+    if ((Get-Item -LiteralPath $geglSources).LastWriteTimeUtc -lt (Get-Item -LiteralPath $assets[$windowsPackage]).LastWriteTimeUtc) {
+      Fail "PatchyGeglSources.zip is older than $windowsPackage; rerun scripts\release\make-gegl-sources.ps1"
+    }
+  }
+  $locked = @(Get-Content -LiteralPath (Join-Path $repoRoot 'scripts\dev\gegl\sources.lock') |
+    Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | ForEach-Object { 'sources/' + ($_.Trim() -split '\s+')[0] })
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $zipFile = [System.IO.Compression.ZipFile]::OpenRead($geglSources)
+  try { $zipped = @($zipFile.Entries | Where-Object { $_.FullName.StartsWith('sources/') } | ForEach-Object { $_.FullName }) }
+  finally { $zipFile.Dispose() }
+  if ($zipped.Count -eq 0) { Fail 'PatchyGeglSources.zip holds no source archives; rerun make-gegl-sources.ps1' }
+  $difference = @(Compare-Object -ReferenceObject $locked -DifferenceObject $zipped)
+  if ($difference.Count -gt 0) {
+    Fail "PatchyGeglSources.zip does not hold exactly the archives in sources.lock ($($difference.InputObject -join ', ')); rerun make-gegl-sources.ps1"
+  }
 }
 # The AppImage and its zsync file (docs/appimage.md). The zsync file names the AppImage
 # by its published name, so the two always ship together. -SkipAppImage is only for

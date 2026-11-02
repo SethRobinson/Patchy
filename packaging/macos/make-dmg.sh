@@ -53,6 +53,20 @@ grep -q '^PATCHY_GMIC_OPENMP_ENABLED:INTERNAL=TRUE$' "$BUILD_DIR/CMakeCache.txt"
   echo "ERROR: $BUILD_DIR has a single-threaded G'MIC engine; run bash scripts/setup-openmp-mac.sh, then rebuild."
   exit 1
 }
+# A release carries Patchy's own GEGL, its licenses, and a SOURCES.txt whose archives are all
+# in sources.lock (docs/gegl-filters.md, "Bundled GEGL" and "Sources").
+for gegl_file in Frameworks/gegl/lib/libgegl-0.4.0.dylib Resources/gegl/licenses/SOURCES.txt \
+                 Resources/gegl/licenses/gegl-COPYING.txt Resources/gegl/licenses/gegl-COPYING.LESSER.txt \
+                 Resources/gegl/licenses/babl-COPYING.txt Resources/gegl/licenses/libintl-COPYING.LIB.txt \
+                 Resources/gegl/licenses/pcre2-LICENCE.txt MacOS/patchy-gegl-host; do
+  [ -f "$APP/Contents/$gegl_file" ] || {
+    echo "ERROR: $APP has no Contents/$gegl_file; build GEGL with scripts/dev/gegl/build-gegl-macos.sh, then rebuild."
+    exit 1
+  }
+done
+PATCHY_GEGL_SCRIPTS="$ROOT/scripts/dev/gegl"
+. "$PATCHY_GEGL_SCRIPTS/common.sh"
+patchy_gegl_check_sources "$APP/Contents/Resources/gegl/licenses/SOURCES.txt" || exit 1
 
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
 DMG="$PACKAGE_DIR/Patchy-$VERSION.dmg"
@@ -118,10 +132,8 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   echo "== codesign (hardened runtime) =="
   # Patchy's own GEGL sits in Frameworks/gegl/lib and its module folders, which --deep does
   # not reliably reach: each library is signed first (docs/gegl-filters.md).
-  if [ -d "$STAGE/Patchy.app/Contents/Frameworks/gegl" ]; then
-    find "$STAGE/Patchy.app/Contents/Frameworks/gegl" -type f \( -name '*.dylib' -o -name '*.so' \) -print0 |
-      xargs -0 codesign --force --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY"
-  fi
+  find "$STAGE/Patchy.app/Contents/Frameworks/gegl" -type f \( -name '*.dylib' -o -name '*.so' \) -print0 |
+    xargs -0 codesign --force --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY"
   # The GEGL helper needs no entitlements: it loads only these libraries, signed by the same
   # team, through their @rpath names (checked November 2, 2026 with a hardened helper).
   codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
@@ -146,7 +158,8 @@ echo "== headless smoke check (the staged app must run with no display) =="
 SMOKE=$(mktemp -d "$SCRATCH_PARENT/patchy-dmg-smoke.XXXXXX")
 trap 'remove_scratch "$STAGE" "$SMOKE"' EXIT
 mkdir -p "$SMOKE/settings"
-echo 'console.log("headless smoke")' > "$SMOKE/smoke.js"
+# Also runs a GEGL filter through the signed patchy-gegl-host and the bundle in Frameworks/gegl.
+cp packaging/gegl-smoke.js "$SMOKE/smoke.js"
 PATCHY_SETTINGS_DIR="$SMOKE/settings" PATCHY_NO_SOUND=1 \
   "$STAGE/Patchy.app/Contents/MacOS/Patchy" --headless \
   --run-script "$SMOKE/smoke.js" --script-output "$SMOKE/smoke-output.txt" \

@@ -146,7 +146,7 @@ for %%E in (patchy.exe patchy-mcp.exe patchy-8bf-host32.exe patchy-8bf-host64.ex
 )
 
 echo Configuring %PATCHY_ARCH% release build ^(preset %PRESET%^)...
-"%CMAKE_EXE%" --preset %PRESET% -DPATCHY_BUILD_APP=ON -DPATCHY_REQUIRE_AI_SELECTION=ON -DPATCHY_GMIC_THREADS=ON -DCMAKE_PREFIX_PATH="%QT_PREFIX%" %CONFIGURE_EXTRA%
+"%CMAKE_EXE%" --preset %PRESET% -DPATCHY_BUILD_APP=ON -DPATCHY_REQUIRE_AI_SELECTION=ON -DPATCHY_REQUIRE_GEGL=ON -DPATCHY_GMIC_THREADS=ON -DCMAKE_PREFIX_PATH="%QT_PREFIX%" %CONFIGURE_EXTRA%
 if not "!ERRORLEVEL!"=="0" goto fail
 
 echo Building %PRESET% preset...

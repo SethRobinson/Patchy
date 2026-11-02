@@ -4,6 +4,7 @@
 # where patchy-gegl-host finds them beside the program (bundled_gegl_library). A build
 # without the folder offers no GEGL filters (the Filter menu says so).
 
+option(PATCHY_REQUIRE_GEGL "Fail the configure when Patchy's own GEGL bundle is not found (release packaging)" OFF)
 set(PATCHY_GEGL_BUNDLE_VERSION "0.4.72")
 if(WIN32)
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|arm64|aarch64")
@@ -52,6 +53,9 @@ if(PATCHY_GEGL_BUNDLE_DIR_FOUND)
     COMMENT "Copying Patchy's own GEGL into the build directory"
   )
   add_custom_target(patchy_gegl_bundle DEPENDS "${PATCHY_GEGL_BUNDLE_STAMP}")
+elseif(PATCHY_REQUIRE_GEGL)
+  message(FATAL_ERROR "Patchy's own GEGL ${PATCHY_GEGL_BUNDLE_VERSION} (${PATCHY_GEGL_BUNDLE_PLATFORM}) was not found, "
+                      "and PATCHY_REQUIRE_GEGL is ON: build it with scripts/dev/gegl/ or set PATCHY_GEGL_BUNDLE_DIR")
 else()
   message(STATUS "Patchy's own GEGL: not found, so no GEGL filters (build it with scripts/dev/gegl/)")
 endif()

@@ -1,6 +1,6 @@
 // GEGL filters (docs/gegl-filters.md, "Tests"): Patchy's own GEGL through patchy-gegl-host,
 // its settings, exclusions, runs at every depth, the menu, scripts and the filter dialog.
-// Both tests skip in a build without the bundle.
+// The tests skip in a build without the bundle.
 
 #include "core/pixel_depth.hpp"
 #include "filters/filter_engine.hpp"
@@ -441,9 +441,59 @@ void ui_gegl_bundled_filters_all_run() {
 
 }  // namespace
 
+// Scripts name GEGL filters, their settings and their choices by GEGL's own names (filter ids
+// `gegl.<operation>`, property names, enum nicks), so a GEGL upgrade that renamed one would
+// break saved scripts: these are pinned (docs/scripting-api-changes.md, 2026-11-02). Through
+// patchy.gegl.filters(), as a script sees them. Skips in a build without the bundle.
+void ui_gegl_script_identifiers_are_pinned() {
+  if (patchy::ui::bundled_gegl_library().isEmpty()) {
+    patchy::test::skip("this build has no GEGL of its own");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script_verbose(window, QStringLiteral(R"JS(
+    var pinned = {
+      "gegl.gaussian-blur": {"std-dev-x": "number", "std-dev-y": "number", "filter": "auto fir iir",
+                             "abyss-policy": "none clamp black white", "clip-extent": "boolean"},
+      "gegl.pixelize": {"norm": "diamond round square", "size-x": "integer", "size-y": "integer",
+                        "background": "default foreground background black white"},
+      "gegl.plasma": {"turbulence": "number", "seed": "integer"},
+      "gegl.vignette": {"shape": "circle square diamond horizontal vertical", "radius": "number",
+                        "softness": "number", "color": "default foreground background black white"},
+      "gegl.unsharp-mask": {"std-dev": "number", "scale": "number", "threshold": "number"},
+      "gegl.noise-hsv": {"holdness": "integer", "seed": "integer"},
+      "gegl.cartoon": {"mask-radius": "number", "pct-black": "number"},
+      "gegl.waves": {"amplitude": "number", "period": "number", "sampler-type": "nearest linear cubic nohalo lohalo"}
+    };
+    var filters = {};
+    patchy.gegl.filters().forEach(function (f) { filters[f.id] = f; });
+    Object.keys(pinned).forEach(function (id) {
+      var filter = filters[id];
+      if (!filter) throw new Error(id + " is not offered");
+      Object.keys(pinned[id]).forEach(function (name) {
+        var parameter = filter.parameters.filter(function (p) { return p.name === name; })[0];
+        if (!parameter) throw new Error(id + " has no setting " + name);
+        var expected = pinned[id][name];
+        if (expected === "number" || expected === "integer" || expected === "boolean") {
+          if (parameter.type !== expected) throw new Error(id + "." + name + " is " + parameter.type + ", not " + expected);
+          return;
+        }
+        if (parameter.type !== "choice") throw new Error(id + "." + name + " is " + parameter.type + ", not a choice");
+        var values = parameter.choices.map(function (c) { return typeof c === "object" ? c.value : c; });
+        expected.split(" ").forEach(function (token) {
+          if (values.indexOf(token) < 0) throw new Error(id + "." + name + " has no choice " + token + " (" + values.join(", ") + ")");
+        });
+      });
+    });
+    console.log("pinned ok");
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("pinned ok")));
+}
+
 std::vector<patchy::test::TestCase> gegl_filter_tests() {
   return {
       {"ui_gegl_filters_list_and_apply_if_available", ui_gegl_filters_list_and_apply_if_available},
       {"ui_gegl_bundled_filters_all_run", ui_gegl_bundled_filters_all_run},
+      {"ui_gegl_script_identifiers_are_pinned", ui_gegl_script_identifiers_are_pinned},
   };
 }

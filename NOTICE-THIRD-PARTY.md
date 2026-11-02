@@ -1131,11 +1131,10 @@ operations, removed from its build lists by `scripts/dev/gegl/common.sh`; nothin
 modified. The license texts (one per library, libintl's LGPL included) and the exact
 versions are in the package's GEGL `licenses` folder (`gegl\licenses` beside `patchy.exe`
 on Windows, with `SOURCES.txt`; in the macOS app, `Contents/Resources/gegl/licenses`; in the Flatpak,
-`/app/share/licenses/com.rtsoft.patchy`). The complete
+`/app/share/licenses/com.rtsoft.patchy`; in the AppImage, `usr/lib/patchy/gegl/licenses`). The complete
 corresponding source of all of them, with the scripts that built them, is
-`PatchyGeglSources.zip`, published with every Patchy release at
-<https://github.com/SethRobinson/Patchy/releases> and at
-<https://rtsoft.com/files/PatchyGeglSources.zip>. Patchy's helper only calls these libraries
+`PatchyGeglSources.zip`, an asset of every Patchy release at
+<https://github.com/SethRobinson/Patchy/releases>, next to the downloads. Patchy's helper only calls these libraries
 and you may replace them with your own builds. The helper's source is part of Patchy's own
 source (MIT, a license compatible with the GPL), in the release's tag of
 <https://github.com/SethRobinson/Patchy>.

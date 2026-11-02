@@ -135,7 +135,7 @@ cp "glib-$GLIB_VERSION/COPYING" "$STAGE/licenses/glib-COPYING.txt"
 cp "json-glib-$JSON_GLIB_VERSION/COPYING" "$STAGE/licenses/json-glib-COPYING.txt"
 cp /usr/share/doc/libffi8/copyright "$STAGE/licenses/libffi-copyright.txt"
 pcre2_license=$(find "build-glib-$GLIB_VERSION" "glib-$GLIB_VERSION/subprojects" -maxdepth 3 -name 'LICENCE*' 2>/dev/null | head -1)
-[ -n "$pcre2_license" ] && cp "$pcre2_license" "$STAGE/licenses/pcre2-LICENCE.txt"
+patchy_gegl_license "${pcre2_license:-the PCRE2 LICENCE of the GLib subproject}" pcre2-LICENCE.txt
 {
   echo "Patchy's GEGL bundle (linux-x64-appimage, Ubuntu 22.04 and later), built $(date -u +%Y-%m-%d) by scripts/dev/gegl/build-gegl-appimage.sh"
   echo "GEGL $GEGL_VERSION https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz sha256 $GEGL_SHA256"

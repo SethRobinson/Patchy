@@ -82,7 +82,8 @@ echo "== headless smoke check (the sandboxed app must run with no display) =="
 SMOKE=$(mktemp -d "$HOME/.patchy-flatpak-smoke.XXXXXX")
 trap 'case "$SMOKE" in */.patchy-flatpak-smoke.?*) rm -rf "$SMOKE" ;; esac' EXIT
 mkdir -p "$SMOKE/settings"
-echo 'console.log("headless smoke")' > "$SMOKE/smoke.js"
+# Also runs a GEGL filter through the babl/GEGL modules the manifest builds.
+cp "$ROOT/packaging/gegl-smoke.js" "$SMOKE/smoke.js"
 smoke_status=0
 timeout 180 flatpak-builder --run "$BUILD_DIR" "$RELEASE_MANIFEST" \
   env PATCHY_SETTINGS_DIR="$SMOKE/settings" PATCHY_NO_SOUND=1 \

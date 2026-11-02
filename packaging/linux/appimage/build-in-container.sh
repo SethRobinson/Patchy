@@ -16,9 +16,14 @@ ORT_LIB_DIR=/opt/deps/onnxruntime/1.30.0/linux-x64/lib
 # Patchy's own GEGL for the AppImage (docs/gegl-filters.md), built here once and kept in
 # .deps like the other platforms' bundles; the presets point CMake at it.
 GEGL_BUNDLE="$ROOT/.deps/gegl/0.4.72/linux-x64-appimage"
-if [ ! -f "$GEGL_BUNDLE/lib/libgegl-0.4.so.0" ]; then
+PATCHY_GEGL_SCRIPTS="$ROOT/scripts/dev/gegl"
+. "$PATCHY_GEGL_SCRIPTS/common.sh"
+# Rebuilt when missing or when its SOURCES.txt no longer matches sources.lock and the
+# current source note (a stale bundle must not ship beside this release's sources zip).
+if [ ! -f "$GEGL_BUNDLE/lib/libgegl-0.4.so.0" ] || ! patchy_gegl_check_sources "$GEGL_BUNDLE/licenses/SOURCES.txt"; then
   echo "== build Patchy's own GEGL for the AppImage =="
   bash "$ROOT/scripts/dev/gegl/build-gegl-appimage.sh" "$ROOT"
+  patchy_gegl_check_sources "$GEGL_BUNDLE/licenses/SOURCES.txt"
 fi
 
 if [ "$MODE" = "tests" ]; then
@@ -210,17 +215,7 @@ echo "== smoke check inside the 22.04 container (extracted run) =="
 SMOKE=$(mktemp -d /tmp/patchy-appimage-smoke.XXXXXX)
 mkdir -p "$SMOKE/settings"
 # The GEGL filters must list and run from the mounted image (patchy-gegl-host and the bundle).
-cat > "$SMOKE/smoke.js" <<'JS'
-console.log("headless smoke");
-var gegl = patchy.gegl.filters();
-if (gegl.length < 100 || !gegl.some(function (f) { return f.id === "gegl.cartoon"; })) {
-  throw new Error("GEGL filters are missing (" + gegl.length + " listed)");
-}
-var doc = app.newDocument(32, 16, {name: "gegl smoke"});
-doc.activeLayer.fillRect(0, 0, 16, 16, "#ff0000");
-doc.activeLayer.applyFilter("gegl.gaussian-blur", {"std-dev-x": 3, "std-dev-y": 3});
-console.log("gegl ok: " + gegl.length + " filters");
-JS
+cp "$ROOT/packaging/gegl-smoke.js" "$SMOKE/smoke.js"
 timeout 180 env PATCHY_SETTINGS_DIR="$SMOKE/settings" PATCHY_NO_SOUND=1 \
   "$STAGE/PatchyLinux.AppImage" --headless --run-script "$SMOKE/smoke.js" --script-output "$SMOKE/out.txt" \
   > "$SMOKE/console.txt" 2>&1 || { echo "ERROR: headless smoke check failed:" >&2; cat "$SMOKE/console.txt" >&2; exit 1; }

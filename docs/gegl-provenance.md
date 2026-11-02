@@ -18,7 +18,7 @@ None of these were opened, searched or excerpted at any point, by a person or a 
 
 ### 2026-11-02: Patchy's own GEGL
 
-- Built unmodified from gimp.org's `gegl-0.4.72.tar.xz` and `babl-0.1.128.tar.xz` (SHA-256 checked against gimp.org's `SHA256SUMS`) with Meson. Read: the option names in each tarball's `meson_options.txt` (build switches only), the license files it ships, and the build's own output. No `.c` file or operation source was opened; the legal review in [gegl-filters.md](gegl-filters.md#legal-review) works from each operation's own description.
+- Built from gimp.org's `gegl-0.4.72.tar.xz` and `babl-0.1.128.tar.xz` (SHA-256 checked against gimp.org's `SHA256SUMS`) with Meson. Read: the option names in each tarball's `meson_options.txt` (build switches only), the license files it ships, and the build's own output. No `.c` file or operation source was opened; the legal review in [gegl-filters.md](gegl-filters.md#legal-review) works from each operation's own description. The only change to the tarballs is the removal of three operations from GEGL's build lists (next entry).
 - macOS also builds GLib 2.84.4 and json-glib 1.10.8 (download.gnome.org, SHA-256 checked against GNOME's `.sha256sum` files) and gettext 0.26's runtime (ftp.gnu.org; GNU publishes a PGP signature, not a checksum, so the pinned SHA-256 is that of the copy first fetched on November 2, 2026), unmodified, configured by their documented options only.
 
 ### 2026-11-02: GPL-3 module, removed operations, source archive

@@ -36,7 +36,8 @@ six back. Permanent identifiers: those keys. Pinned by
 minimum, maximum, choices}`), and `layer.applyFilter` runs them by id ([gegl-filters.md](gegl-filters.md)).
 Permanent identifiers: the object, the method, its keys, the type tokens `integer`, `number`, `boolean`,
 `choice`, the color choices `default`, `foreground`, `background`, `black`, `white`, and filter ids
-`gegl.<operation>`. Pinned by `ui_gegl_filters_list_and_apply_if_available`.
+`gegl.<operation>`, with GEGL's own setting names and choice nicks. Pinned by
+`ui_gegl_filters_list_and_apply_if_available` and `ui_gegl_script_identifiers_are_pinned`.
 2026-11-02 (additive, MCP): the companion protocol, version 1 ([companions.md](companions.md#protocol)).
 `get_info` adds `companionProtocol` (`{min, max}`); the `initialize` reply's
 `experimental["patchy/companion"]` is `{minProtocol, maxProtocol}`; a client's
