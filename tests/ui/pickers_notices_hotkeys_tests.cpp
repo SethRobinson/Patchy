@@ -1039,6 +1039,10 @@ void ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if
   CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
   const auto supported_nondefault = patchy::encode_layer_blend_if(blend_if_ui_test_settings());
   auto& child_layer = document.layers().front().children().front();
+  // Photocraft's four-entry record without the transparency entry (#586).
+  child_layer.set_blend_if_payload(std::vector<std::uint8_t>(identity_payload.begin(), identity_payload.begin() + 32),
+                                   true);
+  CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
   child_layer.set_blend_if_payload(supported_nondefault, true);
   CHECK(patchy::ui::compatibility_warnings_for_document(document).isEmpty());
   child_layer.set_blend_if_payload(std::vector<std::uint8_t>(identity_range.begin(), identity_range.end()), true);

@@ -71,9 +71,14 @@ DecodedLayerBlendIf decode_layer_blend_if(std::span<const std::uint8_t> payload)
     return decoded;
   }
   // Photoshop RGB records use four editable entries (Gray, R, G, B), followed
-  // by one identity transparency entry. Other sizes/color-mode shapes stay raw.
-  if (payload.size() != 40U ||
-      !std::equal(kIdentityBlendIfEntry.begin(), kIdentityBlendIfEntry.end(), payload.begin() + 32U)) {
+  // by one identity transparency entry. Some other editors (Photocraft, #586)
+  // write the four entries without the transparency entry. Other sizes and
+  // color-mode shapes stay raw.
+  const bool four_entries = payload.size() == 32U;
+  const bool photoshop_shape =
+      payload.size() == 40U &&
+      std::equal(kIdentityBlendIfEntry.begin(), kIdentityBlendIfEntry.end(), payload.begin() + 32U);
+  if (!four_entries && !photoshop_shape) {
     decoded.status = BlendIfPayloadStatus::Unsupported;
     return decoded;
   }
@@ -605,6 +610,12 @@ void Layer::clear_mask() noexcept {
 bool Layer::set_blend_if(const LayerBlendIf& settings, bool replace_unsupported) {
   if (blend_if_payload_status() == BlendIfPayloadStatus::Unsupported && !replace_unsupported) {
     return false;
+  }
+  // An unchanged edit keeps the stored record as it is, including the
+  // 32-byte shape without a transparency entry that encoding would widen.
+  if (blend_if_rgb_compatible_ && blend_if_payload_status() == BlendIfPayloadStatus::Supported &&
+      blend_if() == settings) {
+    return true;
   }
   auto encoded = encode_layer_blend_if(settings, replace_unsupported ? std::span<const std::uint8_t>{}
                                                                        : std::span<const std::uint8_t>{

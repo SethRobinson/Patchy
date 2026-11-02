@@ -147,6 +147,80 @@ void blend_if_codec_rejects_unsupported_payloads() {
   CHECK(threw);
 }
 
+// Photocraft (#586) writes the four RGB entries without Photoshop's fifth
+// transparency entry: a 32-byte record.
+void blend_if_codec_accepts_four_entry_rgb_record() {
+  auto identity_payload = test_blend_if_identity_payload();
+  identity_payload.resize(32U);
+  const auto identity = patchy::decode_layer_blend_if(identity_payload);
+  CHECK(identity.status == patchy::BlendIfPayloadStatus::Supported);
+  CHECK(identity.settings == patchy::LayerBlendIf{});
+  CHECK(!patchy::blend_if_payload_has_non_identity_or_unsupported(identity_payload));
+
+  const std::vector<std::uint8_t> payload{
+      0, 0,  255, 255, 0, 0,  255, 255, // Gray
+      3, 13, 203, 243, 4, 14, 204, 244, // Red
+      0, 0,  255, 255, 0, 0,  255, 255, // Green
+      7, 17, 207, 247, 8, 18, 208, 248, // Blue
+  };
+  patchy::LayerBlendIf expected;
+  expected.channels[static_cast<std::size_t>(patchy::BlendIfChannel::Red)] = {
+      patchy::BlendIfThresholds{3, 13, 203, 243},
+      patchy::BlendIfThresholds{4, 14, 204, 244}};
+  expected.channels[static_cast<std::size_t>(patchy::BlendIfChannel::Blue)] = {
+      patchy::BlendIfThresholds{7, 17, 207, 247},
+      patchy::BlendIfThresholds{8, 18, 208, 248}};
+  const auto decoded = patchy::decode_layer_blend_if(payload);
+  CHECK(decoded.status == patchy::BlendIfPayloadStatus::Supported);
+  CHECK(decoded.settings == expected);
+  CHECK(patchy::blend_if_payload_has_non_identity_or_unsupported(payload));
+
+  // An edit writes Photoshop's 40-byte shape with the identity transparency entry.
+  auto widened = payload;
+  widened.insert(widened.end(), kTestBlendIfIdentityEntry.begin(), kTestBlendIfIdentityEntry.end());
+  CHECK(patchy::encode_layer_blend_if(decoded.settings, payload) == widened);
+
+  auto invalid_order = identity_payload;
+  invalid_order[0] = 20;
+  invalid_order[1] = 10;
+  CHECK(patchy::decode_layer_blend_if(invalid_order).status == patchy::BlendIfPayloadStatus::Unsupported);
+
+  // Setting the same values keeps the record; a real change widens it.
+  patchy::Layer layer(12, "Photocraft", solid_rgba(4, 4, 20, 40, 60, 255));
+  layer.raw_psd_blending_ranges() = payload;
+  CHECK(layer.blend_if_payload_status() == patchy::BlendIfPayloadStatus::Supported);
+  const auto render_revision = layer.render_revision();
+  CHECK(layer.set_blend_if(layer.blend_if()));
+  CHECK(layer.raw_psd_blending_ranges() == payload);
+  CHECK(layer.render_revision() == render_revision);
+  auto edited = expected;
+  edited.channels[static_cast<std::size_t>(patchy::BlendIfChannel::Gray)].this_layer =
+      patchy::BlendIfThresholds{9, 21, 190, 231};
+  CHECK(layer.set_blend_if(edited));
+  CHECK(layer.raw_psd_blending_ranges().size() == 40U);
+  CHECK(layer.blend_if() == edited);
+  CHECK(layer.render_revision() > render_revision);
+
+  // An untouched layer saves the same 32-byte record back.
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(4, 4, 255, 255, 255));
+  patchy::Layer identity_layer(document.allocate_layer_id(), "Photocraft Identity",
+                               solid_rgba(4, 4, 20, 40, 60, 255));
+  identity_layer.raw_psd_blending_ranges() = identity_payload;
+  document.add_layer(std::move(identity_layer));
+  patchy::Layer ranged_layer(document.allocate_layer_id(), "Photocraft Ranges",
+                             solid_rgba(4, 4, 20, 40, 60, 255));
+  ranged_layer.raw_psd_blending_ranges() = payload;
+  document.add_layer(std::move(ranged_layer));
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(read.layers().size() == 3U);
+  CHECK(read.layers()[1].raw_psd_blending_ranges() == identity_payload);
+  CHECK(read.layers()[1].blend_if_payload_status() == patchy::BlendIfPayloadStatus::Supported);
+  CHECK(read.layers()[2].raw_psd_blending_ranges() == payload);
+  CHECK(read.layers()[2].blend_if_payload_status() == patchy::BlendIfPayloadStatus::Supported);
+  CHECK(read.layers()[2].blend_if() == expected);
+}
+
 void layer_blend_if_setter_tracks_revisions_and_replacement() {
   patchy::Layer layer(11, "Blend If", solid_rgba(4, 4, 20, 40, 60, 255));
   const auto identity_payload = test_blend_if_identity_payload();
@@ -2043,6 +2117,7 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
       {"blend_if_codec_decodes_default_and_identity", blend_if_codec_decodes_default_and_identity},
       {"blend_if_codec_round_trips_unique_rgb_ranges", blend_if_codec_round_trips_unique_rgb_ranges},
       {"blend_if_codec_rejects_unsupported_payloads", blend_if_codec_rejects_unsupported_payloads},
+      {"blend_if_codec_accepts_four_entry_rgb_record", blend_if_codec_accepts_four_entry_rgb_record},
       {"layer_blend_if_setter_tracks_revisions_and_replacement",
        layer_blend_if_setter_tracks_revisions_and_replacement},
       {"blend_if_thresholds_feather_endpoints_and_multiply_channels",
