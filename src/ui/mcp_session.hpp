@@ -36,6 +36,11 @@ class McpSession {
   [[nodiscard]] bool closed() const;
   void receive_line(const QByteArray& line);
   void disconnect_from_any_thread();
+  // Companion events (docs/companions.md), UI thread only. A client opts in at initialize
+  // with capabilities.experimental["patchy/events"]; post_event is a no-op otherwise.
+  void post_event(const QJsonObject& event);
+  // capabilities.experimental["patchy/companion"] from initialize, empty when absent.
+  [[nodiscard]] QString companion_id() const;
   // Call on UI thread, after joining the input thread, before MainWindow dies.
   void shutdown();
  private:

@@ -18940,6 +18940,57 @@ Each item&apos;s own View setting still applies.</source>
         <source>Open the feature guide in your web browser</source>
         <translation>在網頁瀏覽器中開啟功能指南</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>在磁碟上顯示配套應用程式資訊清單所在的資料夾</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>無法讀取 %1。</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 不是 JSON 物件。</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1：args 的每一項都必須是字串。</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 需要反向 DNS 格式的 id、name 和 command。</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 重複使用了 id %2。</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>配套應用程式(&amp;C)</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>未安裝配套應用程式</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>開啟配套應用程式資料夾</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>已要求 %1 顯示其面板</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>無法啟動 %1（%2）</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>正在啟動 %1...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -33932,6 +33983,102 @@ Locked: %1</source>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample 為 &quot;current&quot;、&quot;currentAndBelow&quot; 或 &quot;all&quot;。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>resizeCanvas 的錨點必須是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas 的 %1 必須是 -30000 到 30000 之間的數字。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas：未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas 只能指定錨點或 x 和 y，不能同時指定。</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>使用錨點或位移調整版面尺寸之前，請先點陣化智慧型濾鏡和智慧型物件。</translation>
+    </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation>%1：不明的選項「%2」。</translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation>%1 需要 {x, y, width, height} 矩形。</translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation>%1 需要整數 x、y、width 和 height，尺寸介於 1 和 %2 之間。</translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation>%1 需要 {width, height, data} 物件。</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation>%1：data 必須包含 width * height 個位元組。</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation>%1：data 必須包含 width * height * 4 個 RGBA 位元組。</translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation>%1：矩形位於畫布之外。</translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation>%1 的選項必須是物件。</translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation>setMask：operation 必須是「replace」、「add」、「subtract」或「intersect」。</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation>setLayerMask 需要遮色片物件。</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation>setLayerMask 需要像素圖層、調整圖層或群組。</translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation>setLayerMask：fromSelection 需要選取範圍。</translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation>setLayerMask：defaultColor 必須是 0 或 255。</translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation>setLayerMask：%1 必須是介於 %2 和 %3 之間的數字。</translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation>readImage：%1 的邊長超過 %2 像素。</translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation>readImage：無法讀取 %1（%2）。</translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation>writeImage：不支援的影像格式「%1」。</translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation>writeImage：無法建立影像。</translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
+        <translation>writeImage：無法寫入 %1。</translation>
     </message>
 </context>
 <context>

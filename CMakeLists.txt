@@ -1584,6 +1584,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/script_vector_masks.cpp
       src/ui/script_vector_host.cpp
       src/ui/script_ai_selection.cpp
+      src/ui/script_pixel_io.cpp
       src/ui/vector_operations.hpp
       src/ui/vector_operations.cpp
       src/ui/script_canvas_window.hpp
@@ -1604,6 +1605,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/mcp_activity.cpp
       src/ui/mcp_attachment.hpp
       src/ui/mcp_attachment.cpp
+      src/ui/companion_apps.hpp
+      src/ui/companion_apps.cpp
       src/ui/canvas_widget_script_stroke.cpp
       src/ui/script_folders.hpp
       src/ui/script_folders.cpp
@@ -2621,9 +2624,11 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/scripting_tests_mutations_text.cpp
       tests/ui/scripting_tests_color_formats.cpp
       tests/ui/scripting_tests_manager_automation.cpp
+      tests/ui/script_pixel_io_tests.cpp
       tests/ui/script_move_tests.cpp
       tests/ui/document_recovery_tests.cpp
       tests/ui/mcp_tests.cpp
+      tests/ui/companion_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/legacy_plugin_tests.cpp
       tests/ui/gegl_filter_tests.cpp

@@ -358,13 +358,16 @@ async def attached_workspace(exe):
                             changed_png = next(x.data for x in preview.content if x.type == "image")
                             assert changed_png != next(x.data for x in before.content if x.type == "image")
                             token = preview.structuredContent["stateToken"]
-                            # A second client gets a useful tool error, never
-                            # queued edits or a dead stdio transport.
+                            # Up to four clients share the window (docs/companions.md): a
+                            # second one attaches beside the first with its own token.
                             async with stdio_client(params, errlog=log) as (er, ew):
                                 async with ClientSession(er, ew) as extra:
                                     await extra.initialize()
-                                    refused = await extra.call_tool("get_info", {})
-                                    assert refused.isError and refused.structuredContent["error"] == "workspace_unavailable"
+                                    second = await extra.call_tool("get_info", {})
+                                    assert not second.isError, second.model_dump()
+                                    assert second.structuredContent["workspace"] == "attached"
+                                    extra_state = (await extra.call_tool("get_state", {})).structuredContent
+                                    assert extra_state["stateToken"] != token
                                     await extra.send_ping()
                     break
                 except Exception:
@@ -392,6 +395,49 @@ async def attached_workspace(exe):
                 async with ClientSession(read, write) as client:
                     await client.initialize()
                     assert not (await client.call_tool("get_info", {})).isError
+                    # A raw companion beside the SDK client (docs/companions.md): it opts in to
+                    # events at initialize and receives them through its own stdio proxy.
+                    companion = subprocess.Popen([str(exe), "--attach"], stdin=subprocess.PIPE,
+                                                 stdout=subprocess.PIPE, stderr=log, cwd=OUT, env=env)
+                    inbox = queue.Queue()
+                    def companion_reader():
+                        for line in companion.stdout:
+                            inbox.put(json.loads(line))
+                    threading.Thread(target=companion_reader, daemon=True).start()
+                    def companion_send(message):
+                        companion.stdin.write(json.dumps({"jsonrpc": "2.0", **message}).encode() + b"\n")
+                        companion.stdin.flush()
+                    def companion_take(match, timeout=30):
+                        deadline = time.monotonic() + timeout
+                        while True:
+                            message = inbox.get(timeout=max(0.1, deadline - time.monotonic()))
+                            if match(message):
+                                return message
+                    try:
+                        companion_send({"id": 1, "method": "initialize", "params": {
+                            "protocolVersion": "2025-11-25", "clientInfo": {"name": "Companion test", "version": "1"},
+                            "capabilities": {"experimental": {"patchy/events": True, "patchy/companion": "io.example.test"}}}})
+                        initialized_reply = companion_take(lambda m: m.get("id") == 1)
+                        assert "patchy/events" in initialized_reply["result"]["capabilities"]["experimental"]
+                        companion_send({"method": "notifications/initialized"})
+                        companion_send({"id": 2, "method": "tools/call", "params": {"name": "get_info", "arguments": {}}})
+                        companion_info = companion_take(lambda m: m.get("id") == 2)["result"]["structuredContent"]
+                        assert companion_info["workspace"] == "attached", companion_info
+                        assert companion_info["mainWindow"]["geometry"]["width"] > 0, companion_info
+                        current = (await client.call_tool("get_state", {})).structuredContent["stateToken"]
+                        selected = await client.call_tool("execute_script", {
+                            "code": "app.activeDocument.selection.selectRect(3,4,5,6);", "expectedState": current})
+                        assert not selected.isError, selected.model_dump()
+                        event = companion_take(lambda m: m.get("method") == "notifications/patchy/event"
+                                               and m["params"]["type"] == "selectionChanged")
+                        assert event["params"]["bounds"] == {"x": 3, "y": 4, "width": 5, "height": 6}, event
+                    finally:
+                        companion.stdin.close()
+                        try:
+                            companion.wait(timeout=15)
+                        except subprocess.TimeoutExpired:
+                            companion.kill()  # only the test-owned connector process
+                            companion.wait()
                     app.terminate()  # only the test-owned offscreen application
                     await asyncio.to_thread(app.wait, 10)
                     absent = await client.call_tool("get_info", {})
@@ -405,7 +451,7 @@ async def attached_workspace(exe):
             if os.name != "nt":
                 # Crash simulations leave filesystem sockets behind on Unix.
                 Path(endpoint).unlink(missing_ok=True)
-    print("[PASS] MCP attachment: existing document, guarded edits, previews, single client, unsaved reconnect, undo, app exit, no fallback")
+    print("[PASS] MCP attachment: existing document, guarded edits, previews, several clients, companion events, unsaved reconnect, undo, app exit, no fallback")
 
 
 async def attached_recovery(exe):

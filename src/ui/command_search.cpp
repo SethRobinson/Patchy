@@ -369,6 +369,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"plugins.repeat_last", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Run the last plug-in again")},
     {"plugins.last_settings", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Run the last plug-in with its dialog")},
     {"plugins.open_folder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the plug-ins folder on disk")},
+    {"companionsOpenFolderAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the folder of companion app manifests on disk")},
     {"plugins.rescan", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Look for new or removed plug-ins")},
     {"pluginsLegacyWindowsOnlyNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "8BF plug-ins need Windows")},
     // View

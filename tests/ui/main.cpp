@@ -471,6 +471,7 @@ int main(int argc, char* argv[]) {
            document_recovery_tests,
            document_rename_tests,
            mcp_tests,
+           companion_tests,
            unicode_path_tests,
            legacy_plugin_tests,
            gegl_filter_tests,

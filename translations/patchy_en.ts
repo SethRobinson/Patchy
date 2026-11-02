@@ -18967,6 +18967,57 @@ Each item&apos;s own View setting still applies.</source>
         <source>Open the feature guide in your web browser</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -33934,6 +33985,102 @@ Locked: %1</source>
     </message>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

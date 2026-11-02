@@ -18984,6 +18984,57 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Open the feature guide in your web browser</source>
         <translation>Ouvrir le guide des fonctions dans le navigateur web</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>Affiche sur le disque le dossier des manifestes d&apos;applications compagnons</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>Impossible de lire %1.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 n&apos;est pas un objet JSON.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1 : chaque entrée de args doit être une chaîne.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 nécessite un id au format DNS inversé, un name et une command.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 répète l&apos;id %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>Applications &amp;compagnons</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>Aucune application compagnon installée</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>Ouvrir le dossier des applications compagnons</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1 a été invité à afficher son panneau</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>Impossible de démarrer %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Démarrage de %1...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -34016,6 +34067,102 @@ Verrouillé : %1</translation>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone : sample vaut &quot;current&quot;, &quot;currentAndBelow&quot; ou &quot;all&quot;.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>L&apos;ancre de resizeCanvas doit être l&apos;une des valeurs %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1 doit être un nombre compris entre -30000 et 30000.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas : option inconnue %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas accepte une ancre ou x et y, pas les deux.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>Pixellisez les filtres dynamiques et les objets dynamiques avant de redimensionner la zone de travail avec une ancre ou un décalage.</translation>
+    </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation>%1 : option inconnue « %2 ».</translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation>%1 nécessite un rectangle {x, y, width, height}.</translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation>%1 nécessite des valeurs entières pour x, y, width et height, avec une taille comprise entre 1 et %2.</translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation>%1 nécessite un objet {width, height, data}.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation>%1 : data doit contenir width * height octets.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation>%1 : data doit contenir width * height * 4 octets RVBA.</translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation>%1 : le rectangle est en dehors de la zone de travail.</translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation>%1 : les options doivent être un objet.</translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation>setMask : operation doit valoir « replace », « add », « subtract » ou « intersect ».</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation>setLayerMask nécessite un objet de masque.</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation>setLayerMask nécessite un calque de pixels, de réglage ou de groupe.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation>setLayerMask : fromSelection nécessite une sélection.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation>setLayerMask : defaultColor doit valoir 0 ou 255.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation>setLayerMask : %1 doit être un nombre compris entre %2 et %3.</translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation>readImage : %1 dépasse %2 pixels sur un côté.</translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation>readImage : impossible de lire %1 (%2).</translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation>writeImage : format d&apos;image non pris en charge « %1 ».</translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation>writeImage : impossible de créer l&apos;image.</translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
+        <translation>writeImage : impossible d&apos;écrire %1.</translation>
     </message>
 </context>
 <context>

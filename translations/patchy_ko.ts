@@ -18940,6 +18940,57 @@ Each item&apos;s own View setting still applies.</source>
         <source>Open the feature guide in your web browser</source>
         <translation>웹 브라우저에서 기능 안내서를 엽니다</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>디스크에서 컴패니언 앱 매니페스트 폴더를 표시합니다</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>%1을(를) 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1은(는) JSON 객체가 아닙니다.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: args의 각 항목은 문자열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1에는 역방향 DNS 형식의 id, name, command가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1에서 id %2이(가) 중복됩니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>컴패니언 앱(&amp;C)</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>설치된 컴패니언 앱이 없습니다</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>컴패니언 앱 폴더 열기</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1에 패널을 표시하도록 요청했습니다</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>%1을(를) 시작할 수 없습니다(%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>%1을(를) 시작하는 중...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -33932,6 +33983,102 @@ Locked: %1</source>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample는 &quot;current&quot;, &quot;currentAndBelow&quot; 또는 &quot;all&quot;입니다.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>resizeCanvas 기준점은 %1 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1은(는) -30000에서 30000 사이의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: 알 수 없는 옵션 %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas에는 기준점 또는 x와 y 중 하나만 지정하세요.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>기준점이나 오프셋으로 캔버스 크기를 변경하기 전에 스마트 필터와 스마트 개체를 래스터화하세요.</translation>
+    </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation>%1: 알 수 없는 옵션 &quot;%2&quot;입니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation>%1에는 {x, y, width, height} 사각형이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation>%1에는 정수 x, y, width, height와 1에서 %2 사이의 크기가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation>%1에는 {width, height, data} 객체가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation>%1: data에는 width * height바이트가 있어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation>%1: data에는 width * height * 4바이트의 RGBA 데이터가 있어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation>%1: 사각형이 캔버스 밖에 있습니다.</translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation>%1 옵션은 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation>setMask: operation은 &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot;, &quot;intersect&quot; 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation>setLayerMask에는 마스크 객체가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation>setLayerMask에는 픽셀, 조정 또는 그룹 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation>setLayerMask: fromSelection에는 선택 영역이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation>setLayerMask: defaultColor는 0 또는 255여야 합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation>setLayerMask: %1은(는) %2에서 %3 사이의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation>readImage: %1의 한 변이 %2픽셀보다 큽니다.</translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation>readImage: %1을(를) 읽을 수 없습니다(%2).</translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation>writeImage: 지원되지 않는 이미지 형식 &quot;%1&quot;입니다.</translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation>writeImage: 이미지를 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
+        <translation>writeImage: %1을(를) 쓸 수 없습니다.</translation>
     </message>
 </context>
 <context>
