@@ -14741,6 +14741,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>The preset could not be exported.</source>
         <translation>Impossibile esportare il predefinito.</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Livello di riempimento. Fai doppio clic per modificarne le impostazioni.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Riempimento pattern</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Riempimento colore</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31811,6 +31823,14 @@ Bloccato: %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Nuovo riempimento sfumatura</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Modifica impostazioni riempimento...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Livello di riempimento: %1</translation>
     </message>
 </context>
 <context>

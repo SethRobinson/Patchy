@@ -14697,6 +14697,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The preset could not be exported.</source>
         <translation>无法导出预设。</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>填充图层。双击可编辑其设置。</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>图案填充</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>纯色填充</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31728,6 +31740,14 @@ Locked: %1</source>
     <message>
         <source>New Gradient Fill</source>
         <translation>新建渐变填充</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>编辑填充设置...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>填充图层：%1</translation>
     </message>
 </context>
 <context>

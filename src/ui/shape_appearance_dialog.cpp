@@ -2116,6 +2116,36 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     state->settings.edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>(*edits);
   }
 
+  // A Solid Color, Gradient or Pattern Fill layer fills the whole canvas, so a stroke, feather
+  // or density shows nothing on it (GitHub issue 580 follow-up): the dialog is the fill's
+  // settings alone, titled like the layer, and leaves those values as they are. A selection
+  // that also holds a real shape keeps the whole dialog.
+  const bool fill_layer_only =
+      state->settings.fill_layer &&
+      (batch == nullptr || std::all_of(batch->originals.begin(), batch->originals.end(),
+                                       [](const ShapeAppearanceSettings& value) { return value.fill_layer; }));
+  if (fill_layer_only) {
+    dialog.setProperty("fillLayerSettings", true);
+    stroke_group->setVisible(false);
+    edge_group->setVisible(false);
+    // Reset's factory appearance is a solid shape fill with a cleared stroke.
+    reset_button->setVisible(false);
+    // No Fill would leave an empty layer.
+    if (const auto none = fill_kind_combo->findData(static_cast<int>(VectorFillKind::None)); none >= 0) {
+      const QSignalBlocker blocker(fill_kind_combo);
+      fill_kind_combo->removeItem(none);
+    }
+    const auto set_fill_title = [&dialog](VectorFillKind kind) {
+      dialog.setWindowTitle(kind == VectorFillKind::Gradient ? QObject::tr("Gradient Fill")
+                            : kind == VectorFillKind::Pattern ? QObject::tr("Pattern Fill")
+                                                              : QObject::tr("Color Fill"));
+    };
+    set_fill_title(state->settings.fill.kind);
+    QObject::connect(fill_kind_combo, &QComboBox::currentIndexChanged, &dialog, [fill_kind_combo, set_fill_title](int) {
+      set_fill_title(static_cast<VectorFillKind>(fill_kind_combo->currentData().toInt()));
+    });
+  }
+
   // Value spins commit on Enter/arrows/focus-out only: per-keystroke preview
   // renders made typing "10" into the pattern scale render at "1" first (a
   // 10000-texel-per-pixel minification).

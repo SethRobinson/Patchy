@@ -14785,6 +14785,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The preset could not be exported.</source>
         <translation>Не удалось экспортировать набор.</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Слой заливки. Дважды щёлкните, чтобы изменить его параметры.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Заливка узором</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Заливка цветом</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31894,6 +31906,14 @@ Locked: %1</source>
     <message>
         <source>New Gradient Fill</source>
         <translation>Новая градиентная заливка</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Изменить параметры заливки...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Слой заливки: %1</translation>
     </message>
 </context>
 <context>

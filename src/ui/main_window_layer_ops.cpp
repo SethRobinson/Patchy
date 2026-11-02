@@ -3734,10 +3734,15 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   // Shape and fill layers surface their appearance editor here too (double-
   // click on the row is the other entry point); same gate as that site.
   QAction* edit_shape_appearance_action = nullptr;
-  if (!editable_selected_shape_layer_ids().empty()) {
+  if (const auto shape_ids = editable_selected_shape_layer_ids(); !shape_ids.empty()) {
+    // Fill layers alone open their fill settings (GitHub issue 580 follow-up).
+    const bool only_fill_layers = std::all_of(shape_ids.begin(), shape_ids.end(), [this](LayerId id) {
+      const auto* layer = std::as_const(document()).find_layer(id);
+      return layer != nullptr && layer_is_fill_layer(*layer);
+    });
     edit_shape_appearance_action =
         menu.addAction(simple_icon(QStringLiteral("SHP"), QColor(190, 220, 255)),
-                       tr("Edit Shape Appearance..."));
+                       only_fill_layers ? tr("Edit Fill Settings...") : tr("Edit Shape Appearance..."));
     edit_shape_appearance_action->setObjectName(
         QStringLiteral("layerContextEditShapeAppearanceAction"));
   }

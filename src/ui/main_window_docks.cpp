@@ -1567,6 +1567,22 @@ void MainWindow::create_docks() {
       });
       return;
     }
+    // A fill layer's thumbnail opens its fill settings (GitHub issue 580 follow-up), like an
+    // adjustment's; its canvas extent is the whole canvas anyway.
+    if (layer != nullptr && layer_is_fill_layer(*layer)) {
+      const auto session_id = session().session_id;
+      QTimer::singleShot(0, this, [this, layer_id, session_id] {
+        if (!has_active_document() || session().session_id != session_id ||
+            std::as_const(document()).find_layer(layer_id) == nullptr) {
+          return;
+        }
+        if (document().active_layer_id() != layer_id) {
+          select_layers_in_layer_list({layer_id}, layer_id);
+        }
+        edit_active_shape_appearance();
+      });
+      return;
+    }
     zoom_canvas_to_layer_content(layer_id);
   });
   layer_list->set_mask_thumbnail_double_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {

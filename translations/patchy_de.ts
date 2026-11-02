@@ -14741,6 +14741,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>The preset could not be exported.</source>
         <translation>Die Vorgabe konnte nicht exportiert werden.</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Füllebene. Doppelklicken, um die Einstellungen zu bearbeiten.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Musterfüllung</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Farbfüllung</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31811,6 +31823,14 @@ Fixiert: %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Neue Verlaufsfüllung</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Füllungseinstellungen bearbeiten...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Füllebene: %1</translation>
     </message>
 </context>
 <context>

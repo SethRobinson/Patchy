@@ -4293,6 +4293,127 @@ void ui_layer_vector_badge_double_click_opens_shape_appearance() {
   CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
 }
 
+// Fill layers are not shapes in the UI (GitHub issue 580 follow-up): a Gradient Fill layer from
+// Layer > New Fill Layer or the Gradient tool's Fill Layer mode has no vector badge, its content
+// thumbnail opens its fill settings, and that dialog shows no Stroke or Edge controls, keeps a
+// stroke the layer already carries, and is titled like the layer.
+void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_gradient_mode(QStringLiteral("tools/gradientMode"));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  QString title;
+  bool fill_only = false;
+  bool stroke_shown = true;
+  bool edge_shown = true;
+  int kinds = 0;
+  const auto inspect_and = [&](bool accept) {
+    return [&, accept] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      title = dialog->windowTitle();
+      fill_only = dialog->property("fillLayerSettings").toBool();
+      auto* stroke = dialog->findChild<QWidget*>(QStringLiteral("shapeStrokeWidthSpin"));
+      auto* feather = dialog->findChild<QWidget*>(QStringLiteral("shapeFeatherSpin"));
+      auto* kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+      stroke_shown = stroke != nullptr && stroke->isVisibleTo(dialog);
+      edge_shown = feather != nullptr && feather->isVisibleTo(dialog);
+      kinds = kind != nullptr ? kind->count() : 0;
+      if (accept && !title.isEmpty() && dialog->property("savedArtifact").isNull()) {
+        dialog->setProperty("savedArtifact", true);
+        save_widget_artifact("ui_fill_layer_settings_dialog", *dialog);
+      }
+      if (accept) {
+        dialog->accept();
+      } else {
+        dialog->reject();
+      }
+    };
+  };
+
+  QTimer::singleShot(0, inspect_and(true));
+  require_action(window, "layerNewGradientFillAction")->trigger();
+  QApplication::processEvents();
+  CHECK(title == QStringLiteral("Gradient Fill"));
+  CHECK(fill_only);
+  CHECK(!stroke_shown);
+  CHECK(!edge_shown);
+  CHECK(kinds == 3);  // Solid Color, Gradient, Pattern: No Fill would empty the layer
+  const auto fill_id = *document.active_layer_id();
+  CHECK(patchy::layer_is_fill_layer(*std::as_const(document).find_layer(fill_id)));
+  const auto row_for = [&](patchy::LayerId id) -> QWidget* {
+    for (int row = 0; row < layer_list->count(); ++row) {
+      auto* item = layer_list->item(row);
+      if (item->data(patchy::ui::kLayerIdRole).toULongLong() == id) {
+        return layer_list->itemWidget(item);
+      }
+    }
+    return nullptr;
+  };
+  auto* row = row_for(fill_id);
+  CHECK(row != nullptr);
+  CHECK(row != nullptr && row->findChild<QToolButton*>(QStringLiteral("layerVectorBadgeButton")) == nullptr);
+
+  // A stroke the layer carries (a PSD can) stays as it is through the fill settings.
+  {
+    auto* layer = document.find_layer(fill_id);
+    auto content = *std::as_const(*layer).vector_shape();
+    content.stroke.enabled = true;
+    content.stroke.width = 12.0;
+    layer->set_vector_shape(std::move(content));
+  }
+  title.clear();
+  fill_only = false;
+  // The thumbnail opens the dialog one tick after its double-click: poll for it.
+  int attempts = 0;
+  const auto accept_fill_settings = inspect_and(true);
+  std::function<void()> poll = [&] {
+    if (find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) != nullptr) {
+      accept_fill_settings();
+    } else if (++attempts < 20) {
+      QTimer::singleShot(0, poll);
+    }
+  };
+  QTimer::singleShot(0, poll);
+  auto* thumbnail = row != nullptr ? row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")) : nullptr;
+  CHECK(thumbnail != nullptr);
+  if (thumbnail != nullptr) {
+    send_double_click(*thumbnail, thumbnail->rect().center());
+  }
+  for (int spin = 0; spin < 10 && title.isEmpty(); ++spin) {
+    QApplication::processEvents();
+  }
+  CHECK(title == QStringLiteral("Gradient Fill"));
+  CHECK(fill_only);
+  CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
+  const auto* kept = std::as_const(document).find_layer(fill_id)->vector_shape();
+  CHECK(kept->stroke.enabled && std::abs(kept->stroke.width - 12.0) < 1e-6);
+
+  // The Gradient tool's Fill Layer mode makes the same kind of row.
+  canvas->set_tool(patchy::ui::CanvasTool::Gradient);
+  canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::FillLayer);
+  document.set_active_layer(std::as_const(document).layers().front().id());
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(400, 300)));
+  QApplication::processEvents();
+  const auto dragged_id = *document.active_layer_id();
+  CHECK(dragged_id != fill_id);
+  CHECK(patchy::layer_is_fill_layer(*std::as_const(document).find_layer(dragged_id)));
+  auto* dragged_row = row_for(dragged_id);
+  CHECK(dragged_row != nullptr &&
+        dragged_row->findChild<QToolButton*>(QStringLiteral("layerVectorBadgeButton")) == nullptr);
+  if (auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock")); layers_dock != nullptr) {
+    save_widget_artifact("ui_fill_layer_rows", *layers_dock);
+  }
+  canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::Pixels);
+}
+
 // Layer ids restart per document: a commit whose focus loss went to another
 // document's tab is dropped rather than renaming that document's same-id layer.
 void ui_layer_inline_rename_drops_commit_after_document_switch() {
@@ -6859,6 +6980,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_inline_rename_drops_commit_after_document_switch},
       {"ui_layer_shape_row_double_click_opens_layer_style", ui_layer_shape_row_double_click_opens_layer_style},
       {"ui_layer_row_badges_center_on_the_row", ui_layer_row_badges_center_on_the_row},
+      {"ui_fill_layer_row_opens_fill_settings_without_shape_controls",
+       ui_fill_layer_row_opens_fill_settings_without_shape_controls},
       {"ui_layer_vector_badge_double_click_opens_shape_appearance",
        ui_layer_vector_badge_double_click_opens_shape_appearance},
       {"ui_layer_eye_alt_click_isolates_and_restores", ui_layer_eye_alt_click_isolates_and_restores},

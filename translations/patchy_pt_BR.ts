@@ -14741,6 +14741,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>The preset could not be exported.</source>
         <translation>Não foi possível exportar a predefinição.</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Camada de preenchimento. Clique duas vezes para editar as configurações.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Preenchimento de Padrão</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Preenchimento de Cor</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31811,6 +31823,14 @@ Bloqueado: %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Novo preenchimento degradê</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Editar configurações de preenchimento...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Camada de preenchimento: %1</translation>
     </message>
 </context>
 <context>

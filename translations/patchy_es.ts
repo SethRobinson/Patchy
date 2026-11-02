@@ -14741,6 +14741,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>The preset could not be exported.</source>
         <translation>No se pudo exportar el ajuste.</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Capa de relleno. Haga doble clic para editar su configuración.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Relleno de motivo</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Relleno de color</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31811,6 +31823,14 @@ Bloqueada: %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Nuevo relleno de degradado</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Editar configuración de relleno...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Capa de relleno: %1</translation>
     </message>
 </context>
 <context>

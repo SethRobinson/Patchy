@@ -14724,6 +14724,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The preset could not be exported.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31729,6 +31741,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>New Gradient Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

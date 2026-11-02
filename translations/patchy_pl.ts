@@ -14785,6 +14785,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>The preset could not be exported.</source>
         <translation>Nie można wyeksportować ustawienia.</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Warstwa wypełnienia. Kliknij dwukrotnie, aby edytować jej ustawienia.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Wypełnienie wzorkiem</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Wypełnienie kolorem</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31894,6 +31906,14 @@ Zablokowano: %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Nowe wypełnienie gradientowe</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Edytuj ustawienia wypełnienia...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Warstwa wypełnienia: %1</translation>
     </message>
 </context>
 <context>

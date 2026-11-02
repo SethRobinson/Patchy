@@ -14697,6 +14697,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The preset could not be exported.</source>
         <translation>사전 설정을 내보낼 수 없습니다.</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>채우기 레이어. 두 번 클릭하여 설정을 편집합니다.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>패턴 채우기</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>단색 채우기</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31728,6 +31740,14 @@ Locked: %1</source>
     <message>
         <source>New Gradient Fill</source>
         <translation>새 그레이디언트 채우기</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>채우기 설정 편집...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>채우기 레이어: %1</translation>
     </message>
 </context>
 <context>

@@ -14741,6 +14741,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>The preset could not be exported.</source>
         <translation>Impossible d&apos;exporter le préréglage.</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Calque de remplissage. Double-cliquez pour modifier ses paramètres.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Fond motif</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Fond couleur</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31811,6 +31823,14 @@ Verrouillé : %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Nouveau fond dégradé</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Modifier les paramètres du fond...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Calque de remplissage : %1</translation>
     </message>
 </context>
 <context>

@@ -507,6 +507,7 @@ ShapeAppearanceSettings shape_appearance_settings(const Layer& layer) {
   result.fill_opacity = layer.fill_opacity();
   result.feather = content->feather;
   result.density = content->density;
+  result.fill_layer = layer_is_fill_layer(layer);
   if (content->origination.size() == 1 && content->origination.front().raw_descriptor.empty() &&
       content->parts.empty()) {
     const auto& params = content->origination.front();

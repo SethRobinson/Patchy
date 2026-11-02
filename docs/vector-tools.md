@@ -361,12 +361,12 @@ space separated; an odd count repeats once (SVG's reading) and one length must b
 It holds any file's array and commits on Enter or focus-out. Zero-length dashes draw only
 through Round or Square caps (Photoshop, SVG and the stroker draw nothing for them with
 Butt caps), so Dotted is `dotted_dash_pattern(cap)`: {0, 2}, or {1, 1} with Butt caps, the
-same square dots; changing Caps while Dotted is chosen swaps the array (GitHub issue 548).
+same square dots; changing Caps while Dotted is chosen swaps the array (#548).
 The other new presets follow the cap the same way (`stroke_dash_preset_pattern`: written for
 Butt caps, each dash one width shorter and each gap one width longer for Round or Square), so
 they look alike on every cap; Dashed alone stays a fixed {2, 2}. Picking a preset also sets
 its caps and corners (`apply_stroke_dash_preset`, shared with the options bar's dash combo;
-GitHub issue 548 follow-up): Dashed, Long dashes and Short dashes set Butt caps; Dotted, Sparse
+#548 follow-up): Dashed, Long dashes and Short dashes set Butt caps; Dotted, Sparse
 dots, Dash dot and Dash dot dot set Round caps and Round corners, so every dot is round; Solid
 sets neither. Caps and Corners stay editable after. `stroke_dash_preset_for` maps a file's array to
 its row by its shortest repeating period (GIMP repeats each pattern to fill its dash table), so
@@ -393,21 +393,22 @@ rasterizes on a worker: the vector MODEL applies synchronously, baked pixels
 lag, requests coalesce, the pattern anchor rides a scratch layer; accept
 commits the in-flight result (60 s timeout).
 
-Layer > New Fill Layer creates Solid Color, Gradient (FG-to-BG linear), and
-Pattern fill layers as shape layers with an empty path (whole canvas); a
-TARGETED Paths-panel row becomes the new layer's shape path (PS's "current
-path" rule, build_fill_layer), and selections become raster masks. Library
-patterns adopt into the document store on use. New Gradient/Pattern Fill
-stages the layer; one history entry, only on OK. Cancel restores the
-original document, active layer and pattern store included. Changing a path
-transform's layer, selection, path, or edit target cancels it. Sub-lattice
+Layer > New Fill Layer makes Solid Color, Gradient (FG-to-BG linear) and
+Pattern fill layers: shape layers with no path (whole canvas); a TARGETED
+Paths-panel row becomes the path (build_fill_layer), a selection a raster
+mask, a library pattern adopts into the document. New Gradient/Pattern Fill
+stages the layer: one history entry on OK; Cancel restores document, active
+layer and patterns. A pathless fill layer (`layer_is_fill_layer`, #580) is no
+shape in the UI: no vector badge; its thumbnail, Edit Fill Settings... and
+Shape Appearance show the fill alone (`fillLayerSettings`), keeping a PSD's
+stroke; a selection with a real shape gets the full dialog. A layer, selection, path or edit-target change cancels a path transform. Sub-lattice
 dash lengths clamp to the raster lattice; excessive boundary counts fall
 back to a solid stroke.
 
 On 16/32-bit documents shape and fill layers keep regenerating their 8-bit
-bake, which the deep compositor reads, except gradient-only fills
+bake for the deep compositor, except gradient-only fills
 (`deep_gradient_fill_raster`: no stroke, feather, density or parts) that
-render at the document depth; see [high-bit-depth.md](high-bit-depth.md).
+render at depth.
 
 ## Photoshop file encodings
 

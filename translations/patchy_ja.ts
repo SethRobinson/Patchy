@@ -14697,6 +14697,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The preset could not be exported.</source>
         <translation>プリセットを書き出せませんでした。</translation>
     </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>塗りつぶしレイヤー。ダブルクリックで設定を編集します。</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>パターン塗りつぶし</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>べた塗り</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -31728,6 +31740,14 @@ Locked: %1</source>
     <message>
         <source>New Gradient Fill</source>
         <translation>新規グラデーション塗りつぶし</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>塗りつぶし設定を編集...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>塗りつぶしレイヤー: %1</translation>
     </message>
 </context>
 <context>

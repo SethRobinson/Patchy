@@ -39,6 +39,9 @@ struct ShapeAppearanceSettings {
   std::uint8_t density{255};
   std::shared_ptr<const AppearanceEdits<ShapeAppearanceSettings>> edits{};
   bool preview_enabled{true};
+  // The layer is a pathless fill layer (layer_is_fill_layer): the dialog shows the fill's
+  // settings alone and leaves the stroke, feather and density as they are. Not an edit.
+  bool fill_layer{false};
 };
 
 // GRD presets may defer stops to the tool colors; shape fills store concrete
