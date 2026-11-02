@@ -340,6 +340,10 @@ public:
   void select_region(std::int64_t session_id, const QRegion& region);
   [[nodiscard]] QRegion selection_region(std::int64_t session_id) const;
   [[nodiscard]] bool has_selection(std::int64_t session_id) const;
+  // The selection's gray8 coverage over `rect` (0 outside it), and the selection replaced by a
+  // gray8 coverage plane at `bounds`; an all-zero plane deselects (script_pixel_io.cpp).
+  [[nodiscard]] PixelBuffer selection_coverage(std::int64_t session_id, QRect rect) const;
+  void set_selection_coverage(std::int64_t session_id, QRect bounds, const PixelBuffer& coverage);
   // `pixels` (a layer buffer positioned at `bounds`) with alpha 0 outside the
   // session's selection; unchanged without a selection.
   [[nodiscard]] PixelBuffer pixels_limited_to_selection(std::int64_t session_id, const PixelBuffer& pixels,

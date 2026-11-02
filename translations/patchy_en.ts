@@ -33406,6 +33406,82 @@ Locked: %1</source>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

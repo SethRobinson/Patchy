@@ -160,7 +160,7 @@ Read these before acting in the named area:
 - **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, seamless-tiling import, and Files as Layers:** [docs/import.md](docs/import.md); clipboard import and paste: [docs/clipboard.md](docs/clipboard.md).
 - **Plug-ins and legacy 8BF support (Windows)** *(legal: clean-room ABI)*: [docs/plugins.md](docs/plugins.md).
 - **G'MIC Filter Library:** [docs/gmic.md](docs/gmic.md).
-- **JavaScript scripting and bundled scripts:** [scripting.md](docs/scripting.md). The MCP connector and patchy-control skill: [ai-control.md](docs/ai-control.md). Automation feedback, brush and vector automation, batch appearance edits: [automation-feedback.md](docs/automation-feedback.md), [brush-automation.md](docs/brush-automation.md), [vector-automation.md](docs/vector-automation.md), [batch-appearance.md](docs/batch-appearance.md).
+- **JavaScript scripting and bundled scripts:** [scripting.md](docs/scripting.md). The MCP connector and patchy-control skill: [ai-control.md](docs/ai-control.md); companion apps: [companions.md](docs/companions.md). Automation feedback, brush and vector automation, batch appearance edits: [automation-feedback.md](docs/automation-feedback.md), [brush-automation.md](docs/brush-automation.md), [vector-automation.md](docs/vector-automation.md), [batch-appearance.md](docs/batch-appearance.md).
 - **Automatic document recovery and atomic file writes:** [docs/document-recovery.md](docs/document-recovery.md).
 - **Single-instance forwarding, CLI screenshots, and `--headless` runs:** `src/app/main.cpp`, [docs/testing.md](docs/testing.md), and the CLI section of [docs/scripting.md](docs/scripting.md).
 - **Logo and icon art:** `packaging/branding/`.

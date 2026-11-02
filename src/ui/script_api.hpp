@@ -9,6 +9,8 @@
 
 #include <cstdint>
 
+class QJSEngine;
+
 namespace patchy {
 class Document;
 }
@@ -36,6 +38,8 @@ struct ScriptScan;
 // blend mode ids above except "pass-through", plus "behind" and "clear". Permanent.
 [[nodiscard]] QString script_paint_mode_id(PaintMode mode);
 [[nodiscard]] bool script_paint_mode_from_id(const QString& id, PaintMode* mode);
+// A {x, y, width, height} object for JS (shared by the script_*.cpp bindings).
+[[nodiscard]] QJSValue rect_to_js(QJSEngine* engine, const Rect& rect);
 
 class ScriptLayerObject : public QObject {
   Q_OBJECT
@@ -180,6 +184,10 @@ public:
   Q_INVOKABLE void removeBackground(const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue getPixels();
   Q_INVOKABLE void setPixels(const QJSValue& imageData);
+  // Raster layer masks (script_pixel_io.cpp).
+  Q_INVOKABLE QJSValue getLayerMask() const;
+  Q_INVOKABLE void setLayerMask(const QJSValue& mask);
+  Q_INVOKABLE bool removeLayerMask();
   // Trace Image to Shapes: returns the new group layer (inserted above this
   // layer, which is hidden), or null when nothing traced.
   Q_INVOKABLE QJSValue traceToShapes(const QJSValue& options = QJSValue());
@@ -221,6 +229,9 @@ public:
   Q_INVOKABLE void selectEllipse(int x, int y, int width, int height);
   Q_INVOKABLE void fromPath(const QJSValue& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue toPath(const QJSValue& options = QJSValue()) const;
+  // The selection as an 8-bit coverage plane, and back (script_pixel_io.cpp).
+  Q_INVOKABLE QJSValue getMask(const QJSValue& rect = QJSValue()) const;
+  Q_INVOKABLE void setMask(const QJSValue& mask, const QJSValue& options = QJSValue());
   // Automatic selection (script_ai_selection.cpp, docs/ai-selection.md).
   [[nodiscard]] bool automatic_selection_available() const;
   // selectSubject, selectBackground and layer.removeBackground (the subject model).
@@ -271,6 +282,8 @@ public:
   [[nodiscard]] bool can_redo() const;
   Q_INVOKABLE QJSValue getLayer(const QString& id);
   Q_INVOKABLE QJSValue renderPreview(const QString& path, const QJSValue& options = QJSValue());
+  // The merged visible image as RGBA8 at full resolution (script_pixel_io.cpp).
+  Q_INVOKABLE QJSValue getCompositePixels(const QJSValue& rect = QJSValue()) const;
   Q_INVOKABLE bool undo();
   Q_INVOKABLE bool redo();
   Q_INVOKABLE QJSValue getPalette() const;
@@ -477,6 +490,9 @@ public:
   Q_INVOKABLE bool makeDir(const QString& path);
   // Removes one file (never a folder); true when it was removed.
   Q_INVOKABLE bool deleteFile(const QString& path);
+  // PNG and the other image formats Qt reads, to and from pixel blocks (script_pixel_io.cpp).
+  Q_INVOKABLE QJSValue readImage(const QString& path);
+  Q_INVOKABLE void writeImage(const QString& path, const QJSValue& imageData);
 
 private:
   ScriptEngineHost& host_;

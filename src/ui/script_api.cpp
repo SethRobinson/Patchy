@@ -170,6 +170,8 @@ constexpr std::array<const char*, 58> kBlendModeIds = {
     "linear-subtract",
     "linear-divide", "soft-light-svg", "additive-subtractive", "arc-tangent", "geometric-mean", "allanon", "parallel", "hard-overlay", "interpolation", "easy-dodge"};
 
+}  // namespace
+
 QJSValue rect_to_js(QJSEngine* engine, const Rect& rect) {
   auto value = engine->newObject();
   value.setProperty(QStringLiteral("x"), rect.x);
@@ -178,6 +180,8 @@ QJSValue rect_to_js(QJSEngine* engine, const Rect& rect) {
   value.setProperty(QStringLiteral("height"), rect.height);
   return value;
 }
+
+namespace {
 
 // Parses "#rrggbb" / "#aarrggbb" / named colors; throws a JS error when invalid.
 bool parse_color(ScriptEngineHost& host, const QString& text, QColor* color) {
