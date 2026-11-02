@@ -14454,10 +14454,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Набор обводки с именем «%1» уже существует.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Встроенный набор: его можно использовать, но нельзя переименовать, переместить или удалить.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Сохранённых наборов обводки пока нет. В окне «Внешний вид фигуры» настройте обводку и нажмите «Сохранить...» рядом со штрихами.</translation>
     </message>
@@ -14784,6 +14780,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>Не удалось экспортировать набор.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>смещение %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 копия</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 копия %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Встроенный набор: его можно использовать, но нельзя переименовать, переместить или удалить. Создайте дубликат, чтобы получить копию для правки.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Длины штрихов и промежутков в ширинах обводки через пробел, например 4 2 или 6 2 1 2; оставьте пустым для сплошной линии</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Скопировать выбранную настройку в новую сохранённую, которую можно переименовать и изменить</translation>
     </message>
 </context>
 <context>

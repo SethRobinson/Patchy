@@ -3739,6 +3739,123 @@ void ui_options_bar_dash_combo_applies_presets() {
   }
 }
 
+// GitHub #557 follow-up: the Stroke Presets manager lists each preset's dash and
+// gap values, and Duplicate copies any row (a built-in included) into a new saved
+// preset named "<name> copy" whose name, caps, dashes and offset can be edited
+// there; every edit round-trips through the setting, and built-ins stay locked.
+void ui_stroke_preset_manager_duplicates_and_edits() {
+  using patchy::ui::StrokeStylePreset;
+  SettingsValueRestorer saved_presets{QString::fromLatin1(patchy::ui::kStrokeStylePresetsKey)};
+  patchy::ui::save_stroke_style_presets({});
+  const auto& builtins = patchy::stroke_dash_presets_in_menu_order();
+  const int builtin_count = static_cast<int>(builtins.size());
+  const auto dashed_row = static_cast<int>(
+      std::find(builtins.begin(), builtins.end(), patchy::StrokeDashPreset::Dashed) - builtins.begin());
+  CHECK(dashed_row < builtin_count);
+
+  // The list text: dash and gap pairs, the offset when it is not 0, nothing for solid.
+  StrokeStylePreset custom;
+  custom.name = QStringLiteral("Custom");
+  custom.dashes = {6.0, 2.0, 1.0, 2.0};
+  custom.dash_offset = 1.5;
+  CHECK(patchy::ui::stroke_style_preset_dash_values(custom) == QStringLiteral("6 2 | 1 2   offset 1.5"));
+  CHECK(patchy::ui::stroke_style_preset_dash_values(
+            patchy::ui::builtin_stroke_style_preset(patchy::StrokeDashPreset::Dashed)) == QStringLiteral("2 2"));
+  CHECK(patchy::ui::stroke_style_preset_dash_values(
+            patchy::ui::builtin_stroke_style_preset(patchy::StrokeDashPreset::Solid)).isEmpty());
+  // Copy names stay unique.
+  CHECK(patchy::ui::stroke_preset_copy_name(QStringLiteral("Dashed"), {}) == QStringLiteral("Dashed copy"));
+  StrokeStylePreset taken;
+  taken.name = QStringLiteral("Dashed copy");
+  CHECK(patchy::ui::stroke_preset_copy_name(QStringLiteral("Dashed"), {taken}) == QStringLiteral("Dashed copy 2"));
+
+  const auto stored = [] { return patchy::ui::load_stroke_style_presets(); };
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("strokePresetManagerDialog")));
+    CHECK(manager != nullptr);
+    if (manager == nullptr) return;
+    auto* tree = manager->findChild<QTreeWidget*>(QStringLiteral("strokePresetManagerTree"));
+    auto* name_edit = manager->findChild<QLineEdit*>(QStringLiteral("strokePresetManagerNameEdit"));
+    auto* duplicate = manager->findChild<QPushButton*>(QStringLiteral("strokePresetManagerDuplicateButton"));
+    auto* remove = manager->findChild<QPushButton*>(QStringLiteral("strokePresetManagerDeleteButton"));
+    auto* align = manager->findChild<QComboBox*>(QStringLiteral("strokePresetManagerAlignCombo"));
+    auto* caps = manager->findChild<QComboBox*>(QStringLiteral("strokePresetManagerCapsCombo"));
+    auto* dashes = manager->findChild<QLineEdit*>(QStringLiteral("strokePresetManagerDashesEdit"));
+    auto* offset = manager->findChild<QDoubleSpinBox*>(QStringLiteral("strokePresetManagerOffsetSpin"));
+    CHECK(tree != nullptr && name_edit != nullptr && duplicate != nullptr && remove != nullptr && align != nullptr &&
+          caps != nullptr && dashes != nullptr && offset != nullptr);
+    if (tree == nullptr || name_edit == nullptr || duplicate == nullptr || remove == nullptr || align == nullptr ||
+        caps == nullptr || dashes == nullptr || offset == nullptr) {
+      manager->reject();
+      return;
+    }
+    // The built-in Dashed row: its values show, it can be duplicated but not edited.
+    CHECK(tree->indexOfTopLevelItem(tree->currentItem()) == dashed_row);
+    CHECK(tree->topLevelItem(dashed_row)->text(1) == QStringLiteral("2 2"));
+    CHECK(duplicate->isEnabled() && !remove->isEnabled() && !name_edit->isEnabled());
+    CHECK(!align->isVisibleTo(manager) && !dashes->isVisibleTo(manager));
+    patchy::test::ui::save_widget_artifact("issue557_stroke_preset_manager_builtin_values", *manager);
+
+    duplicate->click();
+    QApplication::processEvents();
+    CHECK(tree->topLevelItemCount() == builtin_count + 1);
+    CHECK(tree->indexOfTopLevelItem(tree->currentItem()) == builtin_count);
+    CHECK(name_edit->text() == QStringLiteral("Dashed copy") && name_edit->isEnabled());
+    CHECK(remove->isEnabled() && align->isVisibleTo(manager) && dashes->isVisibleTo(manager));
+    CHECK(dashes->text() == QStringLiteral("2 2") && offset->isEnabled());
+    auto saved = stored();
+    CHECK(saved.size() == 1 && saved.front().name == QStringLiteral("Dashed copy") &&
+          (saved.front().dashes == std::vector<double>{2.0, 2.0}));
+
+    // Edit the copy: name, caps, dashes and offset, each saved at once.
+    name_edit->setText(QStringLiteral("Wide dashes"));
+    QMetaObject::invokeMethod(name_edit, "editingFinished");
+    caps->setCurrentIndex(caps->findData(static_cast<int>(patchy::VectorStrokeCap::Round)));
+    dashes->setText(QStringLiteral("4 2"));
+    dashes->setModified(true);
+    QMetaObject::invokeMethod(dashes, "editingFinished");
+    offset->setValue(1.0);
+    QApplication::processEvents();
+    CHECK(tree->topLevelItem(builtin_count)->text(0) == QStringLiteral("Wide dashes"));
+    CHECK(tree->topLevelItem(builtin_count)->text(1) == QStringLiteral("4 2   offset 1"));
+    saved = stored();
+    CHECK(saved.size() == 1);
+    if (saved.size() == 1) {
+      CHECK(saved.front().name == QStringLiteral("Wide dashes"));
+      CHECK(saved.front().cap == patchy::VectorStrokeCap::Round);
+      CHECK((saved.front().dashes == std::vector<double>{4.0, 2.0}));
+      CHECK(saved.front().dash_offset == 1.0);
+    }
+    patchy::test::ui::save_widget_artifact("issue557_stroke_preset_manager_duplicate", *manager);
+
+    // Text that is not a pattern reverts; an empty one makes the preset solid.
+    dashes->setText(QStringLiteral("dash"));
+    dashes->setModified(true);
+    QMetaObject::invokeMethod(dashes, "editingFinished");
+    QApplication::processEvents();
+    CHECK(dashes->text() == QStringLiteral("4 2"));
+    dashes->clear();
+    dashes->setModified(true);
+    QMetaObject::invokeMethod(dashes, "editingFinished");
+    QApplication::processEvents();
+    CHECK(stored().front().dashes.empty() && stored().front().dash_offset == 0.0);
+    CHECK(!offset->isEnabled() && tree->topLevelItem(builtin_count)->text(1).isEmpty());
+
+    // A saved preset duplicates too, under a free name.
+    duplicate->click();
+    QApplication::processEvents();
+    CHECK(name_edit->text() == QStringLiteral("Wide dashes copy"));
+    CHECK(stored().size() == 2);
+    checked = true;
+    manager->reject();
+  });
+  const auto chosen = patchy::ui::request_stroke_preset_manager(nullptr, patchy::ui::stroke_dash_preset_label(
+                                                                             patchy::StrokeDashPreset::Dashed));
+  CHECK(checked);
+  CHECK(!chosen.builtin.has_value() && !chosen.saved.has_value());
+}
+
 // GitHub #557 follow-up: the Stroke Presets manager lists the built-in dash presets first,
 // locked (usable, never renamed, moved or deleted), then the saved presets, which it renames,
 // reorders and deletes straight into the setting; Use returns the chosen one of either kind.
@@ -3798,14 +3915,21 @@ void ui_stroke_preset_manager_edits_round_trip_through_the_setting() {
     for (int row = 0; row < builtin_count; ++row) {
       CHECK(tree->topLevelItem(row)->text(0) ==
             patchy::ui::stroke_dash_preset_label(builtins[static_cast<std::size_t>(row)]));
-      CHECK(tree->topLevelItem(row)->text(1) == QStringLiteral("Built-in"));
+      CHECK(tree->topLevelItem(row)->text(2) == QStringLiteral("Built-in"));
     }
     CHECK(tree->topLevelItem(builtin_count)->text(0) == QStringLiteral("Fine dots"));
-    CHECK(tree->topLevelItem(builtin_count)->text(1).isEmpty());
+    CHECK(tree->topLevelItem(builtin_count)->text(1) == QStringLiteral("0 2"));
+    CHECK(tree->topLevelItem(builtin_count)->text(2).isEmpty());
+    CHECK(tree->topLevelItem(builtin_count + 1)->text(1) == QStringLiteral("6 2 | 1 2   offset 1.5"));
+    CHECK(tree->topLevelItem(builtin_count + 2)->text(1).isEmpty());
     // The initial name preselects its row and shows its settings.
     CHECK(tree->indexOfTopLevelItem(tree->currentItem()) == builtin_count + 1);
     CHECK(name_edit->text() == QStringLiteral("Outside dashes") && name_edit->isEnabled());
-    CHECK(align->text() == QStringLiteral("Outside"));
+    // A saved preset's settings are editors; the read-only values are for built-ins.
+    auto* align_combo = manager->findChild<QComboBox*>(QStringLiteral("strokePresetManagerAlignCombo"));
+    CHECK(align_combo != nullptr && align_combo->isVisibleTo(manager) && !align->isVisibleTo(manager));
+    CHECK(align_combo != nullptr &&
+          align_combo->currentData().toInt() == static_cast<int>(patchy::VectorStrokeAlignment::Outside));
     CHECK(dashes->text().contains(QStringLiteral("6")));
     CHECK(preview->pixmap().width() > 0);
     CHECK(note->isHidden());
@@ -3816,7 +3940,8 @@ void ui_stroke_preset_manager_edits_round_trip_through_the_setting() {
     CHECK(name_edit->text() == patchy::ui::stroke_dash_preset_label(builtins[1]) && !name_edit->isEnabled());
     CHECK(!up->isEnabled() && !down->isEnabled() && !remove->isEnabled() && use->isEnabled());
     CHECK(!note->isHidden());
-    CHECK(align->text() == QStringLiteral("Unchanged"));
+    CHECK(align->text() == QStringLiteral("Unchanged") && align->isVisibleTo(manager));
+    CHECK(align_combo != nullptr && !align_combo->isVisibleTo(manager));
     save_widget_artifact("ui_stroke_preset_manager_builtin", *manager);
     // Rename; a built-in's name is refused.
     tree->setCurrentItem(tree->topLevelItem(builtin_count + 1));
@@ -9318,6 +9443,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_appearance_gradient_rows_indent", ui_shape_appearance_gradient_rows_indent},
       {"ui_shape_appearance_pattern_rows_indent", ui_shape_appearance_pattern_rows_indent},
       {"ui_options_bar_dash_combo_applies_presets", ui_options_bar_dash_combo_applies_presets},
+      {"ui_stroke_preset_manager_duplicates_and_edits", ui_stroke_preset_manager_duplicates_and_edits},
       {"ui_stroke_preset_manager_edits_round_trip_through_the_setting",
        ui_stroke_preset_manager_edits_round_trip_through_the_setting},
       {"ui_options_bar_dash_combo_lists_saved_stroke_presets",

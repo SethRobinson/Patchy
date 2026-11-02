@@ -14394,10 +14394,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14722,6 +14718,30 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>The preset could not be exported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

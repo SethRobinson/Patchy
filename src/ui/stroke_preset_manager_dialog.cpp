@@ -5,7 +5,10 @@
 #include "ui/theme_palette.hpp"
 
 #include <QDialog>
+#include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -20,6 +23,8 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -63,10 +68,11 @@ QString join_text(VectorStrokeJoin join) {
   return QObject::tr("Miter");
 }
 
-// A built-in pattern by its Dashes name, anything else as its lengths.
+// A built-in pattern by its Dashes name and lengths, anything else as its lengths.
 QString dashes_text(const StrokeStylePreset& preset) {
   if (const auto builtin = stroke_dash_preset_for(preset.dashes, preset.cap); builtin.has_value()) {
-    return stroke_dash_preset_label(*builtin);
+    if (preset.dashes.empty()) return stroke_dash_preset_label(*builtin);
+    return QStringLiteral("%1 (%2)").arg(stroke_dash_preset_label(*builtin), dash_pattern_text(preset.dashes));
   }
   return QStringLiteral("%1 %2").arg(dash_pattern_text(preset.dashes), QObject::tr("x width"));
 }
@@ -76,6 +82,34 @@ QString offset_text(const StrokeStylePreset& preset) {
 }
 
 }  // namespace
+
+QString stroke_style_preset_dash_values(const StrokeStylePreset& preset) {
+  if (preset.dashes.empty()) return {};
+  QStringList pairs;
+  for (std::size_t i = 0; i < preset.dashes.size(); i += 2) {
+    std::vector<double> pair{preset.dashes[i]};
+    if (i + 1 < preset.dashes.size()) pair.push_back(preset.dashes[i + 1]);
+    pairs << dash_pattern_text(pair);
+  }
+  auto text = pairs.join(QStringLiteral(" | "));
+  if (std::abs(preset.dash_offset) > 1e-9) {
+    text += QStringLiteral("   ") + QObject::tr("offset %1").arg(dash_pattern_text({preset.dash_offset}));
+  }
+  return text;
+}
+
+QString stroke_preset_copy_name(const QString& name, const std::vector<StrokeStylePreset>& saved) {
+  const auto taken = [&](const QString& candidate) {
+    return stroke_preset_name_is_builtin(candidate) ||
+           std::any_of(saved.begin(), saved.end(),
+                       [&](const StrokeStylePreset& preset) { return preset.name == candidate; });
+  };
+  auto candidate = QObject::tr("%1 copy").arg(name);
+  for (int number = 2; taken(candidate); ++number) {
+    candidate = QObject::tr("%1 copy %2").arg(name).arg(number);
+  }
+  return candidate;
+}
 
 QPixmap stroke_style_preset_sample(const StrokeStylePreset& preset, int width, int height, double line_width) {
   QPixmap pixmap(std::max(1, width), std::max(1, height));
@@ -138,17 +172,21 @@ StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString&
   auto* tree = new QTreeWidget(&dialog);
   tree->setObjectName(QStringLiteral("strokePresetManagerTree"));
   tree->setHeaderHidden(true);
-  tree->setColumnCount(2);
+  // Name, the dash and gap values, Built-in.
+  tree->setColumnCount(3);
   tree->header()->setStretchLastSection(false);
   tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
   tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+  tree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
   tree->setRootIsDecorated(false);
   tree->setSelectionMode(QAbstractItemView::SingleSelection);
   tree->setIconSize(QSize(56, 20));
-  scaffold.add_tree(tree, 280);
+  scaffold.add_tree(tree, 380);
 
   auto* builtin_note = new QLabel(
-      QObject::tr("Built-in preset: it can be used, but not renamed, moved or deleted."), &dialog);
+      QObject::tr("Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to "
+                  "make a copy you can edit."),
+      &dialog);
   builtin_note->setObjectName(QStringLiteral("strokePresetManagerBuiltinNote"));
   builtin_note->setWordWrap(true);
   scaffold.right()->addWidget(builtin_note);
@@ -170,27 +208,81 @@ StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString&
   auto* name_edit = new QLineEdit(&dialog);
   name_edit->setObjectName(QStringLiteral("strokePresetManagerNameEdit"));
   form->addRow(QObject::tr("Name:"), name_edit);
-  const auto add_value_row = [&](const QString& label, const char* object_name) {
-    auto* value = new QLabel(&dialog);
+  // Each setting shows as text for a built-in and as an editor for a saved preset.
+  const auto add_value_row = [&](const QString& label, const char* object_name, QWidget* editor) {
+    auto* cell = new QWidget(&dialog);
+    auto* layout = new QHBoxLayout(cell);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(6);
+    auto* value = new QLabel(cell);
     value->setObjectName(QLatin1String(object_name));
-    form->addRow(label, value);
+    layout->addWidget(value);
+    layout->addWidget(editor, 1);
+    form->addRow(label, cell);
     return value;
   };
-  auto* align_value = add_value_row(QObject::tr("Align:"), "strokePresetManagerAlignLabel");
-  auto* cap_value = add_value_row(QObject::tr("Caps:"), "strokePresetManagerCapsLabel");
-  auto* join_value = add_value_row(QObject::tr("Corners:"), "strokePresetManagerCornersLabel");
-  auto* dashes_value = add_value_row(QObject::tr("Dashes:"), "strokePresetManagerDashesLabel");
-  auto* offset_value = add_value_row(QObject::tr("Dash offset:"), "strokePresetManagerOffsetLabel");
+  const auto make_combo = [&](const char* object_name, std::initializer_list<std::pair<QString, int>> items) {
+    auto* combo = new QComboBox(&dialog);
+    combo->setObjectName(QLatin1String(object_name));
+    for (const auto& [text, value] : items) combo->addItem(text, value);
+    return combo;
+  };
+  auto* align_combo = make_combo("strokePresetManagerAlignCombo",
+                                 {{alignment_text(VectorStrokeAlignment::Inside), static_cast<int>(VectorStrokeAlignment::Inside)},
+                                  {alignment_text(VectorStrokeAlignment::Center), static_cast<int>(VectorStrokeAlignment::Center)},
+                                  {alignment_text(VectorStrokeAlignment::Outside), static_cast<int>(VectorStrokeAlignment::Outside)}});
+  auto* cap_combo = make_combo("strokePresetManagerCapsCombo",
+                               {{cap_text(VectorStrokeCap::Butt), static_cast<int>(VectorStrokeCap::Butt)},
+                                {cap_text(VectorStrokeCap::Round), static_cast<int>(VectorStrokeCap::Round)},
+                                {cap_text(VectorStrokeCap::Square), static_cast<int>(VectorStrokeCap::Square)}});
+  auto* join_combo = make_combo("strokePresetManagerCornersCombo",
+                                {{join_text(VectorStrokeJoin::Miter), static_cast<int>(VectorStrokeJoin::Miter)},
+                                 {join_text(VectorStrokeJoin::Round), static_cast<int>(VectorStrokeJoin::Round)},
+                                 {join_text(VectorStrokeJoin::Bevel), static_cast<int>(VectorStrokeJoin::Bevel)}});
+  // Dash and gap lengths in stroke widths, the Dash pattern field's format; empty is solid.
+  auto* dashes_editor = new QWidget(&dialog);
+  auto* dashes_layout = new QHBoxLayout(dashes_editor);
+  dashes_layout->setContentsMargins(0, 0, 0, 0);
+  dashes_layout->setSpacing(6);
+  auto* dashes_edit = new QLineEdit(dashes_editor);
+  dashes_edit->setObjectName(QStringLiteral("strokePresetManagerDashesEdit"));
+  dashes_edit->setPlaceholderText(stroke_dash_preset_label(StrokeDashPreset::Solid));
+  dashes_edit->setToolTip(QObject::tr("Dash and gap lengths in stroke widths, separated by spaces, for example "
+                                      "4 2 or 6 2 1 2; leave it empty for a solid line"));
+  dashes_layout->addWidget(dashes_edit, 1);
+  dashes_layout->addWidget(new QLabel(QObject::tr("x width"), dashes_editor));
+  auto* offset_editor = new QWidget(&dialog);
+  auto* offset_layout = new QHBoxLayout(offset_editor);
+  offset_layout->setContentsMargins(0, 0, 0, 0);
+  offset_layout->setSpacing(6);
+  auto* offset_spin = new QDoubleSpinBox(offset_editor);
+  offset_spin->setObjectName(QStringLiteral("strokePresetManagerOffsetSpin"));
+  offset_spin->setRange(-1000.0, 1000.0);
+  offset_spin->setDecimals(2);
+  offset_spin->setSingleStep(0.5);
+  offset_spin->setKeyboardTracking(false);
+  offset_spin->setToolTip(QObject::tr("Moves the dash pattern along the path, in stroke widths"));
+  offset_layout->addWidget(offset_spin);
+  offset_layout->addWidget(new QLabel(QObject::tr("x width"), offset_editor));
+  offset_layout->addStretch(1);
+  auto* align_value = add_value_row(QObject::tr("Align:"), "strokePresetManagerAlignLabel", align_combo);
+  auto* cap_value = add_value_row(QObject::tr("Caps:"), "strokePresetManagerCapsLabel", cap_combo);
+  auto* join_value = add_value_row(QObject::tr("Corners:"), "strokePresetManagerCornersLabel", join_combo);
+  auto* dashes_value = add_value_row(QObject::tr("Dashes:"), "strokePresetManagerDashesLabel", dashes_editor);
+  auto* offset_value = add_value_row(QObject::tr("Dash offset:"), "strokePresetManagerOffsetLabel", offset_editor);
   scaffold.right()->addLayout(form);
 
   auto* up_button = new QPushButton(QObject::tr("Move Up"), &dialog);
   up_button->setObjectName(QStringLiteral("strokePresetManagerUpButton"));
   auto* down_button = new QPushButton(QObject::tr("Move Down"), &dialog);
   down_button->setObjectName(QStringLiteral("strokePresetManagerDownButton"));
+  auto* duplicate_button = new QPushButton(QObject::tr("Duplicate"), &dialog);
+  duplicate_button->setObjectName(QStringLiteral("strokePresetManagerDuplicateButton"));
+  duplicate_button->setToolTip(QObject::tr("Copy the selected preset into a new saved preset you can rename and edit"));
   auto* delete_button = new QPushButton(QObject::tr("Delete"), &dialog);
   delete_button->setObjectName(QStringLiteral("strokePresetManagerDeleteButton"));
   delete_button->setToolTip(QObject::tr("Delete the selected preset (Del)"));
-  scaffold.add_action_row({up_button, down_button}, {delete_button});
+  scaffold.add_action_row({up_button, down_button, duplicate_button}, {delete_button});
 
   StrokePresetChoice chosen;
   const auto current_row = [&] {
@@ -226,8 +318,12 @@ StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString&
     up_button->setEnabled(saved > 0);
     down_button->setEnabled(saved >= 0 && saved + 1 < static_cast<int>(presets.size()));
     delete_button->setEnabled(saved >= 0);
+    duplicate_button->setEnabled(any);
     use_button->setEnabled(any);
     QLabel* values[] = {align_value, cap_value, join_value, dashes_value, offset_value};
+    QWidget* editors[] = {align_combo, cap_combo, join_combo, dashes_editor, offset_editor};
+    for (auto* value : values) value->setVisible(saved < 0);
+    for (auto* editor : editors) editor->setVisible(saved >= 0);
     if (!any) {
       name_edit->clear();
       for (auto* value : values) value->clear();
@@ -249,10 +345,18 @@ StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString&
       join_value->setText(stroke_dash_preset_join(dash).has_value() ? join_text(preset.join) : unchanged);
       offset_value->setText(unchanged);
     } else {
-      align_value->setText(alignment_text(preset.alignment));
-      cap_value->setText(cap_text(preset.cap));
-      join_value->setText(join_text(preset.join));
-      offset_value->setText(offset_text(preset));
+      const QSignalBlocker align_blocker(align_combo);
+      align_combo->setCurrentIndex(align_combo->findData(static_cast<int>(preset.alignment)));
+      const QSignalBlocker cap_blocker(cap_combo);
+      cap_combo->setCurrentIndex(cap_combo->findData(static_cast<int>(preset.cap)));
+      const QSignalBlocker join_blocker(join_combo);
+      join_combo->setCurrentIndex(join_combo->findData(static_cast<int>(preset.join)));
+      const QSignalBlocker dashes_blocker(dashes_edit);
+      dashes_edit->setText(dash_pattern_text(preset.dashes));
+      dashes_edit->setModified(false);
+      const QSignalBlocker offset_blocker(offset_spin);
+      offset_spin->setValue(preset.dash_offset);
+      offset_spin->setEnabled(!preset.dashes.empty());
     }
     preview->setPixmap(stroke_style_preset_sample(preset, 220, 96, 9.0));
   };
@@ -265,9 +369,11 @@ StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString&
         auto* item = new QTreeWidgetItem(tree, QStringList{preset.name});
         item->setIcon(0, QIcon(stroke_style_preset_sample(preset, 56, 20, 3.0)));
         item->setToolTip(0, stroke_style_preset_summary(preset));
+        item->setText(1, stroke_style_preset_dash_values(preset));
+        item->setForeground(1, theme().text_secondary);
         if (row < builtin_count) {
-          item->setText(1, QObject::tr("Built-in"));
-          item->setForeground(1, theme().text_secondary);
+          item->setText(2, QObject::tr("Built-in"));
+          item->setForeground(2, theme().text_secondary);
         }
       }
       if (select_row >= 0 && select_row < tree->topLevelItemCount()) {
@@ -300,7 +406,64 @@ StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString&
                                     : builtin_count + std::min(saved, static_cast<int>(presets.size()) - 1));
   };
 
+  // A copy of any row, built-in or saved, becomes a new saved preset, selected and ready to rename.
+  const auto duplicate_selected = [&] {
+    const auto row = current_row();
+    if (row < 0 || row >= row_count()) return;
+    auto copy = preset_at(row);
+    copy.name = stroke_preset_copy_name(copy.name, presets);
+    presets.push_back(std::move(copy));
+    save_and_reload(row_count() - 1);
+    name_edit->setFocus();
+    name_edit->selectAll();
+  };
+  // Applies one edit to the selected saved preset and saves the list.
+  const auto edit_saved = [&](const std::function<void(StrokeStylePreset&)>& change) {
+    const auto saved = saved_index(current_row());
+    if (saved < 0) return;
+    change(presets[static_cast<std::size_t>(saved)]);
+    save_and_reload(builtin_count + saved);
+  };
+
   scaffold.connect_selection_changed(refresh_details);
+  QObject::connect(duplicate_button, &QPushButton::clicked, &dialog, duplicate_selected);
+  QObject::connect(align_combo, &QComboBox::currentIndexChanged, &dialog, [&] {
+    edit_saved([&](StrokeStylePreset& preset) {
+      preset.alignment = static_cast<VectorStrokeAlignment>(align_combo->currentData().toInt());
+    });
+  });
+  QObject::connect(cap_combo, &QComboBox::currentIndexChanged, &dialog, [&] {
+    edit_saved([&](StrokeStylePreset& preset) {
+      preset.cap = static_cast<VectorStrokeCap>(cap_combo->currentData().toInt());
+    });
+  });
+  QObject::connect(join_combo, &QComboBox::currentIndexChanged, &dialog, [&] {
+    edit_saved([&](StrokeStylePreset& preset) {
+      preset.join = static_cast<VectorStrokeJoin>(join_combo->currentData().toInt());
+    });
+  });
+  QObject::connect(dashes_edit, &QLineEdit::editingFinished, &dialog, [&] {
+    // Commits on Enter or focus-out once typed in; text that is not a pattern reverts.
+    if (!dashes_edit->isModified()) return;
+    dashes_edit->setModified(false);
+    const auto text = dashes_edit->text().trimmed();
+    if (text.isEmpty()) {
+      edit_saved([](StrokeStylePreset& preset) {
+        preset.dashes.clear();
+        preset.dash_offset = 0.0;
+      });
+      return;
+    }
+    const auto parsed = parse_dash_pattern_text(text);
+    if (!parsed.has_value()) {
+      refresh_details();
+      return;
+    }
+    edit_saved([&](StrokeStylePreset& preset) { preset.dashes = *parsed; });
+  });
+  QObject::connect(offset_spin, &QDoubleSpinBox::valueChanged, &dialog, [&](double value) {
+    edit_saved([&](StrokeStylePreset& preset) { preset.dash_offset = preset.dashes.empty() ? 0.0 : value; });
+  });
   scaffold.add_delete_plumbing(delete_button, delete_selected);
   QObject::connect(up_button, &QPushButton::clicked, &dialog, [&] { move_selected(-1); });
   QObject::connect(down_button, &QPushButton::clicked, &dialog, [&] { move_selected(1); });
@@ -336,7 +499,7 @@ StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString&
     }
   }
   reload(initial_row);
-  dialog.resize(700, 460);
+  dialog.resize(800, 500);
   exec_dialog(dialog);
   return chosen;
 }

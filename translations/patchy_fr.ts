@@ -14411,10 +14411,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Un contour prédéfini nommé « %1 » existe déjà.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Contour prédéfini intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Aucun contour prédéfini enregistré. Dans Apparence de la forme, réglez le contour puis cliquez sur Enregistrer... à côté de Tirets.</translation>
     </message>
@@ -14740,6 +14736,30 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>The preset could not be exported.</source>
         <translation>Impossible d&apos;exporter le préréglage.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>décalage %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 copie</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 copie %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Contour prédéfini intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé. Dupliquez-le pour obtenir une copie modifiable.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Longueurs des tirets et des espaces en largeurs de contour, séparées par des espaces, par exemple 4 2 ou 6 2 1 2 ; laissez vide pour un trait plein</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Copier le contour prédéfini sélectionné dans un nouveau contour enregistré que vous pouvez renommer et modifier</translation>
     </message>
 </context>
 <context>

@@ -14411,10 +14411,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Esiste già una traccia predefinita di nome &quot;%1&quot;.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Predefinito integrato: si può usare, ma non rinominare, spostare o eliminare.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Nessuna traccia predefinita salvata. In Aspetto forma, imposta la traccia e fai clic su Salva... accanto a Tratti.</translation>
     </message>
@@ -14740,6 +14736,30 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>The preset could not be exported.</source>
         <translation>Impossibile esportare il predefinito.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>spostamento %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 copia</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 copia %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Predefinito integrato: si può usare, ma non rinominare, spostare o eliminare. Duplicalo per ottenere una copia modificabile.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Lunghezze di tratti e spazi in larghezze della traccia, separate da spazi, per esempio 4 2 o 6 2 1 2; lascia vuoto per una linea continua</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Copia il predefinito selezionato in un nuovo predefinito salvato che puoi rinominare e modificare</translation>
     </message>
 </context>
 <context>
