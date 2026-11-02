@@ -43,19 +43,19 @@ During guarded automation, script rebuilds call `refresh_layer_list(true)`: old 
 
 Canvas-driven selection never rebuilds existing rows. `reveal_layer_in_layer_list` (Move-tool auto-select, `active_layer_changed_callback`) and `select_layers_in_layer_list` (rectangle and modifier selection) rebuild only when a collapsed ancestor must open, the name filter must clear, or a target has no row; else they select the existing row (`layer_row_item`) for the ordinary selection handler. Pinned by `ui_move_auto_select_click_keeps_existing_layer_rows`. Both scroll through `scroll_layer_row_into_view`: a row already wholly on screen keeps the scroll position, an off-screen row is centered, and the badge buttons pass `clicked_in_panel` so a partly visible row under the pointer stays put too (#266, `ui_layer_smart_object_badge_click_keeps_panel_scroll`).
 
-Row masks: `LayerListWidget::update_row_viewport_masks` (on scroll, resize, range, value and focus changes) masks the rows under the raised scroll bars. Scroll-bar rects map through global coordinates: the bars live in QAbstractScrollArea's containers, siblings of the viewport. Only rows in view are touched; rows scrolled in get theirs on that pass. Pinned by `ui_layer_list_row_masks_map_scroll_bars_without_warnings`.
+Row masks: `LayerListWidget::update_row_viewport_masks` (on scroll, resize, range, value and focus changes) masks the rows under the raised scroll bars. Scroll-bar rects map through global coordinates (the bars are siblings of the viewport). Only rows in view change. Test: `ui_layer_list_row_masks_map_scroll_bars_without_warnings`.
 
 The list may omit rows: collapsed folders and the name filter (`layerNameFilterEdit`) rebuild without rows for excluded layers. Never assume every layer has a row, and never add a "row exists but hidden" state: absent rows are the one not-shown state consumers handle. While the name filter is active, `LayerListWidget::set_drag_blocked` refuses drag reordering because a reorder would silently move filtered-out layers; each refused attempt reports through `show_status_error` and leftover held-button moves are swallowed so the base view cannot start a drag-selection sweep.
 
 ## Blend and opacity row
 
-Dragging the "Opacity:" or "Fill:" prefix scrubs the value (`install_prefix_scrub`, [ui-conventions.md](ui-conventions.md) Options bar): the drag ends with `editingFinished`, so `finish_pending_layer_opacity_edit` closes it as one undo entry; a click on the prefix focuses the field with the number selected. Combos from `add_blend_mode_items` also step with Left/Right. Panel blend changes merge into one undo entry until a pause or another history change (`ui_layer_blend_mode_steps_coalesce_into_one_undo_entry`). Pass Through is offered first, for folders only (`set_blend_mode_pass_through_offered` per active layer, `BlendModeMenu::Folder` in Blending Options), and never lands on a selected non-folder (#235). `refresh_layer_thumbnails` re-syncs each row's mode and opacity line (`layer_row_details_text`, #236). The blend row, the lock/filter row and the footer wrap in a narrow column (#96, #199; [right-docks.md](right-docks.md)).
+Dragging the "Opacity:" or "Fill:" prefix scrubs the value (`install_prefix_scrub`, [ui-conventions.md](ui-conventions.md) Options bar): the drag ends with `editingFinished`, so `finish_pending_layer_opacity_edit` closes it as one undo entry; a prefix click focuses the field, number selected. Combos from `add_blend_mode_items` also step with Left/Right. Panel blend changes merge into one undo entry until a pause or another history change (`ui_layer_blend_mode_steps_coalesce_into_one_undo_entry`). Pass Through is offered first, for folders only (`set_blend_mode_pass_through_offered` per active layer, `BlendModeMenu::Folder` in Blending Options), and never lands on a selected non-folder (#235). `refresh_layer_thumbnails` re-syncs each row's mode and opacity line (`layer_row_details_text`, #236). The blend row, the lock/filter row and the footer wrap in a narrow column (#96, #199; [right-docks.md](right-docks.md)).
 
 While the list is open (#367, `PopupAwareComboBox`), the highlighted mode shows on every selected layer (`preview_layer_blend`, coalesced, async render) with no history entry, session revision or row refresh. Closing restores the modes before Qt reports a choice, which commits one entry; a history change, edit snapshot, or another document or selection closes the list and reverts (`ui_layer_blend_list_*`).
 
 ## Click selection
 
-Layer-row click selection (`LayerListWidget::eventFilter` for row widgets, `viewportEvent` for bare viewport; keep the two branches in step): plain click selects one layer (collapse from a multi-selection is deferred to release so drags work), Ctrl-click toggles the row, Shift-click selects `currentRow()`..target replacing the selection, and Ctrl+Shift-click adds that range (`select_range_to_item`'s `additive` flag). The Ctrl branch is tested first, so a Ctrl-click on a thumbnail loads it as a selection instead (next section).
+Layer-row click selection (`LayerListWidget::eventFilter` for row widgets, `viewportEvent` for bare viewport; keep the two branches in step): plain click selects one layer (collapse from a multi-selection is deferred to release so drags work), Ctrl-click toggles the row, Shift-click selects anchor..target replacing the selection, and Ctrl+Shift-click adds that range (`select_range_to_item`'s `additive` flag). The anchor, `range_anchor_layer_id_`, is the last plain- or Ctrl-clicked layer while selected, else the current row; modifier presses set `suppress_drag_select_until_release_` so jitter cannot drag-select from a stale press (#594). The Ctrl branch is tested first, so a Ctrl-click on a thumbnail loads it as a selection instead (next section).
 
 ### Thumbnail menus and selection loads
 
@@ -75,13 +75,7 @@ One-layer documents: with no active layer, a command or tool that needs one sele
 
 ### Range selection and the selected count
 
-Range selection normalizes selected ancestors in one const traversal (`root_drop_layer_ids`),
-keeping the requested order, rejecting missing ids. Target styles repolish only on change;
-slow selection shows the delayed **Selecting layers...** message. The selection handler
-and single-layer reveal path show the selected layer count on the status bar, one const
-traversal touching neither selection nor history: a selected folder counts itself and every
-descendant (hidden, locked, collapsed, or filtered-out included), a selected parent and child
-never count a layer twice (`ui_layer_selection_count`).
+Range selection normalizes selected ancestors in one const traversal (`root_drop_layer_ids`), keeping the requested order, rejecting missing ids. Target styles repolish only on change; slow selection shows a delayed **Selecting layers...**. The selection handler and reveal path show the selected count on the status bar (one const traversal, no selection or history change): a folder counts itself and every descendant (hidden, locked, collapsed, filtered-out), nothing twice (`ui_layer_selection_count`).
 
 ## New Layer dialog
 

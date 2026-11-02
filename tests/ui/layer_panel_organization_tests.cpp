@@ -2338,6 +2338,102 @@ void ui_layer_list_edge_click_selects_without_scrolling() {
   CHECK(layer_list->currentItem() == target_item);
 }
 
+// GitHub issue 594: a Shift-click range runs from the layer last clicked, and nothing
+// between the click and the Shift-click (a rebuild, a moved current row, a pointer that
+// moves a pixel while the button is down) adds rows outside it.
+void ui_layer_shift_click_range_starts_at_the_clicked_layer() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  for (int index = 0; index < 6; ++index) {
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Range " + std::to_string(index + 1),
+                                     solid_pixels(6, 6, patchy::PixelFormat::rgba8(), QColor(20, 80, 180))));
+  }
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Layer Shift Range"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  QApplication::processEvents();
+
+  const auto name_label = [&](const QString& name) {
+    auto* item = require_layer_item(*layer_list, name);
+    auto* label = layer_list->itemWidget(item)->findChild<QLabel*>(QStringLiteral("layerRowName"));
+    CHECK(label != nullptr);
+    return label;
+  };
+  const auto click = [&](const QString& name, Qt::KeyboardModifiers modifiers, bool jitter = false) {
+    auto* label = name_label(name);
+    const auto center = label->rect().center();
+    send_mouse(*label, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, modifiers);
+    if (jitter) {
+      // A hand on a mouse or touchpad moves a pixel or two during the click.
+      send_mouse(*label, QEvent::MouseMove, center + QPoint(2, 1), Qt::NoButton, Qt::LeftButton, modifiers);
+      send_mouse(*label, QEvent::MouseMove, center + QPoint(3, 2), Qt::NoButton, Qt::LeftButton, modifiers);
+    }
+    send_mouse(*label, QEvent::MouseButtonRelease, center + (jitter ? QPoint(3, 2) : QPoint()), Qt::LeftButton,
+               Qt::NoButton, modifiers);
+    process_events_for(30);
+  };
+  const auto selected_names = [&] {
+    QStringList names;
+    for (int row = 0; row < layer_list->count(); ++row) {
+      if (layer_list->item(row)->isSelected()) {
+        names << layer_list->item(row)->text();
+      }
+    }
+    return names;
+  };
+  const QStringList range_4_to_2{QStringLiteral("Range 4"), QStringLiteral("Range 3"), QStringLiteral("Range 2")};
+
+  // The current row drifts above the clicked layer between the two clicks.
+  click(QStringLiteral("Range 4"), Qt::NoModifier);
+  CHECK(selected_names() == QStringList{QStringLiteral("Range 4")});
+  layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Range 6")),
+                             QItemSelectionModel::NoUpdate);
+  click(QStringLiteral("Range 2"), Qt::ShiftModifier);
+  CHECK(selected_names() == range_4_to_2);
+
+  // A rebuild between the click and the Shift-click.
+  click(QStringLiteral("Range 4"), Qt::NoModifier);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  process_events_for(30);
+  click(QStringLiteral("Range 2"), Qt::ShiftModifier);
+  CHECK(selected_names() == range_4_to_2);
+
+  // The pointer moves while the Shift-click's button is down: the base view must not
+  // start a drag-selection sweep from a press position it never saw.
+  click(QStringLiteral("Range 4"), Qt::NoModifier);
+  click(QStringLiteral("Range 2"), Qt::ShiftModifier, /*jitter=*/true);
+  CHECK(selected_names() == range_4_to_2);
+
+  // A second Shift-click ranges from the same anchor, not from the first Shift target.
+  click(QStringLiteral("Range 1"), Qt::ShiftModifier);
+  CHECK(selected_names() == (QStringList{QStringLiteral("Range 4"), QStringLiteral("Range 3"),
+                                         QStringLiteral("Range 2"), QStringLiteral("Range 1")}));
+  click(QStringLiteral("Range 5"), Qt::ShiftModifier);
+  CHECK(selected_names() == (QStringList{QStringLiteral("Range 5"), QStringLiteral("Range 4")}));
+
+  // A Ctrl-click sets the anchor too; Ctrl+Shift adds its range and keeps the rest.
+  click(QStringLiteral("Range 6"), Qt::NoModifier);
+  click(QStringLiteral("Range 2"), Qt::ControlModifier);
+  CHECK(selected_names() == (QStringList{QStringLiteral("Range 6"), QStringLiteral("Range 2")}));
+  click(QStringLiteral("Range 1"), Qt::ControlModifier | Qt::ShiftModifier, /*jitter=*/true);
+  CHECK(selected_names() ==
+        (QStringList{QStringLiteral("Range 6"), QStringLiteral("Range 2"), QStringLiteral("Range 1")}));
+
+  // A selection made elsewhere (here the Move tool's single-layer reveal path) replaces the
+  // anchor: the next Shift-click ranges from the newly selected layer.
+  click(QStringLiteral("Range 1"), Qt::NoModifier);
+  layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Range 5")),
+                             QItemSelectionModel::ClearAndSelect);
+  process_events_for(30);
+  click(QStringLiteral("Range 3"), Qt::ShiftModifier);
+  CHECK(selected_names() ==
+        (QStringList{QStringLiteral("Range 5"), QStringLiteral("Range 4"), QStringLiteral("Range 3")}));
+}
+
 void ui_layer_new_folder_button_groups_dropped_layers() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -6704,6 +6800,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_list_pixel_wheel_scrolls_in_row_steps", ui_layer_list_pixel_wheel_scrolls_in_row_steps},
       {"ui_layer_list_edge_click_selects_without_scrolling",
        ui_layer_list_edge_click_selects_without_scrolling},
+      {"ui_layer_shift_click_range_starts_at_the_clicked_layer",
+       ui_layer_shift_click_range_starts_at_the_clicked_layer},
       {"ui_layer_new_folder_button_groups_dropped_layers",
        ui_layer_new_folder_button_groups_dropped_layers},
       {"ui_layer_action_buttons_accept_multiselect_drops", ui_layer_action_buttons_accept_multiselect_drops},

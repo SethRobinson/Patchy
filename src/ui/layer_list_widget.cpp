@@ -538,10 +538,12 @@ bool LayerListWidget::drop_in_progress() const noexcept {
 }
 
 void LayerListWidget::set_drag_blocked(bool blocked) {
-  drag_blocked_ = blocked;
-  if (!blocked) {
+  // Only lifting a block ends its swallowing: every rebuild calls this, and a
+  // rebuild during a modifier click must keep that click's suppression.
+  if (drag_blocked_ && !blocked) {
     suppress_drag_select_until_release_ = false;
   }
+  drag_blocked_ = blocked;
 }
 
 void LayerListWidget::set_drag_blocked_callback(std::function<void()> callback) {
@@ -962,6 +964,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       auto* item = itemAt(viewport_pos);
       const auto target = item != nullptr ? ctrl_click_target(item, viewport_pos) : std::nullopt;
       if (item != nullptr && target.has_value() && ctrl_click_callback_) {
+        suppress_drag_select_until_release_ = true;
         ctrl_click_callback_(item, *target, mouse_event->modifiers());
         event->accept();
         return true;
@@ -983,6 +986,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
         if (const auto target = ctrl_click_target(item, viewport_pos);
             target.has_value() && *target != LayerCtrlClickTarget::ContentThumbnail &&
             thumbnail_click_callback_) {
+          suppress_drag_select_until_release_ = true;
           thumbnail_click_callback_(item, *target, mouse_event->modifiers());
           event->accept();
           return true;
@@ -1112,6 +1116,9 @@ void LayerListWidget::setSelection(const QRect& rect, QItemSelectionModel::Selec
     keep_drag_anchor_selected();
     return;
   }
+  if (suppress_drag_select_until_release_) {
+    return;
+  }
   QListWidget::setSelection(rect, command);
 }
 
@@ -1155,6 +1162,7 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
       auto* item = itemAt(mouse_event->pos());
       const auto target = item != nullptr ? ctrl_click_target(item, mouse_event->pos()) : std::nullopt;
       if (item != nullptr && target.has_value() && ctrl_click_callback_) {
+        suppress_drag_select_until_release_ = true;
         ctrl_click_callback_(item, *target, mouse_event->modifiers());
         event->accept();
         return true;
@@ -1169,6 +1177,7 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
         if (const auto target = ctrl_click_target(item, mouse_event->pos());
             target.has_value() && *target != LayerCtrlClickTarget::ContentThumbnail &&
             thumbnail_click_callback_) {
+          suppress_drag_select_until_release_ = true;
           thumbnail_click_callback_(item, *target, mouse_event->modifiers());
           event->accept();
           return true;
@@ -1301,6 +1310,10 @@ void LayerListWidget::toggle_ctrl_selection(QListWidgetItem* item) {
   row_widget_drag_candidate_ = false;
   pending_single_select_on_release_ = false;
   drag_anchor_layer_id_.reset();
+  // The base view never saw this press: a pointer moving before release must not
+  // drag-select from an older press position (GitHub issue 594).
+  suppress_drag_select_until_release_ = true;
+  range_anchor_layer_id_ = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
   const auto selected = !item->isSelected();
   item->setSelected(selected);
   if (selected) {
@@ -1315,9 +1328,25 @@ void LayerListWidget::select_range_to_item(QListWidgetItem* target_item, bool ad
   row_widget_drag_candidate_ = false;
   pending_single_select_on_release_ = false;
   drag_anchor_layer_id_.reset();
+  // A pointer moving before release would otherwise reach the base view's
+  // drag-selection sweep, which starts at a press it never saw and so took in
+  // rows outside the range (GitHub issue 594).
+  suppress_drag_select_until_release_ = true;
 
   const auto target_row = row(target_item);
-  const auto anchor_row = currentRow() >= 0 ? currentRow() : target_row;
+  // The range runs from the layer last plain- or Ctrl-clicked, not the current
+  // row, which other code moves; a selection made elsewhere (canvas, keys,
+  // a rebuild that collapsed the selection) leaves that layer unselected, and
+  // then the current row (the active layer) starts the range.
+  auto* anchor_item = range_anchor_layer_id_.has_value() ? item_for_layer_id(*range_anchor_layer_id_) : nullptr;
+  if (anchor_item == nullptr || !anchor_item->isSelected()) {
+    anchor_item = currentItem();
+    range_anchor_layer_id_.reset();
+    if (anchor_item != nullptr) {
+      range_anchor_layer_id_ = static_cast<LayerId>(anchor_item->data(kLayerIdRole).toULongLong());
+    }
+  }
+  const auto anchor_row = anchor_item != nullptr ? row(anchor_item) : target_row;
   const auto first_row = std::min(anchor_row, target_row);
   const auto last_row = std::max(anchor_row, target_row);
   const auto target_index = model()->index(target_row, 0);
@@ -1345,6 +1374,7 @@ void LayerListWidget::begin_single_drag_item(QListWidgetItem* item) {
   if (!item->isSelected()) editor_click_selection_.clear();
   editor_click_time_.start();
   drag_anchor_layer_id_ = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+  range_anchor_layer_id_ = drag_anchor_layer_id_;
   pending_single_select_on_release_ = item->isSelected();
   if (!pending_single_select_on_release_) {
     set_single_drag_item(item);
