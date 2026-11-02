@@ -53,13 +53,13 @@ A client opts in at `initialize` with `capabilities: {experimental: {"patchy/eve
 | `activeDocumentChanged` | `documentId` (null with no document) | Another tab becomes active |
 | `documentClosed` | `documentId` | A document closes |
 | `stateChanged` | `stateToken` | Anything the state token covers changed (history, layers, selection) |
-| `companionCommand` | `companion`, `action` (`"show"`) | The artist picked this companion in Plugins > Companions |
+| `companionCommand` | `companion`, `action` (`"show"` or `"quit"`) | The artist picked this companion, or its Quit entry, in Plugins > Companions |
 
 `McpSession` polls on the UI thread: selection, documents and the active tab every 100 ms (no layer data), the state token every 500 ms (it serializes the layer tree), never during a script run. A selection drag reports once, when it commits. `companionCommand` reaches a client that declared `experimental["patchy/companion"]` (its manifest id) even without the event stream (`McpAttachment::send_companion_command`).
 
 ## Companions menu
 
-Plugins > Companions (`companionsMenu`, `ui/companion_apps.*`, owned by the Plugins menu; not on the web) lists one entry per manifest in `<per-user app data>/companions/*.json`, read again each time the submenu opens, plus Open Companions Folder. Picking an entry sends `companionCommand` `show` to the attached companion with that id; with none attached it starts the manifest's command, detached, in the manifest's folder (or `workingDirectory`), with `PATCHY_MCP_ENDPOINT` (this window's endpoint), `PATCHY_COMPANION_ID`, `PATCHY_EXECUTABLE` and `PATCHY_MCP` (the connector, when installed) added to the environment. A command never runs except from that menu pick.
+Plugins > Companions (`companionsMenu`, `ui/companion_apps.*`, owned by the Plugins menu; not on the web) lists one entry per manifest in `<per-user app data>/companions/*.json`, read again each time the submenu opens, plus Open Companions Folder. Picking an entry sends `companionCommand` `show` to the attached companion with that id, and while one is attached a Quit entry (`companionQuitAction_<id>`) sends `quit`: the companion should exit as it does when Patchy closes; with none attached it starts the manifest's command, detached, in the manifest's folder (or `workingDirectory`), with `PATCHY_MCP_ENDPOINT` (this window's endpoint), `PATCHY_COMPANION_ID`, `PATCHY_EXECUTABLE` and `PATCHY_MCP` (the connector, when installed) added to the environment. A command never runs except from that menu pick.
 
 Manifest keys (a file-format contract, never renamed):
 

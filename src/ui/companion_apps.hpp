@@ -40,7 +40,7 @@ struct CompanionManifest {
 [[nodiscard]] QProcessEnvironment companion_environment(const CompanionManifest& manifest);
 
 // Owns the Companions submenu, parented to the Plugins menu. The entries are rebuilt from
-// the folder each time the submenu opens.
+// the folder each time the submenu opens, with a Quit entry for each companion attached.
 class CompanionMenu final : public QObject {
   Q_OBJECT
  public:
@@ -51,6 +51,8 @@ class CompanionMenu final : public QObject {
   void rebuild();
   // Show the running companion, or start it. Returns false when it could not be started.
   bool activate(const CompanionManifest& manifest);
+  // Asks the attached companion to quit (companionCommand "quit"). False when none is attached.
+  bool quit(const CompanionManifest& manifest);
   // Tests replace QProcess::startDetached.
   void set_launcher_for_testing(Launcher launcher) { launcher_ = std::move(launcher); }
 

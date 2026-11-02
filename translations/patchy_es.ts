@@ -19047,6 +19047,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Starting %1...</source>
         <translation>Iniciando %1...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Salir de %1</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>Se pidió a %1 que se cierre</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

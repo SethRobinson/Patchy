@@ -137,7 +137,8 @@ bool CompanionMenu::eventFilter(QObject* watched, QEvent* event) {
 
 void CompanionMenu::rebuild() {
   menu_->clear();
-  for (const auto& manifest : load_companion_manifests()) {
+  const auto manifests = load_companion_manifests();
+  for (const auto& manifest : manifests) {
     auto* action = menu_->addAction(QString(manifest.menu_label).replace(QLatin1Char('&'), QStringLiteral("&&")));
     action->setObjectName(QStringLiteral("companionAction_") + manifest.id);
     action->setMenuRole(QAction::NoRole);
@@ -145,6 +146,22 @@ void CompanionMenu::rebuild() {
     action->setProperty(kCommandSearchDataEntryProperty, true);  // one per manifest file
     action->setProperty(kWorksWithoutDocumentProperty, true);  // a companion can make its own
     connect(action, &QAction::triggered, this, [this, manifest] { (void)activate(manifest); });
+  }
+  bool quit_section = false;
+  for (const auto& manifest : manifests) {
+    if (!McpAttachment::companion_attached(manifest.id)) {
+      continue;
+    }
+    if (!quit_section) {
+      menu_->addSeparator();
+      quit_section = true;
+    }
+    auto* quit_action = menu_->addAction(tr("Quit %1").arg(QString(manifest.name).replace(QLatin1Char('&'), QStringLiteral("&&"))));
+    quit_action->setObjectName(QStringLiteral("companionQuitAction_") + manifest.id);
+    quit_action->setMenuRole(QAction::NoRole);
+    quit_action->setProperty(kCommandSearchDataEntryProperty, true);  // shown only while it runs
+    quit_action->setProperty(kWorksWithoutDocumentProperty, true);
+    connect(quit_action, &QAction::triggered, this, [this, manifest] { (void)quit(manifest); });
   }
   if (menu_->isEmpty()) {
     auto* none = menu_->addAction(tr("No companion apps installed"));
@@ -179,6 +196,14 @@ bool CompanionMenu::activate(const CompanionManifest& manifest) {
     return false;
   }
   window_.statusBar()->showMessage(tr("Starting %1...").arg(manifest.name), 4000);
+  return true;
+}
+
+bool CompanionMenu::quit(const CompanionManifest& manifest) {
+  if (!McpAttachment::send_companion_command(manifest.id, QStringLiteral("quit"))) {
+    return false;
+  }
+  window_.statusBar()->showMessage(tr("Asked %1 to quit").arg(manifest.name), 4000);
   return true;
 }
 

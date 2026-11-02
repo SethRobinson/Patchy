@@ -19047,6 +19047,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Starting %1...</source>
         <translation>Avvio di %1...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Esci da %1</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>È stato chiesto a %1 di chiudersi</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

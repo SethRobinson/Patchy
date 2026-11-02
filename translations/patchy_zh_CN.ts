@@ -19003,6 +19003,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Starting %1...</source>
         <translation>正在启动 %1...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>退出 %1</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>已请求 %1 退出</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

@@ -19091,6 +19091,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Starting %1...</source>
         <translation>Запуск %1...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Завершить %1</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>%1 получил запрос на завершение</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
