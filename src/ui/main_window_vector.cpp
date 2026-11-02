@@ -23,6 +23,7 @@
 #include "core/blend_math.hpp"
 #include "core/artboard.hpp"
 #include "core/document_path.hpp"
+#include "core/gradient_fill_drag.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pixel_tools.hpp"
@@ -1049,7 +1050,7 @@ QString MainWindow::unique_fill_layer_name(const QString& base) {
   return QString::fromStdString(name);
 }
 
-void MainWindow::create_fill_layer(const VectorFill& fill, const QString& name, QString label) {
+void MainWindow::create_fill_layer(const VectorFill& fill, const QString& name, QString label, float opacity) {
   auto& doc = document();
   auto anchor_id = doc.active_layer_id();
   if (const auto selected_ids = selected_layer_ids(); !selected_ids.empty()) {
@@ -1057,6 +1058,7 @@ void MainWindow::create_fill_layer(const VectorFill& fill, const QString& name, 
   }
   push_undo_snapshot(std::move(label));
   auto layer = build_fill_layer(fill, name);
+  layer.set_opacity(std::clamp(opacity, 0.0F, 1.0F));
   const auto layer_id = layer.id();
   insert_layer_after_anchor(doc, std::move(layer), anchor_id);
   doc.set_active_layer(layer_id);
@@ -1157,6 +1159,51 @@ void MainWindow::new_gradient_fill_layer() {
   fill.gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F, 0.5F},
                                GradientAlphaStop{1.0F, 1.0F, 0.5F}};
   create_fill_layer_with_appearance(fill, unique_fill_layer_name(tr("Gradient Fill %1")));
+}
+
+void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
+  if (canvas_ == nullptr || !has_active_document() || from == to) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  auto& doc = document();
+  const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
+  auto gradient = gradient_fill_from_drag(canvas_->effective_gradient_stops(), canvas_->gradient_method(),
+                                          canvas_->gradient_reverse(), canvas_rect, from.x(), from.y(), to.x(),
+                                          to.y());
+  // An active Gradient Fill layer (or gradient-filled shape) takes the drag's gradient and
+  // keeps everything else: name, masks, opacity, blend mode, styles, path.
+  const auto active_id = doc.active_layer_id();
+  const auto* active = active_id.has_value() ? std::as_const(doc).find_layer(*active_id) : nullptr;
+  const auto* active_shape = active != nullptr && layer_is_vector_shape(*active) ? active->vector_shape() : nullptr;
+  if (active_shape != nullptr && active_shape->parts.empty() &&
+      active_shape->fill.kind == VectorFillKind::Gradient) {
+    if (!vector_lock_reason(*active).empty() || layer_id_locks_image_pixels(*active_id)) {
+      show_status_error(tr("Unlock the Gradient Fill layer to change its gradient"));
+      return;
+    }
+    push_undo_snapshot(tr("Edit Gradient Fill"));
+    auto* layer = doc.find_layer(*active_id);
+    auto content = *active_shape;
+    content.fill.gradient = std::move(gradient);
+    layer->set_vector_shape(std::move(content));
+    update_vector_shape_raster(*layer, canvas_rect, &doc.metadata().patterns);
+    mark_layer_vector_block_dirty(*layer);
+    canvas_->document_changed();
+    refresh_layer_list();
+    refresh_layer_controls();
+    statusBar()->showMessage(tr("Changed the gradient of %1.").arg(QString::fromStdString(layer->name())));
+    return;
+  }
+  VectorFill fill;
+  fill.kind = VectorFillKind::Gradient;
+  fill.gradient = std::move(gradient);
+  // The options bar's Opacity becomes the layer's opacity; the stops keep their own alpha.
+  create_fill_layer(fill, unique_fill_layer_name(tr("Gradient Fill %1")), tr("New Gradient Fill"),
+                    static_cast<float>(canvas_->gradient_opacity()) / 100.0F);
 }
 
 void MainWindow::new_pattern_fill_layer() {

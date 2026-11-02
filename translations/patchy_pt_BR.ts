@@ -31788,6 +31788,30 @@ Bloqueado: %1</translation>
         <source>Reverted %1</source>
         <translation>%1 revertido</translation>
     </message>
+    <message>
+        <source>Fill Layer</source>
+        <translation>Camada de preenchimento</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>O que um arrasto cria: pixels pintados ou uma camada de preenchimento degradê (uma nova, ou a camada de preenchimento degradê selecionada redesenhada)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Desbloqueie a camada de preenchimento degradê para alterar o degradê</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>Editar preenchimento degradê</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>Degradê de %1 alterado.</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>Novo preenchimento degradê</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

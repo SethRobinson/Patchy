@@ -31707,6 +31707,30 @@ Locked: %1</source>
         <source>Reverted %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Fill Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

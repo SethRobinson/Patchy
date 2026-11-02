@@ -115,6 +115,146 @@ void ui_radial_gradient_tool_renders_custom_transparency() {
   save_widget_artifact("ui_radial_gradient_transparency", *canvas);
 }
 
+// The Gradient tool's Fill Layer mode (GitHub issue 580): a drag on a pixel layer adds a Gradient
+// Fill layer above it (one undo step, the bar's Opacity as the layer opacity, a mask from the
+// selection) and leaves the pixels alone; a drag with that fill layer active rewrites only its
+// gradient (one undo step; name, opacity, blend mode and mask stay); Pixels mode still paints.
+void ui_gradient_tool_fill_layer_mode_makes_and_edits_gradient_fills() {
+  SettingsValueRestorer saved_gradient_mode(QStringLiteral("tools/gradientMode"));
+  SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
+  SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
+  patchy::Document seed(200, 150, patchy::PixelFormat::rgba8());
+  seed.add_pixel_layer("Photo", solid_pixels(200, 150, patchy::PixelFormat::rgba8(), QColor(240, 240, 240, 255)));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(seed), QStringLiteral("Gradient Fill Mode"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto photo_id = std::as_const(document).layers().front().id();
+  const auto photo_bytes = [&document, photo_id] {
+    const auto bytes = std::as_const(document).find_layer(photo_id)->pixels().data();
+    return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+  };
+  const auto photo_pixels = photo_bytes();
+
+  require_action(window, "toolGradientAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Gradient);
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  CHECK(mode != nullptr);
+  if (mode == nullptr) {
+    return;
+  }
+  CHECK(mode->isVisible());
+  CHECK(mode->currentIndex() == 0);
+  CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::Pixels);
+  mode->setCurrentIndex(1);
+  CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::FillLayer);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/gradientMode")).toString() ==
+        QStringLiteral("fillLayer"));
+  canvas->set_gradient_method(patchy::GradientMethod::Linear);
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_opacity(60);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{220, 20, 20, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{20, 20, 220, 255}},
+  });
+
+  // A selection becomes the new layer's mask.
+  patchy::PixelBuffer coverage(160, 110, patchy::PixelFormat::gray8());
+  coverage.clear(255);
+  canvas->set_selection_from_coverage(QRect(20, 20, 160, 110), coverage);
+  const auto to_widget = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  drag(*canvas, to_widget(QPoint(30, 75)), to_widget(QPoint(170, 75)));
+  QApplication::processEvents();
+  CHECK(std::as_const(document).layers().size() == 2);
+  if (std::as_const(document).layers().size() != 2) {
+    return;
+  }
+  const auto& created = std::as_const(document).layers().back();
+  const auto fill_id = created.id();
+  CHECK(document.active_layer_id() == fill_id);
+  CHECK(QString::fromStdString(created.name()).startsWith(QStringLiteral("Gradient Fill")));
+  CHECK(std::abs(created.opacity() - 0.6F) < 0.01F);
+  CHECK(created.mask().has_value());
+  const auto* shape = created.vector_shape();
+  CHECK(shape != nullptr && shape->fill.kind == patchy::VectorFillKind::Gradient);
+  if (shape == nullptr) {
+    return;
+  }
+  CHECK(shape->fill.gradient.type == patchy::LayerStyleGradientType::Linear);
+  CHECK(!shape->fill.gradient.align_with_layer);
+  CHECK(std::abs(shape->fill.gradient.angle_degrees) < 2.0F);  // left to right
+  CHECK(photo_bytes() == photo_pixels);
+  // The ramp runs from the drag start (red) to its end (blue) on the layer's own pixels.
+  const auto layer_color = [&document, fill_id](int x, int y) {
+    const auto* layer = std::as_const(document).find_layer(fill_id);
+    const auto* px = layer->pixels().pixel(x - layer->bounds().x, y - layer->bounds().y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+  CHECK(color_close(layer_color(32, 75), QColor(220, 20, 20), 20));
+  CHECK(color_close(layer_color(168, 75), QColor(20, 20, 220), 20));
+  QApplication::processEvents();
+  save_widget_artifact("ui_gradient_tool_fill_layer_mode", window);
+
+  // One undo step removes the layer; redo brings it back.
+  auto* undo = require_action_by_text(window, QStringLiteral("Undo"));
+  auto* redo = require_action_by_text(window, QStringLiteral("Redo"));
+  undo->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(document).layers().size() == 1);
+  redo->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(document).layers().size() == 2);
+
+  // Redrawing the active fill layer keeps everything but its gradient.
+  canvas->clear_selection();
+  document.set_active_layer(fill_id);
+  {
+    auto* layer = document.find_layer(fill_id);
+    layer->set_name("Sky");
+    layer->set_opacity(0.4F);
+    layer->set_blend_mode(patchy::BlendMode::Multiply);
+  }
+  canvas->set_gradient_method(patchy::GradientMethod::Radial);
+  canvas->set_gradient_opacity(100);
+  drag(*canvas, to_widget(QPoint(100, 75)), to_widget(QPoint(140, 75)));
+  QApplication::processEvents();
+  CHECK(std::as_const(document).layers().size() == 2);
+  const auto* edited = std::as_const(document).find_layer(fill_id);
+  CHECK(edited != nullptr);
+  if (edited == nullptr) {
+    return;
+  }
+  CHECK(edited->name() == "Sky");
+  CHECK(std::abs(edited->opacity() - 0.4F) < 0.01F);
+  CHECK(edited->blend_mode() == patchy::BlendMode::Multiply);
+  CHECK(edited->mask().has_value());
+  CHECK(edited->vector_shape()->fill.gradient.type == patchy::LayerStyleGradientType::Radial);
+  CHECK(color_close(layer_color(100, 75), QColor(220, 20, 20), 20));
+  undo->trigger();
+  QApplication::processEvents();
+  edited = std::as_const(document).find_layer(fill_id);
+  CHECK(edited != nullptr && edited->vector_shape()->fill.gradient.type == patchy::LayerStyleGradientType::Linear);
+  CHECK(edited != nullptr && edited->name() == "Sky");
+
+  // Pixels mode paints the pixel layer again and adds no layer.
+  mode->setCurrentIndex(0);
+  CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::Pixels);
+  document.set_active_layer(photo_id);
+  canvas->set_gradient_method(patchy::GradientMethod::Linear);
+  drag(*canvas, to_widget(QPoint(30, 75)), to_widget(QPoint(170, 75)));
+  QApplication::processEvents();
+  CHECK(std::as_const(document).layers().size() == 2);
+  CHECK(photo_bytes() != photo_pixels);
+}
+
 void ui_magic_wand_contiguous_and_sample_all_layers_options_work() {
   patchy::Document document(320, 220, patchy::PixelFormat::rgba8());
   auto lower_pixels = solid_pixels(320, 220, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -2157,6 +2297,8 @@ std::vector<patchy::test::TestCase> selection_engines_tests() {
       {"ui_gradient_and_magic_wand_render_visually", ui_gradient_and_magic_wand_render_visually},
       {"ui_radial_gradient_tool_renders_custom_transparency",
        ui_radial_gradient_tool_renders_custom_transparency},
+      {"ui_gradient_tool_fill_layer_mode_makes_and_edits_gradient_fills",
+       ui_gradient_tool_fill_layer_mode_makes_and_edits_gradient_fills},
       {"ui_magic_wand_contiguous_and_sample_all_layers_options_work",
        ui_magic_wand_contiguous_and_sample_all_layers_options_work},
       {"ui_magic_wand_sample_size_averages_the_seed", ui_magic_wand_sample_size_averages_the_seed},

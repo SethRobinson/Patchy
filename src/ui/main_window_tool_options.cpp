@@ -2427,6 +2427,11 @@ void MainWindow::refresh_gradient_controls_from_canvas() {
     const auto index = gradient_method_combo_->findData(static_cast<int>(canvas_->gradient_method()));
     gradient_method_combo_->setCurrentIndex(std::max(0, index));
   }
+  if (gradient_mode_combo_ != nullptr) {
+    QSignalBlocker blocker(gradient_mode_combo_);
+    const auto index = gradient_mode_combo_->findData(static_cast<int>(canvas_->gradient_tool_mode()));
+    gradient_mode_combo_->setCurrentIndex(std::max(0, index));
+  }
   if (gradient_opacity_spin_ != nullptr) {
     QSignalBlocker blocker(gradient_opacity_spin_);
     gradient_opacity_spin_->setValue(canvas_->gradient_opacity());
@@ -3065,6 +3070,12 @@ void MainWindow::load_tool_settings() {
   canvas_->set_gradient_method(gradient_method == static_cast<int>(GradientMethod::Radial) ? GradientMethod::Radial
                                                                                            : GradientMethod::Linear);
   canvas_->set_gradient_reverse(settings.value(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse()).toBool());
+  // A token (GitHub issue 580): "pixels" (the default) or "fillLayer".
+  canvas_->set_gradient_tool_mode(
+      settings.value(QStringLiteral("tools/gradientMode"), QStringLiteral("pixels")).toString() ==
+              QStringLiteral("fillLayer")
+          ? GradientToolMode::FillLayer
+          : GradientToolMode::Pixels);
   canvas_->set_gradient_opacity(settings.value(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity()).toInt());
   if (settings.value(QStringLiteral("tools/gradientUseCustomStops"), false).toBool()) {
     const auto stops = deserialize_gradient_stops(settings.value(QStringLiteral("tools/gradientStops")).toByteArray());
@@ -3520,6 +3531,9 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/zoomToolZoomsOut"), canvas_->zoom_tool_zooms_out());
   settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));
   settings.setValue(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse());
+  settings.setValue(QStringLiteral("tools/gradientMode"),
+                    canvas_->gradient_tool_mode() == GradientToolMode::FillLayer ? QStringLiteral("fillLayer")
+                                                                                  : QStringLiteral("pixels"));
   settings.setValue(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity());
   settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), canvas_->gradient_stops().has_value());
   if (canvas_->gradient_stops().has_value()) {

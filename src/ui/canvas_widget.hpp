@@ -414,6 +414,12 @@ public:
   void set_brush_dynamics_test_seed(std::optional<quint32> seed) noexcept;
   void set_gradient_method(GradientMethod method) noexcept;
   [[nodiscard]] GradientMethod gradient_method() const noexcept;
+  // Pixels paints the active layer; FillLayer routes a released drag on a layer's
+  // content to gradient_fill_drawn_callback_ (mask, channel and Quick Mask targets
+  // keep painting), and its preview covers the canvas.
+  void set_gradient_tool_mode(GradientToolMode mode) noexcept;
+  [[nodiscard]] GradientToolMode gradient_tool_mode() const noexcept;
+  void set_gradient_fill_drawn_callback(std::function<void(QPoint, QPoint)> callback);
   void set_gradient_reverse(bool reverse) noexcept;
   [[nodiscard]] bool gradient_reverse() const noexcept;
   void set_gradient_opacity(int opacity) noexcept;
@@ -3137,6 +3143,9 @@ private:
   std::optional<BrushStrokeLayerSnapshot> brush_stroke_layer_snapshot_;
   QPoint clone_source_point_{};
   QPoint clone_source_offset_{};
+  // True when a Gradient drag goes to a Gradient Fill layer instead of the pixels (Fill
+  // Layer mode on a layer's content).
+  [[nodiscard]] bool gradient_drag_makes_fill_layer() const;
   QPoint shape_start_{};
   QPoint shape_current_{};
   bool shape_square_constrained_{false};
@@ -3377,6 +3386,8 @@ private:
   mutable QString brush_outline_overlay_key_;
   mutable QRect brush_outline_drawn_rect_{};  // the hover outline as last painted
   GradientMethod gradient_method_{GradientMethod::Linear};
+  GradientToolMode gradient_tool_mode_{GradientToolMode::Pixels};
+  std::function<void(QPoint, QPoint)> gradient_fill_drawn_callback_;
   bool gradient_reverse_{false};
   int gradient_opacity_{100};
   std::optional<std::vector<GradientStop>> gradient_stops_;

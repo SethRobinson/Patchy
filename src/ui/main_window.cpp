@@ -6061,6 +6061,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         }
         handle_vector_shape_drawn(kind, bounds, line_start, line_end);
       });
+  canvas->set_gradient_fill_drawn_callback([this, canvas](QPoint from, QPoint to) {
+    if (canvas != canvas_) {
+      return;
+    }
+    handle_gradient_fill_drawn(from, to);
+  });
   canvas->set_shape_create_requested_callback([this, canvas](CanvasTool tool, QPointF document_point) {
     if (canvas != canvas_) {
       return;
