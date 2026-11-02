@@ -31788,6 +31788,30 @@ Fixiert: %1</translation>
         <source>Reverted %1</source>
         <translation>%1 wurde neu geladen</translation>
     </message>
+    <message>
+        <source>Fill Layer</source>
+        <translation>Füllebene</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>Was ein Ziehen erzeugt: gemalte Pixel oder eine Verlaufsfüllungsebene (eine neue oder die ausgewählte Verlaufsfüllungsebene neu gezeichnet)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Entsperren Sie die Verlaufsfüllungsebene, um ihren Verlauf zu ändern</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>Verlaufsfüllung bearbeiten</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>Verlauf von %1 geändert.</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>Neue Verlaufsfüllung</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

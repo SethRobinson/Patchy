@@ -31788,6 +31788,30 @@ Verrouillé : %1</translation>
         <source>Reverted %1</source>
         <translation>%1 a été rechargé</translation>
     </message>
+    <message>
+        <source>Fill Layer</source>
+        <translation>Calque de remplissage</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>Ce que crée un glissement : des pixels peints, ou un calque de fond dégradé (un nouveau, ou le calque de fond dégradé sélectionné redessiné)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Déverrouillez le calque de fond dégradé pour modifier son dégradé</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>Modifier le fond dégradé</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>Dégradé de %1 modifié.</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>Nouveau fond dégradé</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -973,6 +973,23 @@ GradientMethod CanvasWidget::gradient_method() const noexcept {
   return gradient_method_;
 }
 
+void CanvasWidget::set_gradient_tool_mode(GradientToolMode mode) noexcept {
+  gradient_tool_mode_ = mode;
+}
+
+GradientToolMode CanvasWidget::gradient_tool_mode() const noexcept {
+  return gradient_tool_mode_;
+}
+
+void CanvasWidget::set_gradient_fill_drawn_callback(std::function<void(QPoint, QPoint)> callback) {
+  gradient_fill_drawn_callback_ = std::move(callback);
+}
+
+bool CanvasWidget::gradient_drag_makes_fill_layer() const {
+  return tool_ == CanvasTool::Gradient && gradient_tool_mode_ == GradientToolMode::FillLayer &&
+         gradient_fill_drawn_callback_ && !quick_mask_active_ && layer_edit_target_ == LayerEditTarget::Content;
+}
+
 void CanvasWidget::set_gradient_reverse(bool reverse) noexcept {
   gradient_reverse_ = reverse;
 }

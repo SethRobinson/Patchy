@@ -151,6 +151,7 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
   SettingsValueRestorer saved_eraser_opacity(QStringLiteral("tools/eraserOpacity"));
   SettingsValueRestorer saved_eraser_softness(QStringLiteral("tools/eraserSoftness"));
   SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_mode(QStringLiteral("tools/gradientMode"));
   SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
   SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
   SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
@@ -170,6 +171,7 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
     settings.setValue(QStringLiteral("tools/eraserOpacity"), 15);
     settings.setValue(QStringLiteral("tools/eraserSoftness"), 95);
     settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(patchy::GradientMethod::Radial));
+    settings.setValue(QStringLiteral("tools/gradientMode"), QStringLiteral("fillLayer"));
     settings.setValue(QStringLiteral("tools/gradientReverse"), true);
     settings.setValue(QStringLiteral("tools/gradientOpacity"), 66);
     settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), true);
@@ -187,8 +189,15 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
   auto* brush_airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
   auto* gradient_method = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  auto* gradient_mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
   auto* gradient_opacity = window.findChild<QSpinBox*>(QStringLiteral("gradientOpacitySpin"));
   auto* gradient_reverse = window.findChild<QCheckBox*>(QStringLiteral("gradientReverseCheck"));
+  CHECK(gradient_mode != nullptr);
+  if (gradient_mode != nullptr) {
+    // The Gradient tool's Fill Layer mode (GitHub issue 580) comes back too.
+    CHECK(gradient_mode->currentIndex() == 1);
+    CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::FillLayer);
+  }
   CHECK(brush_preset != nullptr);
   CHECK(brush_size != nullptr);
   CHECK(brush_opacity != nullptr);

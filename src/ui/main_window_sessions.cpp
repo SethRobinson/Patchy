@@ -157,6 +157,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_eyedropper_picks_background(current_eyedropper_picks_background_);
     session->canvas->set_eyedropper_show_sample_ring(current_eyedropper_show_sample_ring_);
     session->canvas->set_gradient_method(canvas_->gradient_method());
+    session->canvas->set_gradient_tool_mode(canvas_->gradient_tool_mode());
     session->canvas->set_gradient_reverse(canvas_->gradient_reverse());
     session->canvas->set_gradient_opacity(canvas_->gradient_opacity());
     session->canvas->set_gradient_stops(canvas_->gradient_stops());

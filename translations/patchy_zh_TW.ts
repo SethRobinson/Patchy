@@ -31705,6 +31705,30 @@ Locked: %1</source>
         <source>Reverted %1</source>
         <translation>已回復 %1</translation>
     </message>
+    <message>
+        <source>Fill Layer</source>
+        <translation>填滿圖層</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>拖曳產生的內容：繪製的像素，或漸層填色圖層（新增一個，或重新繪製所選的漸層填色圖層）</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>請解除鎖定漸層填色圖層以變更其漸層</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>編輯漸層填色</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>已變更 %1 的漸層。</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>新增漸層填色</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -2017,7 +2017,11 @@ private:
   void create_fill_layer_with_appearance(const VectorFill& fill, const QString& name);
   [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name);
   [[nodiscard]] QString unique_fill_layer_name(const QString& base);
-  void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label);
+  void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label,
+                         float opacity = 1.0F);
+  // The Gradient tool's Fill Layer mode (GitHub issue 580): a released drag rewrites the
+  // active Gradient Fill layer's gradient, or adds a new Gradient Fill layer above.
+  void handle_gradient_fill_drawn(QPoint from, QPoint to);
   void new_solid_color_fill_layer();
   void new_gradient_fill_layer();
   void new_pattern_fill_layer();
@@ -3384,6 +3388,7 @@ private:
   double round_brush_base_angle_degrees_{0.0};
   double round_brush_base_roundness_{100.0};
   QComboBox* gradient_method_combo_{nullptr};
+  QComboBox* gradient_mode_combo_{nullptr};
   QSpinBox* gradient_opacity_spin_{nullptr};
   QSlider* gradient_opacity_slider_{nullptr};
   QCheckBox* gradient_reverse_check_{nullptr};

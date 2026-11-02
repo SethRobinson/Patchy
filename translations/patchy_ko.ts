@@ -31705,6 +31705,30 @@ Locked: %1</source>
         <source>Reverted %1</source>
         <translation>%1을(를) 되돌렸습니다</translation>
     </message>
+    <message>
+        <source>Fill Layer</source>
+        <translation>채우기 레이어</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>드래그로 만드는 것: 칠한 픽셀, 또는 그레이디언트 채우기 레이어 (새 레이어, 또는 선택한 그레이디언트 채우기 레이어를 다시 그림)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>그레이디언트를 변경하려면 그레이디언트 채우기 레이어의 잠금을 해제하세요</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>그레이디언트 채우기 편집</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>%1의 그레이디언트를 변경했습니다.</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>새 그레이디언트 채우기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

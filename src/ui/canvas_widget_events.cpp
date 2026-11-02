@@ -1754,7 +1754,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         !quick_mask_active_ &&
         (layer_edit_target_ == LayerEditTarget::Content ||
          (layer_edit_target_ == LayerEditTarget::VectorMask && vector_mask_target_layer() != nullptr));
-    if (vector_shape_drag ||
+    // A Fill Layer mode gradient (GitHub issue 580) likewise leaves the pixels alone.
+    if (vector_shape_drag || gradient_drag_makes_fill_layer() ||
         begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape"))) {
       const auto snapped_point = snapped_document_point(document_point);
       clear_brush_stroke_tracking();
@@ -3680,6 +3681,17 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       // width is right - left (not QRect's inclusive-pixel width).
       const QRectF bounds(QPointF(corner_rect.topLeft()), QPointF(corner_rect.bottomRight()));
       vector_shape_drawn_callback_(kind, bounds, QPointF(shape_start_), QPointF(shape_current_));
+      return;
+    }
+    // Fill Layer mode hands the drag to MainWindow, which makes or rewrites a
+    // Gradient Fill layer with its own undo entry (GitHub issue 580).
+    if (gradient_drag_makes_fill_layer()) {
+      drawing_shape_ = false;
+      clear_brush_stroke_tracking();
+      update();
+      if (shape_current_ != shape_start_) {
+        gradient_fill_drawn_callback_(shape_start_, shape_current_);
+      }
       return;
     }
     QRect preview_rect = normalized_rect(shape_from, shape_end);

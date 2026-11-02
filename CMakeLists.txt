@@ -148,6 +148,7 @@ if(NOT MSVC)
 endif()
 
 add_library(patchy_core
+  src/core/gradient_fill_drag.cpp
   src/core/gradient_presets.cpp
   src/core/adjustment_deep.cpp
   src/core/adjustment_layer.cpp

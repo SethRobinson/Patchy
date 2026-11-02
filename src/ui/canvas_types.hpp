@@ -129,6 +129,14 @@ enum class VectorToolMode {
   Pixels
 };
 
+// What a Gradient tool drag produces (GitHub issue 580): painted pixels, or a
+// Gradient Fill layer (a new one, or the active one rewritten). FillLayer drags
+// hand their end points to MainWindow through gradient_fill_drawn_callback_.
+enum class GradientToolMode {
+  Pixels,
+  FillLayer
+};
+
 // Action that can be bound to a pen barrel/side button. These are the actions
 // that are useful to trigger directly from the pen while painting. Tablet pad
 // "express keys" are intentionally not represented here: no desktop tablet
