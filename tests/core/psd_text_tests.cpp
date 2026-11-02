@@ -2178,8 +2178,9 @@ void psd_text_character_styles_import_photoshop_sample_if_available() {
   all("Small Caps", "smallcaps");
   all("Underline", "underline");
   all("Strikethrough", "strikethrough");
-  all("10th of Ordinals", "ordinals");
-  all("Fractions 1/2", "fractions");
+  // Photoshop turns Standard Ligatures off on the Ordinals and Fractions runs.
+  all("10th of Ordinals", "ordinals,noligatures");
+  all("Fractions 1/2", "fractions,noligatures");
   all("Faux Bold", "-");
   // "Super" + "script": only the second run is raised (likewise "Sub" + "script" lowered).
   const auto super = tokens_of("Superscript");
