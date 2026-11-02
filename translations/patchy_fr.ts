@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Remplir uniquement là où le calque a déjà des pixels, en gardant leur opacité</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>D&apos;après le contenu</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Faites une sélection pour la remplir à partir de ses alentours</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Ajouter à un nouveau calque</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Placer le remplissage d&apos;après le contenu sur un nouveau calque au-dessus de celui-ci, transparent hors de la sélection</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>D&apos;après le contenu remplit avec les pixels autour de la sélection</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14411,10 +14431,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Un contour prédéfini nommé « %1 » existe déjà.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Contour prédéfini intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Aucun contour prédéfini enregistré. Dans Apparence de la forme, réglez le contour puis cliquez sur Enregistrer... à côté de Tirets.</translation>
     </message>
@@ -14740,6 +14756,30 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>The preset could not be exported.</source>
         <translation>Impossible d&apos;exporter le préréglage.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>décalage %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 copie</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 copie %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Contour prédéfini intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé. Dupliquez-le pour obtenir une copie modifiable.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Longueurs des tirets et des espaces en largeurs de contour, séparées par des espaces, par exemple 4 2 ou 6 2 1 2 ; laissez vide pour un trait plein</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Copier le contour prédéfini sélectionné dans un nouveau contour enregistré que vous pouvez renommer et modifier</translation>
     </message>
     <message>
         <source>Fill layer. Double-click to edit its settings.</source>
@@ -31823,6 +31863,22 @@ Verrouillé : %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Nouveau fond dégradé</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Le remplissage d&apos;après le contenu a besoin d&apos;une sélection : sélectionnez d&apos;abord la zone à remplir</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Remplissage d&apos;après le contenu</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Sélection remplie avec le remplissage d&apos;après le contenu (%1 pièces)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Sélection remplie avec le remplissage d&apos;après le contenu sur un nouveau calque (%1 pièces)</translation>
     </message>
     <message>
         <source>Edit Fill Settings...</source>

@@ -895,11 +895,27 @@ PatternLibrary& MainWindow::pattern_library() {
   return *pattern_library_;
 }
 
+namespace {
+
+GradientPreviewColors gradient_preview_colors(QColor foreground, QColor background) {
+  const auto rgb = [](QColor color) {
+    return RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                    static_cast<std::uint8_t>(color.blue())};
+  };
+  return {rgb(foreground), rgb(background)};
+}
+
+}  // namespace
+
 GradientLibrary& MainWindow::gradient_library() {
   if (gradient_library_ == nullptr) {
     // Built on first use, which is startup (docs/startup-performance.md).
     const startup_trace::Scope library_phase("mw.lib.gradients");
     gradient_library_ = new GradientLibrary({}, this);
+    // Preset previews draw Foreground/Background stops in the current colors (GitHub #581).
+    gradient_library_->set_preview_colors(gradient_preview_colors(
+        canvas_ != nullptr ? canvas_->primary_color() : foreground_color_,
+        canvas_ != nullptr ? canvas_->secondary_color() : background_color_));
     auto settings = app_settings();
     const auto stored_version =
         stored_default_asset_version(settings, QStringLiteral("gradients/defaultGradientsVersion"));
@@ -2265,6 +2281,9 @@ void MainWindow::refresh_color_buttons() {
   stash_active_colors();
   const auto primary_color = canvas_ != nullptr ? canvas_->primary_color() : foreground_color_;
   const auto secondary_color = canvas_ != nullptr ? canvas_->secondary_color() : background_color_;
+  if (gradient_library_ != nullptr) {
+    gradient_library_->set_preview_colors(gradient_preview_colors(primary_color, secondary_color));
+  }
   const auto named_tooltip = [this](const QString& text, QColor color) {
     if (!has_active_document()) { return text; }
     const auto name = palette_color_name(std::as_const(document()),

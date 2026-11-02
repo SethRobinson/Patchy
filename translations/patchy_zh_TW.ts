@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>只在圖層已有像素的地方填滿，並保留其不透明度</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>內容感知</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>建立選取範圍後可依其周圍內容填色</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>加入新圖層</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>將內容感知填色放到此圖層上方的新圖層,選取範圍外保持透明</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>內容感知使用選取範圍周圍的像素填色</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14368,10 +14388,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>已有名為「%1」的筆畫預設集。</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>內建預設集：可以使用，但不能重新命名、移動或刪除。</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>還沒有儲存的筆畫預設集。請在「形狀外觀」中設定筆畫，然後按一下「虛線」旁的「儲存...」。</translation>
     </message>
@@ -14696,6 +14712,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>無法匯出預設集。</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>位移 %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 拷貝</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 拷貝 %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>內建預設集：可以使用，但不能重新命名、移動或刪除。複製它可得到可編輯的拷貝。</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>以筆畫寬度為單位的虛線和間隙長度，以空格分隔，例如 4 2 或 6 2 1 2；留空則為實線</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>將所選預設集複製為可重新命名和編輯的新儲存預設集</translation>
     </message>
     <message>
         <source>Fill layer. Double-click to edit its settings.</source>
@@ -31740,6 +31780,22 @@ Locked: %1</source>
     <message>
         <source>New Gradient Fill</source>
         <translation>新增漸層填色</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>內容感知填色需要選取範圍:請先選取要填色的區域</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>內容感知填色</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>已使用內容感知填色填滿選取範圍 (%1 個修補片)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>已使用內容感知填色在新圖層上填滿選取範圍 (%1 個修補片)</translation>
     </message>
     <message>
         <source>Edit Fill Settings...</source>

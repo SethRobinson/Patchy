@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14394,10 +14414,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14722,6 +14738,30 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>The preset could not be exported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -31741,6 +31781,22 @@ Locked: %1</source>
     </message>
     <message>
         <source>New Gradient Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

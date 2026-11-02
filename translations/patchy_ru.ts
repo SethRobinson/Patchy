@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Заливать только там, где на слое уже есть пиксели, сохраняя их непрозрачность</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>С учётом содержимого</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Создайте выделение, чтобы заполнить его по окружению</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Добавить на новый слой</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Поместить заливку с учётом содержимого на новый слой над этим, прозрачный вне выделения</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>Заливка с учётом содержимого берёт пиксели вокруг выделения</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14454,10 +14474,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Набор обводки с именем «%1» уже существует.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Встроенный набор: его можно использовать, но нельзя переименовать, переместить или удалить.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Сохранённых наборов обводки пока нет. В окне «Внешний вид фигуры» настройте обводку и нажмите «Сохранить...» рядом со штрихами.</translation>
     </message>
@@ -14784,6 +14800,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>Не удалось экспортировать набор.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>смещение %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 копия</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 копия %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Встроенный набор: его можно использовать, но нельзя переименовать, переместить или удалить. Создайте дубликат, чтобы получить копию для правки.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Длины штрихов и промежутков в ширинах обводки через пробел, например 4 2 или 6 2 1 2; оставьте пустым для сплошной линии</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Скопировать выбранную настройку в новую сохранённую, которую можно переименовать и изменить</translation>
     </message>
     <message>
         <source>Fill layer. Double-click to edit its settings.</source>
@@ -31906,6 +31946,22 @@ Locked: %1</source>
     <message>
         <source>New Gradient Fill</source>
         <translation>Новая градиентная заливка</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Для заливки с учётом содержимого требуется выделение: сначала выберите область, которую нужно залить</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Заливка с учётом содержимого</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Выделение залито с учётом содержимого (фрагментов: %1)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Выделение залито с учётом содержимого на новом слое (фрагментов: %1)</translation>
     </message>
     <message>
         <source>Edit Fill Settings...</source>

@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>레이어에 이미 픽셀이 있는 곳만 칠하고 그 불투명도를 유지합니다</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>내용 인식</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>선택 영역을 만들면 주변 내용으로 채웁니다.</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>새 레이어에 추가</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>내용 인식 채우기를 이 레이어 위의 새 레이어에 넣고 선택 영역 밖은 투명하게 둡니다.</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>내용 인식은 선택 영역 주변의 픽셀로 채웁니다.</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14368,10 +14388,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>&quot;%1&quot;(이)라는 획 사전 설정이 이미 있습니다.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>기본 제공 사전 설정: 사용할 수 있지만 이름 바꾸기, 이동, 삭제는 할 수 없습니다.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>저장된 획 사전 설정이 아직 없습니다. 모양 외형에서 획을 설정한 다음 점선 패턴 옆의 저장...을 클릭하세요.</translation>
     </message>
@@ -14696,6 +14712,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>사전 설정을 내보낼 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>오프셋 %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 사본</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 사본 %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>기본 제공 사전 설정: 사용할 수 있지만 이름 바꾸기, 이동, 삭제는 할 수 없습니다. 복제하면 편집할 수 있는 사본이 만들어집니다.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>획 두께 단위의 점선과 간격 길이를 공백으로 구분합니다. 예: 4 2 또는 6 2 1 2. 실선은 비워 두세요</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>선택한 사전 설정을 이름을 바꾸고 편집할 수 있는 새 저장된 사전 설정으로 복사합니다</translation>
     </message>
     <message>
         <source>Fill layer. Double-click to edit its settings.</source>
@@ -31740,6 +31780,22 @@ Locked: %1</source>
     <message>
         <source>New Gradient Fill</source>
         <translation>새 그레이디언트 채우기</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>내용 인식 채우기에는 선택이 필요합니다. 먼저 채울 영역을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>내용 인식 채우기</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>내용 인식 채우기로 선택 영역을 채웠습니다(패치 %1개).</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>내용 인식 채우기로 새 레이어에 선택 영역을 채웠습니다(패치 %1개).</translation>
     </message>
     <message>
         <source>Edit Fill Settings...</source>

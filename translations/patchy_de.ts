@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Nur füllen, wo die Ebene schon Pixel hat, und deren Deckkraft behalten</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>Inhaltsbasiert</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Erstellen Sie eine Auswahl, um sie aus ihrer Umgebung zu füllen</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Zu neuer Ebene hinzufügen</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Die inhaltsbasierte Füllung auf eine neue Ebene über dieser legen, außerhalb der Auswahl transparent</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>Inhaltsbasiert füllt mit den Pixeln rund um die Auswahl</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14411,10 +14431,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Es gibt bereits eine Konturvorgabe namens &quot;%1&quot;.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Integrierte Vorgabe: Sie kann verwendet, aber nicht umbenannt, verschoben oder gelöscht werden.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Noch keine gespeicherten Konturvorgaben. Richten Sie in Formdarstellung die Kontur ein und klicken Sie neben Striche auf Speichern...</translation>
     </message>
@@ -14740,6 +14756,30 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>The preset could not be exported.</source>
         <translation>Die Vorgabe konnte nicht exportiert werden.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>Versatz %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 Kopie</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 Kopie %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Integrierte Vorgabe: Sie kann verwendet, aber nicht umbenannt, verschoben oder gelöscht werden. Duplizieren Sie sie, um eine bearbeitbare Kopie zu erhalten.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Strich- und Lückenlängen in Konturbreiten, durch Leerzeichen getrennt, zum Beispiel 4 2 oder 6 2 1 2; leer lassen für eine durchgehende Linie</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Die gewählte Vorgabe als neue gespeicherte Vorgabe kopieren, die Sie umbenennen und bearbeiten können</translation>
     </message>
     <message>
         <source>Fill layer. Double-click to edit its settings.</source>
@@ -31823,6 +31863,22 @@ Fixiert: %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Neue Verlaufsfüllung</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Inhaltsbasierte Füllung benötigt eine Auswahl: Wählen Sie zuerst den zu füllenden Bereich aus</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Inhaltsbasierte Füllung</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Auswahl mit inhaltsbasierter Füllung gefüllt (%1 Patches)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Auswahl mit inhaltsbasierter Füllung auf einer neuen Ebene gefüllt (%1 Patches)</translation>
     </message>
     <message>
         <source>Edit Fill Settings...</source>

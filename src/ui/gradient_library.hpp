@@ -7,6 +7,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <optional>
+
 namespace patchy::ui {
 
 inline constexpr int kDefaultGradientsVersion = 1;
@@ -33,10 +35,29 @@ struct GradientLibraryTraits {
 
 using GradientLibraryBase = PresetLibraryT<GradientLibraryTraits>;
 
+// The current Foreground and Background colors a gradient preview draws a preset's
+// Foreground/Background stops in (GitHub #581).
+struct GradientPreviewColors {
+  RgbColor foreground{0, 0, 0};
+  RgbColor background{255, 255, 255};
+
+  friend bool operator==(const GradientPreviewColors &,
+                         const GradientPreviewColors &) = default;
+};
+
 class GradientLibrary : public GradientLibraryBase {
   Q_OBJECT
 public:
   explicit GradientLibrary(QString storage_dir = {}, QObject *parent = nullptr);
+
+  // The colors every entry's thumbnail draws its Foreground/Background stops in.
+  // MainWindow passes the current pair on each color change; only entries with
+  // such stops redraw, and nothing redraws when the pair is unchanged. It does
+  // not emit changed(): the lists rebuild from the thumbnails when they open.
+  void set_preview_colors(const GradientPreviewColors &colors);
+  [[nodiscard]] const GradientPreviewColors &preview_colors() const noexcept {
+    return preview_colors_;
+  }
 
   QString add_gradient(const QString &name,
                        const GradientDefinition &definition,
@@ -65,10 +86,40 @@ private:
   bool write_sidecar(const GradientLibraryEntry &entry) const;
   bool remove_entry_files(const QString &storage_id);
   [[nodiscard]] QString grd_path(const QString &storage_id) const;
+  [[nodiscard]] QPixmap thumbnail_for(const GradientDefinition &definition) const;
+
+  GradientPreviewColors preview_colors_{};
 };
 
-[[nodiscard]] QPixmap gradient_thumbnail(const GradientDefinition &definition,
-                                         int width = 112, int height = 28);
+// GRD presets may defer stops to the tool colors; shape fills store concrete
+// colors, so resolve at pick time (shared with the options-bar paint pickers).
+[[nodiscard]] GradientDefinition resolve_gradient_definition(GradientDefinition definition,
+                                                             RgbColor foreground,
+                                                             RgbColor background);
+[[nodiscard]] bool gradient_has_dynamic_stops(const GradientDefinition &definition);
+
+// A preset preview: alpha over the transparency checkerboard, Foreground/Background
+// stops in `colors` (their stored placeholder colors without it).
+[[nodiscard]] QPixmap
+gradient_thumbnail(const GradientDefinition &definition, int width = 112,
+                   int height = 28,
+                   const std::optional<GradientPreviewColors> &colors = std::nullopt);
+
+// Whether two gradients draw the same: form, smoothness, color stops (Foreground and
+// Background ones resolved in `colors`) and alpha stops, within what a PSD or GRD
+// round trip keeps; the name is ignored.
+[[nodiscard]] bool gradient_definitions_draw_same(const GradientDefinition &left,
+                                                  const GradientDefinition &right,
+                                                  const GradientPreviewColors &colors);
+// The storage id of the library entry `gradient` was made from, for a preset list
+// to show it (GitHub #578, #579): the entries that draw the same with their
+// Foreground/Background stops in `colors`, preferring one with the gradient's
+// name, then one with Foreground/Background stops (a new Gradient Fill layer's
+// Foreground to Background over Black to White on the default colors), then the
+// first in library order. Empty when none matches.
+[[nodiscard]] QString matching_gradient_library_entry(const GradientLibrary &library,
+                                                      const GradientDefinition &gradient,
+                                                      const GradientPreviewColors &colors);
 [[nodiscard]] QString
 gradient_library_entry_display_name(const GradientLibraryEntry &entry);
 [[nodiscard]] QString gradient_folder_display_name(const QString &folder);
